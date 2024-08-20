@@ -2,7 +2,7 @@ use chrono::Utc;
 use std::io::Write;
 use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
-    ContributionType, PublicationType, RelationType, Work, WorkContributions,
+    ContributionType, Funding, PublicationType, Reference, RelationType, Work, WorkContributions,
     WorkContributionsAffiliationsInstitution, WorkFundings, WorkIssuesSeries, WorkPublications,
     WorkReferences, WorkRelations, WorkRelationsRelatedWorkContributions,
     WorkRelationsRelatedWorkContributionsAffiliationsInstitution, WorkType,
@@ -111,12 +111,12 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                         write_work_volume(ordinal, w)?;
                     }
                     write_work_edition(work, w)?;
-                    write_publication_date(work, w)?;
-                    write_publications(work, w)?;
+                    write_work_publication_date(work, w)?;
+                    write_work_publications(work, w)?;
                     write_publisher(work, w)?;
                     write_crossmark_funding_access(work, w)?;
                     write_doi_collection(work, w)?;
-                    write_references(work, w)?;
+                    write_work_references(work, w)?;
                     Ok(())
                 })?;
 
@@ -135,10 +135,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
     }
 }
 
-fn write_work_contributions<W: Write>(
-    work: &Work,
-    w: &mut EventWriter<W>,
-) -> ThothResult<()> {
+fn write_work_contributions<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
     let contributions: Vec<WorkContributions> = work
         .contributions
         .clone()
@@ -188,10 +185,7 @@ fn write_chapter_contributions<W: Write>(
     Ok(())
 }
 
-fn write_work_title<W: Write>(
-    work: &Work,
-    w: &mut EventWriter<W>,
-) -> ThothResult<()> {
+fn write_work_title<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
     write_title_content(&work.title, work.subtitle.as_deref(), w)
 }
 
@@ -199,7 +193,11 @@ fn write_chapter_title<W: Write>(
     chapter: &WorkRelations,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
-    write_title_content(&chapter.related_work.title, chapter.related_work.subtitle.as_deref(), w)
+    write_title_content(
+        &chapter.related_work.title,
+        chapter.related_work.subtitle.as_deref(),
+        w,
+    )
 }
 
 fn write_title_content<W: Write>(
@@ -209,8 +207,7 @@ fn write_title_content<W: Write>(
 ) -> ThothResult<()> {
     write_element_block("titles", w, |w| {
         write_element_block("title", w, |w| {
-            w.write(XmlEvent::Characters(title))
-                .map_err(|e| e.into())
+            w.write(XmlEvent::Characters(title)).map_err(|e| e.into())
         })?;
         if let Some(subtitle) = subtitle {
             write_element_block("subtitle", w, |w| {
@@ -221,29 +218,6 @@ fn write_title_content<W: Write>(
         Ok(())
     })?;
     Ok(())
-}
-
-fn write_abstract_content<W: Write>(
-    abstract_content: &str,
-    abstract_type: &str,
-    w: &mut EventWriter<W>,
-) -> ThothResult<()> {
-    write_full_element_block(
-        "jats:abstract",
-        Some(vec![("abstract-type", abstract_type)]),
-        w,
-        |w| {
-            for paragraph in abstract_content.lines() {
-                if !paragraph.is_empty() {
-                    write_element_block("jats:p", w, |w| {
-                        w.write(XmlEvent::Characters(paragraph))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-            }
-            Ok(())
-        },
-    )
 }
 
 fn write_work_abstract<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
@@ -277,6 +251,29 @@ fn write_chapter_abstract<W: Write>(
     Ok(())
 }
 
+fn write_abstract_content<W: Write>(
+    abstract_content: &str,
+    abstract_type: &str,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    write_full_element_block(
+        "jats:abstract",
+        Some(vec![("abstract-type", abstract_type)]),
+        w,
+        |w| {
+            for paragraph in abstract_content.lines() {
+                if !paragraph.is_empty() {
+                    write_element_block("jats:p", w, |w| {
+                        w.write(XmlEvent::Characters(paragraph))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+            }
+            Ok(())
+        },
+    )
+}
+
 fn write_work_volume<W: Write>(ordinal: i64, w: &mut EventWriter<W>) -> ThothResult<()> {
     write_element_block("volume", w, |w| {
         w.write(XmlEvent::Characters(&ordinal.to_string()))
@@ -295,22 +292,9 @@ fn write_work_edition<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothRes
     Ok(())
 }
 
-fn write_publication_date<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+fn write_work_publication_date<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
     if let Some(date) = work.publication_date {
-        write_element_block("publication_date", w, |w| {
-            write_element_block("month", w, |w| {
-                w.write(XmlEvent::Characters(&date.format("%m").to_string()))
-                    .map_err(|e| e.into())
-            })?;
-            write_element_block("day", w, |w| {
-                w.write(XmlEvent::Characters(&date.format("%d").to_string()))
-                    .map_err(|e| e.into())
-            })?;
-            write_element_block("year", w, |w| {
-                w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
-                    .map_err(|e| e.into())
-            })
-        })?;
+        write_publication_date_content(&date, w)?;
     } else {
         // `publication_date` element is mandatory for `book_metadata` and `book_series_metadata`
         return Err(ThothError::IncompleteMetadataRecord(
@@ -321,7 +305,37 @@ fn write_publication_date<W: Write>(work: &Work, w: &mut EventWriter<W>) -> Thot
     Ok(())
 }
 
-fn write_publications<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+fn write_chapter_publication_date<W: Write>(
+    chapter: &WorkRelations,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    if let Some(date) = chapter.related_work.publication_date {
+        write_publication_date_content(&date, w)?;
+    }
+    Ok(())
+}
+
+fn write_publication_date_content<W: Write>(
+    date: &chrono::NaiveDate,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    write_element_block("publication_date", w, |w| {
+        write_element_block("month", w, |w| {
+            w.write(XmlEvent::Characters(&date.format("%m").to_string()))
+                .map_err(|e| e.into())
+        })?;
+        write_element_block("day", w, |w| {
+            w.write(XmlEvent::Characters(&date.format("%d").to_string()))
+                .map_err(|e| e.into())
+        })?;
+        write_element_block("year", w, |w| {
+            w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
+                .map_err(|e| e.into())
+        })
+    })
+}
+
+fn write_work_publications<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
     let mut publications: Vec<WorkPublications> = work
         .publications
         .clone()
@@ -451,31 +465,56 @@ fn write_crossmark_funding_access<W: Write>(
 
             // If crossmark metadata is included, funding and access data must be inside the <crossmark> element
             // within <custom_metadata> tag
-            write_element_block("custom_metadata", w, |w| write_funding_access(work, w))
+            write_element_block("custom_metadata", w, |w| write_work_funding_access(work, w))
         })?;
     // If no crossmark metadata, funding and access data go here
     } else {
-        write_funding_access(work, w)?;
+        write_work_funding_access(work, w)?;
     }
     Ok(())
 }
 
-fn write_funding_access<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
-    if !work.fundings.is_empty() {
+fn write_work_funding_access<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+    write_funding_content(&work.fundings, w)?;
+    write_access_content(&work.license, w)?;
+    Ok(())
+}
+
+fn write_chapter_funding_access<W: Write>(
+    chapter: &WorkRelations,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    write_funding_content(&chapter.related_work.fundings, w)?;
+    write_access_content(&chapter.related_work.license, w)?;
+    Ok(())
+}
+
+fn write_funding_content<W: Write>(
+    fundings: &[Funding],
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    if !fundings.is_empty() {
         write_full_element_block("fr:program", Some(vec![("name", "fundref")]), w, |w| {
-            for funding in &work.fundings {
+            for funding in fundings {
                 XmlElementBlock::<DoiDepositCrossref>::xml_element(funding, w)?;
             }
             Ok(())
         })?;
     }
+    Ok(())
+}
+
+fn write_access_content<W: Write>(
+    license: &Option<String>,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
     write_full_element_block(
         "ai:program",
         Some(vec![("name", "AccessIndicators")]),
         w,
         |w| {
             write_element_block("ai:free_to_read", w, |_w| Ok(()))?;
-            if let Some(license) = &work.license {
+            if let Some(license) = license {
                 write_element_block("ai:license_ref", w, |w| {
                     w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
                 })?;
@@ -559,116 +598,6 @@ fn write_doi_collection<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothR
             })?;
         }
     }
-    Ok(())
-}
-
-fn write_references<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
-    if !work.references.is_empty() {
-        write_element_block("citation_list", w, |w| {
-            for reference in &work.references {
-                XmlElementBlock::<DoiDepositCrossref>::xml_element(reference, w)?;
-            }
-            Ok(())
-        })?;
-    }
-    Ok(())
-}
-
-fn write_chapter_component_number<W: Write>(
-    chapter: &WorkRelations,
-    w: &mut EventWriter<W>,
-) -> ThothResult<()> {
-    if let Some(chapter) = Some(chapter.relation_ordinal) {
-        // If the work is a chapter of another work, caller should have passed in its chapter number
-        write_element_block("component_number", w, |w| {
-            w.write(XmlEvent::Characters(&chapter.to_string()))
-                .map_err(|e| e.into())
-        })?;
-    }
-    Ok(())
-}
-
-fn check_chapter_has_no_edition(chapter: &WorkRelations) -> ThothResult<()> {
-    if chapter.related_work.edition.is_some() {
-        return Err(ThothError::IncompleteMetadataRecord(
-            DEPOSIT_ERROR.to_string(),
-            "Chapters cannot have Edition numbers".to_string(),
-        ));
-    }
-    Ok(())
-}
-
-fn write_chapter_publication_date<W: Write>(
-    chapter: &WorkRelations,
-    w: &mut EventWriter<W>,
-) -> ThothResult<()> {
-    if let Some(date) = chapter.related_work.publication_date {
-        write_element_block("publication_date", w, |w| {
-            write_element_block("month", w, |w| {
-                w.write(XmlEvent::Characters(&date.format("%m").to_string()))
-                    .map_err(|e| e.into())
-            })?;
-            write_element_block("day", w, |w| {
-                w.write(XmlEvent::Characters(&date.format("%d").to_string()))
-                    .map_err(|e| e.into())
-            })?;
-            write_element_block("year", w, |w| {
-                w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
-                    .map_err(|e| e.into())
-            })
-        })?;
-    }
-    Ok(())
-}
-
-fn write_chapter_pages<W: Write>(
-    chapter: &WorkRelations,
-    w: &mut EventWriter<W>,
-) -> ThothResult<()> {
-    if let Some(first_page) = &chapter.related_work.first_page {
-        write_element_block("pages", w, |w| {
-            write_element_block("first_page", w, |w| {
-                w.write(XmlEvent::Characters(first_page))
-                    .map_err(|e| e.into())
-            })?;
-            if let Some(last_page) = &chapter.related_work.last_page {
-                write_element_block("last_page", w, |w| {
-                    w.write(XmlEvent::Characters(last_page))
-                        .map_err(|e| e.into())
-                })?;
-            }
-            Ok(())
-        })?;
-    }
-    Ok(())
-}
-
-fn write_chapter_funding_access<W: Write>(
-    chapter: &WorkRelations,
-    w: &mut EventWriter<W>,
-) -> ThothResult<()> {
-    if !chapter.related_work.fundings.is_empty() {
-        write_full_element_block("fr:program", Some(vec![("name", "fundref")]), w, |w| {
-            for funding in &chapter.related_work.fundings {
-                XmlElementBlock::<DoiDepositCrossref>::xml_element(funding, w)?;
-            }
-            Ok(())
-        })?;
-    }
-    write_full_element_block(
-        "ai:program",
-        Some(vec![("name", "AccessIndicators")]),
-        w,
-        |w| {
-            write_element_block("ai:free_to_read", w, |_w| Ok(()))?;
-            if let Some(license) = &chapter.related_work.license {
-                write_element_block("ai:license_ref", w, |w| {
-                    w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
-                })?;
-            }
-            Ok(())
-        },
-    )?;
     Ok(())
 }
 
@@ -766,14 +695,71 @@ fn write_chapter_doi_collection<W: Write>(
     Ok(())
 }
 
+fn write_work_references<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+    write_references_content(&work.references, w)
+}
+
 fn write_chapter_references<W: Write>(
     chapter: &WorkRelations,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
-    if !chapter.related_work.references.is_empty() {
+    write_references_content(&chapter.related_work.references, w)
+}
+
+fn write_references_content<W: Write>(
+    references: &[Reference],
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    if !references.is_empty() {
         write_element_block("citation_list", w, |w| {
-            for reference in &chapter.related_work.references {
+            for reference in references {
                 XmlElementBlock::<DoiDepositCrossref>::xml_element(reference, w)?;
+            }
+            Ok(())
+        })?;
+    }
+    Ok(())
+}
+
+fn write_chapter_component_number<W: Write>(
+    chapter: &WorkRelations,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    if let Some(chapter) = Some(chapter.relation_ordinal) {
+        // If the work is a chapter of another work, caller should have passed in its chapter number
+        write_element_block("component_number", w, |w| {
+            w.write(XmlEvent::Characters(&chapter.to_string()))
+                .map_err(|e| e.into())
+        })?;
+    }
+    Ok(())
+}
+
+fn check_chapter_has_no_edition(chapter: &WorkRelations) -> ThothResult<()> {
+    if chapter.related_work.edition.is_some() {
+        return Err(ThothError::IncompleteMetadataRecord(
+            DEPOSIT_ERROR.to_string(),
+            "Chapters cannot have Edition numbers".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn write_chapter_pages<W: Write>(
+    chapter: &WorkRelations,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    if let Some(first_page) = &chapter.related_work.first_page {
+        write_element_block("pages", w, |w| {
+            write_element_block("first_page", w, |w| {
+                w.write(XmlEvent::Characters(first_page))
+                    .map_err(|e| e.into())
+            })?;
+            if let Some(last_page) = &chapter.related_work.last_page {
+                write_element_block("last_page", w, |w| {
+                    w.write(XmlEvent::Characters(last_page))
+                        .map_err(|e| e.into())
+                })?;
             }
             Ok(())
         })?;
