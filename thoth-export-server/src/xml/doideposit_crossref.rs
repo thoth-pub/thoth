@@ -102,15 +102,15 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                     if let Some(series) = self.issues.first().map(|i| (&i.series)) {
                         XmlElementBlock::<DoiDepositCrossref>::xml_element(series, w)?;
                     }
-                    write_contributions(work, w)?;
+                    write_work_contributions(work, w)?;
                     write_work_title(work, w)?;
-                    write_abstract(work, w)?;
+                    write_work_abstract(work, w)?;
 
                     if let Some(ordinal) = self.issues.first().map(|i| (i.issue_ordinal)) {
                         // If the work is part of a series, caller should have passed in its issue number
-                        write_volume(ordinal, w)?;
+                        write_work_volume(ordinal, w)?;
                     }
-                    write_edition(work, w)?;
+                    write_work_edition(work, w)?;
                     write_publication_date(work, w)?;
                     write_publications(work, w)?;
                     write_publisher(work, w)?;
@@ -135,8 +135,38 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
     }
 }
 
-fn write_contributions<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+fn write_work_contributions<W: Write>(
+    work: &Work,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
     let contributions: Vec<WorkContributions> = work
+        .contributions
+        .clone()
+        .into_iter()
+        // Only Author, Editor and Translator are supported by this format. Omit any other contributors.
+        .filter(|c| {
+            c.contribution_type == ContributionType::AUTHOR
+                || c.contribution_type == ContributionType::EDITOR
+                || c.contribution_type == ContributionType::TRANSLATOR
+        })
+        .collect();
+    if !contributions.is_empty() {
+        write_element_block("contributors", w, |w| {
+            for contribution in &contributions {
+                XmlElementBlock::<DoiDepositCrossref>::xml_element(contribution, w)?;
+            }
+            Ok(())
+        })?;
+    }
+    Ok(())
+}
+
+fn write_chapter_contributions<W: Write>(
+    chapter: &WorkRelations,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    let contributions: Vec<WorkRelationsRelatedWorkContributions> = chapter
+        .related_work
         .contributions
         .clone()
         .into_iter()
@@ -162,17 +192,17 @@ fn write_work_title<W: Write>(
     work: &Work,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
-    write_title(&work.title, work.subtitle.as_deref(), w)
+    write_title_content(&work.title, work.subtitle.as_deref(), w)
 }
 
 fn write_chapter_title<W: Write>(
     chapter: &WorkRelations,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
-    write_title(&chapter.related_work.title, chapter.related_work.subtitle.as_deref(), w)
+    write_title_content(&chapter.related_work.title, chapter.related_work.subtitle.as_deref(), w)
 }
 
-fn write_title<W: Write>(
+fn write_title_content<W: Write>(
     title: &str,
     subtitle: Option<&str>,
     w: &mut EventWriter<W>,
@@ -193,51 +223,61 @@ fn write_title<W: Write>(
     Ok(())
 }
 
-fn write_abstract<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+fn write_abstract_content<W: Write>(
+    abstract_content: &str,
+    abstract_type: &str,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    write_full_element_block(
+        "jats:abstract",
+        Some(vec![("abstract-type", abstract_type)]),
+        w,
+        |w| {
+            for paragraph in abstract_content.lines() {
+                if !paragraph.is_empty() {
+                    write_element_block("jats:p", w, |w| {
+                        w.write(XmlEvent::Characters(paragraph))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+            }
+            Ok(())
+        },
+    )
+}
+
+fn write_work_abstract<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
     // Crossref supports multiple abstracts when tagged with the "abstract-type" attribute,
     // which can be set to any value. In our case we use "long" or "short".
     // Abstracts must be output in JATS, we simply convert them into JATS by extracting its
     // paragraphs and tagging them with <jats:p>
     if let Some(long_abstract) = &work.long_abstract {
-        write_full_element_block(
-            "jats:abstract",
-            Some(vec![("abstract-type", "long")]),
-            w,
-            |w| {
-                for paragraph in long_abstract.lines() {
-                    if !paragraph.is_empty() {
-                        write_element_block("jats:p", w, |w| {
-                            w.write(XmlEvent::Characters(paragraph))
-                                .map_err(|e| e.into())
-                        })?;
-                    }
-                }
-                Ok(())
-            },
-        )?;
+        write_abstract_content(long_abstract, "long", w)?;
     }
     if let Some(short_abstract) = &work.short_abstract {
-        write_full_element_block(
-            "jats:abstract",
-            Some(vec![("abstract-type", "short")]),
-            w,
-            |w| {
-                for paragraph in short_abstract.lines() {
-                    if !paragraph.is_empty() {
-                        write_element_block("jats:p", w, |w| {
-                            w.write(XmlEvent::Characters(paragraph))
-                                .map_err(|e| e.into())
-                        })?;
-                    }
-                }
-                Ok(())
-            },
-        )?;
+        write_abstract_content(short_abstract, "short", w)?;
     }
     Ok(())
 }
 
-fn write_volume<W: Write>(ordinal: i64, w: &mut EventWriter<W>) -> ThothResult<()> {
+fn write_chapter_abstract<W: Write>(
+    chapter: &WorkRelations,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    // Crossref supports multiple abstracts when tagged with the "abstract-type" attribute,
+    // which can be set to any value. In our case we use "long" or "short".
+    // Abstracts must be output in JATS, we simply convert them into JATS by extracting its
+    // paragraphs and tagging them with <jats:p>
+    if let Some(long_abstract) = &chapter.related_work.long_abstract {
+        write_abstract_content(long_abstract, "long", w)?;
+    }
+    if let Some(short_abstract) = &chapter.related_work.short_abstract {
+        write_abstract_content(short_abstract, "short", w)?;
+    }
+    Ok(())
+}
+
+fn write_work_volume<W: Write>(ordinal: i64, w: &mut EventWriter<W>) -> ThothResult<()> {
     write_element_block("volume", w, |w| {
         w.write(XmlEvent::Characters(&ordinal.to_string()))
             .map_err(|e| e.into())
@@ -245,7 +285,7 @@ fn write_volume<W: Write>(ordinal: i64, w: &mut EventWriter<W>) -> ThothResult<(
     Ok(())
 }
 
-fn write_edition<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+fn write_work_edition<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
     if let Some(edition) = work.edition {
         write_element_block("edition_number", w, |w| {
             w.write(XmlEvent::Characters(&edition.to_string()))
@@ -530,82 +570,6 @@ fn write_references<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResul
             }
             Ok(())
         })?;
-    }
-    Ok(())
-}
-
-fn write_chapter_contributions<W: Write>(
-    chapter: &WorkRelations,
-    w: &mut EventWriter<W>,
-) -> ThothResult<()> {
-    // Only Author, Editor and Translator are supported by this format. Omit any other contributors.
-    let contributions: Vec<WorkRelationsRelatedWorkContributions> = chapter
-        .related_work
-        .contributions
-        .clone()
-        .into_iter()
-        .filter(|c| {
-            c.contribution_type == ContributionType::AUTHOR
-                || c.contribution_type == ContributionType::EDITOR
-                || c.contribution_type == ContributionType::TRANSLATOR
-        })
-        .collect();
-    if !contributions.is_empty() {
-        write_element_block("contributors", w, |w| {
-            for contribution in &contributions {
-                XmlElementBlock::<DoiDepositCrossref>::xml_element(contribution, w)?;
-            }
-            Ok(())
-        })?;
-    }
-    Ok(())
-}
-
-
-
-fn write_chapter_abstract<W: Write>(
-    chapter: &WorkRelations,
-    w: &mut EventWriter<W>,
-) -> ThothResult<()> {
-    // Crossref supports multiple abstracts when tagged with the "abstract-type" attribute,
-    // which can be set to any value. In our case we use "long" or "short".
-    // Abstracts must be output in JATS, we simply convert them into JATS by extracting its
-    // paragraphs and tagging them with <jats:p>
-    if let Some(long_abstract) = &chapter.related_work.long_abstract {
-        write_full_element_block(
-            "jats:abstract",
-            Some(vec![("abstract-type", "long")]),
-            w,
-            |w| {
-                for paragraph in long_abstract.lines() {
-                    if !paragraph.is_empty() {
-                        write_element_block("jats:p", w, |w| {
-                            w.write(XmlEvent::Characters(paragraph))
-                                .map_err(|e| e.into())
-                        })?;
-                    }
-                }
-                Ok(())
-            },
-        )?;
-    }
-    if let Some(short_abstract) = &chapter.related_work.short_abstract {
-        write_full_element_block(
-            "jats:abstract",
-            Some(vec![("abstract-type", "short")]),
-            w,
-            |w| {
-                for paragraph in short_abstract.lines() {
-                    if !paragraph.is_empty() {
-                        write_element_block("jats:p", w, |w| {
-                            w.write(XmlEvent::Characters(paragraph))
-                                .map_err(|e| e.into())
-                        })?;
-                    }
-                }
-                Ok(())
-            },
-        )?;
     }
     Ok(())
 }
