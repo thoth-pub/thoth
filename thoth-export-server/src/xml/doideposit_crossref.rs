@@ -99,17 +99,21 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
             write_full_element_block("book", Some(vec![("book_type", work_type)]), w, |w| {
                 write_full_element_block(element_name, Some(vec![("language", "en")]), w, |w| {
                     // Only one series can be listed, so we select the first one found (if any).
-                    if let Some(series) = self.issues.first().map(|i| (&i.series)) {
+                    let mut ordinal = None;
+                    if let Some((series, ord)) =
+                        self.issues.first().map(|i| (&i.series, i.issue_ordinal)) {
                         XmlElementBlock::<DoiDepositCrossref>::xml_element(series, w)?;
+                        ordinal = Some(ord);
                     }
                     write_work_contributions(work, w)?;
                     write_work_title(work, w)?;
                     write_work_abstract(work, w)?;
 
-                    if let Some(ordinal) = self.issues.first().map(|i| (i.issue_ordinal)) {
-                        // If the work is part of a series, caller should have passed in its issue number
-                        write_work_volume(ordinal, w)?;
+                    if ordinal.is_some() {
+                        let ordinal_i64 = ordinal.unwrap_or(0);
+                        write_work_volume(ordinal_i64, w)?;
                     }
+
                     write_work_edition(work, w)?;
                     write_work_publication_date(work, w)?;
                     write_work_publications(work, w)?;
@@ -346,8 +350,10 @@ fn write_work_publications<W: Write>(work: &Work, w: &mut EventWriter<W>) -> Tho
         // Workaround for CrossRef's limit of 6 on the number of ISBNs permissible within a deposit file.
         // We raised this with CrossRef and they believe they should be able to increase the limit.
         // Remove this workaround once this is done (see https://github.com/thoth-pub/thoth/issues/379).
-        // In the meantime, this is only encountered with OBP works, which have 7 ISBNs as standard.
-        // The least important of these is the HTML ISBN, so omit it.
+        // This was previously encountered with OBP works, which used to have 7 ISBNs as standard,
+        // but currently have 5 as of August 2024.
+        // So, the logic below should never be necessary with current publishers in Thoth.
+        // The least important ISBN is the HTML ISBN, so omit it.
         if publications.len() > 6 {
             if let Some(html_index) = publications
                 .iter()
@@ -415,14 +421,15 @@ fn write_crossmark_funding_access<W: Write>(
                     .map_err(|e| e.into())
             })?;
             if update_type == "new_edition" {
-                for relation in work.relations.iter().filter(|r| {
-                    r.relation_type == RelationType::REPLACES && r.related_work.doi.is_some()
-                }) {
-                    // only output crossmark update if there's a DOI for the Superseded Work and publication date for the Active Work
-                    // metadata is output on the Active Work, rather than the Superseded one, see
-                    // https://community.crossref.org/t/appropriate-doi-to-use-in-crossmark-new-edition-and-withdrawal-update-types/6189/2
-                    if let Some(doi) = &relation.related_work.doi {
-                        if let Some(publication_date) = &work.publication_date {
+                if let Some(publication_date) = &work.publication_date {
+                    for relation in work.relations.iter().filter(|r| {
+                        r.relation_type == RelationType::REPLACES && r.related_work.doi.is_some()
+                    }) {
+                        // only output crossmark update if there's a DOI for the Superseded Work and publication date for the Active Work
+                        // metadata is output on the Active Work, rather than the Superseded one, see
+                        // https://community.crossref.org/t/appropriate-doi-to-use-in-crossmark-new-edition-and-withdrawal-update-types/6189/2
+                        let doi = relation.related_work.doi.as_ref().unwrap();
+
                             write_element_block("updates", w, |w| {
                                 write_full_element_block(
                                     "update",
@@ -438,7 +445,6 @@ fn write_crossmark_funding_access<W: Write>(
                                 )
                             })?;
                         }
-                    }
                 }
             } else if update_type == "withdrawal" {
                 // for a withdrawal, only output crossmark update
@@ -726,7 +732,6 @@ fn write_chapter_component_number<W: Write>(
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
     if let Some(chapter) = Some(chapter.relation_ordinal) {
-        // If the work is a chapter of another work, caller should have passed in its chapter number
         write_element_block("component_number", w, |w| {
             w.write(XmlEvent::Characters(&chapter.to_string()))
                 .map_err(|e| e.into())
