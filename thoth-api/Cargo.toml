@@ -28,7 +28,7 @@ diesel_migrations = { version = "2.1.0", features = ["postgres"], optional = tru
 dotenv = "0.15.0"
 futures = { version  = "0.3.29", optional = true }
 jsonwebtoken = { version = "9.2.0", optional = true }
-juniper = "0.15.12"
+juniper = { version = "0.16.1", features = ["chrono", "schema-language", "uuid"] }
 lazy_static = "1.4.0"
 phf = { version = "0.11", features = ["macros"] }
 rand = "0.8.5"
@@ -37,7 +37,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0"
 serde_json = "1.0"
 strum = { version = "0.26.1", features = ["derive"] }
-uuid = { version = "0.8.2", features = ["serde", "v4"] }
+uuid = { version = "1.10.0", features = ["serde", "v4"] }
 
 [dev-dependencies]
 cargo-husky = { version = "1.5.0", default-features = false, features = ["prepush-hook", "run-cargo-check", "run-cargo-test", "run-cargo-clippy", "run-cargo-fmt"] }

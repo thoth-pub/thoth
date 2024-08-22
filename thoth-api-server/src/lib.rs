@@ -86,7 +86,7 @@ async fn graphql_index(config: Data<ApiConfig>) -> HttpResponse {
 
 #[get("/schema.graphql")]
 async fn graphql_schema(st: Data<Arc<Schema>>) -> HttpResponse {
-    HttpResponse::Ok().body(st.as_schema_language())
+    HttpResponse::Ok().body(st.as_sdl())
 }
 
 #[post("/graphql")]
