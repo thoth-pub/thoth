@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade `uuid` to v1.10.0
   - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade `graphql_client` to v0.14.0
   - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade `chrono` to v0.4.38
+  - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade `trunk` to v0.20.3
+  - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade `wasm-bindgen` to v0.2.93
+  - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade rust to `1.80.1` in production and development `Dockerfile`
 
 ### Fixed
   - [610](https://github.com/thoth-pub/thoth/issues/610) - Update <WebsiteRole> code for Work Landing Page in all ONIX exports from "01" (Publisher’s corporate website) to "02" (Publisher’s website for a specified work).
