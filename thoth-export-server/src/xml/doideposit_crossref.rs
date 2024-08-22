@@ -1297,72 +1297,72 @@ mod tests {
         };
 
         let output = generate_test_output(true, &test_relations);
-        assert!(output.contains(r#"    <content_item component_type="chapter">"#));
-        assert!(output.contains(r#"      <contributors>"#));
+        assert!(output.contains(r#"<content_item component_type="chapter">"#));
+        assert!(output.contains(r#"  <contributors>"#));
         assert!(
-            output.contains(r#"        <person_name contributor_role="author" sequence="first">"#)
+            output.contains(r#"    <person_name contributor_role="author" sequence="first">"#)
                 || output
-                    .contains(r#"        <person_name sequence="first" contributor_role="author">"#)
+                    .contains(r#"    <person_name sequence="first" contributor_role="author">"#)
         );
-        assert!(output.contains(r#"          <given_name>Chapter One</given_name>"#));
-        assert!(output.contains(r#"          <surname>Author</surname>"#));
-        assert!(output.contains(r#"          <ORCID>https://orcid.org/0000-0002-0000-0011</ORCID>"#));
-        assert!(output.contains(r#"          <affiliations>"#));
-        assert!(output.contains(r#"            <institution>"#));
+        assert!(output.contains(r#"      <given_name>Chapter One</given_name>"#));
+        assert!(output.contains(r#"      <surname>Author</surname>"#));
+        assert!(output.contains(r#"      <ORCID>https://orcid.org/0000-0002-0000-0011</ORCID>"#));
+        assert!(output.contains(r#"      <affiliations>"#));
+        assert!(output.contains(r#"        <institution>"#));
         assert!(
-            output.contains(r#"              <institution_name>Thoth University</institution_name>"#)
+            output.contains(r#"          <institution_name>Thoth University</institution_name>"#)
         );
         assert!(output.contains(
-            r#"              <institution_id type="ror">https://ror.org/0abcdef12</institution_id>"#
+            r#"          <institution_id type="ror">https://ror.org/0abcdef12</institution_id>"#
         ));
-        assert!(output.contains(r#"      <titles>"#));
-        assert!(output.contains(r#"        <title>Chapter</title>"#));
-        assert!(output.contains(r#"        <subtitle>One</subtitle>"#));
-        assert!(output.contains(r#"      </titles>"#));
-        assert!(output.contains(r#"      <component_number>1</component_number>"#));
-        assert!(output.contains(r#"      <jats:abstract abstract-type="long">"#));
-        assert!(output.contains(r#"        <jats:p>First paragraph.</jats:p>"#));
-        assert!(output.contains(r#"        <jats:p>Second paragraph.</jats:p>"#));
-        assert!(output.contains(r#"      <jats:abstract abstract-type="short">"#));
-        assert!(output.contains(r#"        <jats:p>A shorter abstract</jats:p>"#));
-        assert!(!output.contains(r#"        <jats:p></jats:p>"#));
-        assert!(output.contains(r#"      <publication_date>"#));
-        assert!(output.contains(r#"        <month>02</month>"#));
-        assert!(output.contains(r#"        <day>28</day>"#));
-        assert!(output.contains(r#"        <year>2000</year>"#));
+        assert!(output.contains(r#"  <titles>"#));
+        assert!(output.contains(r#"    <title>Chapter</title>"#));
+        assert!(output.contains(r#"    <subtitle>One</subtitle>"#));
+        assert!(output.contains(r#"  </titles>"#));
+        assert!(output.contains(r#"  <component_number>1</component_number>"#));
+        assert!(output.contains(r#"  <jats:abstract abstract-type="long">"#));
+        assert!(output.contains(r#"    <jats:p>First paragraph.</jats:p>"#));
+        assert!(output.contains(r#"    <jats:p>Second paragraph.</jats:p>"#));
+        assert!(output.contains(r#"  <jats:abstract abstract-type="short">"#));
+        assert!(output.contains(r#"    <jats:p>A shorter abstract</jats:p>"#));
+        assert!(!output.contains(r#"    <jats:p></jats:p>"#));
+        assert!(output.contains(r#"  <publication_date>"#));
+        assert!(output.contains(r#"    <month>02</month>"#));
+        assert!(output.contains(r#"    <day>28</day>"#));
+        assert!(output.contains(r#"    <year>2000</year>"#));
         // ISBNs are not output for chapters
-        assert!(!output.contains(r#"      <isbn media_type="print">978-1-4028-9462-6</isbn>"#));
+        assert!(!output.contains(r#"  <isbn media_type="print">978-1-4028-9462-6</isbn>"#));
         // Publisher data is not output for chapters
-        assert!(!output.contains(r#"      <publisher>"#));
-        assert!(!output.contains(r#"        <publisher_name>OA Editions</publisher_name>"#));
-        assert!(!output.contains(r#"        <publisher_place>León, Spain</publisher_place>"#));
-        assert!(output.contains(r#"      <pages>"#));
-        assert!(output.contains(r#"        <first_page>10</first_page>"#));
-        assert!(output.contains(r#"        <last_page>20</last_page>"#));
+        assert!(!output.contains(r#"  <publisher>"#));
+        assert!(!output.contains(r#"    <publisher_name>OA Editions</publisher_name>"#));
+        assert!(!output.contains(r#"    <publisher_place>León, Spain</publisher_place>"#));
+        assert!(output.contains(r#"  <pages>"#));
+        assert!(output.contains(r#"    <first_page>10</first_page>"#));
+        assert!(output.contains(r#"    <last_page>20</last_page>"#));
         // Crossmark data is not output for chapters
-        assert!(!output.contains(r#"      <crossmark>"#));
-        assert!(!output.contains(r#"        <crossmark_version>2</crossmark_version>"#));
+        assert!(!output.contains(r#"  <crossmark>"#));
+        assert!(!output.contains(r#"    <crossmark_version>2</crossmark_version>"#));
         assert!(!output
-            .contains(r#"        <crossmark_policy>10.00001/crossmark_policy</crossmark_policy>"#));
-        assert!(!output.contains(r#"        <updates>"#));
-        assert!(!output.contains(r#"        </updates>"#));
-        assert!(!output.contains(r#"        <custom_metadata>"#));
-        assert!(!output.contains(r#"        </custom_metadata>"#));
-        assert!(!output.contains(r#"      </crossmark>"#));
-        assert!(output.contains(r#"      <ai:program name="AccessIndicators">"#));
-        assert!(output.contains(r#"        <ai:free_to_read />"#));
-        assert!(output.contains(r#"        <ai:license_ref>https://creativecommons.org/licenses/by-nd/4.0/</ai:license_ref>"#));
-        assert!(output.contains(r#"      <doi_data>"#));
-        assert!(output.contains(r#"        <doi>10.00001/CHAPTER.0001</doi>"#));
-        assert!(output.contains(r#"        <resource>https://www.book.com/chapter_one</resource>"#));
-        assert!(output.contains(r#"        <collection property="crawler-based">"#));
-        assert!(output.contains(r#"          <item crawler="iParadigms">"#));
-        assert!(output.contains(r#"            <resource mime_type="application/pdf">https://www.book.com/chapterone_fulltext</resource>"#));
-        assert!(output.contains(r#"          <item crawler="google">"#));
-        assert!(output.contains(r#"          <item crawler="msn">"#));
-        assert!(output.contains(r#"          <item crawler="yahoo">"#));
-        assert!(output.contains(r#"          <item crawler="scirus">"#));
-        assert!(output.contains(r#"        <collection property="text-mining">"#));
+            .contains(r#"    <crossmark_policy>10.00001/crossmark_policy</crossmark_policy>"#));
+        assert!(!output.contains(r#"    <updates>"#));
+        assert!(!output.contains(r#"    </updates>"#));
+        assert!(!output.contains(r#"    <custom_metadata>"#));
+        assert!(!output.contains(r#"    </custom_metadata>"#));
+        assert!(!output.contains(r#"  </crossmark>"#));
+        assert!(output.contains(r#"  <ai:program name="AccessIndicators">"#));
+        assert!(output.contains(r#"    <ai:free_to_read />"#));
+        assert!(output.contains(r#"    <ai:license_ref>https://creativecommons.org/licenses/by-nd/4.0/</ai:license_ref>"#));
+        assert!(output.contains(r#"  <doi_data>"#));
+        assert!(output.contains(r#"    <doi>10.00001/CHAPTER.0001</doi>"#));
+        assert!(output.contains(r#"    <resource>https://www.book.com/chapter_one</resource>"#));
+        assert!(output.contains(r#"    <collection property="crawler-based">"#));
+        assert!(output.contains(r#"      <item crawler="iParadigms">"#));
+        assert!(output.contains(r#"        <resource mime_type="application/pdf">https://www.book.com/chapterone_fulltext</resource>"#));
+        assert!(output.contains(r#"      <item crawler="google">"#));
+        assert!(output.contains(r#"      <item crawler="msn">"#));
+        assert!(output.contains(r#"      <item crawler="yahoo">"#));
+        assert!(output.contains(r#"      <item crawler="scirus">"#));
+        assert!(output.contains(r#"    <collection property="text-mining">"#));
 
         // Remove/change some values to test variations/non-output of optional blocks
         test_relations.related_work.subtitle = None;
@@ -1373,50 +1373,50 @@ mod tests {
         test_relations.related_work.publications.clear();
         let output = generate_test_output(true, &test_relations);
         // Sole contributor removed
-        assert!(!output.contains(r#"      <contributors>"#));
+        assert!(!output.contains(r#"  <contributors>"#));
         assert!(
-            !output.contains(r#"        <person_name contributor_role="author" sequence="first">"#)
+            !output.contains(r#"    <person_name contributor_role="author" sequence="first">"#)
                 && !output
-                    .contains(r#"        <person_name sequence="first" contributor_role="author">"#)
+                    .contains(r#"    <person_name sequence="first" contributor_role="author">"#)
         );
-        assert!(!output.contains(r#"          <given_name>Chapter One</given_name>"#));
-        assert!(!output.contains(r#"          <surname>Author</surname>"#));
-        assert!(!output.contains(r#"          <ORCID>https://orcid.org/0000-0002-0000-0011</ORCID>"#));
+        assert!(!output.contains(r#"      <given_name>Chapter One</given_name>"#));
+        assert!(!output.contains(r#"      <surname>Author</surname>"#));
+        assert!(!output.contains(r#"      <ORCID>https://orcid.org/0000-0002-0000-0011</ORCID>"#));
         // No subtitle supplied
-        assert!(!output.contains(r#"        <subtitle>One</subtitle>"#));
+        assert!(!output.contains(r#"    <subtitle>One</subtitle>"#));
         // No last page supplied
-        assert!(output.contains(r#"      <pages>"#));
-        assert!(output.contains(r#"        <first_page>10</first_page>"#));
-        assert!(!output.contains(r#"        <last_page>20</last_page>"#));
+        assert!(output.contains(r#"  <pages>"#));
+        assert!(output.contains(r#"    <first_page>10</first_page>"#));
+        assert!(!output.contains(r#"    <last_page>20</last_page>"#));
         // No publication date supplied
-        assert!(!output.contains(r#"      <publication_date>"#));
-        assert!(!output.contains(r#"        <month>02</month>"#));
-        assert!(!output.contains(r#"        <day>28</day>"#));
-        assert!(!output.contains(r#"        <year>2000</year>"#));
+        assert!(!output.contains(r#"  <publication_date>"#));
+        assert!(!output.contains(r#"    <month>02</month>"#));
+        assert!(!output.contains(r#"    <day>28</day>"#));
+        assert!(!output.contains(r#"    <year>2000</year>"#));
         // No licence supplied
-        assert!(output.contains(r#"      <ai:program name="AccessIndicators">"#));
-        assert!(output.contains(r#"        <ai:free_to_read />"#));
+        assert!(output.contains(r#"  <ai:program name="AccessIndicators">"#));
+        assert!(output.contains(r#"    <ai:free_to_read />"#));
         assert!(!output.contains(
-            r#"        <ai:license_ref>https://creativecommons.org/licenses/by/4.0/</ai:license_ref>"#
+            r#"    <ai:license_ref>https://creativecommons.org/licenses/by/4.0/</ai:license_ref>"#
         ));
         // No PDF URL supplied: all `collection` elements omitted
-        assert!(output.contains(r#"      <doi_data>"#));
-        assert!(output.contains(r#"        <doi>10.00001/CHAPTER.0001</doi>"#));
-        assert!(output.contains(r#"        <resource>https://www.book.com/chapter_one</resource>"#));
-        assert!(!output.contains(r#"        <collection property="crawler-based">"#));
-        assert!(!output.contains(r#"          <item crawler="iParadigms">"#));
-        assert!(!output.contains(r#"            <resource mime_type="application/pdf">https://www.book.com/chapterone_fulltext</resource>"#));
-        assert!(!output.contains(r#"          <item crawler="google">"#));
-        assert!(!output.contains(r#"          <item crawler="msn">"#));
-        assert!(!output.contains(r#"          <item crawler="yahoo">"#));
-        assert!(!output.contains(r#"          <item crawler="scirus">"#));
-        assert!(!output.contains(r#"        <collection property="text-mining">"#));
+        assert!(output.contains(r#"  <doi_data>"#));
+        assert!(output.contains(r#"    <doi>10.00001/CHAPTER.0001</doi>"#));
+        assert!(output.contains(r#"    <resource>https://www.book.com/chapter_one</resource>"#));
+        assert!(!output.contains(r#"    <collection property="crawler-based">"#));
+        assert!(!output.contains(r#"      <item crawler="iParadigms">"#));
+        assert!(!output.contains(r#"        <resource mime_type="application/pdf">https://www.book.com/chapterone_fulltext</resource>"#));
+        assert!(!output.contains(r#"      <item crawler="google">"#));
+        assert!(!output.contains(r#"      <item crawler="msn">"#));
+        assert!(!output.contains(r#"      <item crawler="yahoo">"#));
+        assert!(!output.contains(r#"      <item crawler="scirus">"#));
+        assert!(!output.contains(r#"    <collection property="text-mining">"#));
 
         test_relations.related_work.first_page = None;
         let output = generate_test_output(true, &test_relations);
         // No first page supplied: `pages` element omitted entirely
-        assert!(!output.contains(r#"      <pages>"#));
-        assert!(!output.contains(r#"        <first_page>10</first_page>"#));
+        assert!(!output.contains(r#"  <pages>"#));
+        assert!(!output.contains(r#"    <first_page>10</first_page>"#));
 
         // Editions are not valid chapter metadata
         test_relations.related_work.edition = Some(1);
@@ -1783,8 +1783,8 @@ mod tests {
         assert!(
             output.contains(r#"          <ORCID>https://orcid.org/0000-0002-0000-0001</ORCID>"#)
         );
-        assert!(output.contains(r#"      <affiliations>"#));
-        assert!(output.contains(r#"        <institution>"#));
+        assert!(output.contains(r#"          <affiliations>"#));
+        assert!(output.contains(r#"            <institution>"#));
         assert!(
             output.contains(r#"          <institution_name>Thoth University</institution_name>"#)
         );
