@@ -36,13 +36,13 @@ watch-app:
 docker-dev: docker-dev-build docker-dev-run
 
 docker-dev-build:
-	docker-compose -f docker-compose.dev.yml build
+	docker compose -f docker-compose.dev.yml build
 
 docker-dev-run:
-	docker-compose -f docker-compose.dev.yml up
+	docker compose -f docker-compose.dev.yml up
 
 docker-dev-db:
-	docker-compose -f docker-compose.dev.yml up db
+	docker compose -f docker-compose.dev.yml up db
 
 build:
 	cargo build -vv

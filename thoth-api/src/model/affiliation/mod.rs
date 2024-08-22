@@ -123,5 +123,14 @@ impl Default for AffiliationWithInstitution {
     }
 }
 
+impl Default for AffiliationOrderBy {
+    fn default() -> AffiliationOrderBy {
+        AffiliationOrderBy {
+            field: AffiliationField::AffiliationOrdinal,
+            direction: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "backend")]
 pub mod crud;
