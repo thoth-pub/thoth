@@ -28,8 +28,8 @@ const UPDATE_REFERENCE_MUTATION: &str = "
         $standardsBodyName: String,
         $standardsBodyAcronym: String,
         $url: String,
-        $publicationDate: NaiveDate,
-        $retrievalDate: NaiveDate,
+        $publicationDate: Date,
+        $retrievalDate: Date,
     ) {
         updateReference(
             data: {

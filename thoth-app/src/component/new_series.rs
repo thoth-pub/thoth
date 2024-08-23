@@ -124,6 +124,7 @@ impl Component for NewSeriesComponent {
             Msg::GetImprints => {
                 let body = ImprintsRequestBody {
                     variables: ImprintsVariables {
+                        limit: Some(100),
                         publishers: ctx.props().current_user.resource_access.restricted_to(),
                         ..Default::default()
                     },

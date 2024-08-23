@@ -124,7 +124,15 @@ impl Component for ContributionsFormComponent {
         let show_modal_form = false;
         let in_edit_mode = false;
         let show_results = false;
-        let fetch_contributors = Default::default();
+        let body = ContributorsRequestBody {
+            variables: Variables {
+                limit: Some(100),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let request = ContributorsRequest { body };
+        let fetch_contributors = Fetch::new(request);
         let fetch_contribution_types = Default::default();
         let create_contribution = Default::default();
         let delete_contribution = Default::default();
@@ -162,7 +170,7 @@ impl Component for ContributionsFormComponent {
                 if show_form {
                     let body = ContributorsRequestBody {
                         variables: Variables {
-                            limit: Some(9999),
+                            limit: Some(100),
                             ..Default::default()
                         },
                         ..Default::default()

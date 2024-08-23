@@ -158,6 +158,15 @@ pub struct LocationOrderBy {
     pub direction: Direction,
 }
 
+impl Default for LocationOrderBy {
+    fn default() -> LocationOrderBy {
+        LocationOrderBy {
+            field: LocationField::LocationPlatform,
+            direction: Default::default(),
+        }
+    }
+}
+
 #[test]
 fn test_locationplatform_default() {
     let locationplatform: LocationPlatform = Default::default();
