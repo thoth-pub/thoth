@@ -1901,11 +1901,11 @@ mod tests {
         assert!(output.contains(r#"        <custom_metadata>"#));
         assert!(output.contains(r#"          <fr:program name="fundref">"#));
         assert!(output.contains(r#"            <fr:assertion name="fundgroup">"#));
+        assert!(output.contains(
+            r#"              <fr:assertion name="funder_name">Funding Body</fr:assertion>"#
+        ));
         assert!(output
-            .contains(r#"              <fr:assertion name="funder_name">Funding Body</fr:assertion>"#));
-        assert!(
-            output.contains(r#"              <fr:assertion name="award_number">12345</fr:assertion>"#)
-        );
+            .contains(r#"              <fr:assertion name="award_number">12345</fr:assertion>"#));
         assert!(output.contains(r#"              <fr:assertion name="funder_name">Some Funder<fr:assertion name="funder_identifier">https://doi.org/10.00001/funder</fr:assertion>"#));
         assert!(output.contains(r#"          <ai:program name="AccessIndicators">"#));
         assert!(output.contains(r#"            <ai:free_to_read />"#));
