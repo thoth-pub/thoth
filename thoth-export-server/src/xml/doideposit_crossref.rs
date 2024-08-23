@@ -1895,7 +1895,23 @@ mod tests {
         assert!(output.contains(r#"        <crossmark_version>2</crossmark_version>"#));
         assert!(output
             .contains(r#"        <crossmark_policy>10.00001/crossmark_policy</crossmark_policy>"#));
+        // If crossmark metadata is included, funding and access data must be inside the <crossmark> element
+        // within <custom_metadata> tag. Check to make sure this is true by seeing if they are indented correctly
+        // for this, which is different from indentation if there's no crossmark metadata
         assert!(output.contains(r#"        <custom_metadata>"#));
+        assert!(output.contains(r#"          <fr:program name="fundref">"#));
+        assert!(output.contains(r#"            <fr:assertion name="fundgroup">"#));
+        assert!(output
+            .contains(r#"              <fr:assertion name="funder_name">Funding Body</fr:assertion>"#));
+        assert!(
+            output.contains(r#"              <fr:assertion name="award_number">12345</fr:assertion>"#)
+        );
+        assert!(output.contains(r#"              <fr:assertion name="funder_name">Some Funder<fr:assertion name="funder_identifier">https://doi.org/10.00001/funder</fr:assertion>"#));
+        assert!(output.contains(r#"          <ai:program name="AccessIndicators">"#));
+        assert!(output.contains(r#"            <ai:free_to_read />"#));
+        assert!(output.contains(
+            r#"          <ai:license_ref>https://creativecommons.org/licenses/by/4.0/</ai:license_ref>"#
+        ));
         assert!(output.contains(r#"        </custom_metadata>"#));
         assert!(output.contains(r#"      </crossmark>"#));
 
