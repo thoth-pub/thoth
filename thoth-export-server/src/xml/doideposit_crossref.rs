@@ -101,7 +101,8 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                     // Only one series can be listed, so we select the first one found (if any).
                     let mut ordinal = None;
                     if let Some((series, ord)) =
-                        self.issues.first().map(|i| (&i.series, i.issue_ordinal)) {
+                        self.issues.first().map(|i| (&i.series, i.issue_ordinal))
+                    {
                         XmlElementBlock::<DoiDepositCrossref>::xml_element(series, w)?;
                         ordinal = Some(ord);
                     }
@@ -430,21 +431,21 @@ fn write_crossmark_funding_access<W: Write>(
                         // https://community.crossref.org/t/appropriate-doi-to-use-in-crossmark-new-edition-and-withdrawal-update-types/6189/2
                         let doi = relation.related_work.doi.as_ref().unwrap();
 
-                            write_element_block("updates", w, |w| {
-                                write_full_element_block(
-                                    "update",
-                                    Some(vec![
-                                        ("type", update_type),
-                                        ("date", &publication_date.to_string()),
-                                    ]),
-                                    w,
-                                    |w| {
-                                        w.write(XmlEvent::Characters(&doi.to_string()))
-                                            .map_err(|e| e.into())
-                                    },
-                                )
-                            })?;
-                        }
+                        write_element_block("updates", w, |w| {
+                            write_full_element_block(
+                                "update",
+                                Some(vec![
+                                    ("type", update_type),
+                                    ("date", &publication_date.to_string()),
+                                ]),
+                                w,
+                                |w| {
+                                    w.write(XmlEvent::Characters(&doi.to_string()))
+                                        .map_err(|e| e.into())
+                                },
+                            )
+                        })?;
+                    }
                 }
             } else if update_type == "withdrawal" {
                 // for a withdrawal, only output crossmark update
