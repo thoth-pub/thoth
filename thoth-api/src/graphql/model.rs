@@ -1914,6 +1914,12 @@ impl MutationRoot {
                 )?)?;
         }
 
+        // check has been commented out to allow for changing canonical location. If this check
+        // is left in place, canonical location can't be updated because check is violated during
+        // the mutation when there are (temporarily) two canonical locations before the mutation
+        // is completed. Equivalent check is maintained in the DB, so hopefully this can
+        // be left out and the check will still be completed at the DB level, preventing more
+        // than one canonical location.
         // if data.canonical != location.canonical {
         //     // Each publication must have exactly one canonical location.
         //     // Updating an existing location would always violate this,
