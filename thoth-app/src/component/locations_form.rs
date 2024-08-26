@@ -28,13 +28,13 @@ use crate::models::location::delete_location_mutation::DeleteLocationRequestBody
 use crate::models::location::delete_location_mutation::PushActionDeleteLocation;
 use crate::models::location::delete_location_mutation::PushDeleteLocation;
 use crate::models::location::delete_location_mutation::Variables as DeleteVariables;
+use crate::models::location::location_platforms_query::FetchActionLocationPlatforms;
+use crate::models::location::location_platforms_query::FetchLocationPlatforms;
 use crate::models::location::update_location_mutation::PushActionUpdateLocation;
 use crate::models::location::update_location_mutation::PushUpdateLocation;
 use crate::models::location::update_location_mutation::UpdateLocationRequest;
 use crate::models::location::update_location_mutation::UpdateLocationRequestBody;
 use crate::models::location::update_location_mutation::Variables as UpdateVariables;
-use crate::models::location::location_platforms_query::FetchActionLocationPlatforms;
-use crate::models::location::location_platforms_query::FetchLocationPlatforms;
 use crate::models::location::LocationPlatformValues;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EDIT_BUTTON;
@@ -169,11 +169,13 @@ impl Component for LocationsFormComponent {
                                 ctx.props().locations.clone().unwrap_or_default();
                             locations.push(location);
                             ctx.props().update_locations.emit(Some(locations));
-                            ctx.link().send_message(Msg::ToggleModalFormDisplay(false, None));
+                            ctx.link()
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
                             true
                         }
                         None => {
-                            ctx.link().send_message(Msg::ToggleModalFormDisplay(false, None));
+                            ctx.link()
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -182,7 +184,8 @@ impl Component for LocationsFormComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        ctx.link().send_message(Msg::ToggleModalFormDisplay(false, None));
+                        ctx.link()
+                            .send_message(Msg::ToggleModalFormDisplay(false, None));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
@@ -273,10 +276,8 @@ impl Component for LocationsFormComponent {
                 };
                 let request = UpdateLocationRequest { body };
                 self.update_location = Fetch::new(request);
-                ctx.link().send_future(
-                    self.update_location
-                        .fetch(Msg::SetLocationUpdateState),
-                );
+                ctx.link()
+                    .send_future(self.update_location.fetch(Msg::SetLocationUpdateState));
                 ctx.link()
                     .send_message(Msg::SetLocationUpdateState(FetchAction::Fetching));
 
@@ -330,17 +331,13 @@ impl Component for LocationsFormComponent {
                     .send_message(Msg::SetLocationDeleteState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangeLandingPage(val) => self
-                .location
-                .landing_page
-                .neq_assign(val.to_opt_string()),
-            Msg::ChangeFullTextUrl(val) => self
-                .location
-                .full_text_url
-                .neq_assign(val.to_opt_string()),
-            Msg::ChangeLocationPlatform(code) => {
-                self.location.location_platform.neq_assign(code)
+            Msg::ChangeLandingPage(val) => {
+                self.location.landing_page.neq_assign(val.to_opt_string())
             }
+            Msg::ChangeFullTextUrl(val) => {
+                self.location.full_text_url.neq_assign(val.to_opt_string())
+            }
+            Msg::ChangeLocationPlatform(code) => self.location.location_platform.neq_assign(code),
             Msg::ChangeCanonical(val) => self.location.canonical.neq_assign(val),
         }
     }
