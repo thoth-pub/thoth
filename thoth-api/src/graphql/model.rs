@@ -1819,12 +1819,12 @@ impl MutationRoot {
         // is completed. Equivalent check is maintained in the DB, so hopefully this can
         // be left out and the check will still be completed at the DB level, preventing more
         // than one canonical location.
-        // if data.canonical != location.canonical {
-        //     // Each publication must have exactly one canonical location.
-        //     // Updating an existing location would always violate this,
-        //     // as it should always result in either zero or two canonical locations.
-        //     return Err(ThothError::CanonicalLocationError.into());
-        // }
+        if data.canonical != location.canonical {
+            // Each publication must have exactly one canonical location.
+            // Updating an existing location would always violate this,
+            // as it should always result in either zero or two canonical locations.
+            return Err(ThothError::CanonicalLocationError.into());
+        }
 
         if data.canonical {
             data.canonical_record_complete(&context.db)?;
