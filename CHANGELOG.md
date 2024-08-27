@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
   - [610](https://github.com/thoth-pub/thoth/issues/610) - Update <WebsiteRole> code for Work Landing Page in all ONIX exports from "01" (Publisher’s corporate website) to "02" (Publisher’s website for a specified work).
 
+### Security
+  - Upgrade `diesel` to v2.2.3
+  - Upgrade `diesel-derive-newtype` to v2.1.2
+  - Upgrade `diesel_migrations` to v2.2.0
+
 ## [[0.12.6]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.6) - 2024-06-17
 ### Fixed
   - [#513](https://github.com/thoth-pub/thoth/issues/513) - Expand DOI regex to include `+`, `[`, and `]`
