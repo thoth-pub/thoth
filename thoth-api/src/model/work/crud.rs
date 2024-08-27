@@ -25,7 +25,7 @@ impl Work {
         use diesel::sql_types::Text;
         let mut connection = db.get().unwrap();
         // Allow case-insensitive searching (DOIs in database may have mixed casing)
-        sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
+        define_sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
         let mut query = dsl::work
             .filter(lower(dsl::doi).eq(doi.to_lowercase_string()))
             .into_boxed();
