@@ -18,15 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade `trunk` to v0.20.3
   - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade `wasm-bindgen` to v0.2.93
   - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade rust to `1.80.1` in production and development `Dockerfile`
-  - Upgrade `clap` to v4.5.16
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `clap` to v4.5.16
 
 ### Fixed
   - [610](https://github.com/thoth-pub/thoth/issues/610) - Update <WebsiteRole> code for Work Landing Page in all ONIX exports from "01" (Publisher’s corporate website) to "02" (Publisher’s website for a specified work).
 
 ### Security
-  - Upgrade `diesel` to v2.2.3
-  - Upgrade `diesel-derive-newtype` to v2.1.2
-  - Upgrade `diesel_migrations` to v2.2.0
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `diesel` to v2.2.3
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `diesel-derive-newtype` to v2.1.2
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `diesel_migrations` to v2.2.0
 
 ## [[0.12.6]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.6) - 2024-06-17
 ### Fixed
