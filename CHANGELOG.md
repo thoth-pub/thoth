@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `anyhow` to v1.0.86
   - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `thiserror` to v1.0.63
   - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `semver` to v1.0.23
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Replace deprecated diesel macro `sql_function` with `define_sql_function`
 
 ### Fixed
   - [610](https://github.com/thoth-pub/thoth/issues/610) - Update <WebsiteRole> code for Work Landing Page in all ONIX exports from "01" (Publisher’s corporate website) to "02" (Publisher’s website for a specified work).
