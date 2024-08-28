@@ -11,6 +11,10 @@ use thoth_api::model::Orcid;
 use thoth_api::model::Ror;
 use uuid::Uuid;
 
+// Juniper v0.16 onwards converts Rust `NaiveDate` to GraphQL scalar `Date`,
+// so we need to convert it back explicitly here (was previously automatic)
+pub type Date = NaiveDate;
+
 #[derive(GraphQLQuery)]
 #[graphql(
     schema_path = "assets/schema.graphql",
@@ -121,6 +125,8 @@ impl From<work_query::PublicationType> for PublicationType {
             work_query::PublicationType::AZW3 => PublicationType::Azw3,
             work_query::PublicationType::DOCX => PublicationType::Docx,
             work_query::PublicationType::FICTION_BOOK => PublicationType::FictionBook,
+            work_query::PublicationType::MP3 => PublicationType::Mp3,
+            work_query::PublicationType::WAV => PublicationType::Wav,
             work_query::PublicationType::Other(_) => unreachable!(),
         }
     }

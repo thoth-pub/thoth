@@ -25,7 +25,7 @@ impl Work {
         use diesel::sql_types::Text;
         let mut connection = db.get().unwrap();
         // Allow case-insensitive searching (DOIs in database may have mixed casing)
-        sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
+        define_sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
         let mut query = dsl::work
             .filter(lower(dsl::doi).eq(doi.to_lowercase_string()))
             .into_boxed();
@@ -379,7 +379,8 @@ impl Crud for Work {
     }
 
     fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::imprint::Imprint::from_id(db, &self.imprint_id)?.publisher_id(db)
+        let imprint = crate::model::imprint::Imprint::from_id(db, &self.imprint_id)?;
+        <crate::model::imprint::Imprint as Crud>::publisher_id(&imprint, db)
     }
 
     crud_methods!(work::table, work::dsl::work);

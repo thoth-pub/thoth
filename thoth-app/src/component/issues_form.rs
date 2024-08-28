@@ -98,6 +98,7 @@ impl Component for IssuesFormComponent {
         let show_results = false;
         let body = SeriesesRequestBody {
             variables: Variables {
+                limit: Some(100),
                 publishers: ctx.props().current_user.resource_access.restricted_to(),
                 ..Default::default()
             },
