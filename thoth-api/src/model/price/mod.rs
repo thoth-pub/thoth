@@ -38,6 +38,7 @@ pub struct Price {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new amount of money that a publication costs"),
     diesel(table_name = price)
 )]
 pub struct NewPrice {
@@ -49,6 +50,7 @@ pub struct NewPrice {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing amount of money that a publication costs"),
     diesel(table_name = price, treat_none_as_null = true)
 )]
 pub struct PatchPrice {
@@ -61,6 +63,7 @@ pub struct PatchPrice {
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Three-letter ISO 4217 code representing a currency"),
     ExistingTypePath = "crate::schema::sql_types::CurrencyCode"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]

@@ -16,6 +16,7 @@ use thoth_errors::ThothResult;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Type of a subject (e.g. the subject category scheme being used)"),
     ExistingTypePath = "crate::schema::sql_types::SubjectType"
 )]
 #[derive(
@@ -76,6 +77,7 @@ pub struct Subject {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new significant discipline or term related to a work"),
     diesel(table_name = subject)
 )]
 pub struct NewSubject {
@@ -88,6 +90,7 @@ pub struct NewSubject {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing significant discipline or term related to a work"),
     diesel(table_name = subject, treat_none_as_null = true)
 )]
 pub struct PatchSubject {

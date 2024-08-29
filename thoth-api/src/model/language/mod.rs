@@ -12,6 +12,7 @@ use crate::schema::language_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Relation between a language and the original language of a text"),
     ExistingTypePath = "crate::schema::sql_types::LanguageRelation"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
@@ -57,6 +58,7 @@ pub struct Language {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new description of a work's language"),
     diesel(table_name = language)
 )]
 pub struct NewLanguage {
@@ -69,6 +71,7 @@ pub struct NewLanguage {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing description of a work's language"),
     diesel(table_name = language, treat_none_as_null = true)
 )]
 pub struct PatchLanguage {
@@ -82,6 +85,7 @@ pub struct PatchLanguage {
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Three-letter ISO 639 code representing a language"),
     ExistingTypePath = "crate::schema::sql_types::LanguageCode"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]

@@ -15,6 +15,7 @@ use crate::schema::series_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Type of a series"),
     ExistingTypePath = "crate::schema::sql_types::SeriesType"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
@@ -89,6 +90,7 @@ pub struct SeriesWithImprint {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new periodical of publications"),
     diesel(table_name = series)
 )]
 pub struct NewSeries {
@@ -105,6 +107,7 @@ pub struct NewSeries {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing periodical of publications"),
     diesel(table_name = series, treat_none_as_null = true)
 )]
 pub struct PatchSeries {
@@ -138,7 +141,7 @@ pub struct NewSeriesHistory {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject),
-    graphql(description = "Field and order to use when sorting seriess list")
+    graphql(description = "Field and order to use when sorting serieses list")
 )]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SeriesOrderBy {

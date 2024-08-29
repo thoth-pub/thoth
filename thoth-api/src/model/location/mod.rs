@@ -13,6 +13,7 @@ use crate::schema::location_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Platform on which a publication is hosted"),
     ExistingTypePath = "crate::schema::sql_types::LocationPlatform"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
@@ -104,6 +105,7 @@ pub struct Location {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new location (such as a web shop or distribution platform) where a publication can be acquired or viewed"),
     diesel(table_name = location)
 )]
 pub struct NewLocation {
@@ -117,6 +119,7 @@ pub struct NewLocation {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing location (such as a web shop or distribution platform) where a publication can be acquired or viewed"),
     diesel(table_name = location, treat_none_as_null = true)
 )]
 pub struct PatchLocation {

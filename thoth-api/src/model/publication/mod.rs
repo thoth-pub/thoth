@@ -18,6 +18,7 @@ use crate::schema::publication_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Format of a publication"),
     ExistingTypePath = "crate::schema::sql_types::PublicationType"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
@@ -130,6 +131,7 @@ pub struct PublicationWithRelations {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new manifestation of a written text"),
     diesel(table_name = publication)
 )]
 pub struct NewPublication {
@@ -149,6 +151,7 @@ pub struct NewPublication {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing manifestation of a written text"),
     diesel(table_name = publication, treat_none_as_null = true)
 )]
 pub struct PatchPublication {

@@ -26,6 +26,7 @@ use crate::schema::work_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Type of a work"),
     ExistingTypePath = "crate::schema::sql_types::WorkType"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
@@ -48,6 +49,7 @@ pub enum WorkType {
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Publication status of a work"),
     ExistingTypePath = "crate::schema::sql_types::WorkStatus"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
@@ -225,6 +227,7 @@ pub struct WorkWithRelations {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new written text that can be published"),
     diesel(table_name = work)
 )]
 pub struct NewWork {
@@ -266,6 +269,7 @@ pub struct NewWork {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing written text that can be published"),
     diesel(table_name = work, treat_none_as_null = true)
 )]
 pub struct PatchWork {

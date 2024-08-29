@@ -53,6 +53,7 @@ pub struct Institution {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new organisation with which contributors may be affiliated or by which works may be funded"),
     diesel(table_name = institution)
 )]
 pub struct NewInstitution {
@@ -65,6 +66,7 @@ pub struct NewInstitution {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing organisation with which contributors may be affiliated or by which works may be funded"),
     diesel(table_name = institution, treat_none_as_null = true)
 )]
 pub struct PatchInstitution {
@@ -78,6 +80,7 @@ pub struct PatchInstitution {
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Three-letter ISO 3166-1 code representing a country"),
     ExistingTypePath = "crate::schema::sql_types::CountryCode"
 )]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]

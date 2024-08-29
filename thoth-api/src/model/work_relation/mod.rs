@@ -14,6 +14,7 @@ use crate::schema::work_relation_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Nature of a relationship between works"),
     ExistingTypePath = "crate::schema::sql_types::RelationType"
 )]
 #[derive(
@@ -85,6 +86,7 @@ pub struct WorkRelationWithRelatedWork {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new relationship between two works"),
     diesel(table_name = work_relation)
 )]
 pub struct NewWorkRelation {
@@ -97,6 +99,7 @@ pub struct NewWorkRelation {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing relationship between two works"),
     diesel(table_name = work_relation, treat_none_as_null = true)
 )]
 pub struct PatchWorkRelation {
