@@ -170,7 +170,9 @@ impl Component for ContributionsFormComponent {
                 if show_form {
                     let body = ContributorsRequestBody {
                         variables: Variables {
-                            limit: Some(100),
+                            // Dropdown shown in modal form must contain full contributor list,
+                            // in case user is editing and wants to switch between them
+                            limit: Some(99999),
                             ..Default::default()
                         },
                         ..Default::default()
