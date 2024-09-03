@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::account::model::AccountDetails;
 use thoth_api::model::institution::CountryCode;
 use thoth_api::model::institution::Institution;
 use thoth_api::model::work::WorkWithRelations;
@@ -97,6 +98,7 @@ pub enum Msg {
 #[derive(PartialEq, Eq, Properties)]
 pub struct Props {
     pub institution_id: Uuid,
+    pub current_user: AccountDetails,
 }
 
 impl Component for InstitutionComponent {
@@ -414,6 +416,20 @@ impl Component for InstitutionComponent {
                     event.prevent_default();
                     Msg::UpdateInstitution
                 });
+                let mut delete_callback = Some(ctx.link().callback(|_| Msg::DeleteInstitution));
+                let mut delete_deactivated = false;
+                // If user doesn't have permission to delete this institution (i.e. because it's connected to a work
+                // from a publisher they're not associated with), deactivate the delete button and unset its callback
+                if let Some(publishers) = ctx.props().current_user.resource_access.restricted_to() {
+                    for work in [self.affiliated_works.clone(), self.funded_works.clone()].concat()
+                    {
+                        if !publishers.contains(&work.imprint.publisher.publisher_id.to_string()) {
+                            delete_callback = None;
+                            delete_deactivated = true;
+                            break;
+                        }
+                    }
+                }
                 html! {
                     <>
                         <nav class="level">
@@ -425,8 +441,9 @@ impl Component for InstitutionComponent {
                             <div class="level-right">
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
-                                        onclick={ ctx.link().callback(|_| Msg::DeleteInstitution) }
+                                        onclick={ delete_callback }
                                         object_name={ self.institution.institution_name.clone() }
+                                        deactivated={ delete_deactivated }
                                     />
                                 </p>
                             </div>
