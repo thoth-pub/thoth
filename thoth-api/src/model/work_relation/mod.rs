@@ -23,21 +23,69 @@ use crate::schema::work_relation_history;
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum RelationType {
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "The work to which this relation belongs replaces the work identified within the relation"
+        )
+    )]
     Replaces,
-    #[cfg_attr(feature = "backend", db_rename = "has-translation")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "has-translation",
+        graphql(
+            description = "The work to which this relation belongs is translated by the work identified within the relation"
+        )
+    )]
     HasTranslation,
-    #[cfg_attr(feature = "backend", db_rename = "has-part")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "has-part",
+        graphql(
+            description = "The work to which this relation belongs contains the work (part) identified within the relation"
+        )
+    )]
     HasPart,
-    #[cfg_attr(feature = "backend", db_rename = "has-child")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "has-child",
+        graphql(
+            description = "The work to which this relation belongs contains the work (chapter) identified within the relation"
+        )
+    )]
     #[default]
     HasChild,
-    #[cfg_attr(feature = "backend", db_rename = "is-replaced-by")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "is-replaced-by",
+        graphql(
+            description = "The work to which this relation belongs is replaced by the work identified within the relation"
+        )
+    )]
     IsReplacedBy,
-    #[cfg_attr(feature = "backend", db_rename = "is-translation-of")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "is-translation-of",
+        graphql(
+            description = "The work to which this relation belongs is a translation of the work identified within the relation"
+        )
+    )]
     IsTranslationOf,
-    #[cfg_attr(feature = "backend", db_rename = "is-part-of")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "is-part-of",
+        graphql(
+            description = "The work to which this relation belongs is a component (part) of the work identified within the relation"
+        )
+    )]
     IsPartOf,
-    #[cfg_attr(feature = "backend", db_rename = "is-child-of")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "is-child-of",
+        graphql(
+            description = "The work to which this relation belongs is a component (chapter) of the work identified within the relation"
+        )
+    )]
     IsChildOf,
 }
 

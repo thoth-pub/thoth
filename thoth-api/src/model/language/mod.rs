@@ -12,18 +12,32 @@ use crate::schema::language_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
-    graphql(description = "Relation between a language and the original language of a text"),
+    graphql(
+        description = "Relation between a language listed for a work and the original language of a text"
+    ),
     ExistingTypePath = "crate::schema::sql_types::LanguageRelation"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum LanguageRelation {
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "Original language of the text")
+    )]
     #[default]
     Original,
-    #[cfg_attr(feature = "backend", db_rename = "translated-from")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "translated-from",
+        graphql(description = "Language from which the text was translated")
+    )]
     TranslatedFrom,
-    #[cfg_attr(feature = "backend", db_rename = "translated-into")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "translated-into",
+        graphql(description = "Language into which the text has been translated")
+    )]
     TranslatedInto,
 }
 

@@ -22,8 +22,18 @@ use crate::schema::series_history;
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum SeriesType {
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "A set of collections of articles on a specific topic, published periodically"
+        )
+    )]
     Journal,
-    #[cfg_attr(feature = "backend", db_rename = "book-series")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "book-series",
+        graphql(description = "A set of related books, published periodically")
+    )]
     #[default]
     BookSeries,
 }

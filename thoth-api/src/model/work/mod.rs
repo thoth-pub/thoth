@@ -33,16 +33,42 @@ use crate::schema::work_history;
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum WorkType {
-    #[cfg_attr(feature = "backend", db_rename = "book-chapter")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "book-chapter",
+        graphql(description = "Section of a larger parent work")
+    )]
     BookChapter,
     #[default]
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "Long-form work on a single theme, by a small number of authors")
+    )]
     Monograph,
-    #[cfg_attr(feature = "backend", db_rename = "edited-book")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "edited-book",
+        graphql(description = "Collection of short works by different authors on a single theme")
+    )]
     EditedBook,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "Work used for educational purposes")
+    )]
     Textbook,
-    #[cfg_attr(feature = "backend", db_rename = "journal-issue")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "journal-issue",
+        graphql(
+            description = "Single publication within a series of collections of related articles"
+        )
+    )]
     JournalIssue,
-    #[cfg_attr(feature = "backend", db_rename = "book-set")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "book-set",
+        graphql(description = "Group of volumes published together forming a single work")
+    )]
     BookSet,
 }
 

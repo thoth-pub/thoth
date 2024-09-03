@@ -22,9 +22,12 @@ pub const ROR_DOMAIN: &str = "https://ror.org/";
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase")]
 pub enum LengthUnit {
+    #[cfg_attr(feature = "backend", graphql(description = "Millimetres"))]
     #[default]
     Mm,
+    #[cfg_attr(feature = "backend", graphql(description = "Centimetres"))]
     Cm,
+    #[cfg_attr(feature = "backend", graphql(description = "Inches"))]
     In,
 }
 
@@ -37,8 +40,10 @@ pub enum LengthUnit {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase")]
 pub enum WeightUnit {
+    #[cfg_attr(feature = "backend", graphql(description = "Grams"))]
     #[default]
     G,
+    #[cfg_attr(feature = "backend", graphql(description = "Ounces"))]
     Oz,
 }
 
