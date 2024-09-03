@@ -38,7 +38,7 @@ impl Crud for Reference {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Reference>> {
         use crate::schema::reference::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = reference
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select(crate::schema::reference::all_columns)
@@ -191,7 +191,7 @@ impl Crud for Reference {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::reference::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = reference
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .into_boxed();

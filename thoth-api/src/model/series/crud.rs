@@ -38,7 +38,7 @@ impl Crud for Series {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Series>> {
         use crate::schema::series::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = series
             .inner_join(crate::schema::imprint::table)
             .select(crate::schema::series::all_columns)
@@ -121,7 +121,7 @@ impl Crud for Series {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::series::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = series
             .inner_join(crate::schema::imprint::table)
             .into_boxed();

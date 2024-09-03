@@ -34,7 +34,7 @@ impl Crud for Issue {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Issue>> {
         use crate::schema::issue::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = issue
             .inner_join(crate::schema::series::table.inner_join(crate::schema::imprint::table))
             .select(crate::schema::issue::all_columns)
@@ -94,7 +94,7 @@ impl Crud for Issue {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::issue::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
 
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
@@ -146,7 +146,7 @@ impl PatchIssue {
 fn issue_imprints_match(work_id: Uuid, series_id: Uuid, db: &crate::db::PgPool) -> ThothResult<()> {
     use diesel::prelude::*;
 
-    let mut connection = db.get().unwrap();
+    let mut connection = db.get()?;
     let series_imprint = crate::schema::series::table
         .select(crate::schema::series::imprint_id)
         .filter(crate::schema::series::series_id.eq(series_id))
