@@ -1,3 +1,4 @@
+use thoth_api::account::model::AccountDetails;
 use thoth_api::model::contribution::ContributionWithWork;
 use thoth_api::model::contributor::Contributor;
 use thoth_api::model::{Orcid, ORCID_DOMAIN};
@@ -81,6 +82,7 @@ pub enum Msg {
 #[derive(PartialEq, Eq, Properties)]
 pub struct Props {
     pub contributor_id: Uuid,
+    pub current_user: AccountDetails,
 }
 
 impl Component for ContributorComponent {
@@ -327,6 +329,21 @@ impl Component for ContributorComponent {
                     event.prevent_default();
                     Msg::UpdateContributor
                 });
+                let mut delete_callback = Some(ctx.link().callback(|_| Msg::DeleteContributor));
+                let mut delete_deactivated = false;
+                // If user doesn't have permission to delete this contributor (i.e. because it's connected to a work
+                // from a publisher they're not associated with), deactivate the delete button and unset its callback
+                if let Some(publishers) = ctx.props().current_user.resource_access.restricted_to() {
+                    for contribution in &self.contributor_activity {
+                        if !publishers
+                            .contains(&contribution.work.imprint.publisher.publisher_id.to_string())
+                        {
+                            delete_callback = None;
+                            delete_deactivated = true;
+                            break;
+                        }
+                    }
+                }
                 html! {
                     <>
                         <nav class="level">
@@ -338,8 +355,9 @@ impl Component for ContributorComponent {
                             <div class="level-right">
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
-                                        onclick={ ctx.link().callback(|_| Msg::DeleteContributor) }
+                                        onclick={ delete_callback }
                                         object_name={ self.contributor.full_name.clone() }
+                                        deactivated={ delete_deactivated }
                                     />
                                 </p>
                             </div>

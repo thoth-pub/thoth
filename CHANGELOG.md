@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [574](https://github.com/thoth-pub/thoth/issues/574) - Add descriptions to all remaining items in schema
 
+### Fixed
+  - [548](https://github.com/thoth-pub/thoth/issues/548) - Prevent users from deleting contributors/institutions which are linked to works by other publishers
+
+## [[0.12.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.8) - 2024-09-03
+### Fixed
+  - [622](https://github.com/thoth-pub/thoth/pull/622) - Fix bug where list of contributors in New/Edit Contribution form was truncated
+
 ## [[0.12.7]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.7) - 2024-08-28
 ### Changed
   - [538](https://github.com/thoth-pub/thoth/issues/538) - Update Project MUSE ONIX 3.0 export to reflect new specifications provided by Project MUSE.

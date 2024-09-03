@@ -189,7 +189,9 @@ fn switch_admin(
         }
         AdminRoute::NewImprint => html! {<NewImprintComponent { current_user } />},
         AdminRoute::Institutions => html! {<InstitutionsComponent { current_user } />},
-        AdminRoute::Institution { id } => html! {<InstitutionComponent institution_id={ *id } />},
+        AdminRoute::Institution { id } => {
+            html! {<InstitutionComponent institution_id={ *id } { current_user } />}
+        }
         AdminRoute::NewInstitution => html! {<NewInstitutionComponent/>},
         AdminRoute::Publications => html! {<PublicationsComponent { current_user } />},
         AdminRoute::Publication { id } => {
@@ -205,7 +207,9 @@ fn switch_admin(
             }
         }
         AdminRoute::Contributors => html! {<ContributorsComponent { current_user } />},
-        AdminRoute::Contributor { id } => html! {<ContributorComponent contributor_id={ *id } />},
+        AdminRoute::Contributor { id } => {
+            html! {<ContributorComponent contributor_id={ *id } { current_user } />}
+        }
         AdminRoute::NewContributor => html! {<NewContributorComponent/>},
         AdminRoute::Serieses => html! {<SeriesesComponent { current_user } />},
         AdminRoute::NewSeries => html! {<NewSeriesComponent { current_user } />},
