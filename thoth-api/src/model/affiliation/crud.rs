@@ -36,7 +36,7 @@ impl Crud for Affiliation {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Affiliation>> {
         use crate::schema::affiliation::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query =
             affiliation
                 .inner_join(crate::schema::contribution::table.inner_join(
@@ -103,7 +103,7 @@ impl Crud for Affiliation {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::affiliation::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
 
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this

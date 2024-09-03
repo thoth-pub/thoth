@@ -37,7 +37,7 @@ impl Crud for Language {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Language>> {
         use crate::schema::language::dsl;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = dsl::language
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select(crate::schema::language::all_columns)
@@ -104,7 +104,7 @@ impl Crud for Language {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::language::dsl;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = dsl::language.into_boxed();
         if !language_codes.is_empty() {
             query = query.filter(dsl::language_code.eq_any(language_codes));
