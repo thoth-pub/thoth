@@ -5,11 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+  - [622](https://github.com/thoth-pub/thoth/pull/622) - Fix bug where list of contributors in New/Edit Contribution form was truncated
+
+## [[0.12.7]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.7) - 2024-08-28
 ### Changed
   - [538](https://github.com/thoth-pub/thoth/issues/538) - Update Project MUSE ONIX 3.0 export to reflect new specifications provided by Project MUSE.
   - [616](https://github.com/thoth-pub/thoth/pull/616) - Removed unused constant to comply with [`rustc 1.80.0`](https://github.com/rust-lang/rust/releases/tag/1.80.0)
   - [616](https://github.com/thoth-pub/thoth/pull/616) - Upgrade `time` to v0.3.36
-  - [616](https://github.com/thoth-pub/thoth/pull/616) - Upgrade `actix-web` to v4.8
+  - [616](https://github.com/thoth-pub/thoth/pull/616), [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `actix-web` to v4.9
   - [616](https://github.com/thoth-pub/thoth/pull/616) - Upgrade `openssl` to v0.10.66
   - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade `juniper` to v0.16.1
   - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade `uuid` to v1.10.0
@@ -18,10 +22,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade `trunk` to v0.20.3
   - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade `wasm-bindgen` to v0.2.93
   - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade rust to `1.80.1` in production and development `Dockerfile`
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `clap` to v4.5.16
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `env_logger` to v0.11.5
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `futures` to v0.3.30
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `jsonwebtoken` to v9.3.0
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `lazy_static` to v1.5.0
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `regex` to v1.10.6
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `strum` to v0.26.3
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `anyhow` to v1.0.86
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `thiserror` to v1.0.63
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `semver` to v1.0.23
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Replace deprecated diesel macro `sql_function` with `define_sql_function`
+  - [617](https://github.com/thoth-pub/thoth/issues/617) - Update publication types to include audiobook formats (MP3 and WAV)
 
 ### Fixed
   - [610](https://github.com/thoth-pub/thoth/issues/610) - Update <WebsiteRole> code for Work Landing Page in all ONIX exports from "01" (Publisher’s corporate website) to "02" (Publisher’s website for a specified work).
   - [#548](https://github.com/thoth-pub/thoth/issues/548) - Prevent users from deleting contributors/institutions which are linked to works by other publishers
+
+### Security
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `diesel` to v2.2.3
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `diesel-derive-newtype` to v2.1.2
+  - [621](https://github.com/thoth-pub/thoth/pull/621) - Upgrade `diesel_migrations` to v2.2.0
 
 ## [[0.12.6]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.6) - 2024-06-17
 ### Fixed
