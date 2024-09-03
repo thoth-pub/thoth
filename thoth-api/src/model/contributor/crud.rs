@@ -171,7 +171,7 @@ fn contributor_linked_publisher_ids(
         .filter(crate::schema::contribution::contributor_id.eq(contributor_id))
         .distinct()
         .load::<Uuid>(&mut connection)
-        .map_err(|e| e.into())
+        .map_err(Into::into)
 }
 
 #[cfg(test)]
