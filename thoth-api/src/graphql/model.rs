@@ -226,13 +226,19 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single work using its id")]
-    fn work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
+    #[graphql(description = "Query a single work using its ID")]
+    fn work(
+        context: &Context,
+        #[graphql(description = "Thoth work ID to search on")] work_id: Uuid,
+    ) -> FieldResult<Work> {
         Work::from_id(&context.db, &work_id).map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a single work using its DOI")]
-    fn work_by_doi(context: &Context, doi: Doi) -> FieldResult<Work> {
+    fn work_by_doi(
+        context: &Context,
+        #[graphql(description = "Work DOI to search on")] doi: Doi,
+    ) -> FieldResult<Work> {
         Work::from_doi(&context.db, doi, vec![]).map_err(|e| e.into())
     }
 
@@ -342,7 +348,10 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Query a single book using its DOI")]
-    fn book_by_doi(context: &Context, doi: Doi) -> FieldResult<Work> {
+    fn book_by_doi(
+        context: &Context,
+        #[graphql(description = "Book DOI to search on")] doi: Doi,
+    ) -> FieldResult<Work> {
         Work::from_doi(
             &context.db,
             doi,
@@ -459,7 +468,10 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Query a single chapter using its DOI")]
-    fn chapter_by_doi(context: &Context, doi: Doi) -> FieldResult<Work> {
+    fn chapter_by_doi(
+        context: &Context,
+        #[graphql(description = "Chapter DOI to search on")] doi: Doi,
+    ) -> FieldResult<Work> {
         Work::from_doi(&context.db, doi, vec![WorkType::BookChapter]).map_err(|e| e.into())
     }
 
@@ -548,8 +560,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single publication using its id")]
-    fn publication(context: &Context, publication_id: Uuid) -> FieldResult<Publication> {
+    #[graphql(description = "Query a single publication using its ID")]
+    fn publication(
+        context: &Context,
+        #[graphql(description = "Thoth publication ID to search on")] publication_id: Uuid,
+    ) -> FieldResult<Publication> {
         Publication::from_id(&context.db, &publication_id).map_err(|e| e.into())
     }
 
@@ -620,8 +635,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single publisher using its id")]
-    fn publisher(context: &Context, publisher_id: Uuid) -> FieldResult<Publisher> {
+    #[graphql(description = "Query a single publisher using its ID")]
+    fn publisher(
+        context: &Context,
+        #[graphql(description = "Thoth publisher ID to search on")] publisher_id: Uuid,
+    ) -> FieldResult<Publisher> {
         Publisher::from_id(&context.db, &publisher_id).map_err(|e| e.into())
     }
 
@@ -687,8 +705,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single imprint using its id")]
-    fn imprint(context: &Context, imprint_id: Uuid) -> FieldResult<Imprint> {
+    #[graphql(description = "Query a single imprint using its ID")]
+    fn imprint(
+        context: &Context,
+        #[graphql(description = "Thoth imprint ID to search on")] imprint_id: Uuid,
+    ) -> FieldResult<Imprint> {
         Imprint::from_id(&context.db, &imprint_id).map_err(|e| e.into())
     }
 
@@ -749,8 +770,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single contributor using its id")]
-    fn contributor(context: &Context, contributor_id: Uuid) -> FieldResult<Contributor> {
+    #[graphql(description = "Query a single contributor using its ID")]
+    fn contributor(
+        context: &Context,
+        #[graphql(description = "Thoth contributor ID to search on")] contributor_id: Uuid,
+    ) -> FieldResult<Contributor> {
         Contributor::from_id(&context.db, &contributor_id).map_err(|e| e.into())
     }
 
@@ -803,8 +827,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single contribution using its id")]
-    fn contribution(context: &Context, contribution_id: Uuid) -> FieldResult<Contribution> {
+    #[graphql(description = "Query a single contribution using its ID")]
+    fn contribution(
+        context: &Context,
+        #[graphql(description = "Thoth contribution ID to search on")] contribution_id: Uuid,
+    ) -> FieldResult<Contribution> {
         Contribution::from_id(&context.db, &contribution_id).map_err(|e| e.into())
     }
 
@@ -870,8 +897,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single series using its id")]
-    fn series(context: &Context, series_id: Uuid) -> FieldResult<Series> {
+    #[graphql(description = "Query a single series using its ID")]
+    fn series(
+        context: &Context,
+        #[graphql(description = "Thoth series ID to search on")] series_id: Uuid,
+    ) -> FieldResult<Series> {
         Series::from_id(&context.db, &series_id).map_err(|e| e.into())
     }
 
@@ -937,8 +967,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single issue using its id")]
-    fn issue(context: &Context, issue_id: Uuid) -> FieldResult<Issue> {
+    #[graphql(description = "Query a single issue using its ID")]
+    fn issue(
+        context: &Context,
+        #[graphql(description = "Thoth issue ID to search on")] issue_id: Uuid,
+    ) -> FieldResult<Issue> {
         Issue::from_id(&context.db, &issue_id).map_err(|e| e.into())
     }
 
@@ -998,8 +1031,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single language using its id")]
-    fn language(context: &Context, language_id: Uuid) -> FieldResult<Language> {
+    #[graphql(description = "Query a single language using its ID")]
+    fn language(
+        context: &Context,
+        #[graphql(description = "Thoth language ID to search on")] language_id: Uuid,
+    ) -> FieldResult<Language> {
         Language::from_id(&context.db, &language_id).map_err(|e| e.into())
     }
 
@@ -1073,8 +1109,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single location using its id")]
-    fn location(context: &Context, location_id: Uuid) -> FieldResult<Location> {
+    #[graphql(description = "Query a single location using its ID")]
+    fn location(
+        context: &Context,
+        #[graphql(description = "Thoth location ID to search on")] location_id: Uuid,
+    ) -> FieldResult<Location> {
         Location::from_id(&context.db, &location_id).map_err(|e| e.into())
     }
 
@@ -1135,8 +1174,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single price using its id")]
-    fn price(context: &Context, price_id: Uuid) -> FieldResult<Price> {
+    #[graphql(description = "Query a single price using its ID")]
+    fn price(
+        context: &Context,
+        #[graphql(description = "Thoth price ID to search on")] price_id: Uuid,
+    ) -> FieldResult<Price> {
         Price::from_id(&context.db, &price_id).map_err(|e| e.into())
     }
 
@@ -1202,8 +1244,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single subject using its id")]
-    fn subject(context: &Context, subject_id: Uuid) -> FieldResult<Subject> {
+    #[graphql(description = "Query a single subject using its ID")]
+    fn subject(
+        context: &Context,
+        #[graphql(description = "Thoth subject ID to search on")] subject_id: Uuid,
+    ) -> FieldResult<Subject> {
         Subject::from_id(&context.db, &subject_id).map_err(|e| e.into())
     }
 
@@ -1264,8 +1309,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single institution using its id")]
-    fn institution(context: &Context, institution_id: Uuid) -> FieldResult<Institution> {
+    #[graphql(description = "Query a single institution using its ID")]
+    fn institution(
+        context: &Context,
+        #[graphql(description = "Thoth institution ID to search on")] institution_id: Uuid,
+    ) -> FieldResult<Institution> {
         Institution::from_id(&context.db, &institution_id).map_err(|e| e.into())
     }
 
@@ -1313,8 +1361,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single funding using its id")]
-    fn funding(context: &Context, funding_id: Uuid) -> FieldResult<Funding> {
+    #[graphql(description = "Query a single funding using its ID")]
+    fn funding(
+        context: &Context,
+        #[graphql(description = "Thoth funding ID to search on")] funding_id: Uuid,
+    ) -> FieldResult<Funding> {
         Funding::from_id(&context.db, &funding_id).map_err(|e| e.into())
     }
 
@@ -1355,8 +1406,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single affiliation using its id")]
-    fn affiliation(context: &Context, affiliation_id: Uuid) -> FieldResult<Affiliation> {
+    #[graphql(description = "Query a single affiliation using its ID")]
+    fn affiliation(
+        context: &Context,
+        #[graphql(description = "Thoth affiliation ID to search on")] affiliation_id: Uuid,
+    ) -> FieldResult<Affiliation> {
         Affiliation::from_id(&context.db, &affiliation_id).map_err(|e| e.into())
     }
 
@@ -1397,8 +1451,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single reference using its id")]
-    fn reference(context: &Context, reference_id: Uuid) -> FieldResult<Reference> {
+    #[graphql(description = "Query a single reference using its ID")]
+    fn reference(
+        context: &Context,
+        #[graphql(description = "Thoth reference ID to search on")] reference_id: Uuid,
+    ) -> FieldResult<Reference> {
         Reference::from_id(&context.db, &reference_id).map_err(|e| e.into())
     }
 
@@ -1412,7 +1469,11 @@ pub struct MutationRoot;
 
 #[juniper::graphql_object(Context = Context)]
 impl MutationRoot {
-    fn create_work(context: &Context, data: NewWork) -> FieldResult<Work> {
+    #[graphql(description = "Create a new work with the specified values")]
+    fn create_work(
+        context: &Context,
+        #[graphql(description = "Values for work to be created")] data: NewWork,
+    ) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
@@ -1423,7 +1484,11 @@ impl MutationRoot {
         Work::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_publisher(context: &Context, data: NewPublisher) -> FieldResult<Publisher> {
+    #[graphql(description = "Create a new publisher with the specified values")]
+    fn create_publisher(
+        context: &Context,
+        #[graphql(description = "Values for publisher to be created")] data: NewPublisher,
+    ) -> FieldResult<Publisher> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         // Only superusers can create new publishers - NewPublisher has no ID field
         if !context.account_access.is_superuser {
@@ -1433,19 +1498,31 @@ impl MutationRoot {
         Publisher::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_imprint(context: &Context, data: NewImprint) -> FieldResult<Imprint> {
+    #[graphql(description = "Create a new imprint with the specified values")]
+    fn create_imprint(
+        context: &Context,
+        #[graphql(description = "Values for imprint to be created")] data: NewImprint,
+    ) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context.account_access.can_edit(data.publisher_id)?;
 
         Imprint::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_contributor(context: &Context, data: NewContributor) -> FieldResult<Contributor> {
+    #[graphql(description = "Create a new contributor with the specified values")]
+    fn create_contributor(
+        context: &Context,
+        #[graphql(description = "Values for contributor to be created")] data: NewContributor,
+    ) -> FieldResult<Contributor> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         Contributor::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_contribution(context: &Context, data: NewContribution) -> FieldResult<Contribution> {
+    #[graphql(description = "Create a new contribution with the specified values")]
+    fn create_contribution(
+        context: &Context,
+        #[graphql(description = "Values for contribution to be created")] data: NewContribution,
+    ) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
@@ -1454,7 +1531,11 @@ impl MutationRoot {
         Contribution::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_publication(context: &Context, data: NewPublication) -> FieldResult<Publication> {
+    #[graphql(description = "Create a new publication with the specified values")]
+    fn create_publication(
+        context: &Context,
+        #[graphql(description = "Values for publication to be created")] data: NewPublication,
+    ) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
@@ -1465,7 +1546,11 @@ impl MutationRoot {
         Publication::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_series(context: &Context, data: NewSeries) -> FieldResult<Series> {
+    #[graphql(description = "Create a new series with the specified values")]
+    fn create_series(
+        context: &Context,
+        #[graphql(description = "Values for series to be created")] data: NewSeries,
+    ) -> FieldResult<Series> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
@@ -1474,7 +1559,11 @@ impl MutationRoot {
         Series::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_issue(context: &Context, data: NewIssue) -> FieldResult<Issue> {
+    #[graphql(description = "Create a new issue with the specified values")]
+    fn create_issue(
+        context: &Context,
+        #[graphql(description = "Values for issue to be created")] data: NewIssue,
+    ) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
@@ -1485,7 +1574,11 @@ impl MutationRoot {
         Issue::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_language(context: &Context, data: NewLanguage) -> FieldResult<Language> {
+    #[graphql(description = "Create a new language with the specified values")]
+    fn create_language(
+        context: &Context,
+        #[graphql(description = "Values for language to be created")] data: NewLanguage,
+    ) -> FieldResult<Language> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
@@ -1494,12 +1587,20 @@ impl MutationRoot {
         Language::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_institution(context: &Context, data: NewInstitution) -> FieldResult<Institution> {
+    #[graphql(description = "Create a new institution with the specified values")]
+    fn create_institution(
+        context: &Context,
+        #[graphql(description = "Values for institution to be created")] data: NewInstitution,
+    ) -> FieldResult<Institution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         Institution::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_funding(context: &Context, data: NewFunding) -> FieldResult<Funding> {
+    #[graphql(description = "Create a new funding with the specified values")]
+    fn create_funding(
+        context: &Context,
+        #[graphql(description = "Values for funding to be created")] data: NewFunding,
+    ) -> FieldResult<Funding> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
@@ -1508,7 +1609,11 @@ impl MutationRoot {
         Funding::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_location(context: &Context, data: NewLocation) -> FieldResult<Location> {
+    #[graphql(description = "Create a new location with the specified values")]
+    fn create_location(
+        context: &Context,
+        #[graphql(description = "Values for location to be created")] data: NewLocation,
+    ) -> FieldResult<Location> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
@@ -1526,7 +1631,11 @@ impl MutationRoot {
         Location::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_price(context: &Context, data: NewPrice) -> FieldResult<Price> {
+    #[graphql(description = "Create a new price with the specified values")]
+    fn create_price(
+        context: &Context,
+        #[graphql(description = "Values for price to be created")] data: NewPrice,
+    ) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
@@ -1543,7 +1652,11 @@ impl MutationRoot {
         Price::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_subject(context: &Context, data: NewSubject) -> FieldResult<Subject> {
+    #[graphql(description = "Create a new subject with the specified values")]
+    fn create_subject(
+        context: &Context,
+        #[graphql(description = "Values for subject to be created")] data: NewSubject,
+    ) -> FieldResult<Subject> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
@@ -1554,7 +1667,11 @@ impl MutationRoot {
         Subject::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_affiliation(context: &Context, data: NewAffiliation) -> FieldResult<Affiliation> {
+    #[graphql(description = "Create a new affiliation with the specified values")]
+    fn create_affiliation(
+        context: &Context,
+        #[graphql(description = "Values for affiliation to be created")] data: NewAffiliation,
+    ) -> FieldResult<Affiliation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
@@ -1566,7 +1683,11 @@ impl MutationRoot {
         Affiliation::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_work_relation(context: &Context, data: NewWorkRelation) -> FieldResult<WorkRelation> {
+    #[graphql(description = "Create a new work relation with the specified values")]
+    fn create_work_relation(
+        context: &Context,
+        #[graphql(description = "Values for work relation to be created")] data: NewWorkRelation,
+    ) -> FieldResult<WorkRelation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         // Work relations may link works from different publishers.
         // User must have permissions for all relevant publishers.
@@ -1582,7 +1703,11 @@ impl MutationRoot {
         WorkRelation::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_reference(context: &Context, data: NewReference) -> FieldResult<Reference> {
+    #[graphql(description = "Create a new reference with the specified values")]
+    fn create_reference(
+        context: &Context,
+        #[graphql(description = "Values for reference to be created")] data: NewReference,
+    ) -> FieldResult<Reference> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
@@ -1591,7 +1716,11 @@ impl MutationRoot {
         Reference::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn update_work(context: &Context, data: PatchWork) -> FieldResult<Work> {
+    #[graphql(description = "Update an existing work with the specified values")]
+    fn update_work(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing work")] data: PatchWork,
+    ) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let work = Work::from_id(&context.db, &data.work_id).unwrap();
         context
@@ -1633,7 +1762,11 @@ impl MutationRoot {
         }
     }
 
-    fn update_publisher(context: &Context, data: PatchPublisher) -> FieldResult<Publisher> {
+    #[graphql(description = "Update an existing publisher with the specified values")]
+    fn update_publisher(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing publisher")] data: PatchPublisher,
+    ) -> FieldResult<Publisher> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let publisher = Publisher::from_id(&context.db, &data.publisher_id).unwrap();
         context.account_access.can_edit(publisher.publisher_id)?;
@@ -1647,7 +1780,11 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_imprint(context: &Context, data: PatchImprint) -> FieldResult<Imprint> {
+    #[graphql(description = "Update an existing imprint with the specified values")]
+    fn update_imprint(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing imprint")] data: PatchImprint,
+    ) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let imprint = Imprint::from_id(&context.db, &data.imprint_id).unwrap();
         context.account_access.can_edit(imprint.publisher_id())?;
@@ -1661,7 +1798,11 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_contributor(context: &Context, data: PatchContributor) -> FieldResult<Contributor> {
+    #[graphql(description = "Update an existing contributor with the specified values")]
+    fn update_contributor(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing contributor")] data: PatchContributor,
+    ) -> FieldResult<Contributor> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         Contributor::from_id(&context.db, &data.contributor_id)
@@ -1670,8 +1811,10 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
+    #[graphql(description = "Update an existing contribution with the specified values")]
     fn update_contribution(
         context: &Context,
+        #[graphql(description = "Values to apply to existing contribution")]
         data: PatchContribution,
     ) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
@@ -1691,7 +1834,11 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_publication(context: &Context, data: PatchPublication) -> FieldResult<Publication> {
+    #[graphql(description = "Update an existing publication with the specified values")]
+    fn update_publication(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing publication")] data: PatchPublication,
+    ) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let publication = Publication::from_id(&context.db, &data.publication_id).unwrap();
         context
@@ -1712,7 +1859,11 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_series(context: &Context, data: PatchSeries) -> FieldResult<Series> {
+    #[graphql(description = "Update an existing series with the specified values")]
+    fn update_series(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing series")] data: PatchSeries,
+    ) -> FieldResult<Series> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let series = Series::from_id(&context.db, &data.series_id).unwrap();
         context
@@ -1730,7 +1881,11 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_issue(context: &Context, data: PatchIssue) -> FieldResult<Issue> {
+    #[graphql(description = "Update an existing issue with the specified values")]
+    fn update_issue(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing issue")] data: PatchIssue,
+    ) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let issue = Issue::from_id(&context.db, &data.issue_id).unwrap();
         context
@@ -1750,7 +1905,11 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_language(context: &Context, data: PatchLanguage) -> FieldResult<Language> {
+    #[graphql(description = "Update an existing language with the specified values")]
+    fn update_language(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing language")] data: PatchLanguage,
+    ) -> FieldResult<Language> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let language = Language::from_id(&context.db, &data.language_id).unwrap();
         context
@@ -1769,7 +1928,11 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_institution(context: &Context, data: PatchInstitution) -> FieldResult<Institution> {
+    #[graphql(description = "Update an existing institution with the specified values")]
+    fn update_institution(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing institution")] data: PatchInstitution,
+    ) -> FieldResult<Institution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         Institution::from_id(&context.db, &data.institution_id)
@@ -1778,7 +1941,11 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_funding(context: &Context, data: PatchFunding) -> FieldResult<Funding> {
+    #[graphql(description = "Update an existing funding with the specified values")]
+    fn update_funding(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing funding")] data: PatchFunding,
+    ) -> FieldResult<Funding> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let funding = Funding::from_id(&context.db, &data.funding_id).unwrap();
         context
@@ -1797,7 +1964,11 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_location(context: &Context, data: PatchLocation) -> FieldResult<Location> {
+    #[graphql(description = "Update an existing location with the specified values")]
+    fn update_location(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing location")] data: PatchLocation,
+    ) -> FieldResult<Location> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let location = Location::from_id(&context.db, &data.location_id).unwrap();
         context
@@ -1830,7 +2001,11 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_price(context: &Context, data: PatchPrice) -> FieldResult<Price> {
+    #[graphql(description = "Update an existing price with the specified values")]
+    fn update_price(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing price")] data: PatchPrice,
+    ) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let price = Price::from_id(&context.db, &data.price_id).unwrap();
         context
@@ -1857,7 +2032,11 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_subject(context: &Context, data: PatchSubject) -> FieldResult<Subject> {
+    #[graphql(description = "Update an existing subject with the specified values")]
+    fn update_subject(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing subject")] data: PatchSubject,
+    ) -> FieldResult<Subject> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let subject = Subject::from_id(&context.db, &data.subject_id).unwrap();
         context
@@ -1878,7 +2057,11 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_affiliation(context: &Context, data: PatchAffiliation) -> FieldResult<Affiliation> {
+    #[graphql(description = "Update an existing affiliation with the specified values")]
+    fn update_affiliation(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing affiliation")] data: PatchAffiliation,
+    ) -> FieldResult<Affiliation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let affiliation = Affiliation::from_id(&context.db, &data.affiliation_id).unwrap();
         context
@@ -1900,8 +2083,10 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
+    #[graphql(description = "Update an existing work relation with the specified values")]
     fn update_work_relation(
         context: &Context,
+        #[graphql(description = "Values to apply to existing work relation")]
         data: PatchWorkRelation,
     ) -> FieldResult<WorkRelation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
@@ -1936,7 +2121,11 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_reference(context: &Context, data: PatchReference) -> FieldResult<Reference> {
+    #[graphql(description = "Update an existing reference with the specified values")]
+    fn update_reference(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing reference")] data: PatchReference,
+    ) -> FieldResult<Reference> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let reference = Reference::from_id(&context.db, &data.reference_id).unwrap();
         context
@@ -1955,7 +2144,11 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn delete_work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
+    #[graphql(description = "Delete a single work using its ID")]
+    fn delete_work(
+        context: &Context,
+        #[graphql(description = "Thoth ID of work to be deleted")] work_id: Uuid,
+    ) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let work = Work::from_id(&context.db, &work_id).unwrap();
         context
@@ -1965,7 +2158,11 @@ impl MutationRoot {
         work.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_publisher(context: &Context, publisher_id: Uuid) -> FieldResult<Publisher> {
+    #[graphql(description = "Delete a single publisher using its ID")]
+    fn delete_publisher(
+        context: &Context,
+        #[graphql(description = "Thoth ID of publisher to be deleted")] publisher_id: Uuid,
+    ) -> FieldResult<Publisher> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let publisher = Publisher::from_id(&context.db, &publisher_id).unwrap();
         context.account_access.can_edit(publisher_id)?;
@@ -1973,7 +2170,11 @@ impl MutationRoot {
         publisher.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_imprint(context: &Context, imprint_id: Uuid) -> FieldResult<Imprint> {
+    #[graphql(description = "Delete a single imprint using its ID")]
+    fn delete_imprint(
+        context: &Context,
+        #[graphql(description = "Thoth ID of imprint to be deleted")] imprint_id: Uuid,
+    ) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let imprint = Imprint::from_id(&context.db, &imprint_id).unwrap();
         context.account_access.can_edit(imprint.publisher_id())?;
@@ -1981,7 +2182,11 @@ impl MutationRoot {
         imprint.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_contributor(context: &Context, contributor_id: Uuid) -> FieldResult<Contributor> {
+    #[graphql(description = "Delete a single contributor using its ID")]
+    fn delete_contributor(
+        context: &Context,
+        #[graphql(description = "Thoth ID of contributor to be deleted")] contributor_id: Uuid,
+    ) -> FieldResult<Contributor> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let contributor = Contributor::from_id(&context.db, &contributor_id).unwrap();
         for linked_publisher_id in contributor.linked_publisher_ids(&context.db)? {
@@ -1991,7 +2196,11 @@ impl MutationRoot {
         contributor.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_contribution(context: &Context, contribution_id: Uuid) -> FieldResult<Contribution> {
+    #[graphql(description = "Delete a single contribution using its ID")]
+    fn delete_contribution(
+        context: &Context,
+        #[graphql(description = "Thoth ID of contribution to be deleted")] contribution_id: Uuid,
+    ) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let contribution = Contribution::from_id(&context.db, &contribution_id).unwrap();
         context
@@ -2001,7 +2210,11 @@ impl MutationRoot {
         contribution.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_publication(context: &Context, publication_id: Uuid) -> FieldResult<Publication> {
+    #[graphql(description = "Delete a single publication using its ID")]
+    fn delete_publication(
+        context: &Context,
+        #[graphql(description = "Thoth ID of publication to be deleted")] publication_id: Uuid,
+    ) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let publication = Publication::from_id(&context.db, &publication_id).unwrap();
         context
@@ -2011,7 +2224,11 @@ impl MutationRoot {
         publication.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_series(context: &Context, series_id: Uuid) -> FieldResult<Series> {
+    #[graphql(description = "Delete a single series using its ID")]
+    fn delete_series(
+        context: &Context,
+        #[graphql(description = "Thoth ID of series to be deleted")] series_id: Uuid,
+    ) -> FieldResult<Series> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let series = Series::from_id(&context.db, &series_id).unwrap();
         context
@@ -2021,7 +2238,11 @@ impl MutationRoot {
         series.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_issue(context: &Context, issue_id: Uuid) -> FieldResult<Issue> {
+    #[graphql(description = "Delete a single issue using its ID")]
+    fn delete_issue(
+        context: &Context,
+        #[graphql(description = "Thoth ID of issue to be deleted")] issue_id: Uuid,
+    ) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let issue = Issue::from_id(&context.db, &issue_id).unwrap();
         context
@@ -2031,7 +2252,11 @@ impl MutationRoot {
         issue.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_language(context: &Context, language_id: Uuid) -> FieldResult<Language> {
+    #[graphql(description = "Delete a single language using its ID")]
+    fn delete_language(
+        context: &Context,
+        #[graphql(description = "Thoth ID of language to be deleted")] language_id: Uuid,
+    ) -> FieldResult<Language> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let language = Language::from_id(&context.db, &language_id).unwrap();
         context
@@ -2041,7 +2266,11 @@ impl MutationRoot {
         language.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_institution(context: &Context, institution_id: Uuid) -> FieldResult<Institution> {
+    #[graphql(description = "Delete a single institution using its ID")]
+    fn delete_institution(
+        context: &Context,
+        #[graphql(description = "Thoth ID of institution to be deleted")] institution_id: Uuid,
+    ) -> FieldResult<Institution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let institution = Institution::from_id(&context.db, &institution_id).unwrap();
         for linked_publisher_id in institution.linked_publisher_ids(&context.db)? {
@@ -2051,7 +2280,11 @@ impl MutationRoot {
         institution.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_funding(context: &Context, funding_id: Uuid) -> FieldResult<Funding> {
+    #[graphql(description = "Delete a single funding using its ID")]
+    fn delete_funding(
+        context: &Context,
+        #[graphql(description = "Thoth ID of funding to be deleted")] funding_id: Uuid,
+    ) -> FieldResult<Funding> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let funding = Funding::from_id(&context.db, &funding_id).unwrap();
         context
@@ -2061,7 +2294,11 @@ impl MutationRoot {
         funding.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_location(context: &Context, location_id: Uuid) -> FieldResult<Location> {
+    #[graphql(description = "Delete a single location using its ID")]
+    fn delete_location(
+        context: &Context,
+        #[graphql(description = "Thoth ID of location to be deleted")] location_id: Uuid,
+    ) -> FieldResult<Location> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let location = Location::from_id(&context.db, &location_id).unwrap();
         context
@@ -2071,7 +2308,11 @@ impl MutationRoot {
         location.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_price(context: &Context, price_id: Uuid) -> FieldResult<Price> {
+    #[graphql(description = "Delete a single price using its ID")]
+    fn delete_price(
+        context: &Context,
+        #[graphql(description = "Thoth ID of price to be deleted")] price_id: Uuid,
+    ) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let price = Price::from_id(&context.db, &price_id).unwrap();
         context
@@ -2081,7 +2322,11 @@ impl MutationRoot {
         price.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_subject(context: &Context, subject_id: Uuid) -> FieldResult<Subject> {
+    #[graphql(description = "Delete a single subject using its ID")]
+    fn delete_subject(
+        context: &Context,
+        #[graphql(description = "Thoth ID of subject to be deleted")] subject_id: Uuid,
+    ) -> FieldResult<Subject> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let subject = Subject::from_id(&context.db, &subject_id).unwrap();
         context
@@ -2091,7 +2336,11 @@ impl MutationRoot {
         subject.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_affiliation(context: &Context, affiliation_id: Uuid) -> FieldResult<Affiliation> {
+    #[graphql(description = "Delete a single affiliation using its ID")]
+    fn delete_affiliation(
+        context: &Context,
+        #[graphql(description = "Thoth ID of affiliation to be deleted")] affiliation_id: Uuid,
+    ) -> FieldResult<Affiliation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let affiliation = Affiliation::from_id(&context.db, &affiliation_id).unwrap();
         context
@@ -2101,9 +2350,10 @@ impl MutationRoot {
         affiliation.delete(&context.db).map_err(|e| e.into())
     }
 
+    #[graphql(description = "Delete a single work relation using its ID")]
     fn delete_work_relation(
         context: &Context,
-        work_relation_id: Uuid,
+        #[graphql(description = "Thoth ID of work relation to be deleted")] work_relation_id: Uuid,
     ) -> FieldResult<WorkRelation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let work_relation = WorkRelation::from_id(&context.db, &work_relation_id).unwrap();
@@ -2121,7 +2371,11 @@ impl MutationRoot {
         work_relation.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_reference(context: &Context, reference_id: Uuid) -> FieldResult<Reference> {
+    #[graphql(description = "Delete a single reference using its ID")]
+    fn delete_reference(
+        context: &Context,
+        #[graphql(description = "Thoth ID of reference to be deleted")] reference_id: Uuid,
+    ) -> FieldResult<Reference> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let reference = Reference::from_id(&context.db, &reference_id).unwrap();
         context
@@ -2134,14 +2388,17 @@ impl MutationRoot {
 
 #[juniper::graphql_object(Context = Context, description = "A written text that can be published")]
 impl Work {
+    #[graphql(description = "Thoth ID of the work")]
     pub fn work_id(&self) -> &Uuid {
         &self.work_id
     }
 
+    #[graphql(description = "Type of the work")]
     pub fn work_type(&self) -> &WorkType {
         &self.work_type
     }
 
+    #[graphql(description = "Publication status of the work")]
     pub fn work_status(&self) -> &WorkStatus {
         &self.work_status
     }
@@ -2171,64 +2428,82 @@ impl Work {
         self.edition.as_ref()
     }
 
+    #[graphql(description = "Thoth ID of the work's imprint")]
     pub fn imprint_id(&self) -> Uuid {
         self.imprint_id
     }
 
     #[graphql(
-        description = "Digital Object Identifier of the work as full URL. It must use the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.11647/obp.0001)"
+        description = "Digital Object Identifier of the work as full URL, using the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.11647/obp.0001)"
     )]
     pub fn doi(&self) -> Option<&Doi> {
         self.doi.as_ref()
     }
 
+    #[graphql(description = "Date the work was published")]
     pub fn publication_date(&self) -> Option<NaiveDate> {
         self.publication_date
     }
 
     #[graphql(
-        description = "Date a work was withdrawn from publication. Only applies to out of print and withdrawn from sale works."
+        description = "Date the work was withdrawn from publication. Only applies to out of print and withdrawn from sale works."
     )]
     pub fn withdrawn_date(&self) -> Option<NaiveDate> {
         self.withdrawn_date
     }
 
+    #[graphql(description = "Place of publication of the work")]
     pub fn place(&self) -> Option<&String> {
         self.place.as_ref()
     }
 
+    #[graphql(
+        description = "Total number of pages in the work. In most cases, unnumbered pages (e.g. endpapers) should be omitted from this count."
+    )]
     pub fn page_count(&self) -> Option<&i32> {
         self.page_count.as_ref()
     }
 
+    #[graphql(
+        description = "Breakdown of work's page count into front matter, main content, and/or back matter (e.g. 'xi + 140')"
+    )]
     pub fn page_breakdown(&self) -> Option<&String> {
         self.page_breakdown.as_ref()
     }
 
+    #[graphql(description = "Total number of images in the work")]
     pub fn image_count(&self) -> Option<&i32> {
         self.image_count.as_ref()
     }
 
+    #[graphql(description = "Total number of tables in the work")]
     pub fn table_count(&self) -> Option<&i32> {
         self.table_count.as_ref()
     }
 
+    #[graphql(description = "Total number of audio fragments in the work")]
     pub fn audio_count(&self) -> Option<&i32> {
         self.audio_count.as_ref()
     }
 
+    #[graphql(description = "Total number of video fragments in the work")]
     pub fn video_count(&self) -> Option<&i32> {
         self.video_count.as_ref()
     }
 
+    #[graphql(
+        description = "URL of the license which applies to this work (frequently a Creative Commons license for open-access works)"
+    )]
     pub fn license(&self) -> Option<&String> {
         self.license.as_ref()
     }
 
+    #[graphql(description = "Copyright holder of the work")]
     pub fn copyright_holder(&self) -> Option<&String> {
         self.copyright_holder.as_ref()
     }
 
+    #[graphql(description = "URL of the web page of the work")]
     pub fn landing_page(&self) -> Option<&String> {
         self.landing_page.as_ref()
     }
@@ -2247,10 +2522,16 @@ impl Work {
         self.oclc.as_ref()
     }
 
+    #[graphql(
+        description = "Short abstract of the work. Where a work has two different versions of the abstract, the truncated version should be entered here. Otherwise, it can be left blank. This field is not output in metadata formats; where relevant, Long Abstract is used instead."
+    )]
     pub fn short_abstract(&self) -> Option<&String> {
         self.short_abstract.as_ref()
     }
 
+    #[graphql(
+        description = "Abstract of the work. Where a work has only one abstract, it should be entered here, and Short Abstract can be left blank. Long Abstract is output in metadata formats, and Short Abstract is not."
+    )]
     pub fn long_abstract(&self) -> Option<&String> {
         self.long_abstract.as_ref()
     }
@@ -2274,10 +2555,12 @@ impl Work {
         self.toc.as_ref()
     }
 
+    #[graphql(description = "URL of the work's cover image")]
     pub fn cover_url(&self) -> Option<&String> {
         self.cover_url.as_ref()
     }
 
+    #[graphql(description = "Caption describing the work's cover image")]
     pub fn cover_caption(&self) -> Option<&String> {
         self.cover_caption.as_ref()
     }
@@ -2316,6 +2599,7 @@ impl Work {
         self.updated_at_with_relations.clone()
     }
 
+    #[graphql(description = "Get this work's imprint")]
     pub fn imprint(&self, context: &Context) -> FieldResult<Imprint> {
         Imprint::from_id(&context.db, &self.imprint_id).map_err(|e| e.into())
     }
@@ -2599,26 +2883,34 @@ impl Work {
 
 #[juniper::graphql_object(Context = Context, description = "A manifestation of a written text")]
 impl Publication {
+    #[graphql(description = "Thoth ID of the publication")]
     pub fn publication_id(&self) -> Uuid {
         self.publication_id
     }
 
+    #[graphql(description = "Format of this publication")]
     pub fn publication_type(&self) -> &PublicationType {
         &self.publication_type
     }
 
+    #[graphql(description = "Thoth ID of the work to which this publication belongs")]
     pub fn work_id(&self) -> Uuid {
         self.work_id
     }
 
+    #[graphql(
+        description = "International Standard Book Number of the publication, in ISBN-13 format"
+    )]
     pub fn isbn(&self) -> Option<&Isbn> {
         self.isbn.as_ref()
     }
 
+    #[graphql(description = "Date and time at which the publication record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the publication record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
@@ -2766,6 +3058,7 @@ impl Publication {
         .map_err(|e| e.into())
     }
 
+    #[graphql(description = "Get the work to which this publication belongs")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
@@ -2773,26 +3066,32 @@ impl Publication {
 
 #[juniper::graphql_object(Context = Context, description = "An organisation that produces and distributes written texts.")]
 impl Publisher {
+    #[graphql(description = "Thoth ID of the publisher")]
     pub fn publisher_id(&self) -> Uuid {
         self.publisher_id
     }
 
+    #[graphql(description = "Name of the publisher")]
     pub fn publisher_name(&self) -> &String {
         &self.publisher_name
     }
 
+    #[graphql(description = "Short name of the publisher, if any (e.g. an abbreviation)")]
     pub fn publisher_shortname(&self) -> Option<&String> {
         self.publisher_shortname.as_ref()
     }
 
+    #[graphql(description = "URL of the publisher's website")]
     pub fn publisher_url(&self) -> Option<&String> {
         self.publisher_url.as_ref()
     }
 
+    #[graphql(description = "Date and time at which the publisher record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the publisher record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
@@ -2838,14 +3137,17 @@ impl Publisher {
 
 #[juniper::graphql_object(Context = Context, description = "The brand under which a publisher issues works.")]
 impl Imprint {
+    #[graphql(description = "Thoth ID of the imprint")]
     pub fn imprint_id(&self) -> Uuid {
         self.imprint_id
     }
 
+    #[graphql(description = "Thoth ID of the publisher to which this imprint belongs")]
     pub fn publisher_id(&self) -> Uuid {
         self.publisher_id
     }
 
+    #[graphql(description = "Name of the imprint")]
     pub fn imprint_name(&self) -> &String {
         &self.imprint_name
     }
@@ -2863,14 +3165,17 @@ impl Imprint {
         self.crossmark_doi.as_ref()
     }
 
+    #[graphql(description = "Date and time at which the imprint record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the imprint record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
 
+    #[graphql(description = "Get the publisher to which this imprint belongs")]
     pub fn publisher(&self, context: &Context) -> FieldResult<Publisher> {
         Publisher::from_id(&context.db, &self.publisher_id).map_err(|e| e.into())
     }
@@ -2933,34 +3238,46 @@ impl Imprint {
 
 #[juniper::graphql_object(Context = Context, description = "A person who has been involved in the production of a written text.")]
 impl Contributor {
+    #[graphql(description = "Thoth ID of the contributor")]
     pub fn contributor_id(&self) -> Uuid {
         self.contributor_id
     }
 
+    #[graphql(description = "Given or first name(s) of the contributor")]
     pub fn first_name(&self) -> Option<&String> {
         self.first_name.as_ref()
     }
 
+    #[graphql(description = "Family or surname of the contributor")]
     pub fn last_name(&self) -> &String {
         &self.last_name
     }
 
+    #[graphql(
+        description = "Full, serialized name of the contributor. Serialization is often culturally determined."
+    )]
     pub fn full_name(&self) -> &String {
         &self.full_name
     }
 
+    #[graphql(
+        description = "ORCID (Open Researcher and Contributor ID) of the contributor as full URL, using the HTTPS scheme and the orcid.org domain (e.g. https://orcid.org/0000-0002-1825-0097)"
+    )]
     pub fn orcid(&self) -> Option<&Orcid> {
         self.orcid.as_ref()
     }
 
+    #[graphql(description = "URL of the contributor's website")]
     pub fn website(&self) -> Option<&String> {
         self.website.as_ref()
     }
 
+    #[graphql(description = "Date and time at which the contributor record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the contributor record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
@@ -3001,58 +3318,82 @@ impl Contributor {
 
 #[juniper::graphql_object(Context = Context, description = "A person's involvement in the production of a written text.")]
 impl Contribution {
+    #[graphql(description = "Thoth ID of the contribution")]
     pub fn contribution_id(&self) -> Uuid {
         self.contribution_id
     }
 
+    #[graphql(description = "Thoth ID of the contributor who created the contribution")]
     pub fn contributor_id(&self) -> Uuid {
         self.contributor_id
     }
 
+    #[graphql(description = "Thoth ID of the work in which the contribution appears")]
     pub fn work_id(&self) -> Uuid {
         self.work_id
     }
 
+    #[graphql(description = "Nature of the contribution")]
     pub fn contribution_type(&self) -> &ContributionType {
         &self.contribution_type
     }
 
+    #[graphql(
+        description = "Whether this is a main contribution to the work (e.g. contributor credited on title page)"
+    )]
     pub fn main_contribution(&self) -> bool {
         self.main_contribution
     }
 
+    #[graphql(description = "Biography of the contributor at the time of contribution")]
     pub fn biography(&self) -> Option<&String> {
         self.biography.as_ref()
     }
 
+    #[graphql(description = "Date and time at which the contribution record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the contribution record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
 
+    #[graphql(
+        description = "Given or first name(s) of the contributor, as credited in this contribution"
+    )]
     pub fn first_name(&self) -> Option<&String> {
         self.first_name.as_ref()
     }
 
+    #[graphql(
+        description = "Family or surname of the contributor, as credited in this contribution"
+    )]
     pub fn last_name(&self) -> &String {
         &self.last_name
     }
 
+    #[graphql(
+        description = "Full, serialized name of the contributor, as credited in this contribution"
+    )]
     pub fn full_name(&self) -> &String {
         &self.full_name
     }
 
+    #[graphql(
+        description = "Number representing this contribution's position in an ordered list of contributions within the work"
+    )]
     pub fn contribution_ordinal(&self) -> &i32 {
         &self.contribution_ordinal
     }
 
+    #[graphql(description = "Get the work in which the contribution appears")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
 
+    #[graphql(description = "Get the contributor who created the contribution")]
     pub fn contributor(&self, context: &Context) -> FieldResult<Contributor> {
         Contributor::from_id(&context.db, &self.contributor_id).map_err(|e| e.into())
     }
@@ -3088,22 +3429,31 @@ impl Contribution {
 
 #[juniper::graphql_object(Context = Context, description = "A periodical of publications about a particular subject.")]
 impl Series {
+    #[graphql(description = "Thoth ID of the series")]
     pub fn series_id(&self) -> Uuid {
         self.series_id
     }
 
+    #[graphql(description = "Type of the series")]
     pub fn series_type(&self) -> &SeriesType {
         &self.series_type
     }
 
+    #[graphql(description = "Name of the series")]
     pub fn series_name(&self) -> &String {
         &self.series_name
     }
 
+    #[graphql(
+        description = "Print ISSN (International Standard Serial Number) of the series. This represents the print media version."
+    )]
     pub fn issn_print(&self) -> Option<&String> {
         self.issn_print.as_ref()
     }
 
+    #[graphql(
+        description = "Electronic ISSN (International Standard Serial Number) of the series. This represents the online version."
+    )]
     pub fn issn_digital(&self) -> Option<&String> {
         self.issn_digital.as_ref()
     }
@@ -3113,6 +3463,7 @@ impl Series {
         self.series_url.as_ref()
     }
 
+    #[graphql(description = "Description of the series")]
     pub fn series_description(&self) -> Option<&String> {
         self.series_description.as_ref()
     }
@@ -3122,18 +3473,22 @@ impl Series {
         self.series_cfp_url.as_ref()
     }
 
+    #[graphql(description = "Thoth ID of the imprint to which this series belongs")]
     pub fn imprint_id(&self) -> Uuid {
         self.imprint_id
     }
 
+    #[graphql(description = "Date and time at which the series record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the series record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
 
+    #[graphql(description = "Get the imprint linked to this series")]
     pub fn imprint(&self, context: &Context) -> FieldResult<Imprint> {
         Imprint::from_id(&context.db, &self.imprint_id).map_err(|e| e.into())
     }
@@ -3169,34 +3524,44 @@ impl Series {
 
 #[juniper::graphql_object(Context = Context, description = "A work published as a number in a periodical.")]
 impl Issue {
+    #[graphql(description = "Thoth ID of the issue")]
     pub fn issue_id(&self) -> Uuid {
         self.issue_id
     }
 
+    #[graphql(description = "Thoth ID of the work represented by the issue")]
     pub fn work_id(&self) -> Uuid {
         self.work_id
     }
 
+    #[graphql(description = "Thoth ID of the series to which the issue belongs")]
     pub fn series_id(&self) -> Uuid {
         self.series_id
     }
 
+    #[graphql(
+        description = "Number representing this issue's position in an ordered list of issues within the series (does not have to correspond to published issue number)"
+    )]
     pub fn issue_ordinal(&self) -> &i32 {
         &self.issue_ordinal
     }
 
+    #[graphql(description = "Date and time at which the issue record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the issue record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
 
+    #[graphql(description = "Get the series to which the issue belongs")]
     pub fn series(&self, context: &Context) -> FieldResult<Series> {
         Series::from_id(&context.db, &self.series_id).map_err(|e| e.into())
     }
 
+    #[graphql(description = "Get the work represented by the issue")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
@@ -3204,34 +3569,44 @@ impl Issue {
 
 #[juniper::graphql_object(Context = Context, description = "Description of a work's language.")]
 impl Language {
+    #[graphql(description = "Thoth ID of the language")]
     pub fn language_id(&self) -> Uuid {
         self.language_id
     }
 
+    #[graphql(description = "Thoth ID of the work which has this language")]
     pub fn work_id(&self) -> Uuid {
         self.work_id
     }
 
+    #[graphql(description = "Three-letter ISO 639 code representing the language")]
     pub fn language_code(&self) -> &LanguageCode {
         &self.language_code
     }
 
+    #[graphql(description = "Relation between this language and the original language of the text")]
     pub fn language_relation(&self) -> &LanguageRelation {
         &self.language_relation
     }
 
+    #[graphql(
+        description = "Whether this is a main language of the work (e.g. used for large sections of the text rather than just isolated quotations)"
+    )]
     pub fn main_language(&self) -> bool {
         self.main_language
     }
 
+    #[graphql(description = "Date and time at which the language record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the language record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
 
+    #[graphql(description = "Get the work which has this language")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
@@ -3239,38 +3614,49 @@ impl Language {
 
 #[juniper::graphql_object(Context = Context, description = "A location, such as a web shop or distribution platform, where a publication can be acquired or viewed.")]
 impl Location {
+    #[graphql(description = "Thoth ID of the location")]
     pub fn location_id(&self) -> Uuid {
         self.location_id
     }
 
+    #[graphql(description = "Thoth ID of the publication linked to this location")]
     pub fn publication_id(&self) -> Uuid {
         self.publication_id
     }
 
+    #[graphql(description = "Public-facing URL via which the publication can be accessed")]
     pub fn landing_page(&self) -> Option<&String> {
         self.landing_page.as_ref()
     }
 
+    #[graphql(description = "Direct link to the full text file")]
     pub fn full_text_url(&self) -> Option<&String> {
         self.full_text_url.as_ref()
     }
 
+    #[graphql(description = "Platform where the publication is hosted or can be acquired")]
     pub fn location_platform(&self) -> &LocationPlatform {
         &self.location_platform
     }
 
+    #[graphql(
+        description = "Whether this is the canonical location for this specific publication (e.g. the main platform on which the print version is sold, or the official version of record hosted on the publisher's own web server)"
+    )]
     pub fn canonical(&self) -> bool {
         self.canonical
     }
 
+    #[graphql(description = "Date and time at which the location record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the location record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
 
+    #[graphql(description = "Get the publication linked to this location")]
     pub fn publication(&self, context: &Context) -> FieldResult<Publication> {
         Publication::from_id(&context.db, &self.publication_id).map_err(|e| e.into())
     }
@@ -3278,30 +3664,39 @@ impl Location {
 
 #[juniper::graphql_object(Context = Context, description = "The amount of money, in any currency, that a publication costs.")]
 impl Price {
+    #[graphql(description = "Thoth ID of the price")]
     pub fn price_id(&self) -> Uuid {
         self.price_id
     }
 
+    #[graphql(description = "Thoth ID of the publication linked to this price")]
     pub fn publication_id(&self) -> Uuid {
         self.publication_id
     }
 
+    #[graphql(
+        description = "Three-letter ISO 4217 code representing the currency used in this price"
+    )]
     pub fn currency_code(&self) -> &CurrencyCode {
         &self.currency_code
     }
 
+    #[graphql(description = "Value of the publication in the specified currency")]
     pub fn unit_price(&self) -> f64 {
         self.unit_price
     }
 
+    #[graphql(description = "Date and time at which the price record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the price record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
 
+    #[graphql(description = "Get the publication linked to this price")]
     pub fn publication(&self, context: &Context) -> FieldResult<Publication> {
         Publication::from_id(&context.db, &self.publication_id).map_err(|e| e.into())
     }
@@ -3309,34 +3704,44 @@ impl Price {
 
 #[juniper::graphql_object(Context = Context, description = "A significant discipline or term related to a work.")]
 impl Subject {
+    #[graphql(description = "Thoth ID of the subject")]
     pub fn subject_id(&self) -> &Uuid {
         &self.subject_id
     }
 
+    #[graphql(description = "Thoth ID of the work to which the subject is linked")]
     pub fn work_id(&self) -> &Uuid {
         &self.work_id
     }
 
+    #[graphql(description = "Type of the subject (e.g. the subject category scheme being used)")]
     pub fn subject_type(&self) -> &SubjectType {
         &self.subject_type
     }
 
+    #[graphql(description = "Code representing the subject within the specified type")]
     pub fn subject_code(&self) -> &String {
         &self.subject_code
     }
 
+    #[graphql(
+        description = "Number representing this subject's position in an ordered list of subjects of the same type within the work (subjects of equal prominence can have the same number)"
+    )]
     pub fn subject_ordinal(&self) -> &i32 {
         &self.subject_ordinal
     }
 
+    #[graphql(description = "Date and time at which the subject record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the subject record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
 
+    #[graphql(description = "Get the work to which the subject is linked")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
@@ -3344,36 +3749,43 @@ impl Subject {
 
 #[juniper::graphql_object(Context = Context, description = "An organisation with which contributors may be affiliated or by which works may be funded.")]
 impl Institution {
+    #[graphql(description = "Thoth ID of the institution")]
     pub fn institution_id(&self) -> &Uuid {
         &self.institution_id
     }
 
+    #[graphql(description = "Name of the institution")]
     pub fn institution_name(&self) -> &String {
         &self.institution_name
     }
 
     #[graphql(
-        description = "Digital Object Identifier of the organisation as full URL. It must use the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.13039/100014013)"
+        description = "Digital Object Identifier of the organisation as full URL, using the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.13039/100014013)"
     )]
     pub fn institution_doi(&self) -> Option<&Doi> {
         self.institution_doi.as_ref()
     }
 
+    #[graphql(
+        description = "Three-letter ISO 3166-1 code representing the country where this institution is based"
+    )]
     pub fn country_code(&self) -> Option<&CountryCode> {
         self.country_code.as_ref()
     }
 
     #[graphql(
-        description = "Research Organisation Registry identifier of the organisation as full URL. It must use the HTTPS scheme and the ror.org domain (e.g. https://ror.org/051z6e826)"
+        description = "Research Organisation Registry identifier of the organisation as full URL, using the HTTPS scheme and the ror.org domain (e.g. https://ror.org/051z6e826)"
     )]
     pub fn ror(&self) -> Option<&Ror> {
         self.ror.as_ref()
     }
 
+    #[graphql(description = "Date and time at which the institution record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the institution record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
@@ -3435,52 +3847,64 @@ impl Institution {
     }
 }
 
-#[juniper::graphql_object(Context = Context, description = "A grant awarded to the publication of a work by an institution.")]
+#[juniper::graphql_object(Context = Context, description = "A grant awarded for the publication of a work by an institution.")]
 impl Funding {
+    #[graphql(description = "Thoth ID of the funding")]
     pub fn funding_id(&self) -> &Uuid {
         &self.funding_id
     }
 
+    #[graphql(description = "Thoth ID of the funded work")]
     pub fn work_id(&self) -> &Uuid {
         &self.work_id
     }
 
+    #[graphql(description = "Thoth ID of the funding institution")]
     pub fn institution_id(&self) -> &Uuid {
         &self.institution_id
     }
 
+    #[graphql(description = "Name of the funding program")]
     pub fn program(&self) -> Option<&String> {
         self.program.as_ref()
     }
 
+    #[graphql(description = "Name of the funding project")]
     pub fn project_name(&self) -> Option<&String> {
         self.project_name.as_ref()
     }
 
+    #[graphql(description = "Short name of the funding project")]
     pub fn project_shortname(&self) -> Option<&String> {
         self.project_shortname.as_ref()
     }
 
+    #[graphql(description = "Grant number of the award")]
     pub fn grant_number(&self) -> Option<&String> {
         self.grant_number.as_ref()
     }
 
+    #[graphql(description = "Jurisdiction of the award")]
     pub fn jurisdiction(&self) -> Option<&String> {
         self.jurisdiction.as_ref()
     }
 
+    #[graphql(description = "Date and time at which the funding record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the funding record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
 
+    #[graphql(description = "Get the funded work")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
 
+    #[graphql(description = "Get the funding institution")]
     pub fn institution(&self, context: &Context) -> FieldResult<Institution> {
         Institution::from_id(&context.db, &self.institution_id).map_err(|e| e.into())
     }
@@ -3488,38 +3912,51 @@ impl Funding {
 
 #[juniper::graphql_object(Context = Context, description = "An association between a person and an institution for a specific contribution.")]
 impl Affiliation {
+    #[graphql(description = "Thoth ID of the affiliation")]
     pub fn affiliation_id(&self) -> Uuid {
         self.affiliation_id
     }
 
+    #[graphql(description = "Thoth ID of the contribution linked to this affiliation")]
     pub fn contribution_id(&self) -> Uuid {
         self.contribution_id
     }
 
+    #[graphql(description = "Thoth ID of the institution linked to this affiliation")]
     pub fn institution_id(&self) -> Uuid {
         self.institution_id
     }
 
+    #[graphql(
+        description = "Number representing this affiliation's position in an ordered list of affiliations within the contribution"
+    )]
     pub fn affiliation_ordinal(&self) -> &i32 {
         &self.affiliation_ordinal
     }
 
+    #[graphql(
+        description = "Position of the contributor at the institution at the time of contribution"
+    )]
     pub fn position(&self) -> Option<&String> {
         self.position.as_ref()
     }
 
+    #[graphql(description = "Date and time at which the affiliation record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the affiliation record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
 
+    #[graphql(description = "Get the institution linked to this affiliation")]
     pub fn institution(&self, context: &Context) -> FieldResult<Institution> {
         Institution::from_id(&context.db, &self.institution_id).map_err(|e| e.into())
     }
 
+    #[graphql(description = "Get the contribution linked to this affiliation")]
     pub fn contribution(&self, context: &Context) -> FieldResult<Contribution> {
         Contribution::from_id(&context.db, &self.contribution_id).map_err(|e| e.into())
     }
@@ -3527,34 +3964,44 @@ impl Affiliation {
 
 #[juniper::graphql_object(Context = Context, description = "A relationship between two works, e.g. a book and one of its chapters, or an original and its translation.")]
 impl WorkRelation {
+    #[graphql(description = "Thoth ID of the work relation")]
     pub fn work_relation_id(&self) -> &Uuid {
         &self.work_relation_id
     }
 
+    #[graphql(description = "Thoth ID of the work to which this work relation belongs")]
     pub fn relator_work_id(&self) -> &Uuid {
         &self.relator_work_id
     }
 
+    #[graphql(description = "Thoth ID of the other work in the relationship")]
     pub fn related_work_id(&self) -> &Uuid {
         &self.related_work_id
     }
 
+    #[graphql(description = "Nature of the relationship")]
     pub fn relation_type(&self) -> &RelationType {
         &self.relation_type
     }
 
+    #[graphql(
+        description = "Number representing this work relation's position in an ordered list of relations of the same type within the work"
+    )]
     pub fn relation_ordinal(&self) -> &i32 {
         &self.relation_ordinal
     }
 
+    #[graphql(description = "Date and time at which the work relation record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the work relation record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
 
+    #[graphql(description = "Get the other work in the relationship")]
     pub fn related_work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.related_work_id).map_err(|e| e.into())
     }

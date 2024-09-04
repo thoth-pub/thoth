@@ -79,6 +79,7 @@ pub struct Reference {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new citation to a written text"),
     diesel(table_name = reference)
 )]
 pub struct NewReference {
@@ -109,6 +110,7 @@ pub struct NewReference {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing citation to a written text"),
     diesel(table_name = reference, treat_none_as_null = true)
 )]
 pub struct PatchReference {

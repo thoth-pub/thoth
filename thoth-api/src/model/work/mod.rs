@@ -26,28 +26,56 @@ use crate::schema::work_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Type of a work"),
     ExistingTypePath = "crate::schema::sql_types::WorkType"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum WorkType {
-    #[cfg_attr(feature = "backend", db_rename = "book-chapter")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "book-chapter",
+        graphql(description = "Section of a larger parent work")
+    )]
     BookChapter,
     #[default]
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "Long-form work on a single theme, by a small number of authors")
+    )]
     Monograph,
-    #[cfg_attr(feature = "backend", db_rename = "edited-book")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "edited-book",
+        graphql(description = "Collection of short works by different authors on a single theme")
+    )]
     EditedBook,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "Work used for educational purposes")
+    )]
     Textbook,
-    #[cfg_attr(feature = "backend", db_rename = "journal-issue")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "journal-issue",
+        graphql(
+            description = "Single publication within a series of collections of related articles"
+        )
+    )]
     JournalIssue,
-    #[cfg_attr(feature = "backend", db_rename = "book-set")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "book-set",
+        graphql(description = "Group of volumes published together forming a single work")
+    )]
     BookSet,
 }
 
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Publication status of a work"),
     ExistingTypePath = "crate::schema::sql_types::WorkStatus"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
@@ -225,6 +253,7 @@ pub struct WorkWithRelations {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new written text that can be published"),
     diesel(table_name = work)
 )]
 pub struct NewWork {
@@ -266,6 +295,7 @@ pub struct NewWork {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing written text that can be published"),
     diesel(table_name = work, treat_none_as_null = true)
 )]
 pub struct PatchWork {
