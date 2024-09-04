@@ -108,16 +108,17 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
                             .map_err(|e| e.into())
                     })
                 })?;
-                write_element_block("ProductIdentifier", w, |w| {
-                    // 15 ISBN-13
-                    write_element_block("ProductIDType", w, |w| {
-                        w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
+                if let Some(isbn) = &main_isbn {
+                    write_element_block("ProductIdentifier", w, |w| {
+                        // 15 ISBN-13
+                        write_element_block("ProductIDType", w, |w| {
+                            w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("IDValue", w, |w| {
+                            w.write(XmlEvent::Characters(isbn)).map_err(|e| e.into())
+                        })
                     })?;
-                    write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(&main_isbn))
-                            .map_err(|e| e.into())
-                    })
-                })?;
+                }
                 if let Some(doi) = &self.doi {
                     write_element_block("ProductIdentifier", w, |w| {
                         write_element_block("ProductIDType", w, |w| {
@@ -441,28 +442,29 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
 
 fn get_publications_data(
     publications: &[WorkPublications],
-) -> (String, Vec<(PublicationType, String)>) {
-    let mut main_isbn = "".to_string();
-    let mut isbns: Vec<(PublicationType, String)> = Vec::new();
+) -> (Option<String>, Vec<(PublicationType, String)>) {
+    let isbns: Vec<(PublicationType, String)> = publications
+        .iter()
+        .filter_map(|publication| {
+            publication.isbn.as_ref().map(|isbn| {
+                (
+                    publication.publication_type.clone(),
+                    isbn.to_hyphenless_string(),
+                )
+            })
+        })
+        .collect();
 
-    for publication in publications {
-        if let Some(isbn) = &publication.isbn.as_ref() {
-            let hyphenless_isbn = isbn.to_hyphenless_string();
-            isbns.push((
-                publication.publication_type.clone(),
-                hyphenless_isbn.clone(),
-            ));
-
-            // The default product ISBN is the PDF's
-            if publication.publication_type == PublicationType::PDF {
-                main_isbn = hyphenless_isbn.clone();
-            }
-            // Books that don't have a PDF ISBN will use the paperback's
-            if publication.publication_type == PublicationType::PAPERBACK && main_isbn.is_empty() {
-                main_isbn = hyphenless_isbn;
-            }
-        }
-    }
+    // The default product ISBN is the PDF's, and fallback to a paperback if not found
+    let main_isbn = isbns
+        .iter()
+        .find(|(publication_type, _)| publication_type == &PublicationType::PDF)
+        .or_else(|| {
+            isbns
+                .iter()
+                .find(|(publication_type, _)| publication_type == &PublicationType::PAPERBACK)
+        })
+        .map(|(_, isbn)| isbn.clone());
 
     (main_isbn, isbns)
 }
