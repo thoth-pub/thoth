@@ -116,7 +116,7 @@ pub struct NewLocation {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, AsChangeset, Debug),
     diesel(table_name = location, treat_none_as_null = true)
 )]
 pub struct PatchLocation {

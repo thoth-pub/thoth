@@ -35,6 +35,8 @@ use crate::model::Orcid;
 use crate::model::Ror;
 use crate::model::Timestamp;
 use crate::model::WeightUnit;
+use crate::schema::location;
+use diesel::{Connection, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 
 use super::utils::{Direction, Expression};
@@ -46,6 +48,7 @@ pub struct Context {
     pub db: Arc<PgPool>,
     pub account_access: AccountAccess,
     pub token: DecodedToken,
+    
 }
 
 impl Context {
@@ -1799,12 +1802,13 @@ impl MutationRoot {
 
     fn update_location(context: &Context, data: PatchLocation) -> FieldResult<Location> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let location = Location::from_id(&context.db, &data.location_id).unwrap();
+        let current_location = Location::from_id(&context.db, &data.location_id).unwrap();
+
         context
             .account_access
-            .can_edit(location.publisher_id(&context.db)?)?;
+            .can_edit(current_location.publisher_id(&context.db)?)?;
 
-        if data.publication_id != location.publication_id {
+        if data.publication_id != current_location.publication_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_publication_id(
@@ -1819,21 +1823,124 @@ impl MutationRoot {
         // is completed. Equivalent check is maintained in the DB, so hopefully this can
         // be left out and the check will still be completed at the DB level, preventing more
         // than one canonical location.
-        if data.canonical != location.canonical {
-            // Each publication must have exactly one canonical location.
-            // Updating an existing location would always violate this,
-            // as it should always result in either zero or two canonical locations.
-            return Err(ThothError::CanonicalLocationError.into());
-        }
+        // if data.canonical != current_location.canonical {
+        //     // This looks at any time you want to change canonical location.
+        //     // Each publication must have exactly one canonical location.
+        //     // Updating an existing location would always violate this,
+        //     // as it should always result in either zero or two canonical locations.
+        //     return Err(ThothError::CanonicalLocationError.into());
+        // }
+
+
+        // let all_location_platforms = Some(vec![
+        //     LocationPlatform::ProjectMuse,
+        //     LocationPlatform::Oapen,
+        //     LocationPlatform::Doab,
+        //     LocationPlatform::Jstor,
+        //     LocationPlatform::EbscoHost,
+        //     LocationPlatform::OclcKb,
+        //     LocationPlatform::ProquestKb,
+        //     LocationPlatform::ProquestExlibris,
+        //     LocationPlatform::EbscoKb,
+        //     LocationPlatform::JiscKb,
+        //     LocationPlatform::GoogleBooks,
+        //     LocationPlatform::InternetArchive,
+        //     LocationPlatform::ScienceOpen,
+        //     LocationPlatform::ScieloBooks,
+        //     LocationPlatform::Zenodo,
+        //     LocationPlatform::PublisherWebsite,
+        //     LocationPlatform::Other,
+        // ]);
+
+
+        // TODO: get all locations from current publication. Publication does not contain Locations. 
+
+        // look for the location that is canonical
+        // get current publication
+        // let publication = Publication::from_id(&context.db, &data.publication_id).unwrap();
+        // let locations = Publication::locations(&publication, context, Some(100), Some(0), Some(LocationOrderBy::default()), all_location_platforms);
+        // println!("publication contains: {:?}", publication);
+        // println!("locations are: {:?}", locations);
+        println!("PatchLocation data is: {:?}", &data);
+        // example of PatchLocation data:
+        // PatchLocation { location_id: b2e14c78-5fbe-4526-8206-f28dd335a981, 
+        // publication_id: 5ece37a1-3aae-4e9c-8580-5c1d38375f4a, 
+        // landing_page: Some("https://thoth-arch.lib.cam.ac.uk/handle/1811/86ggggggaaa444555444333121121"), 
+        // full_text_url: Some("https://fulltext30.com"), 
+        // location_platform: Zenodo, canonical: false }
+
+        // for location in locations {
+        //     println!("Individual Location is: {:?}", location);
+        // }
+
+
+        // example of publication variable:
+        // Publication { publication_id: 5ece37a1-3aae-4e9c-8580-5c1d38375f4a, 
+        // publication_type: Pdf, work_id: 5fb9a23a-bf8e-4527-9c9c-3786b7219285, 
+        // isbn: Some(Isbn("978-1-80064-730-5")), created_at: Timestamp(2022-06-13T08:24:51.502655Z), 
+        // updated_at: Timestamp(2022-06-13T08:24:51.502655Z), width_mm: None, 
+        // width_in: None, height_mm: None, height_in: None, depth_mm: None, depth_in: None, weight_g: None, weight_oz: None }
+
+
 
         if data.canonical {
             data.canonical_record_complete(&context.db)?;
         }
+        // account_id was used in old location.update structure, can delete later
+        // let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let connection = &mut context.db.get().unwrap();
+        
+        let zenodo_location_id = Uuid::parse_str("b2e14c78-5fbe-4526-8206-f28dd335a981").unwrap();
+        let zenodo_patch_location = PatchLocation {
+            location_id: Uuid::parse_str("b2e14c78-5fbe-4526-8206-f28dd335a981").unwrap(),
+            publication_id: Uuid::parse_str("5ece37a1-3aae-4e9c-8580-5c1d38375f4a").unwrap(),
+            landing_page: Some("https://thoth-arch.lib.cam.ac.uk/handle/1811/hardcoded_zenodo".to_string()),
+            full_text_url: Some("https://fulltext30zenodo.com".to_string()),
+            location_platform: LocationPlatform::Zenodo,
+            canonical: false,
+        };
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        location
-            .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+        let scienceopen_location_id = Uuid::parse_str("8b5791e5-15c2-42aa-8211-65041d8cf2e5").unwrap();
+        let scienceopen_patch_location = PatchLocation {
+            location_id: Uuid::parse_str("8b5791e5-15c2-42aa-8211-65041d8cf2e5").unwrap(),
+            publication_id: Uuid::parse_str("5ece37a1-3aae-4e9c-8580-5c1d38375f4a").unwrap(),
+            landing_page: Some("https://thoth-arch.lib.cam.ac.uk/handle/1811/hardcoded_scienceopen".to_string()),
+            full_text_url: Some("https://fulltext30scienceopen.com".to_string()),
+            location_platform: LocationPlatform::ScienceOpen,
+            canonical: true,
+        };
+
+        // if in transaction you try to set the new canonical to true first, you have two canonical locations at the same time,
+        // and get 
+        // error message: "current transaction is aborted, commands ignored until end of transaction block"
+
+        // so must set old canonical to false first, then set new one to true.
+
+
+        // if canonical location and want to remove from canonical --> error
+        // if not canonical location and want to make canonical, update existing canonical
+        // to set to false, set new to true
+        connection.transaction(|connection| {
+            // diesel::update(location::table.find(data.location_id))
+            diesel::update(location::table.find(zenodo_location_id))
+                .set(zenodo_patch_location) 
+                // .set(&data)
+                .get_result::<Location>(connection);
+            diesel::update(location::table.find(scienceopen_location_id))
+                .set(scienceopen_patch_location) 
+                // .set(&data)
+                .get_result::<Location>(connection)
+                .map_err(|e| e.into())
+            // diesel::update(location::table.find(other_location.location_id))
+            //     .set(&data)
+            //     .get_result::<Self>(connection)
+            //     .map_err(|e| e.into())
+            // .get_result::<Self>(connection)
+            // .map_err(|e| e.into())
+            // location
+            //     .update(&connection, &data, &account_id)
+            //     .map_err(|e| e.into())
+        })
     }
 
     fn update_price(context: &Context, data: PatchPrice) -> FieldResult<Price> {
