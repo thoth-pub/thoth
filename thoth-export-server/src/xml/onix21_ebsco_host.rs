@@ -365,11 +365,16 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
                     })
                 })?;
                 if !isbns.is_empty() {
-                    for isbn in &isbns {
+                    for (publication_type, isbn) in &isbns {
+                        let relation_code = match publication_type {
+                            PublicationType::PAPERBACK | PublicationType::HARDBACK => "13", // Epublication based on (print product)
+                            _ => "06", // Alternative format
+                        };
+
                         write_element_block("RelatedProduct", w, |w| {
-                            // 06 Alternative format
                             write_element_block("RelationCode", w, |w| {
-                                w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                                w.write(XmlEvent::Characters(relation_code))
+                                    .map_err(|e| e.into())
                             })?;
                             write_element_block("ProductIdentifier", w, |w| {
                                 // 15 ISBN-13
@@ -434,21 +439,27 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
     }
 }
 
-fn get_publications_data(publications: &[WorkPublications]) -> (String, Vec<String>) {
+fn get_publications_data(
+    publications: &[WorkPublications],
+) -> (String, Vec<(PublicationType, String)>) {
     let mut main_isbn = "".to_string();
-    let mut isbns: Vec<String> = Vec::new();
+    let mut isbns: Vec<(PublicationType, String)> = Vec::new();
 
     for publication in publications {
         if let Some(isbn) = &publication.isbn.as_ref() {
-            isbns.push(isbn.to_hyphenless_string());
+            let hyphenless_isbn = isbn.to_hyphenless_string();
+            isbns.push((
+                publication.publication_type.clone(),
+                hyphenless_isbn.clone(),
+            ));
+
             // The default product ISBN is the PDF's
-            if publication.publication_type.eq(&PublicationType::PDF) {
-                main_isbn = isbn.to_hyphenless_string();
+            if publication.publication_type == PublicationType::PDF {
+                main_isbn = hyphenless_isbn.clone();
             }
             // Books that don't have a PDF ISBN will use the paperback's
-            if publication.publication_type.eq(&PublicationType::PAPERBACK) && main_isbn.is_empty()
-            {
-                main_isbn = isbn.to_hyphenless_string();
+            if publication.publication_type == PublicationType::PAPERBACK && main_isbn.is_empty() {
+                main_isbn = hyphenless_isbn;
             }
         }
     }
