@@ -165,6 +165,7 @@ fragment Work on Work {
             doi
             publicationDate
             withdrawnDate
+            workStatus
             license
             shortAbstract
             longAbstract
@@ -175,6 +176,7 @@ fragment Work on Work {
             pageInterval
             landingPage
             imprint {
+                crossmarkDoi
                 publisher {
                     publisherName
                 }

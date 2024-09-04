@@ -36,7 +36,7 @@ impl Crud for Subject {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Subject>> {
         use crate::schema::subject::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = subject
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select(crate::schema::subject::all_columns)
@@ -104,7 +104,7 @@ impl Crud for Subject {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::subject::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = subject.into_boxed();
         if !subject_types.is_empty() {
             query = query.filter(subject_type.eq_any(subject_types));

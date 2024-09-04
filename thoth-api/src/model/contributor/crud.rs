@@ -38,7 +38,7 @@ impl Crud for Contributor {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Contributor>> {
         use crate::schema::contributor::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = contributor.into_boxed();
 
         query = match order.field {
@@ -102,7 +102,7 @@ impl Crud for Contributor {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::contributor::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = contributor.into_boxed();
         if let Some(filter) = filter {
             query = query.filter(
@@ -148,6 +148,30 @@ impl DbInsert for NewContributorHistory {
     type MainEntity = ContributorHistory;
 
     db_insert!(contributor_history::table);
+}
+
+impl Contributor {
+    pub fn linked_publisher_ids(&self, db: &crate::db::PgPool) -> ThothResult<Vec<Uuid>> {
+        contributor_linked_publisher_ids(self.contributor_id, db)
+    }
+}
+
+fn contributor_linked_publisher_ids(
+    contributor_id: Uuid,
+    db: &crate::db::PgPool,
+) -> ThothResult<Vec<Uuid>> {
+    let mut connection = db.get()?;
+    crate::schema::publisher::table
+        .inner_join(
+            crate::schema::imprint::table.inner_join(
+                crate::schema::work::table.inner_join(crate::schema::contribution::table),
+            ),
+        )
+        .select(crate::schema::publisher::publisher_id)
+        .filter(crate::schema::contribution::contributor_id.eq(contributor_id))
+        .distinct()
+        .load::<Uuid>(&mut connection)
+        .map_err(Into::into)
 }
 
 #[cfg(test)]

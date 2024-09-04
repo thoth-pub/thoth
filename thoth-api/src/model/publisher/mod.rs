@@ -47,6 +47,7 @@ pub struct Publisher {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new organisation that produces and distributes works"),
     diesel(table_name = publisher)
 )]
 pub struct NewPublisher {
@@ -58,6 +59,7 @@ pub struct NewPublisher {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing organisation that produces and distributes works"),
     diesel(table_name = publisher, treat_none_as_null = true)
 )]
 pub struct PatchPublisher {

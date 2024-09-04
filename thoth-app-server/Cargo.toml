@@ -1,6 +1,6 @@
 [package]
 name = "thoth-app-server"
-version = "0.12.6"
+version = "0.12.8"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -10,9 +10,9 @@ readme = "README.md"
 build = "build.rs"
 
 [dependencies]
-actix-web = "4.8"
+actix-web = "4.9"
 actix-cors = "0.7.0"
-env_logger = "0.11.2"
+env_logger = "0.11.5"
 
 [build-dependencies]
 dotenv = "0.15.0"

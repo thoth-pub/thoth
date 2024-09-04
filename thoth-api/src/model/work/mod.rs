@@ -26,53 +26,71 @@ use crate::schema::work_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Type of a work"),
     ExistingTypePath = "crate::schema::sql_types::WorkType"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum WorkType {
-    #[cfg_attr(feature = "backend", db_rename = "book-chapter")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "book-chapter",
+        graphql(description = "Section of a larger parent work")
+    )]
     BookChapter,
     #[default]
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "Long-form work on a single theme, by a small number of authors")
+    )]
     Monograph,
-    #[cfg_attr(feature = "backend", db_rename = "edited-book")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "edited-book",
+        graphql(description = "Collection of short works by different authors on a single theme")
+    )]
     EditedBook,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "Work used for educational purposes")
+    )]
     Textbook,
-    #[cfg_attr(feature = "backend", db_rename = "journal-issue")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "journal-issue",
+        graphql(
+            description = "Single publication within a series of collections of related articles"
+        )
+    )]
     JournalIssue,
-    #[cfg_attr(feature = "backend", db_rename = "book-set")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "book-set",
+        graphql(description = "Group of volumes published together forming a single work")
+    )]
     BookSet,
 }
 
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Publication status of a work"),
     ExistingTypePath = "crate::schema::sql_types::WorkStatus"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum WorkStatus {
-    Unspecified,
-    Cancelled,
-    Forthcoming,
-    #[cfg_attr(feature = "backend", db_rename = "postponed-indefinitely")]
-    PostponedIndefinitely,
-    Active,
-    #[cfg_attr(feature = "backend", db_rename = "no-longer-our-product")]
-    NoLongerOurProduct,
-    #[cfg_attr(feature = "backend", db_rename = "out-of-stock-indefinitely")]
-    OutOfStockIndefinitely,
-    #[cfg_attr(feature = "backend", db_rename = "out-of-print")]
-    OutOfPrint,
     #[default]
-    Inactive,
-    Unknown,
-    Remaindered,
+    Forthcoming,
+    Active,
     #[cfg_attr(feature = "backend", db_rename = "withdrawn-from-sale")]
     WithdrawnFromSale,
-    Recalled,
+    Superseded,
+    #[cfg_attr(feature = "backend", db_rename = "postponed-indefinitely")]
+    PostponedIndefinitely,
+    Cancelled,
 }
 
 #[cfg_attr(
@@ -225,6 +243,7 @@ pub struct WorkWithRelations {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new written text that can be published"),
     diesel(table_name = work)
 )]
 pub struct NewWork {
@@ -266,6 +285,7 @@ pub struct NewWork {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing written text that can be published"),
     diesel(table_name = work, treat_none_as_null = true)
 )]
 pub struct PatchWork {
@@ -333,8 +353,14 @@ pub struct WorkOrderBy {
 }
 
 impl WorkStatus {
-    fn is_withdrawn_out_of_print(&self) -> bool {
-        matches!(self, WorkStatus::OutOfPrint | WorkStatus::WithdrawnFromSale)
+    fn is_withdrawn_superseded(&self) -> bool {
+        matches!(self, WorkStatus::WithdrawnFromSale | WorkStatus::Superseded)
+    }
+    fn is_active_withdrawn_superseded(&self) -> bool {
+        matches!(
+            self,
+            WorkStatus::Active | WorkStatus::WithdrawnFromSale | WorkStatus::Superseded
+        )
     }
 }
 
@@ -343,23 +369,38 @@ pub trait WorkProperties {
     fn publication_date(&self) -> &Option<NaiveDate>;
     fn withdrawn_date(&self) -> &Option<NaiveDate>;
 
-    fn is_withdrawn_out_of_print(&self) -> bool {
-        self.work_status().is_withdrawn_out_of_print()
+    fn is_withdrawn_superseded(&self) -> bool {
+        self.work_status().is_withdrawn_superseded()
+    }
+
+    fn is_active_withdrawn_superseded(&self) -> bool {
+        self.work_status().is_active_withdrawn_superseded()
     }
 
     fn has_withdrawn_date(&self) -> bool {
         self.withdrawn_date().is_some()
     }
 
+    fn has_publication_date(&self) -> bool {
+        self.publication_date().is_some()
+    }
+
+    fn active_withdrawn_superseded_no_publication_date_error(&self) -> ThothResult<()> {
+        if self.is_active_withdrawn_superseded() && !self.has_publication_date() {
+            return Err(ThothError::PublicationDateError);
+        }
+        Ok(())
+    }
+
     fn withdrawn_date_error(&self) -> ThothResult<()> {
-        if !self.is_withdrawn_out_of_print() && self.has_withdrawn_date() {
+        if !self.is_withdrawn_superseded() && self.has_withdrawn_date() {
             return Err(ThothError::WithdrawnDateError);
         }
         Ok(())
     }
 
     fn no_withdrawn_date_error(&self) -> ThothResult<()> {
-        if self.is_withdrawn_out_of_print() && !self.has_withdrawn_date() {
+        if self.is_withdrawn_superseded() && !self.has_withdrawn_date() {
             return Err(ThothError::NoWithdrawnDateError);
         }
         Ok(())
@@ -515,7 +556,7 @@ fn test_worktype_default() {
 #[test]
 fn test_workstatus_default() {
     let workstatus: WorkStatus = Default::default();
-    assert_eq!(workstatus, WorkStatus::Inactive);
+    assert_eq!(workstatus, WorkStatus::Forthcoming);
 }
 
 #[test]
@@ -544,22 +585,10 @@ fn test_workstatus_display() {
     );
     assert_eq!(format!("{}", WorkStatus::Active), "Active");
     assert_eq!(
-        format!("{}", WorkStatus::NoLongerOurProduct),
-        "No Longer Our Product"
-    );
-    assert_eq!(
-        format!("{}", WorkStatus::OutOfStockIndefinitely),
-        "Out Of Stock Indefinitely"
-    );
-    assert_eq!(format!("{}", WorkStatus::OutOfPrint), "Out Of Print");
-    assert_eq!(format!("{}", WorkStatus::Inactive), "Inactive");
-    assert_eq!(format!("{}", WorkStatus::Unknown), "Unknown");
-    assert_eq!(format!("{}", WorkStatus::Remaindered), "Remaindered");
-    assert_eq!(
         format!("{}", WorkStatus::WithdrawnFromSale),
         "Withdrawn From Sale"
     );
-    assert_eq!(format!("{}", WorkStatus::Recalled), "Recalled");
+    assert_eq!(format!("{}", WorkStatus::Superseded), "Superseded");
 }
 
 #[test]
@@ -638,10 +667,6 @@ fn test_worktype_fromstr() {
 fn test_workstatus_fromstr() {
     use std::str::FromStr;
     assert_eq!(
-        WorkStatus::from_str("Unspecified").unwrap(),
-        WorkStatus::Unspecified
-    );
-    assert_eq!(
         WorkStatus::from_str("Cancelled").unwrap(),
         WorkStatus::Cancelled
     );
@@ -655,36 +680,12 @@ fn test_workstatus_fromstr() {
     );
     assert_eq!(WorkStatus::from_str("Active").unwrap(), WorkStatus::Active);
     assert_eq!(
-        WorkStatus::from_str("No Longer Our Product").unwrap(),
-        WorkStatus::NoLongerOurProduct
-    );
-    assert_eq!(
-        WorkStatus::from_str("Out Of Stock Indefinitely").unwrap(),
-        WorkStatus::OutOfStockIndefinitely
-    );
-    assert_eq!(
-        WorkStatus::from_str("Out Of Print").unwrap(),
-        WorkStatus::OutOfPrint
-    );
-    assert_eq!(
-        WorkStatus::from_str("Inactive").unwrap(),
-        WorkStatus::Inactive
-    );
-    assert_eq!(
-        WorkStatus::from_str("Unknown").unwrap(),
-        WorkStatus::Unknown
-    );
-    assert_eq!(
-        WorkStatus::from_str("Remaindered").unwrap(),
-        WorkStatus::Remaindered
-    );
-    assert_eq!(
         WorkStatus::from_str("Withdrawn From Sale").unwrap(),
         WorkStatus::WithdrawnFromSale
     );
     assert_eq!(
-        WorkStatus::from_str("Recalled").unwrap(),
-        WorkStatus::Recalled
+        WorkStatus::from_str("Superseded").unwrap(),
+        WorkStatus::Superseded
     );
 
     assert!(WorkStatus::from_str("Published").is_err());

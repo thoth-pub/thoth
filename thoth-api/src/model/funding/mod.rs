@@ -66,6 +66,7 @@ pub struct FundingWithWork {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new grant awarded for the publication of a work by an institution"),
     diesel(table_name = funding)
 )]
 pub struct NewFunding {
@@ -81,6 +82,7 @@ pub struct NewFunding {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing grant awarded for the publication of a work by an institution"),
     diesel(table_name = funding, treat_none_as_null = true)
 )]
 pub struct PatchFunding {

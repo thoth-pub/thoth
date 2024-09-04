@@ -990,6 +990,9 @@ fn get_product_form_codes(publication_type: &PublicationType) -> (&str, Option<&
         PublicationType::DOCX => ("EB", Some("E104")),
         // E100 "not yet allocated" - no codelist entry for .fb2, .fb3, .fbz
         PublicationType::FICTION_BOOK => ("EB", Some("E100")),
+        // AN Downloadable and online audio file
+        PublicationType::MP3 => ("AN", Some("A103")),
+        PublicationType::WAV => ("AN", Some("A104")),
         PublicationType::Other(_) => unreachable!(),
     }
 }
@@ -999,19 +1002,12 @@ impl XmlElement<Onix3Thoth> for WorkStatus {
 
     fn value(&self) -> &'static str {
         match self {
-            WorkStatus::UNSPECIFIED => "00",
             WorkStatus::CANCELLED => "01",
             WorkStatus::FORTHCOMING => "02",
             WorkStatus::POSTPONED_INDEFINITELY => "03",
             WorkStatus::ACTIVE => "04",
-            WorkStatus::NO_LONGER_OUR_PRODUCT => "05",
-            WorkStatus::OUT_OF_STOCK_INDEFINITELY => "06",
-            WorkStatus::OUT_OF_PRINT => "07",
-            WorkStatus::INACTIVE => "08",
-            WorkStatus::UNKNOWN => "09",
-            WorkStatus::REMAINDERED => "10",
+            WorkStatus::SUPERSEDED => "08",
             WorkStatus::WITHDRAWN_FROM_SALE => "11",
-            WorkStatus::RECALLED => "15",
             WorkStatus::Other(_) => unreachable!(),
         }
     }
@@ -2031,6 +2027,7 @@ mod tests {
             relation_type: RelationType::HAS_TRANSLATION,
             relation_ordinal: 1,
             related_work: WorkRelationsRelatedWork {
+                work_status: WorkStatus::ACTIVE,
                 full_title: "N/A".to_string(),
                 title: "N/A".to_string(),
                 subtitle: None,
@@ -2048,6 +2045,7 @@ mod tests {
                 page_interval: None,
                 landing_page: None,
                 imprint: WorkRelationsRelatedWorkImprint {
+                    crossmark_doi: None,
                     publisher: WorkRelationsRelatedWorkImprintPublisher {
                         publisher_name: "N/A".to_string(),
                     },
@@ -2246,6 +2244,7 @@ mod tests {
                     relation_type: RelationType::HAS_CHILD,
                     relation_ordinal: 1,
                     related_work: WorkRelationsRelatedWork {
+                        work_status: WorkStatus::ACTIVE,
                         full_title: "Related work title".to_string(),
                         title: "N/A".to_string(),
                         subtitle: None,
@@ -2263,6 +2262,7 @@ mod tests {
                         page_interval: None,
                         landing_page: None,
                         imprint: WorkRelationsRelatedWorkImprint {
+                            crossmark_doi: None,
                             publisher: WorkRelationsRelatedWorkImprintPublisher {
                                 publisher_name: "N/A".to_string(),
                             },
@@ -2277,6 +2277,7 @@ mod tests {
                     relation_type: RelationType::HAS_PART,
                     relation_ordinal: 2,
                     related_work: WorkRelationsRelatedWork {
+                        work_status: WorkStatus::ACTIVE,
                         full_title: "N/A".to_string(),
                         title: "N/A".to_string(),
                         subtitle: None,
@@ -2294,6 +2295,7 @@ mod tests {
                         page_interval: None,
                         landing_page: None,
                         imprint: WorkRelationsRelatedWorkImprint {
+                            crossmark_doi: None,
                             publisher: WorkRelationsRelatedWorkImprintPublisher {
                                 publisher_name: "N/A".to_string(),
                             },
@@ -2308,6 +2310,7 @@ mod tests {
                     relation_type: RelationType::HAS_TRANSLATION,
                     relation_ordinal: 3,
                     related_work: WorkRelationsRelatedWork {
+                        work_status: WorkStatus::ACTIVE,
                         full_title: "N/A".to_string(),
                         title: "N/A".to_string(),
                         subtitle: None,
@@ -2325,6 +2328,7 @@ mod tests {
                         page_interval: None,
                         landing_page: None,
                         imprint: WorkRelationsRelatedWorkImprint {
+                            crossmark_doi: None,
                             publisher: WorkRelationsRelatedWorkImprintPublisher {
                                 publisher_name: "N/A".to_string(),
                             },
@@ -2950,6 +2954,20 @@ mod tests {
             r#"
     <ProductForm>EB</ProductForm>
     <ProductFormDetail>E100</ProductFormDetail>"#
+        ));
+        test_work.publications[0].publication_type = PublicationType::MP3;
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(
+            r#"
+    <ProductForm>AN</ProductForm>
+    <ProductFormDetail>A103</ProductFormDetail>"#
+        ));
+        test_work.publications[0].publication_type = PublicationType::WAV;
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(
+            r#"
+    <ProductForm>AN</ProductForm>
+    <ProductFormDetail>A104</ProductFormDetail>"#
         ));
         test_work.publications[0].publication_type = PublicationType::PAPERBACK;
 

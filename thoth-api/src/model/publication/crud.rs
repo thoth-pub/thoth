@@ -37,7 +37,7 @@ impl Crud for Publication {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Publication>> {
         use crate::schema::publication::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = publication
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select(crate::schema::publication::all_columns)
@@ -135,7 +135,7 @@ impl Crud for Publication {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::publication::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = publication
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .into_boxed();
@@ -191,18 +191,18 @@ pub trait PublicationValidation
 where
     Self: PublicationProperties,
 {
-    fn work_type(&self, db: &crate::db::PgPool) -> WorkType {
+    fn work_type(&self, db: &crate::db::PgPool) -> ThothResult<WorkType> {
         use diesel::prelude::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         crate::schema::work::table
             .select(crate::schema::work::work_type)
             .filter(crate::schema::work::work_id.eq(self.work_id()))
             .first::<WorkType>(&mut connection)
-            .expect("Error loading work type for publication")
+            .map_err(Into::into)
     }
 
     fn chapter_error(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        if self.work_type(db) == WorkType::BookChapter {
+        if self.work_type(db)? == WorkType::BookChapter {
             // If a publication's work is of type Book Chapter,
             // it cannot have an ISBN, or any dimensions.
             if self.isbn().is_some() {
