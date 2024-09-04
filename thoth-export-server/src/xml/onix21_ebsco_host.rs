@@ -1082,6 +1082,7 @@ mod tests {
         assert!(output.contains(r#"    <RightsTerritory>WORLD</RightsTerritory>"#));
         assert!(output.contains(r#"  <RelatedProduct>"#));
         assert!(output.contains(r#"    <RelationCode>06</RelationCode>"#));
+        assert!(output.contains(r#"    <RelationCode>13</RelationCode>"#));
         assert!(output.contains(r#"    <ProductIdentifier>"#));
         assert!(output.contains(r#"      <ProductIDType>15</ProductIDType>"#));
         assert!(output.contains(r#"      <IDValue>9783161484100</IDValue>"#));
