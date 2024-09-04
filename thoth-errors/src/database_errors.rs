@@ -184,6 +184,12 @@ impl From<diesel::result::Error> for ThothError {
     }
 }
 
+impl From<diesel::r2d2::PoolError> for ThothError {
+    fn from(error: diesel::r2d2::PoolError) -> ThothError {
+        ThothError::InternalError(error.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -38,7 +38,7 @@ impl Crud for Imprint {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Imprint>> {
         use crate::schema::imprint::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = imprint.into_boxed();
 
         query = match order.field {
@@ -99,7 +99,7 @@ impl Crud for Imprint {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::imprint::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = imprint.into_boxed();
         if !publishers.is_empty() {
             query = query.filter(publisher_id.eq_any(publishers));

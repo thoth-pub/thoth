@@ -23,9 +23,9 @@ impl Work {
         use crate::schema::work::dsl;
         use diesel::sql_types::Nullable;
         use diesel::sql_types::Text;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         // Allow case-insensitive searching (DOIs in database may have mixed casing)
-        sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
+        define_sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
         let mut query = dsl::work
             .filter(lower(dsl::doi).eq(doi.to_lowercase_string()))
             .into_boxed();
@@ -39,7 +39,7 @@ impl Work {
 
     pub fn can_update_imprint(&self, db: &crate::db::PgPool) -> ThothResult<()> {
         use crate::schema::issue::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
@@ -63,7 +63,7 @@ impl Work {
 
     pub fn can_be_chapter(&self, db: &crate::db::PgPool) -> ThothResult<()> {
         use crate::schema::publication::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let isbn_count = publication
             .filter(work_id.eq(self.work_id))
             .filter(isbn.is_not_null())
@@ -129,7 +129,7 @@ impl Crud for Work {
         updated_at_with_relations: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Work>> {
         use crate::schema::work::dsl;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = dsl::work
             .inner_join(crate::schema::imprint::table)
             .select(crate::schema::work::all_columns)
@@ -333,7 +333,7 @@ impl Crud for Work {
         updated_at_with_relations: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::work::dsl;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = dsl::work
             .inner_join(crate::schema::imprint::table)
             .into_boxed();

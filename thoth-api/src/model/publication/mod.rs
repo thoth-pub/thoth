@@ -18,37 +18,92 @@ use crate::schema::publication_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Format of a publication"),
     ExistingTypePath = "crate::schema::sql_types::PublicationType"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublicationType {
-    #[cfg_attr(feature = "backend", db_rename = "Paperback")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "Paperback",
+        graphql(description = "Paperback print format")
+    )]
     #[default]
     Paperback,
-    #[cfg_attr(feature = "backend", db_rename = "Hardback")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "Hardback",
+        graphql(description = "Hardback print format")
+    )]
     Hardback,
-    #[cfg_attr(feature = "backend", db_rename = "PDF")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "PDF",
+        graphql(description = "PDF ebook format")
+    )]
     #[strum(serialize = "PDF")]
     Pdf,
-    #[cfg_attr(feature = "backend", db_rename = "HTML")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "HTML",
+        graphql(description = "HTML ebook format")
+    )]
     #[strum(serialize = "HTML")]
     Html,
-    #[cfg_attr(feature = "backend", db_rename = "XML")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "XML",
+        graphql(description = "XML ebook format")
+    )]
     #[strum(serialize = "XML")]
     Xml,
-    #[cfg_attr(feature = "backend", db_rename = "Epub")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "Epub",
+        graphql(description = "Epub ebook format")
+    )]
     Epub,
-    #[cfg_attr(feature = "backend", db_rename = "Mobi")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "Mobi",
+        graphql(description = "Mobipocket (.mobi) ebook format")
+    )]
     Mobi,
-    #[cfg_attr(feature = "backend", db_rename = "AZW3")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "AZW3",
+        graphql(description = "Kindle version 8 (.azw3) ebook format")
+    )]
     #[strum(serialize = "AZW3")]
     Azw3,
-    #[cfg_attr(feature = "backend", db_rename = "DOCX")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "DOCX",
+        graphql(description = "Microsoft Word (.docx) ebook format")
+    )]
     #[strum(serialize = "DOCX")]
     Docx,
-    #[cfg_attr(feature = "backend", db_rename = "FictionBook")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "FictionBook",
+        graphql(description = "FictionBook (.fb2, .fb3, .fbz) ebook format")
+    )]
     FictionBook,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "MP3",
+        graphql(description = "MP3 audiobook format")
+    )]
+    #[strum(serialize = "MP3")]
+    Mp3,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "WAV",
+        graphql(description = "WAV audiobook format")
+    )]
+    #[strum(serialize = "WAV")]
+    Wav,
 }
 
 #[cfg_attr(
@@ -124,6 +179,7 @@ pub struct PublicationWithRelations {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new manifestation of a written text"),
     diesel(table_name = publication)
 )]
 pub struct NewPublication {
@@ -143,6 +199,7 @@ pub struct NewPublication {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing manifestation of a written text"),
     diesel(table_name = publication, treat_none_as_null = true)
 )]
 pub struct PatchPublication {
@@ -465,8 +522,10 @@ fn test_publicationproperties_type() {
         PublicationType::FictionBook,
         PublicationType::Html,
         PublicationType::Mobi,
+        PublicationType::Mp3,
         PublicationType::Pdf,
         PublicationType::Xml,
+        PublicationType::Wav,
     ] {
         publication.publication_type = pub_type;
         assert!(!publication.publication_type.is_physical());
@@ -636,6 +695,8 @@ fn test_publicationtype_display() {
     assert_eq!(format!("{}", PublicationType::Azw3), "AZW3");
     assert_eq!(format!("{}", PublicationType::Docx), "DOCX");
     assert_eq!(format!("{}", PublicationType::FictionBook), "FictionBook");
+    assert_eq!(format!("{}", PublicationType::Mp3), "MP3");
+    assert_eq!(format!("{}", PublicationType::Wav), "WAV");
 }
 
 #[test]
@@ -698,6 +759,15 @@ fn test_publicationtype_fromstr() {
     assert_eq!(
         PublicationType::from_str("FictionBook").unwrap(),
         PublicationType::FictionBook
+    );
+
+    assert_eq!(
+        PublicationType::from_str("MP3").unwrap(),
+        PublicationType::Mp3
+    );
+    assert_eq!(
+        PublicationType::from_str("WAV").unwrap(),
+        PublicationType::Wav
     );
 
     assert!(PublicationType::from_str("PNG").is_err());

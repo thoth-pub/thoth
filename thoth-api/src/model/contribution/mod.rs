@@ -153,6 +153,7 @@ pub struct ContributionWithWork {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new individual involvement in the production of a work"),
     diesel(table_name = contribution)
 )]
 pub struct NewContribution {
@@ -170,6 +171,7 @@ pub struct NewContribution {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an individual involvement in the production of a work"),
     diesel(table_name = contribution, treat_none_as_null = true)
 )]
 pub struct PatchContribution {

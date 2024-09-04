@@ -990,6 +990,9 @@ fn get_product_form_codes(publication_type: &PublicationType) -> (&str, Option<&
         PublicationType::DOCX => ("EB", Some("E104")),
         // E100 "not yet allocated" - no codelist entry for .fb2, .fb3, .fbz
         PublicationType::FICTION_BOOK => ("EB", Some("E100")),
+        // AN Downloadable and online audio file
+        PublicationType::MP3 => ("AN", Some("A103")),
+        PublicationType::WAV => ("AN", Some("A104")),
         PublicationType::Other(_) => unreachable!(),
     }
 }
@@ -2951,6 +2954,20 @@ mod tests {
             r#"
     <ProductForm>EB</ProductForm>
     <ProductFormDetail>E100</ProductFormDetail>"#
+        ));
+        test_work.publications[0].publication_type = PublicationType::MP3;
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(
+            r#"
+    <ProductForm>AN</ProductForm>
+    <ProductFormDetail>A103</ProductFormDetail>"#
+        ));
+        test_work.publications[0].publication_type = PublicationType::WAV;
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(
+            r#"
+    <ProductForm>AN</ProductForm>
+    <ProductFormDetail>A104</ProductFormDetail>"#
         ));
         test_work.publications[0].publication_type = PublicationType::PAPERBACK;
 

@@ -14,6 +14,7 @@ use crate::schema::work_relation_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Nature of a relationship between works"),
     ExistingTypePath = "crate::schema::sql_types::RelationType"
 )]
 #[derive(
@@ -22,21 +23,69 @@ use crate::schema::work_relation_history;
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum RelationType {
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "The work to which this relation belongs replaces the other work in the relationship"
+        )
+    )]
     Replaces,
-    #[cfg_attr(feature = "backend", db_rename = "has-translation")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "has-translation",
+        graphql(
+            description = "The work to which this relation belongs is translated by the other work in the relationship"
+        )
+    )]
     HasTranslation,
-    #[cfg_attr(feature = "backend", db_rename = "has-part")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "has-part",
+        graphql(
+            description = "The work to which this relation belongs contains the other work (part) in the relationship"
+        )
+    )]
     HasPart,
-    #[cfg_attr(feature = "backend", db_rename = "has-child")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "has-child",
+        graphql(
+            description = "The work to which this relation belongs contains the other work (chapter) in the relationship"
+        )
+    )]
     #[default]
     HasChild,
-    #[cfg_attr(feature = "backend", db_rename = "is-replaced-by")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "is-replaced-by",
+        graphql(
+            description = "The work to which this relation belongs is replaced by the other work in the relationship"
+        )
+    )]
     IsReplacedBy,
-    #[cfg_attr(feature = "backend", db_rename = "is-translation-of")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "is-translation-of",
+        graphql(
+            description = "The work to which this relation belongs is a translation of the other work in the relationship"
+        )
+    )]
     IsTranslationOf,
-    #[cfg_attr(feature = "backend", db_rename = "is-part-of")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "is-part-of",
+        graphql(
+            description = "The work to which this relation belongs is a component (part) of the other work in the relationship"
+        )
+    )]
     IsPartOf,
-    #[cfg_attr(feature = "backend", db_rename = "is-child-of")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "is-child-of",
+        graphql(
+            description = "The work to which this relation belongs is a component (chapter) of the other work in the relationship"
+        )
+    )]
     IsChildOf,
 }
 
@@ -85,6 +134,7 @@ pub struct WorkRelationWithRelatedWork {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new relationship between two works"),
     diesel(table_name = work_relation)
 )]
 pub struct NewWorkRelation {
@@ -97,6 +147,7 @@ pub struct NewWorkRelation {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing relationship between two works"),
     diesel(table_name = work_relation, treat_none_as_null = true)
 )]
 pub struct PatchWorkRelation {

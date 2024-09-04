@@ -13,60 +13,133 @@ use crate::schema::location_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Platform where a publication is hosted or can be acquired"),
     ExistingTypePath = "crate::schema::sql_types::LocationPlatform"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum LocationPlatform {
-    #[cfg_attr(feature = "backend", db_rename = "Project MUSE")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "Project MUSE",
+        graphql(description = "Project MUSE: https://muse.jhu.edu")
+    )]
     #[strum(serialize = "Project MUSE")]
     ProjectMuse,
-    #[cfg_attr(feature = "backend", db_rename = "OAPEN")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "OAPEN",
+        graphql(
+            description = "OAPEN (Open Access Publishing in European Networks): https://oapen.org"
+        )
+    )]
     #[strum(serialize = "OAPEN")]
     Oapen,
-    #[cfg_attr(feature = "backend", db_rename = "DOAB")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "DOAB",
+        graphql(description = "DOAB (Directory of Open Access Books): https://doabooks.org")
+    )]
     #[strum(serialize = "DOAB")]
     Doab,
-    #[cfg_attr(feature = "backend", db_rename = "JSTOR")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "JSTOR",
+        graphql(description = "JSTOR: https://jstor.org")
+    )]
     #[strum(serialize = "JSTOR")]
     Jstor,
-    #[cfg_attr(feature = "backend", db_rename = "EBSCO Host")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "EBSCO Host",
+        graphql(description = "EBSCO Host")
+    )]
     #[strum(serialize = "EBSCO Host")]
     EbscoHost,
-    #[cfg_attr(feature = "backend", db_rename = "OCLC KB")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "OCLC KB",
+        graphql(description = "OCLC Knowledge Base")
+    )]
     #[strum(serialize = "OCLC KB")]
     OclcKb,
-    #[cfg_attr(feature = "backend", db_rename = "ProQuest KB")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "ProQuest KB",
+        graphql(description = "ProQuest Knowledge Base")
+    )]
     #[strum(serialize = "ProQuest KB")]
     ProquestKb,
-    #[cfg_attr(feature = "backend", db_rename = "ProQuest ExLibris")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "ProQuest ExLibris",
+        graphql(description = "ProQuest ExLibris")
+    )]
     #[strum(serialize = "ProQuest ExLibris")]
     ProquestExlibris,
-    #[cfg_attr(feature = "backend", db_rename = "EBSCO KB")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "EBSCO KB",
+        graphql(description = "EBSCO Knowledge Base")
+    )]
     #[strum(serialize = "EBSCO KB")]
     EbscoKb,
-    #[cfg_attr(feature = "backend", db_rename = "JISC KB")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "JISC KB",
+        graphql(description = "JISC Knowledge Base")
+    )]
     #[strum(serialize = "JISC KB")]
     JiscKb,
-    #[cfg_attr(feature = "backend", db_rename = "Google Books")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "Google Books",
+        graphql(description = "Google Books: https://books.google.com")
+    )]
     #[strum(serialize = "Google Books")]
     GoogleBooks,
-    #[cfg_attr(feature = "backend", db_rename = "Internet Archive")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "Internet Archive",
+        graphql(description = "Internet Archive: https://archive.org")
+    )]
     #[strum(serialize = "Internet Archive")]
     InternetArchive,
-    #[cfg_attr(feature = "backend", db_rename = "ScienceOpen")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "ScienceOpen",
+        graphql(description = "ScienceOpen: https://scienceopen.com")
+    )]
     #[strum(serialize = "ScienceOpen")]
     ScienceOpen,
-    #[cfg_attr(feature = "backend", db_rename = "SciELO Books")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "SciELO Books",
+        graphql(
+            description = "SciELO (Scientific Electronic Library Online) Books: https://books.scielo.org"
+        )
+    )]
     #[strum(serialize = "SciELO Books")]
     ScieloBooks,
-    #[cfg_attr(feature = "backend", db_rename = "Zenodo")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "Zenodo",
+        graphql(description = "Zenodo: https://zenodo.org")
+    )]
     #[strum(serialize = "Zenodo")]
     Zenodo,
-    #[cfg_attr(feature = "backend", db_rename = "Publisher Website")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "Publisher Website",
+        graphql(description = "Publisher's own website")
+    )]
     #[strum(serialize = "Publisher Website")]
     PublisherWebsite,
-    #[cfg_attr(feature = "backend", db_rename = "Other")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "Other",
+        graphql(description = "Another platform not listed above")
+    )]
     #[default]
     Other,
 }
@@ -104,6 +177,7 @@ pub struct Location {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new location (such as a web shop or distribution platform) where a publication can be acquired or viewed"),
     diesel(table_name = location)
 )]
 pub struct NewLocation {
@@ -117,6 +191,7 @@ pub struct NewLocation {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing location (such as a web shop or distribution platform) where a publication can be acquired or viewed"),
     diesel(table_name = location, treat_none_as_null = true)
 )]
 pub struct PatchLocation {
