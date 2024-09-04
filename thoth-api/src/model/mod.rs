@@ -399,7 +399,7 @@ macro_rules! crud_methods {
         fn from_id(db: &$crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
             use diesel::{QueryDsl, RunQueryDsl};
 
-            let mut connection = db.get().unwrap();
+            let mut connection = db.get()?;
             match $entity_dsl
                 .find(entity_id)
                 .get_result::<Self>(&mut connection)
@@ -410,7 +410,7 @@ macro_rules! crud_methods {
         }
 
         fn create(db: &$crate::db::PgPool, data: &Self::NewEntity) -> ThothResult<Self> {
-            let mut connection = db.get().unwrap();
+            let mut connection = db.get()?;
             match diesel::insert_into($table_dsl)
                 .values(data)
                 .get_result::<Self>(&mut connection)
@@ -430,7 +430,7 @@ macro_rules! crud_methods {
         ) -> ThothResult<Self> {
             use diesel::{Connection, QueryDsl, RunQueryDsl};
 
-            let mut connection = db.get().unwrap();
+            let mut connection = db.get()?;
             connection.transaction(|connection| {
                 match diesel::update($entity_dsl.find(&self.pk()))
                     .set(data)
@@ -448,7 +448,7 @@ macro_rules! crud_methods {
         fn delete(self, db: &$crate::db::PgPool) -> ThothResult<Self> {
             use diesel::{QueryDsl, RunQueryDsl};
 
-            let mut connection = db.get().unwrap();
+            let mut connection = db.get()?;
             match diesel::delete($entity_dsl.find(&self.pk())).execute(&mut connection) {
                 Ok(_) => Ok(self),
                 Err(e) => Err(ThothError::from(e)),

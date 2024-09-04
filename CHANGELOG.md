@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
   - [548](https://github.com/thoth-pub/thoth/issues/548) - Prevent users from deleting contributors/institutions which are linked to works by other publishers
 
+### Changed
+  - [623](https://github.com/thoth-pub/thoth/pull/623) - Convert connection pool errors (`r2d2::Error`) to `ThothError`
+
 ## [[0.12.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.8) - 2024-09-03
 ### Fixed
   - [622](https://github.com/thoth-pub/thoth/pull/622) - Fix bug where list of contributors in New/Edit Contribution form was truncated

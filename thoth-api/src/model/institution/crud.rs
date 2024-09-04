@@ -38,7 +38,7 @@ impl Crud for Institution {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Institution>> {
         use crate::schema::institution::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = institution.into_boxed();
 
         query = match order.field {
@@ -98,7 +98,7 @@ impl Crud for Institution {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::institution::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = institution.into_boxed();
         if let Some(filter) = filter {
             query = query.filter(
@@ -156,7 +156,7 @@ fn institution_linked_publisher_ids(
     institution_id: Uuid,
     db: &crate::db::PgPool,
 ) -> ThothResult<Vec<Uuid>> {
-    let mut connection = db.get().unwrap();
+    let mut connection = db.get()?;
     let publishers_via_affiliation = crate::schema::publisher::table
         .inner_join(crate::schema::imprint::table.inner_join(
             crate::schema::work::table.inner_join(

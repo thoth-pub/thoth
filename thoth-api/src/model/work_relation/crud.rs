@@ -37,7 +37,7 @@ impl Crud for WorkRelation {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<WorkRelation>> {
         use crate::schema::work_relation::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = work_relation
             .select(crate::schema::work_relation::all_columns)
             .into_boxed();
@@ -97,7 +97,7 @@ impl Crud for WorkRelation {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::work_relation::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = work_relation.into_boxed();
         if !relation_types.is_empty() {
             query = query.filter(relation_type.eq_any(relation_types));
@@ -117,7 +117,7 @@ impl Crud for WorkRelation {
     // as we need to execute multiple statements in the same transaction.
     // This function recreates the `crud_methods!` from_id() logic.
     fn from_id(db: &crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         match work_relation::table
             .find(entity_id)
             .get_result::<Self>(&mut connection)
@@ -130,7 +130,7 @@ impl Crud for WorkRelation {
     fn create(db: &crate::db::PgPool, data: &NewWorkRelation) -> ThothResult<Self> {
         // For each Relator - Relationship - Related record we create, we must also
         // create the corresponding Related - InverseRelationship - Relator record.
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         // We need to determine an appropriate relation_ordinal for the inverse record.
         // Find the current highest ordinal for the relevant work and type.
         // This will return `None` if no records with this work and type already exist.
@@ -183,7 +183,7 @@ impl Crud for WorkRelation {
         };
         // Execute both updates within the same transaction,
         // because if one fails, both need to be reverted.
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         connection.transaction(|connection| {
             diesel::update(work_relation::table.find(inverse_work_relation.work_relation_id))
                 .set(inverse_data)
@@ -209,7 +209,7 @@ impl Crud for WorkRelation {
         let inverse_work_relation = self.get_inverse(db)?;
         // Execute both deletions within the same transaction,
         // because if one fails, both need to be reverted.
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         connection.transaction(|connection| {
             diesel::delete(work_relation::table.find(inverse_work_relation.work_relation_id))
                 .execute(connection)?;
@@ -255,7 +255,7 @@ impl WorkRelation {
                     .eq(self.related_work_id)
                     .and(work_relation::related_work_id.eq(self.relator_work_id)),
             )
-            .first::<WorkRelation>(&mut db.get().unwrap())
+            .first::<WorkRelation>(&mut db.get()?)
         {
             // The inverse record should have the inverse relation_type,
             // but this cannot be enforced by the database. Test for data integrity.

@@ -37,7 +37,7 @@ impl Crud for Contribution {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Contribution>> {
         use crate::schema::contribution::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = contribution
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select(crate::schema::contribution::all_columns)
@@ -124,7 +124,7 @@ impl Crud for Contribution {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::contribution::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = contribution.into_boxed();
         if !contribution_types.is_empty() {
             query = query.filter(contribution_type.eq_any(contribution_types));
