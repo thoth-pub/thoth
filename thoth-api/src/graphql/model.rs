@@ -2434,7 +2434,7 @@ impl Work {
     }
 
     #[graphql(
-        description = "Digital Object Identifier of the work as full URL. It must use the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.11647/obp.0001)"
+        description = "Digital Object Identifier of the work as full URL, using the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.11647/obp.0001)"
     )]
     pub fn doi(&self) -> Option<&Doi> {
         self.doi.as_ref()
@@ -3261,7 +3261,7 @@ impl Contributor {
     }
 
     #[graphql(
-        description = "ORCID (Open Researcher and Contributor ID) of the contributor as full URL. It must use the HTTPS scheme and the orcid.org domain (e.g. https://orcid.org/0000-0002-1825-0097)"
+        description = "ORCID (Open Researcher and Contributor ID) of the contributor as full URL, using the HTTPS scheme and the orcid.org domain (e.g. https://orcid.org/0000-0002-1825-0097)"
     )]
     pub fn orcid(&self) -> Option<&Orcid> {
         self.orcid.as_ref()
@@ -3634,7 +3634,7 @@ impl Location {
         self.full_text_url.as_ref()
     }
 
-    #[graphql(description = "Platform on which the publication is hosted")]
+    #[graphql(description = "Platform where the publication is hosted or can be acquired")]
     pub fn location_platform(&self) -> &LocationPlatform {
         &self.location_platform
     }
@@ -3681,7 +3681,7 @@ impl Price {
         &self.currency_code
     }
 
-    #[graphql(description = "Value of the publication in the selected currency")]
+    #[graphql(description = "Value of the publication in the specified currency")]
     pub fn unit_price(&self) -> f64 {
         self.unit_price
     }
@@ -3709,7 +3709,7 @@ impl Subject {
         &self.subject_id
     }
 
-    #[graphql(description = "Thoth ID of the work to which the subject is related")]
+    #[graphql(description = "Thoth ID of the work to which the subject is linked")]
     pub fn work_id(&self) -> &Uuid {
         &self.work_id
     }
@@ -3719,13 +3719,13 @@ impl Subject {
         &self.subject_type
     }
 
-    #[graphql(description = "Code representing the subject within the selected type")]
+    #[graphql(description = "Code representing the subject within the specified type")]
     pub fn subject_code(&self) -> &String {
         &self.subject_code
     }
 
     #[graphql(
-        description = "Number representing this subject's position in an ordered list of subjects of the same type within the work"
+        description = "Number representing this subject's position in an ordered list of subjects of the same type within the work (subjects of equal prominence can have the same number)"
     )]
     pub fn subject_ordinal(&self) -> &i32 {
         &self.subject_ordinal
@@ -3741,7 +3741,7 @@ impl Subject {
         self.updated_at.clone()
     }
 
-    #[graphql(description = "Get the work to which the subject is related")]
+    #[graphql(description = "Get the work to which the subject is linked")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
@@ -3760,7 +3760,7 @@ impl Institution {
     }
 
     #[graphql(
-        description = "Digital Object Identifier of the organisation as full URL. It must use the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.13039/100014013)"
+        description = "Digital Object Identifier of the organisation as full URL, using the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.13039/100014013)"
     )]
     pub fn institution_doi(&self) -> Option<&Doi> {
         self.institution_doi.as_ref()
@@ -3774,7 +3774,7 @@ impl Institution {
     }
 
     #[graphql(
-        description = "Research Organisation Registry identifier of the organisation as full URL. It must use the HTTPS scheme and the ror.org domain (e.g. https://ror.org/051z6e826)"
+        description = "Research Organisation Registry identifier of the organisation as full URL, using the HTTPS scheme and the ror.org domain (e.g. https://ror.org/051z6e826)"
     )]
     pub fn ror(&self) -> Option<&Ror> {
         self.ror.as_ref()
@@ -3847,7 +3847,7 @@ impl Institution {
     }
 }
 
-#[juniper::graphql_object(Context = Context, description = "A grant awarded to the publication of a work by an institution.")]
+#[juniper::graphql_object(Context = Context, description = "A grant awarded for the publication of a work by an institution.")]
 impl Funding {
     #[graphql(description = "Thoth ID of the funding")]
     pub fn funding_id(&self) -> &Uuid {
@@ -3879,12 +3879,12 @@ impl Funding {
         self.project_shortname.as_ref()
     }
 
-    #[graphql(description = "Grant number of the funding project")]
+    #[graphql(description = "Grant number of the award")]
     pub fn grant_number(&self) -> Option<&String> {
         self.grant_number.as_ref()
     }
 
-    #[graphql(description = "Jurisdiction of the funding project")]
+    #[graphql(description = "Jurisdiction of the award")]
     pub fn jurisdiction(&self) -> Option<&String> {
         self.jurisdiction.as_ref()
     }
@@ -3969,12 +3969,12 @@ impl WorkRelation {
         &self.work_relation_id
     }
 
-    #[graphql(description = "Thoth ID of the relator work")]
+    #[graphql(description = "Thoth ID of the work to which this work relation belongs")]
     pub fn relator_work_id(&self) -> &Uuid {
         &self.relator_work_id
     }
 
-    #[graphql(description = "Thoth ID of the related work")]
+    #[graphql(description = "Thoth ID of the other work in the relationship")]
     pub fn related_work_id(&self) -> &Uuid {
         &self.related_work_id
     }
@@ -4001,7 +4001,7 @@ impl WorkRelation {
         self.updated_at.clone()
     }
 
-    #[graphql(description = "Get the related work")]
+    #[graphql(description = "Get the other work in the relationship")]
     pub fn related_work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.related_work_id).map_err(|e| e.into())
     }

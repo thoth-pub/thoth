@@ -13,7 +13,7 @@ use crate::schema::location_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
-    graphql(description = "Platform on which a publication is hosted"),
+    graphql(description = "Platform where a publication is hosted or can be acquired"),
     ExistingTypePath = "crate::schema::sql_types::LocationPlatform"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
@@ -138,7 +138,7 @@ pub enum LocationPlatform {
     #[cfg_attr(
         feature = "backend",
         db_rename = "Other",
-        graphql(description = "Another hosting platform not listed above")
+        graphql(description = "Another platform not listed above")
     )]
     #[default]
     Other,

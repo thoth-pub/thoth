@@ -2,7 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, juniper::GraphQLEnum)]
-#[graphql(description = "Order in which to sort query results (ascending or descending)")]
+#[graphql(description = "Order in which to sort query results")]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Direction {
     #[cfg_attr(feature = "backend", graphql(description = "Ascending order"))]
@@ -19,20 +19,22 @@ fn test_direction_default() {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, juniper::GraphQLEnum)]
-#[graphql(
-    description = "Expression to use when filtering by numeric value (greater than or less than)"
-)]
+#[graphql(description = "Expression to use when filtering by numeric value")]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Expression {
     #[cfg_attr(
         feature = "backend",
-        graphql(description = "Return only values which are greater than the one supplied")
+        graphql(
+            description = "Return only results with values which are greater than the value supplied"
+        )
     )]
     #[default]
     GreaterThan,
     #[cfg_attr(
         feature = "backend",
-        graphql(description = "Return only values which are less than the one supplied")
+        graphql(
+            description = "Return only results with values which are less than the value supplied"
+        )
     )]
     LessThan,
 }

@@ -26,7 +26,7 @@ pub enum RelationType {
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "The work to which this relation belongs replaces the work identified within the relation"
+            description = "The work to which this relation belongs replaces the other work in the relationship"
         )
     )]
     Replaces,
@@ -34,7 +34,7 @@ pub enum RelationType {
         feature = "backend",
         db_rename = "has-translation",
         graphql(
-            description = "The work to which this relation belongs is translated by the work identified within the relation"
+            description = "The work to which this relation belongs is translated by the other work in the relationship"
         )
     )]
     HasTranslation,
@@ -42,7 +42,7 @@ pub enum RelationType {
         feature = "backend",
         db_rename = "has-part",
         graphql(
-            description = "The work to which this relation belongs contains the work (part) identified within the relation"
+            description = "The work to which this relation belongs contains the other work (part) in the relationship"
         )
     )]
     HasPart,
@@ -50,7 +50,7 @@ pub enum RelationType {
         feature = "backend",
         db_rename = "has-child",
         graphql(
-            description = "The work to which this relation belongs contains the work (chapter) identified within the relation"
+            description = "The work to which this relation belongs contains the other work (chapter) in the relationship"
         )
     )]
     #[default]
@@ -59,7 +59,7 @@ pub enum RelationType {
         feature = "backend",
         db_rename = "is-replaced-by",
         graphql(
-            description = "The work to which this relation belongs is replaced by the work identified within the relation"
+            description = "The work to which this relation belongs is replaced by the other work in the relationship"
         )
     )]
     IsReplacedBy,
@@ -67,7 +67,7 @@ pub enum RelationType {
         feature = "backend",
         db_rename = "is-translation-of",
         graphql(
-            description = "The work to which this relation belongs is a translation of the work identified within the relation"
+            description = "The work to which this relation belongs is a translation of the other work in the relationship"
         )
     )]
     IsTranslationOf,
@@ -75,7 +75,7 @@ pub enum RelationType {
         feature = "backend",
         db_rename = "is-part-of",
         graphql(
-            description = "The work to which this relation belongs is a component (part) of the work identified within the relation"
+            description = "The work to which this relation belongs is a component (part) of the other work in the relationship"
         )
     )]
     IsPartOf,
@@ -83,7 +83,7 @@ pub enum RelationType {
         feature = "backend",
         db_rename = "is-child-of",
         graphql(
-            description = "The work to which this relation belongs is a component (chapter) of the work identified within the relation"
+            description = "The work to which this relation belongs is a component (chapter) of the other work in the relationship"
         )
     )]
     IsChildOf,

@@ -13,7 +13,7 @@ use crate::schema::language_history;
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
     graphql(
-        description = "Relation between a language listed for a work and the original language of a text"
+        description = "Relation between a language listed for a work and the original language of the work's text"
     ),
     ExistingTypePath = "crate::schema::sql_types::LanguageRelation"
 )]
