@@ -1832,33 +1832,30 @@ impl MutationRoot {
         // }
 
 
-        // let all_location_platforms = Some(vec![
-        //     LocationPlatform::ProjectMuse,
-        //     LocationPlatform::Oapen,
-        //     LocationPlatform::Doab,
-        //     LocationPlatform::Jstor,
-        //     LocationPlatform::EbscoHost,
-        //     LocationPlatform::OclcKb,
-        //     LocationPlatform::ProquestKb,
-        //     LocationPlatform::ProquestExlibris,
-        //     LocationPlatform::EbscoKb,
-        //     LocationPlatform::JiscKb,
-        //     LocationPlatform::GoogleBooks,
-        //     LocationPlatform::InternetArchive,
-        //     LocationPlatform::ScienceOpen,
-        //     LocationPlatform::ScieloBooks,
-        //     LocationPlatform::Zenodo,
-        //     LocationPlatform::PublisherWebsite,
-        //     LocationPlatform::Other,
-        // ]);
+        let all_location_platforms = Some(vec![
+            LocationPlatform::ProjectMuse,
+            LocationPlatform::Oapen,
+            LocationPlatform::Doab,
+            LocationPlatform::Jstor,
+            LocationPlatform::EbscoHost,
+            LocationPlatform::OclcKb,
+            LocationPlatform::ProquestKb,
+            LocationPlatform::ProquestExlibris,
+            LocationPlatform::EbscoKb,
+            LocationPlatform::JiscKb,
+            LocationPlatform::GoogleBooks,
+            LocationPlatform::InternetArchive,
+            LocationPlatform::ScienceOpen,
+            LocationPlatform::ScieloBooks,
+            LocationPlatform::Zenodo,
+            LocationPlatform::PublisherWebsite,
+            LocationPlatform::Other,
+        ]);
 
-
-        // TODO: get all locations from current publication. Publication does not contain Locations. 
-
-        // look for the location that is canonical
         // get current publication
-        // let publication = Publication::from_id(&context.db, &data.publication_id).unwrap();
-        // let locations = Publication::locations(&publication, context, Some(100), Some(0), Some(LocationOrderBy::default()), all_location_platforms);
+        let publication = Publication::from_id(&context.db, &data.publication_id).unwrap();
+        // get all locations from current publication
+        let locations = Publication::locations(&publication, context, Some(100), Some(0), Some(LocationOrderBy::default()), all_location_platforms);
         // println!("publication contains: {:?}", publication);
         // println!("locations are: {:?}", locations);
         println!("PatchLocation data is: {:?}", &data);
@@ -1897,7 +1894,7 @@ impl MutationRoot {
             landing_page: Some("https://thoth-arch.lib.cam.ac.uk/handle/1811/hardcoded_zenodo".to_string()),
             full_text_url: Some("https://fulltext30zenodo.com".to_string()),
             location_platform: LocationPlatform::Zenodo,
-            canonical: false,
+            canonical: true,
         };
 
         let scienceopen_location_id = Uuid::parse_str("8b5791e5-15c2-42aa-8211-65041d8cf2e5").unwrap();
@@ -1907,7 +1904,7 @@ impl MutationRoot {
             landing_page: Some("https://thoth-arch.lib.cam.ac.uk/handle/1811/hardcoded_scienceopen".to_string()),
             full_text_url: Some("https://fulltext30scienceopen.com".to_string()),
             location_platform: LocationPlatform::ScienceOpen,
-            canonical: true,
+            canonical: false,
         };
 
         // if in transaction you try to set the new canonical to true first, you have two canonical locations at the same time,
@@ -1922,12 +1919,12 @@ impl MutationRoot {
         // to set to false, set new to true
         connection.transaction(|connection| {
             // diesel::update(location::table.find(data.location_id))
-            diesel::update(location::table.find(zenodo_location_id))
-                .set(zenodo_patch_location) 
-                // .set(&data)
-                .get_result::<Location>(connection);
             diesel::update(location::table.find(scienceopen_location_id))
                 .set(scienceopen_patch_location) 
+                // .set(&data)
+                .get_result::<Location>(connection);
+            diesel::update(location::table.find(zenodo_location_id))
+                .set(zenodo_patch_location) 
                 // .set(&data)
                 .get_result::<Location>(connection)
                 .map_err(|e| e.into())
