@@ -1,3 +1,5 @@
+ALTER TYPE work_status RENAME VALUE 'withdrawn-from-sale' TO 'withdrawn';
+
 -- Assign 1900-01-01 as placeholder publication_date for 
 -- Active, withdrawn from sale, out of print, out of stock indefinitely works with no publication date
 -- Required for work_active_publication_date_check constraint below
@@ -10,7 +12,7 @@ UPDATE work
         publication_date = '1900-01-01'
     WHERE
         work_status IN 
-        ('active', 'withdrawn-from-sale', 'out-of-print', 'out-of-stock-indefinitely', 'inactive') 
+        ('active', 'withdrawn', 'out-of-print', 'out-of-stock-indefinitely', 'inactive') 
         AND publication_date IS NULL;
 
 -- Drop constraints, otherwise it won't be able to cast to text
@@ -66,7 +68,7 @@ UPDATE work
 -- !!! This is irreversible
 UPDATE work 
     SET 
-        work_status = 'withdrawn-from-sale',
+        work_status = 'withdrawn',
         withdrawn_date = COALESCE(withdrawn_date, updated_at)
     WHERE 
         work_status = 'no-longer-our-product'
@@ -79,7 +81,7 @@ CREATE TYPE work_status AS ENUM (
     'forthcoming',
     'postponed-indefinitely',
     'active',
-    'withdrawn-from-sale',
+    'withdrawn',
     'superseded'
 );
 ALTER TABLE work ALTER COLUMN work_status TYPE work_status USING work_status::work_status;
@@ -88,15 +90,15 @@ ALTER TABLE work ALTER COLUMN work_status TYPE work_status USING work_status::wo
 ALTER TABLE work
     -- withdrawn and superseded works must have withdrawn_date
     -- note that this constraint has the same name as migration from v.0.12.3,
-    -- but changes previous constraint by adding superseded alongside withdrawn-from-sale
+    -- but changes previous constraint by adding superseded alongside withdrawn
     ADD CONSTRAINT work_inactive_no_withdrawn_date_check CHECK
-        (((work_status = 'withdrawn-from-sale' OR work_status = 'superseded') AND withdrawn_date IS NOT NULL)
-        OR (work_status NOT IN ('withdrawn-from-sale', 'superseded'))),
+        (((work_status = 'withdrawn' OR work_status = 'superseded') AND withdrawn_date IS NOT NULL)
+        OR (work_status NOT IN ('withdrawn', 'superseded'))),
     -- all other work statuses must not have withdrawn_date; see above, adds superseded
     ADD CONSTRAINT work_active_withdrawn_date_check CHECK
-        ((work_status = 'withdrawn-from-sale' OR work_status = 'superseded')
-        OR (work_status NOT IN ('withdrawn-from-sale', 'superseded') AND withdrawn_date IS NULL)),
+        ((work_status = 'withdrawn' OR work_status = 'superseded')
+        OR (work_status NOT IN ('withdrawn', 'superseded') AND withdrawn_date IS NULL)),
     -- active, withdrawn-from-sale, and superseded works must have publication_date
     ADD CONSTRAINT work_active_publication_date_check CHECK
-        ((work_status IN ('active', 'withdrawn-from-sale', 'superseded') AND publication_date IS NOT NULL)
-        OR (work_status NOT IN ('active', 'withdrawn-from-sale', 'superseded')));
+        ((work_status IN ('active', 'withdrawn', 'superseded') AND publication_date IS NOT NULL)
+        OR (work_status NOT IN ('active', 'withdrawn', 'superseded')));
