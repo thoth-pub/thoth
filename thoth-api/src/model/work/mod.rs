@@ -75,7 +75,9 @@ pub enum WorkType {
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
-    graphql(description = "Publication status of a work"),
+    graphql(
+        description = "Publication status of a work throughout its lifecycle. For a visual representation of the workflow, refer to the work status flowchart https://github.com/thoth-pub/thoth/wiki/Thoth_Works#work-status-flowchart"
+    ),
     ExistingTypePath = "crate::schema::sql_types::WorkStatus"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
