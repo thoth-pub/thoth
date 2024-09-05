@@ -3,16 +3,6 @@ use serde::Serialize;
 use thoth_api::model::location::Location;
 use uuid::Uuid;
 
-// locationId: Uuid!
-// publicationId: Uuid!
-// landingPage: String
-// fullTextUrl: String
-// locationPlatform: LocationPlatform!
-// canonical: Boolean!
-// createdAt: Timestamp!
-// updatedAt: Timestamp!
-// publication: Publication!
-
 pub const LOCATION_QUERY: &str = "
     query LocationQuery($locationId: Uuid!) {
         location(locationId: $locationId) {
