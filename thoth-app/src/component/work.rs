@@ -578,8 +578,7 @@ impl Component for WorkComponent {
                 // Grey out chapter-specific or "book"-specific fields
                 // based on currently selected work type.
                 let is_chapter = self.work.work_type == WorkType::BookChapter;
-                let is_not_withdrawn_or_superseded = self.work.work_status
-                    != WorkStatus::Withdrawn
+                let is_not_withdrawn_or_superseded = self.work.work_status != WorkStatus::Withdrawn
                     && self.work.work_status != WorkStatus::Superseded;
                 let is_active_withdrawn_or_superseded = self.work.work_status == WorkStatus::Active
                     || self.work.work_status == WorkStatus::Withdrawn

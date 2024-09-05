@@ -622,10 +622,7 @@ fn test_workstatus_display() {
         "Postponed Indefinitely"
     );
     assert_eq!(format!("{}", WorkStatus::Active), "Active");
-    assert_eq!(
-        format!("{}", WorkStatus::Withdrawn),
-        "Withdrawn"
-    );
+    assert_eq!(format!("{}", WorkStatus::Withdrawn), "Withdrawn");
     assert_eq!(format!("{}", WorkStatus::Superseded), "Superseded");
 }
 
