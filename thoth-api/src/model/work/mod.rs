@@ -82,14 +82,50 @@ pub enum WorkType {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum WorkStatus {
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "The work is in progress and is expected to be published. This is the typical status for a work that has not yet been released but is planned for publication."
+        )
+    )]
     #[default]
     Forthcoming,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "The work is published and currently available. This status indicates that the work is officially released."
+        )
+    )]
     Active,
-    #[cfg_attr(feature = "backend", db_rename = "withdrawn-from-sale")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "withdrawn-from-sale",
+        graphql(
+            description = "The work has been withdrawn from publication and will be removed from all distribution channels. This status indicates that the work is no longer available for sale or distribution and will no longer be accessible."
+        )
+    )]
     WithdrawnFromSale,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "The work has been replaced by a new edition, with the previous edition now considered outdated. The two editions should be linked using a `WorkRelation` of type `REPLACES`/`IS_REPLACED_BY`."
+        )
+    )]
     Superseded,
-    #[cfg_attr(feature = "backend", db_rename = "postponed-indefinitely")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "postponed-indefinitely",
+        graphql(
+            description = "The work's release has been delayed indefinitely. It may be resumed at a later time, but currently, no publication date is set."
+        )
+    )]
     PostponedIndefinitely,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "The work has been permanently cancelled and will not be published."
+        )
+    )]
     Cancelled,
 }
 
