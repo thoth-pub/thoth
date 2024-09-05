@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-  - [595](https://github.com/thoth-pub/thoth/issues/595) - Remove infrequently used and unused work statuses (unspecified, no longer our product, out of stock indefinitely, out of print, inactive, unknown, remaindered, recalled). Require a publication date for active, withdrawn from sale, and superseded works in Thoth. Add a new `Superseded` work status to replace Out of Print for older editions of Works. Require a withdrawn from sale date for Superseded works. [626](https://github.com/thoth-pub/thoth/pull/626). Rename `WorkStatus` `WITHDRAWN_FROM_SALE` to `WITHDRAWN`
+  - [595](https://github.com/thoth-pub/thoth/issues/595), [626](https://github.com/thoth-pub/thoth/pull/626) - Remove infrequently used and unused work statuses (unspecified, no longer our product, out of stock indefinitely, out of print, inactive, unknown, remaindered, recalled). Require a publication date for active, withdrawn, and superseded works in Thoth. Add a new `Superseded` work status to replace Out of Print for older editions of Works. Require a withdrawn date for Superseded works.
   - [582](https://github.com/thoth-pub/thoth/issues/582) - Add Crossmark metadata in Crossref DOI deposit when a Crossmark policy is present in the publisher record. Add Crossmark update new_edition metadata when a book is replaced by a new edition, and withdrawal metadata when a book is withdrawn from sale.
   - [574](https://github.com/thoth-pub/thoth/issues/574), [626](https://github.com/thoth-pub/thoth/pull/626) - Add descriptions to all remaining items in schema
 
