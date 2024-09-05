@@ -108,16 +108,17 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
                             .map_err(|e| e.into())
                     })
                 })?;
-                write_element_block("ProductIdentifier", w, |w| {
-                    // 15 ISBN-13
-                    write_element_block("ProductIDType", w, |w| {
-                        w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
+                if let Some(isbn) = &main_isbn {
+                    write_element_block("ProductIdentifier", w, |w| {
+                        // 15 ISBN-13
+                        write_element_block("ProductIDType", w, |w| {
+                            w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("IDValue", w, |w| {
+                            w.write(XmlEvent::Characters(isbn)).map_err(|e| e.into())
+                        })
                     })?;
-                    write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(&main_isbn))
-                            .map_err(|e| e.into())
-                    })
-                })?;
+                }
                 if let Some(doi) = &self.doi {
                     write_element_block("ProductIdentifier", w, |w| {
                         write_element_block("ProductIDType", w, |w| {
@@ -365,11 +366,16 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
                     })
                 })?;
                 if !isbns.is_empty() {
-                    for isbn in &isbns {
+                    for (publication_type, isbn) in &isbns {
+                        let relation_code = match publication_type {
+                            PublicationType::PAPERBACK | PublicationType::HARDBACK => "13", // Epublication based on (print product)
+                            _ => "06", // Alternative format
+                        };
+
                         write_element_block("RelatedProduct", w, |w| {
-                            // 06 Alternative format
                             write_element_block("RelationCode", w, |w| {
-                                w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                                w.write(XmlEvent::Characters(relation_code))
+                                    .map_err(|e| e.into())
                             })?;
                             write_element_block("ProductIdentifier", w, |w| {
                                 // 15 ISBN-13
@@ -434,24 +440,31 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
     }
 }
 
-fn get_publications_data(publications: &[WorkPublications]) -> (String, Vec<String>) {
-    let mut main_isbn = "".to_string();
-    let mut isbns: Vec<String> = Vec::new();
+fn get_publications_data(
+    publications: &[WorkPublications],
+) -> (Option<String>, Vec<(PublicationType, String)>) {
+    let isbns: Vec<(PublicationType, String)> = publications
+        .iter()
+        .filter_map(|publication| {
+            publication.isbn.as_ref().map(|isbn| {
+                (
+                    publication.publication_type.clone(),
+                    isbn.to_hyphenless_string(),
+                )
+            })
+        })
+        .collect();
 
-    for publication in publications {
-        if let Some(isbn) = &publication.isbn.as_ref() {
-            isbns.push(isbn.to_hyphenless_string());
-            // The default product ISBN is the PDF's
-            if publication.publication_type.eq(&PublicationType::PDF) {
-                main_isbn = isbn.to_hyphenless_string();
-            }
-            // Books that don't have a PDF ISBN will use the paperback's
-            if publication.publication_type.eq(&PublicationType::PAPERBACK) && main_isbn.is_empty()
-            {
-                main_isbn = isbn.to_hyphenless_string();
-            }
-        }
-    }
+    // The default product ISBN is the PDF's, and fallback to a paperback if not found
+    let main_isbn = isbns
+        .iter()
+        .find(|(publication_type, _)| publication_type == &PublicationType::PDF)
+        .or_else(|| {
+            isbns
+                .iter()
+                .find(|(publication_type, _)| publication_type == &PublicationType::PAPERBACK)
+        })
+        .map(|(_, isbn)| isbn.clone());
 
     (main_isbn, isbns)
 }
@@ -1069,6 +1082,7 @@ mod tests {
         assert!(output.contains(r#"    <RightsTerritory>WORLD</RightsTerritory>"#));
         assert!(output.contains(r#"  <RelatedProduct>"#));
         assert!(output.contains(r#"    <RelationCode>06</RelationCode>"#));
+        assert!(output.contains(r#"    <RelationCode>13</RelationCode>"#));
         assert!(output.contains(r#"    <ProductIdentifier>"#));
         assert!(output.contains(r#"      <ProductIDType>15</ProductIDType>"#));
         assert!(output.contains(r#"      <IDValue>9783161484100</IDValue>"#));

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
   - [623](https://github.com/thoth-pub/thoth/pull/623) - Convert connection pool errors (`r2d2::Error`) to `ThothError`
+  - [625](https://github.com/thoth-pub/thoth/pull/625) - Use relationcode 13 for physical ISBNs in ONIX 2.1 EBSCOHost output
 
 ## [[0.12.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.8) - 2024-09-03
 ### Fixed
