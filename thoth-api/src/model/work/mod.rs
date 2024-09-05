@@ -104,7 +104,7 @@ pub enum WorkStatus {
             description = "The work has been withdrawn from publication and will be removed from all distribution channels. This status indicates that the work is no longer available for sale or distribution and will no longer be accessible."
         )
     )]
-    WithdrawnFromSale,
+    Withdrawn,
     #[cfg_attr(
         feature = "backend",
         graphql(
@@ -390,12 +390,12 @@ pub struct WorkOrderBy {
 
 impl WorkStatus {
     fn is_withdrawn_superseded(&self) -> bool {
-        matches!(self, WorkStatus::WithdrawnFromSale | WorkStatus::Superseded)
+        matches!(self, WorkStatus::Withdrawn | WorkStatus::Superseded)
     }
     fn is_active_withdrawn_superseded(&self) -> bool {
         matches!(
             self,
-            WorkStatus::Active | WorkStatus::WithdrawnFromSale | WorkStatus::Superseded
+            WorkStatus::Active | WorkStatus::Withdrawn | WorkStatus::Superseded
         )
     }
 }
@@ -621,8 +621,8 @@ fn test_workstatus_display() {
     );
     assert_eq!(format!("{}", WorkStatus::Active), "Active");
     assert_eq!(
-        format!("{}", WorkStatus::WithdrawnFromSale),
-        "Withdrawn From Sale"
+        format!("{}", WorkStatus::Withdrawn),
+        "Withdrawn"
     );
     assert_eq!(format!("{}", WorkStatus::Superseded), "Superseded");
 }
@@ -716,8 +716,8 @@ fn test_workstatus_fromstr() {
     );
     assert_eq!(WorkStatus::from_str("Active").unwrap(), WorkStatus::Active);
     assert_eq!(
-        WorkStatus::from_str("Withdrawn From Sale").unwrap(),
-        WorkStatus::WithdrawnFromSale
+        WorkStatus::from_str("Withdrawn").unwrap(),
+        WorkStatus::Withdrawn
     );
     assert_eq!(
         WorkStatus::from_str("Superseded").unwrap(),

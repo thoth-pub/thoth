@@ -457,7 +457,7 @@ impl XmlElement<Onix21ProquestEbrary> for WorkStatus {
             WorkStatus::POSTPONED_INDEFINITELY => "03",
             WorkStatus::ACTIVE => "04",
             WorkStatus::SUPERSEDED => "08",
-            WorkStatus::WITHDRAWN_FROM_SALE => "11",
+            WorkStatus::WITHDRAWN => "11",
             WorkStatus::Other(_) => unreachable!(),
         }
     }

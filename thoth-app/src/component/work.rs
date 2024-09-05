@@ -305,7 +305,7 @@ impl Component for WorkComponent {
                     self.work.last_page = None;
                     self.work.page_interval = None;
                 }
-                if self.work.work_status != WorkStatus::WithdrawnFromSale
+                if self.work.work_status != WorkStatus::Withdrawn
                     && self.work.work_status != WorkStatus::Superseded
                 {
                     self.work.withdrawn_date = None;
@@ -579,10 +579,10 @@ impl Component for WorkComponent {
                 // based on currently selected work type.
                 let is_chapter = self.work.work_type == WorkType::BookChapter;
                 let is_not_withdrawn_or_superseded = self.work.work_status
-                    != WorkStatus::WithdrawnFromSale
+                    != WorkStatus::Withdrawn
                     && self.work.work_status != WorkStatus::Superseded;
                 let is_active_withdrawn_or_superseded = self.work.work_status == WorkStatus::Active
-                    || self.work.work_status == WorkStatus::WithdrawnFromSale
+                    || self.work.work_status == WorkStatus::Withdrawn
                     || self.work.work_status == WorkStatus::Superseded;
                 html! {
                     <>

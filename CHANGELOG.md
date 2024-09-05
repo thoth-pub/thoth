@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
   - [548](https://github.com/thoth-pub/thoth/issues/548) - Prevent users from deleting contributors/institutions which are linked to works by other publishers
+  - [626](https://github.com/thoth-pub/thoth/pull/626) - Rename `WorkStatus` `WITHDRAWN_FROM_SALE` to `WITHDRAWN`
 
 ### Changed
   - [623](https://github.com/thoth-pub/thoth/pull/623) - Convert connection pool errors (`r2d2::Error`) to `ThothError`
