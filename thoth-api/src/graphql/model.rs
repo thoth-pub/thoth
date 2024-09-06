@@ -2023,6 +2023,7 @@ impl MutationRoot {
             all_location_platforms,
         );
 
+        // find canonical location and set canonical: false so that it can be switched with the new canonical location
         if let Ok(locations) = locations {
             for location in locations {
                 if location.canonical {
@@ -2046,15 +2047,19 @@ impl MutationRoot {
             data.canonical_record_complete(&context.db)?;
         }
 
-        // if user tries to change canonical location to non-canonical, results in error
+        // case: edit canonical location
         if location.canonical {
+            // if user tries to change canonical location to non-canonical, results in error
             if data.canonical != location.canonical {
                 return Err(ThothError::CanonicalLocationError.into());
             }
+            // TODO: else, make any edits to the canonical location that don't result in it becoming non-canonical.
             Ok(location)
-        // if user changes a non-canonical location to canonical, 
-        // update old canonical location to non-canonical
         } else {
+            // TODO: if data.canonical is false, just execute a regular edit.
+            // else, if data.canonical is true, execute code below.
+            // if user changes a non-canonical location to canonical, 
+            // update old canonical location to non-canonical
             if let Some(canonical_location_id) = canonical_location_id {
                 let connection = &mut context.db.get().unwrap();
                 connection.transaction(|connection| {
