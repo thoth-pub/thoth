@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.12.9]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.9) - 2024-09-06
+### Added
+  - [595](https://github.com/thoth-pub/thoth/issues/595), [626](https://github.com/thoth-pub/thoth/pull/626) - Remove infrequently used and unused work statuses (unspecified, no longer our product, out of stock indefinitely, out of print, inactive, unknown, remaindered, recalled). Require a publication date for active, withdrawn, and superseded works in Thoth. Add a new `Superseded` work status to replace Out of Print for older editions of Works. Require a withdrawn date for Superseded works.
+  - [582](https://github.com/thoth-pub/thoth/issues/582) - Add Crossmark metadata in Crossref DOI deposit when a Crossmark policy is present in the publisher record. Add Crossmark update new\_edition metadata when a book is replaced by a new edition, and withdrawal metadata when a book is withdrawn from sale.
+  - [574](https://github.com/thoth-pub/thoth/issues/574), [626](https://github.com/thoth-pub/thoth/pull/626) - Add descriptions to all remaining items in schema
+
+### Fixed
+  - [548](https://github.com/thoth-pub/thoth/issues/548) - Prevent users from deleting contributors/institutions which are linked to works by other publishers
+
+### Changed
+  - [623](https://github.com/thoth-pub/thoth/pull/623) - Convert connection pool errors (`r2d2::Error`) to `ThothError`
+  - [625](https://github.com/thoth-pub/thoth/pull/625) - Use relationcode 13 for physical ISBNs in ONIX 2.1 EBSCOHost output
+
 ## [[0.12.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.8) - 2024-09-03
 ### Fixed
   - [622](https://github.com/thoth-pub/thoth/pull/622) - Fix bug where list of contributors in New/Edit Contribution form was truncated

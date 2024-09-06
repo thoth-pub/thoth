@@ -34,7 +34,7 @@ impl Crud for Price {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Price>> {
         use crate::schema::price::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query =
             price
                 .inner_join(crate::schema::publication::table.inner_join(
@@ -97,7 +97,7 @@ impl Crud for Price {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::price::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = price.into_boxed();
         if !currency_codes.is_empty() {
             query = query.filter(currency_code.eq_any(currency_codes));

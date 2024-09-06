@@ -47,6 +47,7 @@ pub struct IssueWithSeries {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new work published as a number in a periodical"),
     diesel(table_name = issue)
 )]
 pub struct NewIssue {
@@ -58,6 +59,7 @@ pub struct NewIssue {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing work published as a number in a periodical"),
     diesel(table_name = issue, treat_none_as_null = true)
 )]
 pub struct PatchIssue {

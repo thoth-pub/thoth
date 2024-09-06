@@ -1002,19 +1002,12 @@ impl XmlElement<Onix3Thoth> for WorkStatus {
 
     fn value(&self) -> &'static str {
         match self {
-            WorkStatus::UNSPECIFIED => "00",
             WorkStatus::CANCELLED => "01",
             WorkStatus::FORTHCOMING => "02",
             WorkStatus::POSTPONED_INDEFINITELY => "03",
             WorkStatus::ACTIVE => "04",
-            WorkStatus::NO_LONGER_OUR_PRODUCT => "05",
-            WorkStatus::OUT_OF_STOCK_INDEFINITELY => "06",
-            WorkStatus::OUT_OF_PRINT => "07",
-            WorkStatus::INACTIVE => "08",
-            WorkStatus::UNKNOWN => "09",
-            WorkStatus::REMAINDERED => "10",
-            WorkStatus::WITHDRAWN_FROM_SALE => "11",
-            WorkStatus::RECALLED => "15",
+            WorkStatus::SUPERSEDED => "08",
+            WorkStatus::WITHDRAWN => "11",
             WorkStatus::Other(_) => unreachable!(),
         }
     }
@@ -2034,6 +2027,7 @@ mod tests {
             relation_type: RelationType::HAS_TRANSLATION,
             relation_ordinal: 1,
             related_work: WorkRelationsRelatedWork {
+                work_status: WorkStatus::ACTIVE,
                 full_title: "N/A".to_string(),
                 title: "N/A".to_string(),
                 subtitle: None,
@@ -2051,6 +2045,7 @@ mod tests {
                 page_interval: None,
                 landing_page: None,
                 imprint: WorkRelationsRelatedWorkImprint {
+                    crossmark_doi: None,
                     publisher: WorkRelationsRelatedWorkImprintPublisher {
                         publisher_name: "N/A".to_string(),
                     },
@@ -2249,6 +2244,7 @@ mod tests {
                     relation_type: RelationType::HAS_CHILD,
                     relation_ordinal: 1,
                     related_work: WorkRelationsRelatedWork {
+                        work_status: WorkStatus::ACTIVE,
                         full_title: "Related work title".to_string(),
                         title: "N/A".to_string(),
                         subtitle: None,
@@ -2266,6 +2262,7 @@ mod tests {
                         page_interval: None,
                         landing_page: None,
                         imprint: WorkRelationsRelatedWorkImprint {
+                            crossmark_doi: None,
                             publisher: WorkRelationsRelatedWorkImprintPublisher {
                                 publisher_name: "N/A".to_string(),
                             },
@@ -2280,6 +2277,7 @@ mod tests {
                     relation_type: RelationType::HAS_PART,
                     relation_ordinal: 2,
                     related_work: WorkRelationsRelatedWork {
+                        work_status: WorkStatus::ACTIVE,
                         full_title: "N/A".to_string(),
                         title: "N/A".to_string(),
                         subtitle: None,
@@ -2297,6 +2295,7 @@ mod tests {
                         page_interval: None,
                         landing_page: None,
                         imprint: WorkRelationsRelatedWorkImprint {
+                            crossmark_doi: None,
                             publisher: WorkRelationsRelatedWorkImprintPublisher {
                                 publisher_name: "N/A".to_string(),
                             },
@@ -2311,6 +2310,7 @@ mod tests {
                     relation_type: RelationType::HAS_TRANSLATION,
                     relation_ordinal: 3,
                     related_work: WorkRelationsRelatedWork {
+                        work_status: WorkStatus::ACTIVE,
                         full_title: "N/A".to_string(),
                         title: "N/A".to_string(),
                         subtitle: None,
@@ -2328,6 +2328,7 @@ mod tests {
                         page_interval: None,
                         landing_page: None,
                         imprint: WorkRelationsRelatedWorkImprint {
+                            crossmark_doi: None,
                             publisher: WorkRelationsRelatedWorkImprintPublisher {
                                 publisher_name: "N/A".to_string(),
                             },

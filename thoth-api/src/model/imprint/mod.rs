@@ -61,6 +61,7 @@ pub struct ImprintWithPublisher {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
+    graphql(description = "Set of values required to define a new brand under which a publisher issues works"),
     diesel(table_name = imprint)
 )]
 pub struct NewImprint {
@@ -73,6 +74,7 @@ pub struct NewImprint {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing brand under which a publisher issues works"),
     diesel(table_name = imprint, treat_none_as_null = true)
 )]
 pub struct PatchImprint {

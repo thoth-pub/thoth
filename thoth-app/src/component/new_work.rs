@@ -290,8 +290,8 @@ impl Component for NewWorkComponent {
                     self.work.last_page = None;
                     self.work.page_interval = None;
                 }
-                if self.work.work_status != WorkStatus::WithdrawnFromSale
-                    && self.work.work_status != WorkStatus::OutOfPrint
+                if self.work.work_status != WorkStatus::Withdrawn
+                    && self.work.work_status != WorkStatus::Superseded
                 {
                     self.work.withdrawn_date = None;
                 }
@@ -459,9 +459,11 @@ impl Component for NewWorkComponent {
         // Grey out chapter-specific or "book"-specific fields
         // based on currently selected work type.
         let is_chapter = self.work.work_type == WorkType::BookChapter;
-        let is_not_withdrawn_or_out_of_print = self.work.work_status
-            != WorkStatus::WithdrawnFromSale
-            && self.work.work_status != WorkStatus::OutOfPrint;
+        let is_not_withdrawn_or_superseded = self.work.work_status != WorkStatus::Withdrawn
+            && self.work.work_status != WorkStatus::Superseded;
+        let is_active_withdrawn_or_superseded = self.work.work_status == WorkStatus::Active
+            || self.work.work_status == WorkStatus::Withdrawn
+            || self.work.work_status == WorkStatus::Superseded;
         html! {
             <>
                 <nav class="level">
@@ -528,13 +530,14 @@ impl Component for NewWorkComponent {
                         label = "Publication Date"
                         value={ self.work.publication_date.clone() }
                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDate(e.to_value())) }
+                        required={ is_active_withdrawn_or_superseded }
                     />
                     <FormDateInput
                         label = "Withdrawn Date"
                         value={ self.work.withdrawn_date.clone() }
                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWithdrawnDate(e.to_value())) }
-                        required = true
-                        deactivated={ is_not_withdrawn_or_out_of_print }
+                        required = { !is_not_withdrawn_or_superseded }
+                        deactivated={ is_not_withdrawn_or_superseded }
                     />
                     <FormTextInput
                         label = "Place of Publication"

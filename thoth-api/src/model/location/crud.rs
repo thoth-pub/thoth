@@ -36,7 +36,7 @@ impl Crud for Location {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Location>> {
         use crate::schema::location::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query =
             location
                 .inner_join(crate::schema::publication::table.inner_join(
@@ -107,7 +107,7 @@ impl Crud for Location {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::location::dsl::*;
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let mut query = location.into_boxed();
         if !location_platforms.is_empty() {
             query = query.filter(location_platform.eq_any(location_platforms));
@@ -152,7 +152,7 @@ impl NewLocation {
         use crate::schema::location::dsl::*;
         use diesel::prelude::*;
 
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let canonical_count = location
             .filter(publication_id.eq(self.publication_id))
             .filter(canonical)
@@ -205,7 +205,7 @@ fn location_canonical_record_complete(
         use crate::model::publication::PublicationType;
         use diesel::prelude::*;
 
-        let mut connection = db.get().unwrap();
+        let mut connection = db.get()?;
         let publication_type = crate::schema::publication::table
             .select(crate::schema::publication::publication_type)
             .filter(crate::schema::publication::publication_id.eq(publication_id))

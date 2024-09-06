@@ -9,8 +9,10 @@ pub struct ConfirmDeleteComponent {
 
 #[derive(PartialEq, Properties)]
 pub struct Props {
-    pub onclick: Callback<MouseEvent>,
+    pub onclick: Option<Callback<MouseEvent>>,
     pub object_name: String,
+    #[prop_or_default]
+    pub deactivated: bool,
 }
 
 pub enum Msg {
@@ -45,7 +47,11 @@ impl Component for ConfirmDeleteComponent {
         });
         html! {
             <>
-                <button class="button is-danger" onclick={ open_modal }>
+                <button
+                    class="button is-danger"
+                    onclick={ open_modal }
+                    disabled={ ctx.props().deactivated }
+                >
                     { DELETE_BUTTON }
                 </button>
                 <div class={ self.confirm_delete_status() }>
@@ -69,7 +75,7 @@ impl Component for ConfirmDeleteComponent {
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick={ &ctx.props().onclick }
+                                onclick={ ctx.props().onclick.clone() }
                             >
                                 { DELETE_BUTTON }
                             </button>
