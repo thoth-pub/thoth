@@ -75,21 +75,58 @@ pub enum WorkType {
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
-    graphql(description = "Publication status of a work"),
+    graphql(
+        description = "Publication status of a work throughout its lifecycle. For a visual representation of the workflow, refer to the work status flowchart https://github.com/thoth-pub/thoth/wiki/Thoth_Works#work-status-flowchart"
+    ),
     ExistingTypePath = "crate::schema::sql_types::WorkStatus"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum WorkStatus {
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "The work is in progress and is expected to be published. This is the typical status for a work that has not yet been released but is planned for publication."
+        )
+    )]
     #[default]
     Forthcoming,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "The work is published and currently available. This status indicates that the work is officially released."
+        )
+    )]
     Active,
-    #[cfg_attr(feature = "backend", db_rename = "withdrawn-from-sale")]
-    WithdrawnFromSale,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "The work has been withdrawn from publication and will be removed from all distribution channels. This status indicates that the work is no longer available for sale or distribution and will no longer be accessible."
+        )
+    )]
+    Withdrawn,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "The work has been replaced by a new edition, with the previous edition now considered outdated. The two editions should be linked using a `WorkRelation` of type `REPLACES`/`IS_REPLACED_BY`."
+        )
+    )]
     Superseded,
-    #[cfg_attr(feature = "backend", db_rename = "postponed-indefinitely")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "postponed-indefinitely",
+        graphql(
+            description = "The work's release has been delayed indefinitely. It may be resumed at a later time, but currently, no publication date is set."
+        )
+    )]
     PostponedIndefinitely,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "The work has been permanently cancelled and will not be published."
+        )
+    )]
     Cancelled,
 }
 
@@ -354,12 +391,12 @@ pub struct WorkOrderBy {
 
 impl WorkStatus {
     fn is_withdrawn_superseded(&self) -> bool {
-        matches!(self, WorkStatus::WithdrawnFromSale | WorkStatus::Superseded)
+        matches!(self, WorkStatus::Withdrawn | WorkStatus::Superseded)
     }
     fn is_active_withdrawn_superseded(&self) -> bool {
         matches!(
             self,
-            WorkStatus::Active | WorkStatus::WithdrawnFromSale | WorkStatus::Superseded
+            WorkStatus::Active | WorkStatus::Withdrawn | WorkStatus::Superseded
         )
     }
 }
@@ -584,10 +621,7 @@ fn test_workstatus_display() {
         "Postponed Indefinitely"
     );
     assert_eq!(format!("{}", WorkStatus::Active), "Active");
-    assert_eq!(
-        format!("{}", WorkStatus::WithdrawnFromSale),
-        "Withdrawn From Sale"
-    );
+    assert_eq!(format!("{}", WorkStatus::Withdrawn), "Withdrawn");
     assert_eq!(format!("{}", WorkStatus::Superseded), "Superseded");
 }
 
@@ -680,8 +714,8 @@ fn test_workstatus_fromstr() {
     );
     assert_eq!(WorkStatus::from_str("Active").unwrap(), WorkStatus::Active);
     assert_eq!(
-        WorkStatus::from_str("Withdrawn From Sale").unwrap(),
-        WorkStatus::WithdrawnFromSale
+        WorkStatus::from_str("Withdrawn").unwrap(),
+        WorkStatus::Withdrawn
     );
     assert_eq!(
         WorkStatus::from_str("Superseded").unwrap(),

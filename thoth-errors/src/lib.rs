@@ -85,7 +85,7 @@ pub enum ThothError {
         "Price values must be greater than zero. To indicate an unpriced Publication, omit all Prices."
     )]
     PriceZeroError,
-    #[error("Publication Date is required for Active, Withdrawn From Sale, and Superseded Works.")]
+    #[error("Publication Date is required for Active, Withdrawn, and Superseded Works.")]
     PublicationDateError,
     #[error("{0}")]
     RequestError(String),
@@ -93,9 +93,9 @@ pub enum ThothError {
     GraphqlError(String),
     #[error("Withdrawn Date must be later than Publication Date.")]
     WithdrawnDateBeforePublicationDateError,
-    #[error("Withdrawn Date can only be added to a Superseded or Withdrawn From Sale Work.")]
+    #[error("Withdrawn Date can only be added to a Superseded or Withdrawn Work.")]
     WithdrawnDateError,
-    #[error("A Superseded or Withdrawn From Sale Work must have a Withdrawn Date.")]
+    #[error("A Superseded or Withdrawn Work must have a Withdrawn Date.")]
     NoWithdrawnDateError,
 }
 

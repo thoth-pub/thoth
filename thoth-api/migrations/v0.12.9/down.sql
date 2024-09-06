@@ -1,3 +1,5 @@
+ALTER TYPE work_status RENAME VALUE 'withdrawn' TO 'withdrawn-from-sale';
+
 ALTER TABLE work
     --  Drop constraints originally from v0.12.3, 
     -- otherwise it won't be able to cast to text

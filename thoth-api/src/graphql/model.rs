@@ -2519,7 +2519,7 @@ impl Work {
     }
 
     #[graphql(
-        description = "Date the work was withdrawn from publication. Only applies to out of print and withdrawn from sale works."
+        description = "Date the work was withdrawn from publication. Only applies to out of print and withdrawn works."
     )]
     pub fn withdrawn_date(&self) -> Option<NaiveDate> {
         self.withdrawn_date
