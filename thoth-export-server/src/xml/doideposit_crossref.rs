@@ -403,9 +403,9 @@ fn write_crossmark_funding_access<W: Write>(
 ) -> ThothResult<()> {
     if let Some(crossmark_doi) = &work.imprint.crossmark_doi {
         let update_type = match &work.work_status {
-            thoth_client::WorkStatus::WITHDRAWN_FROM_SALE => "withdrawal",
+            thoth_client::WorkStatus::WITHDRAWN => "withdrawal",
             thoth_client::WorkStatus::ACTIVE => "new_edition",
-            // Only withdrawn from sale and active works are relevant for crossmark.
+            // Only withdrawn and active works are relevant for crossmark.
             thoth_client::WorkStatus::FORTHCOMING
             | thoth_client::WorkStatus::SUPERSEDED
             | thoth_client::WorkStatus::POSTPONED_INDEFINITELY
