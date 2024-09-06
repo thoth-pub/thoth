@@ -101,7 +101,6 @@ pub enum WorkStatus {
     Active,
     #[cfg_attr(
         feature = "backend",
-        db_rename = "withdrawn",
         graphql(
             description = "The work has been withdrawn from publication and will be removed from all distribution channels. This status indicates that the work is no longer available for sale or distribution and will no longer be accessible."
         )
