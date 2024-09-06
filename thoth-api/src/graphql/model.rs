@@ -1996,6 +1996,7 @@ impl MutationRoot {
 
         let location = Location::from_id(&context.db, &data.location_id).unwrap();
         let mut canonical_location: Option<PatchLocation> = None;
+        let mut canonical_location_id: Option<Uuid> = None;
 
         context
             .account_access
@@ -2008,10 +2009,6 @@ impl MutationRoot {
                     &context.db,
                     data.publication_id,
                 )?)?;
-        }
-
-        if data.canonical != location.canonical {
-            return Err(ThothError::CanonicalLocationError.into());
         }
 
         let publication = Publication::from_id(&context.db, &data.publication_id).unwrap();
@@ -2035,25 +2032,56 @@ impl MutationRoot {
                         landing_page: location.landing_page.clone(),
                         full_text_url: location.full_text_url.clone(),
                         location_platform: location.location_platform.clone(),
-                        canonical: location.canonical,
+                        canonical: false,
                     });
+                    if let Some(ref canonical_location) = canonical_location {
+                        canonical_location_id = Some(canonical_location.location_id);
+                    }
                     break;
                 }
             }
         }
 
-        if let Some(canonical_location) = canonical_location {
-            println!("Canonical PatchLocation: {:?}", canonical_location);
-        } else {
-            println!("No canonical location found.");
-        }
+        // if let Some(canonical_location) = canonical_location {
+        //     println!("Canonical PatchLocation: {:?}", canonical_location);
+        // } else {
+        //     println!("No canonical location found.");
+        // }
 
         if data.canonical {
             data.canonical_record_complete(&context.db)?;
         }
+
+        // case: user tries to change canonical location to non-canonical, results in error
+        if location.canonical {
+            if data.canonical != location.canonical {
+                return Err(ThothError::CanonicalLocationError.into());
+            }
+            Ok(location)
+        // case: user changes a non-canonical location to canonical, update old canonical location to
+        // non-canonical
+        } else {
+            if let Some(canonical_location_id) = canonical_location_id {
+                let connection = &mut context.db.get().unwrap();
+                connection.transaction(|connection| {
+                    diesel::update(location::table.find(canonical_location_id))
+                        .set(canonical_location) 
+                        .get_result::<Location>(connection);
+                    match diesel::update(location::table.find(data.location_id))
+                        .set(&data)
+                        .get_result::<Location>(connection)
+                    {  
+                        Ok(location) => Ok(location),
+                        Err(e) => Err(ThothError::from(e)),
+                    }
+                })?;
+            }
+            Ok(location)
+            
+        }
         // account_id was used in old location.update structure, can delete later
         // let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        let connection = &mut context.db.get().unwrap();
+        // let connection = &mut context.db.get().unwrap();
         
         // let zenodo_location_id = Uuid::parse_str("b2e14c78-5fbe-4526-8206-f28dd335a981").unwrap();
         // let zenodo_patch_location = PatchLocation {
@@ -2085,17 +2113,17 @@ impl MutationRoot {
         // if canonical location and want to remove from canonical --> error
         // if not canonical location and want to make canonical, update existing canonical
         // to set to false, set new to true
-        connection.transaction(|connection| {
-            diesel::update(location::table.find(data.location_id))
+        // connection.transaction(|connection| {
+            // diesel::update(location::table.find(data.location_id))
             // diesel::update(location::table.find(zenodo_location_id))
             //    .set(zenodo_patch_location) 
-                .set(&data)
+            //     .set(&data)
                 // .get_result::<Location>(connection);
             // diesel::update(location::table.find(scienceopen_location_id))
                 // .set(scienceopen_patch_location) 
                 // .set(&data)
-                .get_result::<Location>(connection)
-                .map_err(|e| e.into())
+            //     .get_result::<Location>(connection)
+            //     .map_err(|e| e.into())
             // diesel::update(location::table.find(other_location.location_id))
             //     .set(&data)
             //     .get_result::<Self>(connection)
@@ -2105,7 +2133,7 @@ impl MutationRoot {
             // location
             //     .update(&connection, &data, &account_id)
             //     .map_err(|e| e.into())
-        })
+        // })
     }
 
     #[graphql(description = "Update an existing price with the specified values")]
