@@ -2042,24 +2042,18 @@ impl MutationRoot {
             }
         }
 
-        // if let Some(canonical_location) = canonical_location {
-        //     println!("Canonical PatchLocation: {:?}", canonical_location);
-        // } else {
-        //     println!("No canonical location found.");
-        // }
-
         if data.canonical {
             data.canonical_record_complete(&context.db)?;
         }
 
-        // case: user tries to change canonical location to non-canonical, results in error
+        // if user tries to change canonical location to non-canonical, results in error
         if location.canonical {
             if data.canonical != location.canonical {
                 return Err(ThothError::CanonicalLocationError.into());
             }
             Ok(location)
-        // case: user changes a non-canonical location to canonical, update old canonical location to
-        // non-canonical
+        // if user changes a non-canonical location to canonical, 
+        // update old canonical location to non-canonical
         } else {
             if let Some(canonical_location_id) = canonical_location_id {
                 let connection = &mut context.db.get().unwrap();
@@ -2076,64 +2070,8 @@ impl MutationRoot {
                     }
                 })?;
             }
-            Ok(location)
-            
+            Ok(location)   
         }
-        // account_id was used in old location.update structure, can delete later
-        // let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        // let connection = &mut context.db.get().unwrap();
-        
-        // let zenodo_location_id = Uuid::parse_str("b2e14c78-5fbe-4526-8206-f28dd335a981").unwrap();
-        // let zenodo_patch_location = PatchLocation {
-        //     location_id: Uuid::parse_str("b2e14c78-5fbe-4526-8206-f28dd335a981").unwrap(),
-        //     publication_id: Uuid::parse_str("5ece37a1-3aae-4e9c-8580-5c1d38375f4a").unwrap(),
-        //     landing_page: Some("https://thoth-arch.lib.cam.ac.uk/handle/1811/hardcoded_zenodo".to_string()),
-        //     full_text_url: Some("https://fulltext30zenodo.com".to_string()),
-        //     location_platform: LocationPlatform::Zenodo,
-        //     canonical: false,
-        // };
-
-        // let scienceopen_location_id = Uuid::parse_str("8b5791e5-15c2-42aa-8211-65041d8cf2e5").unwrap();
-        // let scienceopen_patch_location = PatchLocation {
-        //     location_id: Uuid::parse_str("8b5791e5-15c2-42aa-8211-65041d8cf2e5").unwrap(),
-        //     publication_id: Uuid::parse_str("5ece37a1-3aae-4e9c-8580-5c1d38375f4a").unwrap(),
-        //     landing_page: Some("https://thoth-arch.lib.cam.ac.uk/handle/1811/hardcoded_scienceopen".to_string()),
-        //     full_text_url: Some("https://fulltext30scienceopen.com".to_string()),
-        //     location_platform: LocationPlatform::ScienceOpen,
-        //     canonical: true,
-        // };
-
-        // if in transaction you try to set the new canonical to true first, you have two canonical locations at the same time,
-        // and get 
-        // error message: "current transaction is aborted, commands ignored until end of transaction block"
-
-        // so must set old canonical to false first, then set new one to true.
-
-
-        // if canonical location and want to remove from canonical --> error
-        // if not canonical location and want to make canonical, update existing canonical
-        // to set to false, set new to true
-        // connection.transaction(|connection| {
-            // diesel::update(location::table.find(data.location_id))
-            // diesel::update(location::table.find(zenodo_location_id))
-            //    .set(zenodo_patch_location) 
-            //     .set(&data)
-                // .get_result::<Location>(connection);
-            // diesel::update(location::table.find(scienceopen_location_id))
-                // .set(scienceopen_patch_location) 
-                // .set(&data)
-            //     .get_result::<Location>(connection)
-            //     .map_err(|e| e.into())
-            // diesel::update(location::table.find(other_location.location_id))
-            //     .set(&data)
-            //     .get_result::<Self>(connection)
-            //     .map_err(|e| e.into())
-            // .get_result::<Self>(connection)
-            // .map_err(|e| e.into())
-            // location
-            //     .update(&connection, &data, &account_id)
-            //     .map_err(|e| e.into())
-        // })
     }
 
     #[graphql(description = "Update an existing price with the specified values")]
