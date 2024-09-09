@@ -79,14 +79,25 @@ impl XmlSpecification for DoiDepositCrossref {
 
 impl XmlElementBlock<DoiDepositCrossref> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        let work_type = match &self.work_type {
+        let work = self;
+        if work.doi.is_none()
+            && !work
+                .relations
+                .iter()
+                .any(|r| r.relation_type == RelationType::HAS_CHILD && r.related_work.doi.is_some())
+        {
+            return Err(ThothError::IncompleteMetadataRecord(
+                DEPOSIT_ERROR.to_string(),
+                "No work or chapter DOIs to deposit".to_string(),
+            ));
+        }
+        let work_type = match &work.work_type {
             WorkType::MONOGRAPH => "monograph",
             WorkType::EDITED_BOOK => "edited_book",
             WorkType::TEXTBOOK => "reference",
             WorkType::JOURNAL_ISSUE | WorkType::BOOK_SET | WorkType::BOOK_CHAPTER => "other",
             WorkType::Other(_) => unreachable!(),
         };
-        let work = self;
         // As an alternative to `book_metadata` and `book_series_metadata` below,
         // `book_set_metadata` can be used for works which are part of a set.
         // Omitted at present but could be considered as a future enhancement.
@@ -2069,18 +2080,31 @@ mod tests {
         assert!(!output.contains(r#"        <doi>10.00001/BOOK.0001</doi>"#));
         assert!(!output.contains(r#"        <resource>https://www.book.com</resource>"#));
 
-        // Change work type again, replace landing page but remove DOI
+        // Remove DOI (so neither work nor chapter DOIs are present). Result: error
+        test_work.doi = None;
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate doideposit::crossref: No work or chapter DOIs to deposit"
+                .to_string()
+        );
+
+        // Change work type again, replace landing page, replace chapter DOI
         test_work.work_type = WorkType::JOURNAL_ISSUE;
         test_work.landing_page = Some("https://www.book.com".to_string());
-        test_work.doi = None;
+        test_work.relations[0].related_work.doi =
+            Some(Doi::from_str("https://doi.org/10.00001/PART.0001").unwrap());
         let output = generate_test_output(true, &test_work);
         // Work type changed
         assert!(!output.contains(r#"  <book book_type="reference">"#));
         assert!(output.contains(r#"  <book book_type="other">"#));
-        // No DOI: entire `doi_data` element omitted (even though landing page restored)
-        assert!(!output.contains(r#"      <doi_data>"#));
+        // No work DOI: entire work-specific `doi_data` element omitted (even though landing page restored)
         assert!(!output.contains(r#"        <doi>10.00001/BOOK.0001</doi>"#));
         assert!(!output.contains(r#"        <resource>https://www.book.com</resource>"#));
+        // But chapter-specific `doi_data` element will be present (at same nesting level)
+        assert!(output.contains(r#"      <doi_data>"#));
+        assert!(output.contains(r#"        <doi>10.00001/PART.0001</doi>"#));
+        assert!(output.contains(r#"        <resource>https://www.book.com/part_one</resource>"#));
 
         // Remove publication date. Result: error
         test_work.publication_date = None;
