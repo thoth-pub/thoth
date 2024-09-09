@@ -1995,6 +1995,7 @@ impl MutationRoot {
         ]);
 
         let location = Location::from_id(&context.db, &data.location_id).unwrap();
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         let mut canonical_location: Option<PatchLocation> = None;
         let mut canonical_location_id: Option<Uuid> = None;
 
@@ -2052,29 +2053,42 @@ impl MutationRoot {
             // if user tries to change canonical location to non-canonical, results in error
             if data.canonical != location.canonical {
                 return Err(ThothError::CanonicalLocationError.into());
+            // else, allow any other edits to the canonical location that don't result in it becoming non-canonical.    
+            } else {
+                location
+                    .update(&context.db, &data, &account_id)
+                    .map_err(|e| e.into())
             }
-            // TODO: else, make any edits to the canonical location that don't result in it becoming non-canonical.
-            Ok(location)
         } else {
-            // TODO: if data.canonical is false, just execute a regular edit.
-            // else, if data.canonical is true, execute code below.
-            // if user changes a non-canonical location to canonical, 
-            // update old canonical location to non-canonical
-            if let Some(canonical_location_id) = canonical_location_id {
+            // if data.canonical is false, just execute a regular edit.
+            // TODO: this works, but you have to refresh the page to see it.
+            if data.canonical == false {
                 let connection = &mut context.db.get().unwrap();
                 connection.transaction(|connection| {
-                    diesel::update(location::table.find(canonical_location_id))
-                        .set(canonical_location) 
-                        .get_result::<Location>(connection);
-                    match diesel::update(location::table.find(data.location_id))
-                        .set(&data)
+                    diesel::update(location::table.find(data.location_id))
+                        .set(&data) 
                         .get_result::<Location>(connection)
-                    {  
-                        Ok(location) => Ok(location),
-                        Err(e) => Err(ThothError::from(e)),
-                    }
                 })?;
-            }
+            // else, if data.canonical is true, execute code below.    
+            } else {
+            // if user changes a non-canonical location to canonical, 
+            // update old canonical location to non-canonical
+                if let Some(canonical_location_id) = canonical_location_id {
+                    let connection = &mut context.db.get().unwrap();
+                    connection.transaction(|connection| {
+                        diesel::update(location::table.find(canonical_location_id))
+                            .set(canonical_location) 
+                            .execute(connection)?;
+                        match diesel::update(location::table.find(data.location_id))
+                            .set(&data)
+                            .get_result::<Location>(connection)
+                        {  
+                            Ok(location) => Ok(location),
+                            Err(e) => Err(ThothError::from(e)),
+                        }
+                    })?;
+                }
+            };
             Ok(location)   
         }
     }
