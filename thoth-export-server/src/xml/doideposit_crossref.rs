@@ -132,7 +132,11 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                     .iter()
                     .filter(|r| r.relation_type == RelationType::HAS_CHILD)
                 {
-                    XmlElementBlock::<DoiDepositCrossref>::xml_element(chapter, w)?;
+                    // If chapter has no DOI, nothing to output (`content_item` element
+                    // representing chapter must contain `doi_data` element with `doi`)
+                    if chapter.related_work.doi.is_some() {
+                        XmlElementBlock::<DoiDepositCrossref>::xml_element(chapter, w)?;
+                    }
                 }
                 Ok(())
             })
@@ -692,12 +696,8 @@ fn write_chapter_doi_collection<W: Write>(
             ));
         }
     } else {
-        // `doi_data` element is mandatory for `content_item`, and must contain
-        // both `doi` element and `resource` (landing page) element
-        return Err(ThothError::IncompleteMetadataRecord(
-            DEPOSIT_ERROR.to_string(),
-            "Missing chapter DOI".to_string(),
-        ));
+        // Caller should only pass in chapters which have DOIs
+        unreachable!()
     }
     Ok(())
 }
@@ -1436,17 +1436,6 @@ mod tests {
             output,
             "Could not generate doideposit::crossref: Missing chapter Landing Page".to_string()
         );
-
-        // Restore landing page but remove DOI. Result: error, as above
-        test_relations.related_work.edition = None;
-        test_relations.related_work.landing_page =
-            Some("https://www.book.com/chapter_one".to_string());
-        test_relations.related_work.doi = None;
-        let output = generate_test_output(false, &test_relations);
-        assert_eq!(
-            output,
-            "Could not generate doideposit::crossref: Missing chapter DOI".to_string()
-        );
     }
 
     #[test]
@@ -1974,6 +1963,9 @@ mod tests {
         test_work.publications[0].locations.clear();
         // Remove last (hardback) publication
         test_work.publications.pop();
+        // Change sole relation to chapter with no DOI
+        test_work.relations[0].relation_type = RelationType::HAS_CHILD;
+        test_work.relations[0].related_work.doi = None;
 
         let output = generate_test_output(true, &test_work);
         // Work type changed
@@ -2022,6 +2014,18 @@ mod tests {
         assert!(!output.contains(r#"          <item crawler="yahoo">"#));
         assert!(!output.contains(r#"          <item crawler="scirus">"#));
         assert!(!output.contains(r#"        <collection property="text-mining">"#));
+        // Only chapters with no DOI supplied: no `content_item` elements emitted
+        assert!(!output.contains(r#"    <content_item component_type="chapter">"#));
+        assert!(!output.contains(r#"        <title>Part</title>"#));
+        assert!(!output.contains(r#"        <subtitle>One</subtitle>"#));
+        assert!(!output.contains(r#"      <component_number>1</component_number>"#));
+        assert!(!output.contains(r#"        <month>02</month>"#));
+        assert!(!output.contains(r#"        <day>28</day>"#));
+        assert!(!output.contains(r#"        <year>2000</year>"#));
+        assert!(!output.contains(r#"      <pages>"#));
+        assert!(!output.contains(r#"        <first_page>10</first_page>"#));
+        assert!(!output.contains(r#"        <last_page>20</last_page>"#));
+        assert!(!output.contains(r#"        <resource>https://www.book.com/part_one</resource>"#));
 
         // Change work type, remove landing page, remove XML ISBN,
         // remove all but the omitted contributor
