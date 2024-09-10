@@ -79,6 +79,17 @@ impl XmlSpecification for DoiDepositCrossref {
 
 impl XmlElementBlock<DoiDepositCrossref> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        if self.doi.is_none()
+            && !self
+                .relations
+                .iter()
+                .any(|r| r.relation_type == RelationType::HAS_CHILD && r.related_work.doi.is_some())
+        {
+            return Err(ThothError::IncompleteMetadataRecord(
+                DEPOSIT_ERROR.to_string(),
+                "No work or chapter DOIs to deposit".to_string(),
+            ));
+        }
         let work_type = match &self.work_type {
             WorkType::MONOGRAPH => "monograph",
             WorkType::EDITED_BOOK => "edited_book",
@@ -86,7 +97,6 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
             WorkType::JOURNAL_ISSUE | WorkType::BOOK_SET | WorkType::BOOK_CHAPTER => "other",
             WorkType::Other(_) => unreachable!(),
         };
-        let work = self;
         // As an alternative to `book_metadata` and `book_series_metadata` below,
         // `book_set_metadata` can be used for works which are part of a set.
         // Omitted at present but could be considered as a future enhancement.
@@ -106,22 +116,22 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                         XmlElementBlock::<DoiDepositCrossref>::xml_element(series, w)?;
                         ordinal = Some(ord);
                     }
-                    write_work_contributions(work, w)?;
-                    write_work_title(work, w)?;
-                    write_work_abstract(work, w)?;
+                    write_work_contributions(self, w)?;
+                    write_work_title(self, w)?;
+                    write_work_abstract(self, w)?;
 
                     if ordinal.is_some() {
                         let ordinal_i64 = ordinal.unwrap_or(0);
                         write_work_volume(ordinal_i64, w)?;
                     }
 
-                    write_work_edition(work, w)?;
-                    write_work_publication_date(work, w)?;
-                    write_work_publications(work, w)?;
-                    write_publisher(work, w)?;
-                    write_crossmark_funding_access(work, w)?;
-                    write_doi_collection(work, w)?;
-                    write_work_references(work, w)?;
+                    write_work_edition(self, w)?;
+                    write_work_publication_date(self, w)?;
+                    write_work_publications(self, w)?;
+                    write_publisher(self, w)?;
+                    write_crossmark_funding_access(self, w)?;
+                    write_doi_collection(self, w)?;
+                    write_work_references(self, w)?;
                     Ok(())
                 })?;
 
@@ -132,7 +142,11 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                     .iter()
                     .filter(|r| r.relation_type == RelationType::HAS_CHILD)
                 {
-                    XmlElementBlock::<DoiDepositCrossref>::xml_element(chapter, w)?;
+                    // If chapter has no DOI, nothing to output (`content_item` element
+                    // representing chapter must contain `doi_data` element with `doi`)
+                    if chapter.related_work.doi.is_some() {
+                        XmlElementBlock::<DoiDepositCrossref>::xml_element(chapter, w)?;
+                    }
                 }
                 Ok(())
             })
@@ -612,91 +626,83 @@ fn write_chapter_doi_collection<W: Write>(
     chapter: &WorkRelations,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
-    if let Some(doi) = &chapter.related_work.doi {
-        if let Some(landing_page) = &chapter.related_work.landing_page {
-            write_element_block("doi_data", w, |w| {
-                write_element_block("doi", w, |w| {
-                    w.write(XmlEvent::Characters(&doi.to_string()))
-                        .map_err(|e| e.into())
-                })?;
-                write_element_block("resource", w, |w| {
-                    w.write(XmlEvent::Characters(landing_page))
-                        .map_err(|e| e.into())
-                })?;
-                if let Some(pdf_url) = chapter
-                    .related_work
-                    .publications
-                    .iter()
-                    .find(|p| {
-                        p.publication_type.eq(&PublicationType::PDF) && !p.locations.is_empty()
-                    })
-                    .and_then(|p| p.locations.iter().find(|l| l.canonical))
-                    .and_then(|l| l.full_text_url.as_ref())
-                {
-                    // Used for CrossRef Similarity Check. URL must point directly to full-text PDF.
-                    // Alternatively, a direct link to full-text HTML can be used (not implemented here).
-                    write_full_element_block(
-                        "collection",
-                        Some(vec![("property", "crawler-based")]),
-                        w,
-                        |w| {
-                            for crawler in ["iParadigms", "google", "msn", "yahoo", "scirus"] {
-                                write_full_element_block(
-                                    "item",
-                                    Some(vec![("crawler", crawler)]),
-                                    w,
-                                    |w| {
-                                        write_full_element_block(
-                                            "resource",
-                                            Some(vec![("mime_type", "application/pdf")]),
-                                            w,
-                                            |w| {
-                                                w.write(XmlEvent::Characters(pdf_url))
-                                                    .map_err(|e| e.into())
-                                            },
-                                        )
-                                    },
-                                )?;
-                            }
-                            Ok(())
-                        },
-                    )?;
-                    // Used for CrossRef Text and Data Mining. URL must point directly to full-text PDF.
-                    // Alternatively, a direct link to full-text XML can be used (not implemented here).
-                    write_full_element_block(
-                        "collection",
-                        Some(vec![("property", "text-mining")]),
-                        w,
-                        |w| {
-                            write_element_block("item", w, |w| {
-                                write_full_element_block(
-                                    "resource",
-                                    Some(vec![("mime_type", "application/pdf")]),
-                                    w,
-                                    |w| {
-                                        w.write(XmlEvent::Characters(pdf_url)).map_err(|e| e.into())
-                                    },
-                                )
-                            })
-                        },
-                    )?;
-                }
-                Ok(())
+    let doi = &chapter
+        .related_work
+        .doi
+        .as_ref()
+        .expect("Caller should only pass in chapters which have DOIs");
+    if let Some(landing_page) = &chapter.related_work.landing_page {
+        write_element_block("doi_data", w, |w| {
+            write_element_block("doi", w, |w| {
+                w.write(XmlEvent::Characters(&doi.to_string()))
+                    .map_err(|e| e.into())
             })?;
-        } else {
-            // `doi_data` element is mandatory for `content_item`, and must contain
-            // both `doi` element and `resource` (landing page) element
-            return Err(ThothError::IncompleteMetadataRecord(
-                DEPOSIT_ERROR.to_string(),
-                "Missing chapter Landing Page".to_string(),
-            ));
-        }
+            write_element_block("resource", w, |w| {
+                w.write(XmlEvent::Characters(landing_page))
+                    .map_err(|e| e.into())
+            })?;
+            if let Some(pdf_url) = chapter
+                .related_work
+                .publications
+                .iter()
+                .find(|p| p.publication_type.eq(&PublicationType::PDF) && !p.locations.is_empty())
+                .and_then(|p| p.locations.iter().find(|l| l.canonical))
+                .and_then(|l| l.full_text_url.as_ref())
+            {
+                // Used for CrossRef Similarity Check. URL must point directly to full-text PDF.
+                // Alternatively, a direct link to full-text HTML can be used (not implemented here).
+                write_full_element_block(
+                    "collection",
+                    Some(vec![("property", "crawler-based")]),
+                    w,
+                    |w| {
+                        for crawler in ["iParadigms", "google", "msn", "yahoo", "scirus"] {
+                            write_full_element_block(
+                                "item",
+                                Some(vec![("crawler", crawler)]),
+                                w,
+                                |w| {
+                                    write_full_element_block(
+                                        "resource",
+                                        Some(vec![("mime_type", "application/pdf")]),
+                                        w,
+                                        |w| {
+                                            w.write(XmlEvent::Characters(pdf_url))
+                                                .map_err(|e| e.into())
+                                        },
+                                    )
+                                },
+                            )?;
+                        }
+                        Ok(())
+                    },
+                )?;
+                // Used for CrossRef Text and Data Mining. URL must point directly to full-text PDF.
+                // Alternatively, a direct link to full-text XML can be used (not implemented here).
+                write_full_element_block(
+                    "collection",
+                    Some(vec![("property", "text-mining")]),
+                    w,
+                    |w| {
+                        write_element_block("item", w, |w| {
+                            write_full_element_block(
+                                "resource",
+                                Some(vec![("mime_type", "application/pdf")]),
+                                w,
+                                |w| w.write(XmlEvent::Characters(pdf_url)).map_err(|e| e.into()),
+                            )
+                        })
+                    },
+                )?;
+            }
+            Ok(())
+        })?;
     } else {
         // `doi_data` element is mandatory for `content_item`, and must contain
         // both `doi` element and `resource` (landing page) element
         return Err(ThothError::IncompleteMetadataRecord(
             DEPOSIT_ERROR.to_string(),
-            "Missing chapter DOI".to_string(),
+            "Missing chapter Landing Page".to_string(),
         ));
     }
     Ok(())
@@ -1436,17 +1442,6 @@ mod tests {
             output,
             "Could not generate doideposit::crossref: Missing chapter Landing Page".to_string()
         );
-
-        // Restore landing page but remove DOI. Result: error, as above
-        test_relations.related_work.edition = None;
-        test_relations.related_work.landing_page =
-            Some("https://www.book.com/chapter_one".to_string());
-        test_relations.related_work.doi = None;
-        let output = generate_test_output(false, &test_relations);
-        assert_eq!(
-            output,
-            "Could not generate doideposit::crossref: Missing chapter DOI".to_string()
-        );
     }
 
     #[test]
@@ -1974,6 +1969,9 @@ mod tests {
         test_work.publications[0].locations.clear();
         // Remove last (hardback) publication
         test_work.publications.pop();
+        // Change sole relation to chapter with no DOI
+        test_work.relations[0].relation_type = RelationType::HAS_CHILD;
+        test_work.relations[0].related_work.doi = None;
 
         let output = generate_test_output(true, &test_work);
         // Work type changed
@@ -2022,6 +2020,18 @@ mod tests {
         assert!(!output.contains(r#"          <item crawler="yahoo">"#));
         assert!(!output.contains(r#"          <item crawler="scirus">"#));
         assert!(!output.contains(r#"        <collection property="text-mining">"#));
+        // Only chapters with no DOI supplied: no `content_item` elements emitted
+        assert!(!output.contains(r#"    <content_item component_type="chapter">"#));
+        assert!(!output.contains(r#"        <title>Part</title>"#));
+        assert!(!output.contains(r#"        <subtitle>One</subtitle>"#));
+        assert!(!output.contains(r#"      <component_number>1</component_number>"#));
+        assert!(!output.contains(r#"        <month>02</month>"#));
+        assert!(!output.contains(r#"        <day>28</day>"#));
+        assert!(!output.contains(r#"        <year>2000</year>"#));
+        assert!(!output.contains(r#"      <pages>"#));
+        assert!(!output.contains(r#"        <first_page>10</first_page>"#));
+        assert!(!output.contains(r#"        <last_page>20</last_page>"#));
+        assert!(!output.contains(r#"        <resource>https://www.book.com/part_one</resource>"#));
 
         // Change work type, remove landing page, remove XML ISBN,
         // remove all but the omitted contributor
@@ -2065,18 +2075,31 @@ mod tests {
         assert!(!output.contains(r#"        <doi>10.00001/BOOK.0001</doi>"#));
         assert!(!output.contains(r#"        <resource>https://www.book.com</resource>"#));
 
-        // Change work type again, replace landing page but remove DOI
+        // Remove DOI (so neither work nor chapter DOIs are present). Result: error
+        test_work.doi = None;
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate doideposit::crossref: No work or chapter DOIs to deposit"
+                .to_string()
+        );
+
+        // Change work type again, replace landing page, replace chapter DOI
         test_work.work_type = WorkType::JOURNAL_ISSUE;
         test_work.landing_page = Some("https://www.book.com".to_string());
-        test_work.doi = None;
+        test_work.relations[0].related_work.doi =
+            Some(Doi::from_str("https://doi.org/10.00001/PART.0001").unwrap());
         let output = generate_test_output(true, &test_work);
         // Work type changed
         assert!(!output.contains(r#"  <book book_type="reference">"#));
         assert!(output.contains(r#"  <book book_type="other">"#));
-        // No DOI: entire `doi_data` element omitted (even though landing page restored)
-        assert!(!output.contains(r#"      <doi_data>"#));
+        // No work DOI: entire work-specific `doi_data` element omitted (even though landing page restored)
         assert!(!output.contains(r#"        <doi>10.00001/BOOK.0001</doi>"#));
         assert!(!output.contains(r#"        <resource>https://www.book.com</resource>"#));
+        // But chapter-specific `doi_data` element will be present (at same nesting level)
+        assert!(output.contains(r#"      <doi_data>"#));
+        assert!(output.contains(r#"        <doi>10.00001/PART.0001</doi>"#));
+        assert!(output.contains(r#"        <resource>https://www.book.com/part_one</resource>"#));
 
         // Remove publication date. Result: error
         test_work.publication_date = None;
