@@ -2061,35 +2061,56 @@ impl MutationRoot {
             }
         } else {
             // if data.canonical is false, just execute a regular edit.
-            // TODO: this works, but you have to refresh the page to see it.
             if data.canonical == false {
                 let connection = &mut context.db.get().unwrap();
-                connection.transaction(|connection| {
+                let updated_location_result = connection.transaction(|connection| {
                     diesel::update(location::table.find(data.location_id))
                         .set(&data) 
                         .get_result::<Location>(connection)
-                })?;
-            // else, if data.canonical is true, execute code below.    
-            } else {
+                });
+                let updated_location = match updated_location_result {
+                    Ok(location) => location,
+                    Err(e) => return Err(e.into())
+                };
+                // Return the updated location
+                Ok(updated_location) 
             // if user changes a non-canonical location to canonical, 
             // update old canonical location to non-canonical
+            } else {
                 if let Some(canonical_location_id) = canonical_location_id {
                     let connection = &mut context.db.get().unwrap();
-                    connection.transaction(|connection| {
-                        diesel::update(location::table.find(canonical_location_id))
-                            .set(canonical_location) 
-                            .execute(connection)?;
-                        match diesel::update(location::table.find(data.location_id))
+                    let transaction_result = connection.transaction(|connection| {
+                        // Update the canonical location
+                        let update_canonical_result = diesel::update(location::table.find(canonical_location_id))
+                            .set(canonical_location)
+                            .execute(connection);
+                
+                        if let Err(e) = update_canonical_result {
+                            return Err(ThothError::from(e));
+                        }
+                
+                        // Update the location
+                        let update_location_result = diesel::update(location::table.find(data.location_id))
                             .set(&data)
-                            .get_result::<Location>(connection)
-                        {  
+                            .get_result::<Location>(connection);
+                
+                        match update_location_result {
                             Ok(location) => Ok(location),
                             Err(e) => Err(ThothError::from(e)),
                         }
-                    })?;
+                    });
+                
+                    match transaction_result {
+                        Ok(location) => Ok(location),
+                        Err(e) => Err(e),
+                    };
                 }
-            };
-            Ok(location)   
+                Ok(location)
+
+            // location
+            //     .update(&context.db, &data, &account_id)
+            //     .map_err(|e| e.into())
+            }
         }
     }
 
