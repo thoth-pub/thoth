@@ -222,11 +222,35 @@ impl Component for LocationsFormComponent {
                         Some(l) => {
                             let mut locations: Vec<Location> =
                                 ctx.props().locations.clone().unwrap_or_default();
+                            // update view for currently edited location
                             if let Some(location) = locations
                                 .iter_mut()
                                 .find(|ln| ln.location_id == l.location_id)
                             {
                                 *location = l.clone();
+                                // if location.canonical {
+                                    println!("canonical");
+                                    // Iterate over all non-canonical locations and set canonical to false
+                                    // when is this logic being triggered?
+                                    // edit canonical location
+                                    // edit non-canonical location
+                                    // set new canonical location: only edits the unchanged noncanonical location,
+                                    // not the old canonical location.
+                                    // the problem is that locations contains the old location data, so when
+                                    // we filter, it's skipping the former canonical location, because it's still
+                                    // canonical: true in locations
+                                    // so we actually need to query the database here, instead of locations.
+                                    for non_canonical_location in locations.iter_mut().filter(|ln| !ln.canonical) {
+                                        non_canonical_location.canonical = false;
+                                        non_canonical_location.landing_page = Some("https://www.noncanonical.com".to_string());
+                                    }
+
+
+                                // }
+                                // if location.canonical {
+                                //       iterate over locations
+                                //              change others to be false 
+                                // }
                                 ctx.props().update_locations.emit(Some(locations));
                             } else {
                                 // This should not be possible: the updated location returned from the
@@ -489,6 +513,7 @@ impl LocationsFormComponent {
             delete_callback = None;
             delete_deactivated = true;
         }
+
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">

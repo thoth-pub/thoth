@@ -1997,6 +1997,7 @@ impl MutationRoot {
         let location = Location::from_id(&context.db, &data.location_id).unwrap();
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         let mut canonical_location: Option<PatchLocation> = None;
+        let updated_non_canonical_location: Location = Default::default();
         let mut canonical_location_id: Option<Uuid> = None;
 
         context
@@ -2094,10 +2095,11 @@ impl MutationRoot {
                             .set(&data)
                             .get_result::<Location>(connection);
                 
-                        match update_location_result {
+                        let updated_non_canonical_location = match update_location_result {
                             Ok(location) => Ok(location),
                             Err(e) => Err(ThothError::from(e)),
-                        }
+                        };
+                        updated_non_canonical_location
                     });
                 
                     match transaction_result {
@@ -2105,11 +2107,11 @@ impl MutationRoot {
                         Err(e) => Err(e),
                     };
                 }
-                Ok(location)
+                // Ok(updated_non_canonical_location);
 
-            // location
-            //     .update(&context.db, &data, &account_id)
-            //     .map_err(|e| e.into())
+            location
+                .update(&context.db, &data, &account_id)
+                .map_err(|e| e.into())
             }
         }
     }
