@@ -31,7 +31,7 @@ struct ApiConfig {
 impl ApiConfig {
     pub fn new(public_url: String) -> Self {
         Self {
-            api_schema: format!("{public_url}/swagger.json"),
+            api_schema: format!("{public_url}/openapi.json"),
         }
     }
 }
@@ -82,6 +82,7 @@ pub async fn start_server(
                     "Obtain Thoth metadata records in various formats and platform specifications"
                         .to_string(),
                 ),
+                terms_of_service: Some("https://thoth.pub/policies/terms-thoth-free".to_string()),
                 contact: Some(Contact {
                     name: Some("Thoth Support".to_string()),
                     url: Some("https://thoth.pub".to_string()),
@@ -107,6 +108,7 @@ pub async fn start_server(
             .configure(platform::route)
             .configure(specification::route)
             .with_json_spec_at("/swagger.json")
+            .with_json_spec_v3_at("/openapi.json")
             .build()
     })
     .workers(threads)
