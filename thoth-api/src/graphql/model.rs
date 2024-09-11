@@ -1997,7 +1997,6 @@ impl MutationRoot {
         let location = Location::from_id(&context.db, &data.location_id).unwrap();
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         let mut canonical_location: Option<PatchLocation> = None;
-        let updated_non_canonical_location: Location = Default::default();
         let mut canonical_location_id: Option<Uuid> = None;
 
         context

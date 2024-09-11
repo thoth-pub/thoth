@@ -190,7 +190,7 @@ pub struct NewLocation {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset, Debug),
+    derive(juniper::GraphQLInputObject, AsChangeset),
     graphql(description = "Set of values required to update an existing location (such as a web shop or distribution platform) where a publication can be acquired or viewed"),
     diesel(table_name = location, treat_none_as_null = true)
 )]
