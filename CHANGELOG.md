@@ -6,15 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-  - Upgrade `paperclip` to v0.9.1
-
 ### Added
-  - Implement OpenAPI v3 schema in export API, served under `/openapi.json`
-  - Added terms of service to export API
+  - [628](https://github.com/thoth-pub/thoth/pull/628) - Implement OpenAPI v3 schema in export API, served under `/openapi.json`
+  - [628](https://github.com/thoth-pub/thoth/pull/628) - Added terms of service to export API
 
 ### Changed
   - [551](https://github.com/thoth-pub/thoth/issues/551) - Only include chapters in Crossref metadata output if they have DOIs
+  - [628](https://github.com/thoth-pub/thoth/pull/628) - Upgrade `paperclip` to v0.9.1
+  - [628](https://github.com/thoth-pub/thoth/pull/628) - Upgrade rust to `1.81.0` in production and development `Dockerfile`
 
 ### Fixed
   - [565](https://github.com/thoth-pub/thoth/issues/565) - Don't generate Crossref metadata output if no DOIs (work or chapter) are present
