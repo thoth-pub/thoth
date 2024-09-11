@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
   - Upgrade `paperclip` to v0.9.1
 
+### Added
+  - Implement OpenAPI v3 schema in export API, served under `/openapi.json`
+  - Added terms of service to export API
+
 ### Changed
   - [551](https://github.com/thoth-pub/thoth/issues/551) - Only include chapters in Crossref metadata output if they have DOIs
 
