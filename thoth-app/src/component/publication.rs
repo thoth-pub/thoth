@@ -58,7 +58,7 @@ pub enum Msg {
     GetPublication,
     SetPublicationDeleteState(PushActionDeletePublication),
     DeletePublication,
-    UpdateLocations(Option<Vec<Location>>),
+    UpdateLocations,
     UpdatePrices(Option<Vec<Price>>),
 }
 
@@ -267,7 +267,10 @@ impl Component for PublicationComponent {
                     .send_message(Msg::SetPublicationDeleteState(FetchAction::Fetching));
                 false
             }
-            Msg::UpdateLocations(locations) => self.publication.locations.neq_assign(locations),
+            Msg::UpdateLocations => {
+                ctx.link().send_message(Msg::GetPublication);
+                true
+            }
             Msg::UpdatePrices(prices) => self.publication.prices.neq_assign(prices),
         }
     }
@@ -416,7 +419,7 @@ impl Component for PublicationComponent {
                         <LocationsFormComponent
                             locations={ self.publication.locations.clone() }
                             publication_id={ self.publication.publication_id }
-                            update_locations={ ctx.link().callback(Msg::UpdateLocations) }
+                            update_locations={ ctx.link().callback(|_| Msg::UpdateLocations) }
                         />
 
                         <PricesFormComponent

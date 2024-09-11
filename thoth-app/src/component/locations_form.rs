@@ -83,7 +83,7 @@ pub enum Msg {
 pub struct Props {
     pub locations: Option<Vec<Location>>,
     pub publication_id: Uuid,
-    pub update_locations: Callback<Option<Vec<Location>>>,
+    pub update_locations: Callback<()>,
 }
 
 impl Component for LocationsFormComponent {
@@ -168,7 +168,7 @@ impl Component for LocationsFormComponent {
                             let mut locations: Vec<Location> =
                                 ctx.props().locations.clone().unwrap_or_default();
                             locations.push(location);
-                            ctx.props().update_locations.emit(Some(locations));
+                            ctx.props().update_locations.emit(());
                             ctx.link()
                                 .send_message(Msg::ToggleModalFormDisplay(false, None));
                             true
@@ -220,30 +220,30 @@ impl Component for LocationsFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.update_location {
                         Some(l) => {
-                            let mut locations: Vec<Location> =
-                                ctx.props().locations.clone().unwrap_or_default();
-                            // update view for currently edited location
-                            if let Some(location) = locations
-                                .iter_mut()
-                                .find(|ln| ln.location_id == l.location_id)
-                            {
-                                *location = l.clone();
-                                // if location.canonical {
-                                    println!("canonical");
-                                    // Iterate over all non-canonical locations and set canonical to false
-                                    // when is this logic being triggered?
-                                    // edit canonical location
-                                    // edit non-canonical location
-                                    // set new canonical location: only edits the unchanged noncanonical location,
-                                    // not the old canonical location.
-                                    // the problem is that locations contains the old location data, so when
-                                    // we filter, it's skipping the former canonical location, because it's still
-                                    // canonical: true in locations
-                                    // so we actually need to query the database here, instead of locations.
-                                    for non_canonical_location in locations.iter_mut().filter(|ln| !ln.canonical) {
-                                        non_canonical_location.canonical = false;
-                                        non_canonical_location.landing_page = Some("https://www.noncanonical.com".to_string());
-                                    }
+                            // let mut locations: Vec<Location> =
+                            //     ctx.props().locations.clone().unwrap_or_default();
+                            // // update view for currently edited location
+                            // if let Some(location) = locations
+                            //     .iter_mut()
+                            //     .find(|ln| ln.location_id == l.location_id)
+                            // {
+                            //     *location = l.clone();
+                            //     // if location.canonical {
+                            //         println!("canonical");
+                            //         // Iterate over all non-canonical locations and set canonical to false
+                            //         // when is this logic being triggered?
+                            //         // edit canonical location
+                            //         // edit non-canonical location
+                            //         // set new canonical location: only edits the unchanged noncanonical location,
+                            //         // not the old canonical location.
+                            //         // the problem is that locations contains the old location data, so when
+                            //         // we filter, it's skipping the former canonical location, because it's still
+                            //         // canonical: true in locations
+                            //         // so we actually need to query the database here, instead of locations.
+                            //         for non_canonical_location in locations.iter_mut().filter(|ln| !ln.canonical) {
+                            //             non_canonical_location.canonical = false;
+                            //             non_canonical_location.landing_page = Some("https://www.noncanonical.com".to_string());
+                            //         }
 
 
                                 // }
@@ -251,16 +251,16 @@ impl Component for LocationsFormComponent {
                                 //       iterate over locations
                                 //              change others to be false 
                                 // }
-                                ctx.props().update_locations.emit(Some(locations));
-                            } else {
-                                // This should not be possible: the updated location returned from the
-                                // database does not match any of the locally-stored location data.
-                                // Refreshing the page will reload the local data from the database.
-                                self.notification_bus.send(Request::NotificationBusMsg((
-                                    "Changes were saved but display failed to update. Refresh your browser to view current data.".to_string(),
-                                    NotificationStatus::Warning,
-                                )));
-                            }
+                                ctx.props().update_locations.emit(());
+                            // } else {
+                            //     // This should not be possible: the updated location returned from the
+                            //     // database does not match any of the locally-stored location data.
+                            //     // Refreshing the page will reload the local data from the database.
+                            //     self.notification_bus.send(Request::NotificationBusMsg((
+                            //         "Changes were saved but display failed to update. Refresh your browser to view current data.".to_string(),
+                            //         NotificationStatus::Warning,
+                            //     )));
+                            // }
                             ctx.link()
                                 .send_message(Msg::ToggleModalFormDisplay(false, None));
                             true
@@ -322,7 +322,7 @@ impl Component for LocationsFormComponent {
                                 .into_iter()
                                 .filter(|l| l.location_id != location.location_id)
                                 .collect();
-                            ctx.props().update_locations.emit(Some(to_keep));
+                            ctx.props().update_locations.emit(());
                             true
                         }
                         None => {
