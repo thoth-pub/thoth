@@ -1974,30 +1974,8 @@ impl MutationRoot {
     ) -> FieldResult<Location> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
 
-        let all_location_platforms = Some(vec![
-            LocationPlatform::ProjectMuse,
-            LocationPlatform::Oapen,
-            LocationPlatform::Doab,
-            LocationPlatform::Jstor,
-            LocationPlatform::EbscoHost,
-            LocationPlatform::OclcKb,
-            LocationPlatform::ProquestKb,
-            LocationPlatform::ProquestExlibris,
-            LocationPlatform::EbscoKb,
-            LocationPlatform::JiscKb,
-            LocationPlatform::GoogleBooks,
-            LocationPlatform::InternetArchive,
-            LocationPlatform::ScienceOpen,
-            LocationPlatform::ScieloBooks,
-            LocationPlatform::Zenodo,
-            LocationPlatform::PublisherWebsite,
-            LocationPlatform::Other,
-        ]);
-
         let location = Location::from_id(&context.db, &data.location_id).unwrap();
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        let mut canonical_location: Option<PatchLocation> = None;
-        let mut canonical_location_id: Option<Uuid> = None;
 
         context
             .account_access
@@ -2012,105 +1990,102 @@ impl MutationRoot {
                 )?)?;
         }
 
-        let publication = Publication::from_id(&context.db, &data.publication_id).unwrap();
-        
-        // get all locations from current publication
-        let locations = Publication::locations(
-            &publication,
-            context,
-            Some(100),
-            Some(0),
-            Some(LocationOrderBy::default()),
-            all_location_platforms,
-        );
-
-        // find canonical location and set canonical: false so that it can be switched with the new canonical location
-        if let Ok(locations) = locations {
-            for location in locations {
-                if location.canonical {
-                    canonical_location = Some(PatchLocation {
-                        location_id: location.location_id,
-                        publication_id: location.publication_id,
-                        landing_page: location.landing_page.clone(),
-                        full_text_url: location.full_text_url.clone(),
-                        location_platform: location.location_platform.clone(),
-                        canonical: false,
-                    });
-                    if let Some(ref canonical_location) = canonical_location {
-                        canonical_location_id = Some(canonical_location.location_id);
-                    }
-                    break;
-                }
-            }
-        }
-
         if data.canonical {
             data.canonical_record_complete(&context.db)?;
         }
-
-        // case: edit canonical location
+        
+        // TODO: view is still sometimes holding on to old values for canonical
         if location.canonical {
-            // if user tries to change canonical location to non-canonical, results in error
+            // can't change canonical location to non-canonical
             if data.canonical != location.canonical {
                 return Err(ThothError::CanonicalLocationError.into());
-            // else, allow any other edits to the canonical location that don't result in it becoming non-canonical.    
+            // allow any other edits to the canonical location that don't result in it becoming non-canonical.    
             } else {
                 location
                     .update(&context.db, &data, &account_id)
                     .map_err(|e| e.into())
             }
         } else {
-            // if data.canonical is false, just execute a regular edit.
+            // if no changes to make the new location canonical, execute a regular edit.
             if data.canonical == false {
-                let connection = &mut context.db.get().unwrap();
-                let updated_location_result = connection.transaction(|connection| {
-                    diesel::update(location::table.find(data.location_id))
-                        .set(&data) 
-                        .get_result::<Location>(connection)
-                });
-                let updated_location = match updated_location_result {
-                    Ok(location) => location,
-                    Err(e) => return Err(e.into())
-                };
-                // Return the updated location
-                Ok(updated_location) 
-            // if user changes a non-canonical location to canonical, 
-            // update old canonical location to non-canonical
+                location
+                    .update(&context.db, &data, &account_id)
+                    .map_err(|e| e.into())
+            // if user changes a non-canonical location to canonical, perform two simultaneous updates:
+            // change the old canonical location to non-canonical, and change the old non-canonical location to canonical
             } else {
-                if let Some(canonical_location_id) = canonical_location_id {
-                    let connection = &mut context.db.get().unwrap();
-                    let transaction_result = connection.transaction(|connection| {
-                        // Update the canonical location
-                        let update_canonical_result = diesel::update(location::table.find(canonical_location_id))
-                            .set(canonical_location)
-                            .execute(connection);
-                
-                        if let Err(e) = update_canonical_result {
-                            return Err(ThothError::from(e));
-                        }
-                
-                        // Update the location
-                        let update_location_result = diesel::update(location::table.find(data.location_id))
-                            .set(&data)
-                            .get_result::<Location>(connection);
-                
-                        let updated_non_canonical_location = match update_location_result {
-                            Ok(location) => Ok(location),
-                            Err(e) => Err(ThothError::from(e)),
-                        };
-                        updated_non_canonical_location
-                    });
-                
-                    match transaction_result {
-                        Ok(location) => Ok(location),
-                        Err(e) => Err(e),
-                    };
-                }
-                // Ok(updated_non_canonical_location);
+                // TODO: refactor if possible
+                let mut old_canonical_location: Option<PatchLocation> = None;
+                let mut old_canonical_location_id: Option<Uuid> = None;
+                let all_location_platforms = Some(vec![
+                    LocationPlatform::ProjectMuse,
+                    LocationPlatform::Oapen,
+                    LocationPlatform::Doab,
+                    LocationPlatform::Jstor,
+                    LocationPlatform::EbscoHost,
+                    LocationPlatform::OclcKb,
+                    LocationPlatform::ProquestKb,
+                    LocationPlatform::ProquestExlibris,
+                    LocationPlatform::EbscoKb,
+                    LocationPlatform::JiscKb,
+                    LocationPlatform::GoogleBooks,
+                    LocationPlatform::InternetArchive,
+                    LocationPlatform::ScienceOpen,
+                    LocationPlatform::ScieloBooks,
+                    LocationPlatform::Zenodo,
+                    LocationPlatform::PublisherWebsite,
+                    LocationPlatform::Other,
+                ]);
 
-            location
-                .update(&context.db, &data, &account_id)
-                .map_err(|e| e.into())
+                let publication = Publication::from_id(&context.db, &data.publication_id).unwrap();
+                
+                // get all locations from current publication
+                let locations = Publication::locations(
+                    &publication,
+                    context,
+                    Some(100), // limit
+                    Some(0), // offset
+                    Some(LocationOrderBy::default()),
+                    all_location_platforms,
+                );
+
+                // find old canonical location and set canonical: false so that it can be switched with the new canonical location
+                if let Ok(locations) = locations {
+                    for location in locations {
+                        if location.canonical {
+                            old_canonical_location = Some(PatchLocation {
+                                location_id: location.location_id,
+                                publication_id: location.publication_id,
+                                landing_page: location.landing_page.clone(),
+                                full_text_url: location.full_text_url.clone(),
+                                location_platform: location.location_platform.clone(),
+                                canonical: false,
+                            });
+                            if let Some(ref old_canonical_location) = old_canonical_location {
+                                old_canonical_location_id = Some(old_canonical_location.location_id);
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                if let Some(old_canonical_location_id) = old_canonical_location_id {
+                    let connection = &mut context.db.get().unwrap();
+                    connection.transaction(|connection| {
+                        // Update the current canonical location to non-canonical
+                        diesel::update(location::table.find(old_canonical_location_id))
+                            .set(old_canonical_location)
+                            .execute(connection)?;
+                
+                        // Update the current non-canonical location to canonical
+                        diesel::update(location::table.find(data.location_id))
+                            .set(&data)
+                            .execute(connection)?;
+
+                        Ok::<_, diesel::result::Error>(())
+                    });
+                }
+                Ok(location)
             }
         }
     }
