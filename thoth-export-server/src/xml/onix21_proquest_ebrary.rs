@@ -60,31 +60,39 @@ impl XmlSpecification for Onix21ProquestEbrary {
 
 impl XmlElementBlock<Onix21ProquestEbrary> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        // ProQuest Ebrary can only accept PDFs and EPUBs, and can only
-        // process them as Open Access if they are unpriced
-        let pdf_url = self
+        // ProQuest Ebrary can only accept PDFs and EPUBs
+        let pdf_publication = self
             .publications
             .iter()
-            .find(|p| {
-                p.publication_type.eq(&PublicationType::PDF)
-                    && !p.locations.is_empty()
-                    // Thoth database only accepts non-zero prices
-                    && p.prices.is_empty()
-            })
+            .find(|p| p.publication_type.eq(&PublicationType::PDF) && !p.locations.is_empty());
+        let pdf_url = pdf_publication
             .and_then(|p| p.locations.iter().find(|l| l.canonical))
             .and_then(|l| l.full_text_url.as_ref());
-        let epub_url = self
+        let epub_publication = self
             .publications
             .iter()
-            .find(|p| {
-                p.publication_type.eq(&PublicationType::EPUB)
-                    && !p.locations.is_empty()
-                    // Thoth database only accepts non-zero prices
-                    && p.prices.is_empty()
-            })
+            .find(|p| p.publication_type.eq(&PublicationType::EPUB) && !p.locations.is_empty());
+        let epub_url = epub_publication
             .and_then(|p| p.locations.iter().find(|l| l.canonical))
             .and_then(|l| l.full_text_url.as_ref());
-        if pdf_url.is_some() || epub_url.is_some() {
+        if pdf_url.is_none() && epub_url.is_none() {
+            return Err(ThothError::IncompleteMetadataRecord(
+                ONIX_ERROR.to_string(),
+                "No PDF or EPUB URL".to_string(),
+            ));
+        }
+        // ProQuest Ebrary can only process works as Open Access if they are unpriced
+        let is_open_access = self.license.is_some();
+        if is_open_access &&
+            // Thoth database only accepts non-zero prices
+            !(pdf_publication.is_some_and(|p| p.prices.is_empty()) ||
+            epub_publication.is_some_and(|p| p.prices.is_empty()))
+        {
+            Err(ThothError::IncompleteMetadataRecord(
+                ONIX_ERROR.to_string(),
+                "No unpriced PDF or EPUB URL (must be supplied for OA works)".to_string(),
+            ))
+        } else {
             let work_id = format!("urn:uuid:{}", self.work_id);
             let (main_isbn, isbns) = get_publications_data(&self.publications);
             write_element_block("Product", w, |w| {
@@ -261,16 +269,18 @@ impl XmlElementBlock<Onix21ProquestEbrary> for Work {
                         w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
                     })
                 })?;
-                write_element_block("OtherText", w, |w| {
-                    // 47 Open access statement
-                    write_element_block("TextTypeCode", w, |w| {
-                        w.write(XmlEvent::Characters("47")).map_err(|e| e.into())
+                if is_open_access {
+                    write_element_block("OtherText", w, |w| {
+                        // 47 Open access statement
+                        write_element_block("TextTypeCode", w, |w| {
+                            w.write(XmlEvent::Characters("47")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("Text", w, |w| {
+                            w.write(XmlEvent::Characters("Open access - no commercial use"))
+                                .map_err(|e| e.into())
+                        })
                     })?;
-                    write_element_block("Text", w, |w| {
-                        w.write(XmlEvent::Characters("Open access - no commercial use"))
-                            .map_err(|e| e.into())
-                    })
-                })?;
+                }
                 if let Some(license) = &self.license {
                     write_element_block("OtherText", w, |w| {
                         // 46 License
@@ -402,25 +412,48 @@ impl XmlElementBlock<Onix21ProquestEbrary> for Work {
                     write_element_block("ProductAvailability", w, |w| {
                         w.write(XmlEvent::Characters("99")).map_err(|e| e.into())
                     })?;
-                    // R Restrictions apply, see note
-                    write_element_block("AudienceRestrictionFlag", w, |w| {
-                        w.write(XmlEvent::Characters("R")).map_err(|e| e.into())
-                    })?;
-                    write_element_block("AudienceRestrictionNote", w, |w| {
-                        w.write(XmlEvent::Characters("Open access"))
-                            .map_err(|e| e.into())
-                    })?;
-                    // ProQuest Ebrary require Open Access titles to be listed as 01 Free of charge
-                    write_element_block("UnpricedItemType", w, |w| {
-                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                    })
+                    if is_open_access {
+                        // R Restrictions apply, see note
+                        write_element_block("AudienceRestrictionFlag", w, |w| {
+                            w.write(XmlEvent::Characters("R")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("AudienceRestrictionNote", w, |w| {
+                            w.write(XmlEvent::Characters("Open access"))
+                                .map_err(|e| e.into())
+                        })?;
+                    }
+                    let publication = match pdf_url.is_some() {
+                        true => pdf_publication,
+                        false => epub_publication,
+                    };
+                    let prices = publication.map(|p| p.prices.clone()).unwrap_or_default();
+                    if is_open_access || prices.is_empty() {
+                        write_element_block("UnpricedItemType", w, |w| {
+                            w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                        })
+                    } else {
+                        for price in prices {
+                            let unit_price = price.unit_price;
+                            let formatted_price = format!("{unit_price:.2}");
+                            write_element_block("Price", w, |w| {
+                                // 02 RRP including tax
+                                write_element_block("PriceTypeCode", w, |w| {
+                                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("PriceAmount", w, |w| {
+                                    w.write(XmlEvent::Characters(&formatted_price))
+                                        .map_err(|e| e.into())
+                                })?;
+                                write_element_block("CurrencyCode", w, |w| {
+                                    w.write(XmlEvent::Characters(&price.currency_code.to_string()))
+                                        .map_err(|e| e.into())
+                                })
+                            })?;
+                        }
+                        Ok(())
+                    }
                 })
             })
-        } else {
-            Err(ThothError::IncompleteMetadataRecord(
-                ONIX_ERROR.to_string(),
-                "No unpriced PDF or EPUB URL".to_string(),
-            ))
         }
     }
 }
@@ -939,7 +972,16 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
-                    prices: vec![],
+                    prices: vec![
+                        WorkPublicationsPrices {
+                            currency_code: CurrencyCode::GBP,
+                            unit_price: 5.99,
+                        },
+                        WorkPublicationsPrices {
+                            currency_code: CurrencyCode::EUR,
+                            unit_price: 7.99,
+                        },
+                    ],
                     locations: vec![WorkPublicationsLocations {
                         landing_page: Some("https://www.book.com/pdf_landing".to_string()),
                         full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
@@ -1088,17 +1130,11 @@ mod tests {
         test_work.long_abstract = None;
         test_work.place = None;
         test_work.publication_date = None;
-        test_work.license = None;
         test_work.landing_page = None;
         test_work.cover_url = None;
         test_work.imprint.publisher.publisher_url = None;
         // Remove third (paperback) publication
         test_work.publications.pop();
-        // Give PDF publication a positive price point
-        test_work.publications[1].prices = vec![WorkPublicationsPrices {
-            currency_code: CurrencyCode::USD,
-            unit_price: 7.99,
-        }];
         let output = generate_test_output(true, &test_work);
         // Paperback publication removed, so its ISBN no longer appears
         // (either as the main ISBN or in RelatedProducts)
@@ -1116,12 +1152,6 @@ mod tests {
             r#"    <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
         assert!(!output.contains(r#"    <WebsiteLink>https://www.book.com</WebsiteLink>"#));
-        // PDF publication is no longer unpriced, hence no PDF URL, and EpubType changes
-        assert!(
-            !output.contains(r#"    <WebsiteLink>https://www.book.com/pdf_fulltext</WebsiteLink>"#)
-        );
-        assert!(!output.contains(r#"  <EpubType>002</EpubType>"#));
-        assert!(output.contains(r#"  <EpubType>029</EpubType>"#));
         // No page count supplied
         assert!(!output.contains(r#"  <Extent>"#));
         assert!(!output.contains(r#"    <ExtentType>00</ExtentType>"#));
@@ -1131,11 +1161,6 @@ mod tests {
         assert!(!output.contains(r#"    <TextTypeCode>03</TextTypeCode>"#));
         assert!(!output.contains(r#"    <TextFormat>06</TextFormat>"#));
         assert!(!output.contains(r#"    <Text>Lorem ipsum dolor sit amet</Text>"#));
-        // No licence supplied
-        assert!(!output.contains(r#"    <TextTypeCode>46</TextTypeCode>"#));
-        assert!(
-            !output.contains(r#"    <Text>https://creativecommons.org/licenses/by/4.0/</Text>"#)
-        );
         // No cover URL supplied
         assert!(!output.contains(r#"  <MediaFile>"#));
         assert!(!output.contains(r#"    <MediaFileTypeCode>04</MediaFileTypeCode>"#));
@@ -1151,13 +1176,80 @@ mod tests {
         // No publication date supplied
         assert!(!output.contains(r#"  <PublicationDate>19991231</PublicationDate>"#));
         assert!(!output.contains(r#"  <CopyrightYear>1999</CopyrightYear>"#));
+        // No licence supplied: assume non-OA, output real PDF prices
+        assert!(!output.contains(r#"    <TextTypeCode>47</TextTypeCode>"#));
+        assert!(!output.contains(r#"    <Text>Open access - no commercial use</Text>"#));
+        assert!(!output.contains(r#"    <TextTypeCode>46</TextTypeCode>"#));
+        assert!(
+            !output.contains(r#"    <Text>https://creativecommons.org/licenses/by/4.0/</Text>"#)
+        );
+        assert!(!output.contains(r#"  <OtherText>"#));
+        assert!(!output.contains(r#"    <AudienceRestrictionFlag>R</AudienceRestrictionFlag>"#));
+        assert!(!output
+            .contains(r#"    <AudienceRestrictionNote>Open access</AudienceRestrictionNote>"#));
+        assert!(!output.contains(r#"    <UnpricedItemType>01</UnpricedItemType>"#));
+        assert!(output.contains(r#"    <Price>"#));
+        assert!(output.contains(r#"      <PriceTypeCode>02</PriceTypeCode>"#));
+        assert!(output.contains(r#"      <PriceAmount>5.99</PriceAmount>"#));
+        assert!(output.contains(r#"      <CurrencyCode>GBP</CurrencyCode>"#));
+        assert!(output.contains(r#"      <PriceAmount>7.99</PriceAmount>"#));
+        assert!(output.contains(r#"      <CurrencyCode>EUR</CurrencyCode>"#));
+
+        // Remove PDF location
+        test_work.publications[1].locations.clear();
+        let output = generate_test_output(true, &test_work);
+        // PDF no longer has a URL, so EpubType changes, and EPUB price (unpriced) is output
+        assert!(
+            !output.contains(r#"    <WebsiteLink>https://www.book.com/pdf_fulltext</WebsiteLink>"#)
+        );
+        assert!(!output.contains(r#"  <EpubType>002</EpubType>"#));
+        assert!(output.contains(r#"  <EpubType>029</EpubType>"#));
+        assert!(!output.contains(r#"    <Price>"#));
+        assert!(!output.contains(r#"      <PriceTypeCode>02</PriceTypeCode>"#));
+        assert!(!output.contains(r#"      <PriceAmount>5.99</PriceAmount>"#));
+        assert!(!output.contains(r#"      <CurrencyCode>GBP</CurrencyCode>"#));
+        assert!(output.contains(r#"    <UnpricedItemType>01</UnpricedItemType>"#));
+
+        // Give EPUB a price
+        test_work.publications[0].prices = vec![WorkPublicationsPrices {
+            currency_code: CurrencyCode::AUD,
+            unit_price: 10.00,
+        }];
+        let output = generate_test_output(true, &test_work);
+        assert!(!output.contains(r#"    <UnpricedItemType>01</UnpricedItemType>"#));
+        assert!(!output.contains(r#"      <PriceAmount>5.99</PriceAmount>"#));
+        assert!(!output.contains(r#"      <CurrencyCode>GBP</CurrencyCode>"#));
+        assert!(!output.contains(r#"      <PriceAmount>7.99</PriceAmount>"#));
+        assert!(!output.contains(r#"      <CurrencyCode>EUR</CurrencyCode>"#));
+        assert!(output.contains(r#"    <Price>"#));
+        assert!(output.contains(r#"      <PriceTypeCode>02</PriceTypeCode>"#));
+        assert!(output.contains(r#"      <PriceAmount>10.00</PriceAmount>"#));
+        assert!(output.contains(r#"      <CurrencyCode>AUD</CurrencyCode>"#));
+
+        // Replace licence: error
+        test_work.license = Some("https://creativecommons.org/licenses/by/4.0/".to_string());
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_2.1::proquest_ebrary: No unpriced PDF or EPUB URL (must be supplied for OA works)".to_string()
+        );
 
         // Remove the EPUB publication's only location: error
         test_work.publications[0].locations.clear();
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
-            "Could not generate onix_2.1::proquest_ebrary: No unpriced PDF or EPUB URL".to_string()
+            "Could not generate onix_2.1::proquest_ebrary: No PDF or EPUB URL".to_string()
+        );
+
+        // This occurs whether or not work is OA/priced
+        test_work.license = None;
+        test_work.publications[0].prices.clear();
+        test_work.publications[1].prices.clear();
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_2.1::proquest_ebrary: No PDF or EPUB URL".to_string()
         );
     }
 }
