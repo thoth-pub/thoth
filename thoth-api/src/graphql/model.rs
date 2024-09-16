@@ -36,7 +36,7 @@ use crate::model::Ror;
 use crate::model::Timestamp;
 use crate::model::WeightUnit;
 use crate::schema::location;
-use diesel::{Connection, QueryDsl, RunQueryDsl};
+use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 
 use super::utils::{Direction, Expression};
@@ -1996,7 +1996,7 @@ impl MutationRoot {
         
         // TODO: view is still sometimes holding on to old values for canonical
         if location.canonical {
-            // can't change canonical location to non-canonical
+            // trying to change canonical location to non-canonical results in error.
             if data.canonical != location.canonical {
                 return Err(ThothError::CanonicalLocationError.into());
             // allow any other edits to the canonical location that don't result in it becoming non-canonical.    
@@ -2006,7 +2006,7 @@ impl MutationRoot {
                     .map_err(|e| e.into())
             }
         } else {
-            // if no changes to make the new location canonical, execute a regular edit.
+            // if changes to a non-canonical location don't result in it becoming canonical, perform a regular update.
             if data.canonical == false {
                 location
                     .update(&context.db, &data, &account_id)
@@ -2014,63 +2014,36 @@ impl MutationRoot {
             // if user changes a non-canonical location to canonical, perform two simultaneous updates:
             // change the old canonical location to non-canonical, and change the old non-canonical location to canonical
             } else {
-                // TODO: refactor if possible
                 let mut old_canonical_location: Option<PatchLocation> = None;
                 let mut old_canonical_location_id: Option<Uuid> = None;
-                let all_location_platforms = Some(vec![
-                    LocationPlatform::ProjectMuse,
-                    LocationPlatform::Oapen,
-                    LocationPlatform::Doab,
-                    LocationPlatform::Jstor,
-                    LocationPlatform::EbscoHost,
-                    LocationPlatform::OclcKb,
-                    LocationPlatform::ProquestKb,
-                    LocationPlatform::ProquestExlibris,
-                    LocationPlatform::EbscoKb,
-                    LocationPlatform::JiscKb,
-                    LocationPlatform::GoogleBooks,
-                    LocationPlatform::InternetArchive,
-                    LocationPlatform::ScienceOpen,
-                    LocationPlatform::ScieloBooks,
-                    LocationPlatform::Zenodo,
-                    LocationPlatform::PublisherWebsite,
-                    LocationPlatform::Other,
-                ]);
+                let connection = &mut context.db.get().unwrap();
 
-                let publication = Publication::from_id(&context.db, &data.publication_id).unwrap();
-                
-                // get all locations from current publication
-                let locations = Publication::locations(
-                    &publication,
-                    context,
-                    Some(100), // limit
-                    Some(0), // offset
-                    Some(LocationOrderBy::default()),
-                    all_location_platforms,
-                );
+                let canonical_location = location::table
+                    .filter(location::publication_id.eq(data.publication_id))
+                    .filter(location::canonical.eq(true))
+                    .first::<Location>(&mut context.db.get()?);
 
-                // find old canonical location and set canonical: false so that it can be switched with the new canonical location
-                if let Ok(locations) = locations {
-                    for location in locations {
-                        if location.canonical {
-                            old_canonical_location = Some(PatchLocation {
-                                location_id: location.location_id,
-                                publication_id: location.publication_id,
-                                landing_page: location.landing_page.clone(),
-                                full_text_url: location.full_text_url.clone(),
-                                location_platform: location.location_platform.clone(),
-                                canonical: false,
-                            });
-                            if let Some(ref old_canonical_location) = old_canonical_location {
-                                old_canonical_location_id = Some(old_canonical_location.location_id);
-                            }
-                            break;
-                        }
+                let final_canonical_location = match canonical_location {
+                    Ok(location) => location,
+                    Err(e) => {
+                        return Err(ThothError::from(e).into());
                     }
+                };
+
+                old_canonical_location = Some(PatchLocation {
+                    location_id: final_canonical_location.location_id,
+                    publication_id: final_canonical_location.publication_id,
+                    landing_page: final_canonical_location.landing_page.clone(),
+                    full_text_url: final_canonical_location.full_text_url.clone(),
+                    location_platform: final_canonical_location.location_platform.clone(),
+                    canonical: false,
+                });
+                if let Some(ref old_canonical_location) = old_canonical_location {
+                    old_canonical_location_id = Some(old_canonical_location.location_id);
                 }
 
                 if let Some(old_canonical_location_id) = old_canonical_location_id {
-                    let connection = &mut context.db.get().unwrap();
+                    
                     connection.transaction(|connection| {
                         // Update the current canonical location to non-canonical
                         diesel::update(location::table.find(old_canonical_location_id))
