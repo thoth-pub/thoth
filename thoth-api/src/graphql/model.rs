@@ -48,7 +48,6 @@ pub struct Context {
     pub db: Arc<PgPool>,
     pub account_access: AccountAccess,
     pub token: DecodedToken,
-    
 }
 
 impl Context {
@@ -1993,13 +1992,12 @@ impl MutationRoot {
         if data.canonical {
             data.canonical_record_complete(&context.db)?;
         }
-        
-        // TODO: view is still sometimes holding on to old values for canonical
+
         if location.canonical {
             // trying to change canonical location to non-canonical results in error.
             if data.canonical != location.canonical {
-                return Err(ThothError::CanonicalLocationError.into());
-            // allow any other edits to the canonical location that don't result in it becoming non-canonical.    
+                Err(ThothError::CanonicalLocationError.into())
+            // allow any other edits to the canonical location that don't result in it becoming non-canonical.
             } else {
                 location
                     .update(&context.db, &data, &account_id)
@@ -2007,14 +2005,13 @@ impl MutationRoot {
             }
         } else {
             // if changes to a non-canonical location don't result in it becoming canonical, perform a regular update.
-            if data.canonical == false {
+            if !data.canonical {
                 location
                     .update(&context.db, &data, &account_id)
                     .map_err(|e| e.into())
             // if user changes a non-canonical location to canonical, perform two simultaneous updates:
             // change the old canonical location to non-canonical, and change the old non-canonical location to canonical
             } else {
-                let mut old_canonical_location: Option<PatchLocation> = None;
                 let mut old_canonical_location_id: Option<Uuid> = None;
                 let connection = &mut context.db.get().unwrap();
 
@@ -2030,7 +2027,7 @@ impl MutationRoot {
                     }
                 };
 
-                old_canonical_location = Some(PatchLocation {
+                let old_canonical_location = Some(PatchLocation {
                     location_id: final_canonical_location.location_id,
                     publication_id: final_canonical_location.publication_id,
                     landing_page: final_canonical_location.landing_page.clone(),
@@ -2043,13 +2040,12 @@ impl MutationRoot {
                 }
 
                 if let Some(old_canonical_location_id) = old_canonical_location_id {
-                    
                     connection.transaction(|connection| {
                         // Update the current canonical location to non-canonical
                         diesel::update(location::table.find(old_canonical_location_id))
                             .set(old_canonical_location)
                             .execute(connection)?;
-                
+
                         // Update the current non-canonical location to canonical
                         diesel::update(location::table.find(data.location_id))
                             .set(&data)

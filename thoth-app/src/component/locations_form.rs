@@ -126,6 +126,7 @@ impl Component for LocationsFormComponent {
             Msg::ToggleModalFormDisplay(show_form, l) => {
                 self.show_modal_form = show_form;
                 self.in_edit_mode = l.is_some();
+
                 if self.in_edit_mode {
                     if let Some(location) = l {
                         // Editing existing location: load its current values.
@@ -223,8 +224,8 @@ impl Component for LocationsFormComponent {
                             ctx.props().update_locations.emit(());
                             ctx.link()
                                 .send_message(Msg::ToggleModalFormDisplay(false, None));
-                            // TODO: changed to false, but this doesn't change the display
-                            // issue where the page jumps when modal is exited
+                            // changed to false, but this doesn't change the display
+                            // issue where the page jumps during refresh when modal is exited in the view
                             false
                         }
                         None => {
@@ -276,14 +277,6 @@ impl Component for LocationsFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_location {
                         Some(location) => {
-                            let to_keep: Vec<Location> = ctx
-                                .props()
-                                .locations
-                                .clone()
-                                .unwrap_or_default()
-                                .into_iter()
-                                .filter(|l| l.location_id != location.location_id)
-                                .collect();
                             ctx.props().update_locations.emit(());
                             true
                         }
