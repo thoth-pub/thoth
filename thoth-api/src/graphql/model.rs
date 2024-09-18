@@ -2040,7 +2040,7 @@ impl MutationRoot {
                 }
 
                 if let Some(old_canonical_location_id) = old_canonical_location_id {
-                    connection.transaction(|connection| {
+                    let _ = connection.transaction(|connection| {
                         // Update the current canonical location to non-canonical
                         diesel::update(location::table.find(old_canonical_location_id))
                             .set(old_canonical_location)

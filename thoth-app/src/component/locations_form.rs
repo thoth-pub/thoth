@@ -276,7 +276,7 @@ impl Component for LocationsFormComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_location {
-                        Some(location) => {
+                        Some(_location) => {
                             ctx.props().update_locations.emit(());
                             true
                         }
