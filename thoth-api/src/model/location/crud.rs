@@ -182,14 +182,6 @@ impl NewLocation {
 }
 
 impl PatchLocation {
-    pub fn canonical_record_complete(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        location_canonical_record_complete(
-            self.publication_id,
-            &self.landing_page,
-            &self.full_text_url,
-            db,
-        )
-    }
 
     pub fn get_canonical_location(
         &self, 
@@ -207,7 +199,7 @@ impl PatchLocation {
 
     pub fn update_canonical_location(
         &self,
-        old_canonical_location: Option<PatchLocation>,
+        old_canonical_location: &PatchLocation,
         old_canonical_location_id: Uuid,
         db: &crate::db::PgPool
     ) -> ThothResult<()> {
@@ -228,6 +220,15 @@ impl PatchLocation {
         });
         Ok(())
 
+    }
+    
+    pub fn canonical_record_complete(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        location_canonical_record_complete(
+            self.publication_id,
+            &self.landing_page,
+            &self.full_text_url,
+            db,
+        )
     }
 }
 

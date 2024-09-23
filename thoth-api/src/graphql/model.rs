@@ -2001,7 +2001,6 @@ impl MutationRoot {
         // if user changes a non-canonical location to canonical, perform two simultaneous updates:
         // change the old canonical location to non-canonical, and change the old non-canonical location to canonical
         } else {
-            let mut old_canonical_location_id: Option<Uuid> = None;
             let canonical_location = data.get_canonical_location(&context.db);
 
             let final_canonical_location = match canonical_location {
@@ -2011,21 +2010,16 @@ impl MutationRoot {
                 }
             };
 
-            let old_canonical_location = Some(PatchLocation {
+            let old_canonical_location = PatchLocation {    
                 location_id: final_canonical_location.location_id,
                 publication_id: final_canonical_location.publication_id,
                 landing_page: final_canonical_location.landing_page.clone(),
                 full_text_url: final_canonical_location.full_text_url.clone(),
                 location_platform: final_canonical_location.location_platform.clone(),
                 canonical: false,
-            });
-            if let Some(ref old_canonical_location) = old_canonical_location {
-                old_canonical_location_id = Some(old_canonical_location.location_id);
-            }
+            };
 
-            if let Some(old_canonical_location_id) = old_canonical_location_id {
-                let _ = data.update_canonical_location(old_canonical_location, old_canonical_location_id, &context.db);
-            }
+            let _ = data.update_canonical_location(&old_canonical_location, old_canonical_location.location_id, &context.db);
             Ok(location)
         }
     }
