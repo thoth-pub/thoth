@@ -190,6 +190,45 @@ impl PatchLocation {
             db,
         )
     }
+
+    pub fn get_canonical_location(
+        &self, 
+        db: &crate::db::PgPool
+    ) -> ThothResult<Location> {
+        let mut connection = db.get()?;
+
+        let canonical_location = crate::schema::location::table
+            .filter(crate::schema::location::publication_id.eq(self.publication_id))
+            .filter(crate::schema::location::canonical.eq(true))
+            .first::<Location>(&mut connection)
+            .expect("Error loading canonical location for publication");
+        Ok(canonical_location)
+    }
+
+    pub fn update_canonical_location(
+        &self,
+        old_canonical_location: Option<PatchLocation>,
+        old_canonical_location_id: Uuid,
+        db: &crate::db::PgPool
+    ) -> ThothResult<()> {
+        use crate::diesel::Connection;
+        let mut connection = db.get()?;
+        let _ = connection.transaction(|connection| {
+            // Update the current canonical location to non-canonical
+            diesel::update(location::table.find(old_canonical_location_id))
+                .set(old_canonical_location)
+                .execute(connection)?;
+
+            // Update the current non-canonical location to canonical
+            diesel::update(location::table.find(&self.location_id))
+                .set(self)
+                .execute(connection)?;
+
+            Ok::<_, diesel::result::Error>(())
+        });
+        Ok(())
+
+    }
 }
 
 fn location_canonical_record_complete(

@@ -35,8 +35,6 @@ use crate::model::Orcid;
 use crate::model::Ror;
 use crate::model::Timestamp;
 use crate::model::WeightUnit;
-use crate::schema::location;
-use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 
 use super::utils::{Direction, Expression};
@@ -2013,12 +2011,8 @@ impl MutationRoot {
             // change the old canonical location to non-canonical, and change the old non-canonical location to canonical
             } else {
                 let mut old_canonical_location_id: Option<Uuid> = None;
-                let connection = &mut context.db.get().unwrap();
 
-                let canonical_location = location::table
-                    .filter(location::publication_id.eq(data.publication_id))
-                    .filter(location::canonical.eq(true))
-                    .first::<Location>(&mut context.db.get()?);
+                let canonical_location = data.get_canonical_location(&context.db);
 
                 let final_canonical_location = match canonical_location {
                     Ok(location) => location,
@@ -2040,19 +2034,7 @@ impl MutationRoot {
                 }
 
                 if let Some(old_canonical_location_id) = old_canonical_location_id {
-                    let _ = connection.transaction(|connection| {
-                        // Update the current canonical location to non-canonical
-                        diesel::update(location::table.find(old_canonical_location_id))
-                            .set(old_canonical_location)
-                            .execute(connection)?;
-
-                        // Update the current non-canonical location to canonical
-                        diesel::update(location::table.find(data.location_id))
-                            .set(&data)
-                            .execute(connection)?;
-
-                        Ok::<_, diesel::result::Error>(())
-                    });
+                    let _ = data.update_canonical_location(old_canonical_location, old_canonical_location_id, &context.db);
                 }
                 Ok(location)
             }
