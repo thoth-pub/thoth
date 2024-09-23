@@ -1990,54 +1990,43 @@ impl MutationRoot {
         if data.canonical {
             data.canonical_record_complete(&context.db)?;
         }
-
-        if location.canonical {
-            // trying to change canonical location to non-canonical results in error.
-            if data.canonical != location.canonical {
-                Err(ThothError::CanonicalLocationError.into())
-            // allow any other edits to the canonical location that don't result in it becoming non-canonical.
-            } else {
-                location
-                    .update(&context.db, &data, &account_id)
-                    .map_err(|e| e.into())
-            }
+        // if changes to a location don't change its canonical or non-canonical status, perform a regular update.
+        if data.canonical == location.canonical {
+            location
+                .update(&context.db, &data, &account_id)
+                .map_err(|e| e.into())
+        // trying to change canonical location to non-canonical results in error.
+        } else if location.canonical && (data.canonical != location.canonical) {
+            Err(ThothError::CanonicalLocationError.into())
+        // if user changes a non-canonical location to canonical, perform two simultaneous updates:
+        // change the old canonical location to non-canonical, and change the old non-canonical location to canonical
         } else {
-            // if changes to a non-canonical location don't result in it becoming canonical, perform a regular update.
-            if !data.canonical {
-                location
-                    .update(&context.db, &data, &account_id)
-                    .map_err(|e| e.into())
-            // if user changes a non-canonical location to canonical, perform two simultaneous updates:
-            // change the old canonical location to non-canonical, and change the old non-canonical location to canonical
-            } else {
-                let mut old_canonical_location_id: Option<Uuid> = None;
+            let mut old_canonical_location_id: Option<Uuid> = None;
+            let canonical_location = data.get_canonical_location(&context.db);
 
-                let canonical_location = data.get_canonical_location(&context.db);
-
-                let final_canonical_location = match canonical_location {
-                    Ok(location) => location,
-                    Err(e) => {
-                        return Err(ThothError::from(e).into());
-                    }
-                };
-
-                let old_canonical_location = Some(PatchLocation {
-                    location_id: final_canonical_location.location_id,
-                    publication_id: final_canonical_location.publication_id,
-                    landing_page: final_canonical_location.landing_page.clone(),
-                    full_text_url: final_canonical_location.full_text_url.clone(),
-                    location_platform: final_canonical_location.location_platform.clone(),
-                    canonical: false,
-                });
-                if let Some(ref old_canonical_location) = old_canonical_location {
-                    old_canonical_location_id = Some(old_canonical_location.location_id);
+            let final_canonical_location = match canonical_location {
+                Ok(location) => location,
+                Err(e) => {
+                    return Err(ThothError::from(e).into());
                 }
+            };
 
-                if let Some(old_canonical_location_id) = old_canonical_location_id {
-                    let _ = data.update_canonical_location(old_canonical_location, old_canonical_location_id, &context.db);
-                }
-                Ok(location)
+            let old_canonical_location = Some(PatchLocation {
+                location_id: final_canonical_location.location_id,
+                publication_id: final_canonical_location.publication_id,
+                landing_page: final_canonical_location.landing_page.clone(),
+                full_text_url: final_canonical_location.full_text_url.clone(),
+                location_platform: final_canonical_location.location_platform.clone(),
+                canonical: false,
+            });
+            if let Some(ref old_canonical_location) = old_canonical_location {
+                old_canonical_location_id = Some(old_canonical_location.location_id);
             }
+
+            if let Some(old_canonical_location_id) = old_canonical_location_id {
+                let _ = data.update_canonical_location(old_canonical_location, old_canonical_location_id, &context.db);
+            }
+            Ok(location)
         }
     }
 
