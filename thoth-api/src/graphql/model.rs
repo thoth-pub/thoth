@@ -1967,7 +1967,8 @@ impl MutationRoot {
     #[graphql(description = "Update an existing location with the specified values")]
     fn update_location(
         context: &Context,
-        #[graphql(description = "Values to apply to existing location")] data: PatchLocation,
+        #[graphql(description = "Values to apply to existing location")]
+        data: PatchLocation,
     ) -> FieldResult<Location> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
 
@@ -2020,13 +2021,7 @@ impl MutationRoot {
             };
 
             location
-                .update_canonical_location(
-                    &context.db,
-                    data,
-                    &old_canonical_location,
-                    old_canonical_location.location_id,
-                    &account_id,
-                )
+                .update_canonical_location(&context.db, data, &old_canonical_location, old_canonical_location.location_id, &account_id)
                 .map_err(|e| e.into())
         }
     }

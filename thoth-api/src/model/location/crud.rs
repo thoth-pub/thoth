@@ -214,7 +214,10 @@ impl Location {
 }
 
 impl PatchLocation {
-    pub fn get_canonical_location(&self, db: &crate::db::PgPool) -> ThothResult<Location> {
+    pub fn get_canonical_location(
+        &self, 
+        db: &crate::db::PgPool
+    ) -> ThothResult<Location> {
         let mut connection = db.get()?;
         let canonical_location = crate::schema::location::table
             .filter(crate::schema::location::publication_id.eq(self.publication_id))
@@ -223,7 +226,7 @@ impl PatchLocation {
             .expect("Error loading canonical location for publication");
         Ok(canonical_location)
     }
-
+        
     pub fn canonical_record_complete(&self, db: &crate::db::PgPool) -> ThothResult<()> {
         location_canonical_record_complete(
             self.publication_id,
