@@ -1991,39 +1991,9 @@ impl MutationRoot {
         if data.canonical {
             data.canonical_record_complete(&context.db)?;
         }
-        // if changes to a location don't change its canonical or non-canonical status, perform a regular update.
-        if data.canonical == location.canonical {
-            location
-                .update(&context.db, &data, &account_id)
-                .map_err(|e| e.into())
-        // trying to change canonical location to non-canonical results in error.
-        } else if location.canonical && (data.canonical != location.canonical) {
-            Err(ThothError::CanonicalLocationError.into())
-        // if user changes a non-canonical location to canonical, perform two simultaneous updates:
-        // change the old canonical location to non-canonical, and change the old non-canonical location to canonical
-        } else {
-            let canonical_location = data.get_canonical_location(&context.db);
-
-            let final_canonical_location = match canonical_location {
-                Ok(location) => location,
-                Err(e) => {
-                    return Err(ThothError::from(e).into());
-                }
-            };
-
-            let old_canonical_location = PatchLocation {
-                location_id: final_canonical_location.location_id,
-                publication_id: final_canonical_location.publication_id,
-                landing_page: final_canonical_location.landing_page.clone(),
-                full_text_url: final_canonical_location.full_text_url.clone(),
-                location_platform: final_canonical_location.location_platform.clone(),
-                canonical: false,
-            };
-
-            location
-                .update_canonical_location(&context.db, data, &old_canonical_location, old_canonical_location.location_id, &account_id)
-                .map_err(|e| e.into())
-        }
+        location
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
     }
 
     #[graphql(description = "Update an existing price with the specified values")]
