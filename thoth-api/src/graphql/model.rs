@@ -2010,7 +2010,7 @@ impl MutationRoot {
                 }
             };
 
-            let old_canonical_location = PatchLocation {    
+            let old_canonical_location = PatchLocation {
                 location_id: final_canonical_location.location_id,
                 publication_id: final_canonical_location.publication_id,
                 landing_page: final_canonical_location.landing_page.clone(),
@@ -2019,8 +2019,15 @@ impl MutationRoot {
                 canonical: false,
             };
 
-            let _ = data.update_canonical_location(&old_canonical_location, old_canonical_location.location_id, &context.db);
-            Ok(location)
+            location
+                .update_canonical_location(
+                    &context.db,
+                    data,
+                    &old_canonical_location,
+                    old_canonical_location.location_id,
+                    &account_id,
+                )
+                .map_err(|e| e.into())
         }
     }
 

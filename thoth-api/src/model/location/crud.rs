@@ -181,14 +181,41 @@ impl NewLocation {
     }
 }
 
-impl PatchLocation {
-
-    pub fn get_canonical_location(
-        &self, 
-        db: &crate::db::PgPool
-    ) -> ThothResult<Location> {
+impl Location {
+    pub fn update_canonical_location(
+        &self,
+        db: &crate::db::PgPool,
+        data: PatchLocation,
+        old_canonical_location: &PatchLocation,
+        old_canonical_location_id: Uuid,
+        account_id: &Uuid,
+    ) -> ThothResult<Self> {
+        use crate::diesel::Connection;
         let mut connection = db.get()?;
+        connection.transaction(|connection| {
+            // Update the currently canonical location to non-canonical
+            diesel::update(location::table.find(old_canonical_location_id))
+                .set(old_canonical_location)
+                .execute(connection)?;
+            match diesel::update(location::table.find(&self.location_id))
+                // Update the data from the currently non-canonical location to canonical
+                .set(data)
+                .get_result::<Self>(connection)
+            {
+                // On success, create a new history table entry.
+                Ok(t) => match self.new_history_entry(account_id).insert(connection) {
+                    Ok(_) => Ok(t),
+                    Err(e) => Err(e),
+                },
+                Err(e) => Err(ThothError::from(e)),
+            }
+        })
+    }
+}
 
+impl PatchLocation {
+    pub fn get_canonical_location(&self, db: &crate::db::PgPool) -> ThothResult<Location> {
+        let mut connection = db.get()?;
         let canonical_location = crate::schema::location::table
             .filter(crate::schema::location::publication_id.eq(self.publication_id))
             .filter(crate::schema::location::canonical.eq(true))
@@ -197,31 +224,6 @@ impl PatchLocation {
         Ok(canonical_location)
     }
 
-    pub fn update_canonical_location(
-        &self,
-        old_canonical_location: &PatchLocation,
-        old_canonical_location_id: Uuid,
-        db: &crate::db::PgPool
-    ) -> ThothResult<()> {
-        use crate::diesel::Connection;
-        let mut connection = db.get()?;
-        let _ = connection.transaction(|connection| {
-            // Update the current canonical location to non-canonical
-            diesel::update(location::table.find(old_canonical_location_id))
-                .set(old_canonical_location)
-                .execute(connection)?;
-
-            // Update the current non-canonical location to canonical
-            diesel::update(location::table.find(&self.location_id))
-                .set(self)
-                .execute(connection)?;
-
-            Ok::<_, diesel::result::Error>(())
-        });
-        Ok(())
-
-    }
-    
     pub fn canonical_record_complete(&self, db: &crate::db::PgPool) -> ThothResult<()> {
         location_canonical_record_complete(
             self.publication_id,
