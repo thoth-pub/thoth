@@ -126,9 +126,8 @@ impl Crud for Location {
         crate::model::publication::Publication::from_id(db, &self.publication_id)?.publisher_id(db)
     }
 
-    // `crud_methods!` cannot be used for update(), because 
-    // we sometimes need to execute multiple statements in the same transaction
-    // for changing a non-canonical location to canonical.
+    // `crud_methods!` cannot be used for update(), because we need to execute multiple statements
+    // in the same transaction for changing a non-canonical location to canonical.
     // These functions recreate the `crud_methods!` logic.
     fn from_id(db: &crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
         let mut connection = db.get()?;
@@ -158,42 +157,36 @@ impl Crud for Location {
         data: &PatchLocation,
         account_id: &Uuid,
     ) -> ThothResult<Self> {
-        // if changes to a location don't change its canonical or non-canonical status, perform a single update to that location.
-        if &data.canonical == &self.canonical {
+        // if changes to a location don't change its canonical or non-canonical status, only update that location.
+        if data.canonical == self.canonical {
             let mut connection = db.get()?;
             connection.transaction(|connection| {
                 match diesel::update(location::table.find(&self.location_id))
                     .set(data)
                     .get_result::<Self>(connection)
                 {
-                // On success, create a new history table entry.
-                Ok(l) => match self.new_history_entry(account_id).insert(connection) {
-                    Ok(_) => Ok(l),
-                    Err(e) => Err(e),
-                },
-                Err(e) => Err(ThothError::from(e)),
+                    // On success, create a new history table entry.
+                    Ok(l) => match self.new_history_entry(account_id).insert(connection) {
+                        Ok(_) => Ok(l),
+                        Err(e) => Err(e),
+                    },
+                    Err(e) => Err(ThothError::from(e)),
                 }
             })
         // trying to change canonical location to non-canonical results in error.
         } else if self.canonical && (data.canonical != self.canonical) {
-            Err(ThothError::CanonicalLocationError.into())
+            Err(ThothError::CanonicalLocationError)
         // if user changes a non-canonical location to canonical, perform two simultaneous updates:
-        // change the old canonical location to non-canonical, and change the old non-canonical location to canonical
+        // change the former canonical location to non-canonical, the former non-canonical location to canonical
         } else {
-            let canonical_location = self.get_canonical_location(db);
-            let final_canonical_location = match canonical_location {
-                Ok(location) => location,
-                Err(e) => {
-                    return Err(ThothError::from(e).into());
-                }
-            };
+            let canonical_location = self.get_canonical_location(db).map_err(ThothError::from)?;
 
             let old_canonical_location = PatchLocation {
-                location_id: final_canonical_location.location_id,
-                publication_id: final_canonical_location.publication_id,
-                landing_page: final_canonical_location.landing_page.clone(),
-                full_text_url: final_canonical_location.full_text_url.clone(),
-                location_platform: final_canonical_location.location_platform.clone(),
+                location_id: canonical_location.location_id,
+                publication_id: canonical_location.publication_id,
+                landing_page: canonical_location.landing_page.clone(),
+                full_text_url: canonical_location.full_text_url.clone(),
+                location_platform: canonical_location.location_platform.clone(),
                 canonical: false,
             };
             let mut connection = db.get()?;
@@ -203,7 +196,8 @@ impl Crud for Location {
                     .set(old_canonical_location)
                     .execute(connection)?;
                 match diesel::update(location::table.find(&self.location_id))
-                    // Update the data from the currently non-canonical location to canonical
+                    // Update the data from the currently non-canonical location to make it canonical,
+                    // along with any other changes from PatchLocation
                     .set(data)
                     .get_result::<Self>(connection)
                 {
@@ -227,8 +221,6 @@ impl Crud for Location {
             }
         })
     }
-
-
 }
 
 impl HistoryEntry for Location {
@@ -284,10 +276,7 @@ impl NewLocation {
 }
 
 impl Location {
-    pub fn get_canonical_location(
-        &self, 
-        db: &crate::db::PgPool
-    ) -> ThothResult<Location> {
+    pub fn get_canonical_location(&self, db: &crate::db::PgPool) -> ThothResult<Location> {
         let mut connection = db.get()?;
         let canonical_location = crate::schema::location::table
             .filter(crate::schema::location::publication_id.eq(self.publication_id))
