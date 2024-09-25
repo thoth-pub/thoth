@@ -27,6 +27,8 @@ const UPDATE_LOCATION_MUTATION: &str = "
             fullTextUrl
             locationPlatform
             canonical
+            createdAt
+            updatedAt
         }
     }
 ";
