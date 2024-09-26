@@ -60,6 +60,13 @@ impl XmlSpecification for Onix3Oapen {
 
 impl XmlElementBlock<Onix3Oapen> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        // Don't output works with no licence, as we assume these are non-OA
+        if self.license.is_none() {
+            return Err(ThothError::IncompleteMetadataRecord(
+                ONIX_ERROR.to_string(),
+                "Missing License".to_string(),
+            ));
+        }
         // We can only generate the document if there's a PDF
         if let Some(pdf_url) = self
             .publications
@@ -131,22 +138,21 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                     write_element_block("PrimaryContentType", w, |w| {
                         w.write(XmlEvent::Characters("10")).map_err(|e| e.into())
                     })?;
-                    if let Some(license) = &self.license {
-                        write_element_block("EpubLicense", w, |w| {
-                            write_element_block("EpubLicenseName", w, |w| {
-                                w.write(XmlEvent::Characters("Creative Commons License"))
-                                    .map_err(|e| e.into())
-                            })?;
-                            write_element_block("EpubLicenseExpression", w, |w| {
-                                write_element_block("EpubLicenseExpressionType", w, |w| {
-                                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("EpubLicenseExpressionLink", w, |w| {
-                                    w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
-                                })
-                            })
+                    write_element_block("EpubLicense", w, |w| {
+                        write_element_block("EpubLicenseName", w, |w| {
+                            w.write(XmlEvent::Characters("Creative Commons License"))
+                                .map_err(|e| e.into())
                         })?;
-                    }
+                        write_element_block("EpubLicenseExpression", w, |w| {
+                            write_element_block("EpubLicenseExpressionType", w, |w| {
+                                w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                            })?;
+                            write_element_block("EpubLicenseExpressionLink", w, |w| {
+                                w.write(XmlEvent::Characters(self.license.as_ref().unwrap()))
+                                    .map_err(|e| e.into())
+                            })
+                        })
+                    })?;
                     for issue in &self.issues {
                         XmlElementBlock::<Onix3Oapen>::xml_element(issue, w).ok();
                     }
@@ -1141,7 +1147,6 @@ mod tests {
 
         // Remove some values to test non-output of optional blocks
         test_work.doi = None;
-        test_work.license = None;
         test_work.subtitle = None;
         test_work.page_count = None;
         test_work.long_abstract = None;
@@ -1152,14 +1157,6 @@ mod tests {
         // No DOI supplied
         assert!(!output.contains(r#"    <ProductIDType>06</ProductIDType>"#));
         assert!(!output.contains(r#"    <IDValue>10.00001/BOOK.0001</IDValue>"#));
-        // No licence supplied
-        assert!(!output.contains(r#"    <EpubLicense>"#));
-        assert!(!output
-            .contains(r#"      <EpubLicenseName>Creative Commons License</EpubLicenseName>"#));
-        assert!(!output.contains(r#"      <EpubLicenseExpression>"#));
-        assert!(!output
-            .contains(r#"        <EpubLicenseExpressionType>02</EpubLicenseExpressionType>"#));
-        assert!(!output.contains(r#"        <EpubLicenseExpressionLink>https://creativecommons.org/licenses/by/4.0/</EpubLicenseExpressionLink>"#));
         // No subtitle supplied (within Thoth UI this would automatically update full_title)
         assert!(!output.contains(r#"        <Subtitle>Book Subtitle</Subtitle>"#));
         // No page count supplied
@@ -1241,8 +1238,17 @@ mod tests {
         assert!(!output
             .contains(r#"        <ResourceLink>"https://www.book.com/cover"</ResourceLink>"#));
 
-        // Remove the only publication, which is the PDF
+        // Remove licence. Result: error
+        test_work.license = None;
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::oapen: Missing License".to_string()
+        );
+
+        // Replace licence, but remove the only publication, which is the PDF
         // Result: error (can't generate OAPEN ONIX without PDF URL)
+        test_work.license = Some("https://creativecommons.org/licenses/by/4.0/".to_string());
         test_work.publications.clear();
         let output = generate_test_output(false, &test_work);
         assert_eq!(
