@@ -1970,10 +1970,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing location")] data: PatchLocation,
     ) -> FieldResult<Location> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-
         let location = Location::from_id(&context.db, &data.location_id).unwrap();
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-
         context
             .account_access
             .can_edit(location.publisher_id(&context.db)?)?;
@@ -1990,6 +1987,8 @@ impl MutationRoot {
         if data.canonical {
             data.canonical_record_complete(&context.db)?;
         }
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         location
             .update(&context.db, &data, &account_id)
             .map_err(|e| e.into())

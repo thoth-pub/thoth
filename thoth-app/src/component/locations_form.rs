@@ -224,8 +224,8 @@ impl Component for LocationsFormComponent {
                             ctx.props().update_locations.emit(());
                             ctx.link()
                                 .send_message(Msg::ToggleModalFormDisplay(false, None));
-                            // changed to false, but this doesn't change the display
-                            // issue where the page jumps during refresh when modal is exited in the view
+                            // changed the return value to false below, but this doesn't fix the display
+                            // issue where the page jumps during refresh when modal is exited
                             false
                         }
                         None => {
