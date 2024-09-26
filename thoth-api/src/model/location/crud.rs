@@ -158,26 +158,18 @@ impl Crud for Location {
         account_id: &Uuid,
     ) -> ThothResult<Self> {
         let mut connection = db.get()?;
+        let update_result: Result<Self, ThothError>;
         // if changes to a location don't change its canonical or non-canonical status, only update that location.
         if data.canonical == self.canonical {
-            connection.transaction(|connection| {
-                match diesel::update(location::table.find(&self.location_id))
+            update_result = connection.transaction(|connection| {
+                diesel::update(location::table.find(&self.location_id))
                     .set(data)
                     .get_result::<Self>(connection)
-                {
-                    // On success, create a new history table entry.
-                    // TODO: To avoid repeating this logic across two branches, 
-                    // could store the diesel::update result(s) to a variable and then match on it at the very end of the function.
-                    Ok(l) => match self.new_history_entry(account_id).insert(connection) {
-                        Ok(_) => Ok(l),
-                        Err(e) => Err(e),
-                    },
-                    Err(e) => Err(ThothError::from(e)),
-                }
-            })
+                    .map_err(ThothError::from)
+            });
         // trying to change canonical location to non-canonical results in error.
         } else if self.canonical && (data.canonical != self.canonical) {
-            Err(ThothError::CanonicalLocationError)
+            return Err(ThothError::CanonicalLocationError);
         // if user changes a non-canonical location to canonical, perform two simultaneous updates:
         // change the former canonical location to non-canonical, the former non-canonical location to canonical
         } else {
@@ -191,25 +183,29 @@ impl Crud for Location {
                 location_platform: canonical_location.location_platform.clone(),
                 canonical: false,
             };
-            connection.transaction(|connection| {
+            update_result = connection.transaction(|connection| {
                 // Update the currently canonical location to non-canonical
                 diesel::update(location::table.find(&old_canonical_location.location_id.clone()))
                     .set(old_canonical_location)
                     .execute(connection)?;
-                match diesel::update(location::table.find(&self.location_id))
+                diesel::update(location::table.find(&self.location_id))
                     // Update the data from the currently non-canonical location to make it canonical,
                     // along with any other changes from PatchLocation
                     .set(data)
                     .get_result::<Self>(connection)
-                {
-                    // On success, create a new history table entry.
-                    Ok(t) => match self.new_history_entry(account_id).insert(connection) {
-                        Ok(_) => Ok(t),
-                        Err(e) => Err(e),
-                    },
-                    Err(e) => Err(ThothError::from(e)),
+                    .map_err(ThothError::from)
+            });
+        }
+
+        match update_result {
+            Ok(l) => {
+                let mut connection = db.get()?;
+                match self.new_history_entry(account_id).insert(&mut connection) {
+                    Ok(_) => Ok(l),
+                    Err(e) => Err(e),
                 }
-            })
+            }
+            Err(e) => Err(e),
         }
     }
 
