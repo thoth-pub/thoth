@@ -319,12 +319,15 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
                 .and_then(|f| builder.add_field(f))?;
         }
 
-        // 506 - restrictions on access
-        FieldRepr::from((b"506", "0\\"))
-            .add_subfield(b"a", "Open Access")
-            .and_then(|f| f.add_subfield(b"f", "Unrestricted online access"))
-            .and_then(|f| f.add_subfield(b"2", "star"))
-            .and_then(|f| builder.add_field(f))?;
+        // Assume omission of licence means work is non-OA
+        if self.license.is_some() {
+            // 506 - restrictions on access
+            FieldRepr::from((b"506", "0\\"))
+                .add_subfield(b"a", "Open Access")
+                .and_then(|f| f.add_subfield(b"f", "Unrestricted online access"))
+                .and_then(|f| f.add_subfield(b"2", "star"))
+                .and_then(|f| builder.add_field(f))?;
+        }
 
         // 520 - abstract
         if let Some(mut long_abstract) = self.long_abstract.clone() {

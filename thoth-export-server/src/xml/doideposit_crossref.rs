@@ -529,20 +529,20 @@ fn write_access_content<W: Write>(
     license: &Option<String>,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
-    write_full_element_block(
-        "ai:program",
-        Some(vec![("name", "AccessIndicators")]),
-        w,
-        |w| {
-            write_element_block("ai:free_to_read", w, |_w| Ok(()))?;
-            if let Some(license) = license {
+    // Assume works without licences are non-OA
+    if let Some(license) = license {
+        write_full_element_block(
+            "ai:program",
+            Some(vec![("name", "AccessIndicators")]),
+            w,
+            |w| {
+                write_element_block("ai:free_to_read", w, |_w| Ok(()))?;
                 write_element_block("ai:license_ref", w, |w| {
                     w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
-                })?;
-            }
-            Ok(())
-        },
-    )?;
+                })
+            },
+        )?;
+    }
     Ok(())
 }
 
@@ -1400,9 +1400,9 @@ mod tests {
         assert!(!output.contains(r#"    <month>02</month>"#));
         assert!(!output.contains(r#"    <day>28</day>"#));
         assert!(!output.contains(r#"    <year>2000</year>"#));
-        // No licence supplied
-        assert!(output.contains(r#"  <ai:program name="AccessIndicators">"#));
-        assert!(output.contains(r#"    <ai:free_to_read />"#));
+        // No licence supplied: assume non-OA
+        assert!(!output.contains(r#"  <ai:program name="AccessIndicators">"#));
+        assert!(!output.contains(r#"    <ai:free_to_read />"#));
         assert!(!output.contains(
             r#"    <ai:license_ref>https://creativecommons.org/licenses/by/4.0/</ai:license_ref>"#
         ));
@@ -2001,9 +2001,9 @@ mod tests {
         assert!(!output.contains(r#"      <isbn media_type="print">978-1-4028-9462-6</isbn>"#));
         // No place supplied
         assert!(!output.contains(r#"        <publisher_place>León, Spain</publisher_place>"#));
-        // No licence supplied
-        assert!(output.contains(r#"      <ai:program name="AccessIndicators">"#));
-        assert!(output.contains(r#"        <ai:free_to_read />"#));
+        // No licence supplied: assume non-OA
+        assert!(!output.contains(r#"      <ai:program name="AccessIndicators">"#));
+        assert!(!output.contains(r#"        <ai:free_to_read />"#));
         assert!(!output.contains(
             r#"      <ai:license_ref>https://creativecommons.org/licenses/by/4.0/</ai:license_ref>"#
         ));

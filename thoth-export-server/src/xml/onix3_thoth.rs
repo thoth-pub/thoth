@@ -78,6 +78,7 @@ impl XmlElementBlock<Onix3Thoth> for Work {
             ));
         }
         let work_id = format!("urn:uuid:{}", self.work_id);
+        let is_open_access = self.license.is_some();
         let isbns: Vec<String> = self
             .publications
             .iter()
@@ -420,136 +421,152 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         })
                     })
                 })?;
-                write_element_block("CollateralDetail", w, |w| {
-                    if let Some(mut short_abstract) = self.short_abstract.clone() {
-                        // Short description field may not exceed 350 characters.
-                        // Ensure that the string is truncated at a valid UTF-8 boundary
-                        // by finding the byte index of the 350th character and then truncating
-                        // the string at that index, to avoid creating invalid UTF-8 sequences.
-                        if let Some((byte_index, _)) = short_abstract.char_indices().nth(350) {
-                            short_abstract.truncate(byte_index);
-                        }
-                        write_element_block("TextContent", w, |w| {
-                            // 02 Short description
-                            write_element_block("TextType", w, |w| {
-                                w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                            })?;
-                            // 00 Unrestricted
-                            write_element_block("ContentAudience", w, |w| {
-                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                            })?;
-                            write_element_block("Text", w, |w| {
-                                w.write(XmlEvent::Characters(&short_abstract))
-                                    .map_err(|e| e.into())
-                            })
-                        })?;
-                    }
-                    if let Some(long_abstract) = &self.long_abstract {
-                        // 03 Description, 30 Abstract
-                        for text_type in ["03", "30"] {
+                if self.short_abstract.is_some()
+                    || self.long_abstract.is_some()
+                    || self.toc.is_some()
+                    || self.general_note.is_some()
+                    || self.cover_url.is_some()
+                    || is_open_access
+                {
+                    write_element_block("CollateralDetail", w, |w| {
+                        if let Some(mut short_abstract) = self.short_abstract.clone() {
+                            // Short description field may not exceed 350 characters.
+                            // Ensure that the string is truncated at a valid UTF-8 boundary
+                            // by finding the byte index of the 350th character and then truncating
+                            // the string at that index, to avoid creating invalid UTF-8 sequences.
+                            if let Some((byte_index, _)) = short_abstract.char_indices().nth(350) {
+                                short_abstract.truncate(byte_index);
+                            }
                             write_element_block("TextContent", w, |w| {
+                                // 02 Short description
                                 write_element_block("TextType", w, |w| {
-                                    w.write(XmlEvent::Characters(text_type))
-                                        .map_err(|e| e.into())
+                                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
                                 })?;
                                 // 00 Unrestricted
                                 write_element_block("ContentAudience", w, |w| {
                                     w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                                 })?;
                                 write_element_block("Text", w, |w| {
-                                    w.write(XmlEvent::Characters(long_abstract))
+                                    w.write(XmlEvent::Characters(&short_abstract))
                                         .map_err(|e| e.into())
                                 })
                             })?;
                         }
-                    }
-                    if let Some(toc) = &self.toc {
-                        write_element_block("TextContent", w, |w| {
-                            // 04 Table of contents
-                            write_element_block("TextType", w, |w| {
-                                w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
-                            })?;
-                            // 00 Unrestricted
-                            write_element_block("ContentAudience", w, |w| {
-                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                            })?;
-                            write_element_block("Text", w, |w| {
-                                w.write(XmlEvent::Characters(toc)).map_err(|e| e.into())
-                            })
-                        })?;
-                    }
-                    write_element_block("TextContent", w, |w| {
-                        // 20 Open access statement
-                        write_element_block("TextType", w, |w| {
-                            w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
-                        })?;
-                        // 00 Unrestricted
-                        write_element_block("ContentAudience", w, |w| {
-                            w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                        })?;
-                        write_full_element_block("Text", Some(vec![("language", "eng")]), w, |w| {
-                            w.write(XmlEvent::Characters("Open Access"))
-                                .map_err(|e| e.into())
-                        })
-                    })?;
-                    if let Some(general_note) = &self.general_note {
-                        write_element_block("TextContent", w, |w| {
-                            // 13 Publisher's notice
-                            // "A statement included by a publisher in fulfillment of contractual obligations"
-                            // Used in many different ways - closest approximation
-                            write_element_block("TextType", w, |w| {
-                                w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
-                            })?;
-                            // 00 Unrestricted
-                            write_element_block("ContentAudience", w, |w| {
-                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                            })?;
-                            write_element_block("Text", w, |w| {
-                                w.write(XmlEvent::Characters(general_note))
-                                    .map_err(|e| e.into())
-                            })
-                        })?;
-                    }
-                    if let Some(cover_url) = &self.cover_url {
-                        write_element_block("SupportingResource", w, |w| {
-                            // 01 Front cover
-                            write_element_block("ResourceContentType", w, |w| {
-                                w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                            })?;
-                            // 00 Unrestricted
-                            write_element_block("ContentAudience", w, |w| {
-                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                            })?;
-                            // 03 Image
-                            write_element_block("ResourceMode", w, |w| {
-                                w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
-                            })?;
-                            if let Some(cover_caption) = &self.cover_caption {
-                                write_element_block("ResourceFeature", w, |w| {
-                                    // 02 Caption
-                                    write_element_block("ResourceFeatureType", w, |w| {
-                                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                        if let Some(long_abstract) = &self.long_abstract {
+                            // 03 Description, 30 Abstract
+                            for text_type in ["03", "30"] {
+                                write_element_block("TextContent", w, |w| {
+                                    write_element_block("TextType", w, |w| {
+                                        w.write(XmlEvent::Characters(text_type))
+                                            .map_err(|e| e.into())
                                     })?;
-                                    write_element_block("FeatureNote", w, |w| {
-                                        w.write(XmlEvent::Characters(cover_caption))
+                                    // 00 Unrestricted
+                                    write_element_block("ContentAudience", w, |w| {
+                                        w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("Text", w, |w| {
+                                        w.write(XmlEvent::Characters(long_abstract))
                                             .map_err(|e| e.into())
                                     })
                                 })?;
                             }
-                            write_element_block("ResourceVersion", w, |w| {
-                                // 02 Downloadable file
-                                write_element_block("ResourceForm", w, |w| {
-                                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                        }
+                        if let Some(toc) = &self.toc {
+                            write_element_block("TextContent", w, |w| {
+                                // 04 Table of contents
+                                write_element_block("TextType", w, |w| {
+                                    w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
                                 })?;
-                                write_element_block("ResourceLink", w, |w| {
-                                    w.write(XmlEvent::Characters(cover_url))
+                                // 00 Unrestricted
+                                write_element_block("ContentAudience", w, |w| {
+                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("Text", w, |w| {
+                                    w.write(XmlEvent::Characters(toc)).map_err(|e| e.into())
+                                })
+                            })?;
+                        }
+                        if is_open_access {
+                            write_element_block("TextContent", w, |w| {
+                                // 20 Open access statement
+                                write_element_block("TextType", w, |w| {
+                                    w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
+                                })?;
+                                // 00 Unrestricted
+                                write_element_block("ContentAudience", w, |w| {
+                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                })?;
+                                write_full_element_block(
+                                    "Text",
+                                    Some(vec![("language", "eng")]),
+                                    w,
+                                    |w| {
+                                        w.write(XmlEvent::Characters("Open Access"))
+                                            .map_err(|e| e.into())
+                                    },
+                                )
+                            })?;
+                        }
+                        if let Some(general_note) = &self.general_note {
+                            write_element_block("TextContent", w, |w| {
+                                // 13 Publisher's notice
+                                // "A statement included by a publisher in fulfillment of contractual obligations"
+                                // Used in many different ways - closest approximation
+                                write_element_block("TextType", w, |w| {
+                                    w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
+                                })?;
+                                // 00 Unrestricted
+                                write_element_block("ContentAudience", w, |w| {
+                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("Text", w, |w| {
+                                    w.write(XmlEvent::Characters(general_note))
                                         .map_err(|e| e.into())
                                 })
-                            })
-                        })?;
-                    }
-                    Ok(())
-                })?;
+                            })?;
+                        }
+                        if let Some(cover_url) = &self.cover_url {
+                            write_element_block("SupportingResource", w, |w| {
+                                // 01 Front cover
+                                write_element_block("ResourceContentType", w, |w| {
+                                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                                })?;
+                                // 00 Unrestricted
+                                write_element_block("ContentAudience", w, |w| {
+                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                })?;
+                                // 03 Image
+                                write_element_block("ResourceMode", w, |w| {
+                                    w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
+                                })?;
+                                if let Some(cover_caption) = &self.cover_caption {
+                                    write_element_block("ResourceFeature", w, |w| {
+                                        // 02 Caption
+                                        write_element_block("ResourceFeatureType", w, |w| {
+                                            w.write(XmlEvent::Characters("02"))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("FeatureNote", w, |w| {
+                                            w.write(XmlEvent::Characters(cover_caption))
+                                                .map_err(|e| e.into())
+                                        })
+                                    })?;
+                                }
+                                write_element_block("ResourceVersion", w, |w| {
+                                    // 02 Downloadable file
+                                    write_element_block("ResourceForm", w, |w| {
+                                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("ResourceLink", w, |w| {
+                                        w.write(XmlEvent::Characters(cover_url))
+                                            .map_err(|e| e.into())
+                                    })
+                                })
+                            })?;
+                        }
+                        Ok(())
+                    })?;
+                }
                 let chapter_relations: Vec<WorkRelations> = self
                     .relations
                     .clone()
@@ -3127,6 +3144,15 @@ mod tests {
       <Text>This is a general note</Text>
     </TextContent>"#
         ));
+        // No licence means we assume the title is non-OA
+        assert!(!output.contains(
+            r#"
+    <TextContent>
+      <TextType>20</TextType>
+      <ContentAudience>00</ContentAudience>
+      <Text language="eng">Open Access</Text>
+    </TextContent>"#
+        ));
         // SupportingResource block still present but ResourceFeature absent
         assert!(output.contains(
             r#"
@@ -3248,6 +3274,8 @@ mod tests {
       </Price>"#
         ));
 
+        // Test truncation of short abstract
+        test_work.short_abstract = Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string());
         // Remove even more values
         test_work.edition = None;
         test_work.table_count = None;
@@ -3283,14 +3311,14 @@ mod tests {
         ));
         assert!(!output.contains(r#"    <AncillaryContent>"#));
         assert!(!output.contains(r#"    <Subject>"#));
-        // No cover URL means no SupportingResource block - CollateralDetail only contains OA statement
+        // No cover URL means no SupportingResource block - CollateralDetail only contains short abstract
         assert!(output.contains(
             r#"
   <CollateralDetail>
     <TextContent>
-      <TextType>20</TextType>
+      <TextType>02</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text language="eng">Open Access</Text>
+      <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementu</Text>
     </TextContent>
   </CollateralDetail>"#
         ));
@@ -3336,8 +3364,8 @@ mod tests {
         test_work.relations[0].related_work.doi = None;
         // Remove remaining related work DOI: can't output RelatedMaterial block
         test_work.relations[1].related_work.doi = None;
-        // Test truncation of short abstract
-        test_work.short_abstract = Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string());
+        // Remove short abstract: can't output CollateralDetail block
+        test_work.short_abstract = None;
         // Reinstate landing page: supplier block for publisher now contains it
         test_work.landing_page = Some("https://www.book.com".to_string());
         let output = generate_test_output(true, &test_work);
@@ -3345,14 +3373,7 @@ mod tests {
         assert!(!output.contains(r#"  <ContentDetail>"#));
         assert!(!output.contains(r#"  <RelatedMaterial>"#));
         assert!(!output.contains(r#"    <RelatedProduct>"#));
-        assert!(output.contains(
-            r#"
-    <TextContent>
-      <TextType>02</TextType>
-      <ContentAudience>00</ContentAudience>
-      <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementu</Text>
-    </TextContent>"#
-        ));
+        assert!(!output.contains(r#"  <CollateralDetail>"#));
         assert!(output.contains(
             r#"
       <Supplier>
