@@ -17,9 +17,7 @@ macro_rules! graphql_query_builder {
         use yewtil::fetch::MethodBody;
 
         use $crate::THOTH_GRAPHQL_API;
-        #[allow(dead_code)]
         pub type $fetch = Fetch<$request, $response_body>;
-        #[allow(dead_code)]
         pub type $fetch_action = FetchAction<$response_body>;
 
         #[derive(Debug, Clone, Default)]
