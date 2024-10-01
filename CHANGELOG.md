@@ -6,6 +6,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.12.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.10) - 2024-10-01
+### Added
+  - [628](https://github.com/thoth-pub/thoth/pull/628) - Implement OpenAPI v3 schema in export API, served under `/openapi.json`
+  - [628](https://github.com/thoth-pub/thoth/pull/628) - Added terms of service to export API
+
+### Changed
+  - [551](https://github.com/thoth-pub/thoth/issues/551) - Only include chapters in Crossref metadata output if they have DOIs
+  - [628](https://github.com/thoth-pub/thoth/pull/628) - Upgrade `paperclip` to v0.9.1
+  - [628](https://github.com/thoth-pub/thoth/pull/628) - Upgrade rust to `1.81.0` in production and development `Dockerfile`
+  - [544](https://github.com/thoth-pub/thoth/issues/544) - Implement non-OA metadata in export outputs
+
+### Fixed
+  - [565](https://github.com/thoth-pub/thoth/issues/565) - Don't generate Crossref metadata output if no DOIs (work or chapter) are present
+  - [632](https://github.com/thoth-pub/thoth/pull/632) - Add second order by clause (work\_id) to work queries for consistent ordering when multiple works share the same user-ordered field, such as publication date
+
 ## [[0.12.9]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.9) - 2024-09-06
 ### Added
   - [595](https://github.com/thoth-pub/thoth/issues/595), [626](https://github.com/thoth-pub/thoth/pull/626) - Remove infrequently used and unused work statuses (unspecified, no longer our product, out of stock indefinitely, out of print, inactive, unknown, remaindered, recalled). Require a publication date for active, withdrawn, and superseded works in Thoth. Add a new `Superseded` work status to replace Out of Print for older editions of Works. Require a withdrawn date for Superseded works.

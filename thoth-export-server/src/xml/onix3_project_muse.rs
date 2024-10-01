@@ -80,6 +80,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
             .and_then(|l| l.full_text_url.as_ref())
         {
             let work_id = format!("urn:uuid:{}", self.work_id);
+            let is_open_access = self.license.is_some();
             let (main_isbn, isbns) = get_publications_data(&self.publications);
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
@@ -256,58 +257,63 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                     })?;
                     Ok(())
                 })?;
-                write_element_block("CollateralDetail", w, |w| {
-                    if let Some(labstract) = &self.long_abstract {
-                        write_element_block("TextContent", w, |w| {
-                            // 03 Description ("30 Abstract" not implemented in OAPEN)
-                            write_element_block("TextType", w, |w| {
-                                w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
+                if self.long_abstract.is_some() || self.toc.is_some() || is_open_access {
+                    write_element_block("CollateralDetail", w, |w| {
+                        if let Some(labstract) = &self.long_abstract {
+                            write_element_block("TextContent", w, |w| {
+                                // 03 Description ("30 Abstract" not implemented in OAPEN)
+                                write_element_block("TextType", w, |w| {
+                                    w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
+                                })?;
+                                // 00 Unrestricted
+                                write_element_block("ContentAudience", w, |w| {
+                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                })?;
+                                write_full_element_block(
+                                    "Text",
+                                    Some(vec![("language", "eng")]),
+                                    w,
+                                    |w| {
+                                        w.write(XmlEvent::Characters(labstract))
+                                            .map_err(|e| e.into())
+                                    },
+                                )
                             })?;
-                            // 00 Unrestricted
-                            write_element_block("ContentAudience", w, |w| {
-                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                        }
+                        if let Some(toc) = &self.toc {
+                            write_element_block("TextContent", w, |w| {
+                                // 04 Table of contents
+                                write_element_block("TextType", w, |w| {
+                                    w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
+                                })?;
+                                // 00 Unrestricted
+                                write_element_block("ContentAudience", w, |w| {
+                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("Text", w, |w| {
+                                    w.write(XmlEvent::Characters(toc)).map_err(|e| e.into())
+                                })
                             })?;
-                            write_full_element_block(
-                                "Text",
-                                Some(vec![("language", "eng")]),
-                                w,
-                                |w| {
-                                    w.write(XmlEvent::Characters(labstract))
+                        }
+                        if is_open_access {
+                            write_element_block("TextContent", w, |w| {
+                                // 20 Open access statement
+                                write_element_block("TextType", w, |w| {
+                                    w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
+                                })?;
+                                // 00 Unrestricted
+                                write_element_block("ContentAudience", w, |w| {
+                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("Text", w, |w| {
+                                    w.write(XmlEvent::Characters("Open Access"))
                                         .map_err(|e| e.into())
-                                },
-                            )
-                        })?;
-                    }
-                    if let Some(toc) = &self.toc {
-                        write_element_block("TextContent", w, |w| {
-                            // 04 Table of contents
-                            write_element_block("TextType", w, |w| {
-                                w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
+                                })
                             })?;
-                            // 00 Unrestricted
-                            write_element_block("ContentAudience", w, |w| {
-                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                            })?;
-                            write_element_block("Text", w, |w| {
-                                w.write(XmlEvent::Characters(toc)).map_err(|e| e.into())
-                            })
-                        })?;
-                    }
-                    write_element_block("TextContent", w, |w| {
-                        // 20 Open access statement
-                        write_element_block("TextType", w, |w| {
-                            w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
-                        })?;
-                        // 00 Unrestricted
-                        write_element_block("ContentAudience", w, |w| {
-                            w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                        })?;
-                        write_element_block("Text", w, |w| {
-                            w.write(XmlEvent::Characters("Open Access"))
-                                .map_err(|e| e.into())
-                        })
-                    })
-                })?;
+                        }
+                        Ok(())
+                    })?;
+                }
                 write_element_block("PublishingDetail", w, |w| {
                     write_element_block("Imprint", w, |w| {
                         write_element_block("ImprintName", w, |w| {
@@ -453,10 +459,47 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                             write_element_block("ProductAvailability", w, |w| {
                                 w.write(XmlEvent::Characters("99")).map_err(|e| e.into())
                             })?;
-                            // 01 Free of charge
-                            write_element_block("UnpricedItemType", w, |w| {
-                                w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                            })
+                            let prices = self
+                                .publications
+                                .iter()
+                                .find(|p| p.publication_type.eq(&PublicationType::PDF))
+                                .map(|p| p.prices.clone())
+                                .unwrap_or_default();
+                            if is_open_access || prices.is_empty() {
+                                // 01 Free of charge
+                                write_element_block("UnpricedItemType", w, |w| {
+                                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                                })
+                            } else {
+                                for price in prices {
+                                    let unit_price = price.unit_price;
+                                    let formatted_price = format!("{unit_price:.2}");
+                                    write_element_block("Price", w, |w| {
+                                        // 02 RRP including tax
+                                        write_element_block("PriceType", w, |w| {
+                                            w.write(XmlEvent::Characters("02"))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("PriceAmount", w, |w| {
+                                            w.write(XmlEvent::Characters(&formatted_price))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("CurrencyCode", w, |w| {
+                                            w.write(XmlEvent::Characters(
+                                                &price.currency_code.to_string(),
+                                            ))
+                                            .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("Territory", w, |w| {
+                                            write_element_block("RegionsIncluded", w, |w| {
+                                                w.write(XmlEvent::Characters("WORLD"))
+                                                    .map_err(|e| e.into())
+                                            })
+                                        })
+                                    })?;
+                                }
+                                Ok(())
+                            }
                         })?;
                     }
                     Ok(())
@@ -675,9 +718,10 @@ mod tests {
     use thoth_api::model::Isbn;
     use thoth_api::model::Orcid;
     use thoth_client::{
-        ContributionType, LanguageCode, LanguageRelation, LocationPlatform, PublicationType,
-        WorkContributionsContributor, WorkFundings, WorkImprint, WorkImprintPublisher, WorkIssues,
-        WorkIssuesSeries, WorkPublicationsLocations, WorkStatus, WorkSubjects, WorkType,
+        ContributionType, CurrencyCode, LanguageCode, LanguageRelation, LocationPlatform,
+        PublicationType, WorkContributionsContributor, WorkFundings, WorkImprint,
+        WorkImprintPublisher, WorkIssues, WorkIssuesSeries, WorkPublicationsLocations,
+        WorkPublicationsPrices, WorkStatus, WorkSubjects, WorkType,
     };
     use uuid::Uuid;
 
@@ -897,7 +941,16 @@ mod tests {
                 depth_in: None,
                 weight_g: None,
                 weight_oz: None,
-                prices: vec![],
+                prices: vec![
+                    WorkPublicationsPrices {
+                        currency_code: CurrencyCode::EUR,
+                        unit_price: 5.95,
+                    },
+                    WorkPublicationsPrices {
+                        currency_code: CurrencyCode::GBP,
+                        unit_price: 4.95,
+                    },
+                ],
                 locations: vec![WorkPublicationsLocations {
                     landing_page: Some("https://www.book.com/pdf_landing".to_string()),
                     full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
@@ -1115,6 +1168,32 @@ mod tests {
         assert!(!output
             .contains(r#"        <EpubLicenseExpressionType>02</EpubLicenseExpressionType>"#));
         assert!(!output.contains(r#"        <EpubLicenseExpressionLink>https://creativecommons.org/licenses/by/4.0/</EpubLicenseExpressionLink>"#));
+        // Absence of licence means we assume non-OA
+        assert!(!output.contains(r#"      <TextType>20</TextType>"#));
+        assert!(!output.contains(r#"      <Text>Open Access</Text>"#));
+        assert!(!output.contains(r#"      <UnpricedItemType>01</UnpricedItemType>"#));
+        assert!(output.contains(
+            r#"
+      <Price>
+        <PriceType>02</PriceType>
+        <PriceAmount>5.95</PriceAmount>
+        <CurrencyCode>EUR</CurrencyCode>
+        <Territory>
+          <RegionsIncluded>WORLD</RegionsIncluded>
+        </Territory>
+      </Price>"#
+        ));
+        assert!(output.contains(
+            r#"
+      <Price>
+        <PriceType>02</PriceType>
+        <PriceAmount>4.95</PriceAmount>
+        <CurrencyCode>GBP</CurrencyCode>
+        <Territory>
+          <RegionsIncluded>WORLD</RegionsIncluded>
+        </Territory>
+      </Price>"#
+        ));
         // No subtitle supplied (within Thoth UI this would automatically update full_title)
         assert!(!output.contains(r#"        <Subtitle>Book Subtitle</Subtitle>"#));
         // No page count supplied
@@ -1128,10 +1207,10 @@ mod tests {
         // No TOC supplied
         assert!(!output.contains(r#"      <TextType>04</TextType>"#));
         assert!(!output.contains(r#"      <Text>1. Chapter 1</Text>"#));
-        // CollateralDetail block is still present as it always contains Open Access statement
-        assert!(output.contains(r#"  <CollateralDetail>"#));
-        assert!(output.contains(r#"    <TextContent>"#));
-        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
+        // No items left to go in CollateralDetail block so it's omitted
+        assert!(!output.contains(r#"  <CollateralDetail>"#));
+        assert!(!output.contains(r#"    <TextContent>"#));
+        assert!(!output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
         // No place supplied
         assert!(!output.contains(r#"    <CityOfPublication>León, Spain</CityOfPublication>"#));
         // No publication date supplied
@@ -1153,6 +1232,33 @@ mod tests {
         assert!(!output.contains(r#"      <SubjectCode>JWA</SubjectCode>"#));
         assert!(!output.contains(r#"      <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
         assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
+
+        // Remove PDF prices but keep book "non-OA" (no licence)
+        test_work.publications[0].prices.clear();
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(r#"      <UnpricedItemType>01</UnpricedItemType>"#));
+        assert!(!output.contains(
+            r#"
+      <Price>
+        <PriceType>02</PriceType>
+        <PriceAmount>5.95</PriceAmount>
+        <CurrencyCode>EUR</CurrencyCode>
+        <Territory>
+          <RegionsIncluded>WORLD</RegionsIncluded>
+        </Territory>
+      </Price>"#
+        ));
+        assert!(!output.contains(
+            r#"
+      <Price>
+        <PriceType>02</PriceType>
+        <PriceAmount>4.95</PriceAmount>
+        <CurrencyCode>GBP</CurrencyCode>
+        <Territory>
+          <RegionsIncluded>WORLD</RegionsIncluded>
+        </Territory>
+      </Price>"#
+        ));
 
         // Remove the only remaining (BIC) subject
         // Result: error (can't generate Project MUSE ONIX without either a BIC or BISAC subject)

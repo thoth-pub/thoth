@@ -1697,6 +1697,7 @@ checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
 dependencies = [
  "autocfg",
  "hashbrown 0.12.3",
+ "serde",
 ]
 
 [[package]]
@@ -2054,6 +2055,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
+name = "openapiv3"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33b83630305ecc3355e998ddd2f926f98aae8e105eb42652174a58757851ba47"
+dependencies = [
+ "indexmap 1.9.3",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "openssl"
 version = "0.10.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2099,13 +2111,14 @@ dependencies = [
 
 [[package]]
 name = "paperclip"
-version = "0.8.2"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2509afd8f138efe07cd367832289f5cc61d1eb1ec7f1eb75172abca6f7b9b66d"
+checksum = "ac41f27e83168c22515ef52d62a0357b5f5b8df846aa391f8b903b0ed7719429"
 dependencies = [
  "anyhow",
  "itertools",
  "once_cell",
+ "openapiv3",
  "paperclip-actix",
  "paperclip-core",
  "paperclip-macros",
@@ -2120,15 +2133,16 @@ dependencies = [
 
 [[package]]
 name = "paperclip-actix"
-version = "0.6.2"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4adf797da91baee514bc03b020fdd6673d2f8c1af8a859e50d6d803a4b3dddd2"
+checksum = "d5b6f4c003aa6167df82f1574c951638a8b9a43827059da0cda8b5df88d20ecf"
 dependencies = [
  "actix-service",
  "actix-web",
  "futures",
  "mime_guess",
  "once_cell",
+ "openapiv3",
  "paperclip-core",
  "paperclip-macros",
  "serde_json",
@@ -2136,13 +2150,14 @@ dependencies = [
 
 [[package]]
 name = "paperclip-core"
-version = "0.6.2"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8db363c823fa71c00da73ff8cee3d6902e1ad66b770cc224a74dc7cf54de3aad"
+checksum = "8e2e742f71daf34eb8f62ccc5a1a5e1f029eb84be563523a2a5ee049366329f4"
 dependencies = [
  "actix-web",
  "mime",
  "once_cell",
+ "openapiv3",
  "paperclip-macros",
  "pin-project-lite",
  "regex",
@@ -2155,9 +2170,9 @@ dependencies = [
 
 [[package]]
 name = "paperclip-macros"
-version = "0.6.3"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce6e25ce2c5362c8d48dc89e0f9ca076d507f7c1eabd04f0d593cdf5addff90c"
+checksum = "0385be5ae9c886c46688290534363a229f2531aa2c5c2bfc3b3ddafed5143aaa"
 dependencies = [
  "heck 0.4.1",
  "http",
@@ -3040,7 +3055,7 @@ dependencies = [
 
 [[package]]
 name = "thoth"
-version = "0.12.9"
+version = "0.12.10"
 dependencies = [
  "cargo-husky",
  "clap",
@@ -3055,7 +3070,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api"
-version = "0.12.9"
+version = "0.12.10"
 dependencies = [
  "actix-web",
  "argon2rs",
@@ -3084,7 +3099,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api-server"
-version = "0.12.9"
+version = "0.12.10"
 dependencies = [
  "actix-cors",
  "actix-identity",
@@ -3100,7 +3115,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app"
-version = "0.12.9"
+version = "0.12.10"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3129,7 +3144,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app-server"
-version = "0.12.9"
+version = "0.12.10"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -3139,7 +3154,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-client"
-version = "0.12.9"
+version = "0.12.10"
 dependencies = [
  "chrono",
  "graphql_client",
@@ -3155,7 +3170,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-errors"
-version = "0.12.9"
+version = "0.12.10"
 dependencies = [
  "actix-web",
  "csv",
@@ -3176,7 +3191,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-export-server"
-version = "0.12.9"
+version = "0.12.10"
 dependencies = [
  "actix-cors",
  "actix-web",

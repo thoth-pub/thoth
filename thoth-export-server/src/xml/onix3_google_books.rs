@@ -68,7 +68,6 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         // Don't output works with no BIC, BISAC or LCC subject code
         // Google Books can only ingest works which have at least one
-
         if !self.subjects.iter().any(|s| {
             matches!(
                 s.subject_type,
