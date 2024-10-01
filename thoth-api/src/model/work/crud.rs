@@ -315,6 +315,7 @@ impl Crud for Work {
             );
         }
         match query
+            .then_order_by(dsl::work_id)
             .limit(limit.into())
             .offset(offset.into())
             .load::<Work>(&mut connection)
