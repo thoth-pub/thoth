@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+  - [324](https://github.com/thoth-pub/thoth/issues/324) - Make Locations editable, including the ability to change the Canonical Location for a Publication
 
 ## [[0.12.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.10) - 2024-10-01
 ### Added
@@ -19,7 +21,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
   - [565](https://github.com/thoth-pub/thoth/issues/565) - Don't generate Crossref metadata output if no DOIs (work or chapter) are present
-  - [324](https://github.com/thoth-pub/thoth/issues/324) - Make Locations editable, including the ability to change the Canonical Location for a Publication
   - [632](https://github.com/thoth-pub/thoth/pull/632) - Add second order by clause (work\_id) to work queries for consistent ordering when multiple works share the same user-ordered field, such as publication date
 
 ## [[0.12.9]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.9) - 2024-09-06

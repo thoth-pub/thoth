@@ -259,7 +259,7 @@ impl From<Location> for PatchLocation {
 fn test_location_to_patch_location() {
     let location = Location {
         location_id: Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-        publication_id: Uuid::new_v4(),
+        publication_id: Uuid::parse_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
         landing_page: Some("https://www.book.com/pb_landing".to_string()),
         full_text_url: Some("https://example.com/full_text.pdf".to_string()),
         location_platform: LocationPlatform::PublisherWebsite,
