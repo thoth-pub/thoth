@@ -22,7 +22,7 @@ use crate::models::location::create_location_mutation::CreateLocationRequest;
 use crate::models::location::create_location_mutation::CreateLocationRequestBody;
 use crate::models::location::create_location_mutation::PushActionCreateLocation;
 use crate::models::location::create_location_mutation::PushCreateLocation;
-use crate::models::location::create_location_mutation::Variables;
+use crate::models::location::create_location_mutation::Variables as CreateVariables;
 use crate::models::location::delete_location_mutation::DeleteLocationRequest;
 use crate::models::location::delete_location_mutation::DeleteLocationRequestBody;
 use crate::models::location::delete_location_mutation::PushActionDeleteLocation;
@@ -30,8 +30,14 @@ use crate::models::location::delete_location_mutation::PushDeleteLocation;
 use crate::models::location::delete_location_mutation::Variables as DeleteVariables;
 use crate::models::location::location_platforms_query::FetchActionLocationPlatforms;
 use crate::models::location::location_platforms_query::FetchLocationPlatforms;
+use crate::models::location::update_location_mutation::PushActionUpdateLocation;
+use crate::models::location::update_location_mutation::PushUpdateLocation;
+use crate::models::location::update_location_mutation::UpdateLocationRequest;
+use crate::models::location::update_location_mutation::UpdateLocationRequestBody;
+use crate::models::location::update_location_mutation::Variables as UpdateVariables;
 use crate::models::location::LocationPlatformValues;
 use crate::string::CANCEL_BUTTON;
+use crate::string::EDIT_BUTTON;
 use crate::string::EMPTY_LOCATIONS;
 use crate::string::NO;
 use crate::string::REMOVE_BUTTON;
@@ -42,11 +48,13 @@ use super::ToOption;
 
 pub struct LocationsFormComponent {
     data: LocationsFormData,
-    new_location: Location,
-    show_add_form: bool,
+    location: Location,
+    show_modal_form: bool,
+    in_edit_mode: bool,
     fetch_location_platforms: FetchLocationPlatforms,
-    push_location: PushCreateLocation,
+    create_location: PushCreateLocation,
     delete_location: PushDeleteLocation,
+    update_location: PushUpdateLocation,
     notification_bus: NotificationDispatcher,
 }
 
@@ -56,13 +64,15 @@ struct LocationsFormData {
 }
 
 pub enum Msg {
-    ToggleAddFormDisplay(bool),
+    ToggleModalFormDisplay(bool, Option<Location>),
     SetLocationPlatformsFetchState(FetchActionLocationPlatforms),
     GetLocationPlatforms,
-    SetLocationPushState(PushActionCreateLocation),
+    SetLocationCreateState(PushActionCreateLocation),
     CreateLocation,
     SetLocationDeleteState(PushActionDeleteLocation),
     DeleteLocation(Uuid),
+    SetLocationUpdateState(PushActionUpdateLocation),
+    UpdateLocation,
     ChangeLandingPage(String),
     ChangeFullTextUrl(String),
     ChangeLocationPlatform(LocationPlatform),
@@ -73,7 +83,7 @@ pub enum Msg {
 pub struct Props {
     pub locations: Option<Vec<Location>>,
     pub publication_id: Uuid,
-    pub update_locations: Callback<Option<Vec<Location>>>,
+    pub update_locations: Callback<()>,
 }
 
 impl Component for LocationsFormComponent {
@@ -82,35 +92,50 @@ impl Component for LocationsFormComponent {
 
     fn create(ctx: &Context<Self>) -> Self {
         let data: LocationsFormData = Default::default();
-        let show_add_form = false;
+        let show_modal_form = false;
+        let in_edit_mode = false;
         // The first location needs to be canonical = true (as it will be
         // the only location); subsequent locations need to be canonical = false
-        let new_location = Location {
+        let location = Location {
             canonical: ctx.props().locations.as_ref().unwrap_or(&vec![]).is_empty(),
             ..Default::default()
         };
         let fetch_location_platforms = Default::default();
-        let push_location = Default::default();
+        let create_location = Default::default();
         let delete_location = Default::default();
+        let update_location = Default::default();
         let notification_bus = NotificationBus::dispatcher();
 
         ctx.link().send_message(Msg::GetLocationPlatforms);
 
         LocationsFormComponent {
             data,
-            new_location,
-            show_add_form,
+            location,
+            show_modal_form,
+            in_edit_mode,
             fetch_location_platforms,
-            push_location,
+            create_location,
             delete_location,
+            update_location,
             notification_bus,
         }
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::ToggleAddFormDisplay(value) => {
-                self.show_add_form = value;
+            Msg::ToggleModalFormDisplay(show_form, l) => {
+                self.show_modal_form = show_form;
+                self.in_edit_mode = l.is_some();
+
+                if self.in_edit_mode {
+                    if let Some(location) = l {
+                        // Editing existing location: load its current values.
+                        self.location = location;
+                    }
+                } else {
+                    self.location = Default::default();
+                    self.location.location_platform = LocationPlatform::Other;
+                }
                 true
             }
             Msg::SetLocationPlatformsFetchState(fetch_state) => {
@@ -133,9 +158,9 @@ impl Component for LocationsFormComponent {
                     .send_message(Msg::SetLocationPlatformsFetchState(FetchAction::Fetching));
                 false
             }
-            Msg::SetLocationPushState(fetch_state) => {
-                self.push_location.apply(fetch_state);
-                match self.push_location.as_ref().state() {
+            Msg::SetLocationCreateState(fetch_state) => {
+                self.create_location.apply(fetch_state);
+                match self.create_location.as_ref().state() {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.create_location {
@@ -144,12 +169,14 @@ impl Component for LocationsFormComponent {
                             let mut locations: Vec<Location> =
                                 ctx.props().locations.clone().unwrap_or_default();
                             locations.push(location);
-                            ctx.props().update_locations.emit(Some(locations));
-                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.props().update_locations.emit(());
+                            ctx.link()
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
                             true
                         }
                         None => {
-                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.link()
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -158,7 +185,8 @@ impl Component for LocationsFormComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
+                        ctx.link()
+                            .send_message(Msg::ToggleModalFormDisplay(false, None));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
@@ -169,21 +197,77 @@ impl Component for LocationsFormComponent {
             }
             Msg::CreateLocation => {
                 let body = CreateLocationRequestBody {
-                    variables: Variables {
+                    variables: CreateVariables {
                         publication_id: ctx.props().publication_id,
-                        landing_page: self.new_location.landing_page.clone(),
-                        full_text_url: self.new_location.full_text_url.clone(),
-                        location_platform: self.new_location.location_platform.clone(),
-                        canonical: self.new_location.canonical,
+                        landing_page: self.location.landing_page.clone(),
+                        full_text_url: self.location.full_text_url.clone(),
+                        location_platform: self.location.location_platform.clone(),
+                        canonical: self.location.canonical,
                     },
                     ..Default::default()
                 };
                 let request = CreateLocationRequest { body };
-                self.push_location = Fetch::new(request);
+                self.create_location = Fetch::new(request);
                 ctx.link()
-                    .send_future(self.push_location.fetch(Msg::SetLocationPushState));
+                    .send_future(self.create_location.fetch(Msg::SetLocationCreateState));
                 ctx.link()
-                    .send_message(Msg::SetLocationPushState(FetchAction::Fetching));
+                    .send_message(Msg::SetLocationCreateState(FetchAction::Fetching));
+                false
+            }
+            Msg::SetLocationUpdateState(fetch_state) => {
+                self.update_location.apply(fetch_state);
+                match self.update_location.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.update_location {
+                        Some(_l) => {
+                            ctx.props().update_locations.emit(());
+                            ctx.link()
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
+                            // changed the return value to false below, but this doesn't fix the display
+                            // issue where the page jumps during refresh when modal is exited
+                            false
+                        }
+                        None => {
+                            ctx.link()
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        ctx.link()
+                            .send_message(Msg::ToggleModalFormDisplay(false, None));
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            ThothError::from(err).to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::UpdateLocation => {
+                let body = UpdateLocationRequestBody {
+                    variables: UpdateVariables {
+                        location_id: self.location.location_id,
+                        publication_id: self.location.publication_id,
+                        landing_page: self.location.landing_page.clone(),
+                        full_text_url: self.location.full_text_url.clone(),
+                        location_platform: self.location.location_platform.clone(),
+                        canonical: self.location.canonical,
+                    },
+                    ..Default::default()
+                };
+                let request = UpdateLocationRequest { body };
+                self.update_location = Fetch::new(request);
+                ctx.link()
+                    .send_future(self.update_location.fetch(Msg::SetLocationUpdateState));
+                ctx.link()
+                    .send_message(Msg::SetLocationUpdateState(FetchAction::Fetching));
+
                 false
             }
             Msg::SetLocationDeleteState(fetch_state) => {
@@ -192,16 +276,8 @@ impl Component for LocationsFormComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_location {
-                        Some(location) => {
-                            let to_keep: Vec<Location> = ctx
-                                .props()
-                                .locations
-                                .clone()
-                                .unwrap_or_default()
-                                .into_iter()
-                                .filter(|l| l.location_id != location.location_id)
-                                .collect();
-                            ctx.props().update_locations.emit(Some(to_keep));
+                        Some(_location) => {
+                            ctx.props().update_locations.emit(());
                             true
                         }
                         None => {
@@ -234,18 +310,14 @@ impl Component for LocationsFormComponent {
                     .send_message(Msg::SetLocationDeleteState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangeLandingPage(val) => self
-                .new_location
-                .landing_page
-                .neq_assign(val.to_opt_string()),
-            Msg::ChangeFullTextUrl(val) => self
-                .new_location
-                .full_text_url
-                .neq_assign(val.to_opt_string()),
-            Msg::ChangeLocationPlatform(code) => {
-                self.new_location.location_platform.neq_assign(code)
+            Msg::ChangeLandingPage(val) => {
+                self.location.landing_page.neq_assign(val.to_opt_string())
             }
-            Msg::ChangeCanonical(val) => self.new_location.canonical.neq_assign(val),
+            Msg::ChangeFullTextUrl(val) => {
+                self.location.full_text_url.neq_assign(val.to_opt_string())
+            }
+            Msg::ChangeLocationPlatform(code) => self.location.location_platform.neq_assign(code),
+            Msg::ChangeCanonical(val) => self.location.canonical.neq_assign(val),
         }
     }
 
@@ -253,11 +325,11 @@ impl Component for LocationsFormComponent {
         let locations = ctx.props().locations.clone().unwrap_or_default();
         let open_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
-            Msg::ToggleAddFormDisplay(true)
+            Msg::ToggleModalFormDisplay(true, None)
         });
         let close_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
-            Msg::ToggleAddFormDisplay(false)
+            Msg::ToggleModalFormDisplay(false, None)
         });
         html! {
             <nav class="panel">
@@ -272,11 +344,11 @@ impl Component for LocationsFormComponent {
                         { "Add Location" }
                     </button>
                 </div>
-                <div class={ self.add_form_status() }>
+                <div class={ self.modal_form_status() }>
                     <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
-                            <p class="modal-card-title">{ "New Location" }</p>
+                            <p class="modal-card-title">{ self.modal_form_title() }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
@@ -284,24 +356,20 @@ impl Component for LocationsFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="locations-form" onsubmit={ ctx.link().callback(|e: FocusEvent| {
-                                e.prevent_default();
-                                Msg::CreateLocation
-                            }) }
-                            >
+                            <form id="locations-form" onsubmit={ self.modal_form_action(ctx) }>
                                 <FormUrlInput
                                     label="Landing Page"
-                                    value={ self.new_location.landing_page.clone() }
+                                    value={ self.location.landing_page.clone() }
                                     oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeLandingPage(e.to_value())) }
                                 />
                                 <FormUrlInput
                                     label="Full Text URL"
-                                    value={ self.new_location.full_text_url.clone().unwrap_or_default() }
+                                    value={ self.location.full_text_url.clone() }
                                     oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeFullTextUrl(e.to_value())) }
                                 />
                                 <FormLocationPlatformSelect
                                     label = "Location Platform"
-                                    value={ self.new_location.location_platform.clone() }
+                                    value={ self.location.location_platform.clone() }
                                     data={ self.data.location_platforms.clone() }
                                     onchange={ ctx.link().callback(|e: Event|
                                         Msg::ChangeLocationPlatform(LocationPlatform::from_str(&e.to_value()).unwrap())
@@ -310,7 +378,7 @@ impl Component for LocationsFormComponent {
                                 />
                                 <FormBooleanSelect
                                     label = "Canonical"
-                                    value={ self.new_location.canonical }
+                                    value={ self.location.canonical }
                                     onchange={ ctx.link().callback(|e: Event|
                                         Msg::ChangeCanonical(e.to_value() == "true")
                                     ) }
@@ -324,7 +392,7 @@ impl Component for LocationsFormComponent {
                                 type="submit"
                                 form="locations-form"
                             >
-                                { "Add Location" }
+                                { self.modal_form_button() }
                             </button>
                             <button
                                 class="button"
@@ -352,14 +420,42 @@ impl Component for LocationsFormComponent {
 }
 
 impl LocationsFormComponent {
-    fn add_form_status(&self) -> String {
-        match self.show_add_form {
+    fn modal_form_status(&self) -> String {
+        match self.show_modal_form {
             true => "modal is-active".to_string(),
             false => "modal".to_string(),
         }
     }
 
+    fn modal_form_title(&self) -> String {
+        match self.in_edit_mode {
+            true => "Edit Location".to_string(),
+            false => "New Location".to_string(),
+        }
+    }
+
+    fn modal_form_button(&self) -> String {
+        match self.in_edit_mode {
+            true => "Save Location".to_string(),
+            false => "Add Location".to_string(),
+        }
+    }
+
+    fn modal_form_action(&self, ctx: &Context<Self>) -> Callback<FocusEvent> {
+        match self.in_edit_mode {
+            true => ctx.link().callback(|e: FocusEvent| {
+                e.prevent_default();
+                Msg::UpdateLocation
+            }),
+            false => ctx.link().callback(|e: FocusEvent| {
+                e.prevent_default();
+                Msg::CreateLocation
+            }),
+        }
+    }
+
     fn render_location(&self, ctx: &Context<Self>, l: &Location) -> Html {
+        let location = l.clone();
         let location_id = l.location_id;
         let mut delete_callback = Some(
             ctx.link()
@@ -372,6 +468,7 @@ impl LocationsFormComponent {
             delete_callback = None;
             delete_deactivated = true;
         }
+
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -408,7 +505,15 @@ impl LocationsFormComponent {
                         </div>
                     </div>
 
-                    <div class="field">
+                    <div class="field is-grouped is-grouped-right">
+                        <div class="control">
+                            <a
+                                class="button is-success"
+                                onclick={ ctx.link().callback(move |_| Msg::ToggleModalFormDisplay(true, Some(location.clone()))) }
+                            >
+                                { EDIT_BUTTON }
+                            </a>
+                        </div>
                         <label class="label"></label>
                         <div class="control is-expanded">
                             <a

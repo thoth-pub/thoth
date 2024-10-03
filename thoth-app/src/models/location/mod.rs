@@ -17,3 +17,4 @@ pub struct LocationPlatformValues {
 pub mod create_location_mutation;
 pub mod delete_location_mutation;
 pub mod location_platforms_query;
+pub mod update_location_mutation;
