@@ -1,6 +1,6 @@
 [package]
 name = "thoth-app"
-version = "0.12.9"
+version = "0.12.10"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -36,8 +36,8 @@ uuid = { version = "1.10.0", features = ["serde", "v4"] }
 # `getrandom` is a dependency of `uuid`, we need to explicitly import and include the `js` feature to enable wasm
 # https://docs.rs/getrandom/latest/getrandom/#webassembly-support
 getrandom = { version = "0.2", features = ["js"] }
-thoth-api = { version = "=0.12.9", path = "../thoth-api"  }
-thoth-errors = { version = "=0.12.9", path = "../thoth-errors" }
+thoth-api = { version = "=0.12.10", path = "../thoth-api"  }
+thoth-errors = { version = "=0.12.10", path = "../thoth-errors" }
 
 [build-dependencies]
 dotenv = "0.15.0"
