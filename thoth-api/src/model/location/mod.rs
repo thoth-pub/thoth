@@ -242,6 +242,42 @@ impl Default for LocationOrderBy {
     }
 }
 
+impl From<Location> for PatchLocation {
+    fn from(location: Location) -> Self {
+        PatchLocation {
+            location_id: location.location_id,
+            publication_id: location.publication_id,
+            landing_page: location.landing_page,
+            full_text_url: location.full_text_url,
+            location_platform: location.location_platform,
+            canonical: location.canonical,
+        }
+    }
+}
+
+#[test]
+fn test_location_to_patch_location() {
+    let location = Location {
+        location_id: Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+        publication_id: Uuid::new_v4(),
+        landing_page: Some("https://www.book.com/pb_landing".to_string()),
+        full_text_url: Some("https://example.com/full_text.pdf".to_string()),
+        location_platform: LocationPlatform::PublisherWebsite,
+        created_at: Default::default(),
+        updated_at: Default::default(),
+        canonical: true,
+    };
+
+    let patch_location = PatchLocation::from(location.clone());
+
+    assert_eq!(patch_location.location_id, location.location_id);
+    assert_eq!(patch_location.publication_id, location.publication_id);
+    assert_eq!(patch_location.landing_page, location.landing_page);
+    assert_eq!(patch_location.full_text_url, location.full_text_url);
+    assert_eq!(patch_location.location_platform, location.location_platform);
+    assert_eq!(patch_location.canonical, location.canonical);
+}
+
 #[test]
 fn test_locationplatform_default() {
     let locationplatform: LocationPlatform = Default::default();

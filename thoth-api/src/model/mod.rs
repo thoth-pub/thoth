@@ -400,24 +400,18 @@ macro_rules! crud_methods {
             use diesel::{QueryDsl, RunQueryDsl};
 
             let mut connection = db.get()?;
-            match $entity_dsl
+            $entity_dsl
                 .find(entity_id)
                 .get_result::<Self>(&mut connection)
-            {
-                Ok(t) => Ok(t),
-                Err(e) => Err(ThothError::from(e)),
-            }
+                .map_err(Into::into)
         }
 
         fn create(db: &$crate::db::PgPool, data: &Self::NewEntity) -> ThothResult<Self> {
             let mut connection = db.get()?;
-            match diesel::insert_into($table_dsl)
+            diesel::insert_into($table_dsl)
                 .values(data)
                 .get_result::<Self>(&mut connection)
-            {
-                Ok(t) => Ok(t),
-                Err(e) => Err(ThothError::from(e)),
-            }
+                .map_err(Into::into)
         }
 
         /// Makes a database transaction that first updates the entity and then creates a new
@@ -483,13 +477,10 @@ macro_rules! db_insert {
         fn insert(&self, connection: &mut diesel::PgConnection) -> ThothResult<Self::MainEntity> {
             use diesel::RunQueryDsl;
 
-            match diesel::insert_into($table_dsl)
+            diesel::insert_into($table_dsl)
                 .values(self)
                 .get_result(connection)
-            {
-                Ok(t) => Ok(t),
-                Err(e) => Err(ThothError::from(e)),
-            }
+                .map_err(Into::into)
         }
     };
 }
