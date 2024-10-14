@@ -5,8 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-### Fixed
+### Changed
   - [324](https://github.com/thoth-pub/thoth/issues/324) - Make Locations editable, including the ability to change the Canonical Location for a Publication
+  - Upgrade `reqwest` to v0.12.8
+  - Upgrade `reqwest-middleware` to v0.3.3
+  - Upgrade `reqwest-retry` to v0.6.1
 
 ## [[0.12.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.10) - 2024-10-01
 ### Added
