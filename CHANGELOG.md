@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [635](https://github.com/thoth-pub/thoth/pull/635) - Upgrade `reqwest` to v0.12.8
   - [635](https://github.com/thoth-pub/thoth/pull/635) - Upgrade `reqwest-middleware` to v0.3.3
   - [635](https://github.com/thoth-pub/thoth/pull/635) - Upgrade `reqwest-retry` to v0.6.1
+  - [635](https://github.com/thoth-pub/thoth/pull/635) - Upgrade `paperclip` to v0.9.2
 
 ## [[0.12.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.10) - 2024-10-01
 ### Added
