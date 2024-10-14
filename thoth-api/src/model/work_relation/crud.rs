@@ -118,13 +118,10 @@ impl Crud for WorkRelation {
     // This function recreates the `crud_methods!` from_id() logic.
     fn from_id(db: &crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
         let mut connection = db.get()?;
-        match work_relation::table
+        work_relation::table
             .find(entity_id)
             .get_result::<Self>(&mut connection)
-        {
-            Ok(t) => Ok(t),
-            Err(e) => Err(ThothError::from(e)),
-        }
+            .map_err(Into::into)
     }
 
     fn create(db: &crate::db::PgPool, data: &NewWorkRelation) -> ThothResult<Self> {

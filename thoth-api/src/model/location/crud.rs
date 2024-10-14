@@ -2,11 +2,11 @@ use super::{
     Location, LocationField, LocationHistory, LocationOrderBy, LocationPlatform, NewLocation,
     NewLocationHistory, PatchLocation,
 };
+use crate::db_insert;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{location, location_history};
-use crate::{crud_methods, db_insert};
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
@@ -126,7 +126,73 @@ impl Crud for Location {
         crate::model::publication::Publication::from_id(db, &self.publication_id)?.publisher_id(db)
     }
 
-    crud_methods!(location::table, location::dsl::location);
+    // `crud_methods!` cannot be used for update(), because we need to execute multiple statements
+    // in the same transaction for changing a non-canonical location to canonical.
+    // These functions recreate the `crud_methods!` logic.
+    fn from_id(db: &crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
+        let mut connection = db.get()?;
+        location::table
+            .find(entity_id)
+            .get_result::<Self>(&mut connection)
+            .map_err(Into::into)
+    }
+
+    fn create(db: &crate::db::PgPool, data: &NewLocation) -> ThothResult<Self> {
+        db.get()?.transaction(|connection| {
+            diesel::insert_into(location::table)
+                .values(data)
+                .get_result::<Self>(connection)
+                .map_err(Into::into)
+        })
+    }
+
+    fn update(
+        &self,
+        db: &crate::db::PgPool,
+        data: &PatchLocation,
+        account_id: &Uuid,
+    ) -> ThothResult<Self> {
+        let mut connection = db.get()?;
+        connection
+            .transaction(|connection| {
+                if data.canonical == self.canonical {
+                    // No change in canonical status, just update the current location
+                    diesel::update(location::table.find(&self.location_id))
+                        .set(data)
+                        .get_result::<Self>(connection)
+                        .map_err(Into::into)
+                } else if self.canonical && !data.canonical {
+                    // Trying to change canonical location to non-canonical results in error.
+                    Err(ThothError::CanonicalLocationError)
+                } else {
+                    // Update the existing canonical location to non-canonical
+                    let mut old_canonical_location =
+                        PatchLocation::from(self.get_canonical_location(db)?);
+                    old_canonical_location.canonical = false;
+                    diesel::update(location::table.find(old_canonical_location.location_id))
+                        .set(old_canonical_location)
+                        .execute(connection)?;
+                    diesel::update(location::table.find(&self.location_id))
+                        .set(data)
+                        .get_result::<Self>(connection)
+                        .map_err(Into::into)
+                }
+            })
+            .and_then(|location| {
+                self.new_history_entry(account_id)
+                    .insert(&mut connection)
+                    .map(|_| location)
+            })
+    }
+
+    fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self> {
+        db.get()?.transaction(|connection| {
+            diesel::delete(location::table.find(self.location_id))
+                .execute(connection)
+                .map(|_| self)
+                .map_err(Into::into)
+        })
+    }
 }
 
 impl HistoryEntry for Location {
@@ -178,6 +244,17 @@ impl NewLocation {
             &self.full_text_url,
             db,
         )
+    }
+}
+
+impl Location {
+    pub fn get_canonical_location(&self, db: &crate::db::PgPool) -> ThothResult<Location> {
+        let mut connection = db.get()?;
+        location::table
+            .filter(location::publication_id.eq(self.publication_id))
+            .filter(location::canonical.eq(true))
+            .first::<Self>(&mut connection)
+            .map_err(Into::into)
     }
 }
 
