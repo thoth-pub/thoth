@@ -2194,9 +2194,9 @@ dependencies = [
 
 [[package]]
 name = "paperclip"
-version = "0.9.1"
+version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac41f27e83168c22515ef52d62a0357b5f5b8df846aa391f8b903b0ed7719429"
+checksum = "b0fd8369d5ed760936fdc16ccdc429b59d58faaed3ef8a212ac27b8076f855b4"
 dependencies = [
  "anyhow",
  "itertools",
@@ -2216,9 +2216,9 @@ dependencies = [
 
 [[package]]
 name = "paperclip-actix"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5b6f4c003aa6167df82f1574c951638a8b9a43827059da0cda8b5df88d20ecf"
+checksum = "d657a5d373b74ab8c2331593c36784fb9b3b0a83484d7b4a898adbed303bbaf2"
 dependencies = [
  "actix-service",
  "actix-web",
@@ -2233,9 +2233,9 @@ dependencies = [
 
 [[package]]
 name = "paperclip-core"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e2e742f71daf34eb8f62ccc5a1a5e1f029eb84be563523a2a5ee049366329f4"
+checksum = "1a6842cfd9f8603f9d8ece3feb8b6995306b87f3e38d9251b86f503b61390183"
 dependencies = [
  "actix-web",
  "mime",
@@ -2253,15 +2253,15 @@ dependencies = [
 
 [[package]]
 name = "paperclip-macros"
-version = "0.6.5"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0385be5ae9c886c46688290534363a229f2531aa2c5c2bfc3b3ddafed5143aaa"
+checksum = "827a0067440b62e798bc3e8cfb7036a0f63c3adbb21fe6a56fb3d6f6d8fa53f8"
 dependencies = [
  "heck 0.4.1",
  "http 0.2.12",
  "lazy_static",
  "mime",
- "proc-macro-error",
+ "proc-macro-error2",
  "proc-macro2",
  "quote",
  "strum 0.24.1",
@@ -2457,6 +2457,28 @@ dependencies = [
  "proc-macro2",
  "quote",
  "version_check",
+]
+
+[[package]]
+name = "proc-macro-error-attr2"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96de42df36bb9bba5542fe9f1a054b8cc87e172759a1868aa05c1f3acc89dfc5"
+dependencies = [
+ "proc-macro2",
+ "quote",
+]
+
+[[package]]
+name = "proc-macro-error2"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11ec05c52be0a07b08061f7dd003e7d7092e0472bc731b4af7bb1ef876109802"
+dependencies = [
+ "proc-macro-error-attr2",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.76",
 ]
 
 [[package]]
