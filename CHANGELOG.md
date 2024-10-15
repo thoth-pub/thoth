@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+  - [636](https://github.com/thoth-pub/thoth/issues/636) - OpenAPI documentation was displaying the public URL of the export API with an extra protocol
 
 ## [[0.12.11]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.11) - 2024-10-14
 ### Changed
