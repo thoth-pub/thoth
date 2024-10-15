@@ -4,7 +4,7 @@ use std::time::Duration;
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web::Data, App, HttpServer};
 use paperclip::actix::{web, web::HttpResponse, OpenApiExt};
-use paperclip::v2::models::{Contact, DefaultApiRaw, Info, License, Tag};
+use paperclip::v2::models::{Contact, DefaultApiRaw, Info, License, OperationProtocol, Tag};
 use thoth_client::ThothClient;
 
 mod bibtex;
@@ -56,8 +56,20 @@ pub async fn start_server(
     log::info!("Setting Thoth GraphQL endpoint to {}", gql_endpoint);
 
     HttpServer::new(move || {
+        // extract hostname and protocol from public URL
+        let (protocol, host) = public_url
+            .strip_prefix("https://")
+            .map(|stripped| (OperationProtocol::Https, stripped))
+            .or_else(|| {
+                public_url
+                    .strip_prefix("http://")
+                    .map(|stripped| (OperationProtocol::Http, stripped))
+            })
+            .unwrap_or((OperationProtocol::Http, public_url.as_str()));
+
         let spec = DefaultApiRaw {
-            host: Some(public_url.clone()),
+            host: Some(host.to_string()),
+            schemes: [protocol].into_iter().collect(),
             tags: vec![
                 Tag {
                     name: "Formats".to_string(),
