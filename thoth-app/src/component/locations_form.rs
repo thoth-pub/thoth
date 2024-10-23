@@ -134,6 +134,7 @@ impl Component for LocationsFormComponent {
                     }
                 } else {
                     self.location = Default::default();
+                    self.location.canonical = true;
                     self.location.location_platform = LocationPlatform::Other;
                 }
                 true
