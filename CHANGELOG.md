@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+  - [639](https://github.com/thoth-pub/thoth/issues/639) - Make new locations canonical by default
+
+### Changed
+  - [628](https://github.com/thoth-pub/thoth/pull/628) - Upgrade rust to `1.82.0` in production and development `Dockerfile`
 
 ## [[0.12.12]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.12) - 2024-10-15
 ### Fixed
