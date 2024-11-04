@@ -958,9 +958,9 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                 })?;
                             }
                             if publication.prices.is_empty() {
-                                // 04 Contact supplier
+                                // 01 Free of charge
                                 write_element_block("UnpricedItemType", w, |w| {
-                                    w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
+                                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                                 })
                             } else {
                                 for price in &publication.prices {
@@ -3366,7 +3366,7 @@ mod tests {
         </Website>"#
         ));
         // UnpricedItemType block instead of any Prices
-        assert!(output.contains(r#"      <UnpricedItemType>04</UnpricedItemType>"#));
+        assert!(output.contains(r#"      <UnpricedItemType>01</UnpricedItemType>"#));
         assert!(!output.contains(r#"      <Price>"#));
 
         // Remove chapter DOI: can't output ContentDetail block
