@@ -1,4 +1,4 @@
-// @generated automatically by Diesel CLI.
+// @generated automatically by Diesel CLI..
 
 pub mod sql_types {
     #[derive(diesel::sql_types::*, diesel::query_builder::QueryId, crate::model::contribution::Contribution_type, crate::model::work::Work_type, crate::model::work::Work_status, crate::model::publication::Publication_type, crate::model::language::Language_relation, crate::model::language::Language_code, crate::model::series::Series_type, crate::model::price::Currency_code, crate::model::subject::Subject_type, crate::model::institution::Country_code, crate::model::work_relation::Relation_type, diesel::sql_types::SqlType)]
