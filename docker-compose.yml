@@ -11,6 +11,11 @@ services:
     env_file:
       - .env
 
+  redis:
+    image: redis:alpine
+    container_name: "thoth_redis"
+    restart: unless-stopped
+
   graphql-api:
     image: openbookpublishers/thoth
     container_name: "thoth_graphql_api"
