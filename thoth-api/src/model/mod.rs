@@ -99,8 +99,19 @@ pub struct Ror(String);
         description = "RFC 3339 combined date and time in UTC time zone (e.g. \"1999-12-31T23:59:00Z\")"
     )
 )]
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Timestamp(DateTime<Utc>);
+
+impl Timestamp {
+    pub fn to_rfc3339(&self) -> String {
+        self.0.to_rfc3339()
+    }
+
+    pub fn parse_from_rfc3339(input: &str) -> ThothResult<Self> {
+        let timestamp = DateTime::parse_from_rfc3339(input)?.with_timezone(&Utc);
+        Ok(Timestamp(timestamp))
+    }
+}
 
 impl Default for Timestamp {
     fn default() -> Timestamp {
