@@ -21,6 +21,8 @@ pub mod graphql;
 #[macro_use]
 pub mod model;
 #[cfg(feature = "backend")]
+pub mod redis;
+#[cfg(feature = "backend")]
 mod schema;
 
 macro_rules! apis {
