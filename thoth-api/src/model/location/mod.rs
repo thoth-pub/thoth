@@ -138,7 +138,7 @@ pub enum LocationPlatform {
     #[cfg_attr(
         feature = "backend",
         db_rename = "Thoth",
-        graphql(description = "Hosted directly by Thoth")
+        graphql(description = "Publisher CDN hosted by Thoth")
     )]
     #[strum(serialize = "Thoth")]
     Thoth,
