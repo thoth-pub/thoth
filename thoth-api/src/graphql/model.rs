@@ -1615,6 +1615,10 @@ impl MutationRoot {
         #[graphql(description = "Values for location to be created")] data: NewLocation,
     ) -> FieldResult<Location> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        // Only superusers can create new locations where Location Platform is Thoth
+        if !context.account_access.is_superuser && data.location_platform == LocationPlatform::Thoth {
+            return Err(ThothError::ThothLocationError.into());
+        }
         context
             .account_access
             .can_edit(publisher_id_from_publication_id(
@@ -1971,6 +1975,10 @@ impl MutationRoot {
     ) -> FieldResult<Location> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let location = Location::from_id(&context.db, &data.location_id).unwrap();
+        // Only superusers can edit locations where Location Platform is Thoth
+        if !context.account_access.is_superuser && location.location_platform == LocationPlatform::Thoth {
+            return Err(ThothError::ThothLocationError.into());
+        }
         context
             .account_access
             .can_edit(location.publisher_id(&context.db)?)?;
@@ -2294,6 +2302,10 @@ impl MutationRoot {
     ) -> FieldResult<Location> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let location = Location::from_id(&context.db, &location_id).unwrap();
+        // Only superusers can delete locations where Location Platform is Thoth
+        if !context.account_access.is_superuser && location.location_platform == LocationPlatform::Thoth {
+            return Err(ThothError::ThothLocationError.into());
+        }
         context
             .account_access
             .can_edit(location.publisher_id(&context.db)?)?;
