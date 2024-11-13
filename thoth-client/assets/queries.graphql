@@ -256,3 +256,19 @@ query WorkCountQuery(
 ) {
     workCount(publishers: $publishers)
 }
+
+query WorkLastUpdatedQuery(
+    $workId: Uuid!
+) {
+    work(workId: $workId) {
+        updatedAtWithRelations
+    }
+}
+
+query WorksLastUpdatedQuery(
+    $publishers: [Uuid!]
+) {
+    works(publishers: $publishers, limit: 1, order: {field: UPDATED_AT_WITH_RELATIONS, direction: DESC}) {
+        updatedAtWithRelations
+    }
+}
