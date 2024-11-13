@@ -416,6 +416,7 @@ impl Component for PublicationComponent {
                         </article>
 
                         <LocationsFormComponent
+                            current_user={ctx.props().current_user.clone()}
                             locations={ self.publication.locations.clone() }
                             publication_id={ self.publication.publication_id }
                             update_locations={ ctx.link().callback(|_| Msg::UpdateLocations) }

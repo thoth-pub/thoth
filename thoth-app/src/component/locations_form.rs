@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::account::model::AccountDetails;
 use thoth_api::model::location::Location;
 use thoth_api::model::location::LocationPlatform;
 use thoth_errors::ThothError;
@@ -84,6 +85,7 @@ pub struct Props {
     pub locations: Option<Vec<Location>>,
     pub publication_id: Uuid,
     pub update_locations: Callback<()>,
+    pub current_user: AccountDetails,
 }
 
 impl Component for LocationsFormComponent {
@@ -462,12 +464,23 @@ impl LocationsFormComponent {
             ctx.link()
                 .callback(move |_| Msg::DeleteLocation(location_id)),
         );
+        let mut edit_callback = Some(
+            ctx.link()
+                .callback(move |_| Msg::ToggleModalFormDisplay(true, Some(location.clone())))
+        );
         let mut delete_deactivated = false;
+        let mut edit_deactivated = false;
         // If the location is canonical and other (non-canonical) locations exist, prevent it from
         // being deleted by deactivating the delete button and unsetting its callback attribute
         if l.canonical && ctx.props().locations.as_ref().unwrap_or(&vec![]).len() > 1 {
             delete_callback = None;
             delete_deactivated = true;
+        // Restrict deleting locations with Thoth as location platform to superusers
+        } else if ctx.props().current_user.resource_access.restricted_to().is_some() && l.location_platform == LocationPlatform::Thoth {
+            delete_callback = None;
+            delete_deactivated = true;
+            edit_callback = None;
+            edit_deactivated = true;
         }
 
         html! {
@@ -510,7 +523,8 @@ impl LocationsFormComponent {
                         <div class="control">
                             <a
                                 class="button is-success"
-                                onclick={ ctx.link().callback(move |_| Msg::ToggleModalFormDisplay(true, Some(location.clone()))) }
+                                onclick={ edit_callback }
+                                disabled={ edit_deactivated }
                             >
                                 { EDIT_BUTTON }
                             </a>
