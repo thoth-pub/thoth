@@ -106,7 +106,7 @@ impl Component for PublicationComponent {
                         isbn: self.publication.isbn.clone(),
                         // Not used by child form
                         created_at: Default::default(),
-                        updated_at: self.publication.updated_at.clone(),
+                        updated_at: self.publication.updated_at,
                         width_mm: self.publication.width_mm,
                         width_in: self.publication.width_in,
                         height_mm: self.publication.height_mm,
