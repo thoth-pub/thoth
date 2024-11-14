@@ -6,6 +6,9 @@ use paperclip::v2::models::{DefaultOperationRaw, Either, Response};
 use paperclip::v2::schema::Apiv2Schema;
 use std::fmt::Display;
 use std::str::FromStr;
+use std::sync::Arc;
+use thoth_api::model::Timestamp;
+use thoth_api::redis::{get, set, RedisPool};
 use thoth_client::Work;
 use thoth_errors::{ThothError, ThothResult};
 
@@ -13,13 +16,11 @@ use crate::bibtex::{BibtexSpecification, BibtexThoth};
 use crate::csv::{CsvSpecification, CsvThoth, KbartOclc};
 use crate::json::{JsonSpecification, JsonThoth};
 use crate::marc21::{Marc21MarkupThoth, Marc21RecordThoth, Marc21Specification};
+use crate::specification_query::SpecificationQuery;
 use crate::xml::{
     DoiDepositCrossref, Marc21XmlThoth, Onix21EbscoHost, Onix21ProquestEbrary, Onix3GoogleBooks,
     Onix3Jstor, Onix3Oapen, Onix3Overdrive, Onix3ProjectMuse, Onix3Thoth, XmlSpecification,
 };
-
-pub(crate) trait AsRecord {}
-impl AsRecord for Vec<Work> {}
 
 pub const DELIMITER_COMMA: u8 = b',';
 pub const DELIMITER_TAB: u8 = b'\t';
@@ -46,17 +47,13 @@ pub(crate) enum MetadataSpecification {
     Marc21XmlThoth(Marc21XmlThoth),
 }
 
-pub(crate) struct MetadataRecord<T: AsRecord> {
+pub(crate) struct MetadataRecord {
     id: String,
-    data: T,
     specification: MetadataSpecification,
     record: ThothResult<String>,
 }
 
-impl<T> MetadataRecord<T>
-where
-    T: AsRecord + IntoIterator,
-{
+impl MetadataRecord {
     const XML_MIME_TYPE: &'static str = "text/xml; charset=utf-8";
     const CSV_MIME_TYPE: &'static str = "text/csv; charset=utf-8";
     const TXT_MIME_TYPE: &'static str = "text/plain; charset=utf-8";
@@ -71,26 +68,11 @@ where
     const MARC_RECORD_EXTENSION: &'static str = ".mrc";
     const MARC_MARKUP_EXTENSION: &'static str = ".mrk";
 
-    pub(crate) fn new(id: String, specification: MetadataSpecification, data: T) -> Self {
+    pub(crate) fn new(id: String, specification: MetadataSpecification) -> Self {
         MetadataRecord {
             id,
-            data,
             specification,
             record: Err(ThothError::MetadataRecordNotGenerated),
-        }
-    }
-
-    pub(crate) fn cached(
-        id: String,
-        specification: MetadataSpecification,
-        data: T,
-        cache: String,
-    ) -> Self {
-        MetadataRecord {
-            id,
-            data,
-            specification,
-            record: Ok(cache),
         }
     }
 
@@ -176,71 +158,94 @@ where
     fn content_disposition(&self) -> String {
         format!("attachment; filename=\"{}\"", self.file_name())
     }
-}
 
-impl MetadataRecord<Vec<Work>> {
-    pub(crate) fn is_ok(&self) -> bool {
-        self.record.is_ok()
+    fn cache_key(&self) -> String {
+        format!("{}:{}", self.specification, self.id)
     }
 
-    pub(crate) fn record(&self) -> &String {
-        self.record.as_ref().unwrap()
+    fn cache_timestamp_key(&self) -> String {
+        format!("{}:timestamp", self.cache_key())
     }
 
-    pub(crate) fn generate(&mut self) {
-        if self.record.is_ok() {
-            return;
+    pub(crate) async fn load_or_generate(
+        &mut self,
+        specification_query: SpecificationQuery,
+        last_updated: Timestamp,
+        redis_pool: Arc<RedisPool>,
+    ) -> ThothResult<()> {
+        let cache_key = self.cache_key();
+        let cache_timestamp_key = self.cache_timestamp_key();
+
+        if let (Ok(cached_record), Ok(cached_timestamp_value)) = (
+            get(&redis_pool, &cache_key).await,
+            get(&redis_pool, &cache_timestamp_key).await,
+        ) {
+            let cached_timestamp = Timestamp::parse_from_rfc3339(&cached_timestamp_value)?;
+            if cached_timestamp >= last_updated {
+                self.record = Ok(cached_record);
+                return Ok(());
+            }
         }
-        self.record = match &self.specification {
-            MetadataSpecification::Onix3Thoth(onix3_thoth) => {
-                onix3_thoth.generate(&self.data, None)
-            }
+
+        let data = specification_query.run().await?;
+        self.record = self.generate(data);
+        if let Ok(record) = &self.record {
+            set(&redis_pool, &cache_key, record).await?;
+            set(
+                &redis_pool,
+                &cache_timestamp_key,
+                &last_updated.to_rfc3339(),
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
+    fn generate(&self, data: Vec<Work>) -> ThothResult<String> {
+        match &self.specification {
+            MetadataSpecification::Onix3Thoth(onix3_thoth) => onix3_thoth.generate(&data, None),
             MetadataSpecification::Onix3ProjectMuse(onix3_project_muse) => {
-                onix3_project_muse.generate(&self.data, None)
+                onix3_project_muse.generate(&data, None)
             }
-            MetadataSpecification::Onix3Oapen(onix3_oapen) => {
-                onix3_oapen.generate(&self.data, None)
-            }
-            MetadataSpecification::Onix3Jstor(onix3_jstor) => {
-                onix3_jstor.generate(&self.data, None)
-            }
+            MetadataSpecification::Onix3Oapen(onix3_oapen) => onix3_oapen.generate(&data, None),
+            MetadataSpecification::Onix3Jstor(onix3_jstor) => onix3_jstor.generate(&data, None),
             MetadataSpecification::Onix3GoogleBooks(onix3_google_books) => {
-                onix3_google_books.generate(&self.data, None)
+                onix3_google_books.generate(&data, None)
             }
             MetadataSpecification::Onix3Overdrive(onix3_overdrive) => {
-                onix3_overdrive.generate(&self.data, None)
+                onix3_overdrive.generate(&data, None)
             }
             MetadataSpecification::Onix21EbscoHost(onix21_ebsco_host) => {
-                onix21_ebsco_host.generate(&self.data, Some(DOCTYPE_ONIX21_REF))
+                onix21_ebsco_host.generate(&data, Some(DOCTYPE_ONIX21_REF))
             }
             MetadataSpecification::Onix21ProquestEbrary(onix21_proquest_ebrary) => {
-                onix21_proquest_ebrary.generate(&self.data, Some(DOCTYPE_ONIX21_REF))
+                onix21_proquest_ebrary.generate(&data, Some(DOCTYPE_ONIX21_REF))
             }
             MetadataSpecification::CsvThoth(csv_thoth) => {
-                csv_thoth.generate(&self.data, QuoteStyle::Always, DELIMITER_COMMA)
+                csv_thoth.generate(&data, QuoteStyle::Always, DELIMITER_COMMA)
             }
-            MetadataSpecification::JsonThoth(json_thoth) => json_thoth.generate(&self.data),
+            MetadataSpecification::JsonThoth(json_thoth) => json_thoth.generate(&data),
             MetadataSpecification::KbartOclc(kbart_oclc) => {
-                kbart_oclc.generate(&self.data, QuoteStyle::Necessary, DELIMITER_TAB)
+                kbart_oclc.generate(&data, QuoteStyle::Necessary, DELIMITER_TAB)
             }
-            MetadataSpecification::BibtexThoth(bibtex_thoth) => bibtex_thoth.generate(&self.data),
+            MetadataSpecification::BibtexThoth(bibtex_thoth) => bibtex_thoth.generate(&data),
             MetadataSpecification::DoiDepositCrossref(doideposit_crossref) => {
-                doideposit_crossref.generate(&self.data, None)
+                doideposit_crossref.generate(&data, None)
             }
             MetadataSpecification::Marc21RecordThoth(marc21record_thoth) => {
-                marc21record_thoth.generate(&self.data)
+                marc21record_thoth.generate(&data)
             }
             MetadataSpecification::Marc21MarkupThoth(marc21markup_thoth) => {
-                marc21markup_thoth.generate(&self.data)
+                marc21markup_thoth.generate(&data)
             }
             MetadataSpecification::Marc21XmlThoth(marc21xml_thoth) => {
-                marc21xml_thoth.generate(&self.data)
+                marc21xml_thoth.generate(&data)
             }
         }
     }
 }
 
-impl Responder for MetadataRecord<Vec<Work>> {
+impl Responder for MetadataRecord {
     type Body = actix_web::body::BoxBody;
 
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
@@ -248,18 +253,15 @@ impl Responder for MetadataRecord<Vec<Work>> {
             Ok(ref record) => HttpResponse::build(StatusCode::OK)
                 .content_type(self.content_type())
                 .append_header(("Content-Disposition", self.content_disposition()))
-                .body(record.to_string()),
+                .body(record.to_owned()),
             Err(e) => HttpResponse::from_error(e),
         }
     }
 }
 
-impl<T: AsRecord> Apiv2Schema for MetadataRecord<T> {}
+impl Apiv2Schema for MetadataRecord {}
 
-impl<T> OperationModifier for MetadataRecord<T>
-where
-    T: AsRecord,
-{
+impl OperationModifier for MetadataRecord {
     fn update_response(op: &mut DefaultOperationRaw) {
         let status: StatusCode = StatusCode::OK;
         op.responses.insert(
@@ -358,19 +360,16 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::CsvThoth(CsvThoth {}),
-            vec![],
         );
         assert_eq!(to_test.file_name(), "csv__thoth__some_id.csv".to_string());
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::JsonThoth(JsonThoth {}),
-            vec![],
         );
         assert_eq!(to_test.file_name(), "json__thoth__some_id.json".to_string());
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix3Thoth(Onix3Thoth {}),
-            vec![],
         );
         assert_eq!(
             to_test.file_name(),
@@ -379,7 +378,6 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix3ProjectMuse(Onix3ProjectMuse {}),
-            vec![],
         );
         assert_eq!(
             to_test.file_name(),
@@ -388,7 +386,6 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix3Oapen(Onix3Oapen {}),
-            vec![],
         );
         assert_eq!(
             to_test.file_name(),
@@ -397,7 +394,6 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix3Jstor(Onix3Jstor {}),
-            vec![],
         );
         assert_eq!(
             to_test.file_name(),
@@ -406,7 +402,6 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix3GoogleBooks(Onix3GoogleBooks {}),
-            vec![],
         );
         assert_eq!(
             to_test.file_name(),
@@ -415,7 +410,6 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix3Overdrive(Onix3Overdrive {}),
-            vec![],
         );
         assert_eq!(
             to_test.file_name(),
@@ -424,7 +418,6 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix21EbscoHost(Onix21EbscoHost {}),
-            vec![],
         );
         assert_eq!(
             to_test.file_name(),
@@ -433,7 +426,6 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix21ProquestEbrary(Onix21ProquestEbrary {}),
-            vec![],
         );
         assert_eq!(
             to_test.file_name(),
@@ -442,13 +434,11 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::KbartOclc(KbartOclc {}),
-            vec![],
         );
         assert_eq!(to_test.file_name(), "kbart__oclc__some_id.txt".to_string());
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::BibtexThoth(BibtexThoth {}),
-            vec![],
         );
         assert_eq!(
             to_test.file_name(),
@@ -457,7 +447,6 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::DoiDepositCrossref(DoiDepositCrossref {}),
-            vec![],
         );
         assert_eq!(
             to_test.file_name(),
@@ -466,7 +455,6 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Marc21RecordThoth(Marc21RecordThoth {}),
-            vec![],
         );
         assert_eq!(
             to_test.file_name(),
@@ -475,7 +463,6 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Marc21MarkupThoth(Marc21MarkupThoth {}),
-            vec![],
         );
         assert_eq!(
             to_test.file_name(),
@@ -484,7 +471,6 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Marc21XmlThoth(Marc21XmlThoth {}),
-            vec![],
         );
         assert_eq!(
             to_test.file_name(),
