@@ -50,6 +50,7 @@ pub(crate) struct MetadataRecord<T: AsRecord> {
     id: String,
     data: T,
     specification: MetadataSpecification,
+    record: ThothResult<String>,
 }
 
 impl<T> MetadataRecord<T>
@@ -75,6 +76,21 @@ where
             id,
             data,
             specification,
+            record: Err(ThothError::MetadataRecordNotGenerated),
+        }
+    }
+
+    pub(crate) fn cached(
+        id: String,
+        specification: MetadataSpecification,
+        data: T,
+        cache: String,
+    ) -> Self {
+        MetadataRecord {
+            id,
+            data,
+            specification,
+            record: Ok(cache),
         }
     }
 
@@ -163,8 +179,19 @@ where
 }
 
 impl MetadataRecord<Vec<Work>> {
-    fn generate(&self) -> ThothResult<String> {
-        match &self.specification {
+    pub(crate) fn is_ok(&self) -> bool {
+        self.record.is_ok()
+    }
+
+    pub(crate) fn record(&self) -> &String {
+        self.record.as_ref().unwrap()
+    }
+
+    pub(crate) fn generate(&mut self) {
+        if self.record.is_ok() {
+            return;
+        }
+        self.record = match &self.specification {
             MetadataSpecification::Onix3Thoth(onix3_thoth) => {
                 onix3_thoth.generate(&self.data, None)
             }
@@ -217,11 +244,11 @@ impl Responder for MetadataRecord<Vec<Work>> {
     type Body = actix_web::body::BoxBody;
 
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        match self.generate() {
-            Ok(record) => HttpResponse::build(StatusCode::OK)
+        match self.record {
+            Ok(ref record) => HttpResponse::build(StatusCode::OK)
                 .content_type(self.content_type())
                 .append_header(("Content-Disposition", self.content_disposition()))
-                .body(record),
+                .body(record.to_string()),
             Err(e) => HttpResponse::from_error(e),
         }
     }

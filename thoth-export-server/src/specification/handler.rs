@@ -1,15 +1,16 @@
+use super::model::Specification;
+use crate::data::{find_specification, ALL_SPECIFICATIONS};
+use crate::record::{MetadataRecord, MetadataSpecification};
+use crate::specification_query::SpecificationQuery;
 use actix_web::Error;
 use paperclip::actix::{
     api_v2_operation,
     web::{self, Json},
 };
+use thoth_api::model::Timestamp;
+use thoth_api::redis::{get, set, RedisPool};
 use thoth_client::{ThothClient, Work};
 use uuid::Uuid;
-
-use super::model::Specification;
-use crate::data::{find_specification, ALL_SPECIFICATIONS};
-use crate::record::{MetadataRecord, MetadataSpecification};
-use crate::specification_query::SpecificationQuery;
 
 #[api_v2_operation(
     summary = "List supported specifications",
@@ -41,16 +42,48 @@ pub(crate) async fn get_one(
 )]
 pub(crate) async fn by_work(
     path: web::Path<(String, Uuid)>,
+    redis_pool: web::Data<RedisPool>,
     thoth_client: web::Data<ThothClient>,
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
+    let thoth = thoth_client.into_inner();
     let (specification_id, work_id) = path.into_inner();
     let specification: MetadataSpecification = specification_id.parse()?;
 
-    SpecificationQuery::new(thoth_client.into_inner(), specification)
+    let cache_key = format!("{}:{}", specification_id, work_id);
+    let cache_timestamp_key = format!("{}:timestamp", cache_key);
+    let last_updated = thoth.get_work_last_updated(work_id).await?;
+
+    let cached_timestamp_raw = get(&redis_pool, &cache_timestamp_key).await;
+    if let Ok(cached_timestamp_value) = cached_timestamp_raw {
+        let cached_timestamp = Timestamp::parse_from_rfc3339(&cached_timestamp_value)?;
+        if cached_timestamp >= last_updated {
+            let cached_record_raw = get(&redis_pool, &cache_key).await;
+            if let Ok(cached_record) = cached_record_raw {
+                return Ok(MetadataRecord::cached(
+                    work_id.to_string(),
+                    specification,
+                    vec![],
+                    cached_record,
+                ));
+            }
+        }
+    }
+
+    let data = SpecificationQuery::new(thoth, specification)
         .by_work(work_id)
-        .await
-        .map(|data| MetadataRecord::new(work_id.to_string(), specification, vec![data]))
-        .map_err(|e| e.into())
+        .await?;
+    let mut metadata_record = MetadataRecord::new(work_id.to_string(), specification, vec![data]);
+    metadata_record.generate();
+    if metadata_record.is_ok() {
+        set(&redis_pool, &cache_key, metadata_record.record()).await?;
+        set(
+            &redis_pool,
+            &cache_timestamp_key,
+            &last_updated.to_rfc3339(),
+        )
+        .await?;
+    }
+    Ok(metadata_record)
 }
 
 #[api_v2_operation(
