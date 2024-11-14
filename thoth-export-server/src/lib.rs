@@ -5,6 +5,7 @@ use actix_cors::Cors;
 use actix_web::{middleware::Logger, web::Data, App, HttpServer};
 use paperclip::actix::{web, web::HttpResponse, OpenApiExt};
 use paperclip::v2::models::{Contact, DefaultApiRaw, Info, License, OperationProtocol, Tag};
+use thoth_api::redis::init_pool;
 use thoth_client::ThothClient;
 
 mod bibtex;
@@ -114,6 +115,7 @@ pub async fn start_server(
             .wrap(Cors::default().allowed_methods(vec!["GET", "OPTIONS"]))
             .app_data(Data::new(ThothClient::new(gql_endpoint.clone())))
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
+            .app_data(Data::new(init_pool()))
             .service(actix_web::web::resource("/").route(actix_web::web::get().to(index)))
             .wrap_api_with_spec(spec)
             .configure(format::route)
