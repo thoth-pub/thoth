@@ -1752,7 +1752,7 @@ impl MutationRoot {
                         let mut data: PatchWork = child.clone().into();
                         data.publication_date = w.publication_date;
                         data.withdrawn_date = w.withdrawn_date;
-                        data.work_status = w.work_status.clone();
+                        data.work_status = w.work_status;
                         child.update(&context.db, &data, &account_id)?;
                     }
                 }

@@ -18,7 +18,7 @@ pub const ROR_DOMAIN: &str = "https://ror.org/";
     derive(juniper::GraphQLEnum),
     graphql(description = "Unit of measurement for physical Work dimensions (mm, cm or in)")
 )]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase")]
 pub enum LengthUnit {
@@ -36,7 +36,7 @@ pub enum LengthUnit {
     derive(juniper::GraphQLEnum),
     graphql(description = "Unit of measurement for physical Work weight (grams or ounces)")
 )]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase")]
 pub enum WeightUnit {

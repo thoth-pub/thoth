@@ -194,8 +194,8 @@ impl Component for LanguagesFormComponent {
                 let body = CreateLanguageRequestBody {
                     variables: Variables {
                         work_id: ctx.props().work_id,
-                        language_relation: self.new_language.language_relation.clone(),
-                        language_code: self.new_language.language_code.clone(),
+                        language_relation: self.new_language.language_relation,
+                        language_code: self.new_language.language_code,
                         main_language: self.new_language.main_language,
                     },
                     ..Default::default()
@@ -304,7 +304,7 @@ impl Component for LanguagesFormComponent {
                             >
                                 <FormLanguageCodeSelect
                                     label = "Language Code"
-                                    value={ self.new_language.language_code.clone() }
+                                    value={ self.new_language.language_code }
                                     data={ self.data.language_codes.clone() }
                                     onchange={ ctx.link().callback(|e: Event|
                                         Msg::ChangeLanguageCode(LanguageCode::from_str(&e.to_value()).unwrap())
@@ -313,7 +313,7 @@ impl Component for LanguagesFormComponent {
                                 />
                                 <FormLanguageRelationSelect
                                     label = "Language Relation"
-                                    value={ self.new_language.language_relation.clone() }
+                                    value={ self.new_language.language_relation }
                                     data={ self.data.language_relations.clone() }
                                     onchange={ ctx.link().callback(|e: Event|
                                         Msg::ChangeLanguageRelation(LanguageRelation::from_str(&e.to_value()).unwrap())

@@ -297,8 +297,8 @@ impl Component for NewWorkComponent {
                 }
                 let body = CreateWorkRequestBody {
                     variables: Variables {
-                        work_type: self.work.work_type.clone(),
-                        work_status: self.work.work_status.clone(),
+                        work_type: self.work.work_type,
+                        work_status: self.work.work_status,
                         full_title: self.work.full_title.clone(),
                         title: self.work.title.clone(),
                         subtitle: self.work.subtitle.clone(),
@@ -480,7 +480,7 @@ impl Component for NewWorkComponent {
                         <div class="field-body">
                             <FormWorkTypeSelect
                                 label = "Work Type"
-                                value={ self.work.work_type.clone() }
+                                value={ self.work.work_type }
                                 data={ self.data.work_types.clone() }
                                 onchange={ ctx.link().callback(|e: Event|
                                     Msg::ChangeWorkType(WorkType::from_str(&e.to_value()).unwrap())
@@ -489,7 +489,7 @@ impl Component for NewWorkComponent {
                             />
                             <FormWorkStatusSelect
                                 label = "Work Status"
-                                value={ self.work.work_status.clone() }
+                                value={ self.work.work_status }
                                 data={ self.data.work_statuses.clone() }
                                 onchange={ ctx.link().callback(|e: Event|
                                     Msg::ChangeWorkStatus(WorkStatus::from_str(&e.to_value()).unwrap())

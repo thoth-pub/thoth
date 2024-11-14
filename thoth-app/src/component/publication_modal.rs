@@ -219,7 +219,7 @@ impl Component for PublicationModalComponent {
                 let body = CreatePublicationRequestBody {
                     variables: Variables {
                         work_id: ctx.props().work_id,
-                        publication_type: self.publication.publication_type.clone(),
+                        publication_type: self.publication.publication_type,
                         isbn: self.publication.isbn.clone(),
                         width_mm: self.publication.width_mm,
                         width_in: self.publication.width_in,
@@ -280,7 +280,7 @@ impl Component for PublicationModalComponent {
                     variables: UpdateVariables {
                         publication_id: self.publication.publication_id,
                         work_id: ctx.props().work_id,
-                        publication_type: self.publication.publication_type.clone(),
+                        publication_type: self.publication.publication_type,
                         isbn: self.publication.isbn.clone(),
                         width_mm: self.publication.width_mm,
                         width_in: self.publication.width_in,
@@ -465,7 +465,7 @@ impl Component for PublicationModalComponent {
                         <form id="publication-modal" onsubmit={ self.modal_form_action(ctx) }>
                             <FormPublicationTypeSelect
                                 label = "Publication Type"
-                                value={ self.publication.publication_type.clone() }
+                                value={ self.publication.publication_type }
                                 data={ self.data.publication_types.clone() }
                                 onchange={ ctx.link().callback(|e: Event|
                                     Msg::ChangePublicationType(PublicationType::from_str(&e.to_value()).unwrap())

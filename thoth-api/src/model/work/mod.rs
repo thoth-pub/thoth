@@ -29,7 +29,7 @@ use crate::schema::work_history;
     graphql(description = "Type of a work"),
     ExistingTypePath = "crate::schema::sql_types::WorkType"
 )]
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum WorkType {
@@ -80,7 +80,7 @@ pub enum WorkType {
     ),
     ExistingTypePath = "crate::schema::sql_types::WorkStatus"
 )]
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum WorkStatus {

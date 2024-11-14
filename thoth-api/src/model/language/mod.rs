@@ -17,7 +17,7 @@ use crate::schema::language_history;
     ),
     ExistingTypePath = "crate::schema::sql_types::LanguageRelation"
 )]
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum LanguageRelation {
@@ -102,7 +102,7 @@ pub struct PatchLanguage {
     graphql(description = "Three-letter ISO 639 code representing a language"),
     ExistingTypePath = "crate::schema::sql_types::LanguageCode"
 )]
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "UPPERCASE")]
 pub enum LanguageCode {

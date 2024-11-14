@@ -18,7 +18,7 @@ use crate::schema::series_history;
     graphql(description = "Type of a series"),
     ExistingTypePath = "crate::schema::sql_types::SeriesType"
 )]
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum SeriesType {
