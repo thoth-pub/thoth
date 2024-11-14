@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `WorkLastUpdatedQuery` and `WorksLastUpdatedQuery` queries to thoth-client
   - Implement `Copy`, `Ord` and `PartialOrd` traits for `Timestamp`
   - Implement parsing from and to RFC 3339 strings for `Timestamp`
+  - Implement `Copy` trait for `WorkType`, `WorkStatus`, and `PublicationType`
 
 ## [[0.12.14]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.14) - 2024-11-04
 ### Changed
