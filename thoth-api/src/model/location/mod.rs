@@ -139,6 +139,13 @@ pub enum LocationPlatform {
     PublisherWebsite,
     #[cfg_attr(
         feature = "backend",
+        db_rename = "Thoth",
+        graphql(description = "Publisher CDN hosted by Thoth")
+    )]
+    #[strum(serialize = "Thoth")]
+    Thoth,
+    #[cfg_attr(
+        feature = "backend",
         db_rename = "Other",
         graphql(description = "Another platform not listed above")
     )]
@@ -313,6 +320,7 @@ fn test_locationplatform_display() {
         format!("{}", LocationPlatform::PublisherWebsite),
         "Publisher Website"
     );
+    assert_eq!(format!("{}", LocationPlatform::Thoth), "Thoth");
     assert_eq!(format!("{}", LocationPlatform::Other), "Other");
 }
 
@@ -382,6 +390,10 @@ fn test_locationplatform_fromstr() {
     assert_eq!(
         LocationPlatform::from_str("Publisher Website").unwrap(),
         LocationPlatform::PublisherWebsite
+    );
+    assert_eq!(
+        LocationPlatform::from_str("Thoth").unwrap(),
+        LocationPlatform::Thoth
     );
     assert_eq!(
         LocationPlatform::from_str("Other").unwrap(),
