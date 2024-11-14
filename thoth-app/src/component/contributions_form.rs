@@ -1,4 +1,3 @@
-use gloo_timers::callback::Timeout;
 use std::str::FromStr;
 use thoth_api::model::contribution::Contribution;
 use thoth_api::model::contribution::ContributionType;
@@ -18,9 +17,9 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::affiliations_form::AffiliationsFormComponent;
+use crate::component::contributor_select::ContributorSelectComponent;
 use crate::component::utils::FormBooleanSelect;
 use crate::component::utils::FormContributionTypeSelect;
-use crate::component::utils::FormContributorSelect;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormTextInput;
 use crate::models::contribution::contribution_types_query::FetchActionContributionTypes;
@@ -41,19 +40,12 @@ use crate::models::contribution::update_contribution_mutation::UpdateContributio
 use crate::models::contribution::update_contribution_mutation::UpdateContributionRequestBody;
 use crate::models::contribution::update_contribution_mutation::Variables as UpdateVariables;
 use crate::models::contribution::ContributionTypeValues;
-use crate::models::contributor::contributors_query::ContributorsRequest;
-use crate::models::contributor::contributors_query::ContributorsRequestBody;
-use crate::models::contributor::contributors_query::FetchActionContributors;
-use crate::models::contributor::contributors_query::FetchContributors;
-use crate::models::contributor::contributors_query::Variables;
-use crate::models::Dropdown;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EDIT_BUTTON;
 use crate::string::EMPTY_CONTRIBUTIONS;
 use crate::string::NO;
 use crate::string::REMOVE_BUTTON;
 use crate::string::YES;
-use crate::DEFAULT_DEBOUNCING_TIMEOUT;
 
 use super::ToElementValue;
 use super::ToOption;
@@ -63,33 +55,22 @@ pub struct ContributionsFormComponent {
     contribution: Contribution,
     show_modal_form: bool,
     in_edit_mode: bool,
-    show_results: bool,
-    fetch_contributors: FetchContributors,
     fetch_contribution_types: FetchContributionTypes,
     create_contribution: PushCreateContribution,
     delete_contribution: PushDeleteContribution,
     update_contribution: PushUpdateContribution,
     notification_bus: NotificationDispatcher,
-    search_callback: Callback<()>,
-    search_query: String,
-    debounce_timeout: Option<Timeout>,
 }
 
 #[derive(Default)]
 struct ContributionsFormData {
-    contributors: Vec<Contributor>,
     contribution_types: Vec<ContributionTypeValues>,
 }
 
 pub enum Msg {
     ToggleModalFormDisplay(bool, Option<Contribution>),
-    SetContributorsFetchState(FetchActionContributors),
-    GetContributors,
     SetContributionTypesFetchState(FetchActionContributionTypes),
     GetContributionTypes,
-    ToggleSearchResultDisplay(bool),
-    SearchQueryChanged(String),
-    SearchContributor,
     SetContributionCreateState(PushActionCreateContribution),
     CreateContribution,
     SetContributionUpdateState(PushActionUpdateContribution),
@@ -97,7 +78,7 @@ pub enum Msg {
     SetContributionDeleteState(PushActionDeleteContribution),
     DeleteContribution(Uuid),
     AddContribution(Contributor),
-    ChangeContributor(Uuid),
+    ChangeContributor(Contributor),
     ChangeFirstName(String),
     ChangeLastName(String),
     ChangeFullName(String),
@@ -123,25 +104,12 @@ impl Component for ContributionsFormComponent {
         let contribution: Contribution = Default::default();
         let show_modal_form = false;
         let in_edit_mode = false;
-        let show_results = false;
-        let body = ContributorsRequestBody {
-            variables: Variables {
-                limit: Some(100),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-        let request = ContributorsRequest { body };
-        let fetch_contributors = Fetch::new(request);
         let fetch_contribution_types = Default::default();
         let create_contribution = Default::default();
         let delete_contribution = Default::default();
         let update_contribution = Default::default();
         let notification_bus = NotificationBus::dispatcher();
-        let search_callback = ctx.link().callback(|_| Msg::SearchContributor);
-        let search_query: String = Default::default();
 
-        ctx.link().send_message(Msg::GetContributors);
         ctx.link().send_message(Msg::GetContributionTypes);
 
         ContributionsFormComponent {
@@ -149,16 +117,11 @@ impl Component for ContributionsFormComponent {
             contribution,
             show_modal_form,
             in_edit_mode,
-            show_results,
-            fetch_contributors,
             fetch_contribution_types,
             create_contribution,
             delete_contribution,
             update_contribution,
             notification_bus,
-            search_callback,
-            search_query,
-            debounce_timeout: None,
         }
     }
 
@@ -171,40 +134,9 @@ impl Component for ContributionsFormComponent {
                     if let Some(contribution) = c {
                         // Editing existing contribution: load its current values.
                         self.contribution = contribution;
-                        let body = ContributorsRequestBody {
-                            variables: Variables {
-                                // Dropdown shown in modal form must contain full contributor list,
-                                // in case user wants to switch between them when editing
-                                limit: Some(99999),
-                                ..Default::default()
-                            },
-                            ..Default::default()
-                        };
-                        let request = ContributorsRequest { body };
-                        self.fetch_contributors = Fetch::new(request);
-                        ctx.link().send_message(Msg::GetContributors);
                     }
                 }
                 true
-            }
-            Msg::SetContributorsFetchState(fetch_state) => {
-                self.fetch_contributors.apply(fetch_state);
-                self.data.contributors = match self.fetch_contributors.as_ref().state() {
-                    FetchState::NotFetching(_) => vec![],
-                    FetchState::Fetching(_) => vec![],
-                    FetchState::Fetched(body) => body.data.contributors.clone(),
-                    FetchState::Failed(_, _err) => vec![],
-                };
-                true
-            }
-            Msg::GetContributors => {
-                ctx.link().send_future(
-                    self.fetch_contributors
-                        .fetch(Msg::SetContributorsFetchState),
-                );
-                ctx.link()
-                    .send_message(Msg::SetContributorsFetchState(FetchAction::Fetching));
-                false
             }
             Msg::SetContributionTypesFetchState(fetch_state) => {
                 self.fetch_contribution_types.apply(fetch_state);
@@ -422,61 +354,18 @@ impl Component for ContributionsFormComponent {
                     .send_message(Msg::ToggleModalFormDisplay(true, None));
                 true
             }
-            Msg::ToggleSearchResultDisplay(value) => {
-                self.show_results = value;
-                true
-            }
-            Msg::SearchQueryChanged(value) => {
-                self.search_query = value;
-                // cancel previous timeout
-                self.debounce_timeout = self.debounce_timeout.take().and_then(|timeout| {
-                    timeout.cancel();
-                    None
-                });
-                // start new timeout
-                let search_callback = self.search_callback.clone();
-                let timeout = Timeout::new(DEFAULT_DEBOUNCING_TIMEOUT, move || {
-                    search_callback.emit(());
-                });
-                self.debounce_timeout = Some(timeout);
-                false
-            }
-            Msg::SearchContributor => {
-                let body = ContributorsRequestBody {
-                    variables: Variables {
-                        filter: Some(self.search_query.clone()),
-                        limit: Some(25),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                };
-                let request = ContributorsRequest { body };
-                self.fetch_contributors = Fetch::new(request);
-                ctx.link().send_message(Msg::GetContributors);
-                false
-            }
-            Msg::ChangeContributor(contributor_id) => {
-                // ID may be nil if placeholder option was selected.
-                // Reset contributor anyway, to keep display/underlying values in sync.
-                self.contribution.contributor_id.neq_assign(contributor_id);
-                // we already have the full list of contributors
-                if let Some(contributor) = self
-                    .data
-                    .contributors
-                    .iter()
-                    .find(|c| c.contributor_id == contributor_id)
-                {
-                    // Update user-editable name fields to default to canonical name
-                    self.contribution
-                        .first_name
-                        .neq_assign(contributor.first_name.clone());
-                    self.contribution
-                        .last_name
-                        .neq_assign(contributor.last_name.clone());
-                    self.contribution
-                        .full_name
-                        .neq_assign(contributor.full_name.clone());
-                }
+            Msg::ChangeContributor(contributor) => {
+                self.contribution.contributor_id = contributor.contributor_id;
+                // Update user-editable name fields to default to canonical name, if changed
+                self.contribution
+                    .first_name
+                    .neq_assign(contributor.first_name.clone());
+                self.contribution
+                    .last_name
+                    .neq_assign(contributor.last_name.clone());
+                self.contribution
+                    .full_name
+                    .neq_assign(contributor.full_name.clone());
                 true
             }
             Msg::ChangeFirstName(val) => {
@@ -515,41 +404,7 @@ impl Component for ContributionsFormComponent {
                     { "Contributions" }
                 </p>
                 <div class="panel-block">
-                    <div class={ self.search_dropdown_status() } style="width: 100%">
-                        <div class="dropdown-trigger" style="width: 100%">
-                            <div class="field">
-                                <p class="control is-expanded has-icons-left">
-                                    <input
-                                        class="input"
-                                        type="search"
-                                        placeholder="Search Contributor"
-                                        aria-haspopup="true"
-                                        aria-controls="contributors-menu"
-                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchQueryChanged(e.to_value())) }
-                                        onfocus={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(true)) }
-                                        onblur={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(false)) }
-                                    />
-                                    <span class="icon is-left">
-                                        <i class="fas fa-search" aria-hidden="true"></i>
-                                    </span>
-                                </p>
-                            </div>
-                        </div>
-                        <div class="dropdown-menu" id="contributors-menu" role="menu">
-                            <div class="dropdown-content">
-                                {
-                                    for self.data.contributors.iter().map(|c| {
-                                        let contributor = c.clone();
-                                        c.as_dropdown_item(
-                                            ctx.link().callback(move |_| {
-                                                Msg::AddContribution(contributor.clone())
-                                            })
-                                        )
-                                    })
-                                }
-                            </div>
-                        </div>
-                    </div>
+                    <ContributorSelectComponent callback={ctx.link().callback(Msg::AddContribution)} />
                 </div>
                 <div class={ self.modal_form_status() }>
                     <div class="modal-background" onclick={ &close_modal }></div>
@@ -564,15 +419,13 @@ impl Component for ContributionsFormComponent {
                         </header>
                         <section class="modal-card-body">
                             <form id="contributions-form" onsubmit={ self.modal_form_action(ctx) }>
-                                <FormContributorSelect
-                                    label = "Contributor"
-                                    value={ self.contribution.contributor_id }
-                                    data={ self.data.contributors.clone() }
-                                    onchange={ ctx.link().callback(|e: Event|
-                                        Msg::ChangeContributor(Uuid::parse_str(&e.to_value()).unwrap_or_default())
-                                    ) }
-                                    required = true
-                                />
+                                <div class="field">
+                                    <label class="label">{ "Contributor" }</label>
+                                    <div class="control is-expanded">
+                                        { &self.contribution.full_name }
+                                    </div>
+                                </div>
+                                <ContributorSelectComponent callback={ctx.link().callback(Msg::ChangeContributor)} />
                                 <FormTextInput
                                     label="Contributor's Given Name"
                                     value={ self.contribution.first_name.clone() }
@@ -686,13 +539,6 @@ impl ContributionsFormComponent {
                 e.prevent_default();
                 Msg::CreateContribution
             }),
-        }
-    }
-
-    fn search_dropdown_status(&self) -> String {
-        match self.show_results {
-            true => "dropdown is-active".to_string(),
-            false => "dropdown".to_string(),
         }
     }
 
