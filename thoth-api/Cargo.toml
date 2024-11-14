@@ -13,7 +13,7 @@ travis-ci = { repository = "openbookpublishers/thoth" }
 maintenance = { status = "actively-developed" }
 
 [features]
-backend = ["diesel", "diesel-derive-enum", "diesel_migrations", "futures", "actix-web", "jsonwebtoken", "redis"]
+backend = ["diesel", "diesel-derive-enum", "diesel_migrations", "futures", "actix-web", "jsonwebtoken", "deadpool-redis"]
 
 [dependencies]
 thoth-errors = { version = "=0.12.14", path = "../thoth-errors" }
@@ -21,6 +21,7 @@ actix-web = { version = "4.8", optional = true }
 argon2rs = "0.2.5"
 isbn2 = "0.4.0"
 chrono = { version = "0.4.31", features = ["serde"] }
+deadpool-redis = { version = "0.18.0", optional = true }
 diesel = { version = "2.2.3", features = ["postgres", "uuid", "chrono", "r2d2", "64-column-tables", "serde_json"], optional = true }
 diesel-derive-enum = { version = "2.1.0", features = ["postgres"], optional = true }
 diesel-derive-newtype = "2.1.2"
@@ -32,7 +33,6 @@ juniper = { version = "0.16.1", features = ["chrono", "schema-language", "uuid"]
 lazy_static = "1.5.0"
 phf = { version = "0.11", features = ["macros"] }
 rand = "0.8.5"
-redis = { version = "0.27.5", features = ["tokio-comp"], optional = true }
 regex = "1.10.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0"
