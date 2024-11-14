@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
   - Implement Redis connection pools using `deadpool-redis`
+  - Implement Redis caching in export API
   - Added `WorkLastUpdatedQuery` and `WorksLastUpdatedQuery` queries to thoth-client
   - Implement `Copy`, `Ord` and `PartialOrd` traits for `Timestamp`
   - Implement parsing from and to RFC 3339 strings for `Timestamp`
