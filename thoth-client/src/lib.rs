@@ -166,11 +166,12 @@ impl ThothClient {
     /// # Example
     ///
     /// ```no_run
+    /// # use thoth_api::model::Timestamp;
     /// # use thoth_errors::ThothResult;
     /// # use thoth_client::{ThothClient, NaiveDate};
     /// # use uuid::Uuid;
     ///
-    /// # async fn run() -> ThothResult<NaiveDate> {
+    /// # async fn run() -> ThothResult<Timestamp> {
     /// let thoth_client = ThothClient::new("https://api.thoth.pub/graphql".to_string());
     /// let publisher_id = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001")?;
     /// let work_last_updated = thoth_client.get_work_last_updated(publisher_id).await?;
@@ -197,11 +198,12 @@ impl ThothClient {
     /// # Example
     ///
     /// ```no_run
+    /// # use thoth_api::model::Timestamp;
     /// # use thoth_errors::ThothResult;
     /// # use thoth_client::{ThothClient, NaiveDate};
     /// # use uuid::Uuid;
     ///
-    /// # async fn run() -> ThothResult<NaiveDate> {
+    /// # async fn run() -> ThothResult<Timestamp> {
     /// let thoth_client = ThothClient::new("https://api.thoth.pub/graphql".to_string());
     /// let publisher_id = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001")?;
     /// let work_last_updated = thoth_client.get_works_last_updated(Some(vec![publisher_id])).await?;
