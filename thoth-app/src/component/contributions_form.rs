@@ -168,21 +168,21 @@ impl Component for ContributionsFormComponent {
                 self.show_modal_form = show_form;
                 self.in_edit_mode = c.is_some();
                 if show_form {
-                    let body = ContributorsRequestBody {
-                        variables: Variables {
-                            // Dropdown shown in modal form must contain full contributor list,
-                            // in case user is editing and wants to switch between them
-                            limit: Some(99999),
-                            ..Default::default()
-                        },
-                        ..Default::default()
-                    };
-                    let request = ContributorsRequest { body };
-                    self.fetch_contributors = Fetch::new(request);
-                    ctx.link().send_message(Msg::GetContributors);
                     if let Some(contribution) = c {
                         // Editing existing contribution: load its current values.
                         self.contribution = contribution;
+                        let body = ContributorsRequestBody {
+                            variables: Variables {
+                                // Dropdown shown in modal form must contain full contributor list,
+                                // in case user wants to switch between them when editing
+                                limit: Some(99999),
+                                ..Default::default()
+                            },
+                            ..Default::default()
+                        };
+                        let request = ContributorsRequest { body };
+                        self.fetch_contributors = Fetch::new(request);
+                        ctx.link().send_message(Msg::GetContributors);
                     }
                 }
                 true
