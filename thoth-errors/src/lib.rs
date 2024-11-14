@@ -269,9 +269,16 @@ impl From<chrono::ParseError> for ThothError {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-impl From<redis::RedisError> for ThothError {
-    fn from(e: redis::RedisError) -> Self {
+impl From<deadpool_redis::redis::RedisError> for ThothError {
+    fn from(e: deadpool_redis::redis::RedisError) -> Self {
         ThothError::RedisError(e.to_string())
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl From<deadpool_redis::PoolError> for ThothError {
+    fn from(e: deadpool_redis::PoolError) -> Self {
+        ThothError::InternalError(e.to_string())
     }
 }
 
