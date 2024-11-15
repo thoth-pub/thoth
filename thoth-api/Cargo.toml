@@ -41,4 +41,4 @@ strum = { version = "0.26.3", features = ["derive"] }
 uuid = { version = "1.10.0", features = ["serde", "v4"] }
 
 [dev-dependencies]
-cargo-husky = { version = "1.5.0", default-features = false, features = ["prepush-hook", "run-cargo-check", "run-cargo-test", "run-cargo-clippy", "run-cargo-fmt"] }
+tokio = { version = "1.41", features = ["macros"] }

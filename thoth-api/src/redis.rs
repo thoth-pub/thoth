@@ -31,3 +31,41 @@ pub async fn get(pool: &RedisPool, key: &str) -> ThothResult<String> {
     let mut con = create_connection(pool).await?;
     con.get(key).await.map_err(ThothError::from)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_init_pool() {
+        // Ensure that the pool initializes successfully
+        let pool = init_pool();
+        assert!(pool.get().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_set_and_get() {
+        let pool = init_pool();
+
+        let test_key = "test_key";
+        let test_value = "test_value";
+
+        // Test setting a key-value pair
+        let set_result = set(&pool, test_key, test_value).await;
+        assert!(set_result.is_ok());
+
+        // Test getting the value
+        let get_result = get(&pool, test_key).await;
+        assert!(get_result.is_ok());
+        assert_eq!(get_result.unwrap(), test_value);
+    }
+
+    #[tokio::test]
+    async fn test_get_nonexistent_key() {
+        let pool = init_pool();
+
+        let test_key = "nonexistent_key";
+        let get_result = get(&pool, test_key).await;
+        assert!(get_result.is_err());
+    }
+}
