@@ -149,18 +149,30 @@ impl Component for LocationsFormComponent {
                     FetchState::Fetching(_) => vec![],
                     FetchState::Fetched(body) => {
                         // remove Thoth from LocationPlatform enum for non-superusers
-                        if ctx.props().current_user.resource_access.restricted_to().is_some() {
-                            body.data.location_platforms.enum_values
+                        if ctx
+                            .props()
+                            .current_user
+                            .resource_access
+                            .restricted_to()
+                            .is_some()
+                        {
+                            body.data
+                                .location_platforms
+                                .enum_values
                                 .clone()
                                 .into_iter()
-                                .filter(|platform| *platform != LocationPlatformValues { name: LocationPlatform::Thoth })
+                                .filter(|platform| {
+                                    *platform
+                                        != LocationPlatformValues {
+                                            name: LocationPlatform::Thoth,
+                                        }
+                                })
                                 .collect()
                         } else {
                             body.data.location_platforms.enum_values.clone()
                         }
                     }
                     FetchState::Failed(_, _err) => vec![],
-
                 };
                 true
             }
@@ -478,7 +490,7 @@ impl LocationsFormComponent {
         );
         let mut edit_callback = Some(
             ctx.link()
-                .callback(move |_| Msg::ToggleModalFormDisplay(true, Some(location.clone())))
+                .callback(move |_| Msg::ToggleModalFormDisplay(true, Some(location.clone()))),
         );
         let mut delete_deactivated = false;
         let mut edit_deactivated = false;
@@ -488,7 +500,14 @@ impl LocationsFormComponent {
             delete_callback = None;
             delete_deactivated = true;
         // Restrict deleting locations with Thoth as location platform to superusers
-        } else if ctx.props().current_user.resource_access.restricted_to().is_some() && l.location_platform == LocationPlatform::Thoth {
+        } else if ctx
+            .props()
+            .current_user
+            .resource_access
+            .restricted_to()
+            .is_some()
+            && l.location_platform == LocationPlatform::Thoth
+        {
             delete_callback = None;
             delete_deactivated = true;
             edit_callback = None;
