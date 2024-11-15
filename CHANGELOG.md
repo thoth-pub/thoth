@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [651](https://github.com/thoth-pub/thoth/pull/651) - Implement `Copy`, `Ord` and `PartialOrd` traits for `Timestamp`
   - [651](https://github.com/thoth-pub/thoth/pull/651) - Implement parsing from and to RFC 3339 strings for `Timestamp`
   - [651](https://github.com/thoth-pub/thoth/pull/651) - Implement `Copy` trait for `WorkType`, `WorkStatus`, `PublicationType`, `CountryCode`, `LanguageRelation`, `LanguageCode`, `LocationPlatform`, `LengthUnit`, `WeightUnit`, `CurrencyCode`, and `SeriesType`
+  - [651](https://github.com/thoth-pub/thoth/pull/651) - Allow supplying `DATABASE_URL` as binary argument
   - [648](https://github.com/thoth-pub/thoth/issues/648) - Added new `LocationPlatform`, `THOTH`, for Locations where file is hosted directly by Thoth on S3.
 
 ## [[0.12.14]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.14) - 2024-11-04
