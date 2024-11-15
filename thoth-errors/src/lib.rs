@@ -282,6 +282,13 @@ impl From<deadpool_redis::PoolError> for ThothError {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+impl From<Box<dyn std::error::Error + Send + Sync>> for ThothError {
+    fn from(e: Box<dyn std::error::Error + Send + Sync>) -> Self {
+        ThothError::InternalError(e.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

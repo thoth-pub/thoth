@@ -21,7 +21,7 @@ pub fn run_migrations(database_url: &str) -> ThothResult<()> {
     connection
         .run_pending_migrations(MIGRATIONS)
         .map(|_| ())
-        .map_err(|error| ThothError::InternalError(error.to_string()))
+        .map_err(ThothError::from)
 }
 
 pub fn revert_migrations(database_url: &str) -> ThothResult<()> {
@@ -29,5 +29,5 @@ pub fn revert_migrations(database_url: &str) -> ThothResult<()> {
     connection
         .revert_all_migrations(MIGRATIONS)
         .map(|_| ())
-        .map_err(|error| ThothError::InternalError(error.to_string()))
+        .map_err(ThothError::from)
 }

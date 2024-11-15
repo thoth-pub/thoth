@@ -360,7 +360,7 @@ fn main() -> ThothResult<()> {
                     register(account_data, linked_publishers, &pool).map(|_| ())
                 }
                 Some(("password", _)) => {
-                    let pool = init_pool(&database_url);
+                    let pool = init_pool(database_url);
                     let all_emails =
                         all_emails(&pool).expect("No user accounts present in database.");
                     let email_selection = Select::with_theme(&ColorfulTheme::default())
