@@ -7,15 +7,13 @@ pub type RedisPool = Pool;
 type RedisConnection = Connection;
 
 pub fn init_pool() -> RedisPool {
-    Config::from_url(get_redis_url())
+    dotenv().ok();
+    let redis_url = env::var("REDIS_URL").expect("REDIS_URL must be set");
+    Config::from_url(redis_url)
         .builder()
         .expect("Failed to create redis pool.")
         .build()
         .expect("Failed to build redis pool.")
-}
-fn get_redis_url() -> String {
-    dotenv().ok();
-    env::var("REDIS_URL").expect("REDIS_URL must be set")
 }
 
 async fn create_connection(pool: &RedisPool) -> ThothResult<RedisConnection> {
@@ -50,11 +48,9 @@ mod tests {
         let test_key = "test_key";
         let test_value = "test_value";
 
-        // Test setting a key-value pair
         let set_result = set(&pool, test_key, test_value).await;
         assert!(set_result.is_ok());
 
-        // Test getting the value
         let get_result = get(&pool, test_key).await;
         assert!(get_result.is_ok());
         assert_eq!(get_result.unwrap(), test_value);
