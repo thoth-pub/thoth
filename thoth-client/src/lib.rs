@@ -189,7 +189,7 @@ impl ThothClient {
         }
     }
 
-    /// Get the last `updated_at_with_relations` date of `Work`s in Thoth
+    /// Get the last `updated_at_with_relations` date of published `Work`s in Thoth
     ///
     /// # Errors
     ///
