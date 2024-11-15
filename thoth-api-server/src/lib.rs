@@ -21,7 +21,7 @@ use thoth_api::{
     account::service::get_account,
     account::service::get_account_details,
     account::service::login,
-    db::establish_connection,
+    db::init_pool,
     db::PgPool,
     graphql::model::Context,
     graphql::model::{create_schema, Schema},
@@ -185,7 +185,7 @@ async fn account_details(
 }
 
 fn config(cfg: &mut ServiceConfig) {
-    let pool = establish_connection();
+    let pool = init_pool();
     let schema = Arc::new(create_schema());
 
     cfg.app_data(Data::new(schema.clone()));

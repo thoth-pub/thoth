@@ -4,7 +4,7 @@ use dotenv::dotenv;
 use std::env;
 use thoth::api::account::model::{AccountData, LinkedPublisher};
 use thoth::api::account::service::{all_emails, all_publishers, register, update_password};
-use thoth::api::db::{establish_connection, revert_migrations, run_migrations};
+use thoth::api::db::{init_pool, revert_migrations, run_migrations};
 use thoth::api_server;
 use thoth::app_server;
 use thoth::export_server;
@@ -280,7 +280,7 @@ fn main() -> ThothResult<()> {
         }
         Some(("account", account_matches)) => match account_matches.subcommand() {
             Some(("register", _)) => {
-                let pool = establish_connection();
+                let pool = init_pool();
 
                 let name = Input::new()
                     .with_prompt("Enter given name")
@@ -337,7 +337,7 @@ fn main() -> ThothResult<()> {
                 register(account_data, linked_publishers, &pool).map(|_| ())
             }
             Some(("password", _)) => {
-                let pool = establish_connection();
+                let pool = init_pool();
                 let all_emails = all_emails(&pool).expect("No user accounts present in database.");
                 let email_selection = Select::with_theme(&ColorfulTheme::default())
                     .items(&all_emails)
