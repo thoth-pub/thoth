@@ -441,16 +441,15 @@ macro_rules! crud_methods {
 
             let mut connection = db.get()?;
             connection.transaction(|connection| {
-                match diesel::update($entity_dsl.find(&self.pk()))
+                diesel::update($entity_dsl.find(&self.pk()))
                     .set(data)
                     .get_result(connection)
-                {
-                    Ok(c) => match self.new_history_entry(&account_id).insert(connection) {
-                        Ok(_) => Ok(c),
-                        Err(e) => Err(e),
-                    },
-                    Err(e) => Err(ThothError::from(e)),
-                }
+                    .and_then(|c| {
+                        self.new_history_entry(&account_id)
+                            .insert(connection)
+                            .map(|_| c)
+                    })
+                    .map_err(|e| ThothError::from(e))
             })
         }
 
@@ -458,10 +457,10 @@ macro_rules! crud_methods {
             use diesel::{QueryDsl, RunQueryDsl};
 
             let mut connection = db.get()?;
-            match diesel::delete($entity_dsl.find(&self.pk())).execute(&mut connection) {
-                Ok(_) => Ok(self),
-                Err(e) => Err(ThothError::from(e)),
-            }
+            diesel::delete($entity_dsl.find(&self.pk()))
+                .execute(&mut connection)
+                .map(|_| self)
+                .map_err(|e| ThothError::from(e))
         }
     };
 }

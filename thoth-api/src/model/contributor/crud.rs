@@ -83,14 +83,11 @@ impl Crud for Contributor {
                     .or(orcid.ilike(format!("%{filter}%"))),
             );
         }
-        match query
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<Contributor>(&mut connection)
-        {
-            Ok(t) => Ok(t),
-            Err(e) => Err(ThothError::from(e)),
-        }
+            .map_err(ThothError::from)
     }
 
     fn count(
@@ -117,10 +114,11 @@ impl Crud for Contributor {
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match query.count().get_result::<i64>(&mut connection) {
-            Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
-            Err(e) => Err(ThothError::from(e)),
-        }
+        query
+            .count()
+            .get_result::<i64>(&mut connection)
+            .map(|t| t.to_string().parse::<i32>().unwrap())
+            .map_err(ThothError::from)
     }
 
     fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {

@@ -78,14 +78,11 @@ impl Crud for WorkRelation {
         if !relation_types.is_empty() {
             query = query.filter(relation_type.eq_any(relation_types));
         }
-        match query
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<WorkRelation>(&mut connection)
-        {
-            Ok(t) => Ok(t),
-            Err(e) => Err(ThothError::from(e)),
-        }
+            .map_err(ThothError::from)
     }
 
     fn count(
@@ -107,10 +104,11 @@ impl Crud for WorkRelation {
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match query.count().get_result::<i64>(&mut connection) {
-            Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
-            Err(e) => Err(ThothError::from(e)),
-        }
+        query
+            .count()
+            .get_result::<i64>(&mut connection)
+            .map(|t| t.to_string().parse::<i32>().unwrap())
+            .map_err(ThothError::from)
     }
 
     // `crud_methods!` cannot be used for create(), update() or delete()
@@ -185,18 +183,15 @@ impl Crud for WorkRelation {
             diesel::update(work_relation::table.find(inverse_work_relation.work_relation_id))
                 .set(inverse_data)
                 .execute(connection)?;
-            match diesel::update(work_relation::table.find(&self.pk()))
+            diesel::update(work_relation::table.find(&self.pk()))
                 .set(data)
                 .get_result::<Self>(connection)
-            {
-                // On success, create a new history table entry.
-                // Only record the original update, not the automatic inverse update.
-                Ok(t) => match self.new_history_entry(account_id).insert(connection) {
-                    Ok(_) => Ok(t),
-                    Err(e) => Err(e),
-                },
-                Err(e) => Err(ThothError::from(e)),
-            }
+                .and_then(|t| {
+                    self.new_history_entry(account_id)
+                        .insert(connection)
+                        .map(|_| t)
+                })
+                .map_err(|e| ThothError::from(e))
         })
     }
 
@@ -210,10 +205,10 @@ impl Crud for WorkRelation {
         connection.transaction(|connection| {
             diesel::delete(work_relation::table.find(inverse_work_relation.work_relation_id))
                 .execute(connection)?;
-            match diesel::delete(work_relation::table.find(self.pk())).execute(connection) {
-                Ok(_) => Ok(self),
-                Err(e) => Err(ThothError::from(e)),
-            }
+            diesel::delete(work_relation::table.find(self.pk()))
+                .execute(connection)
+                .map(|_| self)
+                .map_err(|e| ThothError::from(e))
         })
     }
 
@@ -246,24 +241,26 @@ impl WorkRelation {
     pub fn get_inverse(&self, db: &crate::db::PgPool) -> ThothResult<Self> {
         // Every WorkRelation record must be accompanied by an 'inverse' record,
         // which represents the relation from the perspective of the related work.
-        match work_relation::table
+        work_relation::table
             .filter(
                 work_relation::relator_work_id
                     .eq(self.related_work_id)
                     .and(work_relation::related_work_id.eq(self.relator_work_id)),
             )
             .first::<WorkRelation>(&mut db.get()?)
-        {
-            // The inverse record should have the inverse relation_type,
-            // but this cannot be enforced by the database. Test for data integrity.
-            Ok(r) => match r.relation_type == self.relation_type.convert_to_inverse() {
-                true => Ok(r),
-                false => Err(ThothError::InternalError(
-                    "Found mismatched relation types for paired Work Relation objects".to_string(),
-                )),
-            },
-            Err(e) => Err(ThothError::from(e)),
-        }
+            .and_then(|r| {
+                // The inverse record should have the inverse relation_type,
+                // but this cannot be enforced by the database. Test for data integrity.
+                if r.relation_type == self.relation_type.convert_to_inverse() {
+                    Ok(r)
+                } else {
+                    Err(ThothError::InternalError(
+                        "Found mismatched relation types for paired Work Relation objects"
+                            .to_string(),
+                    ))
+                }
+            })
+            .map_err(ThothError::from)
     }
 }
 
