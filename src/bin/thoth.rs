@@ -10,6 +10,16 @@ use thoth::app_server;
 use thoth::export_server;
 use thoth_errors::ThothResult;
 
+fn database_argument() -> Arg {
+    Arg::new("db")
+        .short('D')
+        .long("database-url")
+        .value_name("DATABASE_URL")
+        .env("DATABASE_URL")
+        .help("Full postgres database url, e.g. postgres://thoth:thoth@localhost/thoth")
+        .num_args(1)
+}
+
 fn host_argument(env_value: &'static str) -> Arg {
     Arg::new("host")
         .short('H')
@@ -132,6 +142,7 @@ fn thoth_commands() -> Command {
         .subcommand(
             Command::new("migrate")
                 .about("Run the database migrations")
+                .arg(database_argument())
                 .arg(
                     Arg::new("revert")
                         .long("revert")
@@ -147,6 +158,7 @@ fn thoth_commands() -> Command {
                 .subcommand(
                     Command::new("graphql-api")
                         .about("Start the thoth GraphQL API server")
+                        .arg(database_argument())
                         .arg(host_argument("GRAPHQL_API_HOST"))
                         .arg(port_argument("8000", "GRAPHQL_API_PORT"))
                         .arg(threads_argument("GRAPHQL_API_THREADS"))
@@ -178,6 +190,7 @@ fn thoth_commands() -> Command {
         .subcommand(
             Command::new("init")
                 .about("Run the database migrations and start the thoth API server")
+                .arg(database_argument())
                 .arg(host_argument("GRAPHQL_API_HOST"))
                 .arg(port_argument("8000", "GRAPHQL_API_PORT"))
                 .arg(threads_argument("GRAPHQL_API_THREADS"))
@@ -190,6 +203,7 @@ fn thoth_commands() -> Command {
         .subcommand(
             Command::new("account")
                 .about("Manage user accounts")
+                .arg(database_argument())
                 .subcommand_required(true)
                 .arg_required_else_help(true)
                 .subcommand(Command::new("register").about("Create a new user account"))
@@ -204,6 +218,7 @@ fn main() -> ThothResult<()> {
     match thoth_commands().get_matches().subcommand() {
         Some(("start", start_matches)) => match start_matches.subcommand() {
             Some(("graphql-api", api_matches)) => {
+                let database_url = api_matches.get_one::<String>("db").unwrap().to_owned();
                 let host = api_matches.get_one::<String>("host").unwrap().to_owned();
                 let port = api_matches.get_one::<String>("port").unwrap().to_owned();
                 let threads = *api_matches.get_one::<usize>("threads").unwrap();
@@ -213,6 +228,7 @@ fn main() -> ThothResult<()> {
                 let secret_str = api_matches.get_one::<String>("key").unwrap().to_owned();
                 let session_duration = *api_matches.get_one::<i64>("duration").unwrap();
                 api_server(
+                    database_url,
                     host,
                     port,
                     threads,
@@ -249,11 +265,15 @@ fn main() -> ThothResult<()> {
             }
             _ => unreachable!(),
         },
-        Some(("migrate", migrate_matches)) => match migrate_matches.get_flag("revert") {
-            true => revert_migrations(),
-            false => run_migrations(),
-        },
+        Some(("migrate", migrate_matches)) => {
+            let database_url = migrate_matches.get_one::<String>("db").unwrap();
+            match migrate_matches.get_flag("revert") {
+                true => revert_migrations(database_url),
+                false => run_migrations(database_url),
+            }
+        }
         Some(("init", init_matches)) => {
+            let database_url = init_matches.get_one::<String>("db").unwrap().to_owned();
             let host = init_matches.get_one::<String>("host").unwrap().to_owned();
             let port = init_matches.get_one::<String>("port").unwrap().to_owned();
             let threads = *init_matches.get_one::<usize>("threads").unwrap();
@@ -265,8 +285,9 @@ fn main() -> ThothResult<()> {
             let domain = init_matches.get_one::<String>("domain").unwrap().to_owned();
             let secret_str = init_matches.get_one::<String>("key").unwrap().to_owned();
             let session_duration = *init_matches.get_one::<i64>("duration").unwrap();
-            run_migrations()?;
+            run_migrations(&database_url)?;
             api_server(
+                database_url,
                 host,
                 port,
                 threads,
@@ -278,82 +299,86 @@ fn main() -> ThothResult<()> {
             )
             .map_err(|e| e.into())
         }
-        Some(("account", account_matches)) => match account_matches.subcommand() {
-            Some(("register", _)) => {
-                let pool = init_pool();
+        Some(("account", account_matches)) => {
+            let database_url = account_matches.get_one::<String>("db").unwrap();
+            match account_matches.subcommand() {
+                Some(("register", _)) => {
+                    let pool = init_pool(database_url);
 
-                let name = Input::new()
-                    .with_prompt("Enter given name")
-                    .interact_on(&Term::stdout())?;
-                let surname = Input::new()
-                    .with_prompt("Enter family name")
-                    .interact_on(&Term::stdout())?;
-                let email = Input::new()
-                    .with_prompt("Enter email address")
-                    .interact_on(&Term::stdout())?;
-                let password = Password::new()
-                    .with_prompt("Enter password")
-                    .with_confirmation("Confirm password", "Passwords do not match")
-                    .interact_on(&Term::stdout())?;
-                let is_superuser: bool = Input::new()
-                    .with_prompt("Is this a superuser account")
-                    .default(false)
-                    .interact_on(&Term::stdout())?;
-                let is_bot: bool = Input::new()
-                    .with_prompt("Is this a bot account")
-                    .default(false)
-                    .interact_on(&Term::stdout())?;
-
-                let mut linked_publishers = vec![];
-                if let Ok(publishers) = all_publishers(&pool) {
-                    let chosen: Vec<usize> = MultiSelect::new()
-                        .items(&publishers)
-                        .with_prompt("Select publishers to link this account to")
+                    let name = Input::new()
+                        .with_prompt("Enter given name")
                         .interact_on(&Term::stdout())?;
-                    for index in chosen {
-                        let publisher = publishers.get(index).unwrap();
-                        let is_admin: bool = Input::new()
-                            .with_prompt(format!(
-                                "Make user an admin of '{}'?",
-                                publisher.publisher_name
-                            ))
-                            .default(false)
-                            .interact_on(&Term::stdout())?;
-                        let linked_publisher = LinkedPublisher {
-                            publisher_id: publisher.publisher_id,
-                            is_admin,
-                        };
-                        linked_publishers.push(linked_publisher);
-                    }
-                }
-                let account_data = AccountData {
-                    name,
-                    surname,
-                    email,
-                    password,
-                    is_superuser,
-                    is_bot,
-                };
-                register(account_data, linked_publishers, &pool).map(|_| ())
-            }
-            Some(("password", _)) => {
-                let pool = init_pool();
-                let all_emails = all_emails(&pool).expect("No user accounts present in database.");
-                let email_selection = Select::with_theme(&ColorfulTheme::default())
-                    .items(&all_emails)
-                    .default(0)
-                    .with_prompt("Select a user account")
-                    .interact_on(&Term::stdout())?;
-                let password = Password::new()
-                    .with_prompt("Enter new password")
-                    .with_confirmation("Confirm password", "Passwords do not match")
-                    .interact_on(&Term::stdout())?;
-                let email = all_emails.get(email_selection).unwrap();
+                    let surname = Input::new()
+                        .with_prompt("Enter family name")
+                        .interact_on(&Term::stdout())?;
+                    let email = Input::new()
+                        .with_prompt("Enter email address")
+                        .interact_on(&Term::stdout())?;
+                    let password = Password::new()
+                        .with_prompt("Enter password")
+                        .with_confirmation("Confirm password", "Passwords do not match")
+                        .interact_on(&Term::stdout())?;
+                    let is_superuser: bool = Input::new()
+                        .with_prompt("Is this a superuser account")
+                        .default(false)
+                        .interact_on(&Term::stdout())?;
+                    let is_bot: bool = Input::new()
+                        .with_prompt("Is this a bot account")
+                        .default(false)
+                        .interact_on(&Term::stdout())?;
 
-                update_password(email, &password, &pool).map(|_| ())
+                    let mut linked_publishers = vec![];
+                    if let Ok(publishers) = all_publishers(&pool) {
+                        let chosen: Vec<usize> = MultiSelect::new()
+                            .items(&publishers)
+                            .with_prompt("Select publishers to link this account to")
+                            .interact_on(&Term::stdout())?;
+                        for index in chosen {
+                            let publisher = publishers.get(index).unwrap();
+                            let is_admin: bool = Input::new()
+                                .with_prompt(format!(
+                                    "Make user an admin of '{}'?",
+                                    publisher.publisher_name
+                                ))
+                                .default(false)
+                                .interact_on(&Term::stdout())?;
+                            let linked_publisher = LinkedPublisher {
+                                publisher_id: publisher.publisher_id,
+                                is_admin,
+                            };
+                            linked_publishers.push(linked_publisher);
+                        }
+                    }
+                    let account_data = AccountData {
+                        name,
+                        surname,
+                        email,
+                        password,
+                        is_superuser,
+                        is_bot,
+                    };
+                    register(account_data, linked_publishers, &pool).map(|_| ())
+                }
+                Some(("password", _)) => {
+                    let pool = init_pool(&database_url);
+                    let all_emails =
+                        all_emails(&pool).expect("No user accounts present in database.");
+                    let email_selection = Select::with_theme(&ColorfulTheme::default())
+                        .items(&all_emails)
+                        .default(0)
+                        .with_prompt("Select a user account")
+                        .interact_on(&Term::stdout())?;
+                    let password = Password::new()
+                        .with_prompt("Enter new password")
+                        .with_confirmation("Confirm password", "Passwords do not match")
+                        .interact_on(&Term::stdout())?;
+                    let email = all_emails.get(email_selection).unwrap();
+
+                    update_password(email, &password, &pool).map(|_| ())
+                }
+                _ => unreachable!(),
             }
-            _ => unreachable!(),
-        },
+        }
         _ => unreachable!(),
     }
 }
