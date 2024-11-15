@@ -20,6 +20,16 @@ fn database_argument() -> Arg {
         .num_args(1)
 }
 
+fn redis_argument() -> Arg {
+    Arg::new("redis")
+        .short('R')
+        .long("redis-url")
+        .value_name("REDIS_URL")
+        .env("REDIS_URL")
+        .help("Full redis url, e.g. redis://localhost:6379")
+        .num_args(1)
+}
+
 fn host_argument(env_value: &'static str) -> Arg {
     Arg::new("host")
         .short('H')
@@ -179,6 +189,7 @@ fn thoth_commands() -> Command {
                 .subcommand(
                     Command::new("export-api")
                         .about("Start the thoth metadata export API")
+                        .arg(redis_argument())
                         .arg(host_argument("EXPORT_API_HOST"))
                         .arg(port_argument("8181", "EXPORT_API_PORT"))
                         .arg(threads_argument("EXPORT_API_THREADS"))
@@ -248,6 +259,10 @@ fn main() -> ThothResult<()> {
                 app_server(host, port, threads, keep_alive).map_err(|e| e.into())
             }
             Some(("export-api", client_matches)) => {
+                let redis_url = client_matches
+                    .get_one::<String>("redis")
+                    .unwrap()
+                    .to_owned();
                 let host = client_matches.get_one::<String>("host").unwrap().to_owned();
                 let port = client_matches.get_one::<String>("port").unwrap().to_owned();
                 let threads = *client_matches.get_one::<usize>("threads").unwrap();
@@ -260,8 +275,16 @@ fn main() -> ThothResult<()> {
                     .get_one::<String>("gql-endpoint")
                     .unwrap()
                     .to_owned();
-                export_server(host, port, threads, keep_alive, url, gql_endpoint)
-                    .map_err(|e| e.into())
+                export_server(
+                    redis_url,
+                    host,
+                    port,
+                    threads,
+                    keep_alive,
+                    url,
+                    gql_endpoint,
+                )
+                .map_err(|e| e.into())
             }
             _ => unreachable!(),
         },

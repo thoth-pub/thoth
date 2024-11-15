@@ -1,14 +1,10 @@
 use deadpool_redis::{redis::AsyncCommands, Config, Connection, Pool};
-use dotenv::dotenv;
-use std::env;
 use thoth_errors::ThothResult;
 
 pub type RedisPool = Pool;
 type RedisConnection = Connection;
 
-pub fn init_pool() -> RedisPool {
-    dotenv().ok();
-    let redis_url = env::var("REDIS_URL").expect("REDIS_URL must be set");
+pub fn init_pool(redis_url: &str) -> RedisPool {
     Config::from_url(redis_url)
         .builder()
         .expect("Failed to create redis pool.")
@@ -33,17 +29,25 @@ pub async fn get(pool: &RedisPool, key: &str) -> ThothResult<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dotenv::dotenv;
+    use std::env;
+
+    async fn get_pool() -> RedisPool {
+        dotenv().ok();
+        let redis_url = env::var("TEST_REDIS_URL").expect("TEST_REDIS_URL must be set");
+        init_pool(&redis_url)
+    }
 
     #[tokio::test]
     async fn test_init_pool() {
         // Ensure that the pool initializes successfully
-        let pool = init_pool();
+        let pool = get_pool().await;
         assert!(pool.get().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_set_and_get() {
-        let pool = init_pool();
+        let pool = get_pool().await;
 
         let test_key = "test_key";
         let test_value = "test_value";
@@ -58,7 +62,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_nonexistent_key() {
-        let pool = init_pool();
+        let pool = get_pool().await;
 
         let test_key = "nonexistent_key";
         let get_result = get(&pool, test_key).await;
