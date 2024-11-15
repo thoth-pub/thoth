@@ -444,12 +444,13 @@ macro_rules! crud_methods {
                 diesel::update($entity_dsl.find(&self.pk()))
                     .set(data)
                     .get_result(connection)
+                    .map_err(Into::into)
                     .and_then(|c| {
                         self.new_history_entry(&account_id)
                             .insert(connection)
                             .map(|_| c)
                     })
-                    .map_err(|e| ThothError::from(e))
+                    .map_err(ThothError::from)
             })
         }
 
@@ -460,7 +461,7 @@ macro_rules! crud_methods {
             diesel::delete($entity_dsl.find(&self.pk()))
                 .execute(&mut connection)
                 .map(|_| self)
-                .map_err(|e| ThothError::from(e))
+                .map_err(ThothError::from)
         }
     };
 }

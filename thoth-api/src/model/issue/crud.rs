@@ -97,7 +97,7 @@ impl Crud for Issue {
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        query
+        issue
             .count()
             .get_result::<i64>(&mut connection)
             .map(|t| t.to_string().parse::<i32>().unwrap())

@@ -186,12 +186,13 @@ impl Crud for WorkRelation {
             diesel::update(work_relation::table.find(&self.pk()))
                 .set(data)
                 .get_result::<Self>(connection)
+                .map_err(Into::into)
                 .and_then(|t| {
                     self.new_history_entry(account_id)
                         .insert(connection)
                         .map(|_| t)
                 })
-                .map_err(|e| ThothError::from(e))
+                .map_err(ThothError::from)
         })
     }
 
@@ -208,7 +209,7 @@ impl Crud for WorkRelation {
             diesel::delete(work_relation::table.find(self.pk()))
                 .execute(connection)
                 .map(|_| self)
-                .map_err(|e| ThothError::from(e))
+                .map_err(ThothError::from)
         })
     }
 
@@ -248,6 +249,7 @@ impl WorkRelation {
                     .and(work_relation::related_work_id.eq(self.relator_work_id)),
             )
             .first::<WorkRelation>(&mut db.get()?)
+            .map_err(Into::into)
             .and_then(|r| {
                 // The inverse record should have the inverse relation_type,
                 // but this cannot be enforced by the database. Test for data integrity.
