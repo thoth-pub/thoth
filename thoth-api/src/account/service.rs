@@ -125,5 +125,5 @@ pub fn update_password(email: &str, password: &str, pool: &PgPool) -> ThothResul
     diesel::update(dsl::account.find(&account_obj.account_id))
         .set(&new_password)
         .get_result(&mut connection)
-        .map_err(ThothError::from)
+        .map_err(Into::into)
 }

@@ -319,7 +319,7 @@ impl Crud for Work {
             .limit(limit.into())
             .offset(offset.into())
             .load::<Work>(&mut connection)
-            .map_err(ThothError::from)
+            .map_err(Into::into)
     }
 
     fn count(
@@ -374,7 +374,7 @@ impl Crud for Work {
             .count()
             .get_result::<i64>(&mut connection)
             .map(|t| t.to_string().parse::<i32>().unwrap())
-            .map_err(ThothError::from)
+            .map_err(Into::into)
     }
 
     fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {

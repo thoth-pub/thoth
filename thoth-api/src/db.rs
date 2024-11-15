@@ -3,7 +3,7 @@ use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::Connection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 
-use thoth_errors::{ThothError, ThothResult};
+use thoth_errors::ThothResult;
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -21,7 +21,7 @@ pub fn run_migrations(database_url: &str) -> ThothResult<()> {
     connection
         .run_pending_migrations(MIGRATIONS)
         .map(|_| ())
-        .map_err(ThothError::from)
+        .map_err(Into::into)
 }
 
 pub fn revert_migrations(database_url: &str) -> ThothResult<()> {
@@ -29,5 +29,5 @@ pub fn revert_migrations(database_url: &str) -> ThothResult<()> {
     connection
         .revert_all_migrations(MIGRATIONS)
         .map(|_| ())
-        .map_err(ThothError::from)
+        .map_err(Into::into)
 }

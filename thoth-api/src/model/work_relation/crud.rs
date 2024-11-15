@@ -82,7 +82,7 @@ impl Crud for WorkRelation {
             .limit(limit.into())
             .offset(offset.into())
             .load::<WorkRelation>(&mut connection)
-            .map_err(ThothError::from)
+            .map_err(Into::into)
     }
 
     fn count(
@@ -108,7 +108,7 @@ impl Crud for WorkRelation {
             .count()
             .get_result::<i64>(&mut connection)
             .map(|t| t.to_string().parse::<i32>().unwrap())
-            .map_err(ThothError::from)
+            .map_err(Into::into)
     }
 
     // `crud_methods!` cannot be used for create(), update() or delete()
@@ -192,7 +192,7 @@ impl Crud for WorkRelation {
                         .insert(connection)
                         .map(|_| t)
                 })
-                .map_err(ThothError::from)
+                .map_err(Into::into)
         })
     }
 
@@ -209,7 +209,7 @@ impl Crud for WorkRelation {
             diesel::delete(work_relation::table.find(self.pk()))
                 .execute(connection)
                 .map(|_| self)
-                .map_err(ThothError::from)
+                .map_err(Into::into)
         })
     }
 
@@ -262,7 +262,7 @@ impl WorkRelation {
                     ))
                 }
             })
-            .map_err(ThothError::from)
+            .map_err(Into::into)
     }
 }
 

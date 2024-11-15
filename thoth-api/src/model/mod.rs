@@ -450,7 +450,7 @@ macro_rules! crud_methods {
                             .insert(connection)
                             .map(|_| c)
                     })
-                    .map_err(ThothError::from)
+                    .map_err(Into::into)
             })
         }
 
@@ -461,7 +461,7 @@ macro_rules! crud_methods {
             diesel::delete($entity_dsl.find(&self.pk()))
                 .execute(&mut connection)
                 .map(|_| self)
-                .map_err(ThothError::from)
+                .map_err(Into::into)
         }
     };
 }

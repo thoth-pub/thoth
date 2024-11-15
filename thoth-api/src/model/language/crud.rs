@@ -8,7 +8,7 @@ use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{language, language_history};
 use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
-use thoth_errors::{ThothError, ThothResult};
+use thoth_errors::ThothResult;
 use uuid::Uuid;
 
 impl Crud for Language {
@@ -89,7 +89,7 @@ impl Crud for Language {
             .limit(limit.into())
             .offset(offset.into())
             .load::<Language>(&mut connection)
-            .map_err(ThothError::from)
+            .map_err(Into::into)
     }
 
     fn count(
@@ -117,7 +117,7 @@ impl Crud for Language {
             .count()
             .get_result::<i64>(&mut connection)
             .map(|t| t.to_string().parse::<i32>().unwrap())
-            .map_err(ThothError::from)
+            .map_err(Into::into)
     }
 
     fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {

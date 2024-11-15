@@ -1,7 +1,7 @@
 use deadpool_redis::{redis::AsyncCommands, Config, Connection, Pool};
 use dotenv::dotenv;
 use std::env;
-use thoth_errors::{ThothError, ThothResult};
+use thoth_errors::ThothResult;
 
 pub type RedisPool = Pool;
 type RedisConnection = Connection;
@@ -17,17 +17,17 @@ pub fn init_pool() -> RedisPool {
 }
 
 async fn create_connection(pool: &RedisPool) -> ThothResult<RedisConnection> {
-    pool.get().await.map_err(ThothError::from)
+    pool.get().await.map_err(Into::into)
 }
 
 pub async fn set(pool: &RedisPool, key: &str, value: &str) -> ThothResult<()> {
     let mut con = create_connection(pool).await?;
-    con.set(key, value).await.map_err(ThothError::from)
+    con.set(key, value).await.map_err(Into::into)
 }
 
 pub async fn get(pool: &RedisPool, key: &str) -> ThothResult<String> {
     let mut con = create_connection(pool).await?;
-    con.get(key).await.map_err(ThothError::from)
+    con.get(key).await.map_err(Into::into)
 }
 
 #[cfg(test)]

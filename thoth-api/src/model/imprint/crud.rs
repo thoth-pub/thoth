@@ -9,7 +9,7 @@ use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
-use thoth_errors::{ThothError, ThothResult};
+use thoth_errors::ThothResult;
 use uuid::Uuid;
 
 impl Crud for Imprint {
@@ -84,7 +84,7 @@ impl Crud for Imprint {
             .limit(limit.into())
             .offset(offset.into())
             .load::<Imprint>(&mut connection)
-            .map_err(ThothError::from)
+            .map_err(Into::into)
     }
 
     fn count(
@@ -117,7 +117,7 @@ impl Crud for Imprint {
             .count()
             .get_result::<i64>(&mut connection)
             .map(|t| t.to_string().parse::<i32>().unwrap())
-            .map_err(ThothError::from)
+            .map_err(Into::into)
     }
 
     fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
