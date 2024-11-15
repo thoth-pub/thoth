@@ -147,8 +147,20 @@ impl Component for LocationsFormComponent {
                 {
                     FetchState::NotFetching(_) => vec![],
                     FetchState::Fetching(_) => vec![],
-                    FetchState::Fetched(body) => body.data.location_platforms.enum_values.clone(),
+                    FetchState::Fetched(body) => {
+                        // remove Thoth from LocationPlatform enum for non-superusers
+                        if ctx.props().current_user.resource_access.restricted_to().is_some() {
+                            body.data.location_platforms.enum_values
+                                .clone()
+                                .into_iter()
+                                .filter(|platform| *platform != LocationPlatformValues { name: LocationPlatform::Thoth })
+                                .collect()
+                        } else {
+                            body.data.location_platforms.enum_values.clone()
+                        }
+                    }
                     FetchState::Failed(_, _err) => vec![],
+
                 };
                 true
             }
