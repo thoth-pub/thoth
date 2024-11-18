@@ -188,6 +188,8 @@ impl Crud for WorkRelation {
                 .get_result::<Self>(connection)
                 .map_err(Into::into)
                 .and_then(|t| {
+                    // On success, create a new history table entry.
+                    // Only record the original update, not the automatic inverse update.
                     self.new_history_entry(account_id)
                         .insert(connection)
                         .map(|_| t)
