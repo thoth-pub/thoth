@@ -10,7 +10,6 @@ readme = "README.md"
 build = "build.rs"
 
 [badges]
-travis-ci = { repository = "openbookpublishers/thoth" }
 maintenance = { status = "actively-developed" }
 
 [dependencies]
