@@ -127,7 +127,7 @@ The wasm APP needs to know the endpoint the API will be running at compile time,
 docker build \
     --build-arg THOTH_GRAPHQL_API=https://api.thoth.pub \
     --build-arg THOTH_EXPORT_API=https://export.thoth.pub \
-    . -t openbookpublishers/thoth
+    . -t thoth-pub/thoth
 ```
 
 ## Acknowledgements

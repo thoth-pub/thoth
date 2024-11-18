@@ -17,7 +17,7 @@ services:
     restart: unless-stopped
 
   graphql-api:
-    image: openbookpublishers/thoth
+    image: ghcr.io/thoth-pub/thoth
     container_name: "thoth_graphql_api"
     restart: unless-stopped
     env_file:
@@ -26,7 +26,7 @@ services:
       - db
 
   export-api:
-    image: openbookpublishers/thoth
+    image: ghcr.io/thoth-pub/thoth
     container_name: "thoth_export_api"
     restart: unless-stopped
     command: ["start", "export-api"]
@@ -36,7 +36,7 @@ services:
       - graphql-api
 
   app:
-    image: openbookpublishers/thoth
+    image: ghcr.io/thoth-pub/thoth
     container_name: "thoth_app"
     restart: unless-stopped
     command: ["start", "app"]
