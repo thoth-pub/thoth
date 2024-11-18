@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - [648](https://github.com/thoth-pub/thoth/issues/648) - Added new `LocationPlatform`, `THOTH`, for Locations where file is hosted directly by Thoth on S3.
 
+### Fixed
+  - [631](https://github.com/thoth-pub/thoth/issues/631) - Fix slow loading of Contributor dropdown in Contribution form
+
 ## [[0.12.14]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.14) - 2024-11-04
 ### Changed
   - [642](https://github.com/thoth-pub/thoth/issues/642) - Output `ProductAvailability` based on work status in Thoth ONIX 3.0

@@ -455,6 +455,7 @@ pub mod books;
 pub mod chapters;
 pub mod contributions_form;
 pub mod contributor;
+pub mod contributor_select;
 pub mod contributors;
 pub mod dashboard;
 pub mod delete_dialogue;
