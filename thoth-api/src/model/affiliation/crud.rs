@@ -7,7 +7,7 @@ use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{affiliation, affiliation_history};
 use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
-use thoth_errors::{ThothError, ThothResult};
+use thoth_errors::ThothResult;
 use uuid::Uuid;
 
 impl Crud for Affiliation {
@@ -84,14 +84,11 @@ impl Crud for Affiliation {
         if let Some(pid) = parent_id_2 {
             query = query.filter(contribution_id.eq(pid));
         }
-        match query
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<Affiliation>(&mut connection)
-        {
-            Ok(t) => Ok(t),
-            Err(e) => Err(ThothError::from(e)),
-        }
+            .map_err(Into::into)
     }
 
     fn count(
@@ -109,10 +106,11 @@ impl Crud for Affiliation {
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should institution until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match affiliation.count().get_result::<i64>(&mut connection) {
-            Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
-            Err(e) => Err(ThothError::from(e)),
-        }
+        affiliation
+            .count()
+            .get_result::<i64>(&mut connection)
+            .map(|t| t.to_string().parse::<i32>().unwrap())
+            .map_err(Into::into)
     }
 
     fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {

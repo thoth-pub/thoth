@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://cdn.openbookpublishers.com/thoth_logo_1141bc9a6b.png" height="400" />
+  <img src="https://cdn.thoth.pub/thoth_logo.png" height="400" />
 
   <h1>Thoth</h1>
 
@@ -127,7 +127,7 @@ The wasm APP needs to know the endpoint the API will be running at compile time,
 docker build \
     --build-arg THOTH_GRAPHQL_API=https://api.thoth.pub \
     --build-arg THOTH_EXPORT_API=https://export.thoth.pub \
-    . -t openbookpublishers/thoth
+    . -t thoth-pub/thoth
 ```
 
 ## Acknowledgements

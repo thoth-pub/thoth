@@ -1,7 +1,7 @@
 [package]
 name = "thoth"
 version = "0.12.14"
-authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
+authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
 edition = "2021"
 license = "Apache-2.0"
 description = "GraphQL API for bibliographic data"
@@ -9,7 +9,6 @@ repository = "https://github.com/thoth-pub/thoth"
 readme = "README.md"
 
 [badges]
-travis-ci = { repository = "openbookpublishers/thoth" }
 maintenance = { status = "actively-developed" }
 
 [workspace]

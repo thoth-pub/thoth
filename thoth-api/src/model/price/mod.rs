@@ -66,7 +66,9 @@ pub struct PatchPrice {
     graphql(description = "Three-letter ISO 4217 code representing a currency"),
     ExistingTypePath = "crate::schema::sql_types::CurrencyCode"
 )]
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(
+    Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display,
+)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "UPPERCASE")]
 pub enum CurrencyCode {

@@ -19,6 +19,8 @@ pub enum ThothError {
     InvalidSubjectCode(String, String),
     #[error("Database error: {0}")]
     DatabaseError(String),
+    #[error("Redis error: {0}")]
+    RedisError(String),
     #[error("{0}")]
     DatabaseConstraintError(&'static str),
     #[error("Internal error: {0}")]
@@ -35,12 +37,16 @@ pub enum ThothError {
     InvalidMetadataSpecification(String),
     #[error("Invalid UUID supplied.")]
     InvalidUuid,
+    #[error("Invalid timestamp supplied.")]
+    InvalidTimestamp,
     #[error("CSV Error: {0}")]
     CsvError(String),
     #[error("MARC Error: {0}")]
     MarcError(String),
     #[error("Could not generate {0}: {1}")]
     IncompleteMetadataRecord(String, String),
+    #[error("The metadata record has not yet been generated.")]
+    MetadataRecordNotGenerated,
     #[error("{0} is not a validly formatted ORCID and will not be saved")]
     OrcidParseError(String),
     #[error("{0} is not a validly formatted DOI and will not be saved")]
@@ -140,6 +146,9 @@ impl actix_web::error::ResponseError for ThothError {
             }
             ThothError::DatabaseError { .. } => {
                 HttpResponse::InternalServerError().json("DB error")
+            }
+            ThothError::RedisError { .. } => {
+                HttpResponse::InternalServerError().json("Redis error")
             }
             ThothError::IncompleteMetadataRecord(_, _) => {
                 HttpResponse::NotFound().json(self.to_string())
@@ -249,6 +258,33 @@ impl From<marc::Error> for ThothError {
 #[cfg(not(target_arch = "wasm32"))]
 impl From<dialoguer::Error> for ThothError {
     fn from(e: dialoguer::Error) -> Self {
+        ThothError::InternalError(e.to_string())
+    }
+}
+
+impl From<chrono::ParseError> for ThothError {
+    fn from(_: chrono::ParseError) -> Self {
+        ThothError::InvalidTimestamp
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl From<deadpool_redis::redis::RedisError> for ThothError {
+    fn from(e: deadpool_redis::redis::RedisError) -> Self {
+        ThothError::RedisError(e.to_string())
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl From<deadpool_redis::PoolError> for ThothError {
+    fn from(e: deadpool_redis::PoolError) -> Self {
+        ThothError::InternalError(e.to_string())
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl From<Box<dyn std::error::Error + Send + Sync>> for ThothError {
+    fn from(e: Box<dyn std::error::Error + Send + Sync>) -> Self {
         ThothError::InternalError(e.to_string())
     }
 }
