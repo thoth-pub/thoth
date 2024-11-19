@@ -1987,9 +1987,7 @@ impl MutationRoot {
 
         let locations = thoth_location?;
 
-        let has_canonical_thoth_location = locations.iter().any(|location| {
-            location.location_platform == LocationPlatform::Thoth && location.canonical
-        });
+        let has_canonical_thoth_location = locations.iter().any(|location| location.canonical);
         // Only superusers can update the canonical location when a Thoth Location Platform canonical location already exists
         if has_canonical_thoth_location && data.canonical && !context.account_access.is_superuser {
             return Err(ThothError::ThothUpdateCanonicalError.into());
