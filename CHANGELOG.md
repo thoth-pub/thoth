@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[0.13.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.0) - 2024-11-19
 ### Added
   - [651](https://github.com/thoth-pub/thoth/pull/651) - Implement Redis connection pools using `deadpool-redis`
   - [651](https://github.com/thoth-pub/thoth/pull/651) - Implement Redis caching in export API
@@ -16,13 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [648](https://github.com/thoth-pub/thoth/issues/648) - Added new `LocationPlatform`, `THOTH`, for Locations where file is hosted directly by Thoth on S3.
 
 ### Changed
+  - [650](https://github.com/thoth-pub/thoth/issues/650) - Allow only superusers to create/update/delete a `Location` when the `LocationPlatform` is `THOTH`.
   - [651](https://github.com/thoth-pub/thoth/pull/651) - Use Github Container registry instead of DockerHub
 
 ### Fixed
   - [631](https://github.com/thoth-pub/thoth/issues/631) - Fix slow loading of Contributor dropdown in Contribution form
-
-### Changed
-- [650](https://github.com/thoth-pub/thoth/issues/650) - Allow only superusers to create/update/delete a `Location` when the `LocationPlatform` is `THOTH`.
 
 ## [[0.12.14]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.14) - 2024-11-04
 ### Changed
