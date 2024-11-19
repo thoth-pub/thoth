@@ -148,28 +148,27 @@ impl Component for LocationsFormComponent {
                     FetchState::NotFetching(_) => vec![],
                     FetchState::Fetching(_) => vec![],
                     FetchState::Fetched(body) => {
-                        // remove Thoth from LocationPlatform enum for non-superusers
                         if ctx
                             .props()
                             .current_user
                             .resource_access
-                            .restricted_to()
-                            .is_some()
+                            .is_superuser
                         {
-                            body.data
-                                .location_platforms
-                                .enum_values
-                                .clone()
-                                .into_iter()
-                                .filter(|platform| {
-                                    *platform
-                                        != LocationPlatformValues {
-                                            name: LocationPlatform::Thoth,
-                                        }
-                                })
-                                .collect()
-                        } else {
                             body.data.location_platforms.enum_values.clone()
+                        // remove Thoth from LocationPlatform enum for non-superusers
+                        } else {
+                            body.data
+                            .location_platforms
+                            .enum_values
+                            .clone()
+                            .into_iter()
+                            .filter(|platform| {
+                                *platform
+                                    != LocationPlatformValues {
+                                        name: LocationPlatform::Thoth,
+                                    }
+                            })
+                            .collect()
                         }
                     }
                     FetchState::Failed(_, _err) => vec![],
@@ -494,18 +493,20 @@ impl LocationsFormComponent {
         );
         let mut delete_deactivated = false;
         let mut edit_deactivated = false;
+
         // If the location is canonical and other (non-canonical) locations exist, prevent it from
         // being deleted by deactivating the delete button and unsetting its callback attribute
         if l.canonical && ctx.props().locations.as_ref().unwrap_or(&vec![]).len() > 1 {
             delete_callback = None;
             delete_deactivated = true;
-        // Restrict deleting locations with Thoth as location platform to superusers
-        } else if ctx
+        
+        }
+        // If not superuser, restrict deleting and editing locations with Thoth location platform 
+        if !ctx
             .props()
             .current_user
             .resource_access
-            .restricted_to()
-            .is_some()
+            .is_superuser
             && l.location_platform == LocationPlatform::Thoth
         {
             delete_callback = None;
