@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://cdn.openbookpublishers.com/thoth_logo_1141bc9a6b.png" height="400" />
+  <img src="https://cdn.thoth.pub/thoth_logo.png" height="400" />
 
   <h1>Thoth Errors</h1>
 

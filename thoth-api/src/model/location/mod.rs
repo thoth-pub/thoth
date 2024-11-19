@@ -16,7 +16,9 @@ use crate::schema::location_history;
     graphql(description = "Platform where a publication is hosted or can be acquired"),
     ExistingTypePath = "crate::schema::sql_types::LocationPlatform"
 )]
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(
+    Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display,
+)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum LocationPlatform {
     #[cfg_attr(

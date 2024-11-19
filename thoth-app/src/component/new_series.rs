@@ -190,7 +190,7 @@ impl Component for NewSeriesComponent {
             Msg::CreateSeries => {
                 let body = CreateSeriesRequestBody {
                     variables: Variables {
-                        series_type: self.series.series_type.clone(),
+                        series_type: self.series.series_type,
                         series_name: self.series.series_name.clone(),
                         issn_print: self.series.issn_print.clone(),
                         issn_digital: self.series.issn_digital.clone(),
@@ -263,7 +263,7 @@ impl Component for NewSeriesComponent {
                 <form onsubmit={ callback }>
                     <FormSeriesTypeSelect
                         label = "Series Type"
-                        value={ self.series.series_type.clone() }
+                        value={ self.series.series_type }
                         onchange={ ctx.link().callback(|e: Event|
                             Msg::ChangeSeriesType(SeriesType::from_str(&e.to_value()).unwrap())
                         ) }

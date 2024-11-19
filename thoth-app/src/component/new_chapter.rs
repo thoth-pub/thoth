@@ -198,7 +198,7 @@ impl Component for NewChapterComponent {
                 let body = CreateWorkRequestBody {
                     variables: Variables {
                         work_type: WorkType::BookChapter,
-                        work_status: ctx.props().work.work_status.clone(),
+                        work_status: ctx.props().work.work_status,
                         full_title: self.new_chapter_title.clone(),
                         title: self.new_chapter_title.clone(),
                         publication_date: ctx.props().work.publication_date.clone(),

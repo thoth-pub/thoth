@@ -83,7 +83,7 @@ pub struct PatchInstitution {
     graphql(description = "Three-letter ISO 3166-1 code representing a country"),
     ExistingTypePath = "crate::schema::sql_types::CountryCode"
 )]
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CountryCode {
     #[cfg_attr(feature = "backend", graphql(description = "Afghanistan"))]

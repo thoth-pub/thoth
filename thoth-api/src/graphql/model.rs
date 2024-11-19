@@ -1757,7 +1757,7 @@ impl MutationRoot {
                         let mut data: PatchWork = child.clone().into();
                         data.publication_date = w.publication_date;
                         data.withdrawn_date = w.withdrawn_date;
-                        data.work_status = w.work_status.clone();
+                        data.work_status = w.work_status;
                         child.update(&context.db, &data, &account_id)?;
                     }
                 }
@@ -2596,12 +2596,12 @@ impl Work {
 
     #[graphql(description = "Date and time at which the work record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the work record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(description = "Page number on which the work begins (only applicable to chapters)")]
@@ -2625,7 +2625,7 @@ impl Work {
         description = "Date and time at which the work record or any of its linked records was last updated"
     )]
     pub fn updated_at_with_relations(&self) -> Timestamp {
-        self.updated_at_with_relations.clone()
+        self.updated_at_with_relations
     }
 
     #[graphql(description = "Get this work's imprint")]
@@ -2936,12 +2936,12 @@ impl Publication {
 
     #[graphql(description = "Date and time at which the publication record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the publication record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(
@@ -3117,12 +3117,12 @@ impl Publisher {
 
     #[graphql(description = "Date and time at which the publisher record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the publisher record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(description = "Get imprints linked to this publisher")]
@@ -3196,12 +3196,12 @@ impl Imprint {
 
     #[graphql(description = "Date and time at which the imprint record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the imprint record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(description = "Get the publisher to which this imprint belongs")]
@@ -3303,12 +3303,12 @@ impl Contributor {
 
     #[graphql(description = "Date and time at which the contributor record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the contributor record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(description = "Get contributions linked to this contributor")]
@@ -3381,12 +3381,12 @@ impl Contribution {
 
     #[graphql(description = "Date and time at which the contribution record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the contribution record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(
@@ -3509,12 +3509,12 @@ impl Series {
 
     #[graphql(description = "Date and time at which the series record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the series record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(description = "Get the imprint linked to this series")]
@@ -3577,12 +3577,12 @@ impl Issue {
 
     #[graphql(description = "Date and time at which the issue record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the issue record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(description = "Get the series to which the issue belongs")]
@@ -3627,12 +3627,12 @@ impl Language {
 
     #[graphql(description = "Date and time at which the language record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the language record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(description = "Get the work which has this language")]
@@ -3677,12 +3677,12 @@ impl Location {
 
     #[graphql(description = "Date and time at which the location record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the location record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(description = "Get the publication linked to this location")]
@@ -3717,12 +3717,12 @@ impl Price {
 
     #[graphql(description = "Date and time at which the price record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the price record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(description = "Get the publication linked to this price")]
@@ -3762,12 +3762,12 @@ impl Subject {
 
     #[graphql(description = "Date and time at which the subject record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the subject record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(description = "Get the work to which the subject is linked")]
@@ -3811,12 +3811,12 @@ impl Institution {
 
     #[graphql(description = "Date and time at which the institution record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the institution record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(description = "Get fundings linked to this institution")]
@@ -3920,12 +3920,12 @@ impl Funding {
 
     #[graphql(description = "Date and time at which the funding record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the funding record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(description = "Get the funded work")]
@@ -3972,12 +3972,12 @@ impl Affiliation {
 
     #[graphql(description = "Date and time at which the affiliation record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the affiliation record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(description = "Get the institution linked to this affiliation")]
@@ -4022,12 +4022,12 @@ impl WorkRelation {
 
     #[graphql(description = "Date and time at which the work relation record was created")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Date and time at which the work relation record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(description = "Get the other work in the relationship")]
@@ -4172,12 +4172,12 @@ impl Reference {
 
     #[graphql(description = "Timestamp of the creation of this record within Thoth.")]
     pub fn created_at(&self) -> Timestamp {
-        self.created_at.clone()
+        self.created_at
     }
 
     #[graphql(description = "Timestamp of the last update to this record within Thoth.")]
     pub fn updated_at(&self) -> Timestamp {
-        self.updated_at.clone()
+        self.updated_at
     }
 
     #[graphql(description = "The citing work.")]

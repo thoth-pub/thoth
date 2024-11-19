@@ -190,6 +190,12 @@ impl From<diesel::r2d2::PoolError> for ThothError {
     }
 }
 
+impl From<diesel::ConnectionError> for ThothError {
+    fn from(error: diesel::ConnectionError) -> ThothError {
+        ThothError::InternalError(error.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

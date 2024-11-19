@@ -294,7 +294,7 @@ impl Component for InstitutionComponent {
                         institution_name: self.institution.institution_name.clone(),
                         institution_doi: self.institution.institution_doi.clone(),
                         ror: self.institution.ror.clone(),
-                        country_code: self.institution.country_code.clone(),
+                        country_code: self.institution.country_code,
                     },
                     ..Default::default()
                 };
@@ -476,7 +476,7 @@ impl Component for InstitutionComponent {
                             />
                             <FormCountryCodeSelect
                                 label = "Country"
-                                value={ self.institution.country_code.clone() }
+                                value={ self.institution.country_code }
                                 data={ self.data.country_codes.clone() }
                                 onchange={ ctx.link().callback(|e: Event| Msg::ChangeCountryCode(e.to_value())) }
                             />

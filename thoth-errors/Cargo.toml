@@ -1,7 +1,7 @@
 [package]
 name = "thoth-errors"
 version = "0.12.14"
-authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
+authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
 edition = "2021"
 license = "Apache-2.0"
 description = "Errors library for Thoth"
@@ -9,6 +9,7 @@ repository = "https://github.com/thoth-pub/thoth"
 readme = "README.md"
 
 [dependencies]
+chrono = "0.4.31"
 thiserror = "1.0"
 reqwest = { version = "0.12", features = ["json"] }
 serde = "1.0"
@@ -18,6 +19,7 @@ yewtil = { version = "0.4.0", features = ["fetch"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 actix-web = "4.9"
+deadpool-redis = "0.18.0"
 dialoguer = { version = "0.11.0", features = ["password"] }
 diesel = "2.2.3"
 csv = "1.3.0"

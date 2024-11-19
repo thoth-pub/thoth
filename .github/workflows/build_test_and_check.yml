@@ -27,6 +27,7 @@ env:
   CARGO_TERM_COLOR: always
   THOTH_GRAPHQL_API: https://api.thoth.pub
   THOTH_EXPORT_API: https://export.thoth.pub
+  TEST_REDIS_URL: redis://localhost:6379
 
 jobs:
   build:
@@ -46,6 +47,16 @@ jobs:
         run: cargo build -vv
   test:
     runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4

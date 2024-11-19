@@ -9,8 +9,8 @@ use actix_session::config::PersistentSession;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{
     cookie::time::Duration as CookieDuration, cookie::Key, error, get, http::header,
-    middleware::Logger, post, web::Data, web::Json, web::ServiceConfig, App, Error, HttpMessage,
-    HttpRequest, HttpResponse, HttpServer, Result,
+    middleware::Logger, post, web::Data, web::Json, App, Error, HttpMessage, HttpRequest,
+    HttpResponse, HttpServer, Result,
 };
 use juniper::http::GraphQLRequest;
 use serde::Serialize;
@@ -21,7 +21,7 @@ use thoth_api::{
     account::service::get_account,
     account::service::get_account_details,
     account::service::login,
-    db::establish_connection,
+    db::init_pool,
     db::PgPool,
     graphql::model::Context,
     graphql::model::{create_schema, Schema},
@@ -184,25 +184,10 @@ async fn account_details(
         .map_err(error::ErrorUnauthorized)
 }
 
-fn config(cfg: &mut ServiceConfig) {
-    let pool = establish_connection();
-    let schema = Arc::new(create_schema());
-
-    cfg.app_data(Data::new(schema.clone()));
-    cfg.app_data(Data::new(pool));
-    cfg.service(index);
-    cfg.service(graphql_index);
-    cfg.service(graphql);
-    cfg.service(graphiql_interface);
-    cfg.service(login_credentials);
-    cfg.service(login_session);
-    cfg.service(account_details);
-    cfg.service(graphql_schema);
-}
-
 #[allow(clippy::too_many_arguments)]
 #[actix_web::main]
 pub async fn start_server(
+    database_url: String,
     host: String,
     port: String,
     threads: usize,
@@ -242,7 +227,16 @@ pub async fn start_server(
                     .supports_credentials(),
             )
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
-            .configure(config)
+            .app_data(Data::new(init_pool(&database_url)))
+            .app_data(Data::new(Arc::new(create_schema())))
+            .service(index)
+            .service(graphql_index)
+            .service(graphql)
+            .service(graphiql_interface)
+            .service(login_credentials)
+            .service(login_session)
+            .service(account_details)
+            .service(graphql_schema)
     })
     .workers(threads)
     .keep_alive(Duration::from_secs(keep_alive))
