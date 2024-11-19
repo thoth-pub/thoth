@@ -1975,18 +1975,37 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing location")] data: PatchLocation,
     ) -> FieldResult<Location> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let location = Location::from_id(&context.db, &data.location_id).unwrap();
+        let current_location = Location::from_id(&context.db, &data.location_id).unwrap();
+        let publication = Publication::from_id(&context.db, &data.publication_id).unwrap();
+        let thoth_location = publication.locations(
+            context,
+            Some(100),
+            Some(0),
+            Some(LocationOrderBy::default()),
+            Some(vec![LocationPlatform::Thoth]),
+        );
+
+        let locations = thoth_location?;
+
+        let has_canonical_thoth_location = locations.iter().any(|location| {
+            location.location_platform == LocationPlatform::Thoth && location.canonical
+        });
+        // Only superusers can update the canonical location when a Thoth Location Platform canonical location already exists
+        if has_canonical_thoth_location && data.canonical && !context.account_access.is_superuser {
+            return Err(ThothError::ThothUpdateCanonicalError.into());
+        }
+
         // Only superusers can edit locations where Location Platform is Thoth
         if !context.account_access.is_superuser
-            && location.location_platform == LocationPlatform::Thoth
+            && current_location.location_platform == LocationPlatform::Thoth
         {
             return Err(ThothError::ThothLocationError.into());
         }
         context
             .account_access
-            .can_edit(location.publisher_id(&context.db)?)?;
+            .can_edit(current_location.publisher_id(&context.db)?)?;
 
-        if data.publication_id != location.publication_id {
+        if data.publication_id != current_location.publication_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_publication_id(
@@ -2000,7 +2019,7 @@ impl MutationRoot {
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        location
+        current_location
             .update(&context.db, &data, &account_id)
             .map_err(|e| e.into())
     }

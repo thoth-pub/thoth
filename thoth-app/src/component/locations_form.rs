@@ -157,12 +157,7 @@ impl Component for LocationsFormComponent {
                                 .enum_values
                                 .clone()
                                 .into_iter()
-                                .filter(|platform| {
-                                    *platform
-                                        != LocationPlatformValues {
-                                            name: LocationPlatform::Thoth,
-                                        }
-                                })
+                                .filter(|platform| platform.name != LocationPlatform::Thoth)
                                 .collect()
                         }
                     }

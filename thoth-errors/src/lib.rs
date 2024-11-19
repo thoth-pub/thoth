@@ -99,6 +99,8 @@ pub enum ThothError {
     NoWithdrawnDateError,
     #[error("Only superusers can create, edit, or delete Locations where the Location Platform is Thoth.")]
     ThothLocationError,
+    #[error("Only superusers can update the canonical location when Thoth Location Platform is already set as canonical.")]
+    ThothUpdateCanonicalError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
