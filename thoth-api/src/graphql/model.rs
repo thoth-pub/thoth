@@ -1976,18 +1976,16 @@ impl MutationRoot {
     ) -> FieldResult<Location> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let current_location = Location::from_id(&context.db, &data.location_id).unwrap();
-        let publication = Publication::from_id(&context.db, &data.publication_id).unwrap();
-        let thoth_location = publication.locations(
-            context,
-            Some(100),
-            Some(0),
-            Some(LocationOrderBy::default()),
-            Some(vec![LocationPlatform::Thoth]),
-        );
-
-        let locations = thoth_location?;
-
-        let has_canonical_thoth_location = locations.iter().any(|location| location.canonical);
+        let has_canonical_thoth_location = Publication::from_id(&context.db, &data.publication_id)?
+            .locations(
+                context,
+                Some(1),
+                None,
+                None,
+                Some(vec![LocationPlatform::Thoth]),
+            )?
+            .first()
+            .map_or(false, |location| location.canonical);
         // Only superusers can update the canonical location when a Thoth Location Platform canonical location already exists
         if has_canonical_thoth_location && data.canonical && !context.account_access.is_superuser {
             return Err(ThothError::ThothUpdateCanonicalError.into());
