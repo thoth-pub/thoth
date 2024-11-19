@@ -217,7 +217,7 @@ impl Component for LocationsFormComponent {
                         publication_id: ctx.props().publication_id,
                         landing_page: self.location.landing_page.clone(),
                         full_text_url: self.location.full_text_url.clone(),
-                        location_platform: self.location.location_platform.clone(),
+                        location_platform: self.location.location_platform,
                         canonical: self.location.canonical,
                     },
                     ..Default::default()
@@ -272,7 +272,7 @@ impl Component for LocationsFormComponent {
                         publication_id: self.location.publication_id,
                         landing_page: self.location.landing_page.clone(),
                         full_text_url: self.location.full_text_url.clone(),
-                        location_platform: self.location.location_platform.clone(),
+                        location_platform: self.location.location_platform,
                         canonical: self.location.canonical,
                     },
                     ..Default::default()
@@ -385,7 +385,7 @@ impl Component for LocationsFormComponent {
                                 />
                                 <FormLocationPlatformSelect
                                     label = "Location Platform"
-                                    value={ self.location.location_platform.clone() }
+                                    value={ self.location.location_platform }
                                     data={ self.data.location_platforms.clone() }
                                     onchange={ ctx.link().callback(|e: Event|
                                         Msg::ChangeLocationPlatform(LocationPlatform::from_str(&e.to_value()).unwrap())

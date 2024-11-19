@@ -168,7 +168,7 @@ impl Component for WorkComponent {
         let doi = Default::default();
         let doi_warning = Default::default();
         let imprint_id = work.imprint.imprint_id;
-        let work_type = work.work_type.clone();
+        let work_type = work.work_type;
         let data: WorkFormData = Default::default();
         let resource_access = ctx.props().current_user.resource_access.clone();
         let work_id = ctx.props().work_id;
@@ -206,7 +206,7 @@ impl Component for WorkComponent {
                         // Initialise user-entered DOI variable to match DOI in database
                         self.doi = self.work.doi.clone().unwrap_or_default().to_string();
                         self.imprint_id = self.work.imprint.imprint_id;
-                        self.work_type = self.work.work_type.clone();
+                        self.work_type = self.work.work_type;
                         body.data.imprints.clone_into(&mut self.data.imprints);
                         body.data
                             .work_types
@@ -260,7 +260,7 @@ impl Component for WorkComponent {
                             self.doi = self.work.doi.clone().unwrap_or_default().to_string();
                             self.doi_warning.clear();
                             self.imprint_id = self.work.imprint.imprint_id;
-                            self.work_type = self.work.work_type.clone();
+                            self.work_type = self.work.work_type;
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
@@ -313,8 +313,8 @@ impl Component for WorkComponent {
                 let body = UpdateWorkRequestBody {
                     variables: UpdateVariables {
                         work_id: self.work.work_id,
-                        work_type: self.work.work_type.clone(),
-                        work_status: self.work.work_status.clone(),
+                        work_type: self.work.work_type,
+                        work_status: self.work.work_status,
                         full_title: self.work.full_title.clone(),
                         title: self.work.title.clone(),
                         subtitle: self.work.subtitle.clone(),
@@ -606,7 +606,7 @@ impl Component for WorkComponent {
                                 <div class="field-body">
                                     <FormWorkTypeSelect
                                         label = "Work Type"
-                                        value={ self.work.work_type.clone() }
+                                        value={ self.work.work_type }
                                         data={ self.data.work_types.clone() }
                                         deactivate={ deactivated_types.clone() }
                                         onchange={ ctx.link().callback(|e: Event|
@@ -616,7 +616,7 @@ impl Component for WorkComponent {
                                     />
                                     <FormWorkStatusSelect
                                         label = "Work Status"
-                                        value={ self.work.work_status.clone() }
+                                        value={ self.work.work_status }
                                         data={ self.data.work_statuses.clone() }
                                         onchange={ ctx.link().callback(|e: Event|
                                             Msg::ChangeWorkStatus(WorkStatus::from_str(&e.to_value()).unwrap())
@@ -866,7 +866,7 @@ impl Component for WorkComponent {
                         <PublicationsFormComponent
                             publications={ self.work.publications.clone() }
                             work_id={ self.work.work_id }
-                            work_type={ self.work_type.clone() }
+                            work_type={ self.work_type }
                             update_publications={ ctx.link().callback(Msg::UpdatePublications) }
                         />
                         <LanguagesFormComponent

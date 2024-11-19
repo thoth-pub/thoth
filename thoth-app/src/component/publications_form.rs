@@ -203,7 +203,7 @@ impl Component for PublicationsFormComponent {
                 <PublicationModalComponent
                     publication_under_edit={ self.publication_under_edit.clone() }
                     work_id={ ctx.props().work_id }
-                    work_type={ ctx.props().work_type.clone() }
+                    work_type={ ctx.props().work_type }
                     show_modal_form={ self.show_modal_form }
                     add_publication={ ctx.link().callback(Msg::AddPublication) }
                     update_publication={ ctx.link().callback(Msg::UpdatePublication) }

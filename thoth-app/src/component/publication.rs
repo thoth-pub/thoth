@@ -101,12 +101,12 @@ impl Component for PublicationComponent {
                     // Child form requires plain Publication, not PublicationWithRelations
                     true => Some(Publication {
                         publication_id: self.publication.publication_id,
-                        publication_type: self.publication.publication_type.clone(),
+                        publication_type: self.publication.publication_type,
                         work_id: self.publication.work_id,
                         isbn: self.publication.isbn.clone(),
                         // Not used by child form
                         created_at: Default::default(),
-                        updated_at: self.publication.updated_at.clone(),
+                        updated_at: self.publication.updated_at,
                         width_mm: self.publication.width_mm,
                         width_in: self.publication.width_in,
                         height_mm: self.publication.height_mm,
@@ -299,7 +299,7 @@ impl Component for PublicationComponent {
                                 <PublicationModalComponent
                                     publication_under_edit={ self.publication_under_edit.clone() }
                                     work_id={ self.publication.work.work_id }
-                                    work_type={ self.publication.work.work_type.clone() }
+                                    work_type={ self.publication.work.work_type }
                                     show_modal_form={ self.show_modal_form }
                                     add_publication={ ctx.link().callback(Msg::AddPublication) }
                                     update_publication={ ctx.link().callback(Msg::UpdatePublication) }

@@ -9,6 +9,7 @@ use thoth_api::model::Doi;
 use thoth_api::model::Isbn;
 use thoth_api::model::Orcid;
 use thoth_api::model::Ror;
+use thoth_api::model::Timestamp;
 use uuid::Uuid;
 
 // Juniper v0.16 onwards converts Rust `NaiveDate` to GraphQL scalar `Date`,
@@ -71,6 +72,24 @@ pub struct WorksQuery;
     variables_derives = "Debug,PartialEq"
 )]
 pub struct WorkCountQuery;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "assets/schema.graphql",
+    query_path = "assets/queries.graphql",
+    response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq",
+    variables_derives = "Debug,PartialEq"
+)]
+pub struct WorkLastUpdatedQuery;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "assets/schema.graphql",
+    query_path = "assets/queries.graphql",
+    response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq",
+    variables_derives = "Debug,PartialEq"
+)]
+pub struct WorksLastUpdatedQuery;
 
 // Needed to set work_query::Work as the canonical struct for the shared fragment in the two queries
 // until https://github.com/graphql-rust/graphql-client/issues/312 gets fixed

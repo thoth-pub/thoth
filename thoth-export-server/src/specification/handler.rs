@@ -1,15 +1,15 @@
+use super::model::Specification;
+use crate::data::{find_specification, ALL_SPECIFICATIONS};
+use crate::record::{MetadataRecord, MetadataSpecification};
+use crate::specification_query::SpecificationQuery;
 use actix_web::Error;
 use paperclip::actix::{
     api_v2_operation,
     web::{self, Json},
 };
-use thoth_client::{ThothClient, Work};
+use thoth_api::redis::RedisPool;
+use thoth_client::ThothClient;
 use uuid::Uuid;
-
-use super::model::Specification;
-use crate::data::{find_specification, ALL_SPECIFICATIONS};
-use crate::record::{MetadataRecord, MetadataSpecification};
-use crate::specification_query::SpecificationQuery;
 
 #[api_v2_operation(
     summary = "List supported specifications",
@@ -41,16 +41,21 @@ pub(crate) async fn get_one(
 )]
 pub(crate) async fn by_work(
     path: web::Path<(String, Uuid)>,
+    redis_pool: web::Data<RedisPool>,
     thoth_client: web::Data<ThothClient>,
-) -> Result<MetadataRecord<Vec<Work>>, Error> {
+) -> Result<MetadataRecord, Error> {
+    let thoth = thoth_client.into_inner();
     let (specification_id, work_id) = path.into_inner();
     let specification: MetadataSpecification = specification_id.parse()?;
 
-    SpecificationQuery::new(thoth_client.into_inner(), specification)
-        .by_work(work_id)
-        .await
-        .map(|data| MetadataRecord::new(work_id.to_string(), specification, vec![data]))
-        .map_err(|e| e.into())
+    let last_updated = thoth.get_work_last_updated(work_id).await?;
+    let specification_query = SpecificationQuery::by_work(thoth, work_id, specification);
+
+    let mut metadata_record = MetadataRecord::new(work_id.to_string(), specification);
+    metadata_record
+        .load_or_generate(specification_query, last_updated, redis_pool.into_inner())
+        .await?;
+    Ok(metadata_record)
 }
 
 #[api_v2_operation(
@@ -61,14 +66,21 @@ pub(crate) async fn by_work(
 )]
 pub(crate) async fn by_publisher(
     path: web::Path<(String, Uuid)>,
+    redis_pool: web::Data<RedisPool>,
     thoth_client: web::Data<ThothClient>,
-) -> Result<MetadataRecord<Vec<Work>>, Error> {
+) -> Result<MetadataRecord, Error> {
+    let thoth = thoth_client.into_inner();
     let (specification_id, publisher_id) = path.into_inner();
     let specification: MetadataSpecification = specification_id.parse()?;
 
-    SpecificationQuery::new(thoth_client.into_inner(), specification)
-        .by_publisher(publisher_id)
-        .await
-        .map(|data| MetadataRecord::new(publisher_id.to_string(), specification, data))
-        .map_err(|e| e.into())
+    let last_updated = thoth
+        .get_works_last_updated(Some(vec![publisher_id]))
+        .await?;
+    let specification_query = SpecificationQuery::by_publisher(thoth, publisher_id, specification);
+
+    let mut metadata_record = MetadataRecord::new(publisher_id.to_string(), specification);
+    metadata_record
+        .load_or_generate(specification_query, last_updated, redis_pool.into_inner())
+        .await?;
+    Ok(metadata_record)
 }

@@ -947,7 +947,7 @@ impl FormLocationPlatformSelectProps {
 
 impl FormCountryCodeSelectProps {
     fn render_countrycode(&self, c: &CountryCodeValues) -> VNode {
-        if Some(c.name.clone()) == self.value {
+        if Some(c.name) == self.value {
             html! {
                 <option value={c.name.to_string()} selected={ true }>
                     {&c.name}
