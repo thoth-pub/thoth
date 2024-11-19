@@ -16,7 +16,9 @@ use crate::schema::location_history;
     graphql(description = "Platform where a publication is hosted or can be acquired"),
     ExistingTypePath = "crate::schema::sql_types::LocationPlatform"
 )]
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(
+    Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display,
+)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum LocationPlatform {
     #[cfg_attr(
@@ -135,6 +137,13 @@ pub enum LocationPlatform {
     )]
     #[strum(serialize = "Publisher Website")]
     PublisherWebsite,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "Thoth",
+        graphql(description = "Publisher CDN hosted by Thoth")
+    )]
+    #[strum(serialize = "Thoth")]
+    Thoth,
     #[cfg_attr(
         feature = "backend",
         db_rename = "Other",
@@ -311,6 +320,7 @@ fn test_locationplatform_display() {
         format!("{}", LocationPlatform::PublisherWebsite),
         "Publisher Website"
     );
+    assert_eq!(format!("{}", LocationPlatform::Thoth), "Thoth");
     assert_eq!(format!("{}", LocationPlatform::Other), "Other");
 }
 
@@ -380,6 +390,10 @@ fn test_locationplatform_fromstr() {
     assert_eq!(
         LocationPlatform::from_str("Publisher Website").unwrap(),
         LocationPlatform::PublisherWebsite
+    );
+    assert_eq!(
+        LocationPlatform::from_str("Thoth").unwrap(),
+        LocationPlatform::Thoth
     );
     assert_eq!(
         LocationPlatform::from_str("Other").unwrap(),

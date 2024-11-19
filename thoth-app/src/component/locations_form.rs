@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::account::model::AccountDetails;
 use thoth_api::model::location::Location;
 use thoth_api::model::location::LocationPlatform;
 use thoth_errors::ThothError;
@@ -84,6 +85,7 @@ pub struct Props {
     pub locations: Option<Vec<Location>>,
     pub publication_id: Uuid,
     pub update_locations: Callback<()>,
+    pub current_user: AccountDetails,
 }
 
 impl Component for LocationsFormComponent {
@@ -145,7 +147,20 @@ impl Component for LocationsFormComponent {
                 {
                     FetchState::NotFetching(_) => vec![],
                     FetchState::Fetching(_) => vec![],
-                    FetchState::Fetched(body) => body.data.location_platforms.enum_values.clone(),
+                    FetchState::Fetched(body) => {
+                        if ctx.props().current_user.resource_access.is_superuser {
+                            body.data.location_platforms.enum_values.clone()
+                        // remove Thoth from LocationPlatform enum for non-superusers
+                        } else {
+                            body.data
+                                .location_platforms
+                                .enum_values
+                                .clone()
+                                .into_iter()
+                                .filter(|platform| platform.name != LocationPlatform::Thoth)
+                                .collect()
+                        }
+                    }
                     FetchState::Failed(_, _err) => vec![],
                 };
                 true
@@ -202,7 +217,7 @@ impl Component for LocationsFormComponent {
                         publication_id: ctx.props().publication_id,
                         landing_page: self.location.landing_page.clone(),
                         full_text_url: self.location.full_text_url.clone(),
-                        location_platform: self.location.location_platform.clone(),
+                        location_platform: self.location.location_platform,
                         canonical: self.location.canonical,
                     },
                     ..Default::default()
@@ -257,7 +272,7 @@ impl Component for LocationsFormComponent {
                         publication_id: self.location.publication_id,
                         landing_page: self.location.landing_page.clone(),
                         full_text_url: self.location.full_text_url.clone(),
-                        location_platform: self.location.location_platform.clone(),
+                        location_platform: self.location.location_platform,
                         canonical: self.location.canonical,
                     },
                     ..Default::default()
@@ -370,7 +385,7 @@ impl Component for LocationsFormComponent {
                                 />
                                 <FormLocationPlatformSelect
                                     label = "Location Platform"
-                                    value={ self.location.location_platform.clone() }
+                                    value={ self.location.location_platform }
                                     data={ self.data.location_platforms.clone() }
                                     onchange={ ctx.link().callback(|e: Event|
                                         Msg::ChangeLocationPlatform(LocationPlatform::from_str(&e.to_value()).unwrap())
@@ -462,12 +477,27 @@ impl LocationsFormComponent {
             ctx.link()
                 .callback(move |_| Msg::DeleteLocation(location_id)),
         );
+        let mut edit_callback = Some(
+            ctx.link()
+                .callback(move |_| Msg::ToggleModalFormDisplay(true, Some(location.clone()))),
+        );
         let mut delete_deactivated = false;
+        let mut edit_deactivated = false;
+
         // If the location is canonical and other (non-canonical) locations exist, prevent it from
         // being deleted by deactivating the delete button and unsetting its callback attribute
         if l.canonical && ctx.props().locations.as_ref().unwrap_or(&vec![]).len() > 1 {
             delete_callback = None;
             delete_deactivated = true;
+        }
+        // If not superuser, restrict deleting and editing locations with Thoth location platform
+        if !ctx.props().current_user.resource_access.is_superuser
+            && l.location_platform == LocationPlatform::Thoth
+        {
+            delete_callback = None;
+            delete_deactivated = true;
+            edit_callback = None;
+            edit_deactivated = true;
         }
 
         html! {
@@ -510,7 +540,8 @@ impl LocationsFormComponent {
                         <div class="control">
                             <a
                                 class="button is-success"
-                                onclick={ ctx.link().callback(move |_| Msg::ToggleModalFormDisplay(true, Some(location.clone()))) }
+                                onclick={ edit_callback }
+                                disabled={ edit_deactivated }
                             >
                                 { EDIT_BUTTON }
                             </a>

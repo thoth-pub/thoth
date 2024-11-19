@@ -21,7 +21,9 @@ use crate::schema::publication_history;
     graphql(description = "Format of a publication"),
     ExistingTypePath = "crate::schema::sql_types::PublicationType"
 )]
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(
+    Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display,
+)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublicationType {
     #[cfg_attr(

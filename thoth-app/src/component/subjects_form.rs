@@ -160,7 +160,7 @@ impl Component for SubjectsFormComponent {
                 let body = CreateSubjectRequestBody {
                     variables: Variables {
                         work_id: ctx.props().work_id,
-                        subject_type: self.new_subject.subject_type.clone(),
+                        subject_type: self.new_subject.subject_type,
                         subject_code: self.new_subject.subject_code.clone(),
                         subject_ordinal: self.new_subject.subject_ordinal,
                     },
@@ -284,7 +284,7 @@ impl Component for SubjectsFormComponent {
                             >
                                 <FormSubjectTypeSelect
                                     label = "Subject Type"
-                                    value={ self.new_subject.subject_type.clone() }
+                                    value={ self.new_subject.subject_type }
                                     data={ self.data.subject_types.clone() }
                                     onchange={ ctx.link().callback(|e: Event|
                                         Msg::ChangeSubjectType(SubjectType::from_str(&e.to_value()).unwrap())

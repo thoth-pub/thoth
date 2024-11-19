@@ -10,77 +10,98 @@ use crate::record::MetadataSpecification;
 const CONCURRENT_REQUESTS: usize = 4;
 const PAGINATION_LIMIT: i64 = 100;
 
+#[derive(Copy, Clone)]
 enum SpecificationRequest {
     ByWork,
     ByPublisher,
 }
 
+#[derive(Clone)]
 pub(crate) struct SpecificationQuery {
+    id: Uuid,
     thoth_client: Arc<ThothClient>,
-    specification: MetadataSpecification,
+    query_configuration: QueryConfiguration,
 }
 
+#[derive(Copy, Clone)]
 struct QueryConfiguration {
     request: SpecificationRequest,
     specification: MetadataSpecification,
 }
 
 impl SpecificationQuery {
-    pub(crate) fn new(
+    pub(crate) fn by_work(
         thoth_client: Arc<ThothClient>,
+        id: Uuid,
         specification: MetadataSpecification,
     ) -> Self {
+        let query_configuration = QueryConfiguration::by_work(specification);
         Self {
+            id,
             thoth_client,
-            specification,
+            query_configuration,
         }
     }
 
-    pub(crate) async fn by_work(self, work_id: Uuid) -> ThothResult<Work> {
-        let parameters: QueryParameters =
-            QueryConfiguration::by_work(self.specification).try_into()?;
-        self.thoth_client.get_work(work_id, parameters).await
+    pub(crate) fn by_publisher(
+        thoth_client: Arc<ThothClient>,
+        id: Uuid,
+        specification: MetadataSpecification,
+    ) -> Self {
+        let query_configuration = QueryConfiguration::by_publisher(specification);
+        Self {
+            id,
+            thoth_client,
+            query_configuration,
+        }
     }
 
-    pub(crate) async fn by_publisher(self, publisher_id: Uuid) -> ThothResult<Vec<Work>> {
-        let parameters: QueryParameters =
-            QueryConfiguration::by_publisher(self.specification).try_into()?;
+    pub(crate) async fn run(self) -> ThothResult<Vec<Work>> {
+        let parameters: QueryParameters = self.query_configuration.try_into()?;
+        match self.query_configuration.request {
+            SpecificationRequest::ByWork => self
+                .thoth_client
+                .get_work(self.id, parameters)
+                .await
+                .map(|w| vec![w]),
+            SpecificationRequest::ByPublisher => {
+                // get the total work count to figure out how to paginate the results
+                let work_count = self
+                    .thoth_client
+                    .get_work_count(Some(vec![self.id]))
+                    .await?;
+                // calculate total pages, rounding up to ensure all works are covered
+                let total_pages = (work_count + PAGINATION_LIMIT - 1) / PAGINATION_LIMIT;
+                // get a vector of all page offsets we will need
+                let offsets = (1..=total_pages) // inclusive upper bound
+                    .map(|current_page| (current_page - 1) * PAGINATION_LIMIT)
+                    .collect::<Vec<i64>>();
 
-        // get the total work count to figure out how to paginate the results
-        let work_count = self
-            .thoth_client
-            .get_work_count(Some(vec![publisher_id]))
-            .await?;
-        // calculate total pages, rounding up to ensure all works are covered
-        let total_pages = (work_count + PAGINATION_LIMIT - 1) / PAGINATION_LIMIT;
-        // get a vector of all page offsets we will need
-        let offsets = (1..=total_pages) // inclusive upper bound
-            .map(|current_page| (current_page - 1) * PAGINATION_LIMIT)
-            .collect::<Vec<i64>>();
+                // make concurrent requests iterating the list of offsets to asynchronously obtain all pages
+                let mut works_pages = stream::iter(offsets)
+                    .map(|offset| {
+                        let client = &self.thoth_client;
+                        async move {
+                            client
+                                .get_works(
+                                    Some(vec![self.id]),
+                                    PAGINATION_LIMIT,
+                                    offset,
+                                    parameters,
+                                )
+                                .await
+                        }
+                    })
+                    .buffer_unordered(CONCURRENT_REQUESTS);
 
-        // make concurrent requests iterating the list of offsets to asynchronously obtain all pages
-        let mut works_pages = stream::iter(offsets)
-            .map(|offset| {
-                let client = &self.thoth_client;
-                async move {
-                    client
-                        .get_works(
-                            Some(vec![publisher_id]),
-                            PAGINATION_LIMIT,
-                            offset,
-                            parameters,
-                        )
-                        .await
+                // merge all pages
+                let mut works: Vec<Work> = vec![];
+                while let Some(page) = works_pages.try_next().await? {
+                    works.extend(page);
                 }
-            })
-            .buffer_unordered(CONCURRENT_REQUESTS);
-
-        // merge all pages
-        let mut works: Vec<Work> = vec![];
-        while let Some(page) = works_pages.try_next().await? {
-            works.extend(page);
+                Ok(works)
+            }
         }
-        Ok(works)
     }
 }
 

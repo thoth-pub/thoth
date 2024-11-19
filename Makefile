@@ -10,6 +10,7 @@
 	docker-dev-build \
 	docker-dev-run \
 	docker-dev-db \
+	docker-dev-redis \
 	build \
 	test \
 	clippy \
@@ -43,6 +44,9 @@ docker-dev-run:
 
 docker-dev-db:
 	docker compose -f docker-compose.dev.yml up db
+
+docker-dev-redis:
+	docker compose -f docker-compose.dev.yml up redis
 
 build:
 	cargo build -vv

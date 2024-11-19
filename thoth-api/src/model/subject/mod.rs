@@ -21,6 +21,7 @@ use thoth_errors::ThothResult;
 )]
 #[derive(
     Debug,
+    Copy,
     Clone,
     Default,
     PartialEq,

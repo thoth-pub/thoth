@@ -1,7 +1,7 @@
 [package]
 name = "thoth-app"
-version = "0.12.14"
-authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
+version = "0.13.0"
+authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
 edition = "2021"
 license = "Apache-2.0"
 description = "WASM APP for bibliographic data"
@@ -10,7 +10,6 @@ readme = "README.md"
 build = "build.rs"
 
 [badges]
-travis-ci = { repository = "openbookpublishers/thoth" }
 maintenance = { status = "actively-developed" }
 
 [dependencies]
@@ -36,8 +35,8 @@ uuid = { version = "1.10.0", features = ["serde", "v4"] }
 # `getrandom` is a dependency of `uuid`, we need to explicitly import and include the `js` feature to enable wasm
 # https://docs.rs/getrandom/latest/getrandom/#webassembly-support
 getrandom = { version = "0.2", features = ["js"] }
-thoth-api = { version = "=0.12.14", path = "../thoth-api"  }
-thoth-errors = { version = "=0.12.14", path = "../thoth-errors" }
+thoth-api = { version = "=0.13.0", path = "../thoth-api"  }
+thoth-errors = { version = "=0.13.0", path = "../thoth-errors" }
 
 [build-dependencies]
 dotenv = "0.15.0"

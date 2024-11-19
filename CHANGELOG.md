@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.13.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.0) - 2024-11-19
+### Added
+  - [651](https://github.com/thoth-pub/thoth/pull/651) - Implement Redis connection pools using `deadpool-redis`
+  - [651](https://github.com/thoth-pub/thoth/pull/651) - Implement Redis caching in export API
+  - [651](https://github.com/thoth-pub/thoth/pull/651) - Added `WorkLastUpdatedQuery` and `WorksLastUpdatedQuery` queries to thoth-client
+  - [651](https://github.com/thoth-pub/thoth/pull/651) - Implement `Copy`, `Ord` and `PartialOrd` traits for `Timestamp`
+  - [651](https://github.com/thoth-pub/thoth/pull/651) - Implement parsing from and to RFC 3339 strings for `Timestamp`
+  - [651](https://github.com/thoth-pub/thoth/pull/651) - Implement `Copy` trait for `WorkType`, `WorkStatus`, `PublicationType`, `CountryCode`, `LanguageRelation`, `LanguageCode`, `LocationPlatform`, `LengthUnit`, `WeightUnit`, `CurrencyCode`, and `SeriesType`
+  - [651](https://github.com/thoth-pub/thoth/pull/651) - Allow supplying `DATABASE_URL` as binary argument
+  - [648](https://github.com/thoth-pub/thoth/issues/648) - Added new `LocationPlatform`, `THOTH`, for Locations where file is hosted directly by Thoth on S3.
+
+### Changed
+  - [650](https://github.com/thoth-pub/thoth/issues/650) - Allow only superusers to create/update/delete a `Location` when the `LocationPlatform` is `THOTH`.
+  - [651](https://github.com/thoth-pub/thoth/pull/651) - Use Github Container registry instead of DockerHub
+
+### Fixed
+  - [631](https://github.com/thoth-pub/thoth/issues/631) - Fix slow loading of Contributor dropdown in Contribution form
+
 ## [[0.12.14]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.14) - 2024-11-04
 ### Changed
   - [642](https://github.com/thoth-pub/thoth/issues/642) - Output `ProductAvailability` based on work status in Thoth ONIX 3.0

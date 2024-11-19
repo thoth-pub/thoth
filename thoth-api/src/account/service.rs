@@ -120,13 +120,10 @@ pub fn update_password(email: &str, password: &str, pool: &PgPool) -> ThothResul
     let account_obj = dsl::account
         .filter(dsl::email.eq(email))
         .first::<Account>(&mut connection)
-        .map_err(ThothError::from)?;
+        .map_err(Into::<ThothError>::into)?;
 
-    match diesel::update(dsl::account.find(&account_obj.account_id))
+    diesel::update(dsl::account.find(&account_obj.account_id))
         .set(&new_password)
         .get_result(&mut connection)
-    {
-        Ok(c) => Ok(c),
-        Err(e) => Err(ThothError::from(e)),
-    }
+        .map_err(Into::into)
 }

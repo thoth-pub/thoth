@@ -18,7 +18,9 @@ pub const ROR_DOMAIN: &str = "https://ror.org/";
     derive(juniper::GraphQLEnum),
     graphql(description = "Unit of measurement for physical Work dimensions (mm, cm or in)")
 )]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(
+    Debug, Copy, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display,
+)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase")]
 pub enum LengthUnit {
@@ -36,7 +38,9 @@ pub enum LengthUnit {
     derive(juniper::GraphQLEnum),
     graphql(description = "Unit of measurement for physical Work weight (grams or ounces)")
 )]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(
+    Debug, Copy, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display,
+)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase")]
 pub enum WeightUnit {
@@ -99,8 +103,19 @@ pub struct Ror(String);
         description = "RFC 3339 combined date and time in UTC time zone (e.g. \"1999-12-31T23:59:00Z\")"
     )
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Timestamp(DateTime<Utc>);
+
+impl Timestamp {
+    pub fn to_rfc3339(&self) -> String {
+        self.0.to_rfc3339()
+    }
+
+    pub fn parse_from_rfc3339(input: &str) -> ThothResult<Self> {
+        let timestamp = DateTime::parse_from_rfc3339(input)?.with_timezone(&Utc);
+        Ok(Timestamp(timestamp))
+    }
+}
 
 impl Default for Timestamp {
     fn default() -> Timestamp {
@@ -426,16 +441,16 @@ macro_rules! crud_methods {
 
             let mut connection = db.get()?;
             connection.transaction(|connection| {
-                match diesel::update($entity_dsl.find(&self.pk()))
+                diesel::update($entity_dsl.find(&self.pk()))
                     .set(data)
                     .get_result(connection)
-                {
-                    Ok(c) => match self.new_history_entry(&account_id).insert(connection) {
-                        Ok(_) => Ok(c),
-                        Err(e) => Err(e),
-                    },
-                    Err(e) => Err(ThothError::from(e)),
-                }
+                    .map_err(Into::into)
+                    .and_then(|c| {
+                        self.new_history_entry(&account_id)
+                            .insert(connection)
+                            .map(|_| c)
+                    })
+                    .map_err(Into::into)
             })
         }
 
@@ -443,10 +458,10 @@ macro_rules! crud_methods {
             use diesel::{QueryDsl, RunQueryDsl};
 
             let mut connection = db.get()?;
-            match diesel::delete($entity_dsl.find(&self.pk())).execute(&mut connection) {
-                Ok(_) => Ok(self),
-                Err(e) => Err(ThothError::from(e)),
-            }
+            diesel::delete($entity_dsl.find(&self.pk()))
+                .execute(&mut connection)
+                .map(|_| self)
+                .map_err(Into::into)
         }
     };
 }
@@ -569,453 +584,500 @@ impl IdentifierWithDomain for Doi {}
 impl IdentifierWithDomain for Orcid {}
 impl IdentifierWithDomain for Ror {}
 
-#[test]
-fn test_doi_default() {
-    let doi: Doi = Default::default();
-    assert_eq!(doi, Doi("".to_string()));
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn test_isbn_default() {
-    let isbn: Isbn = Default::default();
-    assert_eq!(isbn, Isbn("".to_string()));
-}
+    #[test]
+    fn test_doi_default() {
+        let doi: Doi = Default::default();
+        assert_eq!(doi, Doi("".to_string()));
+    }
 
-#[test]
-fn test_orcid_default() {
-    let orcid: Orcid = Default::default();
-    assert_eq!(orcid, Orcid("".to_string()));
-}
+    #[test]
+    fn test_isbn_default() {
+        let isbn: Isbn = Default::default();
+        assert_eq!(isbn, Isbn("".to_string()));
+    }
 
-#[test]
-fn test_ror_default() {
-    let ror: Ror = Default::default();
-    assert_eq!(ror, Ror("".to_string()));
-}
+    #[test]
+    fn test_orcid_default() {
+        let orcid: Orcid = Default::default();
+        assert_eq!(orcid, Orcid("".to_string()));
+    }
 
-#[test]
-fn test_timestamp_default() {
-    let stamp: Timestamp = Default::default();
-    assert_eq!(
-        stamp,
-        Timestamp(TimeZone::timestamp_opt(&Utc, 0, 0).unwrap())
-    );
-}
+    #[test]
+    fn test_ror_default() {
+        let ror: Ror = Default::default();
+        assert_eq!(ror, Ror("".to_string()));
+    }
 
-#[test]
-fn test_doi_display() {
-    let doi = Doi("https://doi.org/10.12345/Test-Suffix.01".to_string());
-    assert_eq!(format!("{doi}"), "10.12345/Test-Suffix.01");
-}
+    #[test]
+    fn test_timestamp_default() {
+        let stamp: Timestamp = Default::default();
+        assert_eq!(
+            stamp,
+            Timestamp(TimeZone::timestamp_opt(&Utc, 0, 0).unwrap())
+        );
+    }
 
-#[test]
-fn test_isbn_display() {
-    let isbn = Isbn("978-3-16-148410-0".to_string());
-    assert_eq!(format!("{isbn}"), "978-3-16-148410-0");
-}
+    #[test]
+    fn test_doi_display() {
+        let doi = Doi("https://doi.org/10.12345/Test-Suffix.01".to_string());
+        assert_eq!(format!("{doi}"), "10.12345/Test-Suffix.01");
+    }
 
-#[test]
-fn test_orcid_display() {
-    let orcid = Orcid("https://orcid.org/0000-0002-1234-5678".to_string());
-    assert_eq!(format!("{orcid}"), "0000-0002-1234-5678");
-}
+    #[test]
+    fn test_isbn_display() {
+        let isbn = Isbn("978-3-16-148410-0".to_string());
+        assert_eq!(format!("{isbn}"), "978-3-16-148410-0");
+    }
 
-#[test]
-fn test_ror_display() {
-    let ror = Ror("https://ror.org/0abcdef12".to_string());
-    assert_eq!(format!("{ror}"), "0abcdef12");
-}
+    #[test]
+    fn test_orcid_display() {
+        let orcid = Orcid("https://orcid.org/0000-0002-1234-5678".to_string());
+        assert_eq!(format!("{orcid}"), "0000-0002-1234-5678");
+    }
 
-#[test]
-fn test_timestamp_display() {
-    let stamp: Timestamp = Default::default();
-    assert_eq!(format!("{stamp}"), "1970-01-01 00:00:00");
-}
+    #[test]
+    fn test_ror_display() {
+        let ror = Ror("https://ror.org/0abcdef12".to_string());
+        assert_eq!(format!("{ror}"), "0abcdef12");
+    }
 
-#[test]
-fn test_doi_fromstr() {
-    let standardised = Doi("https://doi.org/10.12345/Test-Suffix.01".to_string());
-    assert_eq!(
-        Doi::from_str("https://doi.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("http://doi.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("doi.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("HTTPS://DOI.ORG/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("Https://DOI.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("https://www.doi.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("http://www.doi.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("www.doi.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("https://dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("http://dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("https://www.dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("http://www.dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("www.dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert!(Doi::from_str("htts://doi.org/10.12345/Test-Suffix.01").is_err());
-    assert!(Doi::from_str("https://10.12345/Test-Suffix.01").is_err());
-    assert!(Doi::from_str("https://test.org/10.12345/Test-Suffix.01").is_err());
-    assert!(Doi::from_str("http://test.org/10.12345/Test-Suffix.01").is_err());
-    assert!(Doi::from_str("test.org/10.12345/Test-Suffix.01").is_err());
-    assert!(Doi::from_str("//doi.org/10.12345/Test-Suffix.01").is_err());
-    assert!(Doi::from_str("https://doi-org/10.12345/Test-Suffix.01").is_err());
-    assert!(Doi::from_str("10.https://doi.org/12345/Test-Suffix.01").is_err());
-    assert!(Doi::from_str("http://dx.doi.org/10.2990/1471-5457(2005)24[2:tmpwac]2.0.co;2").is_ok());
-    assert!(Doi::from_str(
-        "https://doi.org/10.1002/(SICI)1098-2736(199908)36:6<637::AID-TEA4>3.0.CO;2-9"
-    )
-    .is_ok());
-    assert!(Doi::from_str(
-        "https://doi.org/10.1002/(sici)1096-8644(1996)23+<91::aid-ajpa4>3.0.co;2-c"
-    )
-    .is_ok());
-}
+    #[test]
+    fn test_timestamp_display() {
+        let stamp: Timestamp = Default::default();
+        assert_eq!(format!("{stamp}"), "1970-01-01 00:00:00");
+    }
 
-#[test]
-fn test_isbn_fromstr() {
-    // Note the `isbn2` crate contains tests of valid/invalid ISBN values -
-    // this focuses on testing that a valid ISBN in any format is standardised
-    let standardised = Isbn("978-3-16-148410-0".to_string());
-    assert_eq!(Isbn::from_str("978-3-16-148410-0").unwrap(), standardised);
-    assert_eq!(Isbn::from_str("9783161484100").unwrap(), standardised);
-    assert_eq!(Isbn::from_str("978 3 16 148410 0").unwrap(), standardised);
-    assert_eq!(Isbn::from_str("978 3 16-148410-0").unwrap(), standardised);
-    assert_eq!(Isbn::from_str("9-7-831614-8-4-100").unwrap(), standardised);
-    assert_eq!(
-        Isbn::from_str("   97831    614 84  100    ").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Isbn::from_str("---97--831614----8-4100--").unwrap(),
-        standardised
-    );
-    assert!(Isbn::from_str("978-3-16-148410-1").is_err());
-    assert!(Isbn::from_str("1234567890123").is_err());
-    assert!(Isbn::from_str("0-684-84328-5").is_err());
-    assert!(Isbn::from_str("abcdef").is_err());
-}
+    #[test]
+    fn test_doi_fromstr() {
+        let standardised = Doi("https://doi.org/10.12345/Test-Suffix.01".to_string());
+        assert_eq!(
+            Doi::from_str("https://doi.org/10.12345/Test-Suffix.01").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Doi::from_str("http://doi.org/10.12345/Test-Suffix.01").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Doi::from_str("doi.org/10.12345/Test-Suffix.01").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Doi::from_str("10.12345/Test-Suffix.01").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Doi::from_str("HTTPS://DOI.ORG/10.12345/Test-Suffix.01").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Doi::from_str("Https://DOI.org/10.12345/Test-Suffix.01").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Doi::from_str("https://www.doi.org/10.12345/Test-Suffix.01").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Doi::from_str("http://www.doi.org/10.12345/Test-Suffix.01").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Doi::from_str("www.doi.org/10.12345/Test-Suffix.01").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Doi::from_str("https://dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Doi::from_str("http://dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Doi::from_str("dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Doi::from_str("https://www.dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Doi::from_str("http://www.dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Doi::from_str("www.dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
+            standardised
+        );
+        assert!(Doi::from_str("htts://doi.org/10.12345/Test-Suffix.01").is_err());
+        assert!(Doi::from_str("https://10.12345/Test-Suffix.01").is_err());
+        assert!(Doi::from_str("https://test.org/10.12345/Test-Suffix.01").is_err());
+        assert!(Doi::from_str("http://test.org/10.12345/Test-Suffix.01").is_err());
+        assert!(Doi::from_str("test.org/10.12345/Test-Suffix.01").is_err());
+        assert!(Doi::from_str("//doi.org/10.12345/Test-Suffix.01").is_err());
+        assert!(Doi::from_str("https://doi-org/10.12345/Test-Suffix.01").is_err());
+        assert!(Doi::from_str("10.https://doi.org/12345/Test-Suffix.01").is_err());
+        assert!(
+            Doi::from_str("http://dx.doi.org/10.2990/1471-5457(2005)24[2:tmpwac]2.0.co;2").is_ok()
+        );
+        assert!(Doi::from_str(
+            "https://doi.org/10.1002/(SICI)1098-2736(199908)36:6<637::AID-TEA4>3.0.CO;2-9"
+        )
+        .is_ok());
+        assert!(Doi::from_str(
+            "https://doi.org/10.1002/(sici)1096-8644(1996)23+<91::aid-ajpa4>3.0.co;2-c"
+        )
+        .is_ok());
+    }
 
-#[test]
-fn test_orcid_fromstr() {
-    let standardised = Orcid("https://orcid.org/0000-0002-1234-5678".to_string());
-    assert_eq!(
-        Orcid::from_str("https://orcid.org/0000-0002-1234-5678").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Orcid::from_str("http://orcid.org/0000-0002-1234-5678").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Orcid::from_str("orcid.org/0000-0002-1234-5678").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Orcid::from_str("0000-0002-1234-5678").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Orcid::from_str("HTTPS://ORCID.ORG/0000-0002-1234-5678").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Orcid::from_str("Https://ORCiD.org/0000-0002-1234-5678").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Orcid::from_str("https://www.orcid.org/0000-0002-1234-5678").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Orcid::from_str("http://www.orcid.org/0000-0002-1234-5678").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Orcid::from_str("www.orcid.org/0000-0002-1234-5678").unwrap(),
-        standardised
-    );
-    assert!(Orcid::from_str("htts://orcid.org/0000-0002-1234-5678").is_err());
-    assert!(Orcid::from_str("https://0000-0002-1234-5678").is_err());
-    assert!(Orcid::from_str("https://test.org/0000-0002-1234-5678").is_err());
-    assert!(Orcid::from_str("http://test.org/0000-0002-1234-5678").is_err());
-    assert!(Orcid::from_str("test.org/0000-0002-1234-5678").is_err());
-    assert!(Orcid::from_str("//orcid.org/0000-0002-1234-5678").is_err());
-    assert!(Orcid::from_str("https://orcid-org/0000-0002-1234-5678").is_err());
-    assert!(Orcid::from_str("0000-0002-1234-5678https://orcid.org/").is_err());
-    assert!(Orcid::from_str("0009-0002-1234-567X").is_ok());
-}
+    #[test]
+    fn test_isbn_fromstr() {
+        // Note the `isbn2` crate contains tests of valid/invalid ISBN values -
+        // this focuses on testing that a valid ISBN in any format is standardised
+        let standardised = Isbn("978-3-16-148410-0".to_string());
+        assert_eq!(Isbn::from_str("978-3-16-148410-0").unwrap(), standardised);
+        assert_eq!(Isbn::from_str("9783161484100").unwrap(), standardised);
+        assert_eq!(Isbn::from_str("978 3 16 148410 0").unwrap(), standardised);
+        assert_eq!(Isbn::from_str("978 3 16-148410-0").unwrap(), standardised);
+        assert_eq!(Isbn::from_str("9-7-831614-8-4-100").unwrap(), standardised);
+        assert_eq!(
+            Isbn::from_str("   97831    614 84  100    ").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Isbn::from_str("---97--831614----8-4100--").unwrap(),
+            standardised
+        );
+        assert!(Isbn::from_str("978-3-16-148410-1").is_err());
+        assert!(Isbn::from_str("1234567890123").is_err());
+        assert!(Isbn::from_str("0-684-84328-5").is_err());
+        assert!(Isbn::from_str("abcdef").is_err());
+    }
 
-#[test]
-fn test_ror_fromstr() {
-    let standardised = Ror("https://ror.org/0abcdef12".to_string());
-    assert_eq!(
-        Ror::from_str("https://ror.org/0abcdef12").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Ror::from_str("http://ror.org/0abcdef12").unwrap(),
-        standardised
-    );
-    assert_eq!(Ror::from_str("ror.org/0abcdef12").unwrap(), standardised);
-    assert_eq!(Ror::from_str("0abcdef12").unwrap(), standardised);
-    assert_eq!(
-        Ror::from_str("HTTPS://ROR.ORG/0abcdef12").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Ror::from_str("Https://Ror.org/0abcdef12").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Ror::from_str("https://www.ror.org/0abcdef12").unwrap(),
-        standardised
-    );
-    // Testing shows that while leading http://ror and https://www.ror
-    // resolve successfully, leading www.ror and http://www.ror do not.
-    assert!(Ror::from_str("http://www.ror.org/0abcdef12").is_err());
-    assert!(Ror::from_str("www.ror.org/0abcdef12").is_err());
-    assert!(Ror::from_str("htts://ror.org/0abcdef12").is_err());
-    assert!(Ror::from_str("https://0abcdef12").is_err());
-    assert!(Ror::from_str("https://test.org/0abcdef12").is_err());
-    assert!(Ror::from_str("http://test.org/0abcdef12").is_err());
-    assert!(Ror::from_str("test.org/0abcdef12").is_err());
-    assert!(Ror::from_str("//ror.org/0abcdef12").is_err());
-    assert!(Ror::from_str("https://ror-org/0abcdef12").is_err());
-    assert!(Ror::from_str("0abcdef12https://ror.org/").is_err());
-}
+    #[test]
+    fn test_orcid_fromstr() {
+        let standardised = Orcid("https://orcid.org/0000-0002-1234-5678".to_string());
+        assert_eq!(
+            Orcid::from_str("https://orcid.org/0000-0002-1234-5678").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Orcid::from_str("http://orcid.org/0000-0002-1234-5678").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Orcid::from_str("orcid.org/0000-0002-1234-5678").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Orcid::from_str("0000-0002-1234-5678").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Orcid::from_str("HTTPS://ORCID.ORG/0000-0002-1234-5678").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Orcid::from_str("Https://ORCiD.org/0000-0002-1234-5678").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Orcid::from_str("https://www.orcid.org/0000-0002-1234-5678").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Orcid::from_str("http://www.orcid.org/0000-0002-1234-5678").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Orcid::from_str("www.orcid.org/0000-0002-1234-5678").unwrap(),
+            standardised
+        );
+        assert!(Orcid::from_str("htts://orcid.org/0000-0002-1234-5678").is_err());
+        assert!(Orcid::from_str("https://0000-0002-1234-5678").is_err());
+        assert!(Orcid::from_str("https://test.org/0000-0002-1234-5678").is_err());
+        assert!(Orcid::from_str("http://test.org/0000-0002-1234-5678").is_err());
+        assert!(Orcid::from_str("test.org/0000-0002-1234-5678").is_err());
+        assert!(Orcid::from_str("//orcid.org/0000-0002-1234-5678").is_err());
+        assert!(Orcid::from_str("https://orcid-org/0000-0002-1234-5678").is_err());
+        assert!(Orcid::from_str("0000-0002-1234-5678https://orcid.org/").is_err());
+        assert!(Orcid::from_str("0009-0002-1234-567X").is_ok());
+    }
 
-#[test]
-fn test_isbn_to_hyphenless_string() {
-    let hyphenless_isbn = Isbn("978-3-16-148410-0".to_string()).to_hyphenless_string();
-    assert_eq!(hyphenless_isbn, "9783161484100");
-}
+    #[test]
+    fn test_ror_fromstr() {
+        let standardised = Ror("https://ror.org/0abcdef12".to_string());
+        assert_eq!(
+            Ror::from_str("https://ror.org/0abcdef12").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Ror::from_str("http://ror.org/0abcdef12").unwrap(),
+            standardised
+        );
+        assert_eq!(Ror::from_str("ror.org/0abcdef12").unwrap(), standardised);
+        assert_eq!(Ror::from_str("0abcdef12").unwrap(), standardised);
+        assert_eq!(
+            Ror::from_str("HTTPS://ROR.ORG/0abcdef12").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Ror::from_str("Https://Ror.org/0abcdef12").unwrap(),
+            standardised
+        );
+        assert_eq!(
+            Ror::from_str("https://www.ror.org/0abcdef12").unwrap(),
+            standardised
+        );
+        // Testing shows that while leading http://ror and https://www.ror
+        // resolve successfully, leading www.ror and http://www.ror do not.
+        assert!(Ror::from_str("http://www.ror.org/0abcdef12").is_err());
+        assert!(Ror::from_str("www.ror.org/0abcdef12").is_err());
+        assert!(Ror::from_str("htts://ror.org/0abcdef12").is_err());
+        assert!(Ror::from_str("https://0abcdef12").is_err());
+        assert!(Ror::from_str("https://test.org/0abcdef12").is_err());
+        assert!(Ror::from_str("http://test.org/0abcdef12").is_err());
+        assert!(Ror::from_str("test.org/0abcdef12").is_err());
+        assert!(Ror::from_str("//ror.org/0abcdef12").is_err());
+        assert!(Ror::from_str("https://ror-org/0abcdef12").is_err());
+        assert!(Ror::from_str("0abcdef12https://ror.org/").is_err());
+    }
 
-#[test]
-// Float equality comparison is fine here because the floats
-// have already been rounded by the functions under test
-#[allow(clippy::float_cmp)]
-fn test_convert_length_from_to() {
-    use LengthUnit::*;
-    assert_eq!(123.456.convert_length_from_to(&Mm, &Cm), 12.3);
-    assert_eq!(123.456.convert_length_from_to(&Mm, &In), 4.86);
-    assert_eq!(123.456.convert_length_from_to(&Cm, &Mm), 1235.0);
-    assert_eq!(123.456.convert_length_from_to(&In, &Mm), 3136.0);
-    // Test some standard print sizes
-    assert_eq!(4.25.convert_length_from_to(&In, &Mm), 108.0);
-    assert_eq!(108.0.convert_length_from_to(&Mm, &In), 4.25);
-    assert_eq!(6.0.convert_length_from_to(&In, &Mm), 152.0);
-    assert_eq!(152.0.convert_length_from_to(&Mm, &In), 5.98);
-    assert_eq!(8.5.convert_length_from_to(&In, &Mm), 216.0);
-    assert_eq!(216.0.convert_length_from_to(&Mm, &In), 8.5);
-    // Test that converting and then converting back again
-    // returns a value within a reasonable margin of error
-    assert_eq!(
-        5.06.convert_length_from_to(&In, &Mm)
-            .convert_length_from_to(&Mm, &In),
-        5.08
-    );
-    assert_eq!(
-        6.5.convert_length_from_to(&In, &Mm)
-            .convert_length_from_to(&Mm, &In),
-        6.5
-    );
-    assert_eq!(
-        7.44.convert_length_from_to(&In, &Mm)
-            .convert_length_from_to(&Mm, &In),
-        7.44
-    );
-    assert_eq!(
-        8.27.convert_length_from_to(&In, &Mm)
-            .convert_length_from_to(&Mm, &In),
-        8.27
-    );
-    assert_eq!(
-        9.0.convert_length_from_to(&In, &Mm)
-            .convert_length_from_to(&Mm, &In),
-        9.02
-    );
-    assert_eq!(
-        10.88
-            .convert_length_from_to(&In, &Mm)
-            .convert_length_from_to(&Mm, &In),
-        10.87
-    );
-    assert_eq!(
-        102.0
-            .convert_length_from_to(&Mm, &In)
-            .convert_length_from_to(&In, &Mm),
-        102.0
-    );
-    assert_eq!(
-        120.0
-            .convert_length_from_to(&Mm, &In)
-            .convert_length_from_to(&In, &Mm),
-        120.0
-    );
-    assert_eq!(
-        168.0
-            .convert_length_from_to(&Mm, &In)
-            .convert_length_from_to(&In, &Mm),
-        168.0
-    );
-    assert_eq!(
-        190.0
-            .convert_length_from_to(&Mm, &In)
-            .convert_length_from_to(&In, &Mm),
-        190.0
-    );
-}
+    #[test]
+    fn test_isbn_to_hyphenless_string() {
+        let hyphenless_isbn = Isbn("978-3-16-148410-0".to_string()).to_hyphenless_string();
+        assert_eq!(hyphenless_isbn, "9783161484100");
+    }
 
-#[test]
-// Float equality comparison is fine here because the floats
-// have already been rounded by the functions under test
-#[allow(clippy::float_cmp)]
-fn test_convert_weight_from_to() {
-    use WeightUnit::*;
-    assert_eq!(123.456.convert_weight_from_to(&G, &Oz), 4.3548);
-    assert_eq!(123.456.convert_weight_from_to(&Oz, &G), 3500.0);
-    assert_eq!(4.25.convert_weight_from_to(&Oz, &G), 120.0);
-    assert_eq!(108.0.convert_weight_from_to(&G, &Oz), 3.8096);
-    assert_eq!(6.0.convert_weight_from_to(&Oz, &G), 170.0);
-    assert_eq!(152.0.convert_weight_from_to(&G, &Oz), 5.3616);
-    assert_eq!(8.5.convert_weight_from_to(&Oz, &G), 241.0);
-    assert_eq!(216.0.convert_weight_from_to(&G, &Oz), 7.6192);
-    // Test that converting and then converting back again
-    // returns a value within a reasonable margin of error
-    assert_eq!(
-        5.0.convert_weight_from_to(&Oz, &G)
-            .convert_weight_from_to(&G, &Oz),
-        5.0089
-    );
-    assert_eq!(
-        5.125
-            .convert_weight_from_to(&Oz, &G)
-            .convert_weight_from_to(&G, &Oz),
-        5.1147
-    );
-    assert_eq!(
-        6.5.convert_weight_from_to(&Oz, &G)
-            .convert_weight_from_to(&G, &Oz),
-        6.4904
-    );
-    assert_eq!(
-        7.25.convert_weight_from_to(&Oz, &G)
-            .convert_weight_from_to(&G, &Oz),
-        7.2664
-    );
-    assert_eq!(
-        7.44.convert_weight_from_to(&Oz, &G)
-            .convert_weight_from_to(&G, &Oz),
-        7.4428
-    );
-    assert_eq!(
-        8.0625
-            .convert_weight_from_to(&Oz, &G)
-            .convert_weight_from_to(&G, &Oz),
-        8.0777
-    );
-    assert_eq!(
-        9.0.convert_weight_from_to(&Oz, &G)
-            .convert_weight_from_to(&G, &Oz),
-        8.9949
-    );
-    assert_eq!(
-        10.75
-            .convert_weight_from_to(&Oz, &G)
-            .convert_weight_from_to(&G, &Oz),
-        10.7586
-    );
-    assert_eq!(
-        10.88
-            .convert_weight_from_to(&Oz, &G)
-            .convert_weight_from_to(&G, &Oz),
-        10.8644
-    );
-    assert_eq!(
-        102.0
-            .convert_weight_from_to(&G, &Oz)
-            .convert_weight_from_to(&Oz, &G),
-        102.0
-    );
-    assert_eq!(
-        120.0
-            .convert_weight_from_to(&G, &Oz)
-            .convert_weight_from_to(&Oz, &G),
-        120.0
-    );
-    assert_eq!(
-        168.0
-            .convert_weight_from_to(&G, &Oz)
-            .convert_weight_from_to(&Oz, &G),
-        168.0
-    );
-    assert_eq!(
-        190.0
-            .convert_weight_from_to(&G, &Oz)
-            .convert_weight_from_to(&Oz, &G),
-        190.0
-    );
-}
+    #[test]
+    // Float equality comparison is fine here because the floats
+    // have already been rounded by the functions under test
+    #[allow(clippy::float_cmp)]
+    fn test_convert_length_from_to() {
+        use LengthUnit::*;
+        assert_eq!(123.456.convert_length_from_to(&Mm, &Cm), 12.3);
+        assert_eq!(123.456.convert_length_from_to(&Mm, &In), 4.86);
+        assert_eq!(123.456.convert_length_from_to(&Cm, &Mm), 1235.0);
+        assert_eq!(123.456.convert_length_from_to(&In, &Mm), 3136.0);
+        // Test some standard print sizes
+        assert_eq!(4.25.convert_length_from_to(&In, &Mm), 108.0);
+        assert_eq!(108.0.convert_length_from_to(&Mm, &In), 4.25);
+        assert_eq!(6.0.convert_length_from_to(&In, &Mm), 152.0);
+        assert_eq!(152.0.convert_length_from_to(&Mm, &In), 5.98);
+        assert_eq!(8.5.convert_length_from_to(&In, &Mm), 216.0);
+        assert_eq!(216.0.convert_length_from_to(&Mm, &In), 8.5);
+        // Test that converting and then converting back again
+        // returns a value within a reasonable margin of error
+        assert_eq!(
+            5.06.convert_length_from_to(&In, &Mm)
+                .convert_length_from_to(&Mm, &In),
+            5.08
+        );
+        assert_eq!(
+            6.5.convert_length_from_to(&In, &Mm)
+                .convert_length_from_to(&Mm, &In),
+            6.5
+        );
+        assert_eq!(
+            7.44.convert_length_from_to(&In, &Mm)
+                .convert_length_from_to(&Mm, &In),
+            7.44
+        );
+        assert_eq!(
+            8.27.convert_length_from_to(&In, &Mm)
+                .convert_length_from_to(&Mm, &In),
+            8.27
+        );
+        assert_eq!(
+            9.0.convert_length_from_to(&In, &Mm)
+                .convert_length_from_to(&Mm, &In),
+            9.02
+        );
+        assert_eq!(
+            10.88
+                .convert_length_from_to(&In, &Mm)
+                .convert_length_from_to(&Mm, &In),
+            10.87
+        );
+        assert_eq!(
+            102.0
+                .convert_length_from_to(&Mm, &In)
+                .convert_length_from_to(&In, &Mm),
+            102.0
+        );
+        assert_eq!(
+            120.0
+                .convert_length_from_to(&Mm, &In)
+                .convert_length_from_to(&In, &Mm),
+            120.0
+        );
+        assert_eq!(
+            168.0
+                .convert_length_from_to(&Mm, &In)
+                .convert_length_from_to(&In, &Mm),
+            168.0
+        );
+        assert_eq!(
+            190.0
+                .convert_length_from_to(&Mm, &In)
+                .convert_length_from_to(&In, &Mm),
+            190.0
+        );
+    }
 
-#[test]
-fn test_doi_with_domain() {
-    let doi = "https://doi.org/10.12345/Test-Suffix.01";
-    assert_eq!(format!("{}", Doi(doi.to_string()).with_domain()), doi);
-}
+    #[test]
+    // Float equality comparison is fine here because the floats
+    // have already been rounded by the functions under test
+    #[allow(clippy::float_cmp)]
+    fn test_convert_weight_from_to() {
+        use WeightUnit::*;
+        assert_eq!(123.456.convert_weight_from_to(&G, &Oz), 4.3548);
+        assert_eq!(123.456.convert_weight_from_to(&Oz, &G), 3500.0);
+        assert_eq!(4.25.convert_weight_from_to(&Oz, &G), 120.0);
+        assert_eq!(108.0.convert_weight_from_to(&G, &Oz), 3.8096);
+        assert_eq!(6.0.convert_weight_from_to(&Oz, &G), 170.0);
+        assert_eq!(152.0.convert_weight_from_to(&G, &Oz), 5.3616);
+        assert_eq!(8.5.convert_weight_from_to(&Oz, &G), 241.0);
+        assert_eq!(216.0.convert_weight_from_to(&G, &Oz), 7.6192);
+        // Test that converting and then converting back again
+        // returns a value within a reasonable margin of error
+        assert_eq!(
+            5.0.convert_weight_from_to(&Oz, &G)
+                .convert_weight_from_to(&G, &Oz),
+            5.0089
+        );
+        assert_eq!(
+            5.125
+                .convert_weight_from_to(&Oz, &G)
+                .convert_weight_from_to(&G, &Oz),
+            5.1147
+        );
+        assert_eq!(
+            6.5.convert_weight_from_to(&Oz, &G)
+                .convert_weight_from_to(&G, &Oz),
+            6.4904
+        );
+        assert_eq!(
+            7.25.convert_weight_from_to(&Oz, &G)
+                .convert_weight_from_to(&G, &Oz),
+            7.2664
+        );
+        assert_eq!(
+            7.44.convert_weight_from_to(&Oz, &G)
+                .convert_weight_from_to(&G, &Oz),
+            7.4428
+        );
+        assert_eq!(
+            8.0625
+                .convert_weight_from_to(&Oz, &G)
+                .convert_weight_from_to(&G, &Oz),
+            8.0777
+        );
+        assert_eq!(
+            9.0.convert_weight_from_to(&Oz, &G)
+                .convert_weight_from_to(&G, &Oz),
+            8.9949
+        );
+        assert_eq!(
+            10.75
+                .convert_weight_from_to(&Oz, &G)
+                .convert_weight_from_to(&G, &Oz),
+            10.7586
+        );
+        assert_eq!(
+            10.88
+                .convert_weight_from_to(&Oz, &G)
+                .convert_weight_from_to(&G, &Oz),
+            10.8644
+        );
+        assert_eq!(
+            102.0
+                .convert_weight_from_to(&G, &Oz)
+                .convert_weight_from_to(&Oz, &G),
+            102.0
+        );
+        assert_eq!(
+            120.0
+                .convert_weight_from_to(&G, &Oz)
+                .convert_weight_from_to(&Oz, &G),
+            120.0
+        );
+        assert_eq!(
+            168.0
+                .convert_weight_from_to(&G, &Oz)
+                .convert_weight_from_to(&Oz, &G),
+            168.0
+        );
+        assert_eq!(
+            190.0
+                .convert_weight_from_to(&G, &Oz)
+                .convert_weight_from_to(&Oz, &G),
+            190.0
+        );
+    }
 
-#[test]
-fn test_orcid_with_domain() {
-    let orcid = "https://orcid.org/0000-0002-1234-5678";
-    assert_eq!(format!("{}", Orcid(orcid.to_string()).with_domain()), orcid);
-}
+    #[test]
+    fn test_doi_with_domain() {
+        let doi = "https://doi.org/10.12345/Test-Suffix.01";
+        assert_eq!(format!("{}", Doi(doi.to_string()).with_domain()), doi);
+    }
 
-#[test]
-fn test_ror_with_domain() {
-    let ror = "https://ror.org/0abcdef12";
-    assert_eq!(format!("{}", Ror(ror.to_string()).with_domain()), ror);
+    #[test]
+    fn test_orcid_with_domain() {
+        let orcid = "https://orcid.org/0000-0002-1234-5678";
+        assert_eq!(format!("{}", Orcid(orcid.to_string()).with_domain()), orcid);
+    }
+
+    #[test]
+    fn test_ror_with_domain() {
+        let ror = "https://ror.org/0abcdef12";
+        assert_eq!(format!("{}", Ror(ror.to_string()).with_domain()), ror);
+    }
+
+    #[test]
+    fn test_timestamp_parse_from_rfc3339_valid() {
+        let input = "1999-12-31T23:59:00Z";
+        let timestamp = Timestamp::parse_from_rfc3339(input);
+        assert!(timestamp.is_ok());
+
+        let expected = Timestamp(Utc.with_ymd_and_hms(1999, 12, 31, 23, 59, 0).unwrap());
+        assert_eq!(timestamp.unwrap(), expected);
+    }
+
+    #[test]
+    fn test_timestamp_parse_from_rfc3339_invalid_format() {
+        let input = "1999-12-31 23:59:00"; // Missing 'T' and 'Z'
+        let timestamp = Timestamp::parse_from_rfc3339(input);
+        assert!(timestamp.is_err());
+    }
+
+    #[test]
+    fn test_timestamp_parse_from_rfc3339_invalid_date() {
+        let input = "1999-02-30T23:59:00Z"; // Invalid date
+        let timestamp = Timestamp::parse_from_rfc3339(input);
+        assert!(timestamp.is_err());
+    }
+
+    #[test]
+    fn test_timestamp_to_rfc3339() {
+        let timestamp = Timestamp(Utc.with_ymd_and_hms(1999, 12, 31, 23, 59, 0).unwrap());
+        assert_eq!(timestamp.to_rfc3339(), "1999-12-31T23:59:00+00:00");
+    }
+
+    #[test]
+    fn test_timestamp_round_trip_rfc3339_conversion() {
+        let original_string = "2023-11-13T12:34:56Z";
+        let timestamp = Timestamp::parse_from_rfc3339(original_string).unwrap();
+        let converted_string = timestamp.to_rfc3339();
+
+        let round_trip_timestamp = Timestamp::parse_from_rfc3339(&converted_string).unwrap();
+        assert_eq!(timestamp, round_trip_timestamp);
+    }
 }
 
 pub mod affiliation;

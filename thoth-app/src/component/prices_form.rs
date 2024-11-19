@@ -159,7 +159,7 @@ impl Component for PricesFormComponent {
                 let body = CreatePriceRequestBody {
                     variables: Variables {
                         publication_id: ctx.props().publication_id,
-                        currency_code: self.new_price.currency_code.clone(),
+                        currency_code: self.new_price.currency_code,
                         unit_price: self.new_price.unit_price,
                     },
                     ..Default::default()
@@ -270,7 +270,7 @@ impl Component for PricesFormComponent {
                             >
                                 <FormCurrencyCodeSelect
                                     label = "Price Code"
-                                    value={ self.new_price.currency_code.clone() }
+                                    value={ self.new_price.currency_code }
                                     data={ self.data.currency_codes.clone() }
                                     onchange={ ctx.link().callback(|e: Event|
                                         Msg::ChangeCurrencyCode(CurrencyCode::from_str(&e.to_value()).unwrap())
