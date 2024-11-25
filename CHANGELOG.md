@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+  - Add database indexes to common attributes to improve performance
 
 ## [[0.13.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.1) - 2024-11-25
 ### Added
