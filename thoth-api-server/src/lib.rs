@@ -1,36 +1,34 @@
 mod graphiql;
+mod logger;
 
-use std::time::Duration;
-use std::{io, sync::Arc};
+use std::{io, sync::Arc, time::Duration};
 
 use actix_cors::Cors;
 use actix_identity::{Identity, IdentityMiddleware};
-use actix_session::config::PersistentSession;
-use actix_session::{storage::CookieSessionStore, SessionMiddleware};
+use actix_session::{config::PersistentSession, storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{
-    cookie::time::Duration as CookieDuration, cookie::Key, error, get, http::header,
-    middleware::Logger, post, web::Data, web::Json, App, Error, HttpMessage, HttpRequest,
-    HttpResponse, HttpServer, Result,
+    cookie::{time::Duration as CookieDuration, Key},
+    error, get,
+    http::header,
+    middleware::Compress,
+    post,
+    web::{Data, Json},
+    App, Error, HttpMessage, HttpRequest, HttpResponse, HttpServer, Result,
 };
-use juniper::http::GraphQLRequest;
 use serde::Serialize;
 use thoth_api::{
-    account::model::AccountDetails,
-    account::model::DecodedToken,
-    account::model::LoginCredentials,
-    account::service::get_account,
-    account::service::get_account_details,
-    account::service::login,
-    db::init_pool,
-    db::PgPool,
-    graphql::model::Context,
-    graphql::model::{create_schema, Schema},
+    account::model::{AccountDetails, DecodedToken, LoginCredentials},
+    account::service::{get_account, get_account_details, login},
+    db::{init_pool, PgPool},
+    graphql::{
+        model::{create_schema, Context, Schema},
+        GraphQLRequest,
+    },
 };
 use thoth_errors::ThothError;
 
 use crate::graphiql::graphiql_source;
-
-const LOG_FORMAT: &str = r#"%{r}a %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#;
+use crate::logger::{BodyLogger, Logger};
 
 #[derive(Serialize)]
 struct ApiConfig {
@@ -201,7 +199,9 @@ pub async fn start_server(
 
     HttpServer::new(move || {
         App::new()
-            .wrap(Logger::new(LOG_FORMAT))
+            .wrap(Compress::default())
+            .wrap(Logger::default())
+            .wrap(BodyLogger)
             .wrap(IdentityMiddleware::default())
             .wrap(
                 SessionMiddleware::builder(
