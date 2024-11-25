@@ -70,8 +70,8 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/graphiql@3.2/graphiql.min.js" type="application/javascript"></script>
     <link rel="stylesheet" href="https://unpkg.com/graphiql@3.2/graphiql.min.css" />
-    <script crossorigin src="https://unpkg.com/@graphiql/plugin-explorer@2/dist/index.umd.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/@graphiql/plugin-explorer@2/dist/style.css"/>
+    <script crossorigin src="https://unpkg.com/@graphiql/plugin-explorer@3/dist/index.umd.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@graphiql/plugin-explorer@3/dist/style.css"/>
     <style>
      .graphiql-container,
       .CodeMirror-info,
