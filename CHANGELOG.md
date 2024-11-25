@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-  - Add database indexes to common attributes to improve performance
+  - [656](https://github.com/thoth-pub/thoth/pull/656) - Add database indexes to common attributes to improve performance
 
 ## [[0.13.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.1) - 2024-11-25
 ### Added
