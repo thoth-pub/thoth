@@ -3486,13 +3486,11 @@ dependencies = [
 name = "thoth-app"
 version = "0.13.2"
 dependencies = [
- "anyhow",
  "chrono",
  "dotenv",
  "getrandom",
  "gloo-storage 0.3.0",
  "gloo-timers 0.3.0",
- "log",
  "reqwest",
  "semver",
  "serde",
@@ -3500,7 +3498,6 @@ dependencies = [
  "thiserror",
  "thoth-api",
  "thoth-errors",
- "url",
  "uuid",
  "wasm-bindgen",
  "wasm-logger",
