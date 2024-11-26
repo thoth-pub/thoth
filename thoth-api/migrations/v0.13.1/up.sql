@@ -2,7 +2,7 @@
 CREATE INDEX idx_account_email ON account (email);
 
 -- Indexes publisher_account table
-CREATE INDEX  ON publisher_account (account_id);
+CREATE INDEX idx_publisher_account_account_id ON publisher_account (account_id);
 
 -- Indexes work table
 CREATE INDEX idx_work_doi ON work (doi);
