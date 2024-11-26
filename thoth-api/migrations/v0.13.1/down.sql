@@ -5,7 +5,6 @@ DROP INDEX IF EXISTS idx_account_email;
 DROP INDEX IF EXISTS idx_publisher_account_account_id;
 
 -- Remove indexes from work table
-DROP INDEX IF EXISTS idx_work_work_id;
 DROP INDEX IF EXISTS idx_work_doi;
 DROP INDEX IF EXISTS idx_work_reference;
 DROP INDEX IF EXISTS idx_work_short_abstract_substr;
@@ -16,24 +15,25 @@ DROP INDEX IF EXISTS idx_work_updated_at_with_relations_desc;
 DROP INDEX IF EXISTS idx_work_full_title_asc;
 DROP INDEX IF EXISTS idx_work_publication_date_asc;
 DROP INDEX IF EXISTS idx_work_publication_date_desc;
+DROP INDEX IF EXISTS idx_work_type_status_pub_date_desc;
+DROP INDEX IF EXISTS idx_work_books_pub_date_desc;
 
 -- Remove indexes from work_relation table
-DROP INDEX IF EXISTS idx_work_relation_relation_ordinal_relator_asc;
-DROP INDEX IF EXISTS idx_work_relation_relation_ordinal_related_asc;
+DROP INDEX IF EXISTS idx_work_relation_relation_ordinal_relator_relation_type_asc;
+DROP INDEX IF EXISTS idx_work_relation_relation_ordinal_related_relation_type_asc;
 
 -- Remove indexes from publisher table
-DROP INDEX IF EXISTS idx_publisher_publisher_id;
 DROP INDEX IF EXISTS idx_publisher_publisher_name;
 DROP INDEX IF EXISTS idx_publisher_publisher_shortname;
 
 -- Remove indexes from imprint table
-DROP INDEX IF EXISTS idx_imprint_id;
 DROP INDEX IF EXISTS idx_imprint_imprint_name;
 DROP INDEX IF EXISTS idx_imprint_imprint_url;
 DROP INDEX IF EXISTS idx_imprint_publisher_id;
 
 -- Remove indexes from subject table
 DROP INDEX IF EXISTS idx_subject_subject_code_asc;
+DROP INDEX IF EXISTS idx_subject_subject_ordinal_asc;
 
 -- Remove indexes from publication table
 DROP INDEX IF EXISTS idx_publication_work_id;

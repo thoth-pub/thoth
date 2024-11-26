@@ -2,10 +2,9 @@
 CREATE INDEX idx_account_email ON account (email);
 
 -- Indexes publisher_account table
-CREATE INDEX idx_publisher_account_account_id ON publisher_account (account_id);
+CREATE INDEX  ON publisher_account (account_id);
 
 -- Indexes work table
-CREATE INDEX idx_work_work_id ON work (work_id);
 CREATE INDEX idx_work_doi ON work (doi);
 CREATE INDEX idx_work_reference ON work (reference);
 CREATE INDEX idx_work_short_abstract_substr ON work (substring(short_abstract FROM 1 FOR 255));
@@ -16,24 +15,30 @@ CREATE INDEX idx_work_updated_at_with_relations_desc ON work (updated_at_with_re
 CREATE INDEX idx_work_full_title_asc ON work (full_title ASC, work_id);
 CREATE INDEX idx_work_publication_date_asc ON work (publication_date ASC, work_id);
 CREATE INDEX idx_work_publication_date_desc ON work (publication_date DESC, work_id);
+CREATE INDEX idx_work_type_status_pub_date_desc
+    ON work (work_type, work_status, publication_date DESC);
+CREATE INDEX idx_work_books_pub_date_desc
+    ON work (publication_date DESC)
+    WHERE work_type IN ('monograph', 'edited-book', 'textbook') AND work_status = 'active';
 
 -- Indexes work_relation table
-CREATE INDEX idx_work_relation_relation_ordinal_relator_asc ON work_relation (relation_ordinal ASC, relator_work_id);
-CREATE INDEX idx_work_relation_relation_ordinal_related_asc ON work_relation (relation_ordinal ASC, related_work_id);
+CREATE INDEX idx_work_relation_relation_ordinal_relator_relation_type_asc
+    ON work_relation (relation_ordinal ASC, relator_work_id, relation_type);
+CREATE INDEX idx_work_relation_relation_ordinal_related_relation_type_asc
+    ON work_relation (relation_ordinal ASC, related_work_id, relation_type);
 
 -- Indexes publisher table
-CREATE INDEX idx_publisher_publisher_id ON publisher (publisher_id);
 CREATE INDEX idx_publisher_publisher_name ON publisher (publisher_name);
 CREATE INDEX idx_publisher_publisher_shortname ON publisher (publisher_shortname);
 
 -- Indexes imprint table
-CREATE INDEX idx_imprint_id ON imprint (imprint_id);
 CREATE INDEX idx_imprint_imprint_name ON imprint (imprint_name);
 CREATE INDEX idx_imprint_imprint_url ON imprint (imprint_url);
 CREATE INDEX idx_imprint_publisher_id ON imprint (publisher_id);
 
 -- Indexes subject table
 CREATE INDEX idx_subject_subject_code_asc ON subject (subject_code ASC, work_id);
+CREATE INDEX idx_subject_subject_ordinal_asc ON subject (subject_ordinal ASC, work_id);
 
 -- Indexes publication table
 CREATE INDEX idx_publication_work_id ON publication (work_id);
