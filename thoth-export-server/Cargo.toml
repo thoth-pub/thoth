@@ -16,21 +16,21 @@ thoth-client = { version = "=0.13.2", path = "../thoth-client" }
 actix-web = "4.9"
 actix-cors = "0.7.0"
 cc_license = "0.1.0"
-chrono = { version = "0.4.31", features = ["serde"] }
+chrono = { version = "0.4.38", features = ["serde"] }
 csv = "1.3.0"
 env_logger = "0.11.5"
-futures = "0.3.30"
+futures = "0.3.31"
 lazy_static = "1.5.0"
-log = "0.4.20"
+log = "0.4.22"
 marc = { version = "3.1.1", features = ["xml"] }
-paperclip = { version = "0.9.2", features = ["actix4", "uuid1", "v3"] }
+paperclip = { version = "0.9.4", features = ["actix4", "uuid1", "v3"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-uuid = { version = "1.10.0", features = ["serde"] }
-xml-rs = "0.8.19"
+uuid = { version = "1.11.0", features = ["serde"] }
+xml-rs = "0.8.23"
 
 [dev-dependencies]
-regex = "1.10.6"
+regex = "1.11.1"
 
 [build-dependencies]
 dotenv = "0.15.0"

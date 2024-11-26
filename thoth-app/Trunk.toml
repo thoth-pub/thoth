@@ -14,5 +14,5 @@ dist = "pkg"
 
 [tools]
 # Default wasm-bindgen version to download.
-wasm_bindgen = "0.2.93"
+wasm_bindgen = "0.2.95"
 
