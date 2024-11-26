@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.13.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.2) - 2024-11-26
+### Added
+  - [656](https://github.com/thoth-pub/thoth/pull/656) - Add database indexes to common attributes to improve performance
+
 ## [[0.13.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.1) - 2024-11-25
 ### Added
   - [593](https://github.com/thoth-pub/thoth/issues/593) - Log GraphQL queries alongside request logs

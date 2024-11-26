@@ -1,6 +1,6 @@
 [package]
 name = "thoth-api"
-version = "0.13.1"
+version = "0.13.2"
 authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -15,7 +15,7 @@ maintenance = { status = "actively-developed" }
 backend = ["diesel", "diesel-derive-enum", "diesel_migrations", "futures", "actix-web", "jsonwebtoken", "deadpool-redis"]
 
 [dependencies]
-thoth-errors = { version = "=0.13.1", path = "../thoth-errors" }
+thoth-errors = { version = "=0.13.2", path = "../thoth-errors" }
 actix-web = { version = "4.8", optional = true }
 argon2rs = "0.2.5"
 isbn2 = "0.4.0"
