@@ -5,6 +5,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+  - Upgrade `rustls` to v0.23.18
+  - Upgrade `chrono` to v0.4.38
+  - Upgrade `uuid` to v0.11.0
+  - Upgrade `diesel` to v2.2.5
+  - Upgrade `paperclip` to v0.9.4
+  - Upgrade `regex` to v1.11.1
+  - Upgrade `xml-rs` to v0.8.23
+  - Upgrade `futures` to v0.3.31
+  - Upgrade `web-sys` to v0.3.72
+  - Upgrade `wasm-bindgen` to v0.2.95
+  - Upgrade `log` to v0.4.22
+  - Upgrade `thiserror` to v1.0.69
+
+## Removed
+  - Remove redundant dependencies in thoth-app: `anyhow`, `log`, `url`
 
 ## [[0.13.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.2) - 2024-11-26
 ### Added
