@@ -6,20 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-  - Upgrade `rustls` to v0.23.18
-  - Upgrade `chrono` to v0.4.38
-  - Upgrade `uuid` to v0.11.0
-  - Upgrade `diesel` to v2.2.5
-  - Upgrade `paperclip` to v0.9.4
-  - Upgrade `regex` to v1.11.1
-  - Upgrade `xml-rs` to v0.8.23
-  - Upgrade `futures` to v0.3.31
-  - Upgrade `web-sys` to v0.3.72
-  - Upgrade `wasm-bindgen` to v0.2.95
-  - Upgrade `log` to v0.4.22
-  - Upgrade `thiserror` to v2.0.3
-  - Upgrade `reqwest-middleware` to v0.4.0
-  - Upgrade `reqwest-retry` to v0.7.0
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `rustls` to v0.23.18
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `chrono` to v0.4.38
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `uuid` to v0.11.0
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `diesel` to v2.2.5
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `paperclip` to v0.9.4
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `regex` to v1.11.1
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `xml-rs` to v0.8.23
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `futures` to v0.3.31
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `web-sys` to v0.3.72
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `wasm-bindgen` to v0.2.95
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `log` to v0.4.22
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `thiserror` to v2.0.3
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `reqwest-middleware` to v0.4.0
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `reqwest-retry` to v0.7.0
 
 ## Removed
   - Remove redundant dependencies in thoth-app: `anyhow`, `log`, `url`
