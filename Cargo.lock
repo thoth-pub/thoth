@@ -27,7 +27,7 @@ checksum = "f9e772b3bcafe335042b5db010ab7c09013dad6eac4915c91d8d50902769f331"
 dependencies = [
  "actix-utils",
  "actix-web",
- "derive_more",
+ "derive_more 0.99.18",
  "futures-util",
  "log",
  "once_cell",
@@ -50,7 +50,7 @@ dependencies = [
  "brotli",
  "bytes",
  "bytestring",
- "derive_more",
+ "derive_more 0.99.18",
  "encoding_rs",
  "flate2",
  "futures-core",
@@ -75,15 +75,15 @@ dependencies = [
 
 [[package]]
 name = "actix-identity"
-version = "0.7.1"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2c99b7a5614b72a78f04aa2021e5370fc1aef2475fffeffc0c1266b99007062"
+checksum = "23b8ddc6f6a8b19c4016aaa13519968da9969bc3bc1c1c883cdb0f25dd6c8cf7"
 dependencies = [
  "actix-service",
  "actix-session",
  "actix-utils",
  "actix-web",
- "derive_more",
+ "derive_more 1.0.0",
  "futures-core",
  "serde",
  "tracing",
@@ -154,15 +154,16 @@ dependencies = [
 
 [[package]]
 name = "actix-session"
-version = "0.9.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b671404ec72194d8af58c2bdaf51e3c477a0595056bd5010148405870dda8df2"
+checksum = "efe6976a74f34f1b6d07a6c05aadc0ed0359304a7781c367fa5b4029418db08f"
 dependencies = [
  "actix-service",
  "actix-utils",
  "actix-web",
  "anyhow",
- "derive_more",
+ "derive_more 1.0.0",
+ "rand",
  "serde",
  "serde_json",
  "tracing",
@@ -198,7 +199,7 @@ dependencies = [
  "bytestring",
  "cfg-if",
  "cookie",
- "derive_more",
+ "derive_more 0.99.18",
  "encoding_rs",
  "futures-core",
  "futures-util",
@@ -939,6 +940,27 @@ dependencies = [
  "quote",
  "rustc_version",
  "syn 2.0.89",
+]
+
+[[package]]
+name = "derive_more"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
+dependencies = [
+ "derive_more-impl",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.89",
+ "unicode-xid",
 ]
 
 [[package]]
@@ -3801,6 +3823,12 @@ name = "unicode-width"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
+
+[[package]]
+name = "unicode-xid"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
 name = "universal-hash"
