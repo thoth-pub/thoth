@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `reqwest-middleware` to v0.4.0
   - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `reqwest-retry` to v0.7.0
   - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `trunk` to v0.21.4
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `actix-identity` to v0.8.0
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `actix-session` to v0.10.1
 
 ## Removed
   - Remove redundant dependencies in thoth-app: `anyhow`, `log`, `url`
