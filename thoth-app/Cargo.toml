@@ -28,10 +28,7 @@ reqwest = { version = "0.12", features = ["json"] }
 semver = "1.0.23"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-uuid = { version = "1.11.0", features = ["serde", "v4"] }
-# `getrandom` is a dependency of `uuid`, we need to explicitly import and include the `js` feature to enable wasm
-# https://docs.rs/getrandom/latest/getrandom/#webassembly-support
-getrandom = { version = "0.2", features = ["js"] }
+uuid = { version = "1.11.0", features = ["serde", "v4", "js"] }
 thoth-api = { version = "=0.13.2", path = "../thoth-api"  }
 thoth-errors = { version = "=0.13.2", path = "../thoth-errors" }
 

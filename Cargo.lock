@@ -3502,7 +3502,6 @@ version = "0.13.2"
 dependencies = [
  "chrono",
  "dotenv",
- "getrandom",
  "gloo-storage 0.3.0",
  "gloo-timers 0.3.0",
  "reqwest",
@@ -3871,6 +3870,7 @@ checksum = "f8c5f0a0af699448548ad1a2fbf920fb4bee257eae39953ba95cb84891a0446a"
 dependencies = [
  "getrandom",
  "serde",
+ "wasm-bindgen",
 ]
 
 [[package]]
