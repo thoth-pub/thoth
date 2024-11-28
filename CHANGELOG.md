@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `rustls` to v0.23.18
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `rustls` to v0.23.19
   - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `chrono` to v0.4.38
   - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `uuid` to v0.11.0
   - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `diesel` to v2.2.5
