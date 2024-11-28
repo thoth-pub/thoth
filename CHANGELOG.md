@@ -17,7 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade `web-sys` to v0.3.72
   - Upgrade `wasm-bindgen` to v0.2.95
   - Upgrade `log` to v0.4.22
-  - Upgrade `thiserror` to v1.0.69
+  - Upgrade `thiserror` to v2.0.3
+  - Upgrade `reqwest-middleware` to v0.4.0
+  - Upgrade `reqwest-retry` to v0.7.0
 
 ## Removed
   - Remove redundant dependencies in thoth-app: `anyhow`, `log`, `url`
