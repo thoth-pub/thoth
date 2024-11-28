@@ -13,28 +13,22 @@ build = "build.rs"
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-anyhow = "1.0.86"
-chrono = { version = "0.4.31", features = ["serde"] }
+chrono = { version = "0.4.38", features = ["serde"] }
 gloo-storage = "0.3.0"
 gloo-timers = "0.3.0"
-log = "0.4.20"
-thiserror = "1.0.63"
+thiserror = "2.0"
 yew = "0.19.3"
 yew-agent = "0.1.0"
 yew-router = "0.16.0"
 yewtil = { version = "0.4.0", features = ["fetch"] }
-wasm-bindgen = "0.2.93"
+wasm-bindgen = "0.2.95"
 wasm-logger = "0.2.0"
-web-sys = { version = "0.3.57", features = ["HtmlInputElement", "HtmlSelectElement", "HtmlTextAreaElement"] }
+web-sys = { version = "0.3.72", features = ["HtmlInputElement", "HtmlSelectElement", "HtmlTextAreaElement"] }
 reqwest = { version = "0.12", features = ["json"] }
 semver = "1.0.23"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-url = "2.1.1"
-uuid = { version = "1.10.0", features = ["serde", "v4"] }
-# `getrandom` is a dependency of `uuid`, we need to explicitly import and include the `js` feature to enable wasm
-# https://docs.rs/getrandom/latest/getrandom/#webassembly-support
-getrandom = { version = "0.2", features = ["js"] }
+uuid = { version = "1.11.0", features = ["serde", "v4", "js"] }
 thoth-api = { version = "=0.13.2", path = "../thoth-api"  }
 thoth-errors = { version = "=0.13.2", path = "../thoth-errors" }
 

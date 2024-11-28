@@ -1553,7 +1553,7 @@ mod tests {
         println!("{output}");
         assert_eq!(
             output,
-            r#"<?xml version="1.0" encoding="utf-8"?>
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <Contributor>
   <SequenceNumber>1</SequenceNumber>
   <ContributorRole>A01</ContributorRole>
@@ -1589,7 +1589,7 @@ mod tests {
         println!("{output}");
         assert_eq!(
             output,
-            r#"<?xml version="1.0" encoding="utf-8"?>
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <Contributor>
   <SequenceNumber>2</SequenceNumber>
   <ContributorRole>B01</ContributorRole>
@@ -1779,7 +1779,7 @@ mod tests {
         println!("{output}");
         assert_eq!(
             output,
-            r#"<?xml version="1.0" encoding="utf-8"?>
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <Collection>
   <CollectionType>10</CollectionType>
   <CollectionIdentifier>
@@ -2019,7 +2019,7 @@ mod tests {
         println!("{output}");
         assert_eq!(
             output,
-            r#"<?xml version="1.0" encoding="utf-8"?>
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <RelatedProduct>
   <ProductRelationCode>34</ProductRelationCode>
   <ProductIdentifier>
@@ -2035,7 +2035,7 @@ mod tests {
         println!("{output}");
         assert_eq!(
             output,
-            r#"<?xml version="1.0" encoding="utf-8"?>
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <RelatedProduct>
   <ProductRelationCode>34</ProductRelationCode>
   <ProductIdentifier>
@@ -2088,7 +2088,7 @@ mod tests {
         println!("{output}");
         assert_eq!(
             output,
-            r#"<?xml version="1.0" encoding="utf-8"?>
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <RelatedWork>
   <WorkRelationCode>49</WorkRelationCode>
   <WorkIdentifier>
@@ -2106,7 +2106,7 @@ mod tests {
         println!("{output}");
         assert_eq!(
             output,
-            r#"<?xml version="1.0" encoding="utf-8"?>
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <RelatedProduct>
   <ProductRelationCode>01</ProductRelationCode>
   <ProductIdentifier>
