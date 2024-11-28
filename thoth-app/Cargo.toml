@@ -16,7 +16,7 @@ maintenance = { status = "actively-developed" }
 chrono = { version = "0.4.38", features = ["serde"] }
 gloo-storage = "0.3.0"
 gloo-timers = "0.3.0"
-thiserror = "1.0.69"
+thiserror = "2.0"
 yew = "0.19.3"
 yew-agent = "0.1.0"
 yew-router = "0.16.0"
