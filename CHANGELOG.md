@@ -6,6 +6,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.13.3]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.3) - 2024-12-02
+### Changed
+  - [660](https://github.com/thoth-pub/thoth/pull/660) - Upgrade rust to `1.83.0` in production `Dockerfile`
+  - [660](https://github.com/thoth-pub/thoth/pull/660) - Use latest tag in development `Dockerfile`
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `rustls` to v0.23.19
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `chrono` to v0.4.38
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `uuid` to v0.11.0
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `diesel` to v2.2.5
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `paperclip` to v0.9.4
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `regex` to v1.11.1
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `xml-rs` to v0.8.23
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `futures` to v0.3.31
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `web-sys` to v0.3.72
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `wasm-bindgen` to v0.2.95
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `log` to v0.4.22
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `thiserror` to v2.0.3
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `reqwest-middleware` to v0.4.0
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `reqwest-retry` to v0.7.0
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `trunk` to v0.21.4
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `actix-identity` to v0.8.0
+  - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `actix-session` to v0.10.1
+
+## Removed
+  - Remove redundant dependencies in thoth-app: `anyhow`, `log`, `url`
+
 ## [[0.13.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.2) - 2024-11-26
 ### Added
   - [656](https://github.com/thoth-pub/thoth/pull/656) - Add database indexes to common attributes to improve performance

@@ -1,6 +1,6 @@
 [package]
 name = "thoth"
-version = "0.13.2"
+version = "0.13.3"
 authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -15,14 +15,11 @@ maintenance = { status = "actively-developed" }
 members = ["thoth-api", "thoth-api-server", "thoth-app", "thoth-app-server", "thoth-client", "thoth-errors", "thoth-export-server"]
 
 [dependencies]
-thoth-api = { version = "=0.13.2", path = "thoth-api", features = ["backend"] }
-thoth-api-server = { version = "=0.13.2", path = "thoth-api-server" }
-thoth-app-server = { version = "=0.13.2", path = "thoth-app-server" }
-thoth-errors = { version = "=0.13.2", path = "thoth-errors" }
-thoth-export-server = { version = "=0.13.2", path = "thoth-export-server" }
-clap = { version = "4.5.16", features = ["cargo", "env"] }
+thoth-api = { version = "=0.13.3", path = "thoth-api", features = ["backend"] }
+thoth-api-server = { version = "=0.13.3", path = "thoth-api-server" }
+thoth-app-server = { version = "=0.13.3", path = "thoth-app-server" }
+thoth-errors = { version = "=0.13.3", path = "thoth-errors" }
+thoth-export-server = { version = "=0.13.3", path = "thoth-export-server" }
+clap = { version = "4.5.21", features = ["cargo", "env"] }
 dialoguer = { version = "0.11.0", features = ["password"] }
 dotenv = "0.15.0"
-
-[dev-dependencies]
-cargo-husky = { version = "1.5.0", default-features = false, features = ["prepush-hook", "run-cargo-check", "run-cargo-test", "run-cargo-clippy", "run-cargo-fmt"] }
