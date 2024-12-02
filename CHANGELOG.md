@@ -6,7 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-  - [660](https://github.com/thoth-pub/thoth/pull/660) - Upgrade rust to `1.83.0` in production and development `Dockerfile`
+  - [660](https://github.com/thoth-pub/thoth/pull/660) - Upgrade rust to `1.83.0` in production `Dockerfile`
+  - [660](https://github.com/thoth-pub/thoth/pull/660) - Use latest tag in development `Dockerfile`
   - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `rustls` to v0.23.19
   - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `chrono` to v0.4.38
   - [658](https://github.com/thoth-pub/thoth/pull/658) - Upgrade `uuid` to v0.11.0
