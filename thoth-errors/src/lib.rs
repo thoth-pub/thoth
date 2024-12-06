@@ -1,9 +1,10 @@
 #[cfg(not(target_arch = "wasm32"))]
 mod database_errors;
 
+use std::borrow::Cow;
+use std::fmt;
 use core::convert::From;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use thiserror::Error;
 
 /// A specialised result type for returning Thoth data
@@ -15,14 +16,14 @@ pub type ThothResult<T> = Result<T, ThothError>;
 /// This type is not intended to be exhaustively matched, and new variants may
 /// be added in the future without a major version bump.
 pub enum ThothError {
-    #[error("{0} is not a valid {1} code")]
-    InvalidSubjectCode(String, String),
+    #[error("{input:?} is not a valid {subject_type:?} code")]
+    InvalidSubjectCode { input: String, subject_type: String },
     #[error("Database error: {0}")]
     DatabaseError(String),
     #[error("Redis error: {0}")]
     RedisError(String),
     #[error("{0}")]
-    DatabaseConstraintError(String),
+    DatabaseConstraintError(Cow<'static, str>),
     #[error("Internal error: {0}")]
     InternalError(String),
     #[error("Invalid credentials.")]
@@ -352,7 +353,10 @@ mod tests {
 
     #[test]
     fn test_round_trip_serialisation() {
-        let original_error = ThothError::InvalidSubjectCode("002".to_string(), "BIC".to_string());
+        let original_error = ThothError::InvalidSubjectCode {
+            input: "002".to_string(),
+            subject_type: "BIC".to_string(),
+        };
         let json = original_error.to_json().unwrap();
         let deserialised_error = ThothError::from_json(&json).unwrap();
         assert_eq!(original_error, deserialised_error);
@@ -360,7 +364,10 @@ mod tests {
 
     #[test]
     fn test_to_json_valid_error() {
-        let error = ThothError::InvalidSubjectCode("001".to_string(), "BIC".to_string());
+        let error = ThothError::InvalidSubjectCode {
+            input: "001".to_string(),
+            subject_type: "BIC".to_string(),
+        };
         let json = error.to_json().unwrap();
 
         assert!(json.contains("\"InvalidSubjectCode\""));

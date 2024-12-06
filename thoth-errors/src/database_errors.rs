@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use phf::phf_map;
 use phf::Map;
 
@@ -173,7 +174,7 @@ impl From<diesel::result::Error> for ThothError {
             Error::DatabaseError(_kind, info) => {
                 if let Some(constraint_name) = info.constraint_name() {
                     if let Some(error) = DATABASE_CONSTRAINT_ERRORS.get(constraint_name) {
-                        return ThothError::DatabaseConstraintError(error.to_string());
+                        return ThothError::DatabaseConstraintError(Cow::Borrowed(error));
                     }
                 }
                 ThothError::DatabaseError(info.message().to_string())
@@ -251,9 +252,9 @@ mod tests {
                 DatabaseErrorKind::UniqueViolation,
                 error_information
             )),
-            ThothError::DatabaseConstraintError(
+            ThothError::DatabaseConstraintError(Cow::Borrowed(
                 "A contribution with this ordinal number already exists."
-            )
+            ))
         )
     }
     #[test]
