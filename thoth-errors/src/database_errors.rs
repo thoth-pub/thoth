@@ -173,7 +173,7 @@ impl From<diesel::result::Error> for ThothError {
             Error::DatabaseError(_kind, info) => {
                 if let Some(constraint_name) = info.constraint_name() {
                     if let Some(error) = DATABASE_CONSTRAINT_ERRORS.get(constraint_name) {
-                        return ThothError::DatabaseConstraintError(error);
+                        return ThothError::DatabaseConstraintError(error.to_string());
                     }
                 }
                 ThothError::DatabaseError(info.message().to_string())
