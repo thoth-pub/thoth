@@ -26,6 +26,11 @@ pub async fn get(pool: &RedisPool, key: &str) -> ThothResult<String> {
     con.get(key).await.map_err(Into::into)
 }
 
+pub async fn del(pool: &RedisPool, key: &str) -> ThothResult<String> {
+    let mut con = create_connection(pool).await?;
+    con.del(key).await.map_err(Into::into)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
