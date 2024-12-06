@@ -1,6 +1,5 @@
+use phf::{phf_map, Map};
 use std::borrow::Cow;
-use phf::phf_map;
-use phf::Map;
 
 use crate::ThothError;
 

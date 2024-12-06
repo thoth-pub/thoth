@@ -1,10 +1,9 @@
 #[cfg(not(target_arch = "wasm32"))]
 mod database_errors;
 
-use std::borrow::Cow;
-use std::fmt;
 use core::convert::From;
 use serde::{Deserialize, Serialize};
+use std::{borrow::Cow, fmt};
 use thiserror::Error;
 
 /// A specialised result type for returning Thoth data
