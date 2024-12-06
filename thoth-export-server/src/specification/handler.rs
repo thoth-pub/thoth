@@ -51,9 +51,9 @@ pub(crate) async fn by_work(
     let last_updated = thoth.get_work_last_updated(work_id).await?;
     let specification_query = SpecificationQuery::by_work(thoth, work_id, specification);
 
-    let mut metadata_record = MetadataRecord::new(work_id.to_string(), specification);
+    let mut metadata_record = MetadataRecord::new(work_id.to_string(), specification, last_updated);
     metadata_record
-        .load_or_generate(specification_query, last_updated, redis_pool.into_inner())
+        .load_or_generate(specification_query, redis_pool.into_inner())
         .await?;
     Ok(metadata_record)
 }
@@ -78,9 +78,10 @@ pub(crate) async fn by_publisher(
         .await?;
     let specification_query = SpecificationQuery::by_publisher(thoth, publisher_id, specification);
 
-    let mut metadata_record = MetadataRecord::new(publisher_id.to_string(), specification);
+    let mut metadata_record =
+        MetadataRecord::new(publisher_id.to_string(), specification, last_updated);
     metadata_record
-        .load_or_generate(specification_query, last_updated, redis_pool.into_inner())
+        .load_or_generate(specification_query, redis_pool.into_inner())
         .await?;
     Ok(metadata_record)
 }

@@ -8,7 +8,7 @@ use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
 use thoth_api::model::Timestamp;
-use thoth_api::redis::{get, set, RedisPool};
+use thoth_api::redis::{del, get, set, RedisPool};
 use thoth_client::Work;
 use thoth_errors::{ThothError, ThothResult};
 
@@ -51,6 +51,7 @@ pub(crate) struct MetadataRecord {
     id: String,
     specification: MetadataSpecification,
     record: ThothResult<String>,
+    last_updated: Timestamp,
 }
 
 impl MetadataRecord {
@@ -68,11 +69,16 @@ impl MetadataRecord {
     const MARC_RECORD_EXTENSION: &'static str = ".mrc";
     const MARC_MARKUP_EXTENSION: &'static str = ".mrk";
 
-    pub(crate) fn new(id: String, specification: MetadataSpecification) -> Self {
+    pub(crate) fn new(
+        id: String,
+        specification: MetadataSpecification,
+        last_updated: Timestamp,
+    ) -> Self {
         MetadataRecord {
             id,
             specification,
             record: Err(ThothError::MetadataRecordNotGenerated),
+            last_updated,
         }
     }
 
@@ -167,36 +173,57 @@ impl MetadataRecord {
         format!("{}:timestamp", self.cache_key())
     }
 
+    fn cache_error_key(&self) -> String {
+        format!("{}:error", self.cache_key())
+    }
+
     pub(crate) async fn load_or_generate(
         &mut self,
         specification_query: SpecificationQuery,
-        last_updated: Timestamp,
         redis_pool: Arc<RedisPool>,
     ) -> ThothResult<()> {
         let cache_key = self.cache_key();
         let cache_timestamp_key = self.cache_timestamp_key();
+        let cache_error_key = self.cache_error_key();
 
-        if let (Ok(cached_record), Ok(cached_timestamp_value)) = (
-            get(&redis_pool, &cache_key).await,
-            get(&redis_pool, &cache_timestamp_key).await,
-        ) {
+        // Check for cached record or error
+        if let Ok(cached_timestamp_value) = get(&redis_pool, &cache_timestamp_key).await {
             let cached_timestamp = Timestamp::parse_from_rfc3339(&cached_timestamp_value)?;
-            if cached_timestamp >= last_updated {
-                self.record = Ok(cached_record);
-                return Ok(());
+            if cached_timestamp >= self.last_updated {
+                if let Ok(cached_record) = get(&redis_pool, &cache_key).await {
+                    self.record = Ok(cached_record);
+                    return Ok(());
+                }
+                if let Ok(cached_error) = get(&redis_pool, &cache_error_key).await {
+                    self.record = Err(ThothError::from_json(&cached_error)?);
+                    return Ok(());
+                }
             }
         }
 
         let data = specification_query.run().await?;
         self.record = self.generate(data);
-        if let Ok(record) = &self.record {
-            set(&redis_pool, &cache_key, record).await?;
-            set(
-                &redis_pool,
-                &cache_timestamp_key,
-                &last_updated.to_rfc3339(),
-            )
-            .await?;
+        self.update_cache(&redis_pool).await?;
+        Ok(())
+    }
+
+    /// Cache the record, update the timestamp, and delete previous errors or records
+    async fn update_cache(&self, redis_pool: &RedisPool) -> ThothResult<()> {
+        set(
+            redis_pool,
+            &self.cache_timestamp_key(),
+            &self.last_updated.to_rfc3339(),
+        )
+        .await?;
+        match &self.record {
+            Ok(record) => {
+                set(redis_pool, &self.cache_key(), record).await?;
+                del(redis_pool, &self.cache_error_key()).await?;
+            }
+            Err(error) => {
+                set(redis_pool, &self.cache_error_key(), &error.to_json()?).await?;
+                del(redis_pool, &self.cache_key()).await?;
+            }
         }
         Ok(())
     }
@@ -357,19 +384,23 @@ mod tests {
 
     #[test]
     fn test_record_file_name() {
+        let timestamp = Timestamp::default();
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::CsvThoth(CsvThoth {}),
+            timestamp,
         );
         assert_eq!(to_test.file_name(), "csv__thoth__some_id.csv".to_string());
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::JsonThoth(JsonThoth {}),
+            timestamp,
         );
         assert_eq!(to_test.file_name(), "json__thoth__some_id.json".to_string());
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix3Thoth(Onix3Thoth {}),
+            timestamp,
         );
         assert_eq!(
             to_test.file_name(),
@@ -378,6 +409,7 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix3ProjectMuse(Onix3ProjectMuse {}),
+            timestamp,
         );
         assert_eq!(
             to_test.file_name(),
@@ -386,6 +418,7 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix3Oapen(Onix3Oapen {}),
+            timestamp,
         );
         assert_eq!(
             to_test.file_name(),
@@ -394,6 +427,7 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix3Jstor(Onix3Jstor {}),
+            timestamp,
         );
         assert_eq!(
             to_test.file_name(),
@@ -402,6 +436,7 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix3GoogleBooks(Onix3GoogleBooks {}),
+            timestamp,
         );
         assert_eq!(
             to_test.file_name(),
@@ -410,6 +445,7 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix3Overdrive(Onix3Overdrive {}),
+            timestamp,
         );
         assert_eq!(
             to_test.file_name(),
@@ -418,6 +454,7 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix21EbscoHost(Onix21EbscoHost {}),
+            timestamp,
         );
         assert_eq!(
             to_test.file_name(),
@@ -426,6 +463,7 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix21ProquestEbrary(Onix21ProquestEbrary {}),
+            timestamp,
         );
         assert_eq!(
             to_test.file_name(),
@@ -434,11 +472,13 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::KbartOclc(KbartOclc {}),
+            timestamp,
         );
         assert_eq!(to_test.file_name(), "kbart__oclc__some_id.txt".to_string());
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::BibtexThoth(BibtexThoth {}),
+            timestamp,
         );
         assert_eq!(
             to_test.file_name(),
@@ -447,6 +487,7 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::DoiDepositCrossref(DoiDepositCrossref {}),
+            timestamp,
         );
         assert_eq!(
             to_test.file_name(),
@@ -455,6 +496,7 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Marc21RecordThoth(Marc21RecordThoth {}),
+            timestamp,
         );
         assert_eq!(
             to_test.file_name(),
@@ -463,6 +505,7 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Marc21MarkupThoth(Marc21MarkupThoth {}),
+            timestamp,
         );
         assert_eq!(
             to_test.file_name(),
@@ -471,6 +514,7 @@ mod tests {
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Marc21XmlThoth(Marc21XmlThoth {}),
+            timestamp,
         );
         assert_eq!(
             to_test.file_name(),
