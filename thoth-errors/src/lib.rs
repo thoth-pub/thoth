@@ -2,27 +2,27 @@
 mod database_errors;
 
 use core::convert::From;
-use serde::Deserialize;
-use std::fmt;
+use serde::{Deserialize, Serialize};
+use std::{borrow::Cow, fmt};
 use thiserror::Error;
 
 /// A specialised result type for returning Thoth data
-pub type ThothResult<T> = std::result::Result<T, ThothError>;
+pub type ThothResult<T> = Result<T, ThothError>;
 
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Represents anything that can go wrong in Thoth
 ///
 /// This type is not intended to be exhaustively matched, and new variants may
 /// be added in the future without a major version bump.
 pub enum ThothError {
-    #[error("{0} is not a valid {1} code")]
-    InvalidSubjectCode(String, String),
+    #[error("{input:?} is not a valid {subject_type:?} code")]
+    InvalidSubjectCode { input: String, subject_type: String },
     #[error("Database error: {0}")]
     DatabaseError(String),
     #[error("Redis error: {0}")]
     RedisError(String),
     #[error("{0}")]
-    DatabaseConstraintError(&'static str),
+    DatabaseConstraintError(Cow<'static, str>),
     #[error("Internal error: {0}")]
     InternalError(String),
     #[error("Invalid credentials.")]
@@ -107,6 +107,18 @@ pub enum ThothError {
     ThothLocationError,
     #[error("Only superusers can update the canonical location when Thoth Location Platform is already set as canonical.")]
     ThothUpdateCanonicalError,
+}
+
+impl ThothError {
+    /// Serialise to JSON
+    pub fn to_json(&self) -> ThothResult<String> {
+        serde_json::to_string(&self).map_err(Into::into)
+    }
+
+    /// Deserialise from JSON
+    pub fn from_json(s: &str) -> ThothResult<ThothError> {
+        serde_json::from_str(s).map_err(Into::into)
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -293,6 +305,12 @@ impl From<Box<dyn std::error::Error + Send + Sync>> for ThothError {
     }
 }
 
+impl From<serde_json::Error> for ThothError {
+    fn from(e: serde_json::Error) -> Self {
+        ThothError::InternalError(e.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -330,5 +348,36 @@ mod tests {
             ThothError::from(fetch_error),
             ThothError::GraphqlError("A relation with this ordinal already exists.".to_string())
         )
+    }
+
+    #[test]
+    fn test_round_trip_serialisation() {
+        let original_error = ThothError::InvalidSubjectCode {
+            input: "002".to_string(),
+            subject_type: "BIC".to_string(),
+        };
+        let json = original_error.to_json().unwrap();
+        let deserialised_error = ThothError::from_json(&json).unwrap();
+        assert_eq!(original_error, deserialised_error);
+    }
+
+    #[test]
+    fn test_to_json_valid_error() {
+        let error = ThothError::InvalidSubjectCode {
+            input: "001".to_string(),
+            subject_type: "BIC".to_string(),
+        };
+        let json = error.to_json().unwrap();
+
+        assert!(json.contains("\"InvalidSubjectCode\""));
+        assert!(json.contains("\"001\""));
+        assert!(json.contains("\"BIC\""));
+    }
+
+    #[test]
+    fn test_invalid_json_deserialisation() {
+        let invalid_json = r#"{"UnknownError":"Unexpected field"}"#;
+        let error = ThothError::from_json(invalid_json);
+        assert!(error.is_err());
     }
 }
