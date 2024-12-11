@@ -123,22 +123,13 @@ pub struct NewSubjectHistory {
 }
 
 pub fn check_subject(subject_type: &SubjectType, code: &str) -> ThothResult<()> {
-    let valid = match &subject_type {
-        SubjectType::Bic => true,
-        SubjectType::Bisac => true,
-        SubjectType::Thema => THEMA_CODES.contains_key::<str>(code),
-        SubjectType::Lcc => true,
-        SubjectType::Custom => true,
-        SubjectType::Keyword => true,
-    };
-    if valid {
-        Ok(())
-    } else {
-        Err(ThothError::InvalidSubjectCode(
-            code.to_string(),
-            subject_type.to_string(),
-        ))
+    if matches!(subject_type, SubjectType::Thema) && !THEMA_CODES.contains_key(code) {
+        return Err(ThothError::InvalidSubjectCode {
+            input: code.to_string(),
+            subject_type: subject_type.to_string(),
+        });
     }
+    Ok(())
 }
 
 impl Default for Subject {
