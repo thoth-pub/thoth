@@ -50,6 +50,7 @@ use crate::component::utils::FormUrlInput;
 use crate::component::utils::FormWorkStatusSelect;
 use crate::component::utils::FormWorkTypeSelect;
 use crate::component::utils::Loader;
+use crate::component::work_status_dialogue::ConfirmWorkStatusComponent;
 use crate::models::work::delete_work_mutation::DeleteWorkRequest;
 use crate::models::work::delete_work_mutation::DeleteWorkRequestBody;
 use crate::models::work::delete_work_mutation::PushActionDeleteWork;
@@ -83,6 +84,8 @@ pub struct WorkComponent {
     imprint_id: Uuid,
     // Track work_type stored in database, as distinct from work_type selected in dropdown
     work_type: WorkType,
+    // Track work_status stored in database, as distinct from work_status selected in dropdown
+    current_work_status: WorkStatus,
     data: WorkFormData,
     fetch_work: FetchWork,
     push_work: PushUpdateWork,
@@ -169,6 +172,7 @@ impl Component for WorkComponent {
         let doi_warning = Default::default();
         let imprint_id = work.imprint.imprint_id;
         let work_type = work.work_type;
+        let current_work_status = work.work_status;
         let data: WorkFormData = Default::default();
         let resource_access = ctx.props().current_user.resource_access.clone();
         let work_id = ctx.props().work_id;
@@ -181,6 +185,7 @@ impl Component for WorkComponent {
             doi_warning,
             imprint_id,
             work_type,
+            current_work_status,
             data,
             fetch_work,
             push_work,
@@ -207,6 +212,7 @@ impl Component for WorkComponent {
                         self.doi = self.work.doi.clone().unwrap_or_default().to_string();
                         self.imprint_id = self.work.imprint.imprint_id;
                         self.work_type = self.work.work_type;
+                        self.current_work_status = self.work.work_status;
                         body.data.imprints.clone_into(&mut self.data.imprints);
                         body.data
                             .work_types
@@ -575,14 +581,20 @@ impl Component for WorkComponent {
                     true => vec![WorkType::BookChapter],
                     false => vec![],
                 };
-                // Grey out chapter-specific or "book"-specific fields
+
+                // Variables required to grey out chapter-specific or "book"-specific fields
                 // based on currently selected work type.
                 let is_chapter = self.work.work_type == WorkType::BookChapter;
                 let is_not_withdrawn_or_superseded = self.work.work_status != WorkStatus::Withdrawn
                     && self.work.work_status != WorkStatus::Superseded;
-                let is_active_withdrawn_or_superseded = self.work.work_status == WorkStatus::Active
+                let is_published = self.work.work_status == WorkStatus::Active
                     || self.work.work_status == WorkStatus::Withdrawn
                     || self.work.work_status == WorkStatus::Superseded;
+
+                let current_state_unpublished = self.current_work_status == WorkStatus::Forthcoming ||
+                    self.current_work_status == WorkStatus::PostponedIndefinitely ||
+                    self.current_work_status == WorkStatus::Cancelled;
+
                 html! {
                     <>
                         <nav class="level">
@@ -657,7 +669,7 @@ impl Component for WorkComponent {
                                 label = "Publication Date"
                                 value={ self.work.publication_date.clone() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDate(e.to_value())) }
-                                required = { is_active_withdrawn_or_superseded }
+                                required = { is_published }
                             />
                             <FormDateInput
                                 label = "Withdrawn Date"
@@ -821,9 +833,22 @@ impl Component for WorkComponent {
 
                             <div class="field">
                                 <div class="control">
-                                    <button class="button is-success" type="submit">
-                                        { SAVE_BUTTON }
-                                    </button>
+                                    // if the Work is unpublished (forthcoming, postponed, cancelled) 
+                                    // and non-superuser sets to published (active, withdrawn, superseded), 
+                                    // display warning dialogue
+                                    if !ctx.props().current_user.resource_access.is_superuser
+                                        && current_state_unpublished
+                                        && is_published
+                                    {
+                                        <ConfirmWorkStatusComponent
+                                        onclick={ ctx.link().callback(|_| Msg::UpdateWork) }
+                                        object_name={ self.work.full_title.clone() }
+                                        />
+                                    } else {
+                                        <button class="button is-success" type="submit">
+                                            { SAVE_BUTTON }
+                                        </button>
+                                    }
                                 </div>
                             </div>
                         </form>
