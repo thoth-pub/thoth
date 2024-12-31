@@ -1,5 +1,6 @@
 use crate::string::CANCEL_BUTTON;
 use crate::string::SAVE_BUTTON;
+use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 
@@ -11,12 +12,17 @@ pub struct ConfirmWorkStatusComponent {
 pub struct Props {
     pub onclick: Option<Callback<MouseEvent>>,
     pub object_name: String,
+    pub current_user: AccountDetails,
+    pub current_state_unpublished: bool,
+    pub is_published: bool,
+    // pub form_callback: Callback<()>,
     #[prop_or_default]
     pub deactivated: bool,
 }
 
 pub enum Msg {
     ToggleConfirmWorkStatusDisplay(bool),
+    ExecuteCallback
 }
 
 impl Component for ConfirmWorkStatusComponent {
@@ -33,6 +39,16 @@ impl Component for ConfirmWorkStatusComponent {
                 self.show = value;
                 true
             }
+            Msg::ExecuteCallback => {
+                self.show = false;
+                // trigger the callback 
+                // _ctx.props().form_callback(|_| form_callback).emit(());
+                // form_callback.emit(());
+                // when set as true, the modal closes and it saves correctly
+                // true
+                // when set as false, the modal also closes and saves correctly. 
+                false
+            }
         }
     }
 
@@ -45,11 +61,20 @@ impl Component for ConfirmWorkStatusComponent {
             e.prevent_default();
             Msg::ToggleConfirmWorkStatusDisplay(false)
         });
+        let modal_behavior = if !ctx.props().current_user.resource_access.is_superuser
+            && ctx.props().current_state_unpublished
+            && ctx.props().is_published {
+                &open_modal
+            } else {
+                &close_modal
+            };
+        
         html! {
             <>
                 <button
                     class="button is-success"
-                    onclick={ open_modal }
+                    // onclick={ open_modal }
+                    onclick={ modal_behavior }
                     disabled={ ctx.props().deactivated }
                 >
                     { SAVE_BUTTON }
@@ -72,10 +97,21 @@ impl Component for ConfirmWorkStatusComponent {
                                 { "?" }
                             </p>
                         </section>
+                        // Ok, so it looks like the delete confirmation doesn't take care of 
+                        // closing the modal because the delete message redirects to a different route, 
+                        // so there's no need to close the modal
+
+                        // You'll need to explicitly close the work status modal yourself
+
+                        // to do so, you can create a message in the dialogue that is 
+                        // called onclick and (a) closes the dialogue, (b) emmits the onclick callback 
+                        // it receives from work.rs
+                        
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick={ ctx.props().onclick.clone() }
+                                // onclick={ ctx.props().onclick.clone() }
+                                onclick={ ctx.link().callback(|_| Msg::ExecuteCallback) }
                             >
                                 { SAVE_BUTTON }
                             </button>
