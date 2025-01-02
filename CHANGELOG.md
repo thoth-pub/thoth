@@ -5,7 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-
+### Added
+- [577](https://github.com/thoth-pub/thoth/pull/577) - Implement ONIX 3.1 "Thoth" specification (i.e. complete record reflecting full data model)
 
 ## [[0.13.4]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.4) - 2024-12-11
 ### Added
