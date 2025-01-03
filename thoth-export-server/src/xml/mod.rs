@@ -7,7 +7,14 @@ use xml::writer::{EmitterConfig, EventWriter, XmlEvent};
 
 const ONIX3_NS: &[(&str, &str)] = &[
     ("release", "3.0"),
+    // TODO: what does this refer to? The link is broken.
     ("xmlns", "http://ns.editeur.org/onix/3.0/reference"),
+];
+
+const ONIX31_NS: &[(&str, &str)] = &[
+    ("release", "3.1"),
+    // TODO: is this correct?
+    ("xmlns", "http://ns.editeur.org/onix/3.1/reference"),
 ];
 
 fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> ThothResult<()>>(
@@ -76,6 +83,8 @@ pub(crate) trait XmlElementBlock<T: XmlSpecification> {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()>;
 }
 
+mod onix31_thoth;
+pub(crate) use onix31_thoth::Onix31Thoth;
 mod onix3_thoth;
 pub(crate) use onix3_thoth::Onix3Thoth;
 mod onix3_project_muse;
