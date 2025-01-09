@@ -1083,6 +1083,7 @@ mod tests {
 pub mod affiliation;
 pub mod contribution;
 pub mod contributor;
+pub mod event;
 pub mod funding;
 pub mod imprint;
 pub mod institution;

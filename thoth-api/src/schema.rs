@@ -46,6 +46,10 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "relation_type"))]
     pub struct RelationType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "event_type"))]
+    pub struct EventType;
 }
 
 table! {
@@ -149,6 +153,19 @@ table! {
         account_id -> Uuid,
         data -> Jsonb,
         timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::EventType;
+
+    event (event_id) {
+        event_id -> Uuid,
+        event_type -> EventType,
+        work_id -> Uuid,
+        is_published -> Bool,
+        event_timestamp -> Timestamptz,
     }
 }
 
@@ -609,6 +626,7 @@ joinable!(contribution_history -> account (account_id));
 joinable!(contribution_history -> contribution (contribution_id));
 joinable!(contributor_history -> account (account_id));
 joinable!(contributor_history -> contributor (contributor_id));
+joinable!(event -> work (work_id));
 joinable!(funding -> institution (institution_id));
 joinable!(funding -> work (work_id));
 joinable!(funding_history -> account (account_id));
@@ -662,6 +680,7 @@ allow_tables_to_appear_in_same_query!(
     contribution_history,
     contributor,
     contributor_history,
+    event,
     funding,
     funding_history,
     imprint,
