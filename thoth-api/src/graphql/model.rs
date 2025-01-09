@@ -1,7 +1,6 @@
 use chrono::naive::NaiveDate;
-use futures::Stream;
-use juniper::{FieldResult, RootNode};
-use std::pin::Pin;
+use juniper::RootNode;
+use juniper::{EmptySubscription, FieldResult};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -11,7 +10,6 @@ use crate::db::PgPool;
 use crate::model::affiliation::*;
 use crate::model::contribution::*;
 use crate::model::contributor::*;
-use crate::model::event::*;
 use crate::model::funding::*;
 use crate::model::imprint::*;
 use crate::model::institution::*;
@@ -2413,17 +2411,6 @@ impl MutationRoot {
     }
 }
 
-pub struct SubscriptionRoot;
-
-type TestStream = Pin<Box<dyn Stream<Item = FieldResult<Event>> + Send>>;
-
-#[juniper::graphql_subscription(Context = Context)]
-impl SubscriptionRoot {
-    async fn test_stream(context: &Context) -> TestStream {
-        Event::all(&context.db)
-    }
-}
-
 #[juniper::graphql_object(Context = Context, description = "A written text that can be published")]
 impl Work {
     #[graphql(description = "Thoth ID of the work")]
@@ -4195,10 +4182,10 @@ impl Reference {
     }
 }
 
-pub type Schema = RootNode<'static, QueryRoot, MutationRoot, SubscriptionRoot>;
+pub type Schema = RootNode<'static, QueryRoot, MutationRoot, EmptySubscription<Context>>;
 
 pub fn create_schema() -> Schema {
-    Schema::new(QueryRoot {}, MutationRoot {}, SubscriptionRoot {})
+    Schema::new(QueryRoot {}, MutationRoot {}, EmptySubscription::new())
 }
 
 fn publisher_id_from_imprint_id(db: &crate::db::PgPool, imprint_id: Uuid) -> ThothResult<Uuid> {
