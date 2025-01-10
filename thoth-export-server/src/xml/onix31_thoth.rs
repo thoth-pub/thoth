@@ -23,7 +23,7 @@ struct Measure {
 
 const ONIX_ERROR: &str = "onix_3.1::thoth";
 
-// Based on ONIX for Books Release 3.1 Specification
+// Based on ONIX for Books Release 3.1.2 Specification
 // Download link: https://www.editeur.org/files/ONIX%203/ONIX_for_Books_Release_3-1_pdf_docs+codes_Issue_67.zip
 // Retrieved from: https://www.editeur.org/93/Release-3.0-Downloads/#Specifications
 impl XmlSpecification for Onix31Thoth {

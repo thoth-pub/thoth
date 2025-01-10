@@ -13,7 +13,6 @@ const ONIX3_NS: &[(&str, &str)] = &[
 
 const ONIX31_NS: &[(&str, &str)] = &[
     ("release", "3.1"),
-    // TODO: is this correct?
     ("xmlns", "http://ns.editeur.org/onix/3.1/reference"),
 ];
 
