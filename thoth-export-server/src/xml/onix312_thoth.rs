@@ -9,11 +9,11 @@ use thoth_client::{
 use xml::writer::{EventWriter, XmlEvent};
 
 use super::{write_element_block, XmlElement, XmlSpecification};
-use crate::xml::{write_full_element_block, XmlElementBlock, ONIX31_NS};
+use crate::xml::{write_full_element_block, XmlElementBlock, ONIX312_NS};
 use thoth_errors::{ThothError, ThothResult};
 
 #[derive(Copy, Clone)]
-pub struct Onix31Thoth {}
+pub struct Onix312Thoth {}
 
 struct Measure {
     measure_type: &'static str,
@@ -26,9 +26,9 @@ const ONIX_ERROR: &str = "onix_3.1::thoth";
 // Based on ONIX for Books Release 3.1.2 Specification
 // Download link: https://www.editeur.org/files/ONIX%203/ONIX_for_Books_Release_3-1_pdf_docs+codes_Issue_67.zip
 // Retrieved from: https://www.editeur.org/93/Release-3.0-Downloads/#Specifications
-impl XmlSpecification for Onix31Thoth {
+impl XmlSpecification for Onix312Thoth {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
-        write_full_element_block("ONIXMessage", Some(ONIX31_NS.to_vec()), w, |w| {
+        write_full_element_block("ONIXMessage", Some(ONIX312_NS.to_vec()), w, |w| {
             write_element_block("Header", w, |w| {
                 write_element_block("Sender", w, |w| {
                     write_element_block("SenderName", w, |w| {
@@ -52,13 +52,13 @@ impl XmlSpecification for Onix31Thoth {
                     ONIX_ERROR.to_string(),
                     "Not enough data".to_string(),
                 )),
-                [work] => XmlElementBlock::<Onix31Thoth>::xml_element(work, w),
+                [work] => XmlElementBlock::<Onix312Thoth>::xml_element(work, w),
                 _ => {
                     for work in works.iter() {
                         // Do not include Chapters in full publisher metadata record
                         // (assumes that a publisher will always have more than one work)
                         if work.work_type != WorkType::BOOK_CHAPTER {
-                            XmlElementBlock::<Onix31Thoth>::xml_element(work, w).ok();
+                            XmlElementBlock::<Onix312Thoth>::xml_element(work, w).ok();
                         }
                     }
                     Ok(())
@@ -68,7 +68,7 @@ impl XmlSpecification for Onix31Thoth {
     }
 }
 
-impl XmlElementBlock<Onix31Thoth> for Work {
+impl XmlElementBlock<Onix312Thoth> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         // Format is one record per Publication
         if self.publications.is_empty() {
@@ -226,7 +226,7 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                         (publication.weight_oz, "08", "oz"),
                     ] {
                         if let Some(measurement) = measurement_opt {
-                            XmlElementBlock::<Onix31Thoth>::xml_element(
+                            XmlElementBlock::<Onix312Thoth>::xml_element(
                                 &Measure {
                                     measure_type,
                                     measurement,
@@ -259,7 +259,7 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                         })?;
                     }
                     for issue in &self.issues {
-                        XmlElementBlock::<Onix31Thoth>::xml_element(issue, w).ok();
+                        XmlElementBlock::<Onix312Thoth>::xml_element(issue, w).ok();
                     }
                     write_element_block("TitleDetail", w, |w| {
                         // 01 Distinctive title (book)
@@ -285,7 +285,7 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                         })
                     })?;
                     for contribution in &self.contributions {
-                        XmlElementBlock::<Onix31Thoth>::xml_element(contribution, w).ok();
+                        XmlElementBlock::<Onix312Thoth>::xml_element(contribution, w).ok();
                     }
                     if let Some(edition) = &self.edition {
                         // "Normally sent only for the second and subsequent editions"
@@ -299,7 +299,7 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                         }
                     }
                     for language in &self.languages {
-                        XmlElementBlock::<Onix31Thoth>::xml_element(language, w).ok();
+                        XmlElementBlock::<Onix312Thoth>::xml_element(language, w).ok();
                     }
                     if let Some(page_count) = self.page_count {
                         write_element_block("Extent", w, |w| {
@@ -392,7 +392,7 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                                 // MainSubject is an empty element
                                 write_element_block("MainSubject", w, |_w| Ok(()))?;
                             }
-                            XmlElement::<Onix31Thoth>::xml_element(&subject.subject_type, w)?;
+                            XmlElement::<Onix312Thoth>::xml_element(&subject.subject_type, w)?;
                             match subject.subject_type {
                                 SubjectType::KEYWORD | SubjectType::CUSTOM => {
                                     write_element_block("SubjectHeadingText", w, |w| {
@@ -696,14 +696,14 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                         Ok(())
                     })?;
                     for funding in &self.fundings {
-                        XmlElementBlock::<Onix31Thoth>::xml_element(funding, w).ok();
+                        XmlElementBlock::<Onix312Thoth>::xml_element(funding, w).ok();
                     }
                     if let Some(place) = &self.place {
                         write_element_block("CityOfPublication", w, |w| {
                             w.write(XmlEvent::Characters(place)).map_err(|e| e.into())
                         })?;
                     }
-                    XmlElement::<Onix31Thoth>::xml_element(&self.work_status, w)?;
+                    XmlElement::<Onix312Thoth>::xml_element(&self.work_status, w)?;
                     if let Some(date) = &self.publication_date {
                         write_element_block("PublishingDate", w, |w| {
                             write_element_block("PublishingDateRole", w, |w| {
@@ -789,14 +789,14 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                             if relation.relation_type == RelationType::HAS_TRANSLATION
                                 || relation.relation_type == RelationType::IS_TRANSLATION_OF
                             {
-                                XmlElementBlock::<Onix31Thoth>::xml_element(relation, w).ok();
+                                XmlElementBlock::<Onix312Thoth>::xml_element(relation, w).ok();
                             }
                         }
                         for relation in &non_child_relations {
                             if relation.relation_type != RelationType::HAS_TRANSLATION
                                 && relation.relation_type != RelationType::IS_TRANSLATION_OF
                             {
-                                XmlElementBlock::<Onix31Thoth>::xml_element(relation, w).ok();
+                                XmlElementBlock::<Onix312Thoth>::xml_element(relation, w).ok();
                             }
                         }
                         for isbn in &isbns {
@@ -821,7 +821,7 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                             }
                         }
                         for reference in &self.references {
-                            XmlElementBlock::<Onix31Thoth>::xml_element(reference, w).ok();
+                            XmlElementBlock::<Onix312Thoth>::xml_element(reference, w).ok();
                         }
                         Ok(())
                     })?;
@@ -1023,7 +1023,7 @@ fn get_product_form_codes(publication_type: &PublicationType) -> (&str, Option<&
     }
 }
 
-impl XmlElement<Onix31Thoth> for WorkStatus {
+impl XmlElement<Onix312Thoth> for WorkStatus {
     const ELEMENT: &'static str = "PublishingStatus";
 
     fn value(&self) -> &'static str {
@@ -1039,7 +1039,7 @@ impl XmlElement<Onix31Thoth> for WorkStatus {
     }
 }
 
-impl XmlElement<Onix31Thoth> for SubjectType {
+impl XmlElement<Onix312Thoth> for SubjectType {
     const ELEMENT: &'static str = "SubjectSchemeIdentifier";
 
     fn value(&self) -> &'static str {
@@ -1055,7 +1055,7 @@ impl XmlElement<Onix31Thoth> for SubjectType {
     }
 }
 
-impl XmlElement<Onix31Thoth> for LanguageRelation {
+impl XmlElement<Onix312Thoth> for LanguageRelation {
     const ELEMENT: &'static str = "LanguageRole";
 
     fn value(&self) -> &'static str {
@@ -1068,7 +1068,7 @@ impl XmlElement<Onix31Thoth> for LanguageRelation {
     }
 }
 
-impl XmlElement<Onix31Thoth> for ContributionType {
+impl XmlElement<Onix312Thoth> for ContributionType {
     const ELEMENT: &'static str = "ContributorRole";
 
     fn value(&self) -> &'static str {
@@ -1092,14 +1092,14 @@ impl XmlElement<Onix31Thoth> for ContributionType {
     }
 }
 
-impl XmlElementBlock<Onix31Thoth> for WorkContributions {
+impl XmlElementBlock<Onix312Thoth> for WorkContributions {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Contributor", w, |w| {
             write_element_block("SequenceNumber", w, |w| {
                 w.write(XmlEvent::Characters(&self.contribution_ordinal.to_string()))
                     .map_err(|e| e.into())
             })?;
-            XmlElement::<Onix31Thoth>::xml_element(&self.contribution_type, w)?;
+            XmlElement::<Onix312Thoth>::xml_element(&self.contribution_type, w)?;
 
             if let Some(orcid) = &self.contributor.orcid {
                 write_element_block("NameIdentifier", w, |w| {
@@ -1167,10 +1167,10 @@ impl XmlElementBlock<Onix31Thoth> for WorkContributions {
     }
 }
 
-impl XmlElementBlock<Onix31Thoth> for WorkLanguages {
+impl XmlElementBlock<Onix312Thoth> for WorkLanguages {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Language", w, |w| {
-            XmlElement::<Onix31Thoth>::xml_element(&self.language_relation, w).ok();
+            XmlElement::<Onix312Thoth>::xml_element(&self.language_relation, w).ok();
             // not worth implementing XmlElement for LanguageCode as all cases would
             // need to be exhaustively matched and the codes are equivalent anyway
             write_element_block("LanguageCode", w, |w| {
@@ -1183,7 +1183,7 @@ impl XmlElementBlock<Onix31Thoth> for WorkLanguages {
     }
 }
 
-impl XmlElementBlock<Onix31Thoth> for WorkIssues {
+impl XmlElementBlock<Onix312Thoth> for WorkIssues {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Collection", w, |w| {
             // 10 Publisher collection (e.g. series)
@@ -1282,7 +1282,7 @@ impl XmlElementBlock<Onix31Thoth> for WorkIssues {
     }
 }
 
-impl XmlElementBlock<Onix31Thoth> for WorkFundings {
+impl XmlElementBlock<Onix312Thoth> for WorkFundings {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Publisher", w, |w| {
             // 16 Funding body
@@ -1354,7 +1354,7 @@ impl XmlElementBlock<Onix31Thoth> for WorkFundings {
     }
 }
 
-impl XmlElementBlock<Onix31Thoth> for WorkReferences {
+impl XmlElementBlock<Onix312Thoth> for WorkReferences {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("RelatedProduct", w, |w| {
             // 34 Cites
@@ -1393,7 +1393,7 @@ impl XmlElementBlock<Onix31Thoth> for WorkReferences {
     }
 }
 
-impl XmlElementBlock<Onix31Thoth> for WorkRelations {
+impl XmlElementBlock<Onix312Thoth> for WorkRelations {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         if self.relation_type == RelationType::HAS_TRANSLATION
             || self.relation_type == RelationType::IS_TRANSLATION_OF
@@ -1461,7 +1461,7 @@ impl XmlElementBlock<Onix31Thoth> for WorkRelations {
     }
 }
 
-impl XmlElementBlock<Onix31Thoth> for Measure {
+impl XmlElementBlock<Onix312Thoth> for Measure {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Measure", w, |w| {
             write_element_block("MeasureType", w, |w| {
@@ -1501,13 +1501,13 @@ mod tests {
     };
     use uuid::Uuid;
 
-    fn generate_test_output(expect_ok: bool, input: &impl XmlElementBlock<Onix31Thoth>) -> String {
+    fn generate_test_output(expect_ok: bool, input: &impl XmlElementBlock<Onix312Thoth>) -> String {
         // Helper function based on `XmlSpecification::generate`
         let mut buffer = Vec::new();
         let mut writer = xml::writer::EmitterConfig::new()
             .perform_indent(true)
             .create_writer(&mut buffer);
-        let wrapped_output = XmlElementBlock::<Onix31Thoth>::xml_element(input, &mut writer)
+        let wrapped_output = XmlElementBlock::<Onix312Thoth>::xml_element(input, &mut writer)
             .map(|_| buffer)
             .and_then(|xml| {
                 String::from_utf8(xml)
