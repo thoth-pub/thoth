@@ -21,7 +21,7 @@ struct Measure {
     measure_unit_code: &'static str,
 }
 
-const ONIX_ERROR: &str = "onix_3.1::thoth";
+const ONIX_ERROR: &str = "onix_3.1.2::thoth";
 
 // Based on ONIX for Books Release 3.1.2 Specification
 // Download link: https://www.editeur.org/files/ONIX%203/ONIX_for_Books_Release_3-1_pdf_docs+codes_Issue_67.zip
@@ -1134,6 +1134,16 @@ impl XmlElementBlock<Onix312Thoth> for WorkContributions {
                                 .map_err(|e| e.into())
                         })?;
                     }
+                    if let Some(ror) = &affiliation.institution.ror {
+                        write_element_block("AffiliationIdentifier", w, |w| {
+                            write_element_block("AffiliationIDType", w, |w| {
+                                w.write(XmlEvent::Characters("40")).map_err(|e| e.into())
+                            })?;
+                            write_element_block("IDValue", w, |w| {
+                                w.write(XmlEvent::Characters(&ror.to_string())).map_err(|e| e.into())
+                            })
+                        })?;
+                    }
                     write_element_block("Affiliation", w, |w| {
                         w.write(XmlEvent::Characters(
                             &affiliation.institution.institution_name,
@@ -1542,7 +1552,7 @@ mod tests {
                 institution: WorkContributionsAffiliationsInstitution {
                     institution_name: "University of Life".to_string(),
                     institution_doi: None,
-                    ror: None,
+                    ror: Some(Ror::from_str("01abcde23").unwrap()),
                     country_code: None,
                 },
             }],
@@ -1566,6 +1576,10 @@ mod tests {
   <KeyNames>1</KeyNames>
   <ProfessionalAffiliation>
     <ProfessionalPosition>Manager</ProfessionalPosition>
+    <AffiliationIdentifier>
+      <AffiliationIDType>40</AffiliationIDType>
+      <IDValue>01abcde23</IDValue>
+    </AffiliationIdentifier>
     <Affiliation>University of Life</Affiliation>
   </ProfessionalAffiliation>
   <BiographicalNote>Author N. 1 is a made-up author</BiographicalNote>
@@ -1585,6 +1599,7 @@ mod tests {
         test_contribution.first_name = None;
         test_contribution.biography = None;
         test_contribution.affiliations[0].position = None;
+        test_contribution.affiliations[0].institution.ror = None;
         let output = generate_test_output(true, &test_contribution);
         println!("{output}");
         assert_eq!(
@@ -1610,7 +1625,7 @@ mod tests {
                 institution: WorkContributionsAffiliationsInstitution {
                     institution_name: "Institute of Mopping".to_string(),
                     institution_doi: None,
-                    ror: None,
+                    ror: Some(Ror::from_str("04k25m262").unwrap()),
                     country_code: None,
                 },
             });
@@ -1626,6 +1641,10 @@ mod tests {
             r#"
   <ProfessionalAffiliation>
     <ProfessionalPosition>Janitor</ProfessionalPosition>
+    <AffiliationIdentifier>
+      <AffiliationIDType>40</AffiliationIDType>
+      <IDValue>04k25m262</IDValue>
+    </AffiliationIdentifier>
     <Affiliation>Institute of Mopping</Affiliation>
   </ProfessionalAffiliation>"#
         ));

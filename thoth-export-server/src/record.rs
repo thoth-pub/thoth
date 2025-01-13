@@ -412,6 +412,11 @@ mod tests {
             to_test.file_name(),
             "onix_3.0__thoth__some_id.xml".to_string()
         );
+        let to_test = MetadataRecord::new(
+            "some_id".to_string(),
+            MetadataSpecification::Onix312Thoth(Onix312Thoth {}),
+            timestamp,
+        );
         assert_eq!(
             to_test.file_name(),
             "onix_3.1.2__thoth__some_id.xml".to_string()
