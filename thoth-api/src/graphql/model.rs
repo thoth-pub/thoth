@@ -1985,7 +1985,7 @@ impl MutationRoot {
                 Some(vec![LocationPlatform::Thoth]),
             )?
             .first()
-            .map_or(false, |location| location.canonical);
+            .is_some_and(|location| location.canonical);
         // Only superusers can update the canonical location when a Thoth Location Platform canonical location already exists
         if has_canonical_thoth_location && data.canonical && !context.account_access.is_superuser {
             return Err(ThothError::ThothUpdateCanonicalError.into());
