@@ -169,6 +169,7 @@ fn thoth_commands() -> Command {
                     Command::new("graphql-api")
                         .about("Start the thoth GraphQL API server")
                         .arg(database_argument())
+                        .arg(redis_argument())
                         .arg(host_argument("GRAPHQL_API_HOST"))
                         .arg(port_argument("8000", "GRAPHQL_API_PORT"))
                         .arg(threads_argument("GRAPHQL_API_THREADS"))
@@ -202,6 +203,7 @@ fn thoth_commands() -> Command {
             Command::new("init")
                 .about("Run the database migrations and start the thoth API server")
                 .arg(database_argument())
+                .arg(redis_argument())
                 .arg(host_argument("GRAPHQL_API_HOST"))
                 .arg(port_argument("8000", "GRAPHQL_API_PORT"))
                 .arg(threads_argument("GRAPHQL_API_THREADS"))
@@ -230,6 +232,7 @@ fn main() -> ThothResult<()> {
         Some(("start", start_matches)) => match start_matches.subcommand() {
             Some(("graphql-api", api_matches)) => {
                 let database_url = api_matches.get_one::<String>("db").unwrap().to_owned();
+                let redis_url = api_matches.get_one::<String>("redis").unwrap().to_owned();
                 let host = api_matches.get_one::<String>("host").unwrap().to_owned();
                 let port = api_matches.get_one::<String>("port").unwrap().to_owned();
                 let threads = *api_matches.get_one::<usize>("threads").unwrap();
@@ -240,6 +243,7 @@ fn main() -> ThothResult<()> {
                 let session_duration = *api_matches.get_one::<i64>("duration").unwrap();
                 api_server(
                     database_url,
+                    redis_url,
                     host,
                     port,
                     threads,
@@ -297,6 +301,7 @@ fn main() -> ThothResult<()> {
         }
         Some(("init", init_matches)) => {
             let database_url = init_matches.get_one::<String>("db").unwrap().to_owned();
+            let redis_url = init_matches.get_one::<String>("redis").unwrap().to_owned();
             let host = init_matches.get_one::<String>("host").unwrap().to_owned();
             let port = init_matches.get_one::<String>("port").unwrap().to_owned();
             let threads = *init_matches.get_one::<usize>("threads").unwrap();
@@ -311,6 +316,7 @@ fn main() -> ThothResult<()> {
             run_migrations(&database_url)?;
             api_server(
                 database_url,
+                redis_url,
                 host,
                 port,
                 threads,

@@ -35,6 +35,7 @@ use crate::model::Orcid;
 use crate::model::Ror;
 use crate::model::Timestamp;
 use crate::model::WeightUnit;
+use crate::redis::{set, RedisPool};
 use thoth_errors::{ThothError, ThothResult};
 
 use super::utils::{Direction, Expression};
@@ -44,14 +45,16 @@ impl juniper::Context for Context {}
 #[derive(Clone)]
 pub struct Context {
     pub db: Arc<PgPool>,
+    pub redis: Arc<RedisPool>,
     pub account_access: AccountAccess,
     pub token: DecodedToken,
 }
 
 impl Context {
-    pub fn new(pool: Arc<PgPool>, token: DecodedToken) -> Self {
+    pub fn new(pool: Arc<PgPool>, redis_pool: Arc<RedisPool>, token: DecodedToken) -> Self {
         Self {
             db: pool,
+            redis: redis_pool,
             account_access: token.get_user_permissions(),
             token,
         }
@@ -1470,7 +1473,7 @@ pub struct MutationRoot;
 #[juniper::graphql_object(Context = Context)]
 impl MutationRoot {
     #[graphql(description = "Create a new work with the specified values")]
-    fn create_work(
+    async fn create_work(
         context: &Context,
         #[graphql(description = "Values for work to be created")] data: NewWork,
     ) -> FieldResult<Work> {
@@ -1481,7 +1484,14 @@ impl MutationRoot {
 
         data.validate()?;
 
-        Work::create(&context.db, &data).map_err(|e| e.into())
+        let result = Work::create(&context.db, &data).map_err(|e| e.into());
+
+        if let Ok(created_work) = result.clone() {
+            // placeholder (TODO handle this result)
+            let _ = set(&context.redis, "test", &created_work.work_id().to_string()).await;
+        }
+
+        result
     }
 
     #[graphql(description = "Create a new publisher with the specified values")]
