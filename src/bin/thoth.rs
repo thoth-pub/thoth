@@ -225,11 +225,11 @@ fn thoth_commands() -> Command {
         )
         .subcommand(
             Command::new("cache")
-                .about("Manage cached specifications")
+                .about("Manage cached records")
                 .arg(redis_argument())
                 .subcommand_required(true)
                 .arg_required_else_help(true)
-                .subcommand(Command::new("delete").about("Delete cached specifications")),
+                .subcommand(Command::new("delete").about("Delete cached records")),
         )
 }
 
