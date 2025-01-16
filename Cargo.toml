@@ -23,3 +23,4 @@ thoth-export-server = { version = "=0.13.4", path = "thoth-export-server" }
 clap = { version = "4.5.21", features = ["cargo", "env"] }
 dialoguer = { version = "0.11.0", features = ["password"] }
 dotenv = "0.15.0"
+tokio = { version = "1.43.0", features = ["rt", "rt-multi-thread", "macros"] }
