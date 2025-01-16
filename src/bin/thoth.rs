@@ -2,16 +2,19 @@ use clap::{crate_authors, crate_version, value_parser, Arg, ArgAction, Command};
 use dialoguer::{console::Term, theme::ColorfulTheme, Input, MultiSelect, Password, Select};
 use dotenv::dotenv;
 use std::env;
-use thoth::api::{
-    account::{
-        model::{AccountData, LinkedPublisher},
-        service::{all_emails, all_publishers, register, update_password},
+use thoth::{
+    api::{
+        account::{
+            model::{AccountData, LinkedPublisher},
+            service::{all_emails, all_publishers, register, update_password},
+        },
+        db::{init_pool as init_pg_pool, revert_migrations, run_migrations},
+        redis::{del, init_pool as init_redis_pool, scan_match},
     },
-    db::{init_pool as init_pg_pool, revert_migrations, run_migrations},
-    redis::{del, init_pool as init_redis_pool, scan_match},
+    api_server, app_server,
+    errors::{ThothError, ThothResult},
+    export_server, ALL_SPECIFICATIONS,
 };
-use thoth::{api_server, app_server, export_server, ALL_SPECIFICATIONS};
-use thoth_errors::ThothResult;
 
 fn database_argument() -> Arg {
     Arg::new("db")
@@ -233,8 +236,7 @@ fn thoth_commands() -> Command {
         )
 }
 
-#[tokio::main]
-async fn main() -> ThothResult<()> {
+fn main() -> ThothResult<()> {
     // load environment variables from `.env`
     dotenv().ok();
 
@@ -422,14 +424,21 @@ async fn main() -> ThothResult<()> {
                     .items(&ALL_SPECIFICATIONS)
                     .with_prompt("Select cached specifications to delete")
                     .interact_on(&Term::stdout())?;
-                for index in chosen {
-                    let specification = ALL_SPECIFICATIONS.get(index).unwrap();
-                    let keys = scan_match(&pool, &format!("{}*", specification)).await?;
-                    for key in keys {
-                        del(&pool, &key).await?;
+                // run a separate tokio runtime to avoid interfering with actix's threads
+                let runtime = tokio::runtime::Builder::new_multi_thread()
+                    .worker_threads(1)
+                    .enable_all()
+                    .build()?;
+                runtime.block_on(async {
+                    for index in chosen {
+                        let specification = ALL_SPECIFICATIONS.get(index).unwrap();
+                        let keys = scan_match(&pool, &format!("{}*", specification)).await?;
+                        for key in keys {
+                            del(&pool, &key).await?;
+                        }
                     }
-                }
-                Ok(())
+                    Ok::<(), ThothError>(())
+                })
             }
             _ => unreachable!(),
         },
