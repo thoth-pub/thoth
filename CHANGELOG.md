@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[0.13.5]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.5) - 2025-01-17
 ### Changed
   - [665](https://github.com/thoth-pub/thoth/pull/665) - Removed unnecessary `map_or()` to comply with [`rustc 1.84.0`](https://github.com/rust-lang/rust/releases/tag/1.84.0)
   - [666](https://github.com/thoth-pub/thoth/pull/666) - Upgrade rust to `1.84.0` in production `Dockerfile`
