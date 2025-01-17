@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web::Data, App, HttpServer};
+pub use data::ALL_SPECIFICATIONS;
 use paperclip::actix::{web, web::HttpResponse, OpenApiExt};
 use paperclip::v2::models::{Contact, DefaultApiRaw, Info, License, OperationProtocol, Tag};
 use thoth_api::redis::init_pool;
