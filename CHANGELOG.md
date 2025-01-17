@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.13.5]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.5) - 2025-01-17
+### Changed
+  - [665](https://github.com/thoth-pub/thoth/pull/665) - Removed unnecessary `map_or()` to comply with [`rustc 1.84.0`](https://github.com/rust-lang/rust/releases/tag/1.84.0)
+  - [666](https://github.com/thoth-pub/thoth/pull/666) - Upgrade rust to `1.84.0` in production `Dockerfile`
+
+### Added
+  - [666](https://github.com/thoth-pub/thoth/pull/666) - CLI subcommand `thoth cache delete` to delete cached metadata records by specification ID
 
 ## [[0.13.4]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.4) - 2024-12-11
 ### Added
