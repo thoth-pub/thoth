@@ -6,7 +6,7 @@ use crate::platform::model::Platform;
 use crate::specification::model::Specification;
 
 lazy_static! {
-    pub(crate) static ref ALL_SPECIFICATIONS: Vec<Specification<'static>> = vec![
+    pub static ref ALL_SPECIFICATIONS: Vec<Specification<'static>> = vec![
         Specification {
             id: "onix_3.0::thoth",
             name: "Thoth ONIX 3.0",
