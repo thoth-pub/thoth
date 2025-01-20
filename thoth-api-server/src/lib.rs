@@ -19,12 +19,12 @@ use serde::Serialize;
 use thoth_api::{
     account::model::{AccountDetails, DecodedToken, LoginCredentials},
     account::service::{get_account, get_account_details, login},
-    db::{init_pool, PgPool},
+    db::{init_pool as init_pg_pool, PgPool},
     graphql::{
         model::{create_schema, Context, Schema},
         GraphQLRequest,
     },
-    redis::{init_pool as redis_init_pool, RedisPool},
+    redis::{init_pool as init_redis_pool, RedisPool},
 };
 use thoth_errors::ThothError;
 
@@ -230,8 +230,8 @@ pub async fn start_server(
                     .supports_credentials(),
             )
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
-            .app_data(Data::new(init_pool(&database_url)))
-            .app_data(Data::new(redis_init_pool(&redis_url)))
+            .app_data(Data::new(init_pg_pool(&database_url)))
+            .app_data(Data::new(init_redis_pool(&redis_url)))
             .app_data(Data::new(Arc::new(create_schema())))
             .service(index)
             .service(graphql_index)
