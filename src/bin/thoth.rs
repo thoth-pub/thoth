@@ -2,13 +2,19 @@ use clap::{crate_authors, crate_version, value_parser, Arg, ArgAction, Command};
 use dialoguer::{console::Term, theme::ColorfulTheme, Input, MultiSelect, Password, Select};
 use dotenv::dotenv;
 use std::env;
-use thoth::api::account::model::{AccountData, LinkedPublisher};
-use thoth::api::account::service::{all_emails, all_publishers, register, update_password};
-use thoth::api::db::{init_pool, revert_migrations, run_migrations};
-use thoth::api_server;
-use thoth::app_server;
-use thoth::export_server;
-use thoth_errors::ThothResult;
+use thoth::{
+    api::{
+        account::{
+            model::{AccountData, LinkedPublisher},
+            service::{all_emails, all_publishers, register, update_password},
+        },
+        db::{init_pool as init_pg_pool, revert_migrations, run_migrations},
+        redis::{del, init_pool as init_redis_pool, scan_match},
+    },
+    api_server, app_server,
+    errors::{ThothError, ThothResult},
+    export_server, ALL_SPECIFICATIONS,
+};
 
 fn database_argument() -> Arg {
     Arg::new("db")
@@ -220,6 +226,14 @@ fn thoth_commands() -> Command {
                 .subcommand(Command::new("register").about("Create a new user account"))
                 .subcommand(Command::new("password").about("Reset a password")),
         )
+        .subcommand(
+            Command::new("cache")
+                .about("Manage cached records")
+                .arg(redis_argument())
+                .subcommand_required(true)
+                .arg_required_else_help(true)
+                .subcommand(Command::new("delete").about("Delete cached records")),
+        )
 }
 
 fn main() -> ThothResult<()> {
@@ -326,7 +340,7 @@ fn main() -> ThothResult<()> {
             let database_url = account_matches.get_one::<String>("db").unwrap();
             match account_matches.subcommand() {
                 Some(("register", _)) => {
-                    let pool = init_pool(database_url);
+                    let pool = init_pg_pool(database_url);
 
                     let name = Input::new()
                         .with_prompt("Enter given name")
@@ -383,7 +397,7 @@ fn main() -> ThothResult<()> {
                     register(account_data, linked_publishers, &pool).map(|_| ())
                 }
                 Some(("password", _)) => {
-                    let pool = init_pool(database_url);
+                    let pool = init_pg_pool(database_url);
                     let all_emails =
                         all_emails(&pool).expect("No user accounts present in database.");
                     let email_selection = Select::with_theme(&ColorfulTheme::default())
@@ -402,6 +416,32 @@ fn main() -> ThothResult<()> {
                 _ => unreachable!(),
             }
         }
+        Some(("cache", cache_matches)) => match cache_matches.subcommand() {
+            Some(("delete", _)) => {
+                let redis_url = cache_matches.get_one::<String>("redis").unwrap();
+                let pool = init_redis_pool(redis_url);
+                let chosen: Vec<usize> = MultiSelect::new()
+                    .items(&ALL_SPECIFICATIONS)
+                    .with_prompt("Select cached specifications to delete")
+                    .interact_on(&Term::stdout())?;
+                // run a separate tokio runtime to avoid interfering with actix's threads
+                let runtime = tokio::runtime::Builder::new_multi_thread()
+                    .worker_threads(1)
+                    .enable_all()
+                    .build()?;
+                runtime.block_on(async {
+                    for index in chosen {
+                        let specification = ALL_SPECIFICATIONS.get(index).unwrap();
+                        let keys = scan_match(&pool, &format!("{}*", specification)).await?;
+                        for key in keys {
+                            del(&pool, &key).await?;
+                        }
+                    }
+                    Ok::<(), ThothError>(())
+                })
+            }
+            _ => unreachable!(),
+        },
         _ => unreachable!(),
     }
 }
