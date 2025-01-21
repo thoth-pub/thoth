@@ -2,9 +2,7 @@ use cc_license::License;
 use chrono::Utc;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, LanguageRelation, LocationPlatform, PublicationType, RelationType,
-    SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages,
-    WorkPublicationsLocations, WorkReferences, WorkRelations, WorkStatus, WorkType,
+    ContributionType, LanguageRelation, LocationPlatform, PublicationType, RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublicationsLocations, WorkReferences, WorkRelations, WorkRelationsRelatedWorkContributions, WorkStatus, WorkType
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -625,6 +623,56 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                             .map_err(|e| e.into())
                                     })?;
                                 }
+                                if let Some(license_url) = &chapter.license {
+                                    let license_text = match License::from_url(license_url) {
+                                        Ok(license) => license.to_string(),
+                                        Err(_) => "Unspecified".to_string(),
+                                    };
+                                    write_element_block("EpubLicense", w, |w| {
+                                        write_element_block("EpubLicenseName", w, |w| {
+                                            w.write(XmlEvent::Characters(&license_text))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("EpubLicenseExpression", w, |w| {
+                                            write_element_block("EpubLicenseExpressionType", w, |w| {
+                                                w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                                            })?;
+                                            write_element_block("EpubLicenseExpressionLink", w, |w| {
+                                                w.write(XmlEvent::Characters(license_url))
+                                                    .map_err(|e| e.into())
+                                            })
+                                        })
+                                    })?;
+                                }
+                                write_element_block("ComponentTypeName", w, |w| {
+                                    w.write(XmlEvent::Characters("Chapter")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("TitleDetail", w, |w| {
+                                    // 01 Distinctive title (book)
+                                    write_element_block("TitleType", w, |w| {
+                                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("TitleElement", w, |w| {
+                                        // 01 Product
+                                        write_element_block("TitleElementLevel", w, |w| {
+                                            w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("TitleText", w, |w| {
+                                            w.write(XmlEvent::Characters(&chapter.title))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        if let Some(subtitle) = &chapter.subtitle {
+                                            write_element_block("Subtitle", w, |w| {
+                                                w.write(XmlEvent::Characters(subtitle))
+                                                    .map_err(|e| e.into())
+                                            })?;
+                                        }
+                                        Ok(())
+                                    })
+                                })?;
+                                for contribution in &chapter.contributions {
+                                    XmlElementBlock::<Onix312Thoth>::xml_element(contribution, w).ok();
+                                }
                                 Ok(())
                             })?;
                         }
@@ -1094,6 +1142,91 @@ impl XmlElement<Onix312Thoth> for ContributionType {
 }
 
 impl XmlElementBlock<Onix312Thoth> for WorkContributions {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_element_block("Contributor", w, |w| {
+            write_element_block("SequenceNumber", w, |w| {
+                w.write(XmlEvent::Characters(&self.contribution_ordinal.to_string()))
+                    .map_err(|e| e.into())
+            })?;
+            XmlElement::<Onix312Thoth>::xml_element(&self.contribution_type, w)?;
+
+            if let Some(orcid) = &self.contributor.orcid {
+                write_element_block("NameIdentifier", w, |w| {
+                    write_element_block("NameIDType", w, |w| {
+                        w.write(XmlEvent::Characters("21")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(&orcid.to_string()))
+                            .map_err(|e| e.into())
+                    })
+                })?;
+            }
+            write_element_block("PersonName", w, |w| {
+                w.write(XmlEvent::Characters(&self.full_name))
+                    .map_err(|e| e.into())
+            })?;
+            if let Some(first_name) = &self.first_name {
+                write_element_block("NamesBeforeKey", w, |w| {
+                    w.write(XmlEvent::Characters(first_name))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            write_element_block("KeyNames", w, |w| {
+                w.write(XmlEvent::Characters(&self.last_name))
+                    .map_err(|e| e.into())
+            })?;
+            for affiliation in &self.affiliations {
+                write_element_block("ProfessionalAffiliation", w, |w| {
+                    if let Some(position) = &affiliation.position {
+                        write_element_block("ProfessionalPosition", w, |w| {
+                            w.write(XmlEvent::Characters(position))
+                                .map_err(|e| e.into())
+                        })?;
+                    }
+                    if let Some(ror) = &affiliation.institution.ror {
+                        write_element_block("AffiliationIdentifier", w, |w| {
+                            write_element_block("AffiliationIDType", w, |w| {
+                                w.write(XmlEvent::Characters("40")).map_err(|e| e.into())
+                            })?;
+                            write_element_block("IDValue", w, |w| {
+                                w.write(XmlEvent::Characters(&ror.to_string())).map_err(|e| e.into())
+                            })
+                        })?;
+                    }
+                    write_element_block("Affiliation", w, |w| {
+                        w.write(XmlEvent::Characters(
+                            &affiliation.institution.institution_name,
+                        ))
+                        .map_err(|e| e.into())
+                    })
+                })?;
+            }
+            if let Some(biography) = &self.biography {
+                write_element_block("BiographicalNote", w, |w| {
+                    w.write(XmlEvent::Characters(biography))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            if let Some(website) = &self.contributor.website {
+                write_element_block("Website", w, |w| {
+                    write_element_block("WebsiteRole", w, |w| {
+                        w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("WebsiteDescription", w, |w| {
+                        w.write(XmlEvent::Characters("Own website"))
+                            .map_err(|e| e.into())
+                    })?;
+                    write_element_block("WebsiteLink", w, |w| {
+                        w.write(XmlEvent::Characters(website)).map_err(|e| e.into())
+                    })
+                })?;
+            }
+            Ok(())
+        })
+    }
+}
+
+impl XmlElementBlock<Onix312Thoth> for WorkRelationsRelatedWorkContributions {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Contributor", w, |w| {
             write_element_block("SequenceNumber", w, |w| {
@@ -2292,13 +2425,13 @@ mod tests {
                     related_work: WorkRelationsRelatedWork {
                         work_status: WorkStatus::ACTIVE,
                         full_title: "Related work title".to_string(),
-                        title: "N/A".to_string(),
-                        subtitle: None,
+                        title: "The first chapter:".to_string(),
+                        subtitle: Some("An introduction".to_string()),
                         edition: None,
                         doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
                         publication_date: None,
                         withdrawn_date: None,
-                        license: None,
+                        license: Some("https://creativecommons.org/licenses/by-sa/4.0/".to_string()),
                         short_abstract: None,
                         long_abstract: None,
                         place: None,
@@ -2762,6 +2895,22 @@ mod tests {
         <LastPageNumber>20</LastPageNumber>
       </PageRun>
       <NumberOfPages>11</NumberOfPages>
+      <EpubLicense>
+        <EpubLicenseName>Creative Commons Attribution-ShareAlike 4.0 International license (CC BY-SA 4.0).</EpubLicenseName>
+        <EpubLicenseExpression>
+          <EpubLicenseExpressionType>02</EpubLicenseExpressionType>
+          <EpubLicenseExpressionLink>https://creativecommons.org/licenses/by-sa/4.0/</EpubLicenseExpressionLink>
+        </EpubLicenseExpression>
+      </EpubLicense>
+      <ComponentTypeName>Chapter</ComponentTypeName>
+      <TitleDetail>
+        <TitleType>01</TitleType>
+        <TitleElement>
+          <TitleElementLevel>01</TitleElementLevel>
+          <TitleText>The first chapter:</TitleText>
+          <Subtitle>An introduction</Subtitle>
+        </TitleElement>
+      </TitleDetail>
     </ContentItem>
   </ContentDetail>
   <PublishingDetail>
