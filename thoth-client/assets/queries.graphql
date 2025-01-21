@@ -188,7 +188,9 @@ fragment Work on Work {
                 fullName
                 contributionOrdinal
                 contributor {
+                    biography
                     orcid
+                    website
                 }
                 affiliations(order: {field: AFFILIATION_ORDINAL, direction: ASC}) {
                     position
