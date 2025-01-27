@@ -1,20 +1,18 @@
 use clap::{crate_authors, crate_version, value_parser, Arg, ArgAction, Command};
-use dialoguer::{console::Term, theme::ColorfulTheme, Input, MultiSelect, Password, Select};
+use dialoguer::{console::Term, MultiSelect};
 use dotenv::dotenv;
 use std::env;
 use thoth::{
     api::{
-        account::{
-            model::{AccountData, LinkedPublisher},
-            service::{all_emails, all_publishers, register, update_password},
-        },
-        db::{init_pool as init_pg_pool, revert_migrations, run_migrations},
+        db::{revert_migrations, run_migrations},
         redis::{del, init_pool as init_redis_pool, scan_match},
     },
     api_server, app_server,
     errors::{ThothError, ThothResult},
     export_server, ALL_SPECIFICATIONS,
 };
+
+mod commands;
 
 fn database_argument() -> Arg {
     Arg::new("db")
@@ -224,6 +222,10 @@ fn thoth_commands() -> Command {
                 .subcommand_required(true)
                 .arg_required_else_help(true)
                 .subcommand(Command::new("register").about("Create a new user account"))
+                .subcommand(
+                    Command::new("publisher")
+                        .about("Select which publisher(s) this account can manage"),
+                )
                 .subcommand(Command::new("password").about("Reset a password")),
         )
         .subcommand(
@@ -336,86 +338,12 @@ fn main() -> ThothResult<()> {
             )
             .map_err(|e| e.into())
         }
-        Some(("account", account_matches)) => {
-            let database_url = account_matches.get_one::<String>("db").unwrap();
-            match account_matches.subcommand() {
-                Some(("register", _)) => {
-                    let pool = init_pg_pool(database_url);
-
-                    let name = Input::new()
-                        .with_prompt("Enter given name")
-                        .interact_on(&Term::stdout())?;
-                    let surname = Input::new()
-                        .with_prompt("Enter family name")
-                        .interact_on(&Term::stdout())?;
-                    let email = Input::new()
-                        .with_prompt("Enter email address")
-                        .interact_on(&Term::stdout())?;
-                    let password = Password::new()
-                        .with_prompt("Enter password")
-                        .with_confirmation("Confirm password", "Passwords do not match")
-                        .interact_on(&Term::stdout())?;
-                    let is_superuser: bool = Input::new()
-                        .with_prompt("Is this a superuser account")
-                        .default(false)
-                        .interact_on(&Term::stdout())?;
-                    let is_bot: bool = Input::new()
-                        .with_prompt("Is this a bot account")
-                        .default(false)
-                        .interact_on(&Term::stdout())?;
-
-                    let mut linked_publishers = vec![];
-                    if let Ok(publishers) = all_publishers(&pool) {
-                        let chosen: Vec<usize> = MultiSelect::new()
-                            .items(&publishers)
-                            .with_prompt("Select publishers to link this account to")
-                            .interact_on(&Term::stdout())?;
-                        for index in chosen {
-                            let publisher = publishers.get(index).unwrap();
-                            let is_admin: bool = Input::new()
-                                .with_prompt(format!(
-                                    "Make user an admin of '{}'?",
-                                    publisher.publisher_name
-                                ))
-                                .default(false)
-                                .interact_on(&Term::stdout())?;
-                            let linked_publisher = LinkedPublisher {
-                                publisher_id: publisher.publisher_id,
-                                is_admin,
-                            };
-                            linked_publishers.push(linked_publisher);
-                        }
-                    }
-                    let account_data = AccountData {
-                        name,
-                        surname,
-                        email,
-                        password,
-                        is_superuser,
-                        is_bot,
-                    };
-                    register(account_data, linked_publishers, &pool).map(|_| ())
-                }
-                Some(("password", _)) => {
-                    let pool = init_pg_pool(database_url);
-                    let all_emails =
-                        all_emails(&pool).expect("No user accounts present in database.");
-                    let email_selection = Select::with_theme(&ColorfulTheme::default())
-                        .items(&all_emails)
-                        .default(0)
-                        .with_prompt("Select a user account")
-                        .interact_on(&Term::stdout())?;
-                    let password = Password::new()
-                        .with_prompt("Enter new password")
-                        .with_confirmation("Confirm password", "Passwords do not match")
-                        .interact_on(&Term::stdout())?;
-                    let email = all_emails.get(email_selection).unwrap();
-
-                    update_password(email, &password, &pool).map(|_| ())
-                }
-                _ => unreachable!(),
-            }
-        }
+        Some(("account", account_matches)) => match account_matches.subcommand() {
+            Some(("register", _)) => commands::account::register(account_matches),
+            Some(("publisher", _)) => commands::account::publisher(account_matches),
+            Some(("password", _)) => commands::account::password(account_matches),
+            _ => unreachable!(),
+        },
         Some(("cache", cache_matches)) => match cache_matches.subcommand() {
             Some(("delete", _)) => {
                 let redis_url = cache_matches.get_one::<String>("redis").unwrap();
