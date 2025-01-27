@@ -851,6 +851,7 @@ mod tests {
                     publications: vec![],
                     references: vec![],
                     fundings: vec![],
+                    languages: vec![],
                 },
             }],
             references: vec![WorkReferences {
@@ -1180,6 +1181,7 @@ mod tests {
                 publications: vec![],
                 references: vec![],
                 fundings: vec![],
+                languages: vec![],
             },
         };
         assert_eq!(

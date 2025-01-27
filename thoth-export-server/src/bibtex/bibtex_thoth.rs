@@ -501,6 +501,7 @@ mod tests {
                     publications: vec![],
                     references: vec![],
                     fundings: vec![],
+                    languages: vec![],
                 },
             },
             WorkRelations {
@@ -534,6 +535,7 @@ mod tests {
                     publications: vec![],
                     references: vec![],
                     fundings: vec![],
+                    languages: vec![],
                 },
             }],
             references: vec![]

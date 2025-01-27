@@ -1275,11 +1275,13 @@ mod tests {
                     first_name: Some("Chapter One".to_string()),
                     last_name: "Author".to_string(),
                     full_name: "Chapter One Author".to_string(),
+                    biography: None,
                     contribution_ordinal: 1,
                     contributor: WorkRelationsRelatedWorkContributionsContributor {
                         orcid: Some(
                             Orcid::from_str("https://orcid.org/0000-0002-0000-0011").unwrap(),
                         ),
+                        website: None,
                     },
                     affiliations: vec![WorkRelationsRelatedWorkContributionsAffiliations {
                         position: None,
@@ -1300,6 +1302,7 @@ mod tests {
                 }],
                 references: vec![],
                 fundings: vec![],
+                languages: vec![],
             },
         };
 
@@ -1729,6 +1732,7 @@ mod tests {
                     publications: vec![],
                     references: vec![],
                     fundings: vec![],
+                    languages: vec![],
                 },
             }],
             references: vec![WorkReferences {
@@ -1942,6 +1946,7 @@ mod tests {
                 publications: vec![],
                 references: vec![],
                 fundings: vec![],
+                languages: vec![],
             },
         }];
         let output = generate_test_output(true, &test_work);

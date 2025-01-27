@@ -2,7 +2,7 @@ use cc_license::License;
 use chrono::Utc;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, LanguageRelation, LocationPlatform, PublicationType, RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublicationsLocations, WorkReferences, WorkRelations, WorkRelationsRelatedWorkContributions, WorkStatus, WorkType
+    ContributionType, LanguageRelation, LocationPlatform, PublicationType, RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublicationsLocations, WorkReferences, WorkRelations, WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkLanguages, WorkStatus, WorkType
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -673,6 +673,9 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                 for contribution in &chapter.contributions {
                                     XmlElementBlock::<Onix312Thoth>::xml_element(contribution, w).ok();
                                 }
+                                for language in &chapter.languages {
+                                    XmlElementBlock::<Onix312Thoth>::xml_element(language, w).ok();
+                                }
                                 Ok(())
                             })?;
                         }
@@ -1312,6 +1315,22 @@ impl XmlElementBlock<Onix312Thoth> for WorkRelationsRelatedWorkContributions {
 }
 
 impl XmlElementBlock<Onix312Thoth> for WorkLanguages {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_element_block("Language", w, |w| {
+            XmlElement::<Onix312Thoth>::xml_element(&self.language_relation, w).ok();
+            // not worth implementing XmlElement for LanguageCode as all cases would
+            // need to be exhaustively matched and the codes are equivalent anyway
+            write_element_block("LanguageCode", w, |w| {
+                w.write(XmlEvent::Characters(
+                    &self.language_code.to_string().to_lowercase(),
+                ))
+                .map_err(|e| e.into())
+            })
+        })
+    }
+}
+
+impl XmlElementBlock<Onix312Thoth> for WorkRelationsRelatedWorkLanguages {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Language", w, |w| {
             XmlElement::<Onix312Thoth>::xml_element(&self.language_relation, w).ok();
@@ -2230,6 +2249,7 @@ mod tests {
                     },
                 },
                 contributions: vec![],
+                languages: vec![],
                 publications: vec![],
                 references: vec![],
                 fundings: vec![],
@@ -2450,6 +2470,7 @@ mod tests {
                         publications: vec![],
                         references: vec![],
                         fundings: vec![],
+                        languages: vec![],
                     },
                 },
                 WorkRelations {
@@ -2483,6 +2504,7 @@ mod tests {
                         publications: vec![],
                         references: vec![],
                         fundings: vec![],
+                        languages: vec![],
                     },
                 },
                 WorkRelations {
@@ -2516,6 +2538,7 @@ mod tests {
                         publications: vec![],
                         references: vec![],
                         fundings: vec![],
+                        languages: vec![],
                     },
                 },
             ],

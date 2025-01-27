@@ -1096,13 +1096,15 @@ pub(crate) mod tests {
                     first_name: Some("Chapter-One".to_string()),
                     last_name: "Author".to_string(),
                     full_name: "Chapter-One Author".to_string(),
+                    biography: None,
                     contribution_ordinal: 1,
-                    contributor: WorkRelationsRelatedWorkContributionsContributor { orcid: None },
+                    contributor: WorkRelationsRelatedWorkContributionsContributor { orcid: None, website: None },
                     affiliations: vec![],
                 }],
                 publications: vec![],
                 references: vec![],
                 fundings: vec![],
+                languages: vec![],
             },
         }
     }

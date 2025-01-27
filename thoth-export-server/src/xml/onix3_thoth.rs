@@ -2080,6 +2080,7 @@ mod tests {
                 publications: vec![],
                 references: vec![],
                 fundings: vec![],
+                languages: vec![],
             },
         };
 
@@ -2297,6 +2298,7 @@ mod tests {
                         publications: vec![],
                         references: vec![],
                         fundings: vec![],
+                        languages: vec![],
                     },
                 },
                 WorkRelations {
@@ -2330,6 +2332,7 @@ mod tests {
                         publications: vec![],
                         references: vec![],
                         fundings: vec![],
+                        languages: vec![],
                     },
                 },
                 WorkRelations {
@@ -2363,6 +2366,7 @@ mod tests {
                         publications: vec![],
                         references: vec![],
                         fundings: vec![],
+                        languages: vec![],
                     },
                 },
             ],

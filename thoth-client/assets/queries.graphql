@@ -186,9 +186,9 @@ fragment Work on Work {
                 firstName
                 lastName
                 fullName
+                biography
                 contributionOrdinal
                 contributor {
-                    biography
                     orcid
                     website
                 }
@@ -200,6 +200,11 @@ fragment Work on Work {
                         ror
                     }
                 }
+            }
+            languages {
+                languageCode
+                languageRelation
+                mainLanguage
             }
             publications {
                 publicationType
