@@ -1,12 +1,7 @@
 use clap::{crate_authors, crate_version, value_parser, Arg, ArgAction, Command};
 use dotenv::dotenv;
 use std::env;
-use thoth::{
-    api::db::{revert_migrations, run_migrations},
-    api_server, app_server,
-    errors::ThothResult,
-    export_server,
-};
+use thoth::errors::ThothResult;
 
 mod commands;
 
@@ -239,54 +234,25 @@ fn main() -> ThothResult<()> {
     dotenv().ok();
 
     match thoth_commands().get_matches().subcommand() {
-        Some(("start", start_matches)) => match start_matches.subcommand() {
-            Some(("graphql-api", api_matches)) => commands::start::graphql_api(api_matches),
-            Some(("app", client_matches)) => commands::start::app(client_matches),
-            Some(("export-api", client_matches)) => commands::start::export_api(client_matches),
+        Some(("start", start_arguments)) => match start_arguments.subcommand() {
+            Some(("graphql-api", arguments)) => commands::start::graphql_api(arguments),
+            Some(("app", arguments)) => commands::start::app(arguments),
+            Some(("export-api", arguments)) => commands::start::export_api(arguments),
             _ => unreachable!(),
         },
-        Some(("migrate", migrate_matches)) => {
-            let database_url = migrate_matches.get_one::<String>("db").unwrap();
-            match migrate_matches.get_flag("revert") {
-                true => revert_migrations(database_url),
-                false => run_migrations(database_url),
-            }
+        Some(("migrate", aguments)) => commands::migrate(aguments),
+        Some(("init", arguments)) => {
+            commands::run_migrations(arguments)?;
+            commands::start::graphql_api(arguments)
         }
-        Some(("init", init_matches)) => {
-            let database_url = init_matches.get_one::<String>("db").unwrap().to_owned();
-            let host = init_matches.get_one::<String>("host").unwrap().to_owned();
-            let port = init_matches.get_one::<String>("port").unwrap().to_owned();
-            let threads = *init_matches.get_one::<usize>("threads").unwrap();
-            let keep_alive = *init_matches.get_one::<u64>("keep-alive").unwrap();
-            let url = init_matches
-                .get_one::<String>("gql-url")
-                .unwrap()
-                .to_owned();
-            let domain = init_matches.get_one::<String>("domain").unwrap().to_owned();
-            let secret_str = init_matches.get_one::<String>("key").unwrap().to_owned();
-            let session_duration = *init_matches.get_one::<i64>("duration").unwrap();
-            run_migrations(&database_url)?;
-            api_server(
-                database_url,
-                host,
-                port,
-                threads,
-                keep_alive,
-                url,
-                domain,
-                secret_str,
-                session_duration,
-            )
-            .map_err(|e| e.into())
-        }
-        Some(("account", account_matches)) => match account_matches.subcommand() {
-            Some(("register", _)) => commands::account::register(account_matches),
-            Some(("publishers", _)) => commands::account::publishers(account_matches),
-            Some(("password", _)) => commands::account::password(account_matches),
+        Some(("account", aguments)) => match aguments.subcommand() {
+            Some(("register", _)) => commands::account::register(aguments),
+            Some(("publishers", _)) => commands::account::publishers(aguments),
+            Some(("password", _)) => commands::account::password(aguments),
             _ => unreachable!(),
         },
-        Some(("cache", cache_matches)) => match cache_matches.subcommand() {
-            Some(("delete", _)) => commands::cache::delete(cache_matches),
+        Some(("cache", aguments)) => match aguments.subcommand() {
+            Some(("delete", _)) => commands::cache::delete(aguments),
             _ => unreachable!(),
         },
         _ => unreachable!(),

@@ -1,9 +1,5 @@
 use clap::ArgMatches;
-use thoth::{
-    api_server, app_server,
-    errors::ThothResult,
-    export_server,
-};
+use thoth::{api_server, app_server, errors::ThothResult, export_server};
 
 pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     let database_url = arguments.get_one::<String>("db").unwrap().to_owned();
