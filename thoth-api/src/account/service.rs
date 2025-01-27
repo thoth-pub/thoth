@@ -1,17 +1,11 @@
 use diesel::prelude::*;
 
-use crate::account::model::Account;
-use crate::account::model::AccountData;
-use crate::account::model::AccountDetails;
-use crate::account::model::LinkedPublisher;
-use crate::account::model::NewAccount;
-use crate::account::model::NewPassword;
-use crate::account::model::NewPublisherAccount;
-use crate::account::model::PublisherAccount;
-use crate::account::util::verify;
+use crate::account::{
+    model::{Account, AccountData, AccountDetails, LinkedPublisher, NewAccount, NewPassword},
+    util::verify,
+};
 use crate::db::PgPool;
 use crate::model::publisher::Publisher;
-use crate::schema::account::is_superuser;
 use thoth_errors::{ThothError, ThothResult};
 
 pub fn login(user_email: &str, user_password: &str, pool: &PgPool) -> ThothResult<Account> {

@@ -3,7 +3,7 @@ use dialoguer::{console::Term, theme::ColorfulTheme, Input, MultiSelect, Passwor
 use std::collections::HashSet;
 use thoth::api::{
     account::{
-        model::{Account, AccountData, LinkedPublisher},
+        model::{Account, LinkedPublisher},
         service::{
             all_emails, all_publishers, get_account, register as register_account, update_password,
         },
@@ -53,7 +53,7 @@ pub fn password(arguments: &clap::ArgMatches) -> ThothResult<()> {
 }
 
 fn email_selection(pool: &PgPool) -> ThothResult<String> {
-    let all_emails = all_emails(&pool).expect("No user accounts present in database.");
+    let all_emails = all_emails(pool).expect("No user accounts present in database.");
     let email_selection = Select::with_theme(&ColorfulTheme::default())
         .items(&all_emails)
         .default(0)
@@ -82,16 +82,16 @@ fn is_admin_input(publisher_name: &str) -> ThothResult<bool> {
 }
 
 fn select_and_link_publishers(pool: &PgPool, account: &Account) -> ThothResult<()> {
-    let publishers = all_publishers(&pool)?;
-    let publisher_accounts = account.get_publisher_accounts(&pool)?;
+    let publishers = all_publishers(pool)?;
+    let publisher_accounts = account.get_publisher_accounts(pool)?;
+    let current_ids: HashSet<_> = publisher_accounts
+        .iter()
+        .map(|pa| pa.publisher_id)
+        .collect();
+
     let items_checked: Vec<(_, bool)> = publishers
         .iter()
-        .map(|publisher| {
-            let is_linked = publisher_accounts
-                .iter()
-                .any(|pa| pa.publisher_id == publisher.publisher_id);
-            (publisher, is_linked)
-        })
+        .map(|publisher| (publisher, current_ids.contains(&publisher.publisher_id)))
         .collect();
 
     let chosen: Vec<usize> = MultiSelect::new()
@@ -101,10 +101,6 @@ fn select_and_link_publishers(pool: &PgPool, account: &Account) -> ThothResult<(
     let chosen_ids: HashSet<_> = chosen
         .iter()
         .map(|&index| items_checked[index].0.publisher_id)
-        .collect();
-    let current_ids: HashSet<_> = publisher_accounts
-        .iter()
-        .map(|pa| pa.publisher_id)
         .collect();
     let to_add: Vec<_> = publishers
         .iter()
@@ -121,10 +117,10 @@ fn select_and_link_publishers(pool: &PgPool, account: &Account) -> ThothResult<(
             publisher_id: publisher.publisher_id,
             is_admin,
         };
-        account.add_publisher_account(&pool, linked_publisher)?;
+        account.add_publisher_account(pool, linked_publisher)?;
     }
     for publisher_account in to_remove {
-        publisher_account.delete(&pool)?;
+        publisher_account.delete(pool)?;
     }
     Ok(())
 }
