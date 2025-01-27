@@ -2,7 +2,7 @@ use cc_license::License;
 use chrono::Utc;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, LanguageRelation, LocationPlatform, PublicationType, RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublicationsLocations, WorkReferences, WorkRelations, WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkLanguages, WorkStatus, WorkType
+    ContributionType, LanguageRelation, LocationPlatform, PublicationType, RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublicationsLocations, WorkReferences, WorkRelations, WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkContributionsContributor, WorkRelationsRelatedWorkContributionsAffiliations, WorkRelationsRelatedWorkContributionsAffiliationsInstitution, WorkRelationsRelatedWorkLanguages, WorkStatus, WorkType
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -2466,11 +2466,34 @@ mod tests {
                                 publisher_name: "N/A".to_string(),
                             },
                         },
-                        contributions: vec![],
+                        contributions: vec![WorkRelationsRelatedWorkContributions {
+                            contribution_type: ContributionType::AUTHOR,
+                            first_name: Some("Chapter Author".to_string()),
+                            last_name: "2".to_string(),
+                            full_name: "Chapter Author N. 2".to_string(),
+                            biography: Some("Chapter Author N. 2 is a made-up author".to_string()),
+                            contribution_ordinal: 1,
+                            contributor: WorkRelationsRelatedWorkContributionsContributor {
+                                orcid: Some(Orcid::from_str("https://orcid.org/0000-0003-0000-0002").unwrap()),
+                                website: Some("https://chaptercontributor.site".to_string()),
+                            },
+                            affiliations: vec![WorkRelationsRelatedWorkContributionsAffiliations {
+                                position: Some("Chapter Manager".to_string()),
+                                affiliation_ordinal: 1,
+                                institution: WorkRelationsRelatedWorkContributionsAffiliationsInstitution {
+                                    institution_name: "University of Chapters".to_string(),
+                                    ror: Some(Ror::from_str("08abcde89").unwrap()),
+                                },
+                            }],
+                        }],
                         publications: vec![],
                         references: vec![],
                         fundings: vec![],
-                        languages: vec![],
+                        languages: vec![WorkRelationsRelatedWorkLanguages {
+                            language_code: LanguageCode::BTK,
+                            language_relation: LanguageRelation::ORIGINAL,
+                            main_language: true,
+                        }],
                     },
                 },
                 WorkRelations {
@@ -2934,6 +2957,35 @@ mod tests {
           <Subtitle>An introduction</Subtitle>
         </TitleElement>
       </TitleDetail>
+      <Contributor>
+        <SequenceNumber>1</SequenceNumber>
+        <ContributorRole>A01</ContributorRole>
+        <NameIdentifier>
+          <NameIDType>21</NameIDType>
+          <IDValue>0000-0003-0000-0002</IDValue>
+        </NameIdentifier>
+        <PersonName>Chapter Author N. 2</PersonName>
+        <NamesBeforeKey>Chapter Author</NamesBeforeKey>
+        <KeyNames>2</KeyNames>
+        <ProfessionalAffiliation>
+          <ProfessionalPosition>Chapter Manager</ProfessionalPosition>
+          <AffiliationIdentifier>
+            <AffiliationIDType>40</AffiliationIDType>
+            <IDValue>08abcde89</IDValue>
+          </AffiliationIdentifier>
+          <Affiliation>University of Chapters</Affiliation>
+        </ProfessionalAffiliation>
+        <BiographicalNote>Chapter Author N. 2 is a made-up author</BiographicalNote>
+        <Website>
+          <WebsiteRole>06</WebsiteRole>
+          <WebsiteDescription>Own website</WebsiteDescription>
+          <WebsiteLink>https://chaptercontributor.site</WebsiteLink>
+        </Website>
+      </Contributor>
+      <Language>
+        <LanguageRole>01</LanguageRole>
+        <LanguageCode>btk</LanguageCode>
+      </Language>
     </ContentItem>
   </ContentDetail>
   <PublishingDetail>

@@ -783,6 +783,7 @@ mod tests {
           }
         },
         "contributions": [],
+        "languages": [],
         "publications": [],
         "fundings": [],
         "references": []
