@@ -7,33 +7,52 @@ use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use uuid::Uuid;
 
-use crate::account::model::Account;
-use crate::account::model::AccountAccess;
-use crate::account::model::AccountData;
-use crate::account::model::DecodedToken;
-use crate::account::model::LinkedPublisher;
-use crate::account::model::NewAccount;
-use crate::account::model::NewPassword;
-use crate::account::model::PublisherAccount;
-use crate::account::model::Token;
-use crate::account::service::get_account;
-use crate::account::util::make_hash;
-use crate::account::util::make_salt;
+use crate::account::{
+    model::{
+        Account, AccountAccess, AccountData, DecodedToken, LinkedPublisher, NewAccount,
+        NewPassword, NewPublisherAccount, PublisherAccount, Token,
+    },
+    service::get_account,
+    util::{make_hash, make_salt},
+};
 use crate::db::PgPool;
 use thoth_errors::{ThothError, ThothResult};
 
 impl Account {
     pub fn get_permissions(&self, pool: &PgPool) -> ThothResult<Vec<LinkedPublisher>> {
-        use crate::schema::publisher_account::dsl::*;
-        let mut conn = pool.get().unwrap();
+        let publisher_accounts = self.get_publisher_accounts(pool)?;
+        let permissions: Vec<LinkedPublisher> =
+            publisher_accounts.into_iter().map(|p| p.into()).collect();
+        Ok(permissions)
+    }
 
-        let linked_publishers = publisher_account
+    pub fn get_publisher_accounts(&self, pool: &PgPool) -> ThothResult<Vec<PublisherAccount>> {
+        use crate::schema::publisher_account::dsl::*;
+        let mut conn = pool.get()?;
+
+        let publisher_accounts = publisher_account
             .filter(account_id.eq(self.account_id))
             .load::<PublisherAccount>(&mut conn)
             .expect("Error loading publisher accounts");
-        let permissions: Vec<LinkedPublisher> =
-            linked_publishers.into_iter().map(|p| p.into()).collect();
-        Ok(permissions)
+        Ok(publisher_accounts)
+    }
+
+    pub fn add_publisher_account(
+        &self,
+        pool: &PgPool,
+        linked_publisher: LinkedPublisher,
+    ) -> ThothResult<PublisherAccount> {
+        use crate::schema::publisher_account::dsl::*;
+        let mut conn = pool.get()?;
+        let new_publisher_account = NewPublisherAccount {
+            account_id: self.account_id,
+            publisher_id: linked_publisher.publisher_id,
+            is_admin: linked_publisher.is_admin,
+        };
+        diesel::insert_into(publisher_account)
+            .values(&new_publisher_account)
+            .get_result::<PublisherAccount>(&mut conn)
+            .map_err(Into::into)
     }
 
     pub fn get_account_access(&self, linked_publishers: Vec<LinkedPublisher>) -> AccountAccess {
@@ -46,7 +65,7 @@ impl Account {
 
     pub fn issue_token(&self, pool: &PgPool) -> ThothResult<String> {
         const DEFAULT_TOKEN_VALIDITY: i64 = 24 * 60 * 60;
-        let mut connection = pool.get().unwrap();
+        let mut connection = pool.get()?;
         dotenv().ok();
         let linked_publishers: Vec<LinkedPublisher> =
             self.get_permissions(pool).unwrap_or_default();
@@ -72,7 +91,7 @@ impl Account {
 
         use crate::schema::account::dsl;
         let updated_account = diesel::update(dsl::account.find(self.account_id))
-            .set(dsl::token.eq(token.unwrap()))
+            .set(dsl::token.eq(token?))
             .get_result::<Account>(&mut connection)
             .expect("Unable to set token");
         Ok(updated_account.token.unwrap())
@@ -174,5 +193,24 @@ impl NewPassword {
         let salt = make_salt();
         let hash = make_hash(&password, &salt).to_vec();
         Self { email, hash, salt }
+    }
+}
+
+impl PublisherAccount {
+    pub fn delete(&self, pool: &PgPool) -> ThothResult<()> {
+        use crate::schema::publisher_account::dsl::*;
+
+        pool.get()?.transaction(|connection| {
+            diesel::delete(
+                publisher_account.filter(
+                    account_id
+                        .eq(self.account_id)
+                        .and(publisher_id.eq(self.publisher_id)),
+                ),
+            )
+            .execute(connection)
+            .map(|_| ())
+            .map_err(Into::into)
+        })
     }
 }
