@@ -6,10 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-  - New binary submodule, `commands`
+  - [667](https://github.com/thoth-pub/thoth/pull/667) - Refactor binary using new submodules `commands` and `arguments`
 
 ### Added
-  - CLI subcommand `thoth account publishers` to modify which publisher(s) an account has access to
+  - [667](https://github.com/thoth-pub/thoth/pull/667) - CLI subcommand `thoth account publishers` to modify which publisher(s) an account has access to
 
 ## [[0.13.5]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.5) - 2025-01-17
 ### Changed
