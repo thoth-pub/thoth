@@ -5,6 +5,7 @@ use thoth::api::{
 
 pub(super) mod account;
 pub(super) mod cache;
+pub(super) mod start;
 
 fn get_pg_pool(arguments: &clap::ArgMatches) -> PgPool {
     let database_url = arguments.get_one::<String>("db").unwrap();

@@ -240,64 +240,9 @@ fn main() -> ThothResult<()> {
 
     match thoth_commands().get_matches().subcommand() {
         Some(("start", start_matches)) => match start_matches.subcommand() {
-            Some(("graphql-api", api_matches)) => {
-                let database_url = api_matches.get_one::<String>("db").unwrap().to_owned();
-                let host = api_matches.get_one::<String>("host").unwrap().to_owned();
-                let port = api_matches.get_one::<String>("port").unwrap().to_owned();
-                let threads = *api_matches.get_one::<usize>("threads").unwrap();
-                let keep_alive = *api_matches.get_one::<u64>("keep-alive").unwrap();
-                let url = api_matches.get_one::<String>("gql-url").unwrap().to_owned();
-                let domain = api_matches.get_one::<String>("domain").unwrap().to_owned();
-                let secret_str = api_matches.get_one::<String>("key").unwrap().to_owned();
-                let session_duration = *api_matches.get_one::<i64>("duration").unwrap();
-                api_server(
-                    database_url,
-                    host,
-                    port,
-                    threads,
-                    keep_alive,
-                    url,
-                    domain,
-                    secret_str,
-                    session_duration,
-                )
-                .map_err(|e| e.into())
-            }
-            Some(("app", client_matches)) => {
-                let host = client_matches.get_one::<String>("host").unwrap().to_owned();
-                let port = client_matches.get_one::<String>("port").unwrap().to_owned();
-                let threads = *client_matches.get_one::<usize>("threads").unwrap();
-                let keep_alive = *client_matches.get_one::<u64>("keep-alive").unwrap();
-                app_server(host, port, threads, keep_alive).map_err(|e| e.into())
-            }
-            Some(("export-api", client_matches)) => {
-                let redis_url = client_matches
-                    .get_one::<String>("redis")
-                    .unwrap()
-                    .to_owned();
-                let host = client_matches.get_one::<String>("host").unwrap().to_owned();
-                let port = client_matches.get_one::<String>("port").unwrap().to_owned();
-                let threads = *client_matches.get_one::<usize>("threads").unwrap();
-                let keep_alive = *client_matches.get_one::<u64>("keep-alive").unwrap();
-                let url = client_matches
-                    .get_one::<String>("export-url")
-                    .unwrap()
-                    .to_owned();
-                let gql_endpoint = client_matches
-                    .get_one::<String>("gql-endpoint")
-                    .unwrap()
-                    .to_owned();
-                export_server(
-                    redis_url,
-                    host,
-                    port,
-                    threads,
-                    keep_alive,
-                    url,
-                    gql_endpoint,
-                )
-                .map_err(|e| e.into())
-            }
+            Some(("graphql-api", api_matches)) => commands::start::graphql_api(api_matches),
+            Some(("app", client_matches)) => commands::start::app(client_matches),
+            Some(("export-api", client_matches)) => commands::start::export_api(client_matches),
             _ => unreachable!(),
         },
         Some(("migrate", migrate_matches)) => {
