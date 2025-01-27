@@ -9,11 +9,13 @@ on:
       - '**up.sql'
       - '**down.sql'
       - '**db.rs'
+      - 'src/bin/**'
   pull_request:
     paths:
       - '**up.sql'
       - '**down.sql'
       - '**db.rs'
+      - 'src/bin/**'
   workflow_dispatch:
 
 env:
