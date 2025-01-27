@@ -223,7 +223,7 @@ fn thoth_commands() -> Command {
                 .arg_required_else_help(true)
                 .subcommand(Command::new("register").about("Create a new user account"))
                 .subcommand(
-                    Command::new("publisher")
+                    Command::new("publishers")
                         .about("Select which publisher(s) this account can manage"),
                 )
                 .subcommand(Command::new("password").about("Reset a password")),
@@ -340,7 +340,7 @@ fn main() -> ThothResult<()> {
         }
         Some(("account", account_matches)) => match account_matches.subcommand() {
             Some(("register", _)) => commands::account::register(account_matches),
-            Some(("publisher", _)) => commands::account::publisher(account_matches),
+            Some(("publishers", _)) => commands::account::publishers(account_matches),
             Some(("password", _)) => commands::account::password(account_matches),
             _ => unreachable!(),
         },

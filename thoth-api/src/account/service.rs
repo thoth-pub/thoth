@@ -63,11 +63,7 @@ pub fn get_account_details(email: &str, pool: &PgPool) -> ThothResult<AccountDet
     Ok(account_details)
 }
 
-pub fn register(
-    account_data: AccountData,
-    linked_publishers: Vec<LinkedPublisher>,
-    pool: &PgPool,
-) -> ThothResult<Account> {
+pub fn register(pool: &PgPool, account_data: AccountData) -> ThothResult<Account> {
     use crate::schema;
 
     let mut connection = pool.get()?;
@@ -75,16 +71,6 @@ pub fn register(
     let created_account: Account = diesel::insert_into(schema::account::dsl::account)
         .values(&account)
         .get_result::<Account>(&mut connection)?;
-    for linked_publisher in linked_publishers {
-        let publisher_account = NewPublisherAccount {
-            account_id: created_account.account_id,
-            publisher_id: linked_publisher.publisher_id,
-            is_admin: linked_publisher.is_admin,
-        };
-        diesel::insert_into(schema::publisher_account::dsl::publisher_account)
-            .values(&publisher_account)
-            .get_result::<PublisherAccount>(&mut connection)?;
-    }
     Ok(created_account)
 }
 

@@ -7,7 +7,37 @@ use thoth::api::account::{
         all_emails, all_publishers, get_account, register as register_account, update_password,
     },
 };
-use thoth_errors::ThothResult;
+use thoth_api::db::PgPool;
+use thoth_errors::{ThothError, ThothResult};
+
+fn email_selection(pool: &PgPool) -> ThothResult<String> {
+    let all_emails = all_emails(&pool).expect("No user accounts present in database.");
+    let email_selection = Select::with_theme(&ColorfulTheme::default())
+        .items(&all_emails)
+        .default(0)
+        .with_prompt("Select a user account")
+        .interact_on(&Term::stdout())?;
+    all_emails
+        .get(email_selection)
+        .cloned()
+        .ok_or_else(|| ThothError::InternalError("Invalid user selection".into()))
+}
+
+fn password_input() -> ThothResult<String> {
+    Password::new()
+        .with_prompt("Enter password")
+        .with_confirmation("Confirm password", "Passwords do not match")
+        .interact_on(&Term::stdout())
+        .map_err(Into::into)
+}
+
+fn is_admin_input(publisher_name: &str) -> ThothResult<bool> {
+    Input::new()
+        .with_prompt(format!("Make user an admin of '{}'?", publisher_name))
+        .default(false)
+        .interact_on(&Term::stdout())
+        .map_err(Into::into)
+}
 
 pub fn register(arguments: &clap::ArgMatches) -> ThothResult<()> {
     let pool = get_pg_pool(arguments);
@@ -21,10 +51,7 @@ pub fn register(arguments: &clap::ArgMatches) -> ThothResult<()> {
     let email = Input::new()
         .with_prompt("Enter email address")
         .interact_on(&Term::stdout())?;
-    let password = Password::new()
-        .with_prompt("Enter password")
-        .with_confirmation("Confirm password", "Passwords do not match")
-        .interact_on(&Term::stdout())?;
+    let password = password_input()?;
     let is_superuser: bool = Input::new()
         .with_prompt("Is this a superuser account")
         .default(false)
@@ -42,13 +69,7 @@ pub fn register(arguments: &clap::ArgMatches) -> ThothResult<()> {
             .interact_on(&Term::stdout())?;
         for index in chosen {
             let publisher = publishers.get(index).unwrap();
-            let is_admin: bool = Input::new()
-                .with_prompt(format!(
-                    "Make user an admin of '{}'?",
-                    publisher.publisher_name
-                ))
-                .default(false)
-                .interact_on(&Term::stdout())?;
+            let is_admin: bool = is_admin_input(&publisher.publisher_name)?;
             let linked_publisher = LinkedPublisher {
                 publisher_id: publisher.publisher_id,
                 is_admin,
@@ -64,20 +85,17 @@ pub fn register(arguments: &clap::ArgMatches) -> ThothResult<()> {
         is_superuser,
         is_bot,
     };
-    register_account(account_data, linked_publishers, &pool).map(|_| ())
+    let account = register_account(&pool, account_data)?;
+    for linked_publisher in linked_publishers {
+        account.add_publisher_account(&pool, linked_publisher)?;
+    }
+    Ok(())
 }
 
-pub fn publisher(arguments: &clap::ArgMatches) -> ThothResult<()> {
+pub fn publishers(arguments: &clap::ArgMatches) -> ThothResult<()> {
     let pool = get_pg_pool(arguments);
 
-    let all_emails = all_emails(&pool).expect("No user accounts present in database.");
-    let email_selection = Select::with_theme(&ColorfulTheme::default())
-        .items(&all_emails)
-        .default(0)
-        .with_prompt("Select a user account")
-        .interact_on(&Term::stdout())?;
-    let email = all_emails.get(email_selection).unwrap();
-    let account = get_account(email, &pool)?;
+    let account = email_selection(&pool).and_then(|email| get_account(&email, &pool))?;
 
     let publishers = all_publishers(&pool)?;
     let publisher_accounts = account.get_publisher_accounts(&pool)?;
@@ -113,13 +131,7 @@ pub fn publisher(arguments: &clap::ArgMatches) -> ThothResult<()> {
         .collect();
 
     for publisher in to_add {
-        let is_admin: bool = Input::new()
-            .with_prompt(format!(
-                "Make user an admin of '{}'?",
-                publisher.publisher_name
-            ))
-            .default(false)
-            .interact_on(&Term::stdout())?;
+        let is_admin: bool = is_admin_input(&publisher.publisher_name)?;
         let linked_publisher = LinkedPublisher {
             publisher_id: publisher.publisher_id,
             is_admin,
@@ -135,17 +147,8 @@ pub fn publisher(arguments: &clap::ArgMatches) -> ThothResult<()> {
 
 pub fn password(arguments: &clap::ArgMatches) -> ThothResult<()> {
     let pool = get_pg_pool(arguments);
-    let all_emails = all_emails(&pool).expect("No user accounts present in database.");
-    let email_selection = Select::with_theme(&ColorfulTheme::default())
-        .items(&all_emails)
-        .default(0)
-        .with_prompt("Select a user account")
-        .interact_on(&Term::stdout())?;
-    let password = Password::new()
-        .with_prompt("Enter new password")
-        .with_confirmation("Confirm password", "Passwords do not match")
-        .interact_on(&Term::stdout())?;
-    let email = all_emails.get(email_selection).unwrap();
+    let email = email_selection(&pool)?;
+    let password = password_input()?;
 
-    update_password(email, &password, &pool).map(|_| ())
+    update_password(&email, &password, &pool).map(|_| ())
 }
