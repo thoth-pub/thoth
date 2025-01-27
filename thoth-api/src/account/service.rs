@@ -16,7 +16,7 @@ use thoth_errors::{ThothError, ThothResult};
 pub fn login(user_email: &str, user_password: &str, pool: &PgPool) -> ThothResult<Account> {
     use crate::schema::account::dsl;
 
-    let mut conn = pool.get().unwrap();
+    let mut conn = pool.get()?;
     let account = dsl::account
         .filter(dsl::email.eq(user_email))
         .first::<Account>(&mut conn)
@@ -32,7 +32,7 @@ pub fn login(user_email: &str, user_password: &str, pool: &PgPool) -> ThothResul
 pub fn get_account(email: &str, pool: &PgPool) -> ThothResult<Account> {
     use crate::schema::account::dsl;
 
-    let mut conn = pool.get().unwrap();
+    let mut conn = pool.get()?;
     let account = dsl::account
         .filter(dsl::email.eq(email))
         .first::<Account>(&mut conn)
@@ -43,7 +43,7 @@ pub fn get_account(email: &str, pool: &PgPool) -> ThothResult<Account> {
 pub fn get_account_details(email: &str, pool: &PgPool) -> ThothResult<AccountDetails> {
     use crate::schema::account::dsl;
 
-    let mut conn = pool.get().unwrap();
+    let mut conn = pool.get()?;
     let account = dsl::account
         .filter(dsl::email.eq(email))
         .first::<Account>(&mut conn)
@@ -70,7 +70,7 @@ pub fn register(
 ) -> ThothResult<Account> {
     use crate::schema;
 
-    let mut connection = pool.get().unwrap();
+    let mut connection = pool.get()?;
     let account: NewAccount = account_data.into();
     let created_account: Account = diesel::insert_into(schema::account::dsl::account)
         .values(&account)
@@ -89,7 +89,7 @@ pub fn register(
 }
 
 pub fn all_emails(pool: &PgPool) -> ThothResult<Vec<String>> {
-    let mut connection = pool.get().unwrap();
+    let mut connection = pool.get()?;
 
     use crate::schema::account::dsl;
     let emails = dsl::account
@@ -101,7 +101,7 @@ pub fn all_emails(pool: &PgPool) -> ThothResult<Vec<String>> {
 }
 
 pub fn all_publishers(pool: &PgPool) -> ThothResult<Vec<Publisher>> {
-    let mut connection = pool.get().unwrap();
+    let mut connection = pool.get()?;
 
     use crate::schema::publisher::dsl;
     let publishers = dsl::publisher
@@ -112,7 +112,7 @@ pub fn all_publishers(pool: &PgPool) -> ThothResult<Vec<Publisher>> {
 }
 
 pub fn update_password(email: &str, password: &str, pool: &PgPool) -> ThothResult<Account> {
-    let mut connection = pool.get().unwrap();
+    let mut connection = pool.get()?;
 
     let new_password = NewPassword::new(email.to_string(), password.to_string());
     use crate::schema::account::dsl;
