@@ -1,5 +1,8 @@
 use super::get_pg_pool;
+use crate::arguments;
+use clap::Command;
 use dialoguer::{console::Term, theme::ColorfulTheme, Input, MultiSelect, Password, Select};
+use lazy_static::lazy_static;
 use std::collections::HashSet;
 use thoth::{
     api::{
@@ -14,6 +17,19 @@ use thoth::{
     },
     errors::{ThothError, ThothResult},
 };
+
+lazy_static! {
+    pub(crate) static ref COMMAND: Command = Command::new("account")
+        .about("Manage user accounts")
+        .arg(arguments::database())
+        .subcommand_required(true)
+        .arg_required_else_help(true)
+        .subcommand(Command::new("register").about("Create a new user account"))
+        .subcommand(
+            Command::new("publishers").about("Select which publisher(s) this account can manage"),
+        )
+        .subcommand(Command::new("password").about("Reset a password"));
+}
 
 pub fn register(arguments: &clap::ArgMatches) -> ThothResult<()> {
     let pool = get_pg_pool(arguments);

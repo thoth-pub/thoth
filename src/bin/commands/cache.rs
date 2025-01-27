@@ -1,11 +1,22 @@
+use crate::arguments;
 use crate::commands::get_redis_pool;
-use clap::ArgMatches;
+use clap::{ArgMatches, Command};
 use dialoguer::{console::Term, MultiSelect};
+use lazy_static::lazy_static;
 use thoth::{
     api::redis::{del, scan_match},
     errors::{ThothError, ThothResult},
     ALL_SPECIFICATIONS,
 };
+
+lazy_static! {
+    pub(crate) static ref COMMAND: Command = Command::new("cache")
+        .about("Manage cached records")
+        .arg(arguments::redis())
+        .subcommand_required(true)
+        .arg_required_else_help(true)
+        .subcommand(Command::new("delete").about("Delete cached records"));
+}
 
 pub fn delete(arguments: &ArgMatches) -> ThothResult<()> {
     let pool = get_redis_pool(arguments);

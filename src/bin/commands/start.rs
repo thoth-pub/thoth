@@ -1,5 +1,46 @@
-use clap::ArgMatches;
+use crate::arguments;
+use clap::{ArgMatches, Command};
+use lazy_static::lazy_static;
 use thoth::{api_server, app_server, errors::ThothResult, export_server};
+
+lazy_static! {
+    pub(crate) static ref COMMAND: Command = Command::new("start")
+        .about("Start an instance of Thoth API or GUI")
+        .subcommand_required(true)
+        .arg_required_else_help(true)
+        .subcommand(
+            Command::new("graphql-api")
+                .about("Start the thoth GraphQL API server")
+                .arg(arguments::database())
+                .arg(arguments::host("GRAPHQL_API_HOST"))
+                .arg(arguments::port("8000", "GRAPHQL_API_PORT"))
+                .arg(arguments::threads("GRAPHQL_API_THREADS"))
+                .arg(arguments::keep_alive("GRAPHQL_API_KEEP_ALIVE"))
+                .arg(arguments::gql_url())
+                .arg(arguments::domain())
+                .arg(arguments::key())
+                .arg(arguments::session()),
+        )
+        .subcommand(
+            Command::new("app")
+                .about("Start the thoth client GUI")
+                .arg(arguments::host("APP_HOST"))
+                .arg(arguments::port("8080", "APP_PORT"))
+                .arg(arguments::threads("APP_THREADS"))
+                .arg(arguments::keep_alive("APP_KEEP_ALIVE")),
+        )
+        .subcommand(
+            Command::new("export-api")
+                .about("Start the thoth metadata export API")
+                .arg(arguments::redis())
+                .arg(arguments::host("EXPORT_API_HOST"))
+                .arg(arguments::port("8181", "EXPORT_API_PORT"))
+                .arg(arguments::threads("EXPORT_API_THREADS"))
+                .arg(arguments::keep_alive("EXPORT_API_KEEP_ALIVE"))
+                .arg(arguments::export_url())
+                .arg(arguments::gql_endpoint()),
+        );
+}
 
 pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     let database_url = arguments.get_one::<String>("db").unwrap().to_owned();

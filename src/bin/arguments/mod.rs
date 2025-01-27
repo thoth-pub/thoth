@@ -1,4 +1,4 @@
-use clap::{value_parser, Arg};
+use clap::{value_parser, Arg, ArgAction};
 
 pub fn database() -> Arg {
     Arg::new("db")
@@ -130,4 +130,11 @@ pub fn keep_alive(env_value: &'static str) -> Arg {
         .help("Number of seconds to wait for subsequent requests")
         .num_args(1)
         .value_parser(value_parser!(u64))
+}
+
+pub fn revert() -> Arg {
+    Arg::new("revert")
+        .long("revert")
+        .help("Revert all database migrations")
+        .action(ArgAction::SetTrue)
 }
