@@ -1,14 +1,56 @@
 use super::get_pg_pool;
 use dialoguer::{console::Term, theme::ColorfulTheme, Input, MultiSelect, Password, Select};
 use std::collections::HashSet;
-use thoth::api::account::{
-    model::{AccountData, LinkedPublisher},
-    service::{
-        all_emails, all_publishers, get_account, register as register_account, update_password,
+use thoth::api::{
+    account::{
+        model::{Account, AccountData, LinkedPublisher},
+        service::{
+            all_emails, all_publishers, get_account, register as register_account, update_password,
+        },
     },
+    db::PgPool,
 };
-use thoth_api::db::PgPool;
 use thoth_errors::{ThothError, ThothResult};
+
+pub fn register(arguments: &clap::ArgMatches) -> ThothResult<()> {
+    let pool = get_pg_pool(arguments);
+
+    let name = Input::new()
+        .with_prompt("Enter given name")
+        .interact_on(&Term::stdout())?;
+    let surname = Input::new()
+        .with_prompt("Enter family name")
+        .interact_on(&Term::stdout())?;
+    let email = Input::new()
+        .with_prompt("Enter email address")
+        .interact_on(&Term::stdout())?;
+    let password = password_input()?;
+    let is_superuser: bool = Input::new()
+        .with_prompt("Is this a superuser account")
+        .default(false)
+        .interact_on(&Term::stdout())?;
+    let is_bot: bool = Input::new()
+        .with_prompt("Is this a bot account")
+        .default(false)
+        .interact_on(&Term::stdout())?;
+
+    let account = register_account(&pool, name, surname, email, password, is_superuser, is_bot)?;
+    select_and_link_publishers(&pool, &account)
+}
+
+pub fn publishers(arguments: &clap::ArgMatches) -> ThothResult<()> {
+    let pool = get_pg_pool(arguments);
+    let account = email_selection(&pool).and_then(|email| get_account(&email, &pool))?;
+    select_and_link_publishers(&pool, &account)
+}
+
+pub fn password(arguments: &clap::ArgMatches) -> ThothResult<()> {
+    let pool = get_pg_pool(arguments);
+    let email = email_selection(&pool)?;
+    let password = password_input()?;
+
+    update_password(&email, &password, &pool).map(|_| ())
+}
 
 fn email_selection(pool: &PgPool) -> ThothResult<String> {
     let all_emails = all_emails(&pool).expect("No user accounts present in database.");
@@ -39,64 +81,7 @@ fn is_admin_input(publisher_name: &str) -> ThothResult<bool> {
         .map_err(Into::into)
 }
 
-pub fn register(arguments: &clap::ArgMatches) -> ThothResult<()> {
-    let pool = get_pg_pool(arguments);
-
-    let name = Input::new()
-        .with_prompt("Enter given name")
-        .interact_on(&Term::stdout())?;
-    let surname = Input::new()
-        .with_prompt("Enter family name")
-        .interact_on(&Term::stdout())?;
-    let email = Input::new()
-        .with_prompt("Enter email address")
-        .interact_on(&Term::stdout())?;
-    let password = password_input()?;
-    let is_superuser: bool = Input::new()
-        .with_prompt("Is this a superuser account")
-        .default(false)
-        .interact_on(&Term::stdout())?;
-    let is_bot: bool = Input::new()
-        .with_prompt("Is this a bot account")
-        .default(false)
-        .interact_on(&Term::stdout())?;
-
-    let mut linked_publishers = vec![];
-    if let Ok(publishers) = all_publishers(&pool) {
-        let chosen: Vec<usize> = MultiSelect::new()
-            .items(&publishers)
-            .with_prompt("Select publishers to link this account to")
-            .interact_on(&Term::stdout())?;
-        for index in chosen {
-            let publisher = publishers.get(index).unwrap();
-            let is_admin: bool = is_admin_input(&publisher.publisher_name)?;
-            let linked_publisher = LinkedPublisher {
-                publisher_id: publisher.publisher_id,
-                is_admin,
-            };
-            linked_publishers.push(linked_publisher);
-        }
-    }
-    let account_data = AccountData {
-        name,
-        surname,
-        email,
-        password,
-        is_superuser,
-        is_bot,
-    };
-    let account = register_account(&pool, account_data)?;
-    for linked_publisher in linked_publishers {
-        account.add_publisher_account(&pool, linked_publisher)?;
-    }
-    Ok(())
-}
-
-pub fn publishers(arguments: &clap::ArgMatches) -> ThothResult<()> {
-    let pool = get_pg_pool(arguments);
-
-    let account = email_selection(&pool).and_then(|email| get_account(&email, &pool))?;
-
+fn select_and_link_publishers(pool: &PgPool, account: &Account) -> ThothResult<()> {
     let publishers = all_publishers(&pool)?;
     let publisher_accounts = account.get_publisher_accounts(&pool)?;
     let items_checked: Vec<(_, bool)> = publishers
@@ -141,14 +126,5 @@ pub fn publishers(arguments: &clap::ArgMatches) -> ThothResult<()> {
     for publisher_account in to_remove {
         publisher_account.delete(&pool)?;
     }
-
     Ok(())
-}
-
-pub fn password(arguments: &clap::ArgMatches) -> ThothResult<()> {
-    let pool = get_pg_pool(arguments);
-    let email = email_selection(&pool)?;
-    let password = password_input()?;
-
-    update_password(&email, &password, &pool).map(|_| ())
 }

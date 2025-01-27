@@ -11,6 +11,7 @@ use crate::account::model::PublisherAccount;
 use crate::account::util::verify;
 use crate::db::PgPool;
 use crate::model::publisher::Publisher;
+use crate::schema::account::is_superuser;
 use thoth_errors::{ThothError, ThothResult};
 
 pub fn login(user_email: &str, user_password: &str, pool: &PgPool) -> ThothResult<Account> {
@@ -63,12 +64,28 @@ pub fn get_account_details(email: &str, pool: &PgPool) -> ThothResult<AccountDet
     Ok(account_details)
 }
 
-pub fn register(pool: &PgPool, account_data: AccountData) -> ThothResult<Account> {
-    use crate::schema;
+pub fn register(
+    pool: &PgPool,
+    name: String,
+    surname: String,
+    email: String,
+    password: String,
+    is_superuser: bool,
+    is_bot: bool,
+) -> ThothResult<Account> {
+    use crate::schema::account::dsl;
 
     let mut connection = pool.get()?;
-    let account: NewAccount = account_data.into();
-    let created_account: Account = diesel::insert_into(schema::account::dsl::account)
+    let account: NewAccount = AccountData {
+        name,
+        surname,
+        email,
+        password,
+        is_superuser,
+        is_bot,
+    }
+    .into();
+    let created_account: Account = diesel::insert_into(dsl::account)
         .values(&account)
         .get_result::<Account>(&mut connection)?;
     Ok(created_account)
