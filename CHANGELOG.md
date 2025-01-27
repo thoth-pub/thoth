@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
   - [667](https://github.com/thoth-pub/thoth/pull/667) - Refactor binary using new submodules `commands` and `arguments`
+  - [667](https://github.com/thoth-pub/thoth/pull/667) - Trigger `run\_migrations` github action when binary source changes
 
 ### Added
   - [667](https://github.com/thoth-pub/thoth/pull/667) - CLI subcommand `thoth account publishers` to modify which publisher(s) an account has access to
