@@ -1,16 +1,19 @@
 use super::get_pg_pool;
 use dialoguer::{console::Term, theme::ColorfulTheme, Input, MultiSelect, Password, Select};
 use std::collections::HashSet;
-use thoth::api::{
-    account::{
-        model::{Account, LinkedPublisher},
-        service::{
-            all_emails, all_publishers, get_account, register as register_account, update_password,
+use thoth::{
+    api::{
+        account::{
+            model::{Account, LinkedPublisher},
+            service::{
+                all_emails, all_publishers, get_account, register as register_account,
+                update_password,
+            },
         },
+        db::PgPool,
     },
-    db::PgPool,
+    errors::{ThothError, ThothResult},
 };
-use thoth_errors::{ThothError, ThothResult};
 
 pub fn register(arguments: &clap::ArgMatches) -> ThothResult<()> {
     let pool = get_pg_pool(arguments);

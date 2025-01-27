@@ -1,15 +1,11 @@
 use clap::{crate_authors, crate_version, value_parser, Arg, ArgAction, Command};
-use dialoguer::{console::Term, MultiSelect};
 use dotenv::dotenv;
 use std::env;
 use thoth::{
-    api::{
-        db::{revert_migrations, run_migrations},
-        redis::{del, init_pool as init_redis_pool, scan_match},
-    },
+    api::db::{revert_migrations, run_migrations},
     api_server, app_server,
-    errors::{ThothError, ThothResult},
-    export_server, ALL_SPECIFICATIONS,
+    errors::ThothResult,
+    export_server,
 };
 
 mod commands;
@@ -345,29 +341,7 @@ fn main() -> ThothResult<()> {
             _ => unreachable!(),
         },
         Some(("cache", cache_matches)) => match cache_matches.subcommand() {
-            Some(("delete", _)) => {
-                let redis_url = cache_matches.get_one::<String>("redis").unwrap();
-                let pool = init_redis_pool(redis_url);
-                let chosen: Vec<usize> = MultiSelect::new()
-                    .items(&ALL_SPECIFICATIONS)
-                    .with_prompt("Select cached specifications to delete")
-                    .interact_on(&Term::stdout())?;
-                // run a separate tokio runtime to avoid interfering with actix's threads
-                let runtime = tokio::runtime::Builder::new_multi_thread()
-                    .worker_threads(1)
-                    .enable_all()
-                    .build()?;
-                runtime.block_on(async {
-                    for index in chosen {
-                        let specification = ALL_SPECIFICATIONS.get(index).unwrap();
-                        let keys = scan_match(&pool, &format!("{}*", specification)).await?;
-                        for key in keys {
-                            del(&pool, &key).await?;
-                        }
-                    }
-                    Ok::<(), ThothError>(())
-                })
-            }
+            Some(("delete", _)) => commands::cache::delete(cache_matches),
             _ => unreachable!(),
         },
         _ => unreachable!(),
