@@ -103,14 +103,24 @@ fn is_admin_input(publisher_name: &str) -> ThothResult<bool> {
 fn select_and_link_publishers(pool: &PgPool, account: &Account) -> ThothResult<()> {
     let publishers = all_publishers(pool)?;
     let publisher_accounts = account.get_publisher_accounts(pool)?;
-    let current_ids: HashSet<_> = publisher_accounts
+    let current_ids: HashSet<(_, _)> = publisher_accounts
         .iter()
-        .map(|pa| pa.publisher_id)
+        .map(|pa| (pa.publisher_id, pa.is_admin))
         .collect();
 
-    let items_checked: Vec<(_, bool)> = publishers
+    let items_checked: Vec<(_, _)> = publishers
         .iter()
-        .map(|publisher| (publisher, current_ids.contains(&publisher.publisher_id)))
+        .map(|p| {
+            let is_admin = current_ids
+                .iter()
+                .find(|(id, _)| *id == p.publisher_id)
+                .map_or(false, |(_, admin)| *admin);
+            let is_linked = current_ids.iter().any(|(id, _)| *id == p.publisher_id);
+            let admin_label = if is_admin { "Admin" } else { "" };
+            let mut publisher = p.clone();
+            publisher.publisher_name = format!("{:<65}| {}", publisher.publisher_name, admin_label);
+            (publisher, is_linked)
+        })
         .collect();
 
     let chosen: Vec<usize> = MultiSelect::new()
@@ -123,7 +133,10 @@ fn select_and_link_publishers(pool: &PgPool, account: &Account) -> ThothResult<(
         .collect();
     let to_add: Vec<_> = publishers
         .iter()
-        .filter(|p| chosen_ids.contains(&p.publisher_id) && !current_ids.contains(&p.publisher_id))
+        .filter(|p| {
+            chosen_ids.contains(&p.publisher_id)
+                && !current_ids.iter().any(|(id, _)| id == &p.publisher_id)
+        })
         .collect();
     let to_remove: Vec<_> = publisher_accounts
         .iter()
