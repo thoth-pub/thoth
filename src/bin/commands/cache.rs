@@ -1,7 +1,7 @@
 use crate::arguments;
 use crate::commands::get_redis_pool;
 use clap::{ArgMatches, Command};
-use dialoguer::{console::Term, MultiSelect};
+use dialoguer::{console::Term, theme::ColorfulTheme, MultiSelect};
 use lazy_static::lazy_static;
 use thoth::{
     api::redis::{del, scan_match},
@@ -20,7 +20,7 @@ lazy_static! {
 
 pub fn delete(arguments: &ArgMatches) -> ThothResult<()> {
     let pool = get_redis_pool(arguments);
-    let chosen: Vec<usize> = MultiSelect::new()
+    let chosen: Vec<usize> = MultiSelect::with_theme(&ColorfulTheme::default())
         .items(&ALL_SPECIFICATIONS)
         .with_prompt("Select cached specifications to delete")
         .interact_on(&Term::stdout())?;

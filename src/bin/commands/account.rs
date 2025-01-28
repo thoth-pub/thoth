@@ -34,21 +34,21 @@ lazy_static! {
 pub fn register(arguments: &clap::ArgMatches) -> ThothResult<()> {
     let pool = get_pg_pool(arguments);
 
-    let name = Input::new()
+    let name = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("Enter given name")
         .interact_on(&Term::stdout())?;
-    let surname = Input::new()
+    let surname = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("Enter family name")
         .interact_on(&Term::stdout())?;
-    let email = Input::new()
+    let email = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("Enter email address")
         .interact_on(&Term::stdout())?;
     let password = password_input()?;
-    let is_superuser: bool = Input::new()
+    let is_superuser: bool = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("Is this a superuser account")
         .default(false)
         .interact_on(&Term::stdout())?;
-    let is_bot: bool = Input::new()
+    let is_bot: bool = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("Is this a bot account")
         .default(false)
         .interact_on(&Term::stdout())?;
@@ -85,7 +85,7 @@ fn email_selection(pool: &PgPool) -> ThothResult<String> {
 }
 
 fn password_input() -> ThothResult<String> {
-    Password::new()
+    Password::with_theme(&ColorfulTheme::default())
         .with_prompt("Enter password")
         .with_confirmation("Confirm password", "Passwords do not match")
         .interact_on(&Term::stdout())
@@ -93,7 +93,7 @@ fn password_input() -> ThothResult<String> {
 }
 
 fn is_admin_input(publisher_name: &str) -> ThothResult<bool> {
-    Input::new()
+    Input::with_theme(&ColorfulTheme::default())
         .with_prompt(format!("Make user an admin of '{}'?", publisher_name))
         .default(false)
         .interact_on(&Term::stdout())
@@ -123,7 +123,7 @@ fn select_and_link_publishers(pool: &PgPool, account: &Account) -> ThothResult<(
         })
         .collect();
 
-    let chosen: Vec<usize> = MultiSelect::new()
+    let chosen: Vec<usize> = MultiSelect::with_theme(&ColorfulTheme::default())
         .with_prompt("Select publishers to link this account to")
         .items_checked(&items_checked)
         .interact_on(&Term::stdout())?;
