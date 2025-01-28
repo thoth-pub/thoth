@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[0.13.6]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.6) - 2025-01-28
 ### Changed
   - [667](https://github.com/thoth-pub/thoth/pull/667) - Refactor binary using new submodules `commands` and `arguments`
   - [667](https://github.com/thoth-pub/thoth/pull/667) - Trigger `run\_migrations` github action when binary source changes
