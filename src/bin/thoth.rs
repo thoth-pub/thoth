@@ -26,19 +26,19 @@ fn main() -> thoth::errors::ThothResult<()> {
             Some(("export-api", arguments)) => commands::start::export_api(arguments),
             _ => unreachable!(),
         },
-        Some(("migrate", aguments)) => commands::migrate(aguments),
+        Some(("migrate", arguments)) => commands::migrate(arguments),
         Some(("init", arguments)) => {
             commands::run_migrations(arguments)?;
             commands::start::graphql_api(arguments)
         }
-        Some(("account", aguments)) => match aguments.subcommand() {
-            Some(("register", _)) => commands::account::register(aguments),
-            Some(("publishers", _)) => commands::account::publishers(aguments),
-            Some(("password", _)) => commands::account::password(aguments),
+        Some(("account", arguments)) => match arguments.subcommand() {
+            Some(("register", _)) => commands::account::register(arguments),
+            Some(("publishers", _)) => commands::account::publishers(arguments),
+            Some(("password", _)) => commands::account::password(arguments),
             _ => unreachable!(),
         },
-        Some(("cache", aguments)) => match aguments.subcommand() {
-            Some(("delete", _)) => commands::cache::delete(aguments),
+        Some(("cache", arguments)) => match arguments.subcommand() {
+            Some(("delete", _)) => commands::cache::delete(arguments),
             _ => unreachable!(),
         },
         _ => unreachable!(),
