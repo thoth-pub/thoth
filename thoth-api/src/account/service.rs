@@ -85,14 +85,14 @@ pub fn register(
     Ok(created_account)
 }
 
-pub fn all_emails(pool: &PgPool) -> ThothResult<Vec<String>> {
+pub fn all_emails(pool: &PgPool) -> ThothResult<Vec<(String, bool, bool, bool)>> {
     let mut connection = pool.get()?;
 
     use crate::schema::account::dsl;
     let emails = dsl::account
-        .select(dsl::email)
+        .select((dsl::email, dsl::is_superuser, dsl::is_bot, dsl::is_active))
         .order(dsl::email.asc())
-        .load::<String>(&mut connection)
+        .load::<(String, bool, bool, bool)>(&mut connection)
         .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
     Ok(emails)
 }

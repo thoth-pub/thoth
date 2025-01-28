@@ -73,14 +73,30 @@ pub fn password(arguments: &clap::ArgMatches) -> ThothResult<()> {
 
 fn email_selection(pool: &PgPool) -> ThothResult<String> {
     let all_emails = all_emails(pool).expect("No user accounts present in database.");
+    let email_labels: Vec<String> = all_emails
+        .iter()
+        .map(|(email, is_superuser, is_bot, is_active)| {
+            let mut label = email.clone();
+            if *is_superuser {
+                label.push_str(" 👑");
+            }
+            if *is_bot {
+                label.push_str(" 🤖");
+            }
+            if !is_active {
+                label.push_str(" ❌");
+            }
+            label
+        })
+        .collect();
     let email_selection = Select::with_theme(&ColorfulTheme::default())
-        .items(&all_emails)
+        .items(&email_labels)
         .default(0)
         .with_prompt("Select a user account")
         .interact_on(&Term::stdout())?;
     all_emails
         .get(email_selection)
-        .cloned()
+        .map(|(email, _, _, _)| email.clone())
         .ok_or_else(|| ThothError::InternalError("Invalid user selection".into()))
 }
 
