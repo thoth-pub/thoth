@@ -3464,6 +3464,7 @@ dependencies = [
  "clap",
  "dialoguer",
  "dotenv",
+ "lazy_static",
  "thoth-api",
  "thoth-api-server",
  "thoth-app-server",
