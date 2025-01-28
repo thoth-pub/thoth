@@ -114,7 +114,7 @@ fn select_and_link_publishers(pool: &PgPool, account: &Account) -> ThothResult<(
             let is_admin = current_ids
                 .iter()
                 .find(|(id, _)| *id == p.publisher_id)
-                .map_or(false, |(_, admin)| *admin);
+                .is_some_and(|(_, admin)| *admin);
             let is_linked = current_ids.iter().any(|(id, _)| *id == p.publisher_id);
             let admin_label = if is_admin { "Admin" } else { "" };
             let mut publisher = p.clone();
