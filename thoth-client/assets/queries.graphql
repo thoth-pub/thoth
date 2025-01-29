@@ -167,8 +167,10 @@ fragment Work on Work {
             withdrawnDate
             workStatus
             license
+            copyrightHolder
             shortAbstract
             longAbstract
+            generalNote
             place
             firstPage
             lastPage

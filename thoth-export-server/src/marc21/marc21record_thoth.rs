@@ -1079,6 +1079,7 @@ pub(crate) mod tests {
                 license: None,
                 short_abstract: None,
                 long_abstract: None,
+                general_note: None,
                 place: None,
                 first_page: None,
                 last_page: None,

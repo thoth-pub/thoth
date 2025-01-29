@@ -676,6 +676,104 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                 for language in &chapter.languages {
                                     XmlElementBlock::<Onix312Thoth>::xml_element(language, w).ok();
                                 }
+                                if chapter.short_abstract.is_some()
+                                    || chapter.long_abstract.is_some()
+                                    || chapter.general_note.is_some()
+                                    || chapter.license.is_some()
+                                {
+                                    if let Some(mut short_abstract) = chapter.short_abstract.clone() {
+                                        // Short description field may not exceed 350 characters.
+                                        // Ensure that the string is truncated at a valid UTF-8 boundary
+                                        // by finding the byte index of the 350th character and then truncating
+                                        // the string at that index, to avoid creating invalid UTF-8 sequences.
+                                        if let Some((byte_index, _)) = short_abstract.char_indices().nth(350) {
+                                            short_abstract.truncate(byte_index);
+                                        }
+                                        write_element_block("TextContent", w, |w| {
+                                            // 02 Short description
+                                            write_element_block("TextType", w, |w| {
+                                                w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                                            })?;
+                                            // 00 Unrestricted
+                                            write_element_block("ContentAudience", w, |w| {
+                                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                            })?;
+                                            write_element_block("Text", w, |w| {
+                                                w.write(XmlEvent::Characters(&short_abstract))
+                                                    .map_err(|e| e.into())
+                                            })
+                                        })?;
+                                    }
+                                    if let Some(long_abstract) = &chapter.long_abstract {
+                                        // 03 Description, 30 Abstract
+                                        for text_type in ["03", "30"] {
+                                            write_element_block("TextContent", w, |w| {
+                                                write_element_block("TextType", w, |w| {
+                                                    w.write(XmlEvent::Characters(text_type))
+                                                        .map_err(|e| e.into())
+                                                })?;
+                                                // 00 Unrestricted
+                                                write_element_block("ContentAudience", w, |w| {
+                                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                                })?;
+                                                write_element_block("Text", w, |w| {
+                                                    w.write(XmlEvent::Characters(long_abstract))
+                                                        .map_err(|e| e.into())
+                                                })
+                                            })?;
+                                        }
+                                    }
+                                    if chapter.license.is_some() {
+                                        write_element_block("TextContent", w, |w| {
+                                            // 20 Open access statement
+                                            write_element_block("TextType", w, |w| {
+                                                w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
+                                            })?;
+                                            // 00 Unrestricted
+                                            write_element_block("ContentAudience", w, |w| {
+                                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                            })?;
+                                            write_full_element_block(
+                                                "Text",
+                                                Some(vec![("language", "eng")]),
+                                                w,
+                                                |w| {
+                                                    w.write(XmlEvent::Characters("Open Access"))
+                                                        .map_err(|e| e.into())
+                                                },
+                                            )
+                                        })?;
+                                    }
+                                    if let Some(general_note) = &chapter.general_note {
+                                        write_element_block("TextContent", w, |w| {
+                                            // 13 Publisher's notice
+                                            // "A statement included by a publisher in fulfillment of contractual obligations"
+                                            // Used in many different ways - closest approximation
+                                            write_element_block("TextType", w, |w| {
+                                                w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
+                                            })?;
+                                            // 00 Unrestricted
+                                            write_element_block("ContentAudience", w, |w| {
+                                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                            })?;
+                                            write_element_block("Text", w, |w| {
+                                                w.write(XmlEvent::Characters(general_note))
+                                                    .map_err(|e| e.into())
+                                            })
+                                        })?;
+                                    }
+                                }
+                                if let Some(copyright_holder) = &chapter.copyright_holder {
+                                    write_element_block("CopyrightStatement", w, |w| {
+                                        write_element_block("CopyrightOwner", w, |w| {
+                                            // This might be a CorporateName rather than PersonName, but we can't tell
+                                            write_element_block("PersonName", w, |w| {
+                                                w.write(XmlEvent::Characters(copyright_holder))
+                                                    .map_err(|e| e.into())
+                                            })
+                                        })
+                                    })?;
+                                }
                                 Ok(())
                             })?;
                         }
@@ -2236,6 +2334,7 @@ mod tests {
                 license: None,
                 short_abstract: None,
                 long_abstract: None,
+                general_note: None,
                 place: None,
                 first_page: None,
                 last_page: None,
@@ -2452,8 +2551,9 @@ mod tests {
                         publication_date: None,
                         withdrawn_date: None,
                         license: Some("https://creativecommons.org/licenses/by-sa/4.0/".to_string()),
-                        short_abstract: None,
-                        long_abstract: None,
+                        short_abstract: Some("This is a chapter's very short abstract.".to_string()),
+                        long_abstract: Some("This is a chapter's somewhat longer abstract. It has two sentences.".to_string()),
+                        general_note: Some("This is a chapter general note.".to_string()),
                         place: None,
                         first_page: Some("10".to_string()),
                         last_page: Some("20".to_string()),
@@ -2511,6 +2611,7 @@ mod tests {
                         license: None,
                         short_abstract: None,
                         long_abstract: None,
+                        general_note: None,
                         place: None,
                         first_page: None,
                         last_page: None,
@@ -2545,6 +2646,7 @@ mod tests {
                         license: None,
                         short_abstract: None,
                         long_abstract: None,
+                        general_note: None,
                         place: None,
                         first_page: None,
                         last_page: None,
@@ -2986,6 +3088,31 @@ mod tests {
         <LanguageRole>01</LanguageRole>
         <LanguageCode>btk</LanguageCode>
       </Language>
+      <TextContent>
+        <TextType>02</TextType>
+        <ContentAudience>00</ContentAudience>
+        <Text>This is a chapter's very short abstract.</Text>
+      </TextContent>
+      <TextContent>
+        <TextType>03</TextType>
+        <ContentAudience>00</ContentAudience>
+        <Text>This is a chapter's somewhat longer abstract. It has two sentences.</Text>
+      </TextContent>
+      <TextContent>
+        <TextType>30</TextType>
+        <ContentAudience>00</ContentAudience>
+        <Text>This is a chapter's somewhat longer abstract. It has two sentences.</Text>
+      </TextContent>
+      <TextContent>
+        <TextType>20</TextType>
+        <ContentAudience>00</ContentAudience>
+        <Text language="eng">Open Access</Text>
+      </TextContent>
+      <TextContent>
+        <TextType>13</TextType>
+        <ContentAudience>00</ContentAudience>
+        <Text>This is a chapter general note.</Text>
+      </TextContent>
     </ContentItem>
   </ContentDetail>
   <PublishingDetail>
