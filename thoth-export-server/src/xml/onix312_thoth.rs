@@ -239,29 +239,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                     for issue in &self.issues {
                         XmlElementBlock::<Onix312Thoth>::xml_element(issue, w).ok();
                     }
-                    write_element_block("TitleDetail", w, |w| {
-                        // 01 Distinctive title (book)
-                        write_element_block("TitleType", w, |w| {
-                            w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                        })?;
-                        write_element_block("TitleElement", w, |w| {
-                            // 01 Product
-                            write_element_block("TitleElementLevel", w, |w| {
-                                w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                            })?;
-                            write_element_block("TitleText", w, |w| {
-                                w.write(XmlEvent::Characters(&self.title))
-                                    .map_err(|e| e.into())
-                            })?;
-                            if let Some(subtitle) = &self.subtitle {
-                                write_element_block("Subtitle", w, |w| {
-                                    w.write(XmlEvent::Characters(subtitle))
-                                        .map_err(|e| e.into())
-                                })?;
-                            }
-                            Ok(())
-                        })
-                    })?;
+                    write_work_title(self, w)?;
                     for contribution in &self.contributions {
                         XmlElementBlock::<Onix312Thoth>::xml_element(contribution, w).ok();
                     }
@@ -607,29 +585,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                 write_element_block("ComponentTypeName", w, |w| {
                                     w.write(XmlEvent::Characters("Chapter")).map_err(|e| e.into())
                                 })?;
-                                write_element_block("TitleDetail", w, |w| {
-                                    // 01 Distinctive title (book)
-                                    write_element_block("TitleType", w, |w| {
-                                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("TitleElement", w, |w| {
-                                        // 01 Product
-                                        write_element_block("TitleElementLevel", w, |w| {
-                                            w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                                        })?;
-                                        write_element_block("TitleText", w, |w| {
-                                            w.write(XmlEvent::Characters(&chapter.title))
-                                                .map_err(|e| e.into())
-                                        })?;
-                                        if let Some(subtitle) = &chapter.subtitle {
-                                            write_element_block("Subtitle", w, |w| {
-                                                w.write(XmlEvent::Characters(subtitle))
-                                                    .map_err(|e| e.into())
-                                            })?;
-                                        }
-                                        Ok(())
-                                    })
-                                })?;
+                                write_chapter_title(chapter, w)?;
                                 for contribution in &chapter.contributions {
                                     XmlElementBlock::<Onix312Thoth>::xml_element(contribution, w).ok();
                                 }
@@ -1151,6 +1107,48 @@ fn write_license_content<W: Write>(
             })
         })?;
     }
+    Ok(())
+}
+
+fn write_work_title<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+    write_title_content(work.title.clone(), work.subtitle.clone(), w)
+}
+
+fn write_chapter_title<W: Write>(
+    chapter: &WorkRelationsRelatedWork,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    write_title_content(chapter.title.clone(), chapter.subtitle.clone(), w)
+}
+
+fn write_title_content<W: Write>(
+    title: String,
+    subtitle: Option<String>,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    write_element_block("TitleDetail", w, |w| {
+        // 01 Distinctive title (book)
+        write_element_block("TitleType", w, |w| {
+            w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+        })?;
+        write_element_block("TitleElement", w, |w| {
+            // 01 Product
+            write_element_block("TitleElementLevel", w, |w| {
+                w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+            })?;
+            write_element_block("TitleText", w, |w| {
+                w.write(XmlEvent::Characters(&title))
+                    .map_err(|e| e.into())
+            })?;
+            if let Some(subtitle) = &subtitle {
+                write_element_block("Subtitle", w, |w| {
+                    w.write(XmlEvent::Characters(&subtitle))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            Ok(())
+        })
+    })?;
     Ok(())
 }
 
