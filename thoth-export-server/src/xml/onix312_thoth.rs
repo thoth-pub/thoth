@@ -2,7 +2,7 @@ use cc_license::License;
 use chrono::Utc;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, LanguageRelation, LocationPlatform, PublicationType, RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublicationsLocations, WorkReferences, WorkRelations, WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkContributionsContributor, WorkRelationsRelatedWorkContributionsAffiliations, WorkRelationsRelatedWorkContributionsAffiliationsInstitution, WorkRelationsRelatedWorkReferences, WorkRelationsRelatedWorkLanguages, WorkStatus, WorkType
+    ContributionType, LanguageRelation, LocationPlatform, PublicationType, RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublicationsLocations, WorkReferences, WorkRelations, WorkRelationsRelatedWork, WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkContributionsContributor, WorkRelationsRelatedWorkContributionsAffiliations, WorkRelationsRelatedWorkContributionsAffiliationsInstitution, WorkRelationsRelatedWorkReferences, WorkRelationsRelatedWorkLanguages, WorkStatus, WorkType
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -235,27 +235,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                             .ok();
                         }
                     }
-                    if let Some(license_url) = &self.license {
-                        let license_text = match License::from_url(license_url) {
-                            Ok(license) => license.to_string(),
-                            Err(_) => "Unspecified".to_string(),
-                        };
-                        write_element_block("EpubLicense", w, |w| {
-                            write_element_block("EpubLicenseName", w, |w| {
-                                w.write(XmlEvent::Characters(&license_text))
-                                    .map_err(|e| e.into())
-                            })?;
-                            write_element_block("EpubLicenseExpression", w, |w| {
-                                write_element_block("EpubLicenseExpressionType", w, |w| {
-                                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("EpubLicenseExpressionLink", w, |w| {
-                                    w.write(XmlEvent::Characters(license_url))
-                                        .map_err(|e| e.into())
-                                })
-                            })
-                        })?;
-                    }
+                    write_work_license(self, w)?;
                     for issue in &self.issues {
                         XmlElementBlock::<Onix312Thoth>::xml_element(issue, w).ok();
                     }
@@ -623,27 +603,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                             .map_err(|e| e.into())
                                     })?;
                                 }
-                                if let Some(license_url) = &chapter.license {
-                                    let license_text = match License::from_url(license_url) {
-                                        Ok(license) => license.to_string(),
-                                        Err(_) => "Unspecified".to_string(),
-                                    };
-                                    write_element_block("EpubLicense", w, |w| {
-                                        write_element_block("EpubLicenseName", w, |w| {
-                                            w.write(XmlEvent::Characters(&license_text))
-                                                .map_err(|e| e.into())
-                                        })?;
-                                        write_element_block("EpubLicenseExpression", w, |w| {
-                                            write_element_block("EpubLicenseExpressionType", w, |w| {
-                                                w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                                            })?;
-                                            write_element_block("EpubLicenseExpressionLink", w, |w| {
-                                                w.write(XmlEvent::Characters(license_url))
-                                                    .map_err(|e| e.into())
-                                            })
-                                        })
-                                    })?;
-                                }
+                                write_chapter_license(chapter, w)?;
                                 write_element_block("ComponentTypeName", w, |w| {
                                     w.write(XmlEvent::Characters("Chapter")).map_err(|e| e.into())
                                 })?;
@@ -1155,6 +1115,45 @@ impl XmlElementBlock<Onix312Thoth> for Work {
     }
 }
 
+fn write_work_license<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+    write_license_content(work.license.as_ref(), w)
+}
+
+fn write_chapter_license<W: Write>(
+    chapter: &WorkRelationsRelatedWork,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    write_license_content(chapter.license.as_ref(), w)
+}
+
+fn write_license_content<W: Write>(
+    license: Option<&String>,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    if let Some(license_url) = license {
+        let license_text = match License::from_url(license_url) {
+            Ok(license) => license.to_string(),
+            Err(_) => "Unspecified".to_string(),
+        };
+        write_element_block("EpubLicense", w, |w| {
+            write_element_block("EpubLicenseName", w, |w| {
+                w.write(XmlEvent::Characters(&license_text))
+                    .map_err(|e| e.into())
+            })?;
+            write_element_block("EpubLicenseExpression", w, |w| {
+                write_element_block("EpubLicenseExpressionType", w, |w| {
+                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                })?;
+                write_element_block("EpubLicenseExpressionLink", w, |w| {
+                    w.write(XmlEvent::Characters(license_url))
+                        .map_err(|e| e.into())
+                })
+            })
+        })?;
+    }
+    Ok(())
+}
+
 fn get_product_form_codes(publication_type: &PublicationType) -> (&str, Option<&str>) {
     match publication_type {
         PublicationType::PAPERBACK => ("BC", None),
@@ -1175,6 +1174,8 @@ fn get_product_form_codes(publication_type: &PublicationType) -> (&str, Option<&
         PublicationType::Other(_) => unreachable!(),
     }
 }
+
+
 
 impl XmlElement<Onix312Thoth> for WorkStatus {
     const ELEMENT: &'static str = "PublishingStatus";
