@@ -2,7 +2,7 @@ use cc_license::License;
 use chrono::Utc;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, LanguageRelation, LocationPlatform, PublicationType, RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublicationsLocations, WorkReferences, WorkRelations, WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkContributionsContributor, WorkRelationsRelatedWorkContributionsAffiliations, WorkRelationsRelatedWorkContributionsAffiliationsInstitution, WorkRelationsRelatedWorkLanguages, WorkStatus, WorkType
+    ContributionType, LanguageRelation, LocationPlatform, PublicationType, RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublicationsLocations, WorkReferences, WorkRelations, WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkContributionsContributor, WorkRelationsRelatedWorkContributionsAffiliations, WorkRelationsRelatedWorkContributionsAffiliationsInstitution, WorkRelationsRelatedWorkReferences, WorkRelationsRelatedWorkLanguages, WorkStatus, WorkType
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -773,6 +773,9 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                             })
                                         })
                                     })?;
+                                }
+                                for reference in &chapter.references {
+                                    XmlElementBlock::<Onix312Thoth>::xml_element(reference, w).ok();
                                 }
                                 Ok(())
                             })?;
@@ -2332,6 +2335,7 @@ mod tests {
                 publication_date: None,
                 withdrawn_date: None,
                 license: None,
+                copyright_holder: None,
                 short_abstract: None,
                 long_abstract: None,
                 general_note: None,
@@ -2551,6 +2555,7 @@ mod tests {
                         publication_date: None,
                         withdrawn_date: None,
                         license: Some("https://creativecommons.org/licenses/by-sa/4.0/".to_string()),
+                        copyright_holder: Some("Chapter Author 1; Chapter Author 2".to_string()),
                         short_abstract: Some("This is a chapter's very short abstract.".to_string()),
                         long_abstract: Some("This is a chapter's somewhat longer abstract. It has two sentences.".to_string()),
                         general_note: Some("This is a chapter general note.".to_string()),
@@ -2587,7 +2592,28 @@ mod tests {
                             }],
                         }],
                         publications: vec![],
-                        references: vec![],
+                        references: vec![WorkRelationsRelatedWorkReferences {
+                            reference_ordinal: 1,
+                            doi: Some(Doi::from_str("https://doi.org/10.00005/chapter_reference").unwrap()),
+                            unstructured_citation: None,
+                            issn: None,
+                            isbn: None,
+                            journal_title: None,
+                            article_title: None,
+                            series_title: None,
+                            volume_title: None,
+                            edition: None,
+                            author: None,
+                            volume: None,
+                            issue: None,
+                            first_page: None,
+                            component_number: None,
+                            standard_designator: None,
+                            standards_body_name: None,
+                            standards_body_acronym: None,
+                            publication_date: None,
+                            retrieval_date: None,
+                        }],
                         fundings: vec![],
                         languages: vec![WorkRelationsRelatedWorkLanguages {
                             language_code: LanguageCode::BTK,
@@ -2609,6 +2635,7 @@ mod tests {
                         publication_date: None,
                         withdrawn_date: None,
                         license: None,
+                        copyright_holder: None,
                         short_abstract: None,
                         long_abstract: None,
                         general_note: None,
@@ -2644,6 +2671,7 @@ mod tests {
                         publication_date: None,
                         withdrawn_date: None,
                         license: None,
+                        copyright_holder: None,
                         short_abstract: None,
                         long_abstract: None,
                         general_note: None,
@@ -3113,6 +3141,18 @@ mod tests {
         <ContentAudience>00</ContentAudience>
         <Text>This is a chapter general note.</Text>
       </TextContent>
+      <CopyrightStatement>
+        <CopyrightOwner>
+          <PersonName>Chapter Author 1; Chapter Author 2</PersonName>
+        </CopyrightOwner>
+      </CopyrightStatement>
+      <RelatedProduct>
+        <ProductRelationCode>34</ProductRelationCode>
+        <ProductIdentifier>
+          <ProductIDType>06</ProductIDType>
+          <IDValue>10.00005/chapter_reference</IDValue>
+        </ProductIdentifier>
+      </RelatedProduct>
     </ContentItem>
   </ContentDetail>
   <PublishingDetail>
