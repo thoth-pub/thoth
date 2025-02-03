@@ -386,26 +386,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                 {
                     write_element_block("CollateralDetail", w, |w| {
                         write_work_short_abstract(self, w)?;
-                        // TODO: refactor with chapter long_abstract
-                        if let Some(long_abstract) = &self.long_abstract {
-                            // 03 Description, 30 Abstract
-                            for text_type in ["03", "30"] {
-                                write_element_block("TextContent", w, |w| {
-                                    write_element_block("TextType", w, |w| {
-                                        w.write(XmlEvent::Characters(text_type))
-                                            .map_err(|e| e.into())
-                                    })?;
-                                    // 00 Unrestricted
-                                    write_element_block("ContentAudience", w, |w| {
-                                        w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("Text", w, |w| {
-                                        w.write(XmlEvent::Characters(long_abstract))
-                                            .map_err(|e| e.into())
-                                    })
-                                })?;
-                            }
-                        }
+                        write_work_long_abstract(self, w)?;
                         if let Some(toc) = &self.toc {
                             write_element_block("TextContent", w, |w| {
                                 // 04 Table of contents
@@ -421,6 +402,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                 })
                             })?;
                         }
+                        // TODO: discuss with regard to closed-access books in Thoth
                         if is_open_access {
                             write_element_block("TextContent", w, |w| {
                                 // 20 Open access statement
@@ -442,25 +424,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                 )
                             })?;
                         }
-                        // TODO: refactor with chapter general_note
-                        if let Some(general_note) = &self.general_note {
-                            write_element_block("TextContent", w, |w| {
-                                // 13 Publisher's notice
-                                // "A statement included by a publisher in fulfillment of contractual obligations"
-                                // Used in many different ways - closest approximation
-                                write_element_block("TextType", w, |w| {
-                                    w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
-                                })?;
-                                // 00 Unrestricted
-                                write_element_block("ContentAudience", w, |w| {
-                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("Text", w, |w| {
-                                    w.write(XmlEvent::Characters(general_note))
-                                        .map_err(|e| e.into())
-                                })
-                            })?;
-                        }
+                        write_work_general_note(self, w)?;
                         if let Some(cover_url) = &self.cover_url {
                             write_element_block("SupportingResource", w, |w| {
                                 // 01 Front cover
@@ -578,25 +542,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                     || chapter.license.is_some()
                                 {
                                     write_chapter_short_abstract(chapter, w)?;
-                                    if let Some(long_abstract) = &chapter.long_abstract {
-                                        // 03 Description, 30 Abstract
-                                        for text_type in ["03", "30"] {
-                                            write_element_block("TextContent", w, |w| {
-                                                write_element_block("TextType", w, |w| {
-                                                    w.write(XmlEvent::Characters(text_type))
-                                                        .map_err(|e| e.into())
-                                                })?;
-                                                // 00 Unrestricted
-                                                write_element_block("ContentAudience", w, |w| {
-                                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                                                })?;
-                                                write_element_block("Text", w, |w| {
-                                                    w.write(XmlEvent::Characters(long_abstract))
-                                                        .map_err(|e| e.into())
-                                                })
-                                            })?;
-                                        }
-                                    }
+                                    write_chapter_long_abstract(chapter, w)?;
                                     // TODO: is this problematic as we add closed-access books to Thoth?
                                     if chapter.license.is_some() {
                                         write_element_block("TextContent", w, |w| {
@@ -619,24 +565,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                             )
                                         })?;
                                     }
-                                    if let Some(general_note) = &chapter.general_note {
-                                        write_element_block("TextContent", w, |w| {
-                                            // 13 Publisher's notice
-                                            // "A statement included by a publisher in fulfillment of contractual obligations"
-                                            // Used in many different ways - closest approximation
-                                            write_element_block("TextType", w, |w| {
-                                                w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
-                                            })?;
-                                            // 00 Unrestricted
-                                            write_element_block("ContentAudience", w, |w| {
-                                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                                            })?;
-                                            write_element_block("Text", w, |w| {
-                                                w.write(XmlEvent::Characters(general_note))
-                                                    .map_err(|e| e.into())
-                                            })
-                                        })?;
-                                    }
+                                    write_chapter_general_note(chapter, w)?;
                                 }
                                 write_chapter_copyright(chapter, w)?;
                                 for reference in &chapter.references {
@@ -1159,6 +1088,87 @@ fn write_short_abstract_content<W: Write>(
             })?;
             write_element_block("Text", w, |w| {
                 w.write(XmlEvent::Characters(&short_abstract))
+                    .map_err(|e| e.into())
+            })
+        })?;
+    Ok(())
+}
+
+fn write_work_long_abstract<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+    if let Some(long_abstract) = work.long_abstract.clone() {
+        write_long_abstract_content(long_abstract, w)?;
+    }
+    Ok(())
+}
+
+fn write_chapter_long_abstract<W: Write>(
+    chapter: &WorkRelationsRelatedWork,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    if let Some(long_abstract) = chapter.long_abstract.clone() {
+        write_long_abstract_content(long_abstract, w)?;
+    }
+    Ok(())
+}
+
+fn write_long_abstract_content<W: Write>(
+    long_abstract: String,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+        // 03 Description, 30 Abstract
+        for text_type in ["03", "30"] {
+            write_element_block("TextContent", w, |w| {
+                write_element_block("TextType", w, |w| {
+                    w.write(XmlEvent::Characters(text_type))
+                        .map_err(|e| e.into())
+                })?;
+                // 00 Unrestricted
+                write_element_block("ContentAudience", w, |w| {
+                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                })?;
+                write_element_block("Text", w, |w| {
+                    w.write(XmlEvent::Characters(&long_abstract))
+                        .map_err(|e| e.into())
+                })
+            })?;
+        }
+    Ok(())
+}
+
+fn write_work_general_note<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+    if let Some(general_note) = work.general_note.clone() {
+        write_general_note_content(general_note, w)?;
+    }
+    Ok(())
+}
+
+fn write_chapter_general_note<W: Write>(
+    chapter: &WorkRelationsRelatedWork,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    if let Some(general_note) = chapter.general_note.clone() {
+        write_general_note_content(general_note, w)?;
+    }
+    Ok(())
+}
+
+fn write_general_note_content<W: Write>(
+    general_note: String,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+        write_element_block("TextContent", w, |w| {
+            // 13 Publisher's notice
+            // "A statement included by a publisher in fulfillment of contractual obligations"
+            // Used in many different ways - closest approximation
+            write_element_block("TextType", w, |w| {
+                w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
+            })?;
+            // 00 Unrestricted
+            write_element_block("ContentAudience", w, |w| {
+                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+            })?;
+            write_element_block("Text", w, |w| {
+                w.write(XmlEvent::Characters(&general_note))
                     .map_err(|e| e.into())
             })
         })?;
@@ -1800,7 +1810,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix3_thoth_contributions() {
+    fn test_onix312_thoth_contributions() {
         let mut test_contribution = WorkContributions {
             contribution_type: ContributionType::AUTHOR,
             first_name: Some("Author".to_string()),
@@ -1956,7 +1966,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix3_thoth_languages() {
+    fn test_onix312_thoth_languages() {
         let mut test_language = WorkLanguages {
             language_code: LanguageCode::SPA,
             language_relation: LanguageRelation::TRANSLATED_FROM,
@@ -1984,7 +1994,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix3_thoth_issues() {
+    fn test_onix312_thoth_issues() {
         let mut test_issue = WorkIssues {
             issue_ordinal: 1,
             series: WorkIssuesSeries {
@@ -2094,7 +2104,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix3_thoth_fundings() {
+    fn test_onix312_thoth_fundings() {
         let mut test_funding = WorkFundings {
             program: Some("Name of program".to_string()),
             project_name: Some("Name of project".to_string()),
@@ -2276,7 +2286,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix3_thoth_references() {
+    fn test_onix312_thoth_references() {
         let mut test_reference = WorkReferences {
             reference_ordinal: 1,
             doi: Some(Doi::from_str("https://doi.org/10.00001/reference").unwrap()),
@@ -2334,7 +2344,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix3_thoth_relations() {
+    fn test_onix312_thoth_relations() {
         let mut test_relation = WorkRelations {
             relation_type: RelationType::HAS_TRANSLATION,
             relation_ordinal: 1,
@@ -2421,7 +2431,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix3_thoth_works() {
+    fn test_onix312_thoth_works() {
         let mut test_work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
