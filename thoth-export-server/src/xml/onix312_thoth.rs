@@ -2,7 +2,10 @@ use cc_license::License;
 use chrono::Utc;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, LanguageRelation, LocationPlatform, PublicationType, RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublicationsLocations, WorkReferences, WorkRelations, WorkRelationsRelatedWork, WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkContributionsContributor, WorkRelationsRelatedWorkContributionsAffiliations, WorkRelationsRelatedWorkContributionsAffiliationsInstitution, WorkRelationsRelatedWorkReferences, WorkRelationsRelatedWorkLanguages, WorkStatus, WorkType
+    ContributionType, LanguageRelation, LocationPlatform, PublicationType, RelationType,
+    SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages,
+    WorkPublicationsLocations, WorkReferences, WorkRelations, WorkRelationsRelatedWork,
+    WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkLanguages, WorkStatus, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -494,7 +497,8 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                     write_element_block("TextItemIdentifier", w, |w| {
                                         // 06 DOI
                                         write_element_block("TextItemIDType", w, |w| {
-                                            w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                                            w.write(XmlEvent::Characters("06"))
+                                                .map_err(|e| e.into())
                                         })?;
                                         write_element_block("IDValue", w, |w| {
                                             w.write(XmlEvent::Characters(
@@ -527,11 +531,13 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                 }
                                 write_chapter_license(chapter, w)?;
                                 write_element_block("ComponentTypeName", w, |w| {
-                                    w.write(XmlEvent::Characters("Chapter")).map_err(|e| e.into())
+                                    w.write(XmlEvent::Characters("Chapter"))
+                                        .map_err(|e| e.into())
                                 })?;
                                 write_chapter_title(chapter, w)?;
                                 for contribution in &chapter.contributions {
-                                    XmlElementBlock::<Onix312Thoth>::xml_element(contribution, w).ok();
+                                    XmlElementBlock::<Onix312Thoth>::xml_element(contribution, w)
+                                        .ok();
                                 }
                                 for language in &chapter.languages {
                                     XmlElementBlock::<Onix312Thoth>::xml_element(language, w).ok();
@@ -548,11 +554,13 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                         write_element_block("TextContent", w, |w| {
                                             // 20 Open access statement
                                             write_element_block("TextType", w, |w| {
-                                                w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
+                                                w.write(XmlEvent::Characters("20"))
+                                                    .map_err(|e| e.into())
                                             })?;
                                             // 00 Unrestricted
                                             write_element_block("ContentAudience", w, |w| {
-                                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                                w.write(XmlEvent::Characters("00"))
+                                                    .map_err(|e| e.into())
                                             })?;
                                             write_full_element_block(
                                                 "Text",
@@ -1005,12 +1013,11 @@ fn write_title_content<W: Write>(
                 w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
             })?;
             write_element_block("TitleText", w, |w| {
-                w.write(XmlEvent::Characters(&title))
-                    .map_err(|e| e.into())
+                w.write(XmlEvent::Characters(&title)).map_err(|e| e.into())
             })?;
             if let Some(subtitle) = &subtitle {
                 write_element_block("Subtitle", w, |w| {
-                    w.write(XmlEvent::Characters(&subtitle))
+                    w.write(XmlEvent::Characters(subtitle))
                         .map_err(|e| e.into())
                 })?;
             }
@@ -1070,27 +1077,27 @@ fn write_short_abstract_content<W: Write>(
     mut short_abstract: String,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
-        // Short description field may not exceed 350 characters.
-        // Ensure that the string is truncated at a valid UTF-8 boundary
-        // by finding the byte index of the 350th character and then truncating
-        // the string at that index, to avoid creating invalid UTF-8 sequences.
-        if let Some((byte_index, _)) = short_abstract.char_indices().nth(350) {
-            short_abstract.truncate(byte_index);
-        }
-        write_element_block("TextContent", w, |w| {
-            // 02 Short description
-            write_element_block("TextType", w, |w| {
-                w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-            })?;
-            // 00 Unrestricted
-            write_element_block("ContentAudience", w, |w| {
-                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-            })?;
-            write_element_block("Text", w, |w| {
-                w.write(XmlEvent::Characters(&short_abstract))
-                    .map_err(|e| e.into())
-            })
+    // Short description field may not exceed 350 characters.
+    // Ensure that the string is truncated at a valid UTF-8 boundary
+    // by finding the byte index of the 350th character and then truncating
+    // the string at that index, to avoid creating invalid UTF-8 sequences.
+    if let Some((byte_index, _)) = short_abstract.char_indices().nth(350) {
+        short_abstract.truncate(byte_index);
+    }
+    write_element_block("TextContent", w, |w| {
+        // 02 Short description
+        write_element_block("TextType", w, |w| {
+            w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
         })?;
+        // 00 Unrestricted
+        write_element_block("ContentAudience", w, |w| {
+            w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+        })?;
+        write_element_block("Text", w, |w| {
+            w.write(XmlEvent::Characters(&short_abstract))
+                .map_err(|e| e.into())
+        })
+    })?;
     Ok(())
 }
 
@@ -1115,23 +1122,23 @@ fn write_long_abstract_content<W: Write>(
     long_abstract: String,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
-        // 03 Description, 30 Abstract
-        for text_type in ["03", "30"] {
-            write_element_block("TextContent", w, |w| {
-                write_element_block("TextType", w, |w| {
-                    w.write(XmlEvent::Characters(text_type))
-                        .map_err(|e| e.into())
-                })?;
-                // 00 Unrestricted
-                write_element_block("ContentAudience", w, |w| {
-                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                })?;
-                write_element_block("Text", w, |w| {
-                    w.write(XmlEvent::Characters(&long_abstract))
-                        .map_err(|e| e.into())
-                })
+    // 03 Description, 30 Abstract
+    for text_type in ["03", "30"] {
+        write_element_block("TextContent", w, |w| {
+            write_element_block("TextType", w, |w| {
+                w.write(XmlEvent::Characters(text_type))
+                    .map_err(|e| e.into())
             })?;
-        }
+            // 00 Unrestricted
+            write_element_block("ContentAudience", w, |w| {
+                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+            })?;
+            write_element_block("Text", w, |w| {
+                w.write(XmlEvent::Characters(&long_abstract))
+                    .map_err(|e| e.into())
+            })
+        })?;
+    }
     Ok(())
 }
 
@@ -1156,22 +1163,22 @@ fn write_general_note_content<W: Write>(
     general_note: String,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
-        write_element_block("TextContent", w, |w| {
-            // 13 Publisher's notice
-            // "A statement included by a publisher in fulfillment of contractual obligations"
-            // Used in many different ways - closest approximation
-            write_element_block("TextType", w, |w| {
-                w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
-            })?;
-            // 00 Unrestricted
-            write_element_block("ContentAudience", w, |w| {
-                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-            })?;
-            write_element_block("Text", w, |w| {
-                w.write(XmlEvent::Characters(&general_note))
-                    .map_err(|e| e.into())
-            })
+    write_element_block("TextContent", w, |w| {
+        // 13 Publisher's notice
+        // "A statement included by a publisher in fulfillment of contractual obligations"
+        // Used in many different ways - closest approximation
+        write_element_block("TextType", w, |w| {
+            w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
         })?;
+        // 00 Unrestricted
+        write_element_block("ContentAudience", w, |w| {
+            w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+        })?;
+        write_element_block("Text", w, |w| {
+            w.write(XmlEvent::Characters(&general_note))
+                .map_err(|e| e.into())
+        })
+    })?;
     Ok(())
 }
 
@@ -1195,8 +1202,6 @@ fn get_product_form_codes(publication_type: &PublicationType) -> (&str, Option<&
         PublicationType::Other(_) => unreachable!(),
     }
 }
-
-
 
 impl XmlElement<Onix312Thoth> for WorkStatus {
     const ELEMENT: &'static str = "PublishingStatus";
@@ -1316,7 +1321,8 @@ impl XmlElementBlock<Onix312Thoth> for WorkContributions {
                                 w.write(XmlEvent::Characters("40")).map_err(|e| e.into())
                             })?;
                             write_element_block("IDValue", w, |w| {
-                                w.write(XmlEvent::Characters(&ror.to_string())).map_err(|e| e.into())
+                                w.write(XmlEvent::Characters(&ror.to_string()))
+                                    .map_err(|e| e.into())
                             })
                         })?;
                     }
@@ -1401,7 +1407,8 @@ impl XmlElementBlock<Onix312Thoth> for WorkRelationsRelatedWorkContributions {
                                 w.write(XmlEvent::Characters("40")).map_err(|e| e.into())
                             })?;
                             write_element_block("IDValue", w, |w| {
-                                w.write(XmlEvent::Characters(&ror.to_string())).map_err(|e| e.into())
+                                w.write(XmlEvent::Characters(&ror.to_string()))
+                                    .map_err(|e| e.into())
                             })
                         })?;
                     }
@@ -1783,8 +1790,12 @@ mod tests {
         LocationPlatform, PublicationType, WorkContributionsAffiliations,
         WorkContributionsAffiliationsInstitution, WorkContributionsContributor, WorkImprint,
         WorkImprintPublisher, WorkIssuesSeries, WorkPublications, WorkPublicationsLocations,
-        WorkPublicationsPrices, WorkRelationsRelatedWork, WorkRelationsRelatedWorkImprint,
-        WorkRelationsRelatedWorkImprintPublisher, WorkStatus, WorkSubjects, WorkType,
+        WorkPublicationsPrices, WorkRelationsRelatedWork,
+        WorkRelationsRelatedWorkContributionsAffiliations,
+        WorkRelationsRelatedWorkContributionsAffiliationsInstitution,
+        WorkRelationsRelatedWorkContributionsContributor, WorkRelationsRelatedWorkImprint,
+        WorkRelationsRelatedWorkImprintPublisher, WorkRelationsRelatedWorkReferences, WorkStatus,
+        WorkSubjects, WorkType,
     };
     use uuid::Uuid;
 
@@ -2577,10 +2588,17 @@ mod tests {
                         doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
                         publication_date: None,
                         withdrawn_date: None,
-                        license: Some("https://creativecommons.org/licenses/by-sa/4.0/".to_string()),
+                        license: Some(
+                            "https://creativecommons.org/licenses/by-sa/4.0/".to_string(),
+                        ),
                         copyright_holder: Some("Chapter Author 1; Chapter Author 2".to_string()),
-                        short_abstract: Some("This is a chapter's very short abstract.".to_string()),
-                        long_abstract: Some("This is a chapter's somewhat longer abstract. It has two sentences.".to_string()),
+                        short_abstract: Some(
+                            "This is a chapter's very short abstract.".to_string(),
+                        ),
+                        long_abstract: Some(
+                            "This is a chapter's somewhat longer abstract. It has two sentences."
+                                .to_string(),
+                        ),
                         general_note: Some("This is a chapter general note.".to_string()),
                         place: None,
                         first_page: Some("10".to_string()),
@@ -2602,22 +2620,29 @@ mod tests {
                             biography: Some("Chapter Author N. 2 is a made-up author".to_string()),
                             contribution_ordinal: 1,
                             contributor: WorkRelationsRelatedWorkContributionsContributor {
-                                orcid: Some(Orcid::from_str("https://orcid.org/0000-0003-0000-0002").unwrap()),
+                                orcid: Some(
+                                    Orcid::from_str("https://orcid.org/0000-0003-0000-0002")
+                                        .unwrap(),
+                                ),
                                 website: Some("https://chaptercontributor.site".to_string()),
                             },
                             affiliations: vec![WorkRelationsRelatedWorkContributionsAffiliations {
                                 position: Some("Chapter Manager".to_string()),
                                 affiliation_ordinal: 1,
-                                institution: WorkRelationsRelatedWorkContributionsAffiliationsInstitution {
-                                    institution_name: "University of Chapters".to_string(),
-                                    ror: Some(Ror::from_str("08abcde89").unwrap()),
-                                },
+                                institution:
+                                    WorkRelationsRelatedWorkContributionsAffiliationsInstitution {
+                                        institution_name: "University of Chapters".to_string(),
+                                        ror: Some(Ror::from_str("08abcde89").unwrap()),
+                                    },
                             }],
                         }],
                         publications: vec![],
                         references: vec![WorkRelationsRelatedWorkReferences {
                             reference_ordinal: 1,
-                            doi: Some(Doi::from_str("https://doi.org/10.00005/chapter_reference").unwrap()),
+                            doi: Some(
+                                Doi::from_str("https://doi.org/10.00005/chapter_reference")
+                                    .unwrap(),
+                            ),
                             unstructured_citation: None,
                             issn: None,
                             isbn: None,

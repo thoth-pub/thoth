@@ -18,8 +18,9 @@ use crate::json::{JsonSpecification, JsonThoth};
 use crate::marc21::{Marc21MarkupThoth, Marc21RecordThoth, Marc21Specification};
 use crate::specification_query::SpecificationQuery;
 use crate::xml::{
-    DoiDepositCrossref, Marc21XmlThoth, Onix21EbscoHost, Onix21ProquestEbrary, Onix3GoogleBooks,
-    Onix3Jstor, Onix3Oapen, Onix3Overdrive, Onix3ProjectMuse, Onix3Thoth, Onix312Thoth, XmlSpecification,
+    DoiDepositCrossref, Marc21XmlThoth, Onix21EbscoHost, Onix21ProquestEbrary, Onix312Thoth,
+    Onix3GoogleBooks, Onix3Jstor, Onix3Oapen, Onix3Overdrive, Onix3ProjectMuse, Onix3Thoth,
+    XmlSpecification,
 };
 
 pub const DELIMITER_COMMA: u8 = b',';
@@ -233,7 +234,9 @@ impl MetadataRecord {
 
     fn generate(&self, data: Vec<Work>) -> ThothResult<String> {
         match &self.specification {
-            MetadataSpecification::Onix312Thoth(onix312_thoth) => onix312_thoth.generate(&data, None),
+            MetadataSpecification::Onix312Thoth(onix312_thoth) => {
+                onix312_thoth.generate(&data, None)
+            }
             MetadataSpecification::Onix3Thoth(onix3_thoth) => onix3_thoth.generate(&data, None),
             MetadataSpecification::Onix3ProjectMuse(onix3_project_muse) => {
                 onix3_project_muse.generate(&data, None)

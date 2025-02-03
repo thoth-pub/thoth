@@ -148,7 +148,10 @@ lazy_static! {
                 ),
                 concat!(env!("THOTH_EXPORT_API"), "/specifications/marc21xml::thoth"),
                 concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.0::thoth"),
-                concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.1.2::thoth"),
+                concat!(
+                    env!("THOTH_EXPORT_API"),
+                    "/specifications/onix_3.1.2::thoth"
+                ),
             ],
         },
         Platform {
@@ -296,9 +299,10 @@ lazy_static! {
             id: "onix_3.1.2",
             name: "ONIX",
             version: Some("3.1.2"),
-            specifications: vec![
-                concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.1.2::thoth"),
-            ],
+            specifications: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/onix_3.1.2::thoth"
+            ),],
         },
         Format {
             id: "onix_3.0",

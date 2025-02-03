@@ -1100,7 +1100,10 @@ pub(crate) mod tests {
                     full_name: "Chapter-One Author".to_string(),
                     biography: None,
                     contribution_ordinal: 1,
-                    contributor: WorkRelationsRelatedWorkContributionsContributor { orcid: None, website: None },
+                    contributor: WorkRelationsRelatedWorkContributionsContributor {
+                        orcid: None,
+                        website: None,
+                    },
                     affiliations: vec![],
                 }],
                 publications: vec![],
