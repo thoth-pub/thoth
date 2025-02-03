@@ -385,29 +385,8 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                     || is_open_access
                 {
                     write_element_block("CollateralDetail", w, |w| {
-                        if let Some(mut short_abstract) = self.short_abstract.clone() {
-                            // Short description field may not exceed 350 characters.
-                            // Ensure that the string is truncated at a valid UTF-8 boundary
-                            // by finding the byte index of the 350th character and then truncating
-                            // the string at that index, to avoid creating invalid UTF-8 sequences.
-                            if let Some((byte_index, _)) = short_abstract.char_indices().nth(350) {
-                                short_abstract.truncate(byte_index);
-                            }
-                            write_element_block("TextContent", w, |w| {
-                                // 02 Short description
-                                write_element_block("TextType", w, |w| {
-                                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                                })?;
-                                // 00 Unrestricted
-                                write_element_block("ContentAudience", w, |w| {
-                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("Text", w, |w| {
-                                    w.write(XmlEvent::Characters(&short_abstract))
-                                        .map_err(|e| e.into())
-                                })
-                            })?;
-                        }
+                        write_work_short_abstract(self, w)?;
+                        // TODO: refactor with chapter long_abstract
                         if let Some(long_abstract) = &self.long_abstract {
                             // 03 Description, 30 Abstract
                             for text_type in ["03", "30"] {
@@ -463,6 +442,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                 )
                             })?;
                         }
+                        // TODO: refactor with chapter general_note
                         if let Some(general_note) = &self.general_note {
                             write_element_block("TextContent", w, |w| {
                                 // 13 Publisher's notice
@@ -597,29 +577,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                     || chapter.general_note.is_some()
                                     || chapter.license.is_some()
                                 {
-                                    if let Some(mut short_abstract) = chapter.short_abstract.clone() {
-                                        // Short description field may not exceed 350 characters.
-                                        // Ensure that the string is truncated at a valid UTF-8 boundary
-                                        // by finding the byte index of the 350th character and then truncating
-                                        // the string at that index, to avoid creating invalid UTF-8 sequences.
-                                        if let Some((byte_index, _)) = short_abstract.char_indices().nth(350) {
-                                            short_abstract.truncate(byte_index);
-                                        }
-                                        write_element_block("TextContent", w, |w| {
-                                            // 02 Short description
-                                            write_element_block("TextType", w, |w| {
-                                                w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                                            })?;
-                                            // 00 Unrestricted
-                                            write_element_block("ContentAudience", w, |w| {
-                                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                                            })?;
-                                            write_element_block("Text", w, |w| {
-                                                w.write(XmlEvent::Characters(&short_abstract))
-                                                    .map_err(|e| e.into())
-                                            })
-                                        })?;
-                                    }
+                                    write_chapter_short_abstract(chapter, w)?;
                                     if let Some(long_abstract) = &chapter.long_abstract {
                                         // 03 Description, 30 Abstract
                                         for text_type in ["03", "30"] {
@@ -639,6 +597,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                             })?;
                                         }
                                     }
+                                    // TODO: is this problematic as we add closed-access books to Thoth?
                                     if chapter.license.is_some() {
                                         write_element_block("TextContent", w, |w| {
                                             // 20 Open access statement
@@ -679,17 +638,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                         })?;
                                     }
                                 }
-                                if let Some(copyright_holder) = &chapter.copyright_holder {
-                                    write_element_block("CopyrightStatement", w, |w| {
-                                        write_element_block("CopyrightOwner", w, |w| {
-                                            // This might be a CorporateName rather than PersonName, but we can't tell
-                                            write_element_block("PersonName", w, |w| {
-                                                w.write(XmlEvent::Characters(copyright_holder))
-                                                    .map_err(|e| e.into())
-                                            })
-                                        })
-                                    })?;
-                                }
+                                write_chapter_copyright(chapter, w)?;
                                 for reference in &chapter.references {
                                     XmlElementBlock::<Onix312Thoth>::xml_element(reference, w).ok();
                                 }
@@ -813,17 +762,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                             )
                         })?;
                     }
-                    if let Some(copyright_holder) = &self.copyright_holder {
-                        write_element_block("CopyrightStatement", w, |w| {
-                            write_element_block("CopyrightOwner", w, |w| {
-                                // This might be a CorporateName rather than PersonName, but we can't tell
-                                write_element_block("PersonName", w, |w| {
-                                    w.write(XmlEvent::Characters(copyright_holder))
-                                        .map_err(|e| e.into())
-                                })
-                            })
-                        })?;
-                    }
+                    write_work_copyright(self, w)?;
                     write_element_block("SalesRights", w, |w| {
                         // 02 For sale with non-exclusive rights in the specified countries or territories
                         write_element_block("SalesRightsType", w, |w| {
@@ -1152,6 +1091,80 @@ fn write_title_content<W: Write>(
     Ok(())
 }
 
+fn write_work_copyright<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+    write_copyright_content(work.copyright_holder.clone(), w)
+}
+
+fn write_chapter_copyright<W: Write>(
+    chapter: &WorkRelationsRelatedWork,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    write_copyright_content(chapter.copyright_holder.clone(), w)
+}
+
+fn write_copyright_content<W: Write>(
+    copyright_holder: Option<String>,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    if let Some(copyright_holder) = &copyright_holder {
+        write_element_block("CopyrightStatement", w, |w| {
+            write_element_block("CopyrightOwner", w, |w| {
+                // This might be a CorporateName rather than PersonName, but we can't tell
+                write_element_block("PersonName", w, |w| {
+                    w.write(XmlEvent::Characters(copyright_holder))
+                        .map_err(|e| e.into())
+                })
+            })
+        })?;
+    }
+    Ok(())
+}
+
+fn write_work_short_abstract<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+    if let Some(short_abstract) = work.short_abstract.clone() {
+        write_short_abstract_content(short_abstract, w)?;
+    }
+    Ok(())
+}
+
+fn write_chapter_short_abstract<W: Write>(
+    chapter: &WorkRelationsRelatedWork,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    if let Some(short_abstract) = chapter.short_abstract.clone() {
+        write_short_abstract_content(short_abstract, w)?;
+    }
+    Ok(())
+}
+
+fn write_short_abstract_content<W: Write>(
+    mut short_abstract: String,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+        // Short description field may not exceed 350 characters.
+        // Ensure that the string is truncated at a valid UTF-8 boundary
+        // by finding the byte index of the 350th character and then truncating
+        // the string at that index, to avoid creating invalid UTF-8 sequences.
+        if let Some((byte_index, _)) = short_abstract.char_indices().nth(350) {
+            short_abstract.truncate(byte_index);
+        }
+        write_element_block("TextContent", w, |w| {
+            // 02 Short description
+            write_element_block("TextType", w, |w| {
+                w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+            })?;
+            // 00 Unrestricted
+            write_element_block("ContentAudience", w, |w| {
+                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+            })?;
+            write_element_block("Text", w, |w| {
+                w.write(XmlEvent::Characters(&short_abstract))
+                    .map_err(|e| e.into())
+            })
+        })?;
+    Ok(())
+}
+
 fn get_product_form_codes(publication_type: &PublicationType) -> (&str, Option<&str>) {
     match publication_type {
         PublicationType::PAPERBACK => ("BC", None),
@@ -1288,6 +1301,7 @@ impl XmlElementBlock<Onix312Thoth> for WorkContributions {
                     }
                     if let Some(ror) = &affiliation.institution.ror {
                         write_element_block("AffiliationIdentifier", w, |w| {
+                            // 40: ROR ID
                             write_element_block("AffiliationIDType", w, |w| {
                                 w.write(XmlEvent::Characters("40")).map_err(|e| e.into())
                             })?;
