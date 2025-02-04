@@ -79,7 +79,6 @@ impl XmlElementBlock<Onix312Thoth> for Work {
             ));
         }
         let work_id = format!("urn:uuid:{}", self.work_id);
-        let is_open_access = self.license.is_some();
         let isbns: Vec<String> = self
             .publications
             .iter()
@@ -385,7 +384,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                     || self.toc.is_some()
                     || self.general_note.is_some()
                     || self.cover_url.is_some()
-                    || is_open_access
+                    || self.license.is_some()
                 {
                     write_element_block("CollateralDetail", w, |w| {
                         write_work_short_abstract(self, w)?;
@@ -405,28 +404,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                 })
                             })?;
                         }
-                        // TODO: discuss with regard to closed-access books in Thoth
-                        if is_open_access {
-                            write_element_block("TextContent", w, |w| {
-                                // 20 Open access statement
-                                write_element_block("TextType", w, |w| {
-                                    w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
-                                })?;
-                                // 00 Unrestricted
-                                write_element_block("ContentAudience", w, |w| {
-                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                                })?;
-                                write_full_element_block(
-                                    "Text",
-                                    Some(vec![("language", "eng")]),
-                                    w,
-                                    |w| {
-                                        w.write(XmlEvent::Characters("Open Access"))
-                                            .map_err(|e| e.into())
-                                    },
-                                )
-                            })?;
-                        }
+                        write_work_open_access_statement(self, w)?;
                         write_work_general_note(self, w)?;
                         if let Some(cover_url) = &self.cover_url {
                             write_element_block("SupportingResource", w, |w| {
@@ -506,29 +484,30 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                             ))
                                             .map_err(|e| e.into())
                                         })
-                                    })
-                                })?;
-                                if let Some(first_page) = &chapter.first_page {
-                                    write_element_block("PageRun", w, |w| {
-                                        write_element_block("FirstPageNumber", w, |w| {
-                                            w.write(XmlEvent::Characters(first_page))
-                                                .map_err(|e| e.into())
-                                        })?;
-                                        if let Some(last_page) = &chapter.last_page {
-                                            write_element_block("LastPageNumber", w, |w| {
-                                                w.write(XmlEvent::Characters(last_page))
+                                    })?;
+                                    if let Some(first_page) = &chapter.first_page {
+                                        write_element_block("PageRun", w, |w| {
+                                            write_element_block("FirstPageNumber", w, |w| {
+                                                w.write(XmlEvent::Characters(first_page))
                                                     .map_err(|e| e.into())
                                             })?;
-                                        }
-                                        Ok(())
-                                    })?;
-                                }
-                                if let Some(page_count) = &chapter.page_count {
-                                    write_element_block("NumberOfPages", w, |w| {
-                                        w.write(XmlEvent::Characters(&page_count.to_string()))
-                                            .map_err(|e| e.into())
-                                    })?;
-                                }
+                                            if let Some(last_page) = &chapter.last_page {
+                                                write_element_block("LastPageNumber", w, |w| {
+                                                    w.write(XmlEvent::Characters(last_page))
+                                                        .map_err(|e| e.into())
+                                                })?;
+                                            }
+                                            Ok(())
+                                        })?;
+                                    }
+                                    if let Some(page_count) = &chapter.page_count {
+                                        write_element_block("NumberOfPages", w, |w| {
+                                            w.write(XmlEvent::Characters(&page_count.to_string()))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                    }
+                                    Ok(())
+                                })?;
                                 write_chapter_license(chapter, w)?;
                                 write_element_block("ComponentTypeName", w, |w| {
                                     w.write(XmlEvent::Characters("Chapter"))
@@ -544,35 +523,12 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                 }
                                 if chapter.short_abstract.is_some()
                                     || chapter.long_abstract.is_some()
-                                    || chapter.general_note.is_some()
                                     || chapter.license.is_some()
+                                    || chapter.general_note.is_some()
                                 {
                                     write_chapter_short_abstract(chapter, w)?;
                                     write_chapter_long_abstract(chapter, w)?;
-                                    // TODO: is this problematic as we add closed-access books to Thoth?
-                                    if chapter.license.is_some() {
-                                        write_element_block("TextContent", w, |w| {
-                                            // 20 Open access statement
-                                            write_element_block("TextType", w, |w| {
-                                                w.write(XmlEvent::Characters("20"))
-                                                    .map_err(|e| e.into())
-                                            })?;
-                                            // 00 Unrestricted
-                                            write_element_block("ContentAudience", w, |w| {
-                                                w.write(XmlEvent::Characters("00"))
-                                                    .map_err(|e| e.into())
-                                            })?;
-                                            write_full_element_block(
-                                                "Text",
-                                                Some(vec![("language", "eng")]),
-                                                w,
-                                                |w| {
-                                                    w.write(XmlEvent::Characters("Open Access"))
-                                                        .map_err(|e| e.into())
-                                                },
-                                            )
-                                        })?;
-                                    }
+                                    write_chapter_open_access_statement(chapter, w)?;
                                     write_chapter_general_note(chapter, w)?;
                                 }
                                 write_chapter_copyright(chapter, w)?;
@@ -1178,6 +1134,50 @@ fn write_general_note_content<W: Write>(
             w.write(XmlEvent::Characters(&general_note))
                 .map_err(|e| e.into())
         })
+    })?;
+    Ok(())
+}
+
+fn write_work_open_access_statement<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+    if work.license.is_some() {
+        write_open_access_statement_content(w)?;
+    }
+    Ok(())
+}
+
+fn write_chapter_open_access_statement<W: Write>(
+    chapter: &WorkRelationsRelatedWork,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    if chapter.license.is_some() {
+        write_open_access_statement_content(w)?;
+    }
+    Ok(())
+}
+
+fn write_open_access_statement_content<W: Write>(
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    write_element_block("TextContent", w, |w| {
+        // 20 Open access statement
+        write_element_block("TextType", w, |w| {
+            w.write(XmlEvent::Characters("20"))
+                .map_err(|e| e.into())
+        })?;
+        // 00 Unrestricted
+        write_element_block("ContentAudience", w, |w| {
+            w.write(XmlEvent::Characters("00"))
+                .map_err(|e| e.into())
+        })?;
+        write_full_element_block(
+            "Text",
+            Some(vec![("language", "eng")]),
+            w,
+            |w| {
+                w.write(XmlEvent::Characters("Open Access"))
+                    .map_err(|e| e.into())
+            },
+        )
     })?;
     Ok(())
 }
@@ -3103,7 +3103,10 @@ mod tests {
         <ResourceLink>https://www.book.com/cover</ResourceLink>
       </ResourceVersion>
     </SupportingResource>
-  </CollateralDetail>
+  </CollateralDetail>"#
+        ));
+        assert!(output.contains(
+            r#"
   <ContentDetail>
     <ContentItem>
       <LevelSequenceNumber>1</LevelSequenceNumber>
@@ -3113,19 +3116,25 @@ mod tests {
           <TextItemIDType>06</TextItemIDType>
           <IDValue>10.00001/RELATION.0001</IDValue>
         </TextItemIdentifier>
-      </TextItem>
-      <PageRun>
-        <FirstPageNumber>10</FirstPageNumber>
-        <LastPageNumber>20</LastPageNumber>
-      </PageRun>
-      <NumberOfPages>11</NumberOfPages>
+        <PageRun>
+          <FirstPageNumber>10</FirstPageNumber>
+          <LastPageNumber>20</LastPageNumber>
+        </PageRun>
+        <NumberOfPages>11</NumberOfPages>
+      </TextItem>"#
+        ));
+        assert!(output.contains(
+            r#"
       <EpubLicense>
         <EpubLicenseName>Creative Commons Attribution-ShareAlike 4.0 International license (CC BY-SA 4.0).</EpubLicenseName>
         <EpubLicenseExpression>
           <EpubLicenseExpressionType>02</EpubLicenseExpressionType>
           <EpubLicenseExpressionLink>https://creativecommons.org/licenses/by-sa/4.0/</EpubLicenseExpressionLink>
         </EpubLicenseExpression>
-      </EpubLicense>
+      </EpubLicense>"#
+        ));
+        assert!(output.contains(
+            r#"
       <ComponentTypeName>Chapter</ComponentTypeName>
       <TitleDetail>
         <TitleType>01</TitleType>
@@ -3134,7 +3143,10 @@ mod tests {
           <TitleText>The first chapter:</TitleText>
           <Subtitle>An introduction</Subtitle>
         </TitleElement>
-      </TitleDetail>
+      </TitleDetail>"#
+        ));
+        assert!(output.contains(
+            r#"
       <Contributor>
         <SequenceNumber>1</SequenceNumber>
         <ContributorRole>A01</ContributorRole>
@@ -3159,41 +3171,65 @@ mod tests {
           <WebsiteDescription>Own website</WebsiteDescription>
           <WebsiteLink>https://chaptercontributor.site</WebsiteLink>
         </Website>
-      </Contributor>
+      </Contributor>"#
+        ));
+        assert!(output.contains(
+            r#"
       <Language>
         <LanguageRole>01</LanguageRole>
         <LanguageCode>btk</LanguageCode>
-      </Language>
+      </Language>"#
+        ));
+        assert!(output.contains(
+            r#"
       <TextContent>
         <TextType>02</TextType>
         <ContentAudience>00</ContentAudience>
         <Text>This is a chapter's very short abstract.</Text>
-      </TextContent>
+      </TextContent>"#
+        ));
+        assert!(output.contains(
+            r#"
       <TextContent>
         <TextType>03</TextType>
         <ContentAudience>00</ContentAudience>
         <Text>This is a chapter's somewhat longer abstract. It has two sentences.</Text>
-      </TextContent>
+      </TextContent>"#
+        ));
+        assert!(output.contains(
+            r#"
       <TextContent>
         <TextType>30</TextType>
         <ContentAudience>00</ContentAudience>
         <Text>This is a chapter's somewhat longer abstract. It has two sentences.</Text>
-      </TextContent>
+      </TextContent>"#
+        ));
+        assert!(output.contains(
+            r#"
       <TextContent>
         <TextType>20</TextType>
         <ContentAudience>00</ContentAudience>
         <Text language="eng">Open Access</Text>
-      </TextContent>
+      </TextContent>"#
+        ));
+        assert!(output.contains(
+            r#"
       <TextContent>
         <TextType>13</TextType>
         <ContentAudience>00</ContentAudience>
         <Text>This is a chapter general note.</Text>
-      </TextContent>
+      </TextContent>"#
+        ));
+        assert!(output.contains(
+            r#"
       <CopyrightStatement>
         <CopyrightOwner>
           <PersonName>Chapter Author 1; Chapter Author 2</PersonName>
         </CopyrightOwner>
-      </CopyrightStatement>
+      </CopyrightStatement>"#
+        ));
+        assert!(output.contains(
+            r#"
       <RelatedProduct>
         <ProductRelationCode>34</ProductRelationCode>
         <ProductIdentifier>
@@ -3202,7 +3238,10 @@ mod tests {
         </ProductIdentifier>
       </RelatedProduct>
     </ContentItem>
-  </ContentDetail>
+  </ContentDetail>"#
+        ));
+        assert!(output.contains(
+            r#"
   <PublishingDetail>
     <Imprint>
       <ImprintName>OA Editions Imprint</ImprintName>
@@ -3644,12 +3683,12 @@ mod tests {
         // PageRun block still present but LastPageNumber absent
         assert!(output.contains(
             r#"
-      <PageRun>
-        <FirstPageNumber>10</FirstPageNumber>
-      </PageRun>"#
+        <PageRun>
+          <FirstPageNumber>10</FirstPageNumber>
+        </PageRun>"#
         ));
-        assert!(!output.contains(r#"        <LastPageNumber>20</LastPageNumber>"#));
-        assert!(!output.contains(r#"      <NumberOfPages>11</NumberOfPages>"#));
+        assert!(!output.contains(r#"          <LastPageNumber>20</LastPageNumber>"#));
+        assert!(!output.contains(r#"        <NumberOfPages>11</NumberOfPages>"#));
         // Imprint block still present but ImprintIdentifier absent
         assert!(output.contains(
             r#"
