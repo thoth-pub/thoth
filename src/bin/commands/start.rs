@@ -1,7 +1,7 @@
 use crate::arguments;
 use clap::{ArgMatches, Command};
 use lazy_static::lazy_static;
-use thoth::{api_server, app_server, errors::ThothResult, export_server};
+use thoth::{api_server, app_server, errors::ThothResult, export_server, loco_server};
 
 lazy_static! {
     pub(crate) static ref COMMAND: Command = Command::new("start")
@@ -40,7 +40,8 @@ lazy_static! {
                 .arg(arguments::keep_alive("EXPORT_API_KEEP_ALIVE"))
                 .arg(arguments::export_url())
                 .arg(arguments::gql_endpoint()),
-        );
+        )
+        .subcommand(Command::new("loco").about("Start loco"));
 }
 
 pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
@@ -101,4 +102,8 @@ pub fn export_api(arguments: &ArgMatches) -> ThothResult<()> {
         gql_endpoint,
     )
     .map_err(|e| e.into())
+}
+
+pub fn loco() -> ThothResult<()> {
+    loco_server().map_err(|e| thoth_errors::ThothError::InternalError(e.to_string()))
 }

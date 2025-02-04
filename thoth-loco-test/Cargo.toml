@@ -1,0 +1,26 @@
+[package]
+name = "thoth-loco-test"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+loco-rs = { version = "0.14.0", default-features = false, features = ["cli"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }
+tokio = { version = "1.33.0", default-features = false, features = [
+  "rt-multi-thread",
+] }
+async-trait = { version = "0.1.74" }
+axum = { version = "0.8.1" }
+tracing = { version = "0.1.40" }
+tracing-subscriber = { version = "0.3.17", features = ["env-filter", "json"] }
+regex = { version = "1.11.1" }
+
+[dev-dependencies]
+loco-rs = { version = "0.14.0", default-features = false, features = ["testing"] }
+serial_test = { version = "3.1.1" }
+rstest = { version = "0.21.0" }
+insta = { version = "1.34.0", features = ["redactions", "yaml", "filters"] }
