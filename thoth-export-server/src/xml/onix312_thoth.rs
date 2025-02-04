@@ -1138,7 +1138,10 @@ fn write_general_note_content<W: Write>(
     Ok(())
 }
 
-fn write_work_open_access_statement<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+fn write_work_open_access_statement<W: Write>(
+    work: &Work,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
     if work.license.is_some() {
         write_open_access_statement_content(w)?;
     }
@@ -1155,29 +1158,20 @@ fn write_chapter_open_access_statement<W: Write>(
     Ok(())
 }
 
-fn write_open_access_statement_content<W: Write>(
-    w: &mut EventWriter<W>,
-) -> ThothResult<()> {
+fn write_open_access_statement_content<W: Write>(w: &mut EventWriter<W>) -> ThothResult<()> {
     write_element_block("TextContent", w, |w| {
         // 20 Open access statement
         write_element_block("TextType", w, |w| {
-            w.write(XmlEvent::Characters("20"))
-                .map_err(|e| e.into())
+            w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
         })?;
         // 00 Unrestricted
         write_element_block("ContentAudience", w, |w| {
-            w.write(XmlEvent::Characters("00"))
-                .map_err(|e| e.into())
+            w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
         })?;
-        write_full_element_block(
-            "Text",
-            Some(vec![("language", "eng")]),
-            w,
-            |w| {
-                w.write(XmlEvent::Characters("Open Access"))
-                    .map_err(|e| e.into())
-            },
-        )
+        write_full_element_block("Text", Some(vec![("language", "eng")]), w, |w| {
+            w.write(XmlEvent::Characters("Open Access"))
+                .map_err(|e| e.into())
+        })
     })?;
     Ok(())
 }
