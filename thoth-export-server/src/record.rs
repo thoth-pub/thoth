@@ -18,7 +18,7 @@ use crate::json::{JsonSpecification, JsonThoth};
 use crate::marc21::{Marc21MarkupThoth, Marc21RecordThoth, Marc21Specification};
 use crate::specification_query::SpecificationQuery;
 use crate::xml::{
-    DoiDepositCrossref, Marc21XmlThoth, Onix21EbscoHost, Onix21ProquestEbrary, Onix312Thoth,
+    DoiDepositCrossref, Marc21XmlThoth, Onix21EbscoHost, Onix21ProquestEbrary, Onix31Thoth,
     Onix3GoogleBooks, Onix3Jstor, Onix3Oapen, Onix3Overdrive, Onix3ProjectMuse, Onix3Thoth,
     XmlSpecification,
 };
@@ -30,7 +30,7 @@ pub const DOCTYPE_ONIX21_REF: &str = "<!DOCTYPE ONIXMessage SYSTEM \"http://www.
 
 #[derive(Copy, Clone)]
 pub(crate) enum MetadataSpecification {
-    Onix312Thoth(Onix312Thoth),
+    Onix31Thoth(Onix31Thoth),
     Onix3Thoth(Onix3Thoth),
     Onix3ProjectMuse(Onix3ProjectMuse),
     Onix3Oapen(Onix3Oapen),
@@ -86,7 +86,7 @@ impl MetadataRecord {
 
     fn content_type(&self) -> &'static str {
         match &self.specification {
-            MetadataSpecification::Onix312Thoth(_) => Self::XML_MIME_TYPE,
+            MetadataSpecification::Onix31Thoth(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Onix3Thoth(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Onix3ProjectMuse(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Onix3Oapen(_) => Self::XML_MIME_TYPE,
@@ -108,7 +108,7 @@ impl MetadataRecord {
 
     fn file_name(&self) -> String {
         match &self.specification {
-            MetadataSpecification::Onix312Thoth(_) => self.xml_file_name(),
+            MetadataSpecification::Onix31Thoth(_) => self.xml_file_name(),
             MetadataSpecification::Onix3Thoth(_) => self.xml_file_name(),
             MetadataSpecification::Onix3ProjectMuse(_) => self.xml_file_name(),
             MetadataSpecification::Onix3Oapen(_) => self.xml_file_name(),
@@ -234,8 +234,8 @@ impl MetadataRecord {
 
     fn generate(&self, data: Vec<Work>) -> ThothResult<String> {
         match &self.specification {
-            MetadataSpecification::Onix312Thoth(onix312_thoth) => {
-                onix312_thoth.generate(&data, None)
+            MetadataSpecification::Onix31Thoth(onix31_thoth) => {
+                onix31_thoth.generate(&data, None)
             }
             MetadataSpecification::Onix3Thoth(onix3_thoth) => onix3_thoth.generate(&data, None),
             MetadataSpecification::Onix3ProjectMuse(onix3_project_muse) => {
@@ -314,7 +314,7 @@ impl FromStr for MetadataSpecification {
 
     fn from_str(input: &str) -> ThothResult<Self> {
         match input {
-            "onix_3.1.2::thoth" => Ok(MetadataSpecification::Onix312Thoth(Onix312Thoth {})),
+            "onix_3.1::thoth" => Ok(MetadataSpecification::Onix31Thoth(Onix31Thoth {})),
             "onix_3.0::thoth" => Ok(MetadataSpecification::Onix3Thoth(Onix3Thoth {})),
             "onix_3.0::project_muse" => {
                 Ok(MetadataSpecification::Onix3ProjectMuse(Onix3ProjectMuse {}))
@@ -353,7 +353,7 @@ impl FromStr for MetadataSpecification {
 impl Display for MetadataSpecification {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let str = match self {
-            MetadataSpecification::Onix312Thoth(_) => "onix_3.1.2::thoth",
+            MetadataSpecification::Onix31Thoth(_) => "onix_3.1::thoth",
             MetadataSpecification::Onix3Thoth(_) => "onix_3.0::thoth",
             MetadataSpecification::Onix3ProjectMuse(_) => "onix_3.0::project_muse",
             MetadataSpecification::Onix3Oapen(_) => "onix_3.0::oapen",
@@ -417,12 +417,12 @@ mod tests {
         );
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
-            MetadataSpecification::Onix312Thoth(Onix312Thoth {}),
+            MetadataSpecification::Onix31Thoth(Onix31Thoth {}),
             timestamp,
         );
         assert_eq!(
             to_test.file_name(),
-            "onix_3.1.2__thoth__some_id.xml".to_string()
+            "onix_3.1__thoth__some_id.xml".to_string()
         );
         let to_test = MetadataRecord::new(
             "some_id".to_string(),

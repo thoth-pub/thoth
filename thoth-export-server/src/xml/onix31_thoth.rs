@@ -10,11 +10,11 @@ use thoth_client::{
 use xml::writer::{EventWriter, XmlEvent};
 
 use super::{write_element_block, XmlElement, XmlSpecification};
-use crate::xml::{write_full_element_block, XmlElementBlock, ONIX312_NS};
+use crate::xml::{write_full_element_block, XmlElementBlock, ONIX31_NS};
 use thoth_errors::{ThothError, ThothResult};
 
 #[derive(Copy, Clone)]
-pub struct Onix312Thoth {}
+pub struct Onix31Thoth {}
 
 struct Measure {
     measure_type: &'static str,
@@ -22,14 +22,14 @@ struct Measure {
     measure_unit_code: &'static str,
 }
 
-const ONIX_ERROR: &str = "onix_3.1.2::thoth";
+const ONIX_ERROR: &str = "onix_3.1::thoth";
 
-// Based on ONIX for Books Release 3.1.2 Specification
+// Based on ONIX for Books Release 3.1.2 Specification accessed January 2025
 // Download link: https://www.editeur.org/files/ONIX%203/ONIX_for_Books_Release_3-1_pdf_docs+codes_Issue_67.zip
 // Retrieved from: https://www.editeur.org/93/Release-3.0-Downloads/#Specifications
-impl XmlSpecification for Onix312Thoth {
+impl XmlSpecification for Onix31Thoth {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
-        write_full_element_block("ONIXMessage", Some(ONIX312_NS.to_vec()), w, |w| {
+        write_full_element_block("ONIXMessage", Some(ONIX31_NS.to_vec()), w, |w| {
             write_element_block("Header", w, |w| {
                 write_element_block("Sender", w, |w| {
                     write_element_block("SenderName", w, |w| {
@@ -53,13 +53,13 @@ impl XmlSpecification for Onix312Thoth {
                     ONIX_ERROR.to_string(),
                     "Not enough data".to_string(),
                 )),
-                [work] => XmlElementBlock::<Onix312Thoth>::xml_element(work, w),
+                [work] => XmlElementBlock::<Onix31Thoth>::xml_element(work, w),
                 _ => {
                     for work in works.iter() {
                         // Do not include Chapters in full publisher metadata record
                         // (assumes that a publisher will always have more than one work)
                         if work.work_type != WorkType::BOOK_CHAPTER {
-                            XmlElementBlock::<Onix312Thoth>::xml_element(work, w).ok();
+                            XmlElementBlock::<Onix31Thoth>::xml_element(work, w).ok();
                         }
                     }
                     Ok(())
@@ -69,7 +69,7 @@ impl XmlSpecification for Onix312Thoth {
     }
 }
 
-impl XmlElementBlock<Onix312Thoth> for Work {
+impl XmlElementBlock<Onix31Thoth> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         // Format is one record per Publication
         if self.publications.is_empty() {
@@ -226,7 +226,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                         (publication.weight_oz, "08", "oz"),
                     ] {
                         if let Some(measurement) = measurement_opt {
-                            XmlElementBlock::<Onix312Thoth>::xml_element(
+                            XmlElementBlock::<Onix31Thoth>::xml_element(
                                 &Measure {
                                     measure_type,
                                     measurement,
@@ -237,13 +237,15 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                             .ok();
                         }
                     }
-                    write_work_license(self, w)?;
-                    for issue in &self.issues {
-                        XmlElementBlock::<Onix312Thoth>::xml_element(issue, w).ok();
+                    if let Some(license_url) = &self.license {
+                        write_license(license_url.to_string(), w)?;
                     }
-                    write_work_title(self, w)?;
+                    for issue in &self.issues {
+                        XmlElementBlock::<Onix31Thoth>::xml_element(issue, w).ok();
+                    }
+                    write_title(self.title.clone(), self.subtitle.clone(), w)?;
                     for contribution in &self.contributions {
-                        XmlElementBlock::<Onix312Thoth>::xml_element(contribution, w).ok();
+                        XmlElementBlock::<Onix31Thoth>::xml_element(contribution, w).ok();
                     }
                     if let Some(edition) = &self.edition {
                         // "Normally sent only for the second and subsequent editions"
@@ -257,7 +259,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                         }
                     }
                     for language in &self.languages {
-                        XmlElementBlock::<Onix312Thoth>::xml_element(language, w).ok();
+                        XmlElementBlock::<Onix31Thoth>::xml_element(language, w).ok();
                     }
                     if let Some(page_count) = self.page_count {
                         write_element_block("Extent", w, |w| {
@@ -350,7 +352,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                 // MainSubject is an empty element
                                 write_element_block("MainSubject", w, |_w| Ok(()))?;
                             }
-                            XmlElement::<Onix312Thoth>::xml_element(&subject.subject_type, w)?;
+                            XmlElement::<Onix31Thoth>::xml_element(&subject.subject_type, w)?;
                             match subject.subject_type {
                                 SubjectType::KEYWORD | SubjectType::CUSTOM => {
                                     write_element_block("SubjectHeadingText", w, |w| {
@@ -508,32 +510,36 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                                     }
                                     Ok(())
                                 })?;
-                                write_chapter_license(chapter, w)?;
+                                if let Some(license_url) = &chapter.license {
+                                    write_license(license_url.to_string(), w)?;
+                                }
                                 write_element_block("ComponentTypeName", w, |w| {
                                     w.write(XmlEvent::Characters("Chapter"))
                                         .map_err(|e| e.into())
                                 })?;
-                                write_chapter_title(chapter, w)?;
+                                write_title(chapter.title.clone(), chapter.subtitle.clone(), w)?;
                                 for contribution in &chapter.contributions {
-                                    XmlElementBlock::<Onix312Thoth>::xml_element(contribution, w)
+                                    XmlElementBlock::<Onix31Thoth>::xml_element(contribution, w)
                                         .ok();
                                 }
                                 for language in &chapter.languages {
-                                    XmlElementBlock::<Onix312Thoth>::xml_element(language, w).ok();
+                                    XmlElementBlock::<Onix31Thoth>::xml_element(language, w).ok();
                                 }
-                                if chapter.short_abstract.is_some()
-                                    || chapter.long_abstract.is_some()
-                                    || chapter.license.is_some()
-                                    || chapter.general_note.is_some()
-                                {
+                                if chapter.short_abstract.is_some() {
                                     write_chapter_short_abstract(chapter, w)?;
+                                }
+                                if chapter.long_abstract.is_some() {
                                     write_chapter_long_abstract(chapter, w)?;
+                                }
+                                if chapter.license.is_some() {
                                     write_chapter_open_access_statement(chapter, w)?;
+                                }
+                                if chapter.general_note.is_some() {
                                     write_chapter_general_note(chapter, w)?;
                                 }
                                 write_chapter_copyright(chapter, w)?;
                                 for reference in &chapter.references {
-                                    XmlElementBlock::<Onix312Thoth>::xml_element(reference, w).ok();
+                                    XmlElementBlock::<Onix31Thoth>::xml_element(reference, w).ok();
                                 }
                                 Ok(())
                             })?;
@@ -607,14 +613,14 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                         Ok(())
                     })?;
                     for funding in &self.fundings {
-                        XmlElementBlock::<Onix312Thoth>::xml_element(funding, w).ok();
+                        XmlElementBlock::<Onix31Thoth>::xml_element(funding, w).ok();
                     }
                     if let Some(place) = &self.place {
                         write_element_block("CityOfPublication", w, |w| {
                             w.write(XmlEvent::Characters(place)).map_err(|e| e.into())
                         })?;
                     }
-                    XmlElement::<Onix312Thoth>::xml_element(&self.work_status, w)?;
+                    XmlElement::<Onix31Thoth>::xml_element(&self.work_status, w)?;
                     if let Some(date) = &self.publication_date {
                         write_element_block("PublishingDate", w, |w| {
                             write_element_block("PublishingDateRole", w, |w| {
@@ -690,14 +696,14 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                             if relation.relation_type == RelationType::HAS_TRANSLATION
                                 || relation.relation_type == RelationType::IS_TRANSLATION_OF
                             {
-                                XmlElementBlock::<Onix312Thoth>::xml_element(relation, w).ok();
+                                XmlElementBlock::<Onix31Thoth>::xml_element(relation, w).ok();
                             }
                         }
                         for relation in &non_child_relations {
                             if relation.relation_type != RelationType::HAS_TRANSLATION
                                 && relation.relation_type != RelationType::IS_TRANSLATION_OF
                             {
-                                XmlElementBlock::<Onix312Thoth>::xml_element(relation, w).ok();
+                                XmlElementBlock::<Onix31Thoth>::xml_element(relation, w).ok();
                             }
                         }
                         for isbn in &isbns {
@@ -722,7 +728,7 @@ impl XmlElementBlock<Onix312Thoth> for Work {
                             }
                         }
                         for reference in &self.references {
-                            XmlElementBlock::<Onix312Thoth>::xml_element(reference, w).ok();
+                            XmlElementBlock::<Onix31Thoth>::xml_element(reference, w).ok();
                         }
                         Ok(())
                     })?;
@@ -903,57 +909,33 @@ impl XmlElementBlock<Onix312Thoth> for Work {
     }
 }
 
-fn write_work_license<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
-    write_license_content(work.license.as_ref(), w)
-}
-
-fn write_chapter_license<W: Write>(
-    chapter: &WorkRelationsRelatedWork,
+fn write_license<W: Write>(
+    license: String,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
-    write_license_content(chapter.license.as_ref(), w)
-}
-
-fn write_license_content<W: Write>(
-    license: Option<&String>,
-    w: &mut EventWriter<W>,
-) -> ThothResult<()> {
-    if let Some(license_url) = license {
-        let license_text = match License::from_url(license_url) {
-            Ok(license) => license.to_string(),
-            Err(_) => "Unspecified".to_string(),
-        };
-        write_element_block("EpubLicense", w, |w| {
-            write_element_block("EpubLicenseName", w, |w| {
-                w.write(XmlEvent::Characters(&license_text))
-                    .map_err(|e| e.into())
-            })?;
-            write_element_block("EpubLicenseExpression", w, |w| {
-                write_element_block("EpubLicenseExpressionType", w, |w| {
-                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                })?;
-                write_element_block("EpubLicenseExpressionLink", w, |w| {
-                    w.write(XmlEvent::Characters(license_url))
-                        .map_err(|e| e.into())
-                })
-            })
+    let license_text = match License::from_url(&license) {
+        Ok(license) => license.to_string(),
+        Err(_) => "Unspecified".to_string(),
+    };
+    write_element_block("EpubLicense", w, |w| {
+        write_element_block("EpubLicenseName", w, |w| {
+            w.write(XmlEvent::Characters(&license_text))
+                .map_err(|e| e.into())
         })?;
-    }
+        write_element_block("EpubLicenseExpression", w, |w| {
+            write_element_block("EpubLicenseExpressionType", w, |w| {
+                w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+            })?;
+            write_element_block("EpubLicenseExpressionLink", w, |w| {
+                w.write(XmlEvent::Characters(&license))
+                    .map_err(|e| e.into())
+            })
+        })
+    })?;
     Ok(())
 }
 
-fn write_work_title<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
-    write_title_content(work.title.clone(), work.subtitle.clone(), w)
-}
-
-fn write_chapter_title<W: Write>(
-    chapter: &WorkRelationsRelatedWork,
-    w: &mut EventWriter<W>,
-) -> ThothResult<()> {
-    write_title_content(chapter.title.clone(), chapter.subtitle.clone(), w)
-}
-
-fn write_title_content<W: Write>(
+fn write_title<W: Write>(
     title: String,
     subtitle: Option<String>,
     w: &mut EventWriter<W>,
@@ -1013,9 +995,8 @@ fn write_copyright_content<W: Write>(
 }
 
 fn write_work_short_abstract<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
-    if let Some(short_abstract) = work.short_abstract.clone() {
-        write_short_abstract_content(short_abstract, w)?;
-    }
+    let short_abstract = work.short_abstract.clone().unwrap_or_default();
+    write_short_abstract_content(short_abstract, w)?;
     Ok(())
 }
 
@@ -1023,9 +1004,8 @@ fn write_chapter_short_abstract<W: Write>(
     chapter: &WorkRelationsRelatedWork,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
-    if let Some(short_abstract) = chapter.short_abstract.clone() {
-        write_short_abstract_content(short_abstract, w)?;
-    }
+    let short_abstract = chapter.short_abstract.clone().unwrap_or_default();
+    write_short_abstract_content(short_abstract, w)?;
     Ok(())
 }
 
@@ -1197,7 +1177,7 @@ fn get_product_form_codes(publication_type: &PublicationType) -> (&str, Option<&
     }
 }
 
-impl XmlElement<Onix312Thoth> for WorkStatus {
+impl XmlElement<Onix31Thoth> for WorkStatus {
     const ELEMENT: &'static str = "PublishingStatus";
 
     fn value(&self) -> &'static str {
@@ -1213,7 +1193,7 @@ impl XmlElement<Onix312Thoth> for WorkStatus {
     }
 }
 
-impl XmlElement<Onix312Thoth> for SubjectType {
+impl XmlElement<Onix31Thoth> for SubjectType {
     const ELEMENT: &'static str = "SubjectSchemeIdentifier";
 
     fn value(&self) -> &'static str {
@@ -1229,7 +1209,7 @@ impl XmlElement<Onix312Thoth> for SubjectType {
     }
 }
 
-impl XmlElement<Onix312Thoth> for LanguageRelation {
+impl XmlElement<Onix31Thoth> for LanguageRelation {
     const ELEMENT: &'static str = "LanguageRole";
 
     fn value(&self) -> &'static str {
@@ -1242,7 +1222,7 @@ impl XmlElement<Onix312Thoth> for LanguageRelation {
     }
 }
 
-impl XmlElement<Onix312Thoth> for ContributionType {
+impl XmlElement<Onix31Thoth> for ContributionType {
     const ELEMENT: &'static str = "ContributorRole";
 
     fn value(&self) -> &'static str {
@@ -1266,14 +1246,14 @@ impl XmlElement<Onix312Thoth> for ContributionType {
     }
 }
 
-impl XmlElementBlock<Onix312Thoth> for WorkContributions {
+impl XmlElementBlock<Onix31Thoth> for WorkContributions {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Contributor", w, |w| {
             write_element_block("SequenceNumber", w, |w| {
                 w.write(XmlEvent::Characters(&self.contribution_ordinal.to_string()))
                     .map_err(|e| e.into())
             })?;
-            XmlElement::<Onix312Thoth>::xml_element(&self.contribution_type, w)?;
+            XmlElement::<Onix31Thoth>::xml_element(&self.contribution_type, w)?;
 
             if let Some(orcid) = &self.contributor.orcid {
                 write_element_block("NameIdentifier", w, |w| {
@@ -1353,14 +1333,14 @@ impl XmlElementBlock<Onix312Thoth> for WorkContributions {
     }
 }
 
-impl XmlElementBlock<Onix312Thoth> for WorkRelationsRelatedWorkContributions {
+impl XmlElementBlock<Onix31Thoth> for WorkRelationsRelatedWorkContributions {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Contributor", w, |w| {
             write_element_block("SequenceNumber", w, |w| {
                 w.write(XmlEvent::Characters(&self.contribution_ordinal.to_string()))
                     .map_err(|e| e.into())
             })?;
-            XmlElement::<Onix312Thoth>::xml_element(&self.contribution_type, w)?;
+            XmlElement::<Onix31Thoth>::xml_element(&self.contribution_type, w)?;
 
             if let Some(orcid) = &self.contributor.orcid {
                 write_element_block("NameIdentifier", w, |w| {
@@ -1439,10 +1419,10 @@ impl XmlElementBlock<Onix312Thoth> for WorkRelationsRelatedWorkContributions {
     }
 }
 
-impl XmlElementBlock<Onix312Thoth> for WorkLanguages {
+impl XmlElementBlock<Onix31Thoth> for WorkLanguages {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Language", w, |w| {
-            XmlElement::<Onix312Thoth>::xml_element(&self.language_relation, w).ok();
+            XmlElement::<Onix31Thoth>::xml_element(&self.language_relation, w).ok();
             // not worth implementing XmlElement for LanguageCode as all cases would
             // need to be exhaustively matched and the codes are equivalent anyway
             write_element_block("LanguageCode", w, |w| {
@@ -1455,10 +1435,10 @@ impl XmlElementBlock<Onix312Thoth> for WorkLanguages {
     }
 }
 
-impl XmlElementBlock<Onix312Thoth> for WorkRelationsRelatedWorkLanguages {
+impl XmlElementBlock<Onix31Thoth> for WorkRelationsRelatedWorkLanguages {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Language", w, |w| {
-            XmlElement::<Onix312Thoth>::xml_element(&self.language_relation, w).ok();
+            XmlElement::<Onix31Thoth>::xml_element(&self.language_relation, w).ok();
             // not worth implementing XmlElement for LanguageCode as all cases would
             // need to be exhaustively matched and the codes are equivalent anyway
             write_element_block("LanguageCode", w, |w| {
@@ -1471,7 +1451,7 @@ impl XmlElementBlock<Onix312Thoth> for WorkRelationsRelatedWorkLanguages {
     }
 }
 
-impl XmlElementBlock<Onix312Thoth> for WorkIssues {
+impl XmlElementBlock<Onix31Thoth> for WorkIssues {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Collection", w, |w| {
             // 10 Publisher collection (e.g. series)
@@ -1570,7 +1550,7 @@ impl XmlElementBlock<Onix312Thoth> for WorkIssues {
     }
 }
 
-impl XmlElementBlock<Onix312Thoth> for WorkFundings {
+impl XmlElementBlock<Onix31Thoth> for WorkFundings {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Publisher", w, |w| {
             // 16 Funding body
@@ -1642,7 +1622,7 @@ impl XmlElementBlock<Onix312Thoth> for WorkFundings {
     }
 }
 
-impl XmlElementBlock<Onix312Thoth> for WorkReferences {
+impl XmlElementBlock<Onix31Thoth> for WorkReferences {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("RelatedProduct", w, |w| {
             // 34 Cites
@@ -1681,7 +1661,7 @@ impl XmlElementBlock<Onix312Thoth> for WorkReferences {
     }
 }
 
-impl XmlElementBlock<Onix312Thoth> for WorkRelations {
+impl XmlElementBlock<Onix31Thoth> for WorkRelations {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         if self.relation_type == RelationType::HAS_TRANSLATION
             || self.relation_type == RelationType::IS_TRANSLATION_OF
@@ -1749,7 +1729,7 @@ impl XmlElementBlock<Onix312Thoth> for WorkRelations {
     }
 }
 
-impl XmlElementBlock<Onix312Thoth> for Measure {
+impl XmlElementBlock<Onix31Thoth> for Measure {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Measure", w, |w| {
             write_element_block("MeasureType", w, |w| {
@@ -1793,13 +1773,13 @@ mod tests {
     };
     use uuid::Uuid;
 
-    fn generate_test_output(expect_ok: bool, input: &impl XmlElementBlock<Onix312Thoth>) -> String {
+    fn generate_test_output(expect_ok: bool, input: &impl XmlElementBlock<Onix31Thoth>) -> String {
         // Helper function based on `XmlSpecification::generate`
         let mut buffer = Vec::new();
         let mut writer = xml::writer::EmitterConfig::new()
             .perform_indent(true)
             .create_writer(&mut buffer);
-        let wrapped_output = XmlElementBlock::<Onix312Thoth>::xml_element(input, &mut writer)
+        let wrapped_output = XmlElementBlock::<Onix31Thoth>::xml_element(input, &mut writer)
             .map(|_| buffer)
             .and_then(|xml| {
                 String::from_utf8(xml)
@@ -1815,7 +1795,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix312_thoth_contributions() {
+    fn test_onix31_thoth_contributions() {
         let mut test_contribution = WorkContributions {
             contribution_type: ContributionType::AUTHOR,
             first_name: Some("Author".to_string()),
@@ -1971,7 +1951,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix312_thoth_languages() {
+    fn test_onix31_thoth_languages() {
         let mut test_language = WorkLanguages {
             language_code: LanguageCode::SPA,
             language_relation: LanguageRelation::TRANSLATED_FROM,
@@ -1999,7 +1979,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix312_thoth_issues() {
+    fn test_onix31_thoth_issues() {
         let mut test_issue = WorkIssues {
             issue_ordinal: 1,
             series: WorkIssuesSeries {
@@ -2109,7 +2089,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix312_thoth_fundings() {
+    fn test_onix31_thoth_fundings() {
         let mut test_funding = WorkFundings {
             program: Some("Name of program".to_string()),
             project_name: Some("Name of project".to_string()),
@@ -2291,7 +2271,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix312_thoth_references() {
+    fn test_onix31_thoth_references() {
         let mut test_reference = WorkReferences {
             reference_ordinal: 1,
             doi: Some(Doi::from_str("https://doi.org/10.00001/reference").unwrap()),
@@ -2349,7 +2329,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix312_thoth_relations() {
+    fn test_onix31_thoth_relations() {
         let mut test_relation = WorkRelations {
             relation_type: RelationType::HAS_TRANSLATION,
             relation_ordinal: 1,
@@ -2436,7 +2416,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix312_thoth_works() {
+    fn test_onix31_thoth_works() {
         let mut test_work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
@@ -3949,7 +3929,7 @@ mod tests {
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
-            "Could not generate onix_3.1.2::thoth: No publications supplied".to_string()
+            "Could not generate onix_3.1::thoth: No publications supplied".to_string()
         );
     }
 }

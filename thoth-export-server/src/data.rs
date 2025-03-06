@@ -8,9 +8,9 @@ use crate::specification::model::Specification;
 lazy_static! {
     pub static ref ALL_SPECIFICATIONS: Vec<Specification<'static>> = vec![
         Specification {
-            id: "onix_3.1.2::thoth",
-            name: "Thoth ONIX 3.1.2",
-            format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_3.1.2"),
+            id: "onix_3.1::thoth",
+            name: "Thoth ONIX 3.1",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_3.1"),
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/thoth"),],
         },
         Specification {
@@ -150,7 +150,7 @@ lazy_static! {
                 concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.0::thoth"),
                 concat!(
                     env!("THOTH_EXPORT_API"),
-                    "/specifications/onix_3.1.2::thoth"
+                    "/specifications/onix_3.1::thoth"
                 ),
             ],
         },
@@ -296,12 +296,12 @@ lazy_static! {
     ];
     pub(crate) static ref ALL_FORMATS: Vec<Format<'static>> = vec![
         Format {
-            id: "onix_3.1.2",
+            id: "onix_3.1",
             name: "ONIX",
-            version: Some("3.1.2"),
+            version: Some("3.1"),
             specifications: vec![concat!(
                 env!("THOTH_EXPORT_API"),
-                "/specifications/onix_3.1.2::thoth"
+                "/specifications/onix_3.1::thoth"
             ),],
         },
         Format {

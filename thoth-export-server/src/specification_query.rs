@@ -126,7 +126,7 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
 
     fn try_from(q: QueryConfiguration) -> ThothResult<Self> {
         match q.specification {
-            MetadataSpecification::Onix312Thoth(_) => Ok(QueryParameters::new().with_all()),
+            MetadataSpecification::Onix31Thoth(_) => Ok(QueryParameters::new().with_all()),
             MetadataSpecification::Onix3Thoth(_) => Ok(QueryParameters::new().with_all()),
             MetadataSpecification::Onix3ProjectMuse(_) => Ok(QueryParameters::new()
                 .with_all()

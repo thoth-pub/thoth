@@ -10,8 +10,8 @@ const ONIX3_NS: &[(&str, &str)] = &[
     ("xmlns", "http://ns.editeur.org/onix/3.0/reference"),
 ];
 
-const ONIX312_NS: &[(&str, &str)] = &[
-    ("release", "3.1.2"),
+const ONIX31_NS: &[(&str, &str)] = &[
+    ("release", "3.1"),
     ("xmlns", "http://ns.editeur.org/onix/3.1/reference"),
 ];
 
@@ -81,8 +81,8 @@ pub(crate) trait XmlElementBlock<T: XmlSpecification> {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()>;
 }
 
-mod onix312_thoth;
-pub(crate) use onix312_thoth::Onix312Thoth;
+mod onix31_thoth;
+pub(crate) use onix31_thoth::Onix31Thoth;
 mod onix3_thoth;
 pub(crate) use onix3_thoth::Onix3Thoth;
 mod onix3_project_muse;
