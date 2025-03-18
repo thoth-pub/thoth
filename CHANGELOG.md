@@ -5,6 +5,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+  - Upgrade rust to `1.85.0` in production `Dockerfile`
+  - Upgrade `actix-cors` to v0.7.1
+  - Upgrade `actix-http ` to v3.10.0
+  - Upgrade `actix-web` to v4.10.2
+  - Upgrade `chrono` to v0.4.40
+  - Upgrade `csv` to v1.3.1
+  - Upgrade `deadpool-redis` to v0.20.0
+  - Upgrade `diesel` to v2.2.8
+  - Upgrade `env_logger` to v0.11.7
+  - Upgrade `jsonwebtoken` to v9.3.1
+  - Upgrade `log` to v0.4.26
+  - Upgrade `rand` to v0.9.0
+  - Upgrade `regex` to v1.11.1
+  - Upgrade `reqwest-middleware` to v0.4.1
+  - Upgrade `semver` to v1.0.26
+  - Upgrade `strum` to v0.27.1
+  - Upgrade `tokio` to v1.44.1
+  - Upgrade `trunk` to v0.21.9
+  - Upgrade `uuid` to v1.16.0
+  - Upgrade `wasm-bindgen` to v0.2.100
+  - Upgrade `web-sys` to v0.3.77
+  - Upgrade `xml-rs` to v0.8.25
 
 ## [[0.13.6]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.6) - 2025-01-28
 ### Changed
