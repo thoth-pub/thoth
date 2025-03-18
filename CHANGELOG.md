@@ -6,6 +6,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.13.7]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.7) - 2025-03-18
+### Changed
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade rust to `1.85.0` in production `Dockerfile`
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `actix-cors` to v0.7.1
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `actix-http ` to v3.10.0
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `actix-web` to v4.10.2
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `chrono` to v0.4.40
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `csv` to v1.3.1
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `deadpool-redis` to v0.20.0
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `diesel` to v2.2.8
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `env_logger` to v0.11.7
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `jsonwebtoken` to v9.3.1
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `log` to v0.4.26
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `rand` to v0.9.0
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `regex` to v1.11.1
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `reqwest-middleware` to v0.4.1
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `semver` to v1.0.26
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `strum` to v0.27.1
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `tokio` to v1.44.1
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `trunk` to v0.21.9
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `uuid` to v1.16.0
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `wasm-bindgen` to v0.2.100
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `web-sys` to v0.3.77
+  - [676](https://github.com/thoth-pub/thoth/pull/676) - Upgrade `xml-rs` to v0.8.25
+
 ## [[0.13.6]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.6) - 2025-01-28
 ### Changed
   - [667](https://github.com/thoth-pub/thoth/pull/667) - Refactor binary using new submodules `commands` and `arguments`
