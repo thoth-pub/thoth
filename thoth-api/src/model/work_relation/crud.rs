@@ -194,7 +194,6 @@ impl Crud for WorkRelation {
                         .insert(connection)
                         .map(|_| t)
                 })
-                .map_err(Into::into)
         })
     }
 
@@ -264,7 +263,6 @@ impl WorkRelation {
                     ))
                 }
             })
-            .map_err(Into::into)
     }
 }
 
