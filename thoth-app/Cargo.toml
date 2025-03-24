@@ -1,6 +1,6 @@
 [package]
 name = "thoth-app"
-version = "0.13.6"
+version = "0.13.7"
 authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -21,16 +21,16 @@ yew = "0.19.3"
 yew-agent = "0.1.0"
 yew-router = "0.16.0"
 yewtil = { version = "0.4.0", features = ["fetch"] }
-wasm-bindgen = "0.2.95"
+wasm-bindgen = "0.2.100"
 wasm-logger = "0.2.0"
-web-sys = { version = "0.3.72", features = ["HtmlInputElement", "HtmlSelectElement", "HtmlTextAreaElement"] }
+web-sys = { version = "0.3.77", features = ["HtmlInputElement", "HtmlSelectElement", "HtmlTextAreaElement"] }
 reqwest = { version = "0.12", features = ["json"] }
-semver = "1.0.23"
+semver = "1.0.26"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-uuid = { version = "1.11.0", features = ["serde", "v4", "js"] }
-thoth-api = { version = "=0.13.6", path = "../thoth-api"  }
-thoth-errors = { version = "=0.13.6", path = "../thoth-errors" }
+uuid = { version = "1.16.0", features = ["serde", "v4", "js"] }
+thoth-api = { version = "=0.13.7", path = "../thoth-api"  }
+thoth-errors = { version = "=0.13.7", path = "../thoth-errors" }
 
 [build-dependencies]
 dotenv = "0.15.0"
