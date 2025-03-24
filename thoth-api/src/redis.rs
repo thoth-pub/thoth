@@ -38,6 +38,11 @@ pub async fn scan_match(pool: &RedisPool, pattern: &str) -> ThothResult<Vec<Stri
     Ok(keys)
 }
 
+pub async fn lpush(pool: &RedisPool, key: &str, value: &str) -> ThothResult<String> {
+    let mut con = create_connection(pool).await?;
+    con.lpush(key, value).await.map_err(Into::into)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,6 +75,21 @@ mod tests {
         let get_result = get(&pool, test_key).await;
         assert!(get_result.is_ok());
         assert_eq!(get_result.unwrap(), test_value);
+    }
+
+    #[tokio::test]
+    async fn test_lpush() {
+        let pool = get_pool().await;
+
+        let test_key = "test_queue";
+        let test_value_1 = "test_value_1";
+        let test_value_2 = "test_value_2";
+
+        let lpush_result_1 = lpush(&pool, test_key, test_value_1).await;
+        assert!(lpush_result_1.is_ok());
+
+        let lpush_result_2 = lpush(&pool, test_key, test_value_2).await;
+        assert!(lpush_result_2.is_ok());
     }
 
     #[tokio::test]
