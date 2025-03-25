@@ -234,9 +234,7 @@ impl MetadataRecord {
 
     fn generate(&self, data: Vec<Work>) -> ThothResult<String> {
         match &self.specification {
-            MetadataSpecification::Onix31Thoth(onix31_thoth) => {
-                onix31_thoth.generate(&data, None)
-            }
+            MetadataSpecification::Onix31Thoth(onix31_thoth) => onix31_thoth.generate(&data, None),
             MetadataSpecification::Onix3Thoth(onix3_thoth) => onix3_thoth.generate(&data, None),
             MetadataSpecification::Onix3ProjectMuse(onix3_project_muse) => {
                 onix3_project_muse.generate(&data, None)

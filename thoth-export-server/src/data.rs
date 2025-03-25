@@ -148,10 +148,7 @@ lazy_static! {
                 ),
                 concat!(env!("THOTH_EXPORT_API"), "/specifications/marc21xml::thoth"),
                 concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.0::thoth"),
-                concat!(
-                    env!("THOTH_EXPORT_API"),
-                    "/specifications/onix_3.1::thoth"
-                ),
+                concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.1::thoth"),
             ],
         },
         Platform {
