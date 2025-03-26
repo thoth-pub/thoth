@@ -1,6 +1,6 @@
 [package]
 name = "thoth-api"
-version = "0.13.4"
+version = "0.13.7"
 authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -12,31 +12,41 @@ readme = "README.md"
 maintenance = { status = "actively-developed" }
 
 [features]
-backend = ["diesel", "diesel-derive-enum", "diesel_migrations", "futures", "actix-web", "jsonwebtoken", "deadpool-redis"]
+backend = [
+    "diesel",
+    "diesel-derive-enum",
+    "diesel_migrations",
+    "futures",
+    "actix-web",
+    "jsonwebtoken",
+    "deadpool-redis",
+    "rand",
+    "argon2rs"
+]
 
 [dependencies]
-thoth-errors = { version = "=0.13.4", path = "../thoth-errors" }
-actix-web = { version = "4.9", optional = true }
-argon2rs = "0.2.5"
+thoth-errors = { version = "=0.13.7", path = "../thoth-errors" }
+actix-web = { version = "4.10", optional = true }
+argon2rs = { version = "0.2.5", optional = true }
 isbn2 = "0.4.0"
-chrono = { version = "0.4.38", features = ["serde"] }
-deadpool-redis = { version = "0.18.0", optional = true }
-diesel = { version = "2.2.5", features = ["postgres", "uuid", "chrono", "r2d2", "64-column-tables", "serde_json"], optional = true }
+chrono = { version = "0.4.40", features = ["serde"] }
+deadpool-redis = { version = "0.20.0", optional = true }
+diesel = { version = "2.2.8", features = ["postgres", "uuid", "chrono", "r2d2", "64-column-tables", "serde_json"], optional = true }
 diesel-derive-enum = { version = "2.1.0", features = ["postgres"], optional = true }
 diesel-derive-newtype = "2.1.2"
 diesel_migrations = { version = "2.2.0", features = ["postgres"], optional = true }
 dotenv = "0.15.0"
 futures = { version  = "0.3.31", optional = true }
-jsonwebtoken = { version = "9.3.0", optional = true }
+jsonwebtoken = { version = "9.3.1", optional = true }
 juniper = { version = "0.16.1", features = ["chrono", "schema-language", "uuid"] }
 lazy_static = "1.5.0"
 phf = { version = "0.11", features = ["macros"] }
-rand = "0.8.5"
-regex = "1.10.6"
+rand =  { version = "0.9.0", optional = true }
+regex = "1.11.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-strum = { version = "0.26.3", features = ["derive"] }
-uuid = { version = "1.11.0", features = ["serde", "v4"] }
+strum = { version = "0.27.1", features = ["derive"] }
+uuid = { version = "1.16.0", features = ["serde", "v4"] }
 
 [dev-dependencies]
-tokio = { version = "1.41", features = ["macros"] }
+tokio = { version = "1.44", features = ["macros"] }

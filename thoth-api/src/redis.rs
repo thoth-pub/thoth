@@ -1,4 +1,5 @@
 use deadpool_redis::{redis::AsyncCommands, Config, Connection, Pool};
+use futures::StreamExt;
 use thoth_errors::ThothResult;
 
 pub type RedisPool = Pool;
@@ -29,6 +30,12 @@ pub async fn get(pool: &RedisPool, key: &str) -> ThothResult<String> {
 pub async fn del(pool: &RedisPool, key: &str) -> ThothResult<String> {
     let mut con = create_connection(pool).await?;
     con.del(key).await.map_err(Into::into)
+}
+
+pub async fn scan_match(pool: &RedisPool, pattern: &str) -> ThothResult<Vec<String>> {
+    let mut con = create_connection(pool).await?;
+    let keys: Vec<String> = con.scan_match(pattern).await?.collect().await;
+    Ok(keys)
 }
 
 #[cfg(test)]
@@ -72,5 +79,32 @@ mod tests {
         let test_key = "nonexistent_key";
         let get_result = get(&pool, test_key).await;
         assert!(get_result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_del() {
+        let pool = get_pool().await;
+        let test_key = "test_key_to_delete";
+        let test_value = "test_value";
+        set(&pool, test_key, test_value).await.unwrap();
+
+        let del_result = del(&pool, test_key).await;
+        assert!(del_result.is_ok());
+        let get_result = get(&pool, test_key).await;
+        assert!(get_result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_scan_match() {
+        let pool = get_pool().await;
+        set(&pool, "onix_3.0::key1", "value1").await.unwrap();
+        set(&pool, "onix_3.0::key2", "value2").await.unwrap();
+        set(&pool, "onix_3.0::key3", "value3").await.unwrap();
+
+        let keys = scan_match(&pool, "onix_3.0::*").await.unwrap();
+        assert_eq!(keys.len(), 3);
+        assert!(keys.contains(&"onix_3.0::key1".to_string()));
+        assert!(keys.contains(&"onix_3.0::key2".to_string()));
+        assert!(keys.contains(&"onix_3.0::key3".to_string()));
     }
 }

@@ -394,8 +394,10 @@ mod tests {
                     publication_date: None,
                     withdrawn_date: None,
                     license: None,
+                    copyright_holder: None,
                     short_abstract: None,
                     long_abstract: None,
+                    general_note: None,
                     place: None,
                     first_page: None,
                     last_page: None,
@@ -412,6 +414,7 @@ mod tests {
                     publications: vec![],
                     references: vec![],
                     fundings: vec![],
+                    languages: vec![],
                 },
             }],
             references: vec![WorkReferences {
@@ -767,8 +770,10 @@ mod tests {
         "withdrawnDate": null,
         "workStatus": "ACTIVE",
         "license": null,
+        "copyrightHolder": null,
         "shortAbstract": null,
         "longAbstract": null,
+        "generalNote": null,
         "place": null,
         "firstPage": null,
         "lastPage": null,
@@ -782,6 +787,7 @@ mod tests {
           }
         },
         "contributions": [],
+        "languages": [],
         "publications": [],
         "fundings": [],
         "references": []
