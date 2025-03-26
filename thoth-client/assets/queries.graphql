@@ -167,8 +167,10 @@ fragment Work on Work {
             withdrawnDate
             workStatus
             license
+            copyrightHolder
             shortAbstract
             longAbstract
+            generalNote
             place
             firstPage
             lastPage
@@ -186,9 +188,11 @@ fragment Work on Work {
                 firstName
                 lastName
                 fullName
+                biography
                 contributionOrdinal
                 contributor {
                     orcid
+                    website
                 }
                 affiliations(order: {field: AFFILIATION_ORDINAL, direction: ASC}) {
                     position
@@ -198,6 +202,11 @@ fragment Work on Work {
                         ror
                     }
                 }
+            }
+            languages {
+                languageCode
+                languageRelation
+                mainLanguage
             }
             publications {
                 publicationType
