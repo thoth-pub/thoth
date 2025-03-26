@@ -6,7 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-- [577](https://github.com/thoth-pub/thoth/pull/577) - Implement ONIX 3.1 "Thoth" specification (i.e. complete record reflecting all updates up to ONIX 3.1.2 that can be implemented based on existing data model)
+  - [577](https://github.com/thoth-pub/thoth/pull/577) - Implement ONIX 3.1 "Thoth" specification (i.e. complete record reflecting all updates up to ONIX 3.1.2 that can be implemented based on existing data model)
+
+### Fixed
+  - Remove module directive in rapidocs import, which was cauisng CORS errors
 
 ## [[0.13.7]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.7) - 2025-03-18
 ### Changed
