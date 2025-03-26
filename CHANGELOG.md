@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+  - [634](https://github.com/thoth-pub/thoth/issues/634) - Prevent changing a `Work`'s `WorkStatus` to `Forthcoming`, `Cancelled` or `Postponed` once its `WorkStatus` has been set to `Active`.
+  - [659](https://github.com/thoth-pub/thoth/issues/659) - Prevent deletion of a `Work` by non-superusers after `WorkStatus` has been set to `Active`.
+
 ### Added
 - [577](https://github.com/thoth-pub/thoth/pull/577) - Implement ONIX 3.1 "Thoth" specification (i.e. complete record reflecting all updates up to ONIX 3.1.2 that can be implemented based on existing data model)
 
