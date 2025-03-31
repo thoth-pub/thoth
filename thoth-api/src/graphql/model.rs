@@ -1745,6 +1745,7 @@ impl MutationRoot {
 
         data.validate()?;
 
+        // data as entered by the user
         let is_data_unpublished =
             data.work_status == WorkStatus::Forthcoming ||
             data.work_status == WorkStatus::Cancelled||

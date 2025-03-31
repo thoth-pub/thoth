@@ -47,6 +47,7 @@ impl Component for ConfirmWorkStatusComponent {
                 // when set as true, the modal closes and it saves correctly
                 // true
                 // when set as false, the modal also closes and saves correctly. 
+                
                 false
             }
         }
@@ -94,24 +95,15 @@ impl Component for ConfirmWorkStatusComponent {
                             <p>
                                 { "Are you sure you want to change the work status to Active for " }
                                 <i>{ &ctx.props().object_name }</i>
-                                { "?" }
+                                { "? Once a Work has been set to Active, it cannot be set back to Forthcoming." }
                             </p>
                         </section>
-                        // Ok, so it looks like the delete confirmation doesn't take care of 
-                        // closing the modal because the delete message redirects to a different route, 
-                        // so there's no need to close the modal
-
-                        // You'll need to explicitly close the work status modal yourself
-
-                        // to do so, you can create a message in the dialogue that is 
-                        // called onclick and (a) closes the dialogue, (b) emmits the onclick callback 
-                        // it receives from work.rs
                         
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                // onclick={ ctx.props().onclick.clone() }
-                                onclick={ ctx.link().callback(|_| Msg::ExecuteCallback) }
+                                onclick={ ctx.props().onclick.clone() }
+                                // onclick={ ctx.link().callback(|_| Msg::ExecuteCallback) }
                             >
                                 { SAVE_BUTTON }
                             </button>
