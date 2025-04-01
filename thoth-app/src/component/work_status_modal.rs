@@ -10,19 +10,18 @@ pub struct ConfirmWorkStatusComponent {
 
 #[derive(PartialEq, Properties)]
 pub struct Props {
-    pub onclick: Option<Callback<MouseEvent>>,
+    pub onsubmit: Callback<()>,
     pub object_name: String,
     pub current_user: AccountDetails,
     pub current_state_unpublished: bool,
     pub is_published: bool,
-    // pub form_callback: Callback<()>,
     #[prop_or_default]
     pub deactivated: bool,
 }
 
 pub enum Msg {
     ToggleConfirmWorkStatusDisplay(bool),
-    ExecuteCallback
+    CloseModalAndUpdateWork
 }
 
 impl Component for ConfirmWorkStatusComponent {
@@ -39,16 +38,11 @@ impl Component for ConfirmWorkStatusComponent {
                 self.show = value;
                 true
             }
-            Msg::ExecuteCallback => {
-                self.show = false;
-                // trigger the callback 
-                // _ctx.props().form_callback(|_| form_callback).emit(());
-                // form_callback.emit(());
-                // when set as true, the modal closes and it saves correctly
-                // true
-                // when set as false, the modal also closes and saves correctly. 
-                
-                false
+            Msg::CloseModalAndUpdateWork => {
+                // Actual updating of Work is handled in work.rs 
+                // by ConfirmWorkStatusComponent, so this just closes the modal
+                self.show = false;               
+                true
             }
         }
     }
@@ -62,25 +56,17 @@ impl Component for ConfirmWorkStatusComponent {
             e.prevent_default();
             Msg::ToggleConfirmWorkStatusDisplay(false)
         });
-        let modal_behavior = if !ctx.props().current_user.resource_access.is_superuser
-            && ctx.props().current_state_unpublished
-            && ctx.props().is_published {
-                &open_modal
-            } else {
-                &close_modal
-            };
         
         html! {
             <>
                 <button
                     class="button is-success"
-                    // onclick={ open_modal }
-                    onclick={ modal_behavior }
+                    onclick={ open_modal }
                     disabled={ ctx.props().deactivated }
                 >
                     { SAVE_BUTTON }
                 </button>
-                <div class={ self.confirm_work_status_status() }>
+                <div class={ self.show_modal() }>
                     <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
@@ -102,8 +88,7 @@ impl Component for ConfirmWorkStatusComponent {
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick={ ctx.props().onclick.clone() }
-                                // onclick={ ctx.link().callback(|_| Msg::ExecuteCallback) }
+                                onclick={ ctx.link().callback(|_| Msg::CloseModalAndUpdateWork) }
                             >
                                 { SAVE_BUTTON }
                             </button>
@@ -122,7 +107,7 @@ impl Component for ConfirmWorkStatusComponent {
 }
 
 impl ConfirmWorkStatusComponent {
-    fn confirm_work_status_status(&self) -> String {
+    fn show_modal(&self) -> String {
         match self.show {
             true => "modal is-active".to_string(),
             false => "modal".to_string(),

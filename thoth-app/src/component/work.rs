@@ -50,7 +50,7 @@ use crate::component::utils::FormUrlInput;
 use crate::component::utils::FormWorkStatusSelect;
 use crate::component::utils::FormWorkTypeSelect;
 use crate::component::utils::Loader;
-use crate::component::work_status_dialogue::ConfirmWorkStatusComponent;
+use crate::component::work_status_modal::ConfirmWorkStatusComponent;
 use crate::models::work::delete_work_mutation::DeleteWorkRequest;
 use crate::models::work::delete_work_mutation::DeleteWorkRequestBody;
 use crate::models::work::delete_work_mutation::PushActionDeleteWork;
@@ -558,7 +558,6 @@ impl Component for WorkComponent {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(_body) => {
-                // let form_callback = ctx.link().callback(|event: FocusEvent| {
                 let callback = ctx.link().callback(|event: FocusEvent| {
                     event.prevent_default();
                     Msg::UpdateWork
@@ -841,20 +840,17 @@ impl Component for WorkComponent {
                                 <div class="control">
                                     // if the Work is unpublished (forthcoming, postponed, cancelled) 
                                     // and non-superuser sets to published (active, withdrawn, superseded), 
-                                    // display warning dialogue
+                                    // display confirmation modal
                                     if !ctx.props().current_user.resource_access.is_superuser
                                         && current_state_unpublished
                                         && is_published
-                                        // is superuser = false
                                     {
                                         <ConfirmWorkStatusComponent
-                                            onclick={ ctx.link().callback(|_| Msg::UpdateWork) }
+                                            onsubmit={ ctx.link().callback(|_| Msg::UpdateWork) }
                                             object_name={ self.work.full_title.clone() }
                                             current_user={ ctx.props().current_user.clone() }
                                             current_state_unpublished={ current_state_unpublished }
                                             is_published={ is_published }
-
-                                        
                                         />
                                     } else {
                                         <button class="button is-success" type="submit">
