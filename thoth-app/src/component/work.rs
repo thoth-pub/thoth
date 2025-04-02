@@ -595,9 +595,9 @@ impl Component for WorkComponent {
                     || self.work.work_status == WorkStatus::Withdrawn
                     || self.work.work_status == WorkStatus::Superseded;
 
-                let current_state_unpublished = self.current_work_status == WorkStatus::Forthcoming ||
-                    self.current_work_status == WorkStatus::PostponedIndefinitely ||
-                    self.current_work_status == WorkStatus::Cancelled;
+                let current_state_unpublished = self.current_work_status == WorkStatus::Forthcoming
+                    || self.current_work_status == WorkStatus::PostponedIndefinitely
+                    || self.current_work_status == WorkStatus::Cancelled;
 
                 html! {
                     <>
@@ -616,8 +616,6 @@ impl Component for WorkComponent {
                                 </p>
                             </div>
                         </nav>
-
-                        // <form onsubmit={ form_callback }>
                         <form onsubmit={ callback }>
                             <div class="field is-horizontal">
                                 <div class="field-body">
@@ -838,8 +836,8 @@ impl Component for WorkComponent {
 
                             <div class="field">
                                 <div class="control">
-                                    // if the Work is unpublished (forthcoming, postponed, cancelled) 
-                                    // and non-superuser sets to published (active, withdrawn, superseded), 
+                                    // if the Work is unpublished (forthcoming, postponed, cancelled)
+                                    // and non-superuser sets to published (active, withdrawn, superseded),
                                     // display confirmation modal
                                     if !ctx.props().current_user.resource_access.is_superuser
                                         && current_state_unpublished

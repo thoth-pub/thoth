@@ -21,7 +21,7 @@ pub struct Props {
 
 pub enum Msg {
     ToggleConfirmWorkStatusDisplay(bool),
-    CloseModalAndUpdateWork
+    CloseModalAndUpdateWork,
 }
 
 impl Component for ConfirmWorkStatusComponent {
@@ -39,9 +39,9 @@ impl Component for ConfirmWorkStatusComponent {
                 true
             }
             Msg::CloseModalAndUpdateWork => {
-                // Actual updating of Work is handled in work.rs 
+                // Actual updating of Work is handled in work.rs
                 // by ConfirmWorkStatusComponent, so this just closes the modal
-                self.show = false;               
+                self.show = false;
                 true
             }
         }
@@ -56,7 +56,7 @@ impl Component for ConfirmWorkStatusComponent {
             e.prevent_default();
             Msg::ToggleConfirmWorkStatusDisplay(false)
         });
-        
+
         html! {
             <>
                 <button
@@ -84,7 +84,7 @@ impl Component for ConfirmWorkStatusComponent {
                                 { "? Once a Work has been set to Active, it cannot be set back to Forthcoming." }
                             </p>
                         </section>
-                        
+
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
