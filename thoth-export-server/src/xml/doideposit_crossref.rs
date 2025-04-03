@@ -485,8 +485,12 @@ fn write_crossmark_funding_access<W: Write>(
             }
 
             // If crossmark metadata is included, funding and access data must be inside the <crossmark> element
-            // within <custom_metadata> tag
-            write_element_block("custom_metadata", w, |w| write_work_funding_access(work, w))
+            // within <custom_metadata> tag. If no funding or access data exist, don't include <custom_metadata> tag.
+            if work.license.is_some() || !work.fundings.is_empty() {
+                write_element_block("custom_metadata", w, |w| write_work_funding_access(work, w))
+            } else {
+                Ok(())
+            }
         })?;
     // If no crossmark metadata, funding and access data go here
     } else {
