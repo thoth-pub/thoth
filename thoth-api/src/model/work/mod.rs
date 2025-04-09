@@ -457,6 +457,21 @@ pub trait WorkProperties {
         }
         Ok(())
     }
+
+    fn is_unpublished(&self) -> bool {
+        matches!(
+            self.work_status(),
+            WorkStatus::Forthcoming | WorkStatus::Cancelled | WorkStatus::PostponedIndefinitely
+        )
+    }
+
+    fn is_published(&self) -> bool {
+        matches!(
+            self.work_status(),
+            WorkStatus::Active | WorkStatus::Withdrawn | WorkStatus::Superseded
+        )
+    }
+
 }
 
 impl WorkProperties for Work {

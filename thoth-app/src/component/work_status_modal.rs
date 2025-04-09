@@ -21,7 +21,7 @@ pub struct Props {
 
 pub enum Msg {
     ToggleConfirmWorkStatusDisplay(bool),
-    CloseModalAndUpdateWork,
+    CloseModal,
 }
 
 impl Component for ConfirmWorkStatusComponent {
@@ -38,9 +38,10 @@ impl Component for ConfirmWorkStatusComponent {
                 self.show = value;
                 true
             }
-            Msg::CloseModalAndUpdateWork => {
+            Msg::CloseModal => {
                 // Actual updating of Work is handled in work.rs
                 // by ConfirmWorkStatusComponent, so this just closes the modal
+
                 self.show = false;
                 true
             }
@@ -59,13 +60,13 @@ impl Component for ConfirmWorkStatusComponent {
 
         html! {
             <>
-                <button
-                    class="button is-success"
-                    onclick={ open_modal }
-                    disabled={ ctx.props().deactivated }
-                >
-                    { SAVE_BUTTON }
-                </button>
+                // <button
+                //     class="button is-success"
+                //     onclick={ open_modal }
+                //     disabled={ ctx.props().deactivated }
+                // >
+                //     { SAVE_BUTTON }
+                // </button>
                 <div class={ self.show_modal() }>
                     <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
@@ -88,7 +89,7 @@ impl Component for ConfirmWorkStatusComponent {
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick={ ctx.link().callback(|_| Msg::CloseModalAndUpdateWork) }
+                                onclick={ ctx.link().callback(|_| Msg::CloseModal) }
                             >
                                 { SAVE_BUTTON }
                             </button>

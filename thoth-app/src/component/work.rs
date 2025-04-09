@@ -94,6 +94,7 @@ pub struct WorkComponent {
     // Store props values locally in order to test whether they have been updated on props change
     resource_access: AccountAccess,
     work_id: Uuid,
+    show_modal: bool,
 }
 
 #[derive(Default)]
@@ -150,6 +151,7 @@ pub enum Msg {
     UpdateSubjects(Option<Vec<Subject>>),
     UpdateIssues(Option<Vec<IssueWithSeries>>),
     UpdateReferences(Option<Vec<Reference>>),
+    OpenModal,
 }
 
 #[derive(PartialEq, Eq, Properties)]
@@ -193,6 +195,7 @@ impl Component for WorkComponent {
             notification_bus,
             resource_access,
             work_id,
+            show_modal: false,
         }
     }
 
@@ -537,6 +540,11 @@ impl Component for WorkComponent {
             Msg::UpdateSubjects(subjects) => self.work.subjects.neq_assign(subjects),
             Msg::UpdateIssues(issues) => self.work.issues.neq_assign(issues),
             Msg::UpdateReferences(references) => self.work.references.neq_assign(references),
+            Msg::OpenModal => {
+                self.show_modal = true;
+                true
+            }
+
         }
     }
 
@@ -558,10 +566,48 @@ impl Component for WorkComponent {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(_body) => {
-                let callback = ctx.link().callback(|event: FocusEvent| {
-                    event.prevent_default();
-                    Msg::UpdateWork
-                });
+                // let callback = ctx.link().callback(|event: FocusEvent| {
+                //     event.prevent_default();
+                //     Msg::UpdateWork
+                // });
+                let current_state_unpublished = self.current_work_status == WorkStatus::Forthcoming
+                    || self.current_work_status == WorkStatus::PostponedIndefinitely
+                    || self.current_work_status == WorkStatus::Cancelled;
+                let is_published = self.work.work_status == WorkStatus::Active
+                    || self.work.work_status == WorkStatus::Withdrawn
+                    || self.work.work_status == WorkStatus::Superseded;
+                // if !ctx.props().current_user.resource_access.is_superuser
+                //     && current_state_unpublished
+                //     && is_published
+                // {   
+                //     let callback = ctx.link().callback(|event: FocusEvent| {
+                //         event.prevent_default();
+                //         Msg::UpdateWork
+                //     });
+                // } else {
+                //     let callback = ctx.link().callback(|event: FocusEvent| {
+                //         event.prevent_default();
+                //         Msg::UpdateWork
+                //     });
+                // }
+
+                let callback = if !ctx.props().current_user.resource_access.is_superuser
+                    && current_state_unpublished
+                    && is_published
+                {
+                    // If the modal is required, open the modal
+                    ctx.link().callback(|event: FocusEvent| {
+                        event.prevent_default();
+                        Msg::OpenModal // Define a new message to open the modal
+                        // Msg::UpdateWork
+                    })
+                } else {
+                    // Otherwise, directly update the work
+                    ctx.link().callback(|event: FocusEvent| {
+                        event.prevent_default();
+                        Msg::UpdateWork
+                    })
+                };
                 // if matches conditions for non-superuser (i.e. dialogue is present)
                 // let form_callback = event.prevent_default();
                 // nice to have: trigger dialogue by hitting enter
@@ -839,10 +885,11 @@ impl Component for WorkComponent {
                                     // if the Work is unpublished (forthcoming, postponed, cancelled)
                                     // and non-superuser sets to published (active, withdrawn, superseded),
                                     // display confirmation modal
-                                    if !ctx.props().current_user.resource_access.is_superuser
-                                        && current_state_unpublished
-                                        && is_published
-                                    {
+                                    // if !ctx.props().current_user.resource_access.is_superuser
+                                    //     && current_state_unpublished
+                                    //     && is_published
+                                    // {
+                                    if self.show_modal {
                                         <ConfirmWorkStatusComponent
                                             onsubmit={ ctx.link().callback(|_| Msg::UpdateWork) }
                                             object_name={ self.work.full_title.clone() }
@@ -850,11 +897,15 @@ impl Component for WorkComponent {
                                             current_state_unpublished={ current_state_unpublished }
                                             is_published={ is_published }
                                         />
-                                    } else {
-                                        <button class="button is-success" type="submit">
-                                            { SAVE_BUTTON }
-                                        </button>
                                     }
+                                    // } else {
+                                    //     <button class="button is-success" type="submit">
+                                    //         { SAVE_BUTTON }
+                                    //     </button>
+                                    // }
+                                    <button class="button is-success" type="submit">
+                                        { SAVE_BUTTON }
+                                    </button>
                                 </div>
                             </div>
                         </form>
