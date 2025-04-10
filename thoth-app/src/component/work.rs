@@ -25,6 +25,7 @@ use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::NeqAssign;
+use web_sys::console;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
@@ -364,6 +365,7 @@ impl Component for WorkComponent {
                     .send_future(self.push_work.fetch(Msg::SetWorkPushState));
                 ctx.link()
                     .send_message(Msg::SetWorkPushState(FetchAction::Fetching));
+                self.show_modal = false;
                 false
             }
             Msg::SetWorkDeleteState(fetch_state) => {
@@ -541,6 +543,7 @@ impl Component for WorkComponent {
             Msg::UpdateIssues(issues) => self.work.issues.neq_assign(issues),
             Msg::UpdateReferences(references) => self.work.references.neq_assign(references),
             Msg::OpenModal => {
+                console::log_1(&"Opening modal".into());
                 self.show_modal = true;
                 true
             }
@@ -598,7 +601,7 @@ impl Component for WorkComponent {
                     // If the modal is required, open the modal
                     ctx.link().callback(|event: FocusEvent| {
                         event.prevent_default();
-                        Msg::OpenModal // Define a new message to open the modal
+                        Msg::OpenModal
                         // Msg::UpdateWork
                     })
                 } else {
