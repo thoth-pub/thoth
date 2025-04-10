@@ -39,10 +39,6 @@ impl Component for ConfirmWorkStatusComponent {
                 true
             }
             Msg::CloseModal => {
-                // Actual updating of Work is handled in work.rs
-                // by ConfirmWorkStatusComponent, so this just closes the modal
-                // _ctx.props().callback(|_| callback).emit(());
-                // callback.emit(());
                 self.show = false;
                 true
             }
@@ -50,10 +46,6 @@ impl Component for ConfirmWorkStatusComponent {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let open_modal = ctx.link().callback(|e: MouseEvent| {
-            e.prevent_default();
-            Msg::ToggleConfirmWorkStatusDisplay(true)
-        });
         let close_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleConfirmWorkStatusDisplay(false)
@@ -61,15 +53,7 @@ impl Component for ConfirmWorkStatusComponent {
 
         html! {
             <>
-                // <button
-                //     class="button is-success"
-                //     onclick={ open_modal }
-                //     disabled={ ctx.props().deactivated }
-                // >
-                //     { SAVE_BUTTON }
-                // </button>
                 <div class={ self.show_modal() }>
-                // <div class="modal is-active">
                     <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
@@ -91,13 +75,11 @@ impl Component for ConfirmWorkStatusComponent {
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                // onclick={ ctx.link().callback(|_| Msg::CloseModal) }
-                                // onclick={ ctx.props().onsubmit.clone() } // Use the onsubmit callback to trigger UpdateWork
                                 onclick={ ctx.link().callback({
                                     let onsubmit = ctx.props().onsubmit.clone();
                                     move |e: MouseEvent| {
-                                        onsubmit.emit(e.clone()); // Trigger the onsubmit callback
-                                        Msg::CloseModal // Trigger the CloseModal message
+                                        onsubmit.emit(e.clone());
+                                        Msg::CloseModal
                                     }
                                 }) }
                             >
@@ -105,8 +87,8 @@ impl Component for ConfirmWorkStatusComponent {
                             </button>
                             <button
                                 class="button"
-                                onclick={ ctx.link().callback(|_| Msg::CloseModal) } // Close the modal without saving
-                                // onclick={ &close_modal }
+                                // Close the modal without saving
+                                onclick={ ctx.link().callback(|_| Msg::CloseModal) } 
                             >
                                 { CANCEL_BUTTON }
                             </button>

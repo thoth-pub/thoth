@@ -25,7 +25,6 @@ use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::NeqAssign;
-use web_sys::console;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
@@ -95,7 +94,7 @@ pub struct WorkComponent {
     // Store props values locally in order to test whether they have been updated on props change
     resource_access: AccountAccess,
     work_id: Uuid,
-    show_modal: bool,
+    confirmation_required: bool,
 }
 
 #[derive(Default)]
@@ -196,7 +195,7 @@ impl Component for WorkComponent {
             notification_bus,
             resource_access,
             work_id,
-            show_modal: false,
+            confirmation_required: false,
         }
     }
 
@@ -365,7 +364,7 @@ impl Component for WorkComponent {
                     .send_future(self.push_work.fetch(Msg::SetWorkPushState));
                 ctx.link()
                     .send_message(Msg::SetWorkPushState(FetchAction::Fetching));
-                self.show_modal = false;
+                self.confirmation_required = false;
                 false
             }
             Msg::SetWorkDeleteState(fetch_state) => {
@@ -543,8 +542,7 @@ impl Component for WorkComponent {
             Msg::UpdateIssues(issues) => self.work.issues.neq_assign(issues),
             Msg::UpdateReferences(references) => self.work.references.neq_assign(references),
             Msg::OpenModal => {
-                console::log_1(&"Opening modal".into());
-                self.show_modal = true;
+                self.confirmation_required = true;
                 true
             }
 
@@ -569,51 +567,29 @@ impl Component for WorkComponent {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(_body) => {
-                // let callback = ctx.link().callback(|event: FocusEvent| {
-                //     event.prevent_default();
-                //     Msg::UpdateWork
-                // });
                 let current_state_unpublished = self.current_work_status == WorkStatus::Forthcoming
                     || self.current_work_status == WorkStatus::PostponedIndefinitely
                     || self.current_work_status == WorkStatus::Cancelled;
                 let is_published = self.work.work_status == WorkStatus::Active
                     || self.work.work_status == WorkStatus::Withdrawn
                     || self.work.work_status == WorkStatus::Superseded;
-                // if !ctx.props().current_user.resource_access.is_superuser
-                //     && current_state_unpublished
-                //     && is_published
-                // {   
-                //     let callback = ctx.link().callback(|event: FocusEvent| {
-                //         event.prevent_default();
-                //         Msg::UpdateWork
-                //     });
-                // } else {
-                //     let callback = ctx.link().callback(|event: FocusEvent| {
-                //         event.prevent_default();
-                //         Msg::UpdateWork
-                //     });
-                // }
 
                 let callback = if !ctx.props().current_user.resource_access.is_superuser
                     && current_state_unpublished
                     && is_published
                 {
-                    // If the modal is required, open the modal
+                    // Open the modal if required
                     ctx.link().callback(|event: FocusEvent| {
                         event.prevent_default();
                         Msg::OpenModal
-                        // Msg::UpdateWork
                     })
                 } else {
-                    // Otherwise, directly update the work
+                    // If modal conditions are not met, directly update the work
                     ctx.link().callback(|event: FocusEvent| {
                         event.prevent_default();
                         Msg::UpdateWork
                     })
                 };
-                // if matches conditions for non-superuser (i.e. dialogue is present)
-                // let form_callback = event.prevent_default();
-                // nice to have: trigger dialogue by hitting enter
 
                 // FormImprintSelect: while the work has any related issues, the imprint cannot
                 // be changed, because an issue's series and work must both have the same imprint.
@@ -888,11 +864,7 @@ impl Component for WorkComponent {
                                     // if the Work is unpublished (forthcoming, postponed, cancelled)
                                     // and non-superuser sets to published (active, withdrawn, superseded),
                                     // display confirmation modal
-                                    // if !ctx.props().current_user.resource_access.is_superuser
-                                    //     && current_state_unpublished
-                                    //     && is_published
-                                    // {
-                                    if self.show_modal {
+                                    if self.confirmation_required {
                                         <ConfirmWorkStatusComponent
                                             onsubmit={ ctx.link().callback(|_| Msg::UpdateWork) }
                                             object_name={ self.work.full_title.clone() }
@@ -901,11 +873,6 @@ impl Component for WorkComponent {
                                             is_published={ is_published }
                                         />
                                     }
-                                    // } else {
-                                    //     <button class="button is-success" type="submit">
-                                    //         { SAVE_BUTTON }
-                                    //     </button>
-                                    // }
                                     <button class="button is-success" type="submit">
                                         { SAVE_BUTTON }
                                     </button>
