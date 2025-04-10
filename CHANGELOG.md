@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
   - [679](https://github.com/thoth-pub/thoth/issues/679) - Remove extraneous <custom_metadata> tag from Crossmark block in Crossref DOI deposit export when an Imprint has recorded a Crossmark DOI but a Work has no license or funding metadata.
 
+### Changed
+  - [683](https://github.com/thoth-pub/thoth/pull/683) - Upgrade rust to `1.86.0` in production `Dockerfile`
+
 ### Security
   - [683](https://github.com/thoth-pub/thoth/pull/683) - Upgrade `tokio` to v1.44.2
   - [683](https://github.com/thoth-pub/thoth/pull/683) - Upgrade `openssl` to v0.10.72
