@@ -1,7 +1,6 @@
 use crate::string::CANCEL_BUTTON;
 use crate::string::SAVE_BUTTON;
 use thoth_api::account::model::AccountDetails;
-use web_sys;
 use yew::html;
 use yew::prelude::*;
 
@@ -92,7 +91,6 @@ impl Component for ConfirmWorkStatusComponent {
                                 onclick={ ctx.link().callback({
                                     let oncancel = ctx.props().oncancel.clone();
                                     move |_| {
-                                        web_sys::console::log_1(&"Cancel button clicked in modal".into());
                                         oncancel.emit(());
                                         Msg::CloseModal
                                     }

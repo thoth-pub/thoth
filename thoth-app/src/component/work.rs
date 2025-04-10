@@ -25,7 +25,6 @@ use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::NeqAssign;
-use web_sys::console;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
@@ -548,16 +547,14 @@ impl Component for WorkComponent {
                 true
             }
             Msg::ResetWorkStatus => {
-                console::log_1(&format!("ResetWorkStatus - Current in database: {:?}", self.current_work_status).into());
-                console::log_1(&format!("ResetWorkStatus - Current in view: {:?}", self.work.work_status).into());
-                
                 // Reset to the original work status from database
                 self.work.work_status = self.current_work_status;
                 
-                console::log_1(&format!("ResetWorkStatus - After reset: {:?}", self.work.work_status).into());
+                // Stop the ConfirmWorkStatusComponent component and don't save any changes
+                self.confirmation_required = false; 
                 
-                self.confirmation_required = false; // Also close the modal
-                true // Re-render the component
+                // Re-render the component
+                true 
             }
 
         }
@@ -577,8 +574,6 @@ impl Component for WorkComponent {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        console::log_1(&format!("Rendering view with WorkStatus in database: {:?}", self.current_work_status).into());
-        console::log_1(&format!("Rendering view with WorkStatus in view: {:?}", self.work.work_status).into());
         match self.fetch_work.as_ref().state() {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
@@ -670,6 +665,8 @@ impl Component for WorkComponent {
                                         ) }
                                         required = true
                                     />
+                                    // key forces re-render of FormWorkStatusSelect component in the DOM, specifically needed
+                                    // to return the value to its previous state after Msg::ResetWorkStatus
                                     <div key={ format!("status-container-{}", self.work.work_status.to_string()) }>
                                         <FormWorkStatusSelect
                                             label = "Work Status"
