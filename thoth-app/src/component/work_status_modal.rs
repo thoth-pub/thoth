@@ -1,6 +1,7 @@
 use crate::string::CANCEL_BUTTON;
 use crate::string::SAVE_BUTTON;
 use thoth_api::account::model::AccountDetails;
+use web_sys;
 use yew::html;
 use yew::prelude::*;
 
@@ -10,7 +11,8 @@ pub struct ConfirmWorkStatusComponent {
 
 #[derive(PartialEq, Properties)]
 pub struct Props {
-    pub onsubmit: Callback<MouseEvent>,
+    pub onsubmit: Callback<()>,
+    pub oncancel: Callback<()>,
     pub object_name: String,
     pub current_user: AccountDetails,
     pub current_state_unpublished: bool,
@@ -77,8 +79,8 @@ impl Component for ConfirmWorkStatusComponent {
                                 class="button is-success"
                                 onclick={ ctx.link().callback({
                                     let onsubmit = ctx.props().onsubmit.clone();
-                                    move |e: MouseEvent| {
-                                        onsubmit.emit(e.clone());
+                                    move |_| {
+                                        onsubmit.emit(());
                                         Msg::CloseModal
                                     }
                                 }) }
@@ -87,8 +89,14 @@ impl Component for ConfirmWorkStatusComponent {
                             </button>
                             <button
                                 class="button"
-                                // Close the modal without saving
-                                onclick={ ctx.link().callback(|_| Msg::CloseModal) } 
+                                onclick={ ctx.link().callback({
+                                    let oncancel = ctx.props().oncancel.clone();
+                                    move |_| {
+                                        web_sys::console::log_1(&"Cancel button clicked in modal".into());
+                                        oncancel.emit(());
+                                        Msg::CloseModal
+                                    }
+                                }) }
                             >
                                 { CANCEL_BUTTON }
                             </button>
