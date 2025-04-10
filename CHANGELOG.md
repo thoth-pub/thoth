@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
   - [679](https://github.com/thoth-pub/thoth/issues/679) - Remove extraneous <custom_metadata> tag from Crossmark block in Crossref DOI deposit export when an Imprint has recorded a Crossmark DOI but a Work has no license or funding metadata.
 
+### Security
+  - Upgrade `tokio` to v1.44.2
+  - Upgrade `openssl` to v0.10.72
+
 ## [[0.13.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.8) - 2025-03-26
 ### Added
   - [577](https://github.com/thoth-pub/thoth/pull/577) - Implement ONIX 3.1 "Thoth" specification (i.e. complete record reflecting all updates up to ONIX 3.1.2 that can be implemented based on existing data model)
