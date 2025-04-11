@@ -1745,24 +1745,9 @@ impl MutationRoot {
 
         data.validate()?;
 
-        // data as entered by the user
-        // let is_data_unpublished = data.work_status == WorkStatus::Forthcoming
-        //     || data.work_status == WorkStatus::Cancelled
-        //     || data.work_status == WorkStatus::PostponedIndefinitely;
-
-        // let is_work_published = work.work_status == WorkStatus::Active
-        //     || work.work_status == WorkStatus::Withdrawn
-        //     || work.work_status == WorkStatus::Superseded;
-
-        // return an error if a non-superuser attempts to change the
-        // Work Status of a published Work to unpublished
         if work.is_published() && data.is_unpublished() && !context.account_access.is_superuser {
             return Err(ThothError::ThothSetWorkStatusError.into());
         }
-
-        // if is_work_published && is_data_unpublished && !context.account_access.is_superuser {
-        //     return Err(ThothError::ThothSetWorkStatusError.into());
-        // }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         // update the work and, if it succeeds, synchronise its children statuses and pub. date
@@ -2194,6 +2179,10 @@ impl MutationRoot {
             .account_access
             .can_edit(work.publisher_id(&context.db)?)?;
 
+        if work.is_published() && !context.account_access.is_superuser {
+            return Err(ThothError::ThothDeleteWorkError.into());
+        }
+        
         work.delete(&context.db).map_err(|e| e.into())
     }
 

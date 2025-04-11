@@ -109,6 +109,8 @@ pub enum ThothError {
     ThothUpdateCanonicalError,
     #[error("Once a Work has been published, it cannot return to an unpublished Work Status.")]
     ThothSetWorkStatusError,
+    #[error("Once a Work has been published, it cannot be deleted.")]
+    ThothDeleteWorkError,
 }
 
 impl ThothError {

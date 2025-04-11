@@ -6,8 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-  - [634](https://github.com/thoth-pub/thoth/issues/634) - Prevent changing a `Work`'s `WorkStatus` to `Forthcoming`, `Cancelled` or `Postponed` once its `WorkStatus` has been set to `Active`.
-  - [659](https://github.com/thoth-pub/thoth/issues/659) - Prevent deletion of a `Work` by non-superusers after `WorkStatus` has been set to `Active`.
+  - [634](https://github.com/thoth-pub/thoth/issues/634) - Prevent changing a `Work`'s `WorkStatus` to `Forthcoming`, `Cancelled` or `PostponedIndefinitely` once its `WorkStatus` has been set to `Active`.
+  - [659](https://github.com/thoth-pub/thoth/issues/659) - Prevent deletion of a `Work` by non-superusers after `WorkStatus` has been set to `Active`, `Withdrawn`, or `Superseded`.
 
 
 ## [[0.13.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.8) - 2025-03-26

@@ -553,7 +553,7 @@ impl Component for WorkComponent {
                 // Stop the ConfirmWorkStatusComponent component and don't save any changes
                 self.confirmation_required = false; 
                 
-                // Re-render the component
+                // Re-render the view
                 true 
             }
 
@@ -635,6 +635,18 @@ impl Component for WorkComponent {
                     || self.current_work_status == WorkStatus::PostponedIndefinitely
                     || self.current_work_status == WorkStatus::Cancelled;
 
+                let current_state_published = self.current_work_status == WorkStatus::Active
+                    || self.current_work_status == WorkStatus::Withdrawn
+                    || self.current_work_status == WorkStatus::Superseded;
+
+                let mut is_deactivated = false;
+
+                // prevent non-superusers from deleting published works
+                if !ctx.props().current_user.resource_access.is_superuser
+                    && current_state_published {
+                        is_deactivated = true;
+                    }
+
                 html! {
                     <>
                         <nav class="level">
@@ -648,6 +660,7 @@ impl Component for WorkComponent {
                                     <ConfirmDeleteComponent
                                         onclick={ ctx.link().callback(|_| Msg::DeleteWork) }
                                         object_name={ self.work.title.clone() }
+                                        deactivated={ is_deactivated }
                                     />
                                 </p>
                             </div>
@@ -884,6 +897,8 @@ impl Component for WorkComponent {
                                             onsubmit={ ctx.link().callback(|_| Msg::UpdateWork) }
                                             oncancel={ ctx.link().callback(|_| Msg::ResetWorkStatus) }
                                             object_name={ self.work.full_title.clone() }
+                                            object_work_status={ self.work.work_status.to_string() }
+                                            object_current_work_status={ self.current_work_status.to_string() }
                                             current_user={ ctx.props().current_user.clone() }
                                             current_state_unpublished={ current_state_unpublished }
                                             is_published={ is_published }
