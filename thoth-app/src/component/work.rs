@@ -645,6 +645,7 @@ impl Component for WorkComponent {
                 if !ctx.props().current_user.resource_access.is_superuser
                     && current_state_published {
                         is_deactivated = true;
+                        // TODO: console log this deactivated
                     }
 
                 html! {

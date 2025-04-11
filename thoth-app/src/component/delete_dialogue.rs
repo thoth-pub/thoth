@@ -51,6 +51,7 @@ impl Component for ConfirmDeleteComponent {
                     class="button is-danger"
                     onclick={ open_modal }
                     disabled={ ctx.props().deactivated }
+                    // TODO: console log this deactivated
                     // disabled=true
                 >
                     { DELETE_BUTTON }
