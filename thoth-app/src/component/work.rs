@@ -152,7 +152,7 @@ pub enum Msg {
     UpdateIssues(Option<Vec<IssueWithSeries>>),
     UpdateReferences(Option<Vec<Reference>>),
     OpenModal,
-    ResetWorkStatus,
+    // ResetWorkStatus,
 }
 
 #[derive(PartialEq, Eq, Properties)]
@@ -546,16 +546,16 @@ impl Component for WorkComponent {
                 self.confirmation_required = true;
                 true
             }
-            Msg::ResetWorkStatus => {
-                // Reset to the original work status from database
-                self.work.work_status = self.current_work_status;
+            // Msg::ResetWorkStatus => {
+            //     // Reset to the original work status from database
+            //     self.work.work_status = self.current_work_status;
                 
-                // Stop the ConfirmWorkStatusComponent component and don't save any changes
-                self.confirmation_required = false; 
+            //     // Stop the ConfirmWorkStatusComponent component and don't save any changes
+            //     self.confirmation_required = false; 
                 
-                // Re-render the view
-                true 
-            }
+            //     // Re-render the view
+            //     true 
+            // }
 
         }
     }
@@ -681,17 +681,17 @@ impl Component for WorkComponent {
                                     />
                                     // key forces re-render of FormWorkStatusSelect component in the DOM, specifically needed
                                     // to return the value to its previous state after Msg::ResetWorkStatus
-                                    <div key={ format!("status-container-{}", self.work.work_status.to_string()) }>
-                                        <FormWorkStatusSelect
-                                            label = "Work Status"
-                                            value={ self.work.work_status }
-                                            data={ self.data.work_statuses.clone() }
-                                            onchange={ ctx.link().callback(|e: Event|
-                                                Msg::ChangeWorkStatus(WorkStatus::from_str(&e.to_value()).unwrap())
-                                            ) }
-                                            required = true
-                                        />
-                                    </div>
+                                    // <div key={ format!("status-container-{}", self.work.work_status.to_string()) }>
+                                    <FormWorkStatusSelect
+                                        label = "Work Status"
+                                        value={ self.work.work_status }
+                                        data={ self.data.work_statuses.clone() }
+                                        onchange={ ctx.link().callback(|e: Event|
+                                            Msg::ChangeWorkStatus(WorkStatus::from_str(&e.to_value()).unwrap())
+                                        ) }
+                                        required = true
+                                    />
+                                    // </div>
                                     <FormImprintSelect
                                         label = "Imprint"
                                         value={ self.work.imprint.imprint_id }
@@ -896,11 +896,11 @@ impl Component for WorkComponent {
                                     if self.confirmation_required {
                                         <ConfirmWorkStatusComponent
                                             onsubmit={ ctx.link().callback(|_| Msg::UpdateWork) }
-                                            oncancel={ ctx.link().callback(|_| Msg::ResetWorkStatus) }
+                                            // oncancel={ ctx.link().callback(|_| Msg::ResetWorkStatus) }
                                             object_name={ self.work.full_title.clone() }
                                             object_work_status={ self.work.work_status.to_string() }
                                             object_current_work_status={ self.current_work_status.to_string() }
-                                            current_user={ ctx.props().current_user.clone() }
+                                            // current_user={ ctx.props().current_user.clone() }
                                             current_state_unpublished={ current_state_unpublished }
                                             is_published={ is_published }
                                         />

@@ -1,6 +1,6 @@
 use crate::string::CANCEL_BUTTON;
 use crate::string::SAVE_BUTTON;
-use thoth_api::account::model::AccountDetails;
+// use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 
@@ -11,7 +11,7 @@ pub struct ConfirmWorkStatusComponent {
 #[derive(PartialEq, Properties)]
 pub struct Props {
     pub onsubmit: Callback<()>,
-    pub oncancel: Callback<()>,
+    // pub oncancel: Callback<()>,
     pub object_name: String,
     pub object_work_status: String,
     pub object_current_work_status: String,
@@ -89,13 +89,8 @@ impl Component for ConfirmWorkStatusComponent {
                             </button>
                             <button
                                 class="button"
-                                onclick={ ctx.link().callback({
-                                    let oncancel = ctx.props().oncancel.clone();
-                                    move |_| {
-                                        oncancel.emit(());
-                                        Msg::CloseModal
-                                    }
-                                }) }
+                                onclick={ ctx.link().callback(|_| Msg::CloseModal) } // Close the modal without saving
+                                // onclick={ &close_modal }
                             >
                                 { CANCEL_BUTTON }
                             </button>
