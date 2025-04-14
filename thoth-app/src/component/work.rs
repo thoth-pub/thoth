@@ -553,7 +553,6 @@ impl Component for WorkComponent {
                 self.confirmation_required = false;
                 true
             }
-
         }
     }
 
@@ -583,8 +582,9 @@ impl Component for WorkComponent {
                     || self.work.work_status == WorkStatus::Superseded;
 
                 let is_superuser = ctx.props().current_user.resource_access.is_superuser;
-                let is_nonsuperuser_publishing = !is_superuser && current_state_unpublished && is_published;
-                
+                let is_nonsuperuser_publishing =
+                    !is_superuser && current_state_unpublished && is_published;
+
                 // non-superuser sees confirmation modal before changing an unpublished work to published
                 let callback = if is_nonsuperuser_publishing {
                     ctx.link().callback(|event: FocusEvent| {
@@ -639,10 +639,9 @@ impl Component for WorkComponent {
                 let mut is_deactivated = false;
 
                 // prevent non-superusers from deleting published works
-                if !is_superuser
-                    && current_state_published {
-                        is_deactivated = true;
-                    }
+                if !is_superuser && current_state_published {
+                    is_deactivated = true;
+                }
 
                 html! {
                     <>

@@ -2182,7 +2182,7 @@ impl MutationRoot {
         if work.is_published() && !context.account_access.is_superuser {
             return Err(ThothError::ThothDeleteWorkError.into());
         }
-        
+
         work.delete(&context.db).map_err(|e| e.into())
     }
 

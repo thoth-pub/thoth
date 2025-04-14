@@ -471,7 +471,6 @@ pub trait WorkProperties {
             WorkStatus::Active | WorkStatus::Withdrawn | WorkStatus::Superseded
         )
     }
-
 }
 
 impl WorkProperties for Work {

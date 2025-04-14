@@ -49,11 +49,9 @@ impl Component for ConfirmDeleteComponent {
             <>
                 <button
                     class="button is-danger"
-                    title={ ctx.props().deactivated.then(|| "Published Works cannot be deleted.") }
+                    title={ ctx.props().deactivated.then_some("Published Works cannot be deleted.") }
                     onclick={ open_modal }
                     disabled={ ctx.props().deactivated }
-                    // TODO: console log this deactivated
-                    // disabled=true
                 >
                     { DELETE_BUTTON }
                 </button>
