@@ -11,7 +11,7 @@ pub struct ConfirmWorkStatusComponent {
 #[derive(PartialEq, Properties)]
 pub struct Props {
     pub onsubmit: Callback<()>,
-    // pub oncancel: Callback<()>,
+    pub oncancel: Callback<()>,
     pub object_name: String,
     pub object_work_status: String,
     pub object_current_work_status: String,
@@ -68,9 +68,9 @@ impl Component for ConfirmWorkStatusComponent {
                         </header>
                         <section class="modal-card-body">
                             <p>
-                                { "Are you sure you want to change the work status to" } { &ctx.props().object_work_status  } { " for " }
+                                { "Are you sure you want to change the work status to " } { &ctx.props().object_work_status  } { " for " }
                                 <i>{ &ctx.props().object_name }</i>
-                                { "? Once a Work has been set to" } { &ctx.props().object_work_status }  { ", it cannot be set back to " } { &ctx.props().object_current_work_status }  { "." }
+                                { "? Once a Work has been set to " } { &ctx.props().object_work_status }  { ", it is published and cannot be returned to the unpublished state of " } { &ctx.props().object_current_work_status }  { "." }
                             </p>
                         </section>
 
@@ -89,8 +89,13 @@ impl Component for ConfirmWorkStatusComponent {
                             </button>
                             <button
                                 class="button"
-                                onclick={ ctx.link().callback(|_| Msg::CloseModal) } // Close the modal without saving
-                                // onclick={ &close_modal }
+                                onclick={ ctx.link().callback({
+                                    let oncancel = ctx.props().oncancel.clone();
+                                    move |_| {
+                                        oncancel.emit(());
+                                        Msg::CloseModal
+                                    }
+                                }) }
                             >
                                 { CANCEL_BUTTON }
                             </button>
