@@ -399,10 +399,7 @@ impl ToOption for String {
     }
 
     fn to_opt_date(self) -> Option<chrono::NaiveDate> {
-        match chrono::NaiveDate::parse_from_str(&self, "%Y-%m-%d") {
-            Ok(date) => Some(date),
-            Err(_) => None,
-        }
+        chrono::NaiveDate::parse_from_str(&self, "%Y-%m-%d").ok()
     }
 }
 
