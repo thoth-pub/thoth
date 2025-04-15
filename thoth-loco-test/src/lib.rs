@@ -1,4 +1,5 @@
 pub mod app;
+pub mod workers;
 
 use crate::app::App;
 use loco_rs::{

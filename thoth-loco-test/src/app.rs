@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use loco_rs::{
     app::{AppContext, Hooks, Initializer},
-    bgworker::Queue,
+    bgworker::{BackgroundWorker, Queue},
     boot::{create_app, BootResult, StartMode},
     config::Config,
     controller::AppRoutes,
@@ -9,6 +9,7 @@ use loco_rs::{
     task::Tasks,
     Result,
 };
+use crate::workers::test_worker::TestWorker;
 
 pub struct App;
 #[async_trait]
@@ -42,7 +43,8 @@ impl Hooks for App {
     fn routes(_ctx: &AppContext) -> AppRoutes {
         AppRoutes::with_default_routes()
     }
-    async fn connect_workers(_ctx: &AppContext, _queue: &Queue) -> Result<()> {
+    async fn connect_workers(ctx: &AppContext, queue: &Queue) -> Result<()> {
+        queue.register(TestWorker::build(ctx)).await?;
         Ok(())
     }
 
