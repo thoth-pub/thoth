@@ -9,7 +9,10 @@ use loco_rs::{
     task::Tasks,
     Result,
 };
-use crate::workers::test_worker::TestWorker;
+use crate::{
+    initializers::test_initializer::TestInitializer,
+    tasks::test_task::TestTask,
+    workers::test_worker::TestWorker};
 
 pub struct App;
 #[async_trait]
@@ -37,7 +40,9 @@ impl Hooks for App {
     }
 
     async fn initializers(_ctx: &AppContext) -> Result<Vec<Box<dyn Initializer>>> {
-        Ok(vec![])
+        Ok(vec![
+            Box::new(TestInitializer),
+        ])
     }
 
     fn routes(_ctx: &AppContext) -> AppRoutes {
@@ -50,6 +55,7 @@ impl Hooks for App {
 
     #[allow(unused_variables)]
     fn register_tasks(tasks: &mut Tasks) {
+        tasks.register(TestTask);
         // tasks-inject (do not remove)
     }
 }
