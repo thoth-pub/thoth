@@ -19,11 +19,12 @@ use serde::Serialize;
 use thoth_api::{
     account::model::{AccountDetails, DecodedToken, LoginCredentials},
     account::service::{get_account, get_account_details, login},
-    db::{init_pool, PgPool},
+    db::{init_pool as init_pg_pool, PgPool},
     graphql::{
         model::{create_schema, Context, Schema},
         GraphQLRequest,
     },
+    redis::{init_pool as init_redis_pool, RedisPool},
 };
 use thoth_errors::ThothError;
 
@@ -91,10 +92,11 @@ async fn graphql_schema(st: Data<Arc<Schema>>) -> HttpResponse {
 async fn graphql(
     st: Data<Arc<Schema>>,
     pool: Data<PgPool>,
+    redis_pool: Data<RedisPool>,
     token: DecodedToken,
     data: Json<GraphQLRequest>,
 ) -> Result<HttpResponse, Error> {
-    let ctx = Context::new(pool.into_inner(), token);
+    let ctx = Context::new(pool.into_inner(), redis_pool.into_inner(), token);
     let result = data.execute(&st, &ctx).await;
     match result.is_ok() {
         true => Ok(HttpResponse::Ok().json(result)),
@@ -186,6 +188,7 @@ async fn account_details(
 #[actix_web::main]
 pub async fn start_server(
     database_url: String,
+    redis_url: String,
     host: String,
     port: String,
     threads: usize,
@@ -227,7 +230,8 @@ pub async fn start_server(
                     .supports_credentials(),
             )
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
-            .app_data(Data::new(init_pool(&database_url)))
+            .app_data(Data::new(init_pg_pool(&database_url)))
+            .app_data(Data::new(init_redis_pool(&redis_url)))
             .app_data(Data::new(Arc::new(create_schema())))
             .service(index)
             .service(graphql_index)

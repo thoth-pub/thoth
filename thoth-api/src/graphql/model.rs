@@ -7,6 +7,8 @@ use uuid::Uuid;
 use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
 use crate::db::PgPool;
+use crate::event::handler::send_event;
+use crate::event::model::EventType;
 use crate::model::affiliation::*;
 use crate::model::contribution::*;
 use crate::model::contributor::*;
@@ -35,6 +37,7 @@ use crate::model::Orcid;
 use crate::model::Ror;
 use crate::model::Timestamp;
 use crate::model::WeightUnit;
+use crate::redis::RedisPool;
 use thoth_errors::{ThothError, ThothResult};
 
 use super::utils::{Direction, Expression};
@@ -44,14 +47,16 @@ impl juniper::Context for Context {}
 #[derive(Clone)]
 pub struct Context {
     pub db: Arc<PgPool>,
+    pub redis: Arc<RedisPool>,
     pub account_access: AccountAccess,
     pub token: DecodedToken,
 }
 
 impl Context {
-    pub fn new(pool: Arc<PgPool>, token: DecodedToken) -> Self {
+    pub fn new(pool: Arc<PgPool>, redis_pool: Arc<RedisPool>, token: DecodedToken) -> Self {
         Self {
             db: pool,
+            redis: redis_pool,
             account_access: token.get_user_permissions(),
             token,
         }
@@ -1470,7 +1475,7 @@ pub struct MutationRoot;
 #[juniper::graphql_object(Context = Context)]
 impl MutationRoot {
     #[graphql(description = "Create a new work with the specified values")]
-    fn create_work(
+    async fn create_work(
         context: &Context,
         #[graphql(description = "Values for work to be created")] data: NewWork,
     ) -> FieldResult<Work> {
@@ -1481,7 +1486,17 @@ impl MutationRoot {
 
         data.validate()?;
 
-        Work::create(&context.db, &data).map_err(|e| e.into())
+        let result = Work::create(&context.db, &data).map_err(|e| e.into());
+
+        if let Ok(created_work) = result.clone() {
+            // TODO handle results throughout
+            let _ = send_event(&context.redis, EventType::WorkCreated, &created_work).await;
+            if created_work.work_status == WorkStatus::Active {
+                let _ = send_event(&context.redis, EventType::WorkPublished, &created_work).await;
+            }
+        }
+
+        result
     }
 
     #[graphql(description = "Create a new publisher with the specified values")]
@@ -1722,7 +1737,7 @@ impl MutationRoot {
     }
 
     #[graphql(description = "Update an existing work with the specified values")]
-    fn update_work(
+    async fn update_work(
         context: &Context,
         #[graphql(description = "Values to apply to existing work")] data: PatchWork,
     ) -> FieldResult<Work> {
@@ -1748,6 +1763,10 @@ impl MutationRoot {
         // update the work and, if it succeeds, synchronise its children statuses and pub. date
         match work.update(&context.db, &data, &account_id) {
             Ok(w) => {
+                let _ = send_event(&context.redis, EventType::WorkUpdated, &w).await;
+                if w.work_status == WorkStatus::Active && work.work_status != WorkStatus::Active {
+                    let _ = send_event(&context.redis, EventType::WorkPublished, &w).await;
+                }
                 // update chapters if their pub. data, withdrawn_date or work_status doesn't match the parent's
                 for child in work.children(&context.db)? {
                     if child.publication_date != w.publication_date
