@@ -485,8 +485,12 @@ fn write_crossmark_funding_access<W: Write>(
             }
 
             // If crossmark metadata is included, funding and access data must be inside the <crossmark> element
-            // within <custom_metadata> tag
-            write_element_block("custom_metadata", w, |w| write_work_funding_access(work, w))
+            // within <custom_metadata> tag. If no funding or access data exist, don't include <custom_metadata> tag.
+            if work.license.is_some() || !work.fundings.is_empty() {
+                write_element_block("custom_metadata", w, |w| write_work_funding_access(work, w))
+            } else {
+                Ok(())
+            }
         })?;
     // If no crossmark metadata, funding and access data go here
     } else {
@@ -1254,8 +1258,10 @@ mod tests {
                 publication_date: chrono::NaiveDate::from_ymd_opt(2000, 2, 28),
                 withdrawn_date: None,
                 license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
+                copyright_holder: None,
                 short_abstract: Some("A shorter abstract".to_string()),
                 long_abstract: Some("First paragraph.\n\nSecond paragraph.".to_string()),
+                general_note: None,
                 place: Some("Other Place".to_string()),
                 first_page: Some("10".to_string()),
                 last_page: Some("20".to_string()),
@@ -1275,11 +1281,13 @@ mod tests {
                     first_name: Some("Chapter One".to_string()),
                     last_name: "Author".to_string(),
                     full_name: "Chapter One Author".to_string(),
+                    biography: None,
                     contribution_ordinal: 1,
                     contributor: WorkRelationsRelatedWorkContributionsContributor {
                         orcid: Some(
                             Orcid::from_str("https://orcid.org/0000-0002-0000-0011").unwrap(),
                         ),
+                        website: None,
                     },
                     affiliations: vec![WorkRelationsRelatedWorkContributionsAffiliations {
                         position: None,
@@ -1300,6 +1308,7 @@ mod tests {
                 }],
                 references: vec![],
                 fundings: vec![],
+                languages: vec![],
             },
         };
 
@@ -1711,8 +1720,10 @@ mod tests {
                     publication_date: chrono::NaiveDate::from_ymd_opt(2000, 2, 28),
                     withdrawn_date: None,
                     license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
+                    copyright_holder: None,
                     short_abstract: None,
                     long_abstract: None,
+                    general_note: None,
                     place: Some("Other Place".to_string()),
                     first_page: Some("10".to_string()),
                     last_page: Some("20".to_string()),
@@ -1729,6 +1740,7 @@ mod tests {
                     publications: vec![],
                     references: vec![],
                     fundings: vec![],
+                    languages: vec![],
                 },
             }],
             references: vec![WorkReferences {
@@ -1924,8 +1936,10 @@ mod tests {
                 publication_date: chrono::NaiveDate::from_ymd_opt(1997, 2, 28),
                 withdrawn_date: chrono::NaiveDate::from_ymd_opt(1998, 2, 28),
                 license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
+                copyright_holder: None,
                 short_abstract: None,
                 long_abstract: None,
+                general_note: None,
                 place: Some("Other Place".to_string()),
                 first_page: Some("10".to_string()),
                 last_page: Some("20".to_string()),
@@ -1942,6 +1956,7 @@ mod tests {
                 publications: vec![],
                 references: vec![],
                 fundings: vec![],
+                languages: vec![],
             },
         }];
         let output = generate_test_output(true, &test_work);

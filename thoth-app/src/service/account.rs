@@ -37,11 +37,7 @@ impl AccountService {
     }
 
     pub fn get_token(&self) -> Option<String> {
-        if let Ok(token) = LocalStorage::get(SESSION_KEY) {
-            Some(token)
-        } else {
-            None
-        }
+        LocalStorage::get(SESSION_KEY).ok()
     }
 
     pub fn set_token(&self, token: String) {

@@ -1,6 +1,6 @@
 [package]
 name = "thoth-app-server"
-version = "0.13.7"
+version = "0.13.9"
 authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
 edition = "2021"
 license = "Apache-2.0"
