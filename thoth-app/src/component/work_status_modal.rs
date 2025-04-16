@@ -14,8 +14,7 @@ pub struct Props {
     pub oncancel: Callback<()>,
     pub object_name: String,
     pub object_work_status: String,
-    pub object_current_work_status: String,
-    pub current_state_unpublished: bool,
+    pub object_work_status_in_db: String,
     pub is_published: bool,
     #[prop_or_default]
     pub deactivated: bool,
@@ -70,7 +69,7 @@ impl Component for ConfirmWorkStatusComponent {
                             <p>
                                 { "Are you sure you want to change the work status to " } { &ctx.props().object_work_status  } { " for " }
                                 <i>{ &ctx.props().object_name }</i>
-                                { "? Once a Work has been set to " } { &ctx.props().object_work_status }  { ", it is published and cannot be returned to the unpublished state of " } { &ctx.props().object_current_work_status }  { "." }
+                                { "? Once a Work has been set to " } { &ctx.props().object_work_status }  { ", it is published and cannot be returned to the unpublished state of " } { &ctx.props().object_work_status_in_db }  { "." }
                             </p>
                         </section>
 

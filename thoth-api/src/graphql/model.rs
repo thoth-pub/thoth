@@ -1745,7 +1745,7 @@ impl MutationRoot {
 
         data.validate()?;
 
-        if work.is_published() && data.is_unpublished() && !context.account_access.is_superuser {
+        if work.is_published() && !data.is_published() && !context.account_access.is_superuser {
             return Err(ThothError::ThothSetWorkStatusError.into());
         }
 

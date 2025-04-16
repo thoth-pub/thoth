@@ -85,7 +85,8 @@ pub struct WorkComponent {
     // Track work_type stored in database, as distinct from work_type selected in dropdown
     work_type: WorkType,
     // Track work_status stored in database, as distinct from work_status selected in dropdown
-    current_work_status: WorkStatus,
+    work_status_in_db: WorkStatus,
+    is_published_in_db: bool,
     data: WorkFormData,
     fetch_work: FetchWork,
     push_work: PushUpdateWork,
@@ -175,7 +176,7 @@ impl Component for WorkComponent {
         let doi_warning = Default::default();
         let imprint_id = work.imprint.imprint_id;
         let work_type = work.work_type;
-        let current_work_status = work.work_status;
+        let work_status_in_db = work.work_status;
         let data: WorkFormData = Default::default();
         let resource_access = ctx.props().current_user.resource_access.clone();
         let work_id = ctx.props().work_id;
@@ -188,7 +189,7 @@ impl Component for WorkComponent {
             doi_warning,
             imprint_id,
             work_type,
-            current_work_status,
+            work_status_in_db,
             data,
             fetch_work,
             push_work,
@@ -216,7 +217,7 @@ impl Component for WorkComponent {
                         self.doi = self.work.doi.clone().unwrap_or_default().to_string();
                         self.imprint_id = self.work.imprint.imprint_id;
                         self.work_type = self.work.work_type;
-                        self.current_work_status = self.work.work_status;
+                        self.work_status_in_db = self.work.work_status;
                         body.data.imprints.clone_into(&mut self.data.imprints);
                         body.data
                             .work_types
@@ -271,8 +272,8 @@ impl Component for WorkComponent {
                             self.doi_warning.clear();
                             self.imprint_id = self.work.imprint.imprint_id;
                             self.work_type = self.work.work_type;
-                            // After save, update current_work_status to match database
-                            self.current_work_status = self.work.work_status;
+                            // After save, update work_status_in_db to match database
+                            self.work_status_in_db = self.work.work_status;
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
@@ -574,29 +575,25 @@ impl Component for WorkComponent {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(_body) => {
-                let current_state_unpublished = self.current_work_status == WorkStatus::Forthcoming
-                    || self.current_work_status == WorkStatus::PostponedIndefinitely
-                    || self.current_work_status == WorkStatus::Cancelled;
-                let is_published = self.work.work_status == WorkStatus::Active
-                    || self.work.work_status == WorkStatus::Withdrawn
-                    || self.work.work_status == WorkStatus::Superseded;
-
+                let is_published_in_db = self.work_status_in_db == WorkStatus::Active
+                    || self.work_status_in_db == WorkStatus::Withdrawn
+                    || self.work_status_in_db == WorkStatus::Superseded;
+                    let is_published = self.work.work_status == WorkStatus::Active
+                        || self.work.work_status == WorkStatus::Withdrawn
+                        || self.work.work_status == WorkStatus::Superseded;
                 let is_superuser = ctx.props().current_user.resource_access.is_superuser;
                 let is_nonsuperuser_publishing =
-                    !is_superuser && current_state_unpublished && is_published;
+                    !is_superuser && !is_published_in_db && is_published;
 
                 // non-superuser sees confirmation modal before changing an unpublished work to published
-                let callback = if is_nonsuperuser_publishing {
-                    ctx.link().callback(|event: FocusEvent| {
-                        event.prevent_default();
-                        Msg::OpenModal
-                    })
-                } else {
-                    ctx.link().callback(|event: FocusEvent| {
-                        event.prevent_default();
-                        Msg::UpdateWork
-                    })
-                };
+                let callback = ctx.link().callback(move |event: FocusEvent| {  
+                    event.prevent_default();  
+                    if is_nonsuperuser_publishing {  
+                        Msg::OpenModal  
+                    } else {  
+                        Msg::UpdateWork  
+                    }  
+                }); 
 
                 // FormImprintSelect: while the work has any related issues, the imprint cannot
                 // be changed, because an issue's series and work must both have the same imprint.
@@ -623,23 +620,14 @@ impl Component for WorkComponent {
                 let is_chapter = self.work.work_type == WorkType::BookChapter;
                 let is_not_withdrawn_or_superseded = self.work.work_status != WorkStatus::Withdrawn
                     && self.work.work_status != WorkStatus::Superseded;
-                let is_published = self.work.work_status == WorkStatus::Active
-                    || self.work.work_status == WorkStatus::Withdrawn
-                    || self.work.work_status == WorkStatus::Superseded;
 
-                let current_state_unpublished = self.current_work_status == WorkStatus::Forthcoming
-                    || self.current_work_status == WorkStatus::PostponedIndefinitely
-                    || self.current_work_status == WorkStatus::Cancelled;
 
-                let current_state_published = self.current_work_status == WorkStatus::Active
-                    || self.current_work_status == WorkStatus::Withdrawn
-                    || self.current_work_status == WorkStatus::Superseded;
 
                 // deactivates Delete button when true
                 let mut is_deactivated = false;
 
                 // prevent non-superusers from deleting published works
-                if !is_superuser && current_state_published {
+                if !is_superuser && is_published_in_db {
                     is_deactivated = true;
                 }
 
@@ -896,8 +884,7 @@ impl Component for WorkComponent {
                                                 oncancel={ ctx.link().callback(|_| Msg::CloseModal) }
                                                 object_name={ self.work.full_title.clone() }
                                                 object_work_status={ self.work.work_status.to_string() }
-                                                object_current_work_status={ self.current_work_status.to_string() }
-                                                current_state_unpublished={ current_state_unpublished }
+                                                object_work_status_in_db={ self.work_status_in_db.to_string() }
                                                 is_published={ is_published }
                                             />
                                         }

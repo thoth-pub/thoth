@@ -397,7 +397,7 @@ impl WorkStatus {
     fn is_withdrawn_superseded(&self) -> bool {
         matches!(self, WorkStatus::Withdrawn | WorkStatus::Superseded)
     }
-    fn is_active_withdrawn_superseded(&self) -> bool {
+    fn is_published(&self) -> bool {
         matches!(
             self,
             WorkStatus::Active | WorkStatus::Withdrawn | WorkStatus::Superseded
@@ -414,8 +414,8 @@ pub trait WorkProperties {
         self.work_status().is_withdrawn_superseded()
     }
 
-    fn is_active_withdrawn_superseded(&self) -> bool {
-        self.work_status().is_active_withdrawn_superseded()
+    fn is_published(&self) -> bool {
+        self.work_status().is_published()
     }
 
     fn has_withdrawn_date(&self) -> bool {
@@ -426,8 +426,8 @@ pub trait WorkProperties {
         self.publication_date().is_some()
     }
 
-    fn active_withdrawn_superseded_no_publication_date_error(&self) -> ThothResult<()> {
-        if self.is_active_withdrawn_superseded() && !self.has_publication_date() {
+    fn is_published_no_publication_date_error(&self) -> ThothResult<()> {
+        if self.is_published() && !self.has_publication_date() {
             return Err(ThothError::PublicationDateError);
         }
         Ok(())
@@ -456,20 +456,6 @@ pub trait WorkProperties {
             }
         }
         Ok(())
-    }
-
-    fn is_unpublished(&self) -> bool {
-        matches!(
-            self.work_status(),
-            WorkStatus::Forthcoming | WorkStatus::Cancelled | WorkStatus::PostponedIndefinitely
-        )
-    }
-
-    fn is_published(&self) -> bool {
-        matches!(
-            self.work_status(),
-            WorkStatus::Active | WorkStatus::Withdrawn | WorkStatus::Superseded
-        )
     }
 }
 
