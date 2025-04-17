@@ -394,7 +394,7 @@ pub struct WorkOrderBy {
 }
 
 impl WorkStatus {
-    fn is_withdrawn_superseded(&self) -> bool {
+    fn is_out_of_print(&self) -> bool {
         matches!(self, WorkStatus::Withdrawn | WorkStatus::Superseded)
     }
     fn is_published(&self) -> bool {
@@ -410,8 +410,8 @@ pub trait WorkProperties {
     fn publication_date(&self) -> &Option<NaiveDate>;
     fn withdrawn_date(&self) -> &Option<NaiveDate>;
 
-    fn is_withdrawn_superseded(&self) -> bool {
-        self.work_status().is_withdrawn_superseded()
+    fn is_out_of_print(&self) -> bool {
+        self.work_status().is_out_of_print()
     }
 
     fn is_published(&self) -> bool {
@@ -434,14 +434,14 @@ pub trait WorkProperties {
     }
 
     fn withdrawn_date_error(&self) -> ThothResult<()> {
-        if !self.is_withdrawn_superseded() && self.has_withdrawn_date() {
+        if !self.is_out_of_print() && self.has_withdrawn_date() {
             return Err(ThothError::WithdrawnDateError);
         }
         Ok(())
     }
 
     fn no_withdrawn_date_error(&self) -> ThothResult<()> {
-        if self.is_withdrawn_superseded() && !self.has_withdrawn_date() {
+        if self.is_out_of_print() && !self.has_withdrawn_date() {
             return Err(ThothError::NoWithdrawnDateError);
         }
         Ok(())

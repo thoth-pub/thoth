@@ -25,6 +25,7 @@ use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::NeqAssign;
+use web_sys::console;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
@@ -177,6 +178,9 @@ impl Component for WorkComponent {
         let imprint_id = work.imprint.imprint_id;
         let work_type = work.work_type;
         let work_status_in_db = work.work_status;
+        let is_published_in_db = work_status_in_db == WorkStatus::Active
+            || work_status_in_db == WorkStatus::Withdrawn
+            || work_status_in_db == WorkStatus::Superseded;
         let data: WorkFormData = Default::default();
         let resource_access = ctx.props().current_user.resource_access.clone();
         let work_id = ctx.props().work_id;
@@ -190,6 +194,7 @@ impl Component for WorkComponent {
             imprint_id,
             work_type,
             work_status_in_db,
+            is_published_in_db,
             data,
             fetch_work,
             push_work,
@@ -575,15 +580,12 @@ impl Component for WorkComponent {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(_body) => {
-                let is_published_in_db = self.work_status_in_db == WorkStatus::Active
-                    || self.work_status_in_db == WorkStatus::Withdrawn
-                    || self.work_status_in_db == WorkStatus::Superseded;
-                    let is_published = self.work.work_status == WorkStatus::Active
-                        || self.work.work_status == WorkStatus::Withdrawn
-                        || self.work.work_status == WorkStatus::Superseded;
+                let is_published_in_view = self.work.work_status == WorkStatus::Active
+                    || self.work.work_status == WorkStatus::Withdrawn
+                    || self.work.work_status == WorkStatus::Superseded;
                 let is_superuser = ctx.props().current_user.resource_access.is_superuser;
                 let is_nonsuperuser_publishing =
-                    !is_superuser && !is_published_in_db && is_published;
+                    !is_superuser && !self.is_published_in_db && is_published_in_view;
 
                 // non-superuser sees confirmation modal before changing an unpublished work to published
                 let callback = ctx.link().callback(move |event: FocusEvent| {  
@@ -625,11 +627,13 @@ impl Component for WorkComponent {
 
                 // deactivates Delete button when true
                 let mut is_deactivated = false;
+                console::log_1(&format!("initial state of is_deactivated is: {:?}", is_deactivated.into()));
 
                 // prevent non-superusers from deleting published works
-                if !is_superuser && is_published_in_db {
+                if !is_superuser && self.is_published_in_db {
                     is_deactivated = true;
                 }
+                console::log_1(&format!("after check, is_deactivated is: {:?}", is_deactivated.into()));
 
                 html! {
                     <>
@@ -705,7 +709,7 @@ impl Component for WorkComponent {
                                 label = "Publication Date"
                                 value={ self.work.publication_date.clone() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDate(e.to_value())) }
-                                required = { is_published }
+                                required = { is_published_in_view }
                             />
                             <FormDateInput
                                 label = "Withdrawn Date"
@@ -885,7 +889,7 @@ impl Component for WorkComponent {
                                                 object_name={ self.work.full_title.clone() }
                                                 object_work_status={ self.work.work_status.to_string() }
                                                 object_work_status_in_db={ self.work_status_in_db.to_string() }
-                                                is_published={ is_published }
+                                                is_published={ is_published_in_view }
                                             />
                                         }
                                     </div>
