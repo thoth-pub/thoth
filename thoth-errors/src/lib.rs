@@ -107,7 +107,7 @@ pub enum ThothError {
     ThothLocationError,
     #[error("Only superusers can update the canonical location when Thoth Location Platform is already set as canonical.")]
     ThothUpdateCanonicalError,
-    #[error("Once a Work has been published, it cannot return to an unpublished Work Status.")]
+    #[error("Once a Work has been published, it cannot be unpublished. Please use the Withdrawn or Superseded status instead.")]
     ThothSetWorkStatusError,
     #[error("Once a Work has been published, it cannot be deleted.")]
     ThothDeleteWorkError,

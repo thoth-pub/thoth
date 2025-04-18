@@ -152,8 +152,8 @@ pub enum Msg {
     UpdateSubjects(Option<Vec<Subject>>),
     UpdateIssues(Option<Vec<IssueWithSeries>>),
     UpdateReferences(Option<Vec<Reference>>),
-    OpenModal,
-    CloseModal,
+    OpenConfirmWorkStatusModal,
+    CloseConfirmWorkStatusModal,
 }
 
 #[derive(PartialEq, Eq, Properties)]
@@ -556,11 +556,11 @@ impl Component for WorkComponent {
             Msg::UpdateSubjects(subjects) => self.work.subjects.neq_assign(subjects),
             Msg::UpdateIssues(issues) => self.work.issues.neq_assign(issues),
             Msg::UpdateReferences(references) => self.work.references.neq_assign(references),
-            Msg::OpenModal => {
+            Msg::OpenConfirmWorkStatusModal => {
                 self.publish_confirmation_required = true;
                 true
             }
-            Msg::CloseModal => {
+            Msg::CloseConfirmWorkStatusModal => {
                 self.publish_confirmation_required = false;
                 true
             }
@@ -596,7 +596,7 @@ impl Component for WorkComponent {
                 let callback = ctx.link().callback(move |event: FocusEvent| {  
                     event.prevent_default();  
                     if is_nonsuperuser_publishing {  
-                        Msg::OpenModal  
+                        Msg::OpenConfirmWorkStatusModal  
                     } else {  
                         Msg::UpdateWork  
                     }  
@@ -875,7 +875,7 @@ impl Component for WorkComponent {
                                     if self.publish_confirmation_required {
                                         <ConfirmWorkStatusComponent
                                             onsubmit={ ctx.link().callback(|_| Msg::UpdateWork) }
-                                            oncancel={ ctx.link().callback(|_| Msg::CloseModal) }
+                                            oncancel={ ctx.link().callback(|_| Msg::CloseConfirmWorkStatusModal) }
                                             object_name={ self.work.full_title.clone() }
                                             object_work_status={ self.work.work_status.to_string() }
                                             object_work_status_in_db={ self.work_status_in_db.to_string() }
