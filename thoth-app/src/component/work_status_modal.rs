@@ -15,13 +15,9 @@ pub struct Props {
     pub object_name: String,
     pub object_work_status: String,
     pub object_work_status_in_db: String,
-    pub is_published: bool,
-    #[prop_or_default]
-    pub deactivated: bool,
 }
 
 pub enum Msg {
-    ToggleConfirmWorkStatusDisplay(bool),
     CloseModal,
 }
 
@@ -35,10 +31,6 @@ impl Component for ConfirmWorkStatusComponent {
 
     fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::ToggleConfirmWorkStatusDisplay(value) => {
-                self.show = value;
-                true
-            }
             Msg::CloseModal => {
                 self.show = false;
                 true
@@ -49,7 +41,7 @@ impl Component for ConfirmWorkStatusComponent {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let close_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
-            Msg::ToggleConfirmWorkStatusDisplay(false)
+            Msg::CloseModal
         });
 
         html! {

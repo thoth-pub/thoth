@@ -25,7 +25,6 @@ use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::NeqAssign;
-use web_sys::console;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
@@ -96,7 +95,7 @@ pub struct WorkComponent {
     // Store props values locally in order to test whether they have been updated on props change
     resource_access: AccountAccess,
     work_id: Uuid,
-    confirmation_required: bool,
+    publish_confirmation_required: bool,
 }
 
 #[derive(Default)]
@@ -178,9 +177,7 @@ impl Component for WorkComponent {
         let imprint_id = work.imprint.imprint_id;
         let work_type = work.work_type;
         let work_status_in_db = work.work_status;
-        let is_published_in_db = work_status_in_db == WorkStatus::Active
-            || work_status_in_db == WorkStatus::Withdrawn
-            || work_status_in_db == WorkStatus::Superseded;
+        let is_published_in_db: bool = Default::default();
         let data: WorkFormData = Default::default();
         let resource_access = ctx.props().current_user.resource_access.clone();
         let work_id = ctx.props().work_id;
@@ -202,7 +199,7 @@ impl Component for WorkComponent {
             notification_bus,
             resource_access,
             work_id,
-            confirmation_required: false,
+            publish_confirmation_required: false,
         }
     }
 
@@ -223,6 +220,9 @@ impl Component for WorkComponent {
                         self.imprint_id = self.work.imprint.imprint_id;
                         self.work_type = self.work.work_type;
                         self.work_status_in_db = self.work.work_status;
+                        self.is_published_in_db = self.work_status_in_db == WorkStatus::Active
+                            || self.work_status_in_db == WorkStatus::Withdrawn
+                            || self.work_status_in_db == WorkStatus::Superseded;
                         body.data.imprints.clone_into(&mut self.data.imprints);
                         body.data
                             .work_types
@@ -283,8 +283,8 @@ impl Component for WorkComponent {
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
                             )));
-                            // Set confirmation_required to false after save, closing the modal
-                            self.confirmation_required = false;
+                            // Set publish_confirmation_required to false after save, closing the modal
+                            self.publish_confirmation_required = false;
                             true
                         }
                         None => {
@@ -375,6 +375,11 @@ impl Component for WorkComponent {
                     .send_future(self.push_work.fetch(Msg::SetWorkPushState));
                 ctx.link()
                     .send_message(Msg::SetWorkPushState(FetchAction::Fetching));
+                // value of is_published_in_db must be updated at the end of updating a work, so that the delete button
+                // is immediately deactivated after a work is published.
+                self.is_published_in_db = self.work.work_status == WorkStatus::Active
+                    || self.work.work_status == WorkStatus::Withdrawn
+                    || self.work.work_status == WorkStatus::Superseded;
                 false
             }
             Msg::SetWorkDeleteState(fetch_state) => {
@@ -552,11 +557,11 @@ impl Component for WorkComponent {
             Msg::UpdateIssues(issues) => self.work.issues.neq_assign(issues),
             Msg::UpdateReferences(references) => self.work.references.neq_assign(references),
             Msg::OpenModal => {
-                self.confirmation_required = true;
+                self.publish_confirmation_required = true;
                 true
             }
             Msg::CloseModal => {
-                self.confirmation_required = false;
+                self.publish_confirmation_required = false;
                 true
             }
         }
@@ -623,17 +628,8 @@ impl Component for WorkComponent {
                 let is_not_withdrawn_or_superseded = self.work.work_status != WorkStatus::Withdrawn
                     && self.work.work_status != WorkStatus::Superseded;
 
-
-
-                // deactivates Delete button when true
-                let mut is_deactivated = false;
-                console::log_1(&format!("initial state of is_deactivated is: {:?}", is_deactivated.into()));
-
-                // prevent non-superusers from deleting published works
-                if !is_superuser && self.is_published_in_db {
-                    is_deactivated = true;
-                }
-                console::log_1(&format!("after check, is_deactivated is: {:?}", is_deactivated.into()));
+                // deactivates Delete button when true to prevent non-superusers from deleting published works
+                let is_delete_deactivated = !is_superuser && self.is_published_in_db;
 
                 html! {
                     <>
@@ -648,7 +644,7 @@ impl Component for WorkComponent {
                                     <ConfirmDeleteComponent
                                         onclick={ ctx.link().callback(|_| Msg::DeleteWork) }
                                         object_name={ self.work.title.clone() }
-                                        deactivated={ is_deactivated }
+                                        deactivated={ is_delete_deactivated }
                                     />
                                 </p>
                             </div>
@@ -873,26 +869,18 @@ impl Component for WorkComponent {
 
                             <div class="field">
                                 <div class="control">
-
-                                    // div key generates random uuid and forces re-render of the ConfirmWorkStatusComponent
-                                    // in the DOM, even if it has been previously closed.
-                                    // this is necessary if a non-superuser clicks Cancel in the Confirmation modal,
-                                    // then clicks on Save again on the form without changing the Work Status.
-                                    <div key={ format!("modal-{}", Uuid::new_v4()) }>
-                                        // confirmation_required is true if the Work is unpublished (forthcoming, postponed, cancelled)
-                                        // and non-superuser sets to published (active, withdrawn, superseded).
-                                        // In this case, display confirmation modal.
-                                        if self.confirmation_required {
-                                            <ConfirmWorkStatusComponent
-                                                onsubmit={ ctx.link().callback(|_| Msg::UpdateWork) }
-                                                oncancel={ ctx.link().callback(|_| Msg::CloseModal) }
-                                                object_name={ self.work.full_title.clone() }
-                                                object_work_status={ self.work.work_status.to_string() }
-                                                object_work_status_in_db={ self.work_status_in_db.to_string() }
-                                                is_published={ is_published_in_view }
-                                            />
-                                        }
-                                    </div>
+                                    // publish_confirmation_required is true if the Work is unpublished (forthcoming, postponed, cancelled)
+                                    // and non-superuser sets to published (active, withdrawn, superseded).
+                                    // In this case, display confirmation modal.
+                                    if self.publish_confirmation_required {
+                                        <ConfirmWorkStatusComponent
+                                            onsubmit={ ctx.link().callback(|_| Msg::UpdateWork) }
+                                            oncancel={ ctx.link().callback(|_| Msg::CloseModal) }
+                                            object_name={ self.work.full_title.clone() }
+                                            object_work_status={ self.work.work_status.to_string() }
+                                            object_work_status_in_db={ self.work_status_in_db.to_string() }
+                                        />
+                                    }
                                     <button class="button is-success" type="submit">
                                         { SAVE_BUTTON }
                                     </button>
