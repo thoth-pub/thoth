@@ -593,14 +593,14 @@ impl Component for WorkComponent {
                     !is_superuser && !self.is_published_in_db && is_published_in_view;
 
                 // non-superuser sees confirmation modal before changing an unpublished work to published
-                let callback = ctx.link().callback(move |event: FocusEvent| {  
-                    event.prevent_default();  
-                    if is_nonsuperuser_publishing {  
-                        Msg::OpenConfirmWorkStatusModal  
-                    } else {  
-                        Msg::UpdateWork  
-                    }  
-                }); 
+                let callback = ctx.link().callback(move |event: FocusEvent| {
+                    event.prevent_default();
+                    if is_nonsuperuser_publishing {
+                        Msg::OpenConfirmWorkStatusModal
+                    } else {
+                        Msg::UpdateWork
+                    }
+                });
 
                 // FormImprintSelect: while the work has any related issues, the imprint cannot
                 // be changed, because an issue's series and work must both have the same imprint.
