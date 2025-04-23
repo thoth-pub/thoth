@@ -24,7 +24,7 @@ pub async fn start_app<H: Hooks>() -> Result<()> {
         logger::init::<H>(&config.logger)?;
     }
 
-    let boot_result = H::boot(StartMode::WorkerOnly, &environment, config).await?;
+    let boot_result = H::boot(StartMode::ServerAndWorker, &environment, config).await?;
     let serve_params = ServeParams {
         port: boot_result.app_context.config.server.port,
         binding: boot_result.app_context.config.server.binding.to_string(),
