@@ -535,6 +535,14 @@ impl WorkWithRelations {
             self.imprint.publisher.publisher_name.to_string()
         }
     }
+
+    pub fn is_published(&self) -> bool {
+        self.work_status.is_published()
+    }
+
+    pub fn is_out_of_print(&self) -> bool {
+        self.work_status.is_out_of_print()
+    }
 }
 
 impl From<Work> for PatchWork {

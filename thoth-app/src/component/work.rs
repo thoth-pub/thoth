@@ -220,9 +220,7 @@ impl Component for WorkComponent {
                         self.imprint_id = self.work.imprint.imprint_id;
                         self.work_type = self.work.work_type;
                         self.work_status_in_db = self.work.work_status;
-                        self.is_published_in_db = self.work_status_in_db == WorkStatus::Active
-                            || self.work_status_in_db == WorkStatus::Withdrawn
-                            || self.work_status_in_db == WorkStatus::Superseded;
+                        self.is_published_in_db = self.work.is_published();
                         body.data.imprints.clone_into(&mut self.data.imprints);
                         body.data
                             .work_types
@@ -325,9 +323,7 @@ impl Component for WorkComponent {
                     self.work.last_page = None;
                     self.work.page_interval = None;
                 }
-                if self.work.work_status != WorkStatus::Withdrawn
-                    && self.work.work_status != WorkStatus::Superseded
-                {
+                if !self.work.is_out_of_print() {
                     self.work.withdrawn_date = None;
                 }
                 let body = UpdateWorkRequestBody {
@@ -375,11 +371,9 @@ impl Component for WorkComponent {
                     .send_future(self.push_work.fetch(Msg::SetWorkPushState));
                 ctx.link()
                     .send_message(Msg::SetWorkPushState(FetchAction::Fetching));
-                // value of is_published_in_db must be updated at the end of updating a work, so that the delete button
-                // is immediately deactivated after a work is published.
-                self.is_published_in_db = self.work.work_status == WorkStatus::Active
-                    || self.work.work_status == WorkStatus::Withdrawn
-                    || self.work.work_status == WorkStatus::Superseded;
+                // value of is_published_in_db must be updated at the end of updating a work, so that the confirmation modal
+                // is not displayed when a work is updated to Withdrawn or Superseded immediately after being set as Active from Forthcoming
+                self.is_published_in_db = self.work.is_published();
                 false
             }
             Msg::SetWorkDeleteState(fetch_state) => {
@@ -585,12 +579,9 @@ impl Component for WorkComponent {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(_body) => {
-                let is_published_in_view = self.work.work_status == WorkStatus::Active
-                    || self.work.work_status == WorkStatus::Withdrawn
-                    || self.work.work_status == WorkStatus::Superseded;
                 let is_superuser = ctx.props().current_user.resource_access.is_superuser;
                 let is_nonsuperuser_publishing =
-                    !is_superuser && !self.is_published_in_db && is_published_in_view;
+                    !is_superuser && !self.is_published_in_db && self.work.is_published();
 
                 // non-superuser sees confirmation modal before changing an unpublished work to published
                 let callback = ctx.link().callback(move |event: FocusEvent| {
@@ -625,11 +616,9 @@ impl Component for WorkComponent {
                 // Variables required to grey out chapter-specific or "book"-specific fields
                 // based on currently selected work type.
                 let is_chapter = self.work.work_type == WorkType::BookChapter;
-                let is_not_withdrawn_or_superseded = self.work.work_status != WorkStatus::Withdrawn
-                    && self.work.work_status != WorkStatus::Superseded;
 
                 // deactivates Delete button when true to prevent non-superusers from deleting published works
-                let is_delete_deactivated = !is_superuser && self.is_published_in_db;
+                let is_delete_deactivated = !is_superuser && self.work.is_published();
 
                 html! {
                     <>
@@ -705,14 +694,14 @@ impl Component for WorkComponent {
                                 label = "Publication Date"
                                 value={ self.work.publication_date.clone() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDate(e.to_value())) }
-                                required = { is_published_in_view }
+                                required = { self.work.is_published() }
                             />
                             <FormDateInput
                                 label = "Withdrawn Date"
                                 value={ self.work.withdrawn_date.clone() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWithdrawnDate(e.to_value())) }
-                                required ={ !is_not_withdrawn_or_superseded }
-                                deactivated={ is_not_withdrawn_or_superseded }
+                                required ={ self.work.is_out_of_print() }
+                                deactivated={ !self.work.is_out_of_print() }
                                 />
                             <FormTextInput
                                 label = "Place of Publication"
