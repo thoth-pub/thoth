@@ -14,6 +14,11 @@ impl BackgroundWorker<TestWorkerArgs> for TestWorker {
     fn build(ctx: &AppContext) -> Self {
         Self { ctx: ctx.clone() }
     }
+
+    fn queue() -> Option<String> {
+        Some("events:graphql".to_string())
+    }
+
     async fn perform(&self, _args: TestWorkerArgs) -> Result<()> {
         println!("=================TestWorker=======================");
         // TODO: Some actual work goes here...
