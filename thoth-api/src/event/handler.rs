@@ -3,7 +3,7 @@ use crate::model::work::{Work, WorkProperties};
 use crate::redis::{lpush, RedisPool};
 use thoth_errors::ThothResult;
 
-const QUEUE_KEY: &str = "events:graphql";
+const QUEUE_KEY: &str = "queue:events:graphql";
 
 pub async fn send_event(
     redis: &RedisPool,
