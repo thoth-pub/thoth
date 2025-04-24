@@ -13,6 +13,7 @@ use loco_rs::{
 
 #[tokio::main]
 pub async fn start_server() -> Result<()> {
+    tracing_subscriber::fmt().with_max_level(tracing::Level::DEBUG).init();
     start_app::<App>().await
 }
 
