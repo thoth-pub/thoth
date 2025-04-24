@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.13.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.10) - 2025-04-24
+### Changed
+  - [634](https://github.com/thoth-pub/thoth/issues/634) - Prevent non-superusers from unpublishing a Work once it is published. Once a `Work`'s `WorkStatus` is set to `Active`, `Withdrawn`, or `Superseded`, it cannot be set to `Forthcoming`, `Cancelled` or `PostponedIndefinitely`.
+  - [659](https://github.com/thoth-pub/thoth/issues/659) - Prevent non-superusers from deleting a `Work` that is published (i.e. `WorkStatus` is `Active`, `Withdrawn`, or `Superseded`.)
+
 ## [[0.13.9]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.9) - 2025-04-10
 ### Fixed
   - [679](https://github.com/thoth-pub/thoth/issues/679) - Remove extraneous <custom_metadata> tag from Crossmark block in Crossref DOI deposit export when an Imprint has recorded a Crossmark DOI but a Work has no license or funding metadata.

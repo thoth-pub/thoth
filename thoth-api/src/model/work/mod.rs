@@ -394,10 +394,10 @@ pub struct WorkOrderBy {
 }
 
 impl WorkStatus {
-    fn is_withdrawn_superseded(&self) -> bool {
+    fn is_out_of_print(&self) -> bool {
         matches!(self, WorkStatus::Withdrawn | WorkStatus::Superseded)
     }
-    fn is_active_withdrawn_superseded(&self) -> bool {
+    fn is_published(&self) -> bool {
         matches!(
             self,
             WorkStatus::Active | WorkStatus::Withdrawn | WorkStatus::Superseded
@@ -410,12 +410,12 @@ pub trait WorkProperties {
     fn publication_date(&self) -> &Option<NaiveDate>;
     fn withdrawn_date(&self) -> &Option<NaiveDate>;
 
-    fn is_withdrawn_superseded(&self) -> bool {
-        self.work_status().is_withdrawn_superseded()
+    fn is_out_of_print(&self) -> bool {
+        self.work_status().is_out_of_print()
     }
 
-    fn is_active_withdrawn_superseded(&self) -> bool {
-        self.work_status().is_active_withdrawn_superseded()
+    fn is_published(&self) -> bool {
+        self.work_status().is_published()
     }
 
     fn has_withdrawn_date(&self) -> bool {
@@ -426,22 +426,22 @@ pub trait WorkProperties {
         self.publication_date().is_some()
     }
 
-    fn active_withdrawn_superseded_no_publication_date_error(&self) -> ThothResult<()> {
-        if self.is_active_withdrawn_superseded() && !self.has_publication_date() {
+    fn is_published_no_publication_date_error(&self) -> ThothResult<()> {
+        if self.is_published() && !self.has_publication_date() {
             return Err(ThothError::PublicationDateError);
         }
         Ok(())
     }
 
     fn withdrawn_date_error(&self) -> ThothResult<()> {
-        if !self.is_withdrawn_superseded() && self.has_withdrawn_date() {
+        if !self.is_out_of_print() && self.has_withdrawn_date() {
             return Err(ThothError::WithdrawnDateError);
         }
         Ok(())
     }
 
     fn no_withdrawn_date_error(&self) -> ThothResult<()> {
-        if self.is_withdrawn_superseded() && !self.has_withdrawn_date() {
+        if self.is_out_of_print() && !self.has_withdrawn_date() {
             return Err(ThothError::NoWithdrawnDateError);
         }
         Ok(())
@@ -534,6 +534,14 @@ impl WorkWithRelations {
         } else {
             self.imprint.publisher.publisher_name.to_string()
         }
+    }
+
+    pub fn is_published(&self) -> bool {
+        self.work_status.is_published()
+    }
+
+    pub fn is_out_of_print(&self) -> bool {
+        self.work_status.is_out_of_print()
     }
 }
 
