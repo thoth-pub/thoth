@@ -1,65 +1,56 @@
 use crate::string::CANCEL_BUTTON;
-use crate::string::DELETE_BUTTON;
+use crate::string::SAVE_BUTTON;
+// use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 
-pub struct ConfirmDeleteComponent {
+pub struct ConfirmWorkStatusComponent {
     show: bool,
 }
 
 #[derive(PartialEq, Properties)]
 pub struct Props {
-    pub onclick: Option<Callback<MouseEvent>>,
+    pub onsubmit: Callback<()>,
+    pub oncancel: Callback<()>,
     pub object_name: String,
-    #[prop_or_default]
-    pub deactivated: bool,
+    pub object_work_status: String,
+    pub object_work_status_in_db: String,
 }
 
 pub enum Msg {
-    ToggleConfirmDeleteDisplay(bool),
+    CloseModal,
 }
 
-impl Component for ConfirmDeleteComponent {
+impl Component for ConfirmWorkStatusComponent {
     type Message = Msg;
     type Properties = Props;
 
     fn create(_ctx: &Context<Self>) -> Self {
-        ConfirmDeleteComponent { show: false }
+        ConfirmWorkStatusComponent { show: true }
     }
 
     fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::ToggleConfirmDeleteDisplay(value) => {
-                self.show = value;
+            Msg::CloseModal => {
+                self.show = false;
                 true
             }
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let open_modal = ctx.link().callback(|e: MouseEvent| {
-            e.prevent_default();
-            Msg::ToggleConfirmDeleteDisplay(true)
-        });
         let close_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
-            Msg::ToggleConfirmDeleteDisplay(false)
+            Msg::CloseModal
         });
+
         html! {
             <>
-                <button
-                    class="button is-danger"
-                    title={ ctx.props().deactivated.then_some("Published Works cannot be deleted.") }
-                    onclick={ open_modal }
-                    disabled={ ctx.props().deactivated }
-                >
-                    { DELETE_BUTTON }
-                </button>
-                <div class={ self.confirm_delete_status() }>
+                <div class={ self.show_modal() }>
                     <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
-                            <p class="modal-card-title">{ "Confirm deletion" }</p>
+                            <p class="modal-card-title">{ "Confirm changing work status" }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
@@ -68,21 +59,34 @@ impl Component for ConfirmDeleteComponent {
                         </header>
                         <section class="modal-card-body">
                             <p>
-                                { "Are you sure you want to delete " }
+                                { "Are you sure you want to change the work status to " } { &ctx.props().object_work_status  } { " for " }
                                 <i>{ &ctx.props().object_name }</i>
-                                { "?" }
+                                { "? Once a Work has been set to " } { &ctx.props().object_work_status }  { ", it is published and cannot be returned to the unpublished state of " } { &ctx.props().object_work_status_in_db }  { "." }
                             </p>
                         </section>
+
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick={ ctx.props().onclick.clone() }
+                                onclick={ ctx.link().callback({
+                                    let onsubmit = ctx.props().onsubmit.clone();
+                                    move |_| {
+                                        onsubmit.emit(());
+                                        Msg::CloseModal
+                                    }
+                                }) }
                             >
-                                { DELETE_BUTTON }
+                                { SAVE_BUTTON }
                             </button>
                             <button
                                 class="button"
-                                onclick={ &close_modal }
+                                onclick={ ctx.link().callback({
+                                    let oncancel = ctx.props().oncancel.clone();
+                                    move |_| {
+                                        oncancel.emit(());
+                                        Msg::CloseModal
+                                    }
+                                }) }
                             >
                                 { CANCEL_BUTTON }
                             </button>
@@ -94,8 +98,8 @@ impl Component for ConfirmDeleteComponent {
     }
 }
 
-impl ConfirmDeleteComponent {
-    fn confirm_delete_status(&self) -> String {
+impl ConfirmWorkStatusComponent {
+    fn show_modal(&self) -> String {
         match self.show {
             true => "modal is-active".to_string(),
             false => "modal".to_string(),
