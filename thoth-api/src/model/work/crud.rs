@@ -1,6 +1,6 @@
 use super::{
-    NewWork, NewWorkHistory, PatchWork, Work, WorkField, WorkHistory, WorkOrderBy, WorkProperties,
-    WorkStatus, WorkType,
+    NewWork, NewWorkHistory, PatchWork, Work, WorkDates, WorkField, WorkHistory, WorkOrderBy,
+    WorkProperties, WorkStatus, WorkType,
 };
 use crate::graphql::model::TimeExpression;
 use crate::graphql::utils::{Direction, Expression};
@@ -405,13 +405,23 @@ impl DbInsert for NewWorkHistory {
 
 pub trait WorkValidation
 where
-    Self: WorkProperties,
+    Self: WorkProperties + WorkDates,
 {
     fn validate(&self) -> ThothResult<()> {
-        self.is_published_no_publication_date_error()?;
-        self.withdrawn_date_error()?;
-        self.no_withdrawn_date_error()?;
-        self.withdrawn_date_before_publication_date_error()
+        match (
+            self.is_published(),
+            self.publication_date(),
+            self.is_out_of_print(),
+            self.withdrawn_date(),
+        ) {
+            (true, None, _, _) => Err(ThothError::PublicationDateError),
+            (_, _, false, Some(_)) => Err(ThothError::WithdrawnDateError),
+            (_, _, true, None) => Err(ThothError::NoWithdrawnDateError),
+            (_, Some(publication), _, Some(withdrawn)) if withdrawn < publication => {
+                Err(ThothError::WithdrawnDateBeforePublicationDateError)
+            }
+            _ => Ok(()),
+        }
     }
 }
 

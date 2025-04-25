@@ -9,6 +9,7 @@ use thoth_api::model::language::Language;
 use thoth_api::model::publication::Publication;
 use thoth_api::model::reference::Reference;
 use thoth_api::model::subject::Subject;
+use thoth_api::model::work::WorkProperties;
 use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
