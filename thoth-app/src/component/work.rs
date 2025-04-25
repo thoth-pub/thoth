@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use std::str::FromStr;
 use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
@@ -339,8 +340,8 @@ impl Component for WorkComponent {
                         edition: self.work.edition,
                         imprint_id: self.work.imprint.imprint_id,
                         doi: self.work.doi.clone(),
-                        publication_date: self.work.publication_date.clone(),
-                        withdrawn_date: self.work.withdrawn_date.clone(),
+                        publication_date: self.work.publication_date,
+                        withdrawn_date: self.work.withdrawn_date,
                         place: self.work.place.clone(),
                         page_count: self.work.page_count,
                         page_breakdown: self.work.page_breakdown.clone(),
@@ -484,10 +485,14 @@ impl Component for WorkComponent {
                     false
                 }
             }
-            Msg::ChangeDate(value) => self.work.publication_date.neq_assign(value.to_opt_string()),
-            Msg::ChangeWithdrawnDate(value) => {
-                self.work.withdrawn_date.neq_assign(value.to_opt_string())
-            }
+            Msg::ChangeDate(value) => self
+                .work
+                .publication_date
+                .neq_assign(NaiveDate::parse_from_str(&value, "%Y-%m-%d").ok()),
+            Msg::ChangeWithdrawnDate(value) => self
+                .work
+                .withdrawn_date
+                .neq_assign(NaiveDate::parse_from_str(&value, "%Y-%m-%d").ok()),
             Msg::ChangePlace(value) => self.work.place.neq_assign(value.to_opt_string()),
             Msg::ChangePageCount(value) => self.work.page_count.neq_assign(value.to_opt_int()),
             Msg::ChangePageBreakdown(value) => {
@@ -693,13 +698,13 @@ impl Component for WorkComponent {
                             />
                             <FormDateInput
                                 label = "Publication Date"
-                                value={ self.work.publication_date.clone() }
+                                value={ self.work.publication_date.to_value() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDate(e.to_value())) }
                                 required = { self.work.is_published() }
                             />
                             <FormDateInput
                                 label = "Withdrawn Date"
-                                value={ self.work.withdrawn_date.clone() }
+                                value={ self.work.withdrawn_date.to_value() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWithdrawnDate(e.to_value())) }
                                 required ={ self.work.is_out_of_print() }
                                 deactivated={ !self.work.is_out_of_print() }

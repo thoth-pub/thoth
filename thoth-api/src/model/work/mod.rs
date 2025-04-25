@@ -1,10 +1,3 @@
-use chrono::naive::NaiveDate;
-use serde::{Deserialize, Serialize};
-use std::fmt;
-use strum::Display;
-use strum::EnumString;
-use uuid::Uuid;
-
 use crate::graphql::utils::Direction;
 use crate::model::contribution::Contribution;
 use crate::model::funding::FundingWithInstitution;
@@ -21,6 +14,13 @@ use crate::model::Timestamp;
 use crate::schema::work;
 #[cfg(feature = "backend")]
 use crate::schema::work_history;
+use chrono::naive::NaiveDate;
+use serde::{Deserialize, Serialize};
+use std::fmt;
+use strum::Display;
+use strum::EnumString;
+use thoth_errors::{ThothError, ThothResult};
+use uuid::Uuid;
 
 #[cfg_attr(
     feature = "backend",
@@ -244,8 +244,8 @@ pub struct WorkWithRelations {
     pub reference: Option<String>,
     pub edition: Option<i32>,
     pub doi: Option<Doi>,
-    pub publication_date: Option<String>,
-    pub withdrawn_date: Option<String>,
+    pub publication_date: Option<NaiveDate>,
+    pub withdrawn_date: Option<NaiveDate>,
     pub place: Option<String>,
     pub page_count: Option<i32>,
     pub page_breakdown: Option<String>,
@@ -396,6 +396,8 @@ pub trait WorkProperties {
     fn title(&self) -> &str;
     fn subtitle(&self) -> Option<&str>;
     fn work_status(&self) -> &WorkStatus;
+    fn publication_date(&self) -> &Option<NaiveDate>;
+    fn withdrawn_date(&self) -> &Option<NaiveDate>;
     fn first_page(&self) -> Option<&str>;
     fn last_page(&self) -> Option<&str>;
 
@@ -440,6 +442,23 @@ pub trait WorkProperties {
             WorkStatus::Withdrawn | WorkStatus::Superseded
         )
     }
+
+    fn validate(&self) -> ThothResult<()> {
+        match (
+            self.is_published(),
+            self.publication_date(),
+            self.is_out_of_print(),
+            self.withdrawn_date(),
+        ) {
+            (true, None, _, _) => Err(ThothError::PublicationDateError),
+            (_, _, false, Some(_)) => Err(ThothError::WithdrawnDateError),
+            (_, _, true, None) => Err(ThothError::NoWithdrawnDateError),
+            (_, Some(publication), _, Some(withdrawn)) if withdrawn < publication => {
+                Err(ThothError::WithdrawnDateBeforePublicationDateError)
+            }
+            _ => Ok(()),
+        }
+    }
 }
 
 pub trait WorkDates {
@@ -459,6 +478,12 @@ macro_rules! work_properties {
             fn work_status(&self) -> &WorkStatus {
                 &self.work_status
             }
+            fn publication_date(&self) -> &Option<NaiveDate> {
+                &self.publication_date
+            }
+            fn withdrawn_date(&self) -> &Option<NaiveDate> {
+                &self.withdrawn_date
+            }
             fn first_page(&self) -> Option<&str> {
                 self.first_page.as_deref()
             }
@@ -468,25 +493,11 @@ macro_rules! work_properties {
         }
     };
 }
-macro_rules! work_dates {
-    ($t:ty) => {
-        impl WorkDates for $t {
-            fn publication_date(&self) -> &Option<NaiveDate> {
-                &self.publication_date
-            }
-            fn withdrawn_date(&self) -> &Option<NaiveDate> {
-                &self.withdrawn_date
-            }
-        }
-    };
-}
 
 work_properties!(Work);
 work_properties!(NewWork);
 work_properties!(PatchWork);
 work_properties!(WorkWithRelations);
-work_dates!(NewWork);
-work_dates!(PatchWork);
 
 impl WorkWithRelations {
     pub fn publisher(&self) -> String {

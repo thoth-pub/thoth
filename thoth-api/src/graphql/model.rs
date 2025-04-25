@@ -22,7 +22,6 @@ use crate::model::publisher::*;
 use crate::model::reference::*;
 use crate::model::series::*;
 use crate::model::subject::*;
-use crate::model::work::crud::WorkValidation;
 use crate::model::work::*;
 use crate::model::work_relation::*;
 use crate::model::Convert;
