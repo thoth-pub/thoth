@@ -189,35 +189,29 @@ pub trait PublicationValidation
 where
     Self: PublicationProperties,
 {
-    fn work_type(&self, db: &crate::db::PgPool) -> ThothResult<WorkType> {
+    fn is_chapter(&self, db: &crate::db::PgPool) -> ThothResult<bool> {
         use diesel::prelude::*;
         let mut connection = db.get()?;
-        crate::schema::work::table
+        let work_type = crate::schema::work::table
             .select(crate::schema::work::work_type)
             .filter(crate::schema::work::work_id.eq(self.work_id()))
-            .first::<WorkType>(&mut connection)
-            .map_err(Into::into)
+            .first::<WorkType>(&mut connection)?;
+        Ok(work_type == WorkType::BookChapter)
     }
 
-    fn chapter_error(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        if self.work_type(db)? == WorkType::BookChapter {
-            // If a publication's work is of type Book Chapter,
-            // it cannot have an ISBN, or any dimensions.
-            if self.isbn().is_some() {
-                Err(ThothError::ChapterIsbnError)
-            } else if self.has_dimension() {
-                Err(ThothError::ChapterDimensionError)
-            } else {
-                Ok(())
-            }
-        } else {
-            Ok(())
+    fn validate_chapter_constraints(&self) -> ThothResult<()> {
+        match (self.isbn().is_some(), self.has_dimension()) {
+            (true, _) => Err(ThothError::ChapterIsbnError),
+            (_, true) => Err(ThothError::ChapterDimensionError),
+            _ => Ok(()),
         }
     }
 
     fn validate(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        self.chapter_error(db)?;
-        self.dimension_error()
+        if self.is_chapter(db)? {
+            self.validate_chapter_constraints()?;
+        }
+        self.validate_dimensions_constraints()
     }
 }
 
