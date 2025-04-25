@@ -309,6 +309,35 @@ pub trait PublicationProperties {
         }
         Ok(())
     }
+
+    #[cfg(feature = "backend")]
+    fn is_chapter(&self, db: &crate::db::PgPool) -> ThothResult<bool> {
+        use crate::model::work::WorkType;
+        use diesel::prelude::*;
+        let mut connection = db.get()?;
+        let work_type = crate::schema::work::table
+            .select(crate::schema::work::work_type)
+            .filter(crate::schema::work::work_id.eq(self.work_id()))
+            .first::<WorkType>(&mut connection)?;
+        Ok(work_type == WorkType::BookChapter)
+    }
+
+    #[cfg(feature = "backend")]
+    fn validate_chapter_constraints(&self) -> ThothResult<()> {
+        match (self.isbn().is_some(), self.has_dimension()) {
+            (true, _) => Err(ThothError::ChapterIsbnError),
+            (_, true) => Err(ThothError::ChapterDimensionError),
+            _ => Ok(()),
+        }
+    }
+
+    #[cfg(feature = "backend")]
+    fn validate(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        if self.is_chapter(db)? {
+            self.validate_chapter_constraints()?;
+        }
+        self.validate_dimensions_constraints()
+    }
 }
 
 macro_rules! publication_properties {
@@ -585,7 +614,7 @@ mod tests {
         ]
         .iter()
         {
-            assert_eq!(PublicationType::from_str(*input).unwrap(), *expected);
+            assert_eq!(PublicationType::from_str(input).unwrap(), *expected);
         }
 
         assert!(PublicationType::from_str("PNG").is_err());
@@ -615,7 +644,7 @@ mod tests {
         ]
         .iter()
         {
-            assert_eq!(PublicationField::from_str(*input).unwrap(), *expected);
+            assert_eq!(PublicationField::from_str(input).unwrap(), *expected);
         }
 
         assert!(PublicationField::from_str("PublicationID").is_err());

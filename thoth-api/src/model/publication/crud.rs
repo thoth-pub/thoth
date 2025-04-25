@@ -1,14 +1,13 @@
 use super::{
     NewPublication, NewPublicationHistory, PatchPublication, Publication, PublicationField,
-    PublicationHistory, PublicationOrderBy, PublicationProperties, PublicationType,
+    PublicationHistory, PublicationOrderBy, PublicationType,
 };
 use crate::graphql::utils::Direction;
-use crate::model::work::WorkType;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
 use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
-use thoth_errors::{ThothError, ThothResult};
+use thoth_errors::ThothResult;
 use uuid::Uuid;
 
 impl Crud for Publication {
@@ -184,40 +183,6 @@ impl DbInsert for NewPublicationHistory {
 
     db_insert!(publication_history::table);
 }
-
-pub trait PublicationValidation
-where
-    Self: PublicationProperties,
-{
-    fn is_chapter(&self, db: &crate::db::PgPool) -> ThothResult<bool> {
-        use diesel::prelude::*;
-        let mut connection = db.get()?;
-        let work_type = crate::schema::work::table
-            .select(crate::schema::work::work_type)
-            .filter(crate::schema::work::work_id.eq(self.work_id()))
-            .first::<WorkType>(&mut connection)?;
-        Ok(work_type == WorkType::BookChapter)
-    }
-
-    fn validate_chapter_constraints(&self) -> ThothResult<()> {
-        match (self.isbn().is_some(), self.has_dimension()) {
-            (true, _) => Err(ThothError::ChapterIsbnError),
-            (_, true) => Err(ThothError::ChapterDimensionError),
-            _ => Ok(()),
-        }
-    }
-
-    fn validate(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        if self.is_chapter(db)? {
-            self.validate_chapter_constraints()?;
-        }
-        self.validate_dimensions_constraints()
-    }
-}
-
-impl PublicationValidation for NewPublication {}
-
-impl PublicationValidation for PatchPublication {}
 
 #[cfg(test)]
 mod tests {

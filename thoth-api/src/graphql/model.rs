@@ -17,7 +17,6 @@ use crate::model::issue::*;
 use crate::model::language::*;
 use crate::model::location::*;
 use crate::model::price::*;
-use crate::model::publication::crud::PublicationValidation;
 use crate::model::publication::*;
 use crate::model::publisher::*;
 use crate::model::reference::*;
