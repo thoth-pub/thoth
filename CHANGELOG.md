@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-  - Refactor internal work API
+  - Refactor internal work and publication APIs
 
 ## [[0.13.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.10) - 2025-04-24
 ### Changed
