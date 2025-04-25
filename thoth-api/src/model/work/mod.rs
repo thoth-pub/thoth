@@ -461,11 +461,6 @@ pub trait WorkProperties {
     }
 }
 
-pub trait WorkDates {
-    fn publication_date(&self) -> &Option<NaiveDate>;
-    fn withdrawn_date(&self) -> &Option<NaiveDate>;
-}
-
 macro_rules! work_properties {
     ($t:ty) => {
         impl WorkProperties for $t {
@@ -1013,6 +1008,58 @@ mod tests {
         assert!(!work.is_active());
         work.work_status = WorkStatus::Superseded;
         assert!(!work.is_active());
+    }
+
+    #[test]
+    fn test_validate_fails_when_published_without_publication_date() {
+        let mut work = test_work();
+        work.work_status = WorkStatus::Active;
+        work.publication_date = None;
+
+        assert_eq!(work.validate(), Err(ThothError::PublicationDateError));
+    }
+
+    #[test]
+    fn test_validate_fails_when_published_with_withdrawn_date() {
+        let mut work = test_work();
+        work.work_status = WorkStatus::Active;
+        work.withdrawn_date = Some(NaiveDate::from_ymd_opt(2021, 1, 1).unwrap());
+
+        assert_eq!(work.validate(), Err(ThothError::WithdrawnDateError));
+    }
+
+    #[test]
+    fn test_validate_fails_when_out_of_print_without_withdrawn_date() {
+        let mut work = test_work();
+        work.work_status = WorkStatus::Withdrawn;
+        work.withdrawn_date = None;
+
+        assert_eq!(work.validate(), Err(ThothError::NoWithdrawnDateError));
+        work.work_status = WorkStatus::Superseded;
+        assert_eq!(work.validate(), Err(ThothError::NoWithdrawnDateError));
+    }
+
+    #[test]
+    fn test_validate_fails_when_withdrawn_date_before_publication_date() {
+        let mut work = test_work();
+        work.work_status = WorkStatus::Withdrawn;
+        work.publication_date = Some(NaiveDate::from_ymd_opt(2020, 1, 1).unwrap());
+        work.withdrawn_date = Some(NaiveDate::from_ymd_opt(2019, 12, 31).unwrap());
+
+        assert_eq!(
+            work.validate(),
+            Err(ThothError::WithdrawnDateBeforePublicationDateError)
+        );
+    }
+
+    #[test]
+    fn test_validate_succeeds() {
+        let mut work = test_work();
+        work.work_status = WorkStatus::Withdrawn;
+        work.publication_date = Some(NaiveDate::from_ymd_opt(2020, 1, 1).unwrap());
+        work.withdrawn_date = Some(NaiveDate::from_ymd_opt(2021, 1, 1).unwrap());
+
+        assert_eq!(work.validate(), Ok(()));
     }
 }
 
