@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:12
+    image: postgres:17
     container_name: "thoth_db"
     restart: unless-stopped
     volumes:
