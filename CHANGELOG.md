@@ -6,8 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-  - [684](https://github.com/thoth-pub/thoth/issues/684) - Refactor internal work and publication APIs
-  - [687](https://github.com/thoth-pub/thoth/issues/687) - Use test subdomains when building staging docker image
+  - [687](https://github.com/thoth-pub/thoth/pull/687) - Upgrade database engine to PostgreSQL v17
+  - [684](https://github.com/thoth-pub/thoth/pull/684) - Refactor internal work and publication APIs
+  - [687](https://github.com/thoth-pub/thoth/pull/687) - Use test subdomains when building staging docker image
 
 ## [[0.13.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.10) - 2025-04-24
 ### Changed
