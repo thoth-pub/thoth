@@ -18,6 +18,16 @@ impl BackgroundWorker<TestWorkerArgs> for TestWorker {
     async fn perform(&self, _args: TestWorkerArgs) -> Result<()> {
         println!("=================TestWorker=======================");
         // TODO: Some actual work goes here...
-        Ok(())
+        let redis: &deadpool_redis::Pool = &deadpool_redis::Config::from_url("redis://localhost:6379")
+            .builder()
+            .expect("Failed to create redis pool.")
+            .build()
+            .expect("Failed to build redis pool.");
+        let mut conn = redis.get().await.expect("Failed to connect to redis pool.");
+        loop {
+            if let Ok((_, payload)) = deadpool_redis::redis::AsyncCommands::blpop::<_,(String, String)>(&mut conn, "events:graphql", 0.0).await {
+                tracing::info!("Received payload: {:?}", payload);
+            }
+        }
     }
 }
