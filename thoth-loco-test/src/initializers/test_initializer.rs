@@ -1,8 +1,10 @@
 use async_trait::async_trait;
+use deadpool_redis::{Config, Pool, redis::AsyncCommands};
 use loco_rs::{
     app::{AppContext, Initializer},
     Result,
 };
+use thoth_api::event::{model::Event, handler::QUEUE_KEY};
 
 pub struct TestInitializer;
 
@@ -13,7 +15,7 @@ impl Initializer for TestInitializer {
     }
 
     async fn before_run(&self, _ctx: &AppContext) -> Result<()> {
-        let redis: &deadpool_redis::Pool = &deadpool_redis::Config::from_url("redis://localhost:6379")
+        let redis: &Pool = &Config::from_url("redis://localhost:6379")
             .builder()
             .expect("Failed to create redis pool.")
             .build()
@@ -22,9 +24,9 @@ impl Initializer for TestInitializer {
 
         tokio::spawn(async move {
             loop {
-                if let Ok((_, payload)) = deadpool_redis::redis::AsyncCommands::blpop::<_,(String, String)>(&mut conn, "events:graphql", 0.0).await {
+                if let Ok((_, payload)) = conn.blpop::<_,(String, String)>(QUEUE_KEY, 0.0).await {
                     tracing::info!("Initializer received payload: {:?}", payload);
-                    match serde_json::from_str::<thoth_api::event::model::Event>(&payload) {
+                    match serde_json::from_str::<Event>(&payload) {
                         Ok(event) => {
                             tracing::info!("Received event: {:?}", event);
                         }
