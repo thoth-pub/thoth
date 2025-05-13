@@ -48,4 +48,3 @@ queue:
   # TODO get from environment
   uri: "redis://localhost:6379"
   dangerously_flush: false
-  queues: ["events:graphql"]
