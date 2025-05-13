@@ -1,12 +1,8 @@
 use async_trait::async_trait;
 use loco_rs::{
     app::{AppContext, Initializer},
-    task::Task,
     Result,
 };
-use tracing::error;
-
-use crate::tasks::test_task::TestTask;
 
 pub struct TestInitializer;
 
@@ -16,17 +12,18 @@ impl Initializer for TestInitializer {
         "test-initializer".to_string()
     }
 
-    async fn before_run(&self, ctx: &AppContext) -> Result<()> {
-        let ctx = ctx.clone();
+    async fn before_run(&self, _ctx: &AppContext) -> Result<()> {
+        let redis: &deadpool_redis::Pool = &deadpool_redis::Config::from_url("redis://localhost:6379")
+            .builder()
+            .expect("Failed to create redis pool.")
+            .build()
+            .expect("Failed to build redis pool.");
+        let mut conn = redis.get().await.expect("Failed to connect to redis pool.");
+
         tokio::spawn(async move {
             loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-
-                if let Err(e) = (TestTask)
-                    .run(&ctx, &loco_rs::task::Vars::default())
-                    .await
-                {
-                    error!("TestTask error: {:?}", e);
+                if let Ok((_, payload)) = deadpool_redis::redis::AsyncCommands::blpop::<_,(String, String)>(&mut conn, "events:graphql", 0.0).await {
+                    tracing::info!("Initializer received payload: {:?}", payload);
                 }
             }
         });
