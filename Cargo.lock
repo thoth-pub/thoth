@@ -5365,6 +5365,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
+ "thoth-api",
  "tokio",
  "tracing",
  "tracing-subscriber",

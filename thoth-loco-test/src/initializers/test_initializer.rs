@@ -24,6 +24,14 @@ impl Initializer for TestInitializer {
             loop {
                 if let Ok((_, payload)) = deadpool_redis::redis::AsyncCommands::blpop::<_,(String, String)>(&mut conn, "events:graphql", 0.0).await {
                     tracing::info!("Initializer received payload: {:?}", payload);
+                    match serde_json::from_str::<thoth_api::event::model::Event>(&payload) {
+                        Ok(event) => {
+                            tracing::info!("Received event: {:?}", event);
+                        }
+                        Err(e) => {
+                            tracing::error!("Invalid event payload: {}", e);
+                        }
+                    }
                 }
             }
         });
