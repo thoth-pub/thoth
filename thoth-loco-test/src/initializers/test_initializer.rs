@@ -1,10 +1,13 @@
 use async_trait::async_trait;
-use deadpool_redis::{Config, Pool, redis::AsyncCommands};
+use deadpool_redis::redis::AsyncCommands;
 use loco_rs::{
     app::{AppContext, Initializer},
     Result,
 };
-use thoth_api::event::{model::Event, handler::QUEUE_KEY};
+use thoth_api::{
+    event::{model::Event, handler::QUEUE_KEY},
+    redis::{init_pool},
+};
 
 pub struct TestInitializer;
 
@@ -15,11 +18,7 @@ impl Initializer for TestInitializer {
     }
 
     async fn before_run(&self, _ctx: &AppContext) -> Result<()> {
-        let redis: &Pool = &Config::from_url("redis://localhost:6379")
-            .builder()
-            .expect("Failed to create redis pool.")
-            .build()
-            .expect("Failed to build redis pool.");
+        let redis = init_pool("redis://localhost:6379");
         let mut conn = redis.get().await.expect("Failed to connect to redis pool.");
 
         tokio::spawn(async move {
