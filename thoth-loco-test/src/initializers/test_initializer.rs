@@ -1,9 +1,8 @@
 use async_trait::async_trait;
-use deadpool_redis::redis::AsyncCommands;
 use loco_rs::prelude::*;
 use thoth_api::{
     event::{model::Event, handler::QUEUE_KEY},
-    redis::{init_pool},
+    redis::{blpop, init_pool},
 };
 use crate::workers::test_worker::{TestWorker, TestWorkerArgs};
 
@@ -17,13 +16,11 @@ impl Initializer for TestInitializer {
 
     async fn before_run(&self, ctx: &AppContext) -> Result<()> {
         let redis = init_pool("redis://localhost:6379");
-        let mut conn = redis.get().await.expect("Failed to connect to redis pool.");
-
         let ctx = ctx.clone();
 
         tokio::spawn(async move {
             loop {
-                if let Ok((_, payload)) = conn.blpop::<_,(String, String)>(QUEUE_KEY, 0.0).await {
+                if let Ok(payload) = blpop(&redis, QUEUE_KEY).await {
                     tracing::info!("Initializer received payload: {:?}", payload);
                     match serde_json::from_str::<Event>(&payload) {
                         Ok(event) => {

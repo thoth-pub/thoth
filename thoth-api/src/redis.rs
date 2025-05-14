@@ -43,6 +43,12 @@ pub async fn rpush(pool: &RedisPool, key: &str, value: &str) -> ThothResult<Stri
     con.rpush(key, value).await.map_err(Into::into)
 }
 
+pub async fn blpop(pool: &RedisPool, key: &str) -> ThothResult<String> {
+    let mut con = create_connection(pool).await?;
+    let (_, value): (_, String) = con.blpop::<_, (String, String)>(key, 0.0).await?;
+    Ok(value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -78,7 +84,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_rpush() {
+    async fn test_rpush_and_blpop() {
         let pool = get_pool().await;
 
         let test_key = "test_queue";
@@ -91,6 +97,13 @@ mod tests {
         let rpush_result_2 = rpush(&pool, test_key, test_value_2).await;
         assert!(rpush_result_2.is_ok());
 
+        let blpop_result_1 = blpop(&pool, test_key).await;
+        assert!(blpop_result_1.is_ok());
+        assert_eq!(blpop_result_1.unwrap(), test_value_1);
+
+        let blpop_result_2 = blpop(&pool, test_key).await;
+        assert!(blpop_result_2.is_ok());
+        assert_eq!(blpop_result_2.unwrap(), test_value_2);
     }
 
     #[tokio::test]
