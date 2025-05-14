@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[0.13.11]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.11) - 2025-05-14
 ### Changed
   - [687](https://github.com/thoth-pub/thoth/pull/687) - Upgrade database engine to PostgreSQL v17
   - [684](https://github.com/thoth-pub/thoth/pull/684) - Refactor internal work and publication APIs
