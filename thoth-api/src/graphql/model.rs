@@ -1488,7 +1488,7 @@ impl MutationRoot {
 
         let result = Work::create(&context.db, &data).map_err(|e| e.into());
 
-        if let Ok(created_work) = result.clone() {
+        if let Ok(ref created_work) = result {
             // TODO handle results throughout
             let _ = send_event(&context.redis, EventType::WorkCreated, &created_work).await;
             if created_work.work_status == WorkStatus::Active {
@@ -1763,9 +1763,11 @@ impl MutationRoot {
         // update the work and, if it succeeds, synchronise its children statuses and pub. date
         match work.update(&context.db, &data, &account_id) {
             Ok(w) => {
-                let _ = send_event(&context.redis, EventType::WorkUpdated, &w).await;
                 if w.work_status == WorkStatus::Active && work.work_status != WorkStatus::Active {
                     let _ = send_event(&context.redis, EventType::WorkPublished, &w).await;
+                }
+                else {
+                    let _ = send_event(&context.redis, EventType::WorkUpdated, &w).await;
                 }
                 // update chapters if their pub. data, withdrawn_date or work_status doesn't match the parent's
                 for child in work.children(&context.db)? {

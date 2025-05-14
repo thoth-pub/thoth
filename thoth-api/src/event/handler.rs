@@ -1,6 +1,6 @@
 use super::model::{Event, EventType};
 use crate::model::work::{Work, WorkProperties};
-use crate::redis::{lpush, RedisPool};
+use crate::redis::{rpush, RedisPool};
 use thoth_errors::ThothResult;
 
 pub const QUEUE_KEY: &str = "events:graphql";
@@ -16,5 +16,5 @@ pub async fn send_event(
         is_published: work.is_active_withdrawn_superseded(),
         event_timestamp: work.updated_at,
     };
-    lpush(redis, QUEUE_KEY, &serde_json::to_string(&event)?).await
+    rpush(redis, QUEUE_KEY, &serde_json::to_string(&event)?).await
 }
