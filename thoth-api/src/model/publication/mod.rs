@@ -250,16 +250,6 @@ pub struct PublicationOrderBy {
     pub direction: Direction,
 }
 
-impl PublicationType {
-    fn is_physical(&self) -> bool {
-        matches!(self, PublicationType::Paperback | PublicationType::Hardback)
-    }
-
-    fn is_digital(&self) -> bool {
-        !self.is_physical()
-    }
-}
-
 pub trait PublicationProperties {
     fn publication_type(&self) -> &PublicationType;
     fn width_mm(&self) -> &Option<f64>;
@@ -274,572 +264,393 @@ pub trait PublicationProperties {
     fn work_id(&self) -> &Uuid;
 
     fn is_physical(&self) -> bool {
-        self.publication_type().is_physical()
+        matches!(
+            self.publication_type(),
+            PublicationType::Paperback | PublicationType::Hardback
+        )
     }
 
     fn is_digital(&self) -> bool {
-        self.publication_type().is_digital()
+        !self.is_physical()
     }
 
     fn has_dimension(&self) -> bool {
-        self.width_mm().is_some()
-            || self.width_in().is_some()
-            || self.height_mm().is_some()
-            || self.height_in().is_some()
-            || self.depth_mm().is_some()
-            || self.depth_in().is_some()
-            || self.weight_g().is_some()
-            || self.weight_oz().is_some()
+        [
+            self.width_mm(),
+            self.width_in(),
+            self.height_mm(),
+            self.height_in(),
+            self.depth_mm(),
+            self.depth_in(),
+            self.weight_g(),
+            self.weight_oz(),
+        ]
+        .into_iter()
+        .any(Option::is_some)
     }
 
-    fn dimension_error(&self) -> ThothResult<()> {
-        if self.is_digital() {
-            // Digital publications cannot have dimension values.
-            if self.has_dimension() {
-                return Err(ThothError::DimensionDigitalError);
+    fn validate_dimensions_constraints(&self) -> ThothResult<()> {
+        use ThothError::*;
+
+        if self.is_digital() && self.has_dimension() {
+            return Err(DimensionDigitalError);
+        }
+
+        // If value in one unit is supplied, the other cannot be left empty.
+        for (metric, imperial, err) in [
+            (self.width_mm(), self.width_in(), WidthEmptyError),
+            (self.height_mm(), self.height_in(), HeightEmptyError),
+            (self.depth_mm(), self.depth_in(), DepthEmptyError),
+            (self.weight_g(), self.weight_oz(), WeightEmptyError),
+        ] {
+            if metric.is_some() ^ imperial.is_some() {
+                return Err(err);
             }
-        } else if (self.width_mm().is_some() && self.width_in().is_none())
-            || (self.width_in().is_some() && self.width_mm().is_none())
-        {
-            // If one width value is supplied, the other cannot be left empty.
-            return Err(ThothError::WidthEmptyError);
-        } else if (self.height_mm().is_some() && self.height_in().is_none())
-            || (self.height_in().is_some() && self.height_mm().is_none())
-        {
-            // If one height value is supplied, the other cannot be left empty.
-            return Err(ThothError::HeightEmptyError);
-        } else if (self.depth_mm().is_some() && self.depth_in().is_none())
-            || (self.depth_in().is_some() && self.depth_mm().is_none())
-        {
-            // If one depth value is supplied, the other cannot be left empty.
-            return Err(ThothError::DepthEmptyError);
-        } else if (self.weight_g().is_some() && self.weight_oz().is_none())
-            || (self.weight_oz().is_some() && self.weight_g().is_none())
-        {
-            // If one weight value is supplied, the other cannot be left empty.
-            return Err(ThothError::WeightEmptyError);
         }
         Ok(())
     }
-}
 
-impl PublicationProperties for Publication {
-    fn publication_type(&self) -> &PublicationType {
-        &self.publication_type
+    #[cfg(feature = "backend")]
+    fn is_chapter(&self, db: &crate::db::PgPool) -> ThothResult<bool> {
+        use crate::model::work::WorkType;
+        use diesel::prelude::*;
+        let mut connection = db.get()?;
+        let work_type = crate::schema::work::table
+            .select(crate::schema::work::work_type)
+            .filter(crate::schema::work::work_id.eq(self.work_id()))
+            .first::<WorkType>(&mut connection)?;
+        Ok(work_type == WorkType::BookChapter)
     }
 
-    fn width_mm(&self) -> &Option<f64> {
-        &self.width_mm
+    #[cfg(feature = "backend")]
+    fn validate_chapter_constraints(&self) -> ThothResult<()> {
+        match (self.isbn().is_some(), self.has_dimension()) {
+            (true, _) => Err(ThothError::ChapterIsbnError),
+            (_, true) => Err(ThothError::ChapterDimensionError),
+            _ => Ok(()),
+        }
     }
 
-    fn width_in(&self) -> &Option<f64> {
-        &self.width_in
-    }
-
-    fn height_mm(&self) -> &Option<f64> {
-        &self.height_mm
-    }
-
-    fn height_in(&self) -> &Option<f64> {
-        &self.height_in
-    }
-
-    fn depth_mm(&self) -> &Option<f64> {
-        &self.depth_mm
-    }
-
-    fn depth_in(&self) -> &Option<f64> {
-        &self.depth_in
-    }
-
-    fn weight_g(&self) -> &Option<f64> {
-        &self.weight_g
-    }
-
-    fn weight_oz(&self) -> &Option<f64> {
-        &self.weight_oz
-    }
-
-    fn isbn(&self) -> &Option<Isbn> {
-        &self.isbn
-    }
-
-    fn work_id(&self) -> &Uuid {
-        &self.work_id
+    #[cfg(feature = "backend")]
+    fn validate(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        if self.is_chapter(db)? {
+            self.validate_chapter_constraints()?;
+        }
+        self.validate_dimensions_constraints()
     }
 }
 
-impl PublicationProperties for PublicationWithRelations {
-    fn publication_type(&self) -> &PublicationType {
-        &self.publication_type
-    }
-
-    fn width_mm(&self) -> &Option<f64> {
-        &self.width_mm
-    }
-
-    fn width_in(&self) -> &Option<f64> {
-        &self.width_in
-    }
-
-    fn height_mm(&self) -> &Option<f64> {
-        &self.height_mm
-    }
-
-    fn height_in(&self) -> &Option<f64> {
-        &self.height_in
-    }
-
-    fn depth_mm(&self) -> &Option<f64> {
-        &self.depth_mm
-    }
-
-    fn depth_in(&self) -> &Option<f64> {
-        &self.depth_in
-    }
-
-    fn weight_g(&self) -> &Option<f64> {
-        &self.weight_g
-    }
-
-    fn weight_oz(&self) -> &Option<f64> {
-        &self.weight_oz
-    }
-
-    fn isbn(&self) -> &Option<Isbn> {
-        &self.isbn
-    }
-
-    fn work_id(&self) -> &Uuid {
-        &self.work_id
-    }
-}
-
-impl PublicationProperties for NewPublication {
-    fn publication_type(&self) -> &PublicationType {
-        &self.publication_type
-    }
-
-    fn width_mm(&self) -> &Option<f64> {
-        &self.width_mm
-    }
-
-    fn width_in(&self) -> &Option<f64> {
-        &self.width_in
-    }
-
-    fn height_mm(&self) -> &Option<f64> {
-        &self.height_mm
-    }
-
-    fn height_in(&self) -> &Option<f64> {
-        &self.height_in
-    }
-
-    fn depth_mm(&self) -> &Option<f64> {
-        &self.depth_mm
-    }
-
-    fn depth_in(&self) -> &Option<f64> {
-        &self.depth_in
-    }
-
-    fn weight_g(&self) -> &Option<f64> {
-        &self.weight_g
-    }
-
-    fn weight_oz(&self) -> &Option<f64> {
-        &self.weight_oz
-    }
-
-    fn isbn(&self) -> &Option<Isbn> {
-        &self.isbn
-    }
-
-    fn work_id(&self) -> &Uuid {
-        &self.work_id
-    }
-}
-
-impl PublicationProperties for PatchPublication {
-    fn publication_type(&self) -> &PublicationType {
-        &self.publication_type
-    }
-
-    fn width_mm(&self) -> &Option<f64> {
-        &self.width_mm
-    }
-
-    fn width_in(&self) -> &Option<f64> {
-        &self.width_in
-    }
-
-    fn height_mm(&self) -> &Option<f64> {
-        &self.height_mm
-    }
-
-    fn height_in(&self) -> &Option<f64> {
-        &self.height_in
-    }
-
-    fn depth_mm(&self) -> &Option<f64> {
-        &self.depth_mm
-    }
-
-    fn depth_in(&self) -> &Option<f64> {
-        &self.depth_in
-    }
-
-    fn weight_g(&self) -> &Option<f64> {
-        &self.weight_g
-    }
-
-    fn weight_oz(&self) -> &Option<f64> {
-        &self.weight_oz
-    }
-
-    fn isbn(&self) -> &Option<Isbn> {
-        &self.isbn
-    }
-
-    fn work_id(&self) -> &Uuid {
-        &self.work_id
-    }
-}
-
-#[test]
-fn test_publicationproperties_type() {
-    let mut publication: Publication = Default::default();
-    for pub_type in [PublicationType::Paperback, PublicationType::Hardback] {
-        publication.publication_type = pub_type;
-        assert!(publication.publication_type.is_physical());
-        assert!(!publication.publication_type.is_digital());
-        assert!(publication.is_physical());
-        assert!(!publication.is_digital());
-    }
-    for pub_type in [
-        PublicationType::Azw3,
-        PublicationType::Docx,
-        PublicationType::Epub,
-        PublicationType::FictionBook,
-        PublicationType::Html,
-        PublicationType::Mobi,
-        PublicationType::Mp3,
-        PublicationType::Pdf,
-        PublicationType::Xml,
-        PublicationType::Wav,
-    ] {
-        publication.publication_type = pub_type;
-        assert!(!publication.publication_type.is_physical());
-        assert!(publication.publication_type.is_digital());
-        assert!(!publication.is_physical());
-        assert!(publication.is_digital());
-    }
-}
-
-#[test]
-fn test_publicationproperties_width() {
-    let mut publication: Publication = Publication {
-        publication_type: PublicationType::Pdf,
-        width_mm: Some(100.0),
-        ..Default::default()
+macro_rules! publication_properties {
+    ($t:ty) => {
+        impl PublicationProperties for $t {
+            fn publication_type(&self) -> &PublicationType {
+                &self.publication_type
+            }
+            fn width_mm(&self) -> &Option<f64> {
+                &self.width_mm
+            }
+            fn width_in(&self) -> &Option<f64> {
+                &self.width_in
+            }
+            fn height_mm(&self) -> &Option<f64> {
+                &self.height_mm
+            }
+            fn height_in(&self) -> &Option<f64> {
+                &self.height_in
+            }
+            fn depth_mm(&self) -> &Option<f64> {
+                &self.depth_mm
+            }
+            fn depth_in(&self) -> &Option<f64> {
+                &self.depth_in
+            }
+            fn weight_g(&self) -> &Option<f64> {
+                &self.weight_g
+            }
+            fn weight_oz(&self) -> &Option<f64> {
+                &self.weight_oz
+            }
+            fn isbn(&self) -> &Option<Isbn> {
+                &self.isbn
+            }
+            fn work_id(&self) -> &Uuid {
+                &self.work_id
+            }
+        }
     };
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::DimensionDigitalError)
-    );
-    publication.width_mm = None;
-    assert_eq!(publication.dimension_error(), Ok(()));
-    publication.width_in = Some(39.4);
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::DimensionDigitalError)
-    );
-    publication.publication_type = PublicationType::Paperback;
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::WidthEmptyError)
-    );
-    publication.width_in = None;
-    assert_eq!(publication.dimension_error(), Ok(()));
-    publication.width_mm = Some(100.0);
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::WidthEmptyError)
-    );
-    publication.width_in = Some(39.4);
-    assert_eq!(publication.dimension_error(), Ok(()));
 }
+publication_properties!(Publication);
+publication_properties!(PublicationWithRelations);
+publication_properties!(NewPublication);
+publication_properties!(PatchPublication);
 
-#[test]
-fn test_publicationproperties_height() {
-    let mut publication: Publication = Publication {
-        publication_type: PublicationType::Pdf,
-        height_mm: Some(100.0),
-        ..Default::default()
-    };
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::DimensionDigitalError)
-    );
-    publication.height_mm = None;
-    assert_eq!(publication.dimension_error(), Ok(()));
-    publication.height_in = Some(39.4);
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::DimensionDigitalError)
-    );
-    publication.publication_type = PublicationType::Paperback;
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::HeightEmptyError)
-    );
-    publication.height_in = None;
-    assert_eq!(publication.dimension_error(), Ok(()));
-    publication.height_mm = Some(100.0);
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::HeightEmptyError)
-    );
-    publication.height_in = Some(39.4);
-    assert_eq!(publication.dimension_error(), Ok(()));
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_publicationproperties_type() {
+        let mut publication: Publication = Default::default();
+        for pub_type in [PublicationType::Paperback, PublicationType::Hardback] {
+            publication.publication_type = pub_type;
+            assert!(publication.is_physical());
+            assert!(!publication.is_digital());
+        }
+        for pub_type in [
+            PublicationType::Azw3,
+            PublicationType::Docx,
+            PublicationType::Epub,
+            PublicationType::FictionBook,
+            PublicationType::Html,
+            PublicationType::Mobi,
+            PublicationType::Mp3,
+            PublicationType::Pdf,
+            PublicationType::Xml,
+            PublicationType::Wav,
+        ] {
+            publication.publication_type = pub_type;
+            assert!(!publication.is_physical());
+            assert!(publication.is_digital());
+        }
+    }
 
-#[test]
-fn test_publicationproperties_depth() {
-    let mut publication: Publication = Publication {
-        publication_type: PublicationType::Pdf,
-        depth_mm: Some(10.0),
-        ..Default::default()
-    };
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::DimensionDigitalError)
-    );
-    publication.depth_mm = None;
-    assert_eq!(publication.dimension_error(), Ok(()));
-    publication.depth_in = Some(3.94);
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::DimensionDigitalError)
-    );
-    publication.publication_type = PublicationType::Paperback;
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::DepthEmptyError)
-    );
-    publication.depth_in = None;
-    assert_eq!(publication.dimension_error(), Ok(()));
-    publication.depth_mm = Some(10.0);
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::DepthEmptyError)
-    );
-    publication.depth_in = Some(3.94);
-    assert_eq!(publication.dimension_error(), Ok(()));
-}
+    #[test]
+    fn test_publicationproperties_width() {
+        let mut publication: Publication = Publication {
+            publication_type: PublicationType::Pdf,
+            width_mm: Some(100.0),
+            ..Default::default()
+        };
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::DimensionDigitalError)
+        );
+        publication.width_mm = None;
+        assert!(publication.validate_dimensions_constraints().is_ok());
+        publication.width_in = Some(39.4);
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::DimensionDigitalError)
+        );
+        publication.publication_type = PublicationType::Paperback;
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::WidthEmptyError)
+        );
+        publication.width_in = None;
+        assert!(publication.validate_dimensions_constraints().is_ok());
+        publication.width_mm = Some(100.0);
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::WidthEmptyError)
+        );
+        publication.width_in = Some(39.4);
+        assert!(publication.validate_dimensions_constraints().is_ok());
+    }
 
-#[test]
-fn test_publicationproperties_weight() {
-    let mut publication: Publication = Publication {
-        publication_type: PublicationType::Pdf,
-        weight_g: Some(100.0),
-        ..Default::default()
-    };
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::DimensionDigitalError)
-    );
-    publication.weight_g = None;
-    assert_eq!(publication.dimension_error(), Ok(()));
-    publication.weight_oz = Some(3.5);
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::DimensionDigitalError)
-    );
-    publication.publication_type = PublicationType::Paperback;
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::WeightEmptyError)
-    );
-    publication.weight_oz = None;
-    assert_eq!(publication.dimension_error(), Ok(()));
-    publication.weight_g = Some(100.0);
-    assert_eq!(
-        publication.dimension_error(),
-        Err(ThothError::WeightEmptyError)
-    );
-    publication.weight_oz = Some(3.5);
-    assert_eq!(publication.dimension_error(), Ok(()));
-}
+    #[test]
+    fn test_publicationproperties_height() {
+        let mut publication: Publication = Publication {
+            publication_type: PublicationType::Pdf,
+            height_mm: Some(100.0),
+            ..Default::default()
+        };
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::DimensionDigitalError)
+        );
+        publication.height_mm = None;
+        assert!(publication.validate_dimensions_constraints().is_ok());
+        publication.height_in = Some(39.4);
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::DimensionDigitalError)
+        );
+        publication.publication_type = PublicationType::Paperback;
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::HeightEmptyError)
+        );
+        publication.height_in = None;
+        assert!(publication.validate_dimensions_constraints().is_ok());
+        publication.height_mm = Some(100.0);
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::HeightEmptyError)
+        );
+        publication.height_in = Some(39.4);
+        assert!(publication.validate_dimensions_constraints().is_ok());
+    }
 
-#[test]
-fn test_publicationtype_default() {
-    let pubtype: PublicationType = Default::default();
-    assert_eq!(pubtype, PublicationType::Paperback);
-}
+    #[test]
+    fn test_publicationproperties_depth() {
+        let mut publication: Publication = Publication {
+            publication_type: PublicationType::Pdf,
+            depth_mm: Some(10.0),
+            ..Default::default()
+        };
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::DimensionDigitalError)
+        );
+        publication.depth_mm = None;
+        assert!(publication.validate_dimensions_constraints().is_ok());
+        publication.depth_in = Some(3.94);
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::DimensionDigitalError)
+        );
+        publication.publication_type = PublicationType::Paperback;
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::DepthEmptyError)
+        );
+        publication.depth_in = None;
+        assert!(publication.validate_dimensions_constraints().is_ok());
+        publication.depth_mm = Some(10.0);
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::DepthEmptyError)
+        );
+        publication.depth_in = Some(3.94);
+        assert!(publication.validate_dimensions_constraints().is_ok());
+    }
 
-#[test]
-fn test_publicationfield_default() {
-    let pubfield: PublicationField = Default::default();
-    assert_eq!(pubfield, PublicationField::PublicationType);
-}
+    #[test]
+    fn test_publicationproperties_weight() {
+        let mut publication: Publication = Publication {
+            publication_type: PublicationType::Pdf,
+            weight_g: Some(100.0),
+            ..Default::default()
+        };
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::DimensionDigitalError)
+        );
+        publication.weight_g = None;
+        assert!(publication.validate_dimensions_constraints().is_ok());
+        publication.weight_oz = Some(3.5);
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::DimensionDigitalError)
+        );
+        publication.publication_type = PublicationType::Paperback;
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::WeightEmptyError)
+        );
+        publication.weight_oz = None;
+        assert!(publication.validate_dimensions_constraints().is_ok());
+        publication.weight_g = Some(100.0);
+        assert_eq!(
+            publication.validate_dimensions_constraints(),
+            Err(ThothError::WeightEmptyError)
+        );
+        publication.weight_oz = Some(3.5);
+        assert!(publication.validate_dimensions_constraints().is_ok());
+    }
 
-#[test]
-fn test_publicationtype_display() {
-    assert_eq!(format!("{}", PublicationType::Paperback), "Paperback");
-    assert_eq!(format!("{}", PublicationType::Hardback), "Hardback");
-    assert_eq!(format!("{}", PublicationType::Pdf), "PDF");
-    assert_eq!(format!("{}", PublicationType::Html), "HTML");
-    assert_eq!(format!("{}", PublicationType::Xml), "XML");
-    assert_eq!(format!("{}", PublicationType::Epub), "Epub");
-    assert_eq!(format!("{}", PublicationType::Mobi), "Mobi");
-    assert_eq!(format!("{}", PublicationType::Azw3), "AZW3");
-    assert_eq!(format!("{}", PublicationType::Docx), "DOCX");
-    assert_eq!(format!("{}", PublicationType::FictionBook), "FictionBook");
-    assert_eq!(format!("{}", PublicationType::Mp3), "MP3");
-    assert_eq!(format!("{}", PublicationType::Wav), "WAV");
-}
+    #[test]
+    fn test_publicationtype_default() {
+        let pubtype: PublicationType = Default::default();
+        assert_eq!(pubtype, PublicationType::Paperback);
+    }
 
-#[test]
-fn test_publicationfield_display() {
-    assert_eq!(format!("{}", PublicationField::PublicationId), "ID");
-    assert_eq!(format!("{}", PublicationField::PublicationType), "Type");
-    assert_eq!(format!("{}", PublicationField::WorkId), "WorkID");
-    assert_eq!(format!("{}", PublicationField::Isbn), "ISBN");
-    assert_eq!(format!("{}", PublicationField::CreatedAt), "CreatedAt");
-    assert_eq!(format!("{}", PublicationField::UpdatedAt), "UpdatedAt");
-    assert_eq!(format!("{}", PublicationField::WidthMm), "WidthMm");
-    assert_eq!(format!("{}", PublicationField::WidthIn), "WidthIn");
-    assert_eq!(format!("{}", PublicationField::HeightMm), "HeightMm");
-    assert_eq!(format!("{}", PublicationField::HeightIn), "HeightIn");
-    assert_eq!(format!("{}", PublicationField::DepthMm), "DepthMm");
-    assert_eq!(format!("{}", PublicationField::DepthIn), "DepthIn");
-    assert_eq!(format!("{}", PublicationField::WeightG), "WeightG");
-    assert_eq!(format!("{}", PublicationField::WeightOz), "WeightOz");
-}
+    #[test]
+    fn test_publicationfield_default() {
+        let pubfield: PublicationField = Default::default();
+        assert_eq!(pubfield, PublicationField::PublicationType);
+    }
 
-#[test]
-fn test_publicationtype_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(
-        PublicationType::from_str("Paperback").unwrap(),
-        PublicationType::Paperback
-    );
-    assert_eq!(
-        PublicationType::from_str("Hardback").unwrap(),
-        PublicationType::Hardback
-    );
-    assert_eq!(
-        PublicationType::from_str("PDF").unwrap(),
-        PublicationType::Pdf
-    );
-    assert_eq!(
-        PublicationType::from_str("HTML").unwrap(),
-        PublicationType::Html
-    );
-    assert_eq!(
-        PublicationType::from_str("XML").unwrap(),
-        PublicationType::Xml
-    );
-    assert_eq!(
-        PublicationType::from_str("Epub").unwrap(),
-        PublicationType::Epub
-    );
-    assert_eq!(
-        PublicationType::from_str("Mobi").unwrap(),
-        PublicationType::Mobi
-    );
-    assert_eq!(
-        PublicationType::from_str("AZW3").unwrap(),
-        PublicationType::Azw3
-    );
-    assert_eq!(
-        PublicationType::from_str("DOCX").unwrap(),
-        PublicationType::Docx
-    );
-    assert_eq!(
-        PublicationType::from_str("FictionBook").unwrap(),
-        PublicationType::FictionBook
-    );
+    #[test]
+    fn test_publicationtype_display() {
+        assert_eq!(format!("{}", PublicationType::Paperback), "Paperback");
+        assert_eq!(format!("{}", PublicationType::Hardback), "Hardback");
+        assert_eq!(format!("{}", PublicationType::Pdf), "PDF");
+        assert_eq!(format!("{}", PublicationType::Html), "HTML");
+        assert_eq!(format!("{}", PublicationType::Xml), "XML");
+        assert_eq!(format!("{}", PublicationType::Epub), "Epub");
+        assert_eq!(format!("{}", PublicationType::Mobi), "Mobi");
+        assert_eq!(format!("{}", PublicationType::Azw3), "AZW3");
+        assert_eq!(format!("{}", PublicationType::Docx), "DOCX");
+        assert_eq!(format!("{}", PublicationType::FictionBook), "FictionBook");
+        assert_eq!(format!("{}", PublicationType::Mp3), "MP3");
+        assert_eq!(format!("{}", PublicationType::Wav), "WAV");
+    }
 
-    assert_eq!(
-        PublicationType::from_str("MP3").unwrap(),
-        PublicationType::Mp3
-    );
-    assert_eq!(
-        PublicationType::from_str("WAV").unwrap(),
-        PublicationType::Wav
-    );
+    #[test]
+    fn test_publicationfield_display() {
+        assert_eq!(format!("{}", PublicationField::PublicationId), "ID");
+        assert_eq!(format!("{}", PublicationField::PublicationType), "Type");
+        assert_eq!(format!("{}", PublicationField::WorkId), "WorkID");
+        assert_eq!(format!("{}", PublicationField::Isbn), "ISBN");
+        assert_eq!(format!("{}", PublicationField::CreatedAt), "CreatedAt");
+        assert_eq!(format!("{}", PublicationField::UpdatedAt), "UpdatedAt");
+        assert_eq!(format!("{}", PublicationField::WidthMm), "WidthMm");
+        assert_eq!(format!("{}", PublicationField::WidthIn), "WidthIn");
+        assert_eq!(format!("{}", PublicationField::HeightMm), "HeightMm");
+        assert_eq!(format!("{}", PublicationField::HeightIn), "HeightIn");
+        assert_eq!(format!("{}", PublicationField::DepthMm), "DepthMm");
+        assert_eq!(format!("{}", PublicationField::DepthIn), "DepthIn");
+        assert_eq!(format!("{}", PublicationField::WeightG), "WeightG");
+        assert_eq!(format!("{}", PublicationField::WeightOz), "WeightOz");
+    }
 
-    assert!(PublicationType::from_str("PNG").is_err());
-    assert!(PublicationType::from_str("Latex").is_err());
-    assert!(PublicationType::from_str("azw3").is_err());
-    assert!(PublicationType::from_str("Fiction Book").is_err());
-}
+    #[test]
+    fn test_publicationtype_fromstr() {
+        use std::str::FromStr;
+        for (input, expected) in [
+            ("Paperback", PublicationType::Paperback),
+            ("Hardback", PublicationType::Hardback),
+            ("PDF", PublicationType::Pdf),
+            ("HTML", PublicationType::Html),
+            ("XML", PublicationType::Xml),
+            ("Epub", PublicationType::Epub),
+            ("Mobi", PublicationType::Mobi),
+            ("AZW3", PublicationType::Azw3),
+            ("DOCX", PublicationType::Docx),
+            ("FictionBook", PublicationType::FictionBook),
+            ("MP3", PublicationType::Mp3),
+            ("WAV", PublicationType::Wav),
+        ]
+        .iter()
+        {
+            assert_eq!(PublicationType::from_str(input).unwrap(), *expected);
+        }
 
-#[test]
-fn test_publicationfield_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(
-        PublicationField::from_str("ID").unwrap(),
-        PublicationField::PublicationId
-    );
-    assert_eq!(
-        PublicationField::from_str("Type").unwrap(),
-        PublicationField::PublicationType
-    );
-    assert_eq!(
-        PublicationField::from_str("WorkID").unwrap(),
-        PublicationField::WorkId
-    );
-    assert_eq!(
-        PublicationField::from_str("ISBN").unwrap(),
-        PublicationField::Isbn
-    );
-    assert_eq!(
-        PublicationField::from_str("CreatedAt").unwrap(),
-        PublicationField::CreatedAt
-    );
-    assert_eq!(
-        PublicationField::from_str("UpdatedAt").unwrap(),
-        PublicationField::UpdatedAt
-    );
-    assert_eq!(
-        PublicationField::from_str("WidthMm").unwrap(),
-        PublicationField::WidthMm
-    );
-    assert_eq!(
-        PublicationField::from_str("WidthIn").unwrap(),
-        PublicationField::WidthIn
-    );
-    assert_eq!(
-        PublicationField::from_str("HeightMm").unwrap(),
-        PublicationField::HeightMm
-    );
-    assert_eq!(
-        PublicationField::from_str("HeightIn").unwrap(),
-        PublicationField::HeightIn
-    );
-    assert_eq!(
-        PublicationField::from_str("DepthMm").unwrap(),
-        PublicationField::DepthMm
-    );
-    assert_eq!(
-        PublicationField::from_str("DepthIn").unwrap(),
-        PublicationField::DepthIn
-    );
-    assert_eq!(
-        PublicationField::from_str("WeightG").unwrap(),
-        PublicationField::WeightG
-    );
-    assert_eq!(
-        PublicationField::from_str("WeightOz").unwrap(),
-        PublicationField::WeightOz
-    );
-    assert!(PublicationField::from_str("PublicationID").is_err());
-    assert!(PublicationField::from_str("Work Title").is_err());
-    assert!(PublicationField::from_str("Work DOI").is_err());
+        assert!(PublicationType::from_str("PNG").is_err());
+        assert!(PublicationType::from_str("Latex").is_err());
+        assert!(PublicationType::from_str("azw3").is_err());
+        assert!(PublicationType::from_str("Fiction Book").is_err());
+    }
+
+    #[test]
+    fn test_publicationfield_fromstr() {
+        use std::str::FromStr;
+        for (input, expected) in [
+            ("ID", PublicationField::PublicationId),
+            ("Type", PublicationField::PublicationType),
+            ("WorkID", PublicationField::WorkId),
+            ("ISBN", PublicationField::Isbn),
+            ("CreatedAt", PublicationField::CreatedAt),
+            ("UpdatedAt", PublicationField::UpdatedAt),
+            ("WidthMm", PublicationField::WidthMm),
+            ("WidthIn", PublicationField::WidthIn),
+            ("HeightMm", PublicationField::HeightMm),
+            ("HeightIn", PublicationField::HeightIn),
+            ("DepthMm", PublicationField::DepthMm),
+            ("DepthIn", PublicationField::DepthIn),
+            ("WeightG", PublicationField::WeightG),
+            ("WeightOz", PublicationField::WeightOz),
+        ]
+        .iter()
+        {
+            assert_eq!(PublicationField::from_str(input).unwrap(), *expected);
+        }
+
+        assert!(PublicationField::from_str("PublicationID").is_err());
+        assert!(PublicationField::from_str("Work Title").is_err());
+        assert!(PublicationField::from_str("Work DOI").is_err());
+    }
 }
 
 #[cfg(feature = "backend")]

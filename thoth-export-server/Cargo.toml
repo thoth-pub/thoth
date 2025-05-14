@@ -1,6 +1,6 @@
 [package]
 name = "thoth-export-server"
-version = "0.13.10"
+version = "0.13.11"
 authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -10,9 +10,9 @@ readme = "README.md"
 build = "build.rs"
 
 [dependencies]
-thoth-api = { version = "=0.13.10", path = "../thoth-api" }
-thoth-errors = { version = "=0.13.10", path = "../thoth-errors" }
-thoth-client = { version = "=0.13.10", path = "../thoth-client" }
+thoth-api = { version = "=0.13.11", path = "../thoth-api" }
+thoth-errors = { version = "=0.13.11", path = "../thoth-errors" }
+thoth-client = { version = "=0.13.11", path = "../thoth-client" }
 actix-web = "4.10"
 actix-cors = "0.7.1"
 cc_license = "0.1.0"

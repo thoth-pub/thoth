@@ -201,7 +201,7 @@ impl Component for NewChapterComponent {
                         work_status: ctx.props().work.work_status,
                         full_title: self.new_chapter_title.clone(),
                         title: self.new_chapter_title.clone(),
-                        publication_date: ctx.props().work.publication_date.clone(),
+                        publication_date: ctx.props().work.publication_date,
                         place: ctx.props().work.place.clone(),
                         license: ctx.props().work.license.clone(),
                         imprint_id: ctx.props().work.imprint.imprint_id,

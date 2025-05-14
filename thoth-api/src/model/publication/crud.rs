@@ -1,14 +1,13 @@
 use super::{
     NewPublication, NewPublicationHistory, PatchPublication, Publication, PublicationField,
-    PublicationHistory, PublicationOrderBy, PublicationProperties, PublicationType,
+    PublicationHistory, PublicationOrderBy, PublicationType,
 };
 use crate::graphql::utils::Direction;
-use crate::model::work::WorkType;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
 use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
-use thoth_errors::{ThothError, ThothResult};
+use thoth_errors::ThothResult;
 use uuid::Uuid;
 
 impl Crud for Publication {
@@ -184,46 +183,6 @@ impl DbInsert for NewPublicationHistory {
 
     db_insert!(publication_history::table);
 }
-
-pub trait PublicationValidation
-where
-    Self: PublicationProperties,
-{
-    fn work_type(&self, db: &crate::db::PgPool) -> ThothResult<WorkType> {
-        use diesel::prelude::*;
-        let mut connection = db.get()?;
-        crate::schema::work::table
-            .select(crate::schema::work::work_type)
-            .filter(crate::schema::work::work_id.eq(self.work_id()))
-            .first::<WorkType>(&mut connection)
-            .map_err(Into::into)
-    }
-
-    fn chapter_error(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        if self.work_type(db)? == WorkType::BookChapter {
-            // If a publication's work is of type Book Chapter,
-            // it cannot have an ISBN, or any dimensions.
-            if self.isbn().is_some() {
-                Err(ThothError::ChapterIsbnError)
-            } else if self.has_dimension() {
-                Err(ThothError::ChapterDimensionError)
-            } else {
-                Ok(())
-            }
-        } else {
-            Ok(())
-        }
-    }
-
-    fn validate(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        self.chapter_error(db)?;
-        self.dimension_error()
-    }
-}
-
-impl PublicationValidation for NewPublication {}
-
-impl PublicationValidation for PatchPublication {}
 
 #[cfg(test)]
 mod tests {

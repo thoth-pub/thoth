@@ -41,8 +41,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            THOTH_GRAPHQL_API=https://api.thoth.pub
-            THOTH_EXPORT_API=https://export.thoth.pub
+            THOTH_GRAPHQL_API=https://api.test.thoth.pub
+            THOTH_EXPORT_API=https://export.test.thoth.pub
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
 

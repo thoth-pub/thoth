@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::model::work::Work;
@@ -116,8 +117,8 @@ pub struct Variables {
     pub reference: Option<String>,
     pub edition: Option<i32>,
     pub doi: Option<Doi>,
-    pub publication_date: Option<String>,
-    pub withdrawn_date: Option<String>,
+    pub publication_date: Option<NaiveDate>,
+    pub withdrawn_date: Option<NaiveDate>,
     pub place: Option<String>,
     pub page_count: Option<i32>,
     pub page_breakdown: Option<String>,
