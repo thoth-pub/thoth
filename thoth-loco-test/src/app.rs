@@ -11,7 +11,6 @@ use loco_rs::{
 };
 use crate::{
     initializers::test_initializer::TestInitializer,
-    tasks::test_task::TestTask,
     workers::test_worker::TestWorker};
 
 pub struct App;
@@ -55,7 +54,6 @@ impl Hooks for App {
 
     #[allow(unused_variables)]
     fn register_tasks(tasks: &mut Tasks) {
-        tasks.register(TestTask);
         // tasks-inject (do not remove)
     }
 }
