@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://cdn.thoth.pub/thoth_logo.png" height="400" />
+  <img src="https://cdn.thoth.pub/THOTH_ColourPos.png" height="400" />
 
   <h1>Thoth</h1>
 
