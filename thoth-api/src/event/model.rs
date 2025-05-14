@@ -15,4 +15,5 @@ pub struct Event {
     pub work_id: Uuid,
     pub is_published: bool,
     pub event_timestamp: Timestamp,
+    pub thoth_version: String,
 }

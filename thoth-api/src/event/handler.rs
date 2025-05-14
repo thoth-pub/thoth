@@ -15,6 +15,7 @@ pub async fn send_event(
         work_id: *work.work_id(),
         is_published: work.is_active_withdrawn_superseded(),
         event_timestamp: work.updated_at,
+        thoth_version: env!("CARGO_PKG_VERSION").parse().unwrap(),
     };
     rpush(redis, QUEUE_KEY, &serde_json::to_string(&event)?).await
 }
