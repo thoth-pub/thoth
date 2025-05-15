@@ -15,6 +15,7 @@ impl Initializer for TestInitializer {
     }
 
     async fn before_run(&self, ctx: &AppContext) -> Result<()> {
+        //TODO remove hardcoding
         let redis = init_pool("redis://localhost:6379");
         let ctx = ctx.clone();
 
@@ -25,9 +26,12 @@ impl Initializer for TestInitializer {
                     match serde_json::from_str::<Event>(&payload) {
                         Ok(event) => {
                             tracing::info!("Received event: {:?}", event);
+                            //TODO match on the type of event & pass to different workers
                             let _ = TestWorker::perform_later(
                                 &ctx,
-                                TestWorkerArgs {},
+                                TestWorkerArgs {
+                                    event: event,
+                                },
                             )
                             .await;
                         }
