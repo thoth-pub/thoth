@@ -19,13 +19,11 @@ use crate::model::issue::*;
 use crate::model::language::*;
 use crate::model::location::*;
 use crate::model::price::*;
-use crate::model::publication::crud::PublicationValidation;
 use crate::model::publication::*;
 use crate::model::publisher::*;
 use crate::model::reference::*;
 use crate::model::series::*;
 use crate::model::subject::*;
-use crate::model::work::crud::WorkValidation;
 use crate::model::work::*;
 use crate::model::work_relation::*;
 use crate::model::Convert;
@@ -1759,6 +1757,11 @@ impl MutationRoot {
         }
 
         data.validate()?;
+
+        if work.is_published() && !data.is_published() && !context.account_access.is_superuser {
+            return Err(ThothError::ThothSetWorkStatusError.into());
+        }
+
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         // update the work and, if it succeeds, synchronise its children statuses and pub. date
         match work.update(&context.db, &data, &account_id) {
@@ -2194,6 +2197,10 @@ impl MutationRoot {
         context
             .account_access
             .can_edit(work.publisher_id(&context.db)?)?;
+
+        if work.is_published() && !context.account_access.is_superuser {
+            return Err(ThothError::ThothDeleteWorkError.into());
+        }
 
         work.delete(&context.db).map_err(|e| e.into())
     }

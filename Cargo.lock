@@ -5189,7 +5189,7 @@ dependencies = [
 
 [[package]]
 name = "thoth"
-version = "0.13.9"
+version = "0.13.11"
 dependencies = [
  "clap",
  "dialoguer",
@@ -5206,7 +5206,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api"
-version = "0.13.9"
+version = "0.13.11"
 dependencies = [
  "actix-web",
  "argon2rs",
@@ -5235,7 +5235,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api-server"
-version = "0.13.9"
+version = "0.13.11"
 dependencies = [
  "actix-cors",
  "actix-http",
@@ -5253,7 +5253,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app"
-version = "0.13.9"
+version = "0.13.11"
 dependencies = [
  "chrono",
  "dotenv",
@@ -5278,7 +5278,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app-server"
-version = "0.13.9"
+version = "0.13.11"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -5288,7 +5288,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-client"
-version = "0.13.9"
+version = "0.13.11"
 dependencies = [
  "chrono",
  "graphql_client",
@@ -5304,7 +5304,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-errors"
-version = "0.13.9"
+version = "0.13.11"
 dependencies = [
  "actix-web",
  "chrono",
@@ -5327,7 +5327,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-export-server"
-version = "0.13.9"
+version = "0.13.11"
 dependencies = [
  "actix-cors",
  "actix-web",

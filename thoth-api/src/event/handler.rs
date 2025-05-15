@@ -13,7 +13,7 @@ pub async fn send_event(
     let event = Event {
         event_type,
         work_id: *work.work_id(),
-        is_published: work.is_active_withdrawn_superseded(),
+        is_published: work.is_published(),
         event_timestamp: work.updated_at,
         thoth_version: env!("CARGO_PKG_VERSION").parse().unwrap(),
     };

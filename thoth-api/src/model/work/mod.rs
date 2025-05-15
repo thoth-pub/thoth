@@ -1,11 +1,3 @@
-use chrono::naive::NaiveDate;
-use serde::{Deserialize, Serialize};
-use std::fmt;
-use strum::Display;
-use strum::EnumString;
-use thoth_errors::{ThothError, ThothResult};
-use uuid::Uuid;
-
 use crate::graphql::utils::Direction;
 use crate::model::contribution::Contribution;
 use crate::model::funding::FundingWithInstitution;
@@ -22,6 +14,13 @@ use crate::model::Timestamp;
 use crate::schema::work;
 #[cfg(feature = "backend")]
 use crate::schema::work_history;
+use chrono::naive::NaiveDate;
+use serde::{Deserialize, Serialize};
+use std::fmt;
+use strum::Display;
+use strum::EnumString;
+use thoth_errors::{ThothError, ThothResult};
+use uuid::Uuid;
 
 #[cfg_attr(
     feature = "backend",
@@ -245,8 +244,8 @@ pub struct WorkWithRelations {
     pub reference: Option<String>,
     pub edition: Option<i32>,
     pub doi: Option<Doi>,
-    pub publication_date: Option<String>,
-    pub withdrawn_date: Option<String>,
+    pub publication_date: Option<NaiveDate>,
+    pub withdrawn_date: Option<NaiveDate>,
     pub place: Option<String>,
     pub page_count: Option<i32>,
     pub page_breakdown: Option<String>,
@@ -393,147 +392,118 @@ pub struct WorkOrderBy {
     pub direction: Direction,
 }
 
-impl WorkStatus {
-    fn is_withdrawn_superseded(&self) -> bool {
-        matches!(self, WorkStatus::Withdrawn | WorkStatus::Superseded)
-    }
-    fn is_active_withdrawn_superseded(&self) -> bool {
-        matches!(
-            self,
-            WorkStatus::Active | WorkStatus::Withdrawn | WorkStatus::Superseded
-        )
-    }
-}
-
 pub trait WorkProperties {
+    fn title(&self) -> &str;
+    fn subtitle(&self) -> Option<&str>;
     fn work_status(&self) -> &WorkStatus;
     fn publication_date(&self) -> &Option<NaiveDate>;
     fn withdrawn_date(&self) -> &Option<NaiveDate>;
+    fn first_page(&self) -> Option<&str>;
+    fn last_page(&self) -> Option<&str>;
 
-    fn is_withdrawn_superseded(&self) -> bool {
-        self.work_status().is_withdrawn_superseded()
+    fn compile_fulltitle(&self) -> String {
+        self.subtitle().map_or_else(
+            || self.title().to_string(),
+            |subtitle| {
+                let title = self.title();
+                if title.ends_with('?')
+                    || title.ends_with('!')
+                    || title.ends_with(':')
+                    || title.ends_with('.')
+                {
+                    format!("{} {}", title, subtitle)
+                } else {
+                    format!("{}: {}", title, subtitle)
+                }
+            },
+        )
     }
 
-    fn is_active_withdrawn_superseded(&self) -> bool {
-        self.work_status().is_active_withdrawn_superseded()
+    fn compile_page_interval(&self) -> Option<String> {
+        self.first_page()
+            .zip(self.last_page())
+            .map(|(first, last)| format!("{first}–{last}"))
     }
 
-    fn has_withdrawn_date(&self) -> bool {
-        self.withdrawn_date().is_some()
+    fn is_published(&self) -> bool {
+        matches!(
+            self.work_status(),
+            WorkStatus::Active | WorkStatus::Withdrawn | WorkStatus::Superseded
+        )
     }
 
-    fn has_publication_date(&self) -> bool {
-        self.publication_date().is_some()
+    fn is_active(&self) -> bool {
+        matches!(self.work_status(), WorkStatus::Active)
     }
 
-    fn active_withdrawn_superseded_no_publication_date_error(&self) -> ThothResult<()> {
-        if self.is_active_withdrawn_superseded() && !self.has_publication_date() {
-            return Err(ThothError::PublicationDateError);
+    fn is_out_of_print(&self) -> bool {
+        matches!(
+            self.work_status(),
+            WorkStatus::Withdrawn | WorkStatus::Superseded
+        )
+    }
+
+    fn validate(&self) -> ThothResult<()> {
+        match (
+            self.is_published(),
+            self.publication_date(),
+            self.is_out_of_print(),
+            self.withdrawn_date(),
+        ) {
+            (true, None, _, _) => Err(ThothError::PublicationDateError),
+            (_, _, false, Some(_)) => Err(ThothError::WithdrawnDateError),
+            (_, _, true, None) => Err(ThothError::NoWithdrawnDateError),
+            (_, Some(publication), _, Some(withdrawn)) if withdrawn < publication => {
+                Err(ThothError::WithdrawnDateBeforePublicationDateError)
+            }
+            _ => Ok(()),
         }
-        Ok(())
     }
+}
 
-    fn withdrawn_date_error(&self) -> ThothResult<()> {
-        if !self.is_withdrawn_superseded() && self.has_withdrawn_date() {
-            return Err(ThothError::WithdrawnDateError);
-        }
-        Ok(())
-    }
-
-    fn no_withdrawn_date_error(&self) -> ThothResult<()> {
-        if self.is_withdrawn_superseded() && !self.has_withdrawn_date() {
-            return Err(ThothError::NoWithdrawnDateError);
-        }
-        Ok(())
-    }
-
-    fn withdrawn_date_before_publication_date_error(&self) -> ThothResult<()> {
-        if let (Some(withdrawn_date), Some(publication_date)) =
-            (self.withdrawn_date(), self.publication_date())
-        {
-            if withdrawn_date < publication_date {
-                return Err(ThothError::WithdrawnDateBeforePublicationDateError);
+macro_rules! work_properties {
+    ($t:ty) => {
+        impl WorkProperties for $t {
+            fn title(&self) -> &str {
+                &self.title
+            }
+            fn subtitle(&self) -> Option<&str> {
+                self.subtitle.as_deref()
+            }
+            fn work_status(&self) -> &WorkStatus {
+                &self.work_status
+            }
+            fn publication_date(&self) -> &Option<NaiveDate> {
+                &self.publication_date
+            }
+            fn withdrawn_date(&self) -> &Option<NaiveDate> {
+                &self.withdrawn_date
+            }
+            fn first_page(&self) -> Option<&str> {
+                self.first_page.as_deref()
+            }
+            fn last_page(&self) -> Option<&str> {
+                self.last_page.as_deref()
             }
         }
-        Ok(())
-    }
+    };
 }
 
-impl WorkProperties for Work {
-    fn work_status(&self) -> &WorkStatus {
-        &self.work_status
-    }
-
-    fn withdrawn_date(&self) -> &Option<NaiveDate> {
-        &self.withdrawn_date
-    }
-
-    fn publication_date(&self) -> &Option<NaiveDate> {
-        &self.publication_date
-    }
-}
-
-impl WorkProperties for NewWork {
-    fn work_status(&self) -> &WorkStatus {
-        &self.work_status
-    }
-
-    fn withdrawn_date(&self) -> &Option<NaiveDate> {
-        &self.withdrawn_date
-    }
-
-    fn publication_date(&self) -> &Option<NaiveDate> {
-        &self.publication_date
-    }
-}
-
-impl WorkProperties for PatchWork {
-    fn work_status(&self) -> &WorkStatus {
-        &self.work_status
-    }
-
-    fn withdrawn_date(&self) -> &Option<NaiveDate> {
-        &self.withdrawn_date
-    }
-
-    fn publication_date(&self) -> &Option<NaiveDate> {
-        &self.publication_date
-    }
-}
-
-impl Work {
-    pub fn compile_fulltitle(&self) -> String {
-        if let Some(subtitle) = &self.subtitle.clone() {
-            format!("{}: {}", self.title, subtitle)
-        } else {
-            self.title.to_string()
-        }
-    }
-}
+work_properties!(Work);
+work_properties!(NewWork);
+work_properties!(PatchWork);
+work_properties!(WorkWithRelations);
 
 impl WorkWithRelations {
-    pub fn compile_fulltitle(&self) -> String {
-        if let Some(subtitle) = &self.subtitle.clone() {
-            format!("{}: {}", self.title, subtitle)
-        } else {
-            self.title.to_string()
-        }
-    }
-
-    pub fn compile_page_interval(&self) -> Option<String> {
-        if let (Some(first), Some(last)) = (&self.first_page.clone(), &self.last_page.clone()) {
-            Some(format!("{first}–{last}"))
-        } else {
-            None
-        }
-    }
-
     pub fn publisher(&self) -> String {
-        if let Some(short_name) = &self.imprint.publisher.publisher_shortname.clone() {
-            short_name.to_string()
-        } else {
-            self.imprint.publisher.publisher_name.to_string()
-        }
+        self.imprint
+            .publisher
+            .publisher_shortname
+            .as_ref()
+            .map_or_else(
+                || self.imprint.publisher.publisher_name.to_string(),
+                |short_name| short_name.to_string(),
+            )
     }
 }
 
@@ -580,354 +550,517 @@ impl From<Work> for PatchWork {
 
 impl fmt::Display for Work {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(doi) = &self.doi {
-            write!(f, "{} - {}", &self.full_title, doi)
-        } else {
-            write!(f, "{}", self.full_title)
+        match &self.doi {
+            Some(doi) => write!(f, "{} - {}", self.full_title, doi),
+            None => write!(f, "{}", self.full_title),
         }
     }
 }
 
-#[test]
-fn test_worktype_default() {
-    let worktype: WorkType = Default::default();
-    assert_eq!(worktype, WorkType::Monograph);
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn test_workstatus_default() {
-    let workstatus: WorkStatus = Default::default();
-    assert_eq!(workstatus, WorkStatus::Forthcoming);
-}
+    fn test_work() -> Work {
+        use std::str::FromStr;
+        Work {
+            work_id: Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            work_type: WorkType::Monograph,
+            work_status: WorkStatus::Active,
+            full_title: "Some title".to_string(),
+            title: "Some title".to_string(),
+            subtitle: None,
+            reference: None,
+            edition: Some(1),
+            imprint_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
+            doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
+            publication_date: NaiveDate::from_ymd_opt(1999, 12, 31),
+            withdrawn_date: None,
+            place: Some("León, Spain".to_string()),
+            page_count: Some(123),
+            page_breakdown: None,
+            image_count: Some(22),
+            table_count: Some(3),
+            audio_count: None,
+            video_count: None,
+            license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
+            copyright_holder: Some("Author1".to_string()),
+            landing_page: Some("https://book.page".to_string()),
+            lccn: None,
+            oclc: None,
+            short_abstract: Some("Short abstract".to_string()),
+            long_abstract: Some("Long abstract".to_string()),
+            general_note: None,
+            bibliography_note: None,
+            toc: None,
+            cover_url: Some("https://book.cover/image".to_string()),
+            cover_caption: None,
+            created_at: Default::default(),
+            updated_at: Default::default(),
+            first_page: None,
+            last_page: None,
+            page_interval: None,
+            updated_at_with_relations: Default::default(),
+        }
+    }
 
-#[test]
-fn test_workfield_default() {
-    let workfield: WorkField = Default::default();
-    assert_eq!(workfield, WorkField::FullTitle);
-}
+    #[test]
+    fn test_worktype_default() {
+        let worktype: WorkType = Default::default();
+        assert_eq!(worktype, WorkType::Monograph);
+    }
 
-#[test]
-fn test_worktype_display() {
-    assert_eq!(format!("{}", WorkType::BookChapter), "Book Chapter");
-    assert_eq!(format!("{}", WorkType::Monograph), "Monograph");
-    assert_eq!(format!("{}", WorkType::EditedBook), "Edited Book");
-    assert_eq!(format!("{}", WorkType::Textbook), "Textbook");
-    assert_eq!(format!("{}", WorkType::JournalIssue), "Journal Issue");
-    assert_eq!(format!("{}", WorkType::BookSet), "Book Set");
-}
+    #[test]
+    fn test_workstatus_default() {
+        let workstatus: WorkStatus = Default::default();
+        assert_eq!(workstatus, WorkStatus::Forthcoming);
+    }
 
-#[test]
-fn test_workstatus_display() {
-    assert_eq!(format!("{}", WorkStatus::Cancelled), "Cancelled");
-    assert_eq!(format!("{}", WorkStatus::Forthcoming), "Forthcoming");
-    assert_eq!(
-        format!("{}", WorkStatus::PostponedIndefinitely),
-        "Postponed Indefinitely"
-    );
-    assert_eq!(format!("{}", WorkStatus::Active), "Active");
-    assert_eq!(format!("{}", WorkStatus::Withdrawn), "Withdrawn");
-    assert_eq!(format!("{}", WorkStatus::Superseded), "Superseded");
-}
+    #[test]
+    fn test_workfield_default() {
+        let workfield: WorkField = Default::default();
+        assert_eq!(workfield, WorkField::FullTitle);
+    }
 
-#[test]
-fn test_workfield_display() {
-    assert_eq!(format!("{}", WorkField::WorkId), "ID");
-    assert_eq!(format!("{}", WorkField::WorkType), "Type");
-    assert_eq!(format!("{}", WorkField::WorkStatus), "WorkStatus");
-    assert_eq!(format!("{}", WorkField::FullTitle), "Title");
-    assert_eq!(format!("{}", WorkField::Title), "ShortTitle");
-    assert_eq!(format!("{}", WorkField::Subtitle), "Subtitle");
-    assert_eq!(format!("{}", WorkField::Reference), "Reference");
-    assert_eq!(format!("{}", WorkField::Edition), "Edition");
-    assert_eq!(format!("{}", WorkField::Doi), "DOI");
-    assert_eq!(format!("{}", WorkField::PublicationDate), "PublicationDate");
-    assert_eq!(format!("{}", WorkField::WithdrawnDate), "WithdrawnDate");
-    assert_eq!(format!("{}", WorkField::Place), "Place");
-    assert_eq!(format!("{}", WorkField::PageCount), "PageCount");
-    assert_eq!(format!("{}", WorkField::PageBreakdown), "PageBreakdown");
-    assert_eq!(format!("{}", WorkField::FirstPage), "FirstPage");
-    assert_eq!(format!("{}", WorkField::LastPage), "LastPage");
-    assert_eq!(format!("{}", WorkField::PageInterval), "PageInterval");
-    assert_eq!(format!("{}", WorkField::ImageCount), "ImageCount");
-    assert_eq!(format!("{}", WorkField::TableCount), "TableCount");
-    assert_eq!(format!("{}", WorkField::AudioCount), "AudioCount");
-    assert_eq!(format!("{}", WorkField::VideoCount), "VideoCount");
-    assert_eq!(format!("{}", WorkField::License), "License");
-    assert_eq!(format!("{}", WorkField::CopyrightHolder), "CopyrightHolder");
-    assert_eq!(format!("{}", WorkField::LandingPage), "LandingPage");
-    assert_eq!(format!("{}", WorkField::Lccn), "LCCN");
-    assert_eq!(format!("{}", WorkField::Oclc), "OCLC");
-    assert_eq!(format!("{}", WorkField::ShortAbstract), "ShortAbstract");
-    assert_eq!(format!("{}", WorkField::LongAbstract), "LongAbstract");
-    assert_eq!(format!("{}", WorkField::GeneralNote), "GeneralNote");
-    assert_eq!(
-        format!("{}", WorkField::BibliographyNote),
-        "BibliographyNote"
-    );
-    assert_eq!(format!("{}", WorkField::Toc), "TOC");
-    assert_eq!(format!("{}", WorkField::CoverUrl), "CoverURL");
-    assert_eq!(format!("{}", WorkField::CoverCaption), "CoverCaption");
-    assert_eq!(format!("{}", WorkField::CreatedAt), "CreatedAt");
-    assert_eq!(format!("{}", WorkField::UpdatedAt), "UpdatedAt");
-    assert_eq!(
-        format!("{}", WorkField::UpdatedAtWithRelations),
-        "UpdatedAtWithRelations"
-    );
-}
+    #[test]
+    fn test_worktype_display() {
+        assert_eq!(format!("{}", WorkType::BookChapter), "Book Chapter");
+        assert_eq!(format!("{}", WorkType::Monograph), "Monograph");
+        assert_eq!(format!("{}", WorkType::EditedBook), "Edited Book");
+        assert_eq!(format!("{}", WorkType::Textbook), "Textbook");
+        assert_eq!(format!("{}", WorkType::JournalIssue), "Journal Issue");
+        assert_eq!(format!("{}", WorkType::BookSet), "Book Set");
+    }
 
-#[test]
-fn test_worktype_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(
-        WorkType::from_str("Book Chapter").unwrap(),
-        WorkType::BookChapter
-    );
-    assert_eq!(
-        WorkType::from_str("Monograph").unwrap(),
-        WorkType::Monograph
-    );
-    assert_eq!(
-        WorkType::from_str("Edited Book").unwrap(),
-        WorkType::EditedBook
-    );
-    assert_eq!(WorkType::from_str("Textbook").unwrap(), WorkType::Textbook);
-    assert_eq!(
-        WorkType::from_str("Journal Issue").unwrap(),
-        WorkType::JournalIssue
-    );
-    assert_eq!(WorkType::from_str("Book Set").unwrap(), WorkType::BookSet);
+    #[test]
+    fn test_workstatus_display() {
+        assert_eq!(format!("{}", WorkStatus::Cancelled), "Cancelled");
+        assert_eq!(format!("{}", WorkStatus::Forthcoming), "Forthcoming");
+        assert_eq!(
+            format!("{}", WorkStatus::PostponedIndefinitely),
+            "Postponed Indefinitely"
+        );
+        assert_eq!(format!("{}", WorkStatus::Active), "Active");
+        assert_eq!(format!("{}", WorkStatus::Withdrawn), "Withdrawn");
+        assert_eq!(format!("{}", WorkStatus::Superseded), "Superseded");
+    }
 
-    assert!(WorkType::from_str("Book Section").is_err());
-    assert!(WorkType::from_str("Manuscript").is_err());
-}
+    #[test]
+    fn test_workfield_display() {
+        assert_eq!(format!("{}", WorkField::WorkId), "ID");
+        assert_eq!(format!("{}", WorkField::WorkType), "Type");
+        assert_eq!(format!("{}", WorkField::WorkStatus), "WorkStatus");
+        assert_eq!(format!("{}", WorkField::FullTitle), "Title");
+        assert_eq!(format!("{}", WorkField::Title), "ShortTitle");
+        assert_eq!(format!("{}", WorkField::Subtitle), "Subtitle");
+        assert_eq!(format!("{}", WorkField::Reference), "Reference");
+        assert_eq!(format!("{}", WorkField::Edition), "Edition");
+        assert_eq!(format!("{}", WorkField::Doi), "DOI");
+        assert_eq!(format!("{}", WorkField::PublicationDate), "PublicationDate");
+        assert_eq!(format!("{}", WorkField::WithdrawnDate), "WithdrawnDate");
+        assert_eq!(format!("{}", WorkField::Place), "Place");
+        assert_eq!(format!("{}", WorkField::PageCount), "PageCount");
+        assert_eq!(format!("{}", WorkField::PageBreakdown), "PageBreakdown");
+        assert_eq!(format!("{}", WorkField::FirstPage), "FirstPage");
+        assert_eq!(format!("{}", WorkField::LastPage), "LastPage");
+        assert_eq!(format!("{}", WorkField::PageInterval), "PageInterval");
+        assert_eq!(format!("{}", WorkField::ImageCount), "ImageCount");
+        assert_eq!(format!("{}", WorkField::TableCount), "TableCount");
+        assert_eq!(format!("{}", WorkField::AudioCount), "AudioCount");
+        assert_eq!(format!("{}", WorkField::VideoCount), "VideoCount");
+        assert_eq!(format!("{}", WorkField::License), "License");
+        assert_eq!(format!("{}", WorkField::CopyrightHolder), "CopyrightHolder");
+        assert_eq!(format!("{}", WorkField::LandingPage), "LandingPage");
+        assert_eq!(format!("{}", WorkField::Lccn), "LCCN");
+        assert_eq!(format!("{}", WorkField::Oclc), "OCLC");
+        assert_eq!(format!("{}", WorkField::ShortAbstract), "ShortAbstract");
+        assert_eq!(format!("{}", WorkField::LongAbstract), "LongAbstract");
+        assert_eq!(format!("{}", WorkField::GeneralNote), "GeneralNote");
+        assert_eq!(
+            format!("{}", WorkField::BibliographyNote),
+            "BibliographyNote"
+        );
+        assert_eq!(format!("{}", WorkField::Toc), "TOC");
+        assert_eq!(format!("{}", WorkField::CoverUrl), "CoverURL");
+        assert_eq!(format!("{}", WorkField::CoverCaption), "CoverCaption");
+        assert_eq!(format!("{}", WorkField::CreatedAt), "CreatedAt");
+        assert_eq!(format!("{}", WorkField::UpdatedAt), "UpdatedAt");
+        assert_eq!(
+            format!("{}", WorkField::UpdatedAtWithRelations),
+            "UpdatedAtWithRelations"
+        );
+    }
 
-#[test]
-fn test_workstatus_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(
-        WorkStatus::from_str("Cancelled").unwrap(),
-        WorkStatus::Cancelled
-    );
-    assert_eq!(
-        WorkStatus::from_str("Forthcoming").unwrap(),
-        WorkStatus::Forthcoming
-    );
-    assert_eq!(
-        WorkStatus::from_str("Postponed Indefinitely").unwrap(),
-        WorkStatus::PostponedIndefinitely
-    );
-    assert_eq!(WorkStatus::from_str("Active").unwrap(), WorkStatus::Active);
-    assert_eq!(
-        WorkStatus::from_str("Withdrawn").unwrap(),
-        WorkStatus::Withdrawn
-    );
-    assert_eq!(
-        WorkStatus::from_str("Superseded").unwrap(),
-        WorkStatus::Superseded
-    );
+    #[test]
+    fn test_worktype_fromstr() {
+        use std::str::FromStr;
+        assert_eq!(
+            WorkType::from_str("Book Chapter").unwrap(),
+            WorkType::BookChapter
+        );
+        assert_eq!(
+            WorkType::from_str("Monograph").unwrap(),
+            WorkType::Monograph
+        );
+        assert_eq!(
+            WorkType::from_str("Edited Book").unwrap(),
+            WorkType::EditedBook
+        );
+        assert_eq!(WorkType::from_str("Textbook").unwrap(), WorkType::Textbook);
+        assert_eq!(
+            WorkType::from_str("Journal Issue").unwrap(),
+            WorkType::JournalIssue
+        );
+        assert_eq!(WorkType::from_str("Book Set").unwrap(), WorkType::BookSet);
 
-    assert!(WorkStatus::from_str("Published").is_err());
-    assert!(WorkStatus::from_str("Unpublished").is_err());
-}
+        assert!(WorkType::from_str("Book Section").is_err());
+        assert!(WorkType::from_str("Manuscript").is_err());
+    }
 
-#[test]
-fn test_workfield_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(WorkField::from_str("ID").unwrap(), WorkField::WorkId);
-    assert_eq!(WorkField::from_str("Type").unwrap(), WorkField::WorkType);
-    assert_eq!(
-        WorkField::from_str("WorkStatus").unwrap(),
-        WorkField::WorkStatus
-    );
-    assert_eq!(WorkField::from_str("Title").unwrap(), WorkField::FullTitle);
-    assert_eq!(WorkField::from_str("ShortTitle").unwrap(), WorkField::Title);
-    assert_eq!(
-        WorkField::from_str("Subtitle").unwrap(),
-        WorkField::Subtitle
-    );
-    assert_eq!(
-        WorkField::from_str("Reference").unwrap(),
-        WorkField::Reference
-    );
-    assert_eq!(WorkField::from_str("Edition").unwrap(), WorkField::Edition);
-    assert_eq!(WorkField::from_str("DOI").unwrap(), WorkField::Doi);
-    assert_eq!(
-        WorkField::from_str("PublicationDate").unwrap(),
-        WorkField::PublicationDate
-    );
-    assert_eq!(
-        WorkField::from_str("WithdrawnDate").unwrap(),
-        WorkField::WithdrawnDate
-    );
-    assert_eq!(WorkField::from_str("Place").unwrap(), WorkField::Place);
-    assert_eq!(
-        WorkField::from_str("PageCount").unwrap(),
-        WorkField::PageCount
-    );
-    assert_eq!(
-        WorkField::from_str("PageBreakdown").unwrap(),
-        WorkField::PageBreakdown
-    );
-    assert_eq!(
-        WorkField::from_str("FirstPage").unwrap(),
-        WorkField::FirstPage
-    );
-    assert_eq!(
-        WorkField::from_str("LastPage").unwrap(),
-        WorkField::LastPage
-    );
-    assert_eq!(
-        WorkField::from_str("PageInterval").unwrap(),
-        WorkField::PageInterval
-    );
-    assert_eq!(
-        WorkField::from_str("ImageCount").unwrap(),
-        WorkField::ImageCount
-    );
-    assert_eq!(
-        WorkField::from_str("TableCount").unwrap(),
-        WorkField::TableCount
-    );
-    assert_eq!(
-        WorkField::from_str("AudioCount").unwrap(),
-        WorkField::AudioCount
-    );
-    assert_eq!(
-        WorkField::from_str("VideoCount").unwrap(),
-        WorkField::VideoCount
-    );
-    assert_eq!(WorkField::from_str("License").unwrap(), WorkField::License);
-    assert_eq!(
-        WorkField::from_str("CopyrightHolder").unwrap(),
-        WorkField::CopyrightHolder
-    );
-    assert_eq!(
-        WorkField::from_str("LandingPage").unwrap(),
-        WorkField::LandingPage
-    );
-    assert_eq!(WorkField::from_str("LCCN").unwrap(), WorkField::Lccn);
-    assert_eq!(WorkField::from_str("OCLC").unwrap(), WorkField::Oclc);
-    assert_eq!(
-        WorkField::from_str("ShortAbstract").unwrap(),
-        WorkField::ShortAbstract
-    );
-    assert_eq!(
-        WorkField::from_str("LongAbstract").unwrap(),
-        WorkField::LongAbstract
-    );
-    assert_eq!(
-        WorkField::from_str("GeneralNote").unwrap(),
-        WorkField::GeneralNote
-    );
-    assert_eq!(
-        WorkField::from_str("BibliographyNote").unwrap(),
-        WorkField::BibliographyNote
-    );
-    assert_eq!(WorkField::from_str("TOC").unwrap(), WorkField::Toc);
-    assert_eq!(
-        WorkField::from_str("CoverURL").unwrap(),
-        WorkField::CoverUrl
-    );
-    assert_eq!(
-        WorkField::from_str("CoverCaption").unwrap(),
-        WorkField::CoverCaption
-    );
-    assert_eq!(
-        WorkField::from_str("CreatedAt").unwrap(),
-        WorkField::CreatedAt
-    );
-    assert_eq!(
-        WorkField::from_str("UpdatedAt").unwrap(),
-        WorkField::UpdatedAt
-    );
-    assert_eq!(
-        WorkField::from_str("UpdatedAtWithRelations").unwrap(),
-        WorkField::UpdatedAtWithRelations
-    );
-    assert!(WorkField::from_str("WorkID").is_err());
-    assert!(WorkField::from_str("Contributors").is_err());
-    assert!(WorkField::from_str("Publisher").is_err());
-}
+    #[test]
+    fn test_workstatus_fromstr() {
+        use std::str::FromStr;
+        assert_eq!(
+            WorkStatus::from_str("Cancelled").unwrap(),
+            WorkStatus::Cancelled
+        );
+        assert_eq!(
+            WorkStatus::from_str("Forthcoming").unwrap(),
+            WorkStatus::Forthcoming
+        );
+        assert_eq!(
+            WorkStatus::from_str("Postponed Indefinitely").unwrap(),
+            WorkStatus::PostponedIndefinitely
+        );
+        assert_eq!(WorkStatus::from_str("Active").unwrap(), WorkStatus::Active);
+        assert_eq!(
+            WorkStatus::from_str("Withdrawn").unwrap(),
+            WorkStatus::Withdrawn
+        );
+        assert_eq!(
+            WorkStatus::from_str("Superseded").unwrap(),
+            WorkStatus::Superseded
+        );
 
-#[test]
-fn test_work_into_patchwork() {
-    use std::str::FromStr;
+        assert!(WorkStatus::from_str("Published").is_err());
+        assert!(WorkStatus::from_str("Unpublished").is_err());
+    }
 
-    let work = Work {
-        work_id: Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-        work_type: WorkType::Monograph,
-        work_status: WorkStatus::Active,
-        full_title: "Some title".to_string(),
-        title: "Some title".to_string(),
-        subtitle: None,
-        reference: None,
-        edition: Some(1),
-        imprint_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
-        doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
-        publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
-        withdrawn_date: None,
-        place: Some("León, Spain".to_string()),
-        page_count: Some(123),
-        page_breakdown: None,
-        image_count: Some(22),
-        table_count: Some(3),
-        audio_count: None,
-        video_count: None,
-        license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
-        copyright_holder: Some("Author1".to_string()),
-        landing_page: Some("https://book.page".to_string()),
-        lccn: None,
-        oclc: None,
-        short_abstract: Some("Short abstract".to_string()),
-        long_abstract: Some("Long abstract".to_string()),
-        general_note: None,
-        bibliography_note: None,
-        toc: None,
-        cover_url: Some("https://book.cover/image".to_string()),
-        cover_caption: None,
-        created_at: Default::default(),
-        updated_at: Default::default(),
-        first_page: None,
-        last_page: None,
-        page_interval: None,
-        updated_at_with_relations: Default::default(),
-    };
-    let patch_work: PatchWork = work.clone().into();
+    #[test]
+    fn test_workfield_fromstr() {
+        use std::str::FromStr;
+        assert_eq!(WorkField::from_str("ID").unwrap(), WorkField::WorkId);
+        assert_eq!(WorkField::from_str("Type").unwrap(), WorkField::WorkType);
+        assert_eq!(
+            WorkField::from_str("WorkStatus").unwrap(),
+            WorkField::WorkStatus
+        );
+        assert_eq!(WorkField::from_str("Title").unwrap(), WorkField::FullTitle);
+        assert_eq!(WorkField::from_str("ShortTitle").unwrap(), WorkField::Title);
+        assert_eq!(
+            WorkField::from_str("Subtitle").unwrap(),
+            WorkField::Subtitle
+        );
+        assert_eq!(
+            WorkField::from_str("Reference").unwrap(),
+            WorkField::Reference
+        );
+        assert_eq!(WorkField::from_str("Edition").unwrap(), WorkField::Edition);
+        assert_eq!(WorkField::from_str("DOI").unwrap(), WorkField::Doi);
+        assert_eq!(
+            WorkField::from_str("PublicationDate").unwrap(),
+            WorkField::PublicationDate
+        );
+        assert_eq!(
+            WorkField::from_str("WithdrawnDate").unwrap(),
+            WorkField::WithdrawnDate
+        );
+        assert_eq!(WorkField::from_str("Place").unwrap(), WorkField::Place);
+        assert_eq!(
+            WorkField::from_str("PageCount").unwrap(),
+            WorkField::PageCount
+        );
+        assert_eq!(
+            WorkField::from_str("PageBreakdown").unwrap(),
+            WorkField::PageBreakdown
+        );
+        assert_eq!(
+            WorkField::from_str("FirstPage").unwrap(),
+            WorkField::FirstPage
+        );
+        assert_eq!(
+            WorkField::from_str("LastPage").unwrap(),
+            WorkField::LastPage
+        );
+        assert_eq!(
+            WorkField::from_str("PageInterval").unwrap(),
+            WorkField::PageInterval
+        );
+        assert_eq!(
+            WorkField::from_str("ImageCount").unwrap(),
+            WorkField::ImageCount
+        );
+        assert_eq!(
+            WorkField::from_str("TableCount").unwrap(),
+            WorkField::TableCount
+        );
+        assert_eq!(
+            WorkField::from_str("AudioCount").unwrap(),
+            WorkField::AudioCount
+        );
+        assert_eq!(
+            WorkField::from_str("VideoCount").unwrap(),
+            WorkField::VideoCount
+        );
+        assert_eq!(WorkField::from_str("License").unwrap(), WorkField::License);
+        assert_eq!(
+            WorkField::from_str("CopyrightHolder").unwrap(),
+            WorkField::CopyrightHolder
+        );
+        assert_eq!(
+            WorkField::from_str("LandingPage").unwrap(),
+            WorkField::LandingPage
+        );
+        assert_eq!(WorkField::from_str("LCCN").unwrap(), WorkField::Lccn);
+        assert_eq!(WorkField::from_str("OCLC").unwrap(), WorkField::Oclc);
+        assert_eq!(
+            WorkField::from_str("ShortAbstract").unwrap(),
+            WorkField::ShortAbstract
+        );
+        assert_eq!(
+            WorkField::from_str("LongAbstract").unwrap(),
+            WorkField::LongAbstract
+        );
+        assert_eq!(
+            WorkField::from_str("GeneralNote").unwrap(),
+            WorkField::GeneralNote
+        );
+        assert_eq!(
+            WorkField::from_str("BibliographyNote").unwrap(),
+            WorkField::BibliographyNote
+        );
+        assert_eq!(WorkField::from_str("TOC").unwrap(), WorkField::Toc);
+        assert_eq!(
+            WorkField::from_str("CoverURL").unwrap(),
+            WorkField::CoverUrl
+        );
+        assert_eq!(
+            WorkField::from_str("CoverCaption").unwrap(),
+            WorkField::CoverCaption
+        );
+        assert_eq!(
+            WorkField::from_str("CreatedAt").unwrap(),
+            WorkField::CreatedAt
+        );
+        assert_eq!(
+            WorkField::from_str("UpdatedAt").unwrap(),
+            WorkField::UpdatedAt
+        );
+        assert_eq!(
+            WorkField::from_str("UpdatedAtWithRelations").unwrap(),
+            WorkField::UpdatedAtWithRelations
+        );
+        assert!(WorkField::from_str("WorkID").is_err());
+        assert!(WorkField::from_str("Contributors").is_err());
+        assert!(WorkField::from_str("Publisher").is_err());
+    }
 
-    assert_eq!(work.work_id, patch_work.work_id);
-    assert_eq!(work.work_type, patch_work.work_type);
-    assert_eq!(work.work_status, patch_work.work_status);
-    assert_eq!(work.full_title, patch_work.full_title);
-    assert_eq!(work.title, patch_work.title);
-    assert_eq!(work.subtitle, patch_work.subtitle);
-    assert_eq!(work.reference, patch_work.reference);
-    assert_eq!(work.edition, patch_work.edition);
-    assert_eq!(work.imprint_id, patch_work.imprint_id);
-    assert_eq!(work.doi, patch_work.doi);
-    assert_eq!(work.publication_date, patch_work.publication_date);
-    assert_eq!(work.withdrawn_date, patch_work.withdrawn_date);
-    assert_eq!(work.place, patch_work.place);
-    assert_eq!(work.page_count, patch_work.page_count);
-    assert_eq!(work.page_breakdown, patch_work.page_breakdown);
-    assert_eq!(work.image_count, patch_work.image_count);
-    assert_eq!(work.table_count, patch_work.table_count);
-    assert_eq!(work.audio_count, patch_work.audio_count);
-    assert_eq!(work.video_count, patch_work.video_count);
-    assert_eq!(work.license, patch_work.license);
-    assert_eq!(work.copyright_holder, patch_work.copyright_holder);
-    assert_eq!(work.landing_page, patch_work.landing_page);
-    assert_eq!(work.lccn, patch_work.lccn);
-    assert_eq!(work.oclc, patch_work.oclc);
-    assert_eq!(work.short_abstract, patch_work.short_abstract);
-    assert_eq!(work.long_abstract, patch_work.long_abstract);
-    assert_eq!(work.general_note, patch_work.general_note);
-    assert_eq!(work.bibliography_note, patch_work.bibliography_note);
-    assert_eq!(work.toc, patch_work.toc);
-    assert_eq!(work.cover_url, patch_work.cover_url);
-    assert_eq!(work.cover_caption, patch_work.cover_caption);
-    assert_eq!(work.first_page, patch_work.first_page);
-    assert_eq!(work.last_page, patch_work.last_page);
-    assert_eq!(work.page_interval, patch_work.page_interval);
+    #[test]
+    fn test_work_into_patchwork() {
+        let work = test_work();
+        let patch_work: PatchWork = work.clone().into();
+
+        macro_rules! assert_fields_eq {
+            ($($field:ident),+) => {
+                $(
+                    assert_eq!(work.$field, patch_work.$field);
+                )+
+            };
+        }
+        assert_fields_eq!(
+            work_id,
+            work_type,
+            work_status,
+            full_title,
+            title,
+            subtitle,
+            reference,
+            edition,
+            imprint_id,
+            doi,
+            publication_date,
+            withdrawn_date,
+            place,
+            page_count,
+            page_breakdown,
+            image_count,
+            table_count,
+            audio_count,
+            video_count,
+            license,
+            copyright_holder,
+            landing_page,
+            lccn,
+            oclc,
+            short_abstract,
+            long_abstract,
+            general_note,
+            bibliography_note,
+            toc,
+            cover_url,
+            cover_caption,
+            first_page,
+            last_page,
+            page_interval
+        );
+    }
+
+    #[test]
+    fn test_compile_full_title() {
+        let mut work = test_work();
+        assert_eq!(work.compile_fulltitle(), "Some title".to_string());
+
+        work.subtitle = Some("With a subtitle".to_string());
+        assert_eq!(
+            work.compile_fulltitle(),
+            "Some title: With a subtitle".to_string()
+        );
+
+        work.title = "Some title?".to_string();
+        assert_eq!(
+            work.compile_fulltitle(),
+            "Some title? With a subtitle".to_string()
+        );
+
+        work.title = "Some title.".to_string();
+        assert_eq!(
+            work.compile_fulltitle(),
+            "Some title. With a subtitle".to_string()
+        );
+
+        work.title = "Some title!".to_string();
+        assert_eq!(
+            work.compile_fulltitle(),
+            "Some title! With a subtitle".to_string()
+        );
+    }
+
+    #[test]
+    fn test_compile_page_interval() {
+        let mut work = test_work();
+        assert!(work.compile_page_interval().is_none());
+
+        work.first_page = Some("1".to_string());
+        work.last_page = Some("10".to_string());
+        assert_eq!(work.compile_page_interval(), Some("1–10".to_string()));
+    }
+
+    #[test]
+    fn test_is_published() {
+        let mut work = test_work();
+
+        work.work_status = WorkStatus::Forthcoming;
+        assert!(!work.is_published());
+        work.work_status = WorkStatus::Cancelled;
+        assert!(!work.is_published());
+        work.work_status = WorkStatus::PostponedIndefinitely;
+        assert!(!work.is_published());
+
+        work.work_status = WorkStatus::Active;
+        assert!(work.is_published());
+        work.work_status = WorkStatus::Withdrawn;
+        assert!(work.is_published());
+        work.work_status = WorkStatus::Superseded;
+        assert!(work.is_published());
+    }
+
+    #[test]
+    fn test_is_out_of_print() {
+        let mut work = test_work();
+
+        work.work_status = WorkStatus::Forthcoming;
+        assert!(!work.is_out_of_print());
+        work.work_status = WorkStatus::Cancelled;
+        assert!(!work.is_out_of_print());
+        work.work_status = WorkStatus::PostponedIndefinitely;
+        assert!(!work.is_out_of_print());
+        work.work_status = WorkStatus::Active;
+        assert!(!work.is_out_of_print());
+
+        work.work_status = WorkStatus::Withdrawn;
+        assert!(work.is_out_of_print());
+        work.work_status = WorkStatus::Superseded;
+        assert!(work.is_out_of_print());
+    }
+
+    #[test]
+    fn test_is_active() {
+        let mut work = test_work();
+        assert!(work.is_active());
+
+        work.work_status = WorkStatus::Forthcoming;
+        assert!(!work.is_active());
+        work.work_status = WorkStatus::Cancelled;
+        assert!(!work.is_active());
+        work.work_status = WorkStatus::PostponedIndefinitely;
+        assert!(!work.is_active());
+        work.work_status = WorkStatus::Withdrawn;
+        assert!(!work.is_active());
+        work.work_status = WorkStatus::Superseded;
+        assert!(!work.is_active());
+    }
+
+    #[test]
+    fn test_validate_fails_when_published_without_publication_date() {
+        let mut work = test_work();
+        work.work_status = WorkStatus::Active;
+        work.publication_date = None;
+
+        assert_eq!(work.validate(), Err(ThothError::PublicationDateError));
+    }
+
+    #[test]
+    fn test_validate_fails_when_published_with_withdrawn_date() {
+        let mut work = test_work();
+        work.work_status = WorkStatus::Active;
+        work.withdrawn_date = Some(NaiveDate::from_ymd_opt(2021, 1, 1).unwrap());
+
+        assert_eq!(work.validate(), Err(ThothError::WithdrawnDateError));
+    }
+
+    #[test]
+    fn test_validate_fails_when_out_of_print_without_withdrawn_date() {
+        let mut work = test_work();
+        work.work_status = WorkStatus::Withdrawn;
+        work.withdrawn_date = None;
+
+        assert_eq!(work.validate(), Err(ThothError::NoWithdrawnDateError));
+        work.work_status = WorkStatus::Superseded;
+        assert_eq!(work.validate(), Err(ThothError::NoWithdrawnDateError));
+    }
+
+    #[test]
+    fn test_validate_fails_when_withdrawn_date_before_publication_date() {
+        let mut work = test_work();
+        work.work_status = WorkStatus::Withdrawn;
+        work.publication_date = Some(NaiveDate::from_ymd_opt(2020, 1, 1).unwrap());
+        work.withdrawn_date = Some(NaiveDate::from_ymd_opt(2019, 12, 31).unwrap());
+
+        assert_eq!(
+            work.validate(),
+            Err(ThothError::WithdrawnDateBeforePublicationDateError)
+        );
+    }
+
+    #[test]
+    fn test_validate_succeeds() {
+        let mut work = test_work();
+        work.work_status = WorkStatus::Withdrawn;
+        work.publication_date = Some(NaiveDate::from_ymd_opt(2020, 1, 1).unwrap());
+        work.withdrawn_date = Some(NaiveDate::from_ymd_opt(2021, 1, 1).unwrap());
+
+        assert_eq!(work.validate(), Ok(()));
+    }
 }
 
 #[cfg(feature = "backend")]

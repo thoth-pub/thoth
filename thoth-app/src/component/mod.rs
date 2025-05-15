@@ -492,4 +492,5 @@ pub mod serieses;
 pub mod subjects_form;
 pub mod utils;
 pub mod work;
+pub mod work_status_modal;
 pub mod works;

@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use std::str::FromStr;
 use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
@@ -9,6 +10,7 @@ use thoth_api::model::language::Language;
 use thoth_api::model::publication::Publication;
 use thoth_api::model::reference::Reference;
 use thoth_api::model::subject::Subject;
+use thoth_api::model::work::WorkProperties;
 use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
@@ -50,6 +52,7 @@ use crate::component::utils::FormUrlInput;
 use crate::component::utils::FormWorkStatusSelect;
 use crate::component::utils::FormWorkTypeSelect;
 use crate::component::utils::Loader;
+use crate::component::work_status_modal::ConfirmWorkStatusComponent;
 use crate::models::work::delete_work_mutation::DeleteWorkRequest;
 use crate::models::work::delete_work_mutation::DeleteWorkRequestBody;
 use crate::models::work::delete_work_mutation::PushActionDeleteWork;
@@ -83,6 +86,9 @@ pub struct WorkComponent {
     imprint_id: Uuid,
     // Track work_type stored in database, as distinct from work_type selected in dropdown
     work_type: WorkType,
+    // Track work_status stored in database, as distinct from work_status selected in dropdown
+    work_status_in_db: WorkStatus,
+    is_published_in_db: bool,
     data: WorkFormData,
     fetch_work: FetchWork,
     push_work: PushUpdateWork,
@@ -91,6 +97,7 @@ pub struct WorkComponent {
     // Store props values locally in order to test whether they have been updated on props change
     resource_access: AccountAccess,
     work_id: Uuid,
+    publish_confirmation_required: bool,
 }
 
 #[derive(Default)]
@@ -147,6 +154,8 @@ pub enum Msg {
     UpdateSubjects(Option<Vec<Subject>>),
     UpdateIssues(Option<Vec<IssueWithSeries>>),
     UpdateReferences(Option<Vec<Reference>>),
+    OpenConfirmWorkStatusModal,
+    CloseConfirmWorkStatusModal,
 }
 
 #[derive(PartialEq, Eq, Properties)]
@@ -169,6 +178,8 @@ impl Component for WorkComponent {
         let doi_warning = Default::default();
         let imprint_id = work.imprint.imprint_id;
         let work_type = work.work_type;
+        let work_status_in_db = work.work_status;
+        let is_published_in_db: bool = Default::default();
         let data: WorkFormData = Default::default();
         let resource_access = ctx.props().current_user.resource_access.clone();
         let work_id = ctx.props().work_id;
@@ -181,6 +192,8 @@ impl Component for WorkComponent {
             doi_warning,
             imprint_id,
             work_type,
+            work_status_in_db,
+            is_published_in_db,
             data,
             fetch_work,
             push_work,
@@ -188,6 +201,7 @@ impl Component for WorkComponent {
             notification_bus,
             resource_access,
             work_id,
+            publish_confirmation_required: false,
         }
     }
 
@@ -207,6 +221,8 @@ impl Component for WorkComponent {
                         self.doi = self.work.doi.clone().unwrap_or_default().to_string();
                         self.imprint_id = self.work.imprint.imprint_id;
                         self.work_type = self.work.work_type;
+                        self.work_status_in_db = self.work.work_status;
+                        self.is_published_in_db = self.work.is_published();
                         body.data.imprints.clone_into(&mut self.data.imprints);
                         body.data
                             .work_types
@@ -261,10 +277,14 @@ impl Component for WorkComponent {
                             self.doi_warning.clear();
                             self.imprint_id = self.work.imprint.imprint_id;
                             self.work_type = self.work.work_type;
+                            // After save, update work_status_in_db to match database
+                            self.work_status_in_db = self.work.work_status;
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
                             )));
+                            // Set publish_confirmation_required to false after save, closing the modal
+                            self.publish_confirmation_required = false;
                             true
                         }
                         None => {
@@ -305,9 +325,7 @@ impl Component for WorkComponent {
                     self.work.last_page = None;
                     self.work.page_interval = None;
                 }
-                if self.work.work_status != WorkStatus::Withdrawn
-                    && self.work.work_status != WorkStatus::Superseded
-                {
+                if !self.work.is_out_of_print() {
                     self.work.withdrawn_date = None;
                 }
                 let body = UpdateWorkRequestBody {
@@ -322,8 +340,8 @@ impl Component for WorkComponent {
                         edition: self.work.edition,
                         imprint_id: self.work.imprint.imprint_id,
                         doi: self.work.doi.clone(),
-                        publication_date: self.work.publication_date.clone(),
-                        withdrawn_date: self.work.withdrawn_date.clone(),
+                        publication_date: self.work.publication_date,
+                        withdrawn_date: self.work.withdrawn_date,
                         place: self.work.place.clone(),
                         page_count: self.work.page_count,
                         page_breakdown: self.work.page_breakdown.clone(),
@@ -355,6 +373,9 @@ impl Component for WorkComponent {
                     .send_future(self.push_work.fetch(Msg::SetWorkPushState));
                 ctx.link()
                     .send_message(Msg::SetWorkPushState(FetchAction::Fetching));
+                // value of is_published_in_db must be updated at the end of updating a work, so that the confirmation modal
+                // is not displayed when a work is updated to Withdrawn or Superseded immediately after being set as Active from Forthcoming
+                self.is_published_in_db = self.work.is_published();
                 false
             }
             Msg::SetWorkDeleteState(fetch_state) => {
@@ -464,10 +485,14 @@ impl Component for WorkComponent {
                     false
                 }
             }
-            Msg::ChangeDate(value) => self.work.publication_date.neq_assign(value.to_opt_string()),
-            Msg::ChangeWithdrawnDate(value) => {
-                self.work.withdrawn_date.neq_assign(value.to_opt_string())
-            }
+            Msg::ChangeDate(value) => self
+                .work
+                .publication_date
+                .neq_assign(NaiveDate::parse_from_str(&value, "%Y-%m-%d").ok()),
+            Msg::ChangeWithdrawnDate(value) => self
+                .work
+                .withdrawn_date
+                .neq_assign(NaiveDate::parse_from_str(&value, "%Y-%m-%d").ok()),
             Msg::ChangePlace(value) => self.work.place.neq_assign(value.to_opt_string()),
             Msg::ChangePageCount(value) => self.work.page_count.neq_assign(value.to_opt_int()),
             Msg::ChangePageBreakdown(value) => {
@@ -531,6 +556,14 @@ impl Component for WorkComponent {
             Msg::UpdateSubjects(subjects) => self.work.subjects.neq_assign(subjects),
             Msg::UpdateIssues(issues) => self.work.issues.neq_assign(issues),
             Msg::UpdateReferences(references) => self.work.references.neq_assign(references),
+            Msg::OpenConfirmWorkStatusModal => {
+                self.publish_confirmation_required = true;
+                true
+            }
+            Msg::CloseConfirmWorkStatusModal => {
+                self.publish_confirmation_required = false;
+                true
+            }
         }
     }
 
@@ -552,10 +585,20 @@ impl Component for WorkComponent {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(_body) => {
-                let callback = ctx.link().callback(|event: FocusEvent| {
+                let is_superuser = ctx.props().current_user.resource_access.is_superuser;
+                let is_nonsuperuser_publishing =
+                    !is_superuser && !self.is_published_in_db && self.work.is_published();
+
+                // non-superuser sees confirmation modal before changing an unpublished work to published
+                let callback = ctx.link().callback(move |event: FocusEvent| {
                     event.prevent_default();
-                    Msg::UpdateWork
+                    if is_nonsuperuser_publishing {
+                        Msg::OpenConfirmWorkStatusModal
+                    } else {
+                        Msg::UpdateWork
+                    }
                 });
+
                 // FormImprintSelect: while the work has any related issues, the imprint cannot
                 // be changed, because an issue's series and work must both have the same imprint.
                 let imprints = match self.work.issues.as_ref().unwrap_or(&vec![]).is_empty() {
@@ -575,14 +618,14 @@ impl Component for WorkComponent {
                     true => vec![WorkType::BookChapter],
                     false => vec![],
                 };
-                // Grey out chapter-specific or "book"-specific fields
+
+                // Variables required to grey out chapter-specific or "book"-specific fields
                 // based on currently selected work type.
                 let is_chapter = self.work.work_type == WorkType::BookChapter;
-                let is_not_withdrawn_or_superseded = self.work.work_status != WorkStatus::Withdrawn
-                    && self.work.work_status != WorkStatus::Superseded;
-                let is_active_withdrawn_or_superseded = self.work.work_status == WorkStatus::Active
-                    || self.work.work_status == WorkStatus::Withdrawn
-                    || self.work.work_status == WorkStatus::Superseded;
+
+                // deactivates Delete button when true to prevent non-superusers from deleting published works
+                let is_delete_deactivated = !is_superuser && self.work.is_published();
+
                 html! {
                     <>
                         <nav class="level">
@@ -596,11 +639,11 @@ impl Component for WorkComponent {
                                     <ConfirmDeleteComponent
                                         onclick={ ctx.link().callback(|_| Msg::DeleteWork) }
                                         object_name={ self.work.title.clone() }
+                                        deactivated={ is_delete_deactivated }
                                     />
                                 </p>
                             </div>
                         </nav>
-
                         <form onsubmit={ callback }>
                             <div class="field is-horizontal">
                                 <div class="field-body">
@@ -655,16 +698,16 @@ impl Component for WorkComponent {
                             />
                             <FormDateInput
                                 label = "Publication Date"
-                                value={ self.work.publication_date.clone() }
+                                value={ self.work.publication_date.to_value() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDate(e.to_value())) }
-                                required = { is_active_withdrawn_or_superseded }
+                                required = { self.work.is_published() }
                             />
                             <FormDateInput
                                 label = "Withdrawn Date"
-                                value={ self.work.withdrawn_date.clone() }
+                                value={ self.work.withdrawn_date.to_value() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWithdrawnDate(e.to_value())) }
-                                required ={ !is_not_withdrawn_or_superseded }
-                                deactivated={ is_not_withdrawn_or_superseded }
+                                required ={ self.work.is_out_of_print() }
+                                deactivated={ !self.work.is_out_of_print() }
                                 />
                             <FormTextInput
                                 label = "Place of Publication"
@@ -821,6 +864,18 @@ impl Component for WorkComponent {
 
                             <div class="field">
                                 <div class="control">
+                                    // publish_confirmation_required is true if the Work is unpublished (forthcoming, postponed, cancelled)
+                                    // and non-superuser sets to published (active, withdrawn, superseded).
+                                    // In this case, display confirmation modal.
+                                    if self.publish_confirmation_required {
+                                        <ConfirmWorkStatusComponent
+                                            onsubmit={ ctx.link().callback(|_| Msg::UpdateWork) }
+                                            oncancel={ ctx.link().callback(|_| Msg::CloseConfirmWorkStatusModal) }
+                                            object_name={ self.work.full_title.clone() }
+                                            object_work_status={ self.work.work_status.to_string() }
+                                            object_work_status_in_db={ self.work_status_in_db.to_string() }
+                                        />
+                                    }
                                     <button class="button is-success" type="submit">
                                         { SAVE_BUTTON }
                                     </button>
