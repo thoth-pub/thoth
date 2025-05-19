@@ -1488,9 +1488,9 @@ impl MutationRoot {
 
         if let Ok(ref created_work) = result {
             // TODO handle results throughout
-            let _ = send_event(&context.redis, EventType::WorkCreated, &created_work).await;
+            let _ = send_event(&context.redis, EventType::WorkCreated, created_work).await;
             if created_work.work_status == WorkStatus::Active {
-                let _ = send_event(&context.redis, EventType::WorkPublished, &created_work).await;
+                let _ = send_event(&context.redis, EventType::WorkPublished, created_work).await;
             }
         }
 

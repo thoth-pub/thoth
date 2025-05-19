@@ -37,21 +37,21 @@ impl Initializer for HandleEvents {
                                 EventType::WorkCreated => {
                                     WorkCreatedWorker::perform_later(
                                         &ctx,
-                                        WorkCreatedWorkerArgs { event: event },
+                                        WorkCreatedWorkerArgs { event },
                                     )
                                     .await
                                 }
                                 EventType::WorkUpdated => {
                                     WorkUpdatedWorker::perform_later(
                                         &ctx,
-                                        WorkUpdatedWorkerArgs { event: event },
+                                        WorkUpdatedWorkerArgs { event },
                                     )
                                     .await
                                 }
                                 EventType::WorkPublished => {
                                     WorkPublishedWorker::perform_later(
                                         &ctx,
-                                        WorkPublishedWorkerArgs { event: event },
+                                        WorkPublishedWorkerArgs { event },
                                     )
                                     .await
                                 }
