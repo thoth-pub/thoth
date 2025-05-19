@@ -43,6 +43,5 @@ workers:
 queue:
   kind: Redis
   # Redis connection URI
-  # TODO get from environment
-  uri: "redis://localhost:6379"
+  uri: {{ get_env(name="TEST_REDIS_URL") }}
   dangerously_flush: false
