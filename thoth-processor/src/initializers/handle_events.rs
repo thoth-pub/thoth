@@ -4,7 +4,7 @@ use crate::workers::{
     work_updated_worker::{WorkUpdatedWorker, WorkUpdatedWorkerArgs},
 };
 use async_trait::async_trait;
-use loco_rs::prelude::*;
+use loco_rs::{config::QueueConfig, prelude::*};
 use thoth_api::{
     event::{
         handler::QUEUE_KEY,
@@ -22,9 +22,12 @@ impl Initializer for HandleEvents {
     }
 
     async fn before_run(&self, ctx: &AppContext) -> Result<()> {
-        //TODO remove hardcoding
-        let redis = init_pool("redis://localhost:6379");
         let ctx = ctx.clone();
+        let redis_url = match ctx.config.queue.as_ref().unwrap() {
+            QueueConfig::Redis(queue) => &queue.uri,
+            _ => unreachable!(),
+        };
+        let redis = init_pool(redis_url);
 
         tokio::spawn(async move {
             loop {
