@@ -44,5 +44,15 @@ services:
       - graphql-api
       - export-api
 
+  processor:
+    image: ghcr.io/thoth-pub/thoth
+    container_name: "thoth_processor"
+    restart: unless-stopped
+    command: ["start", "processor"]
+    env_file:
+      - .env
+    depends_on:
+      - redis
+
 volumes:
   db:
