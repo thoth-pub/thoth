@@ -4,14 +4,14 @@ use thoth_api::{
     event::{model::Event, handler::QUEUE_KEY},
     redis::{blpop, init_pool},
 };
-use crate::workers::test_worker::{TestWorker, TestWorkerArgs};
+use crate::workers::work_updated_worker::{WorkUpdatedWorker, WorkUpdatedWorkerArgs};
 
-pub struct TestInitializer;
+pub struct HandleEvents;
 
 #[async_trait]
-impl Initializer for TestInitializer {
+impl Initializer for HandleEvents {
     fn name(&self) -> String {
-        "test-initializer".to_string()
+        "handle-events".to_string()
     }
 
     async fn before_run(&self, ctx: &AppContext) -> Result<()> {
@@ -27,9 +27,9 @@ impl Initializer for TestInitializer {
                         Ok(event) => {
                             tracing::info!("Received event: {:?}", event);
                             //TODO match on the type of event & pass to different workers
-                            let _ = TestWorker::perform_later(
+                            let _ = WorkUpdatedWorker::perform_later(
                                 &ctx,
-                                TestWorkerArgs {
+                                WorkUpdatedWorkerArgs {
                                     event: event,
                                 },
                             )

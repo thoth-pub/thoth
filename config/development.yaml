@@ -1,5 +1,5 @@
-# Loco configuration file documentation
-# TODO a better location would be thoth/thoth-loco-test/config, but that doesn't get picked up -
+# Loco (thoth-processor) configuration file documentation
+# TODO a better location would be thoth/thoth-processor/config, but that doesn't get picked up -
 # see if the path where it searches can be changed
 
 # Application logging configuration

@@ -10,8 +10,8 @@ use loco_rs::{
     Result,
 };
 use crate::{
-    initializers::test_initializer::TestInitializer,
-    workers::test_worker::TestWorker};
+    initializers::handle_events::HandleEvents,
+    workers::work_updated_worker::WorkUpdatedWorker};
 
 pub struct App;
 #[async_trait]
@@ -40,7 +40,7 @@ impl Hooks for App {
 
     async fn initializers(_ctx: &AppContext) -> Result<Vec<Box<dyn Initializer>>> {
         Ok(vec![
-            Box::new(TestInitializer),
+            Box::new(HandleEvents),
         ])
     }
 
@@ -48,7 +48,7 @@ impl Hooks for App {
         AppRoutes::with_default_routes()
     }
     async fn connect_workers(ctx: &AppContext, queue: &Queue) -> Result<()> {
-        queue.register(TestWorker::build(ctx)).await?;
+        queue.register(WorkUpdatedWorker::build(ctx)).await?;
         Ok(())
     }
 

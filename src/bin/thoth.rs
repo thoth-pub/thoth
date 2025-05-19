@@ -24,7 +24,7 @@ fn main() -> thoth::errors::ThothResult<()> {
             Some(("graphql-api", arguments)) => commands::start::graphql_api(arguments),
             Some(("app", arguments)) => commands::start::app(arguments),
             Some(("export-api", arguments)) => commands::start::export_api(arguments),
-            Some(("loco", _)) => commands::start::loco(),
+            Some(("processor", _)) => commands::start::processor(),
             _ => unreachable!(),
         },
         Some(("migrate", arguments)) => commands::migrate(arguments),

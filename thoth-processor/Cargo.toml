@@ -1,5 +1,5 @@
 [package]
-name = "thoth-loco-test"
+name = "thoth-processor"
 version = "0.1.0"
 edition = "2021"
 publish = false
