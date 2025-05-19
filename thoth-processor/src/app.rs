@@ -11,7 +11,12 @@ use loco_rs::{
 };
 use crate::{
     initializers::handle_events::HandleEvents,
-    workers::work_updated_worker::WorkUpdatedWorker};
+    workers::{
+        work_created_worker::WorkCreatedWorker,
+        work_updated_worker::WorkUpdatedWorker,
+        work_published_worker::WorkPublishedWorker,
+    },
+};
 
 pub struct App;
 #[async_trait]
@@ -48,7 +53,9 @@ impl Hooks for App {
         AppRoutes::with_default_routes()
     }
     async fn connect_workers(ctx: &AppContext, queue: &Queue) -> Result<()> {
+        queue.register(WorkCreatedWorker::build(ctx)).await?;
         queue.register(WorkUpdatedWorker::build(ctx)).await?;
+        queue.register(WorkPublishedWorker::build(ctx)).await?;
         Ok(())
     }
 
