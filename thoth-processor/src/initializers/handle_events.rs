@@ -1,12 +1,17 @@
+use crate::workers::{
+    work_created_worker::{WorkCreatedWorker, WorkCreatedWorkerArgs},
+    work_published_worker::{WorkPublishedWorker, WorkPublishedWorkerArgs},
+    work_updated_worker::{WorkUpdatedWorker, WorkUpdatedWorkerArgs},
+};
 use async_trait::async_trait;
 use loco_rs::prelude::*;
 use thoth_api::{
-    event::{model::{Event, EventType}, handler::QUEUE_KEY},
+    event::{
+        handler::QUEUE_KEY,
+        model::{Event, EventType},
+    },
     redis::{blpop, init_pool},
 };
-use crate::workers::work_created_worker::{WorkCreatedWorker, WorkCreatedWorkerArgs};
-use crate::workers::work_updated_worker::{WorkUpdatedWorker, WorkUpdatedWorkerArgs};
-use crate::workers::work_published_worker::{WorkPublishedWorker, WorkPublishedWorkerArgs};
 
 pub struct HandleEvents;
 
@@ -29,30 +34,27 @@ impl Initializer for HandleEvents {
                         Ok(event) => {
                             tracing::info!("Received event: {:?}", event);
                             let _ = match event.event_type {
-                                EventType::WorkCreated => WorkCreatedWorker::perform_later
-                                    (
+                                EventType::WorkCreated => {
+                                    WorkCreatedWorker::perform_later(
                                         &ctx,
-                                        WorkCreatedWorkerArgs {
-                                            event: event,
-                                        },
+                                        WorkCreatedWorkerArgs { event: event },
                                     )
-                                    .await,
-                                EventType::WorkUpdated => WorkUpdatedWorker::perform_later
-                                    (
+                                    .await
+                                }
+                                EventType::WorkUpdated => {
+                                    WorkUpdatedWorker::perform_later(
                                         &ctx,
-                                        WorkUpdatedWorkerArgs {
-                                            event: event,
-                                        },
+                                        WorkUpdatedWorkerArgs { event: event },
                                     )
-                                    .await,
-                                EventType::WorkPublished => WorkPublishedWorker::perform_later
-                                    (
+                                    .await
+                                }
+                                EventType::WorkPublished => {
+                                    WorkPublishedWorker::perform_later(
                                         &ctx,
-                                        WorkPublishedWorkerArgs {
-                                            event: event,
-                                        },
+                                        WorkPublishedWorkerArgs { event: event },
                                     )
-                                    .await,
+                                    .await
+                                }
                             };
                         }
                         Err(e) => {

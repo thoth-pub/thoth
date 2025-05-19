@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use loco_rs::prelude::*;
+use serde::{Deserialize, Serialize};
 use thoth_api::event::model::Event;
 
 pub struct WorkUpdatedWorker {

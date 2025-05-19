@@ -1,6 +1,6 @@
 pub mod app;
-pub mod workers;
 pub mod initializers;
+pub mod workers;
 
 use crate::app::App;
 use loco_rs::{

@@ -1768,8 +1768,7 @@ impl MutationRoot {
             Ok(w) => {
                 if w.work_status == WorkStatus::Active && work.work_status != WorkStatus::Active {
                     let _ = send_event(&context.redis, EventType::WorkPublished, &w).await;
-                }
-                else {
+                } else {
                     let _ = send_event(&context.redis, EventType::WorkUpdated, &w).await;
                 }
                 // update chapters if their pub. data, withdrawn_date or work_status doesn't match the parent's

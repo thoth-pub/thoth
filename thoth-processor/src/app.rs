@@ -1,3 +1,10 @@
+use crate::{
+    initializers::handle_events::HandleEvents,
+    workers::{
+        work_created_worker::WorkCreatedWorker, work_published_worker::WorkPublishedWorker,
+        work_updated_worker::WorkUpdatedWorker,
+    },
+};
 use async_trait::async_trait;
 use loco_rs::{
     app::{AppContext, Hooks, Initializer},
@@ -8,14 +15,6 @@ use loco_rs::{
     environment::Environment,
     task::Tasks,
     Result,
-};
-use crate::{
-    initializers::handle_events::HandleEvents,
-    workers::{
-        work_created_worker::WorkCreatedWorker,
-        work_updated_worker::WorkUpdatedWorker,
-        work_published_worker::WorkPublishedWorker,
-    },
 };
 
 pub struct App;
@@ -44,9 +43,7 @@ impl Hooks for App {
     }
 
     async fn initializers(_ctx: &AppContext) -> Result<Vec<Box<dyn Initializer>>> {
-        Ok(vec![
-            Box::new(HandleEvents),
-        ])
+        Ok(vec![Box::new(HandleEvents)])
     }
 
     fn routes(_ctx: &AppContext) -> AppRoutes {
