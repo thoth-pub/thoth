@@ -11,6 +11,7 @@ use loco_rs::{
 };
 
 #[tokio::main]
+#[allow(clippy::result_large_err)]
 pub async fn start_server() -> Result<()> {
     start_app::<App>().await
 }
