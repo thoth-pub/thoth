@@ -7,6 +7,7 @@ use thoth_api::model::work::WorkProperties;
 use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
+use thoth_api::model::TitleProperties;
 use thoth_api::model::{Doi, DOI_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -56,6 +57,9 @@ use crate::string::SAVE_BUTTON;
 use super::ToElementValue;
 use super::ToOption;
 
+use thoth_api::model::locale::LocaleCode;
+use thoth_api::model::title::Title;
+
 pub struct NewWorkComponent {
     work: WorkWithRelations,
     // Track the user-entered DOI string, which may not be validly formatted
@@ -90,8 +94,8 @@ pub enum Msg {
     GetWorkStatuses,
     SetWorkPushState(PushActionCreateWork),
     CreateWork,
-    ChangeTitle(String),
-    ChangeSubtitle(String),
+    ChangeTitle(String, Uuid),
+    ChangeSubtitle(String, Uuid),
     ChangeWorkType(WorkType),
     ChangeWorkStatus(WorkStatus),
     ChangeReference(String),
@@ -144,6 +148,15 @@ impl Component for NewWorkComponent {
                 AdminRoute::Chapters => Default::default(),
                 _ => Some(1),
             },
+            titles: Some(vec![Title {
+                title_id: Uuid::new_v4(),
+                work_id: Uuid::new_v4(),
+                locale_code: LocaleCode::En,
+                full_title: String::new(),
+                title_: String::new(),
+                subtitle: None,
+                canonical: true,
+            }]),
             ..Default::default()
         };
         let doi = Default::default();
@@ -248,7 +261,7 @@ impl Component for NewWorkComponent {
                     FetchState::Fetched(body) => match &body.data.create_work {
                         Some(w) => {
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Saved {}", w.title),
+                                format!("Saved {}", w.canonical_title()),
                                 NotificationStatus::Success,
                             )));
                             ctx.link().history().unwrap().push(w.edit_route());
@@ -301,11 +314,17 @@ impl Component for NewWorkComponent {
                     variables: Variables {
                         work_type: self.work.work_type,
                         work_status: self.work.work_status,
-                        full_title: self.work.full_title.clone(),
-                        title: self.work.title.clone(),
-                        subtitle: self.work.subtitle.clone(),
+                        full_title: self.work.canonical_full_title().to_string(),
+                        title: self.work.canonical_title().to_string(),
+                        subtitle: self.work.titles.as_ref().and_then(|titles| {
+                            titles
+                                .iter()
+                                .find(|t| t.canonical)
+                                .and_then(|t| t.subtitle.clone())
+                        }),
                         reference: self.work.reference.clone(),
                         edition: self.work.edition,
+                        imprint_id: self.imprint_id,
                         doi: self.work.doi.clone(),
                         publication_date: self.work.publication_date,
                         withdrawn_date: self.work.withdrawn_date,
@@ -328,7 +347,6 @@ impl Component for NewWorkComponent {
                         toc: self.work.toc.clone(),
                         cover_url: self.work.cover_url.clone(),
                         cover_caption: self.work.cover_caption.clone(),
-                        imprint_id: self.imprint_id,
                         first_page: self.work.first_page.clone(),
                         last_page: self.work.last_page.clone(),
                         page_interval: self.work.page_interval.clone(),
@@ -343,18 +361,34 @@ impl Component for NewWorkComponent {
                     .send_message(Msg::SetWorkPushState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangeTitle(title) => {
-                if self.work.title.neq_assign(title.trim().to_owned()) {
-                    self.work.full_title = self.work.compile_fulltitle();
-                    true
+            Msg::ChangeTitle(value, title_id) => {
+                if let Some(titles) = &mut self.work.titles {
+                    if let Some(title) = titles.iter_mut().find(|t| t.title_id == title_id) {
+                        if title.title_.neq_assign(value.trim().to_owned()) {
+                            title.full_title = title.compile_fulltitle();
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }
             }
-            Msg::ChangeSubtitle(value) => {
-                if self.work.subtitle.neq_assign(value.to_opt_string()) {
-                    self.work.full_title = self.work.compile_fulltitle();
-                    true
+            Msg::ChangeSubtitle(value, title_id) => {
+                if let Some(titles) = &mut self.work.titles {
+                    if let Some(title) = titles.iter_mut().find(|t| t.title_id == title_id) {
+                        if title.subtitle.neq_assign(value.to_opt_string()) {
+                            title.full_title = title.compile_fulltitle();
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }
@@ -515,14 +549,14 @@ impl Component for NewWorkComponent {
                     </div>
                     <FormTextInput
                         label = "Title"
-                        value={ self.work.title.clone() }
-                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeTitle(e.to_value())) }
+                        value={ self.work.canonical_title().to_string() }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeTitle(e.0.to_value(), e.1.to_value())) }
                         required = true
                     />
                     <FormTextInput
                         label = "Subtitle"
-                        value={ self.work.subtitle.clone() }
-                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeSubtitle(e.to_value())) }
+                        value={ self.work.canonical_title() }
+                        oninput={ ctx.link().callback(|(e1, e2): InputEvent| Msg::ChangeSubtitle(e1.to_value(), e2.to_value())) }
                     />
                     <FormNumberInput
                         label = "Edition"

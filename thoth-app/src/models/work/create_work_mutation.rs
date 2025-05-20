@@ -1,7 +1,7 @@
 use chrono::NaiveDate;
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::model::work::Work;
+use thoth_api::model::work::{Work, WorkWithRelations};
 use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::Doi;

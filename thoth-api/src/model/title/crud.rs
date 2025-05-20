@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::schema::title;
 use crate::schema::title::dsl::*;
 
-use super::mode::{NewTitle, Title, UpdateTitle};
+use super::mode::{NewTitle, Title, PatchTitle};
 
 pub fn create_title(conn: &mut PgConnection, new_title: NewTitle) -> Result<Title, Error> {
     diesel::insert_into(title::table)
@@ -24,7 +24,7 @@ pub fn get_titles_by_work(conn: &mut PgConnection, work_id: Uuid) -> Result<Vec<
 pub fn update_title(
     conn: &mut PgConnection,
     title_id: Uuid,
-    update_title: UpdateTitle,
+    update_title: PatchTitle,
 ) -> Result<Title, Error> {
     diesel::update(title.find(title_id))
         .set(update_title)

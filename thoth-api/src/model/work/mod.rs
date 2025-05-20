@@ -280,7 +280,7 @@ pub struct WorkWithRelations {
     pub imprint: ImprintWithPublisher,
     pub relations: Option<Vec<WorkRelationWithRelatedWork>>,
     pub references: Option<Vec<Reference>>,
-    pub titles: Option<Vec<Title>>
+    pub titles: Option<Vec<Title>>,
 }
 
 #[cfg_attr(
@@ -509,13 +509,38 @@ impl WorkWithRelations {
             )
     }
 
-    /// Returns the canonical title's full_title, or "Untitled" if not present.
+    /// Returns the canonical title's title_, or "Untitled" if not present.
     pub fn canonical_title(&self) -> &str {
+        self.titles
+            .as_ref()
+            .and_then(|titles| titles.iter().find(|t| t.canonical))
+            .map(|t| t.title_.as_str())
+            .unwrap_or("Untitled")
+    }
+
+    /// Returns the canonical title's title_, or "" if not present.
+    pub fn canonical_sub_title(&self) -> &str {
+        self.titles
+            .as_ref()
+            .and_then(|titles| titles.iter().find(|t| t.canonical))
+            .and_then(|t| t.subtitle.as_deref())
+            .unwrap_or("")
+    }
+
+    /// Returns the canonical title's full_title, or "Untitled" if not present.
+    pub fn canonical_full_title(&self) -> &str {
         self.titles
             .as_ref()
             .and_then(|titles| titles.iter().find(|t| t.canonical))
             .map(|t| t.full_title.as_str())
             .unwrap_or("Untitled")
+    }
+
+    /// Returns the canonical Title struct if one exists.
+    pub fn canonical_title_struct(&self) -> Option<&Title> {
+        self.titles
+            .as_ref()
+            .and_then(|titles| titles.iter().find(|title| title.canonical))
     }
 }
 

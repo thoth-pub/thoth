@@ -1,15 +1,14 @@
-use chrono::NaiveDateTime;
+use crate::model::locale::LocaleCode;
 use diesel::prelude::*;
-use diesel::sql_types::Bool;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::model::locale::LocaleCode;
 
-use crate::schema::title;
-use crate::schema::title::dsl::*;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, ThothResult};
+use crate::schema::title;
+use crate::schema::title::dsl::*;
 use crate::schema::title_history;
+use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TitleField {
@@ -78,12 +77,12 @@ pub struct NewTitle {
 
 #[derive(Debug, Clone, AsChangeset, Serialize, Deserialize, PartialEq, Eq)]
 #[diesel(table_name = title)]
-pub struct UpdateTitle {
-    pub locale_code: Option<LocaleCode>,
-    pub full_title: Option<String>,
-    pub title_: Option<String>,
+pub struct PatchTitle {
+    pub locale_code: LocaleCode,
+    pub full_title: String,
+    pub title_: String,
     pub subtitle: Option<String>,
-    pub canonical: Option<bool>,
+    pub canonical: bool,
 }
 
 #[derive(Debug, Clone, Insertable)]
@@ -106,7 +105,7 @@ pub struct TitleHistory {
 
 impl Crud for Title {
     type NewEntity = NewTitle;
-    type PatchEntity = UpdateTitle;
+    type PatchEntity = PatchTitle;
     type OrderByEntity = TitleOrderBy;
     type FilterParameter1 = ();
     type FilterParameter2 = ();
@@ -170,9 +169,10 @@ impl Crud for Title {
 
         if let Some(filter) = filter {
             query = query.filter(
-                full_title.ilike(format!("%{filter}%"))
+                full_title
+                    .ilike(format!("%{filter}%"))
                     .or(title_.ilike(format!("%{filter}%")))
-                    .or(subtitle.ilike(format!("%{filter}%")))
+                    .or(subtitle.ilike(format!("%{filter}%"))),
             );
         }
 
@@ -196,9 +196,10 @@ impl Crud for Title {
 
         if let Some(filter) = filter {
             query = query.filter(
-                full_title.ilike(format!("%{filter}%"))
+                full_title
+                    .ilike(format!("%{filter}%"))
                     .or(title_.ilike(format!("%{filter}%")))
-                    .or(subtitle.ilike(format!("%{filter}%")))
+                    .or(subtitle.ilike(format!("%{filter}%"))),
             );
         }
 
@@ -229,3 +230,57 @@ impl DbInsert for NewTitleHistory {
 
     db_insert!(title_history::table);
 }
+
+pub trait TitleProperties {
+    fn title(&self) -> &str;
+    fn subtitle(&self) -> Option<&str>;
+    fn locale_code(&self) -> &LocaleCode;
+    fn canonical(&self) -> bool;
+
+    fn compile_fulltitle(&self) -> String {
+        self.subtitle().map_or_else(
+            || self.title().to_string(),
+            |_subtitle| {
+                let _title = self.title();
+                let _title = if _title.is_empty() {
+                    "Untitled"
+                } else {
+                    _title
+                };
+                if _title.ends_with('?')
+                    || _title.ends_with('!')
+                    || _title.ends_with(':')
+                    || _title.ends_with('.')
+                {
+                    format!("{} {}", _title, _subtitle)
+                } else {
+                    format!("{}: {}", _title, _subtitle)
+                }
+            },
+        )
+    }
+}
+
+macro_rules! title_properties {
+    ($t:ty) => {
+        impl TitleProperties for $t {
+            fn title(&self) -> &str {
+                &self.title_
+            }
+            fn subtitle(&self) -> Option<&str> {
+                self.subtitle.as_deref()
+            }
+            fn locale_code(&self) -> &LocaleCode {
+                &self.locale_code
+            }
+            fn canonical(&self) -> bool {
+                self.canonical
+            }
+        }
+    };
+}
+
+title_properties!(Title);
+title_properties!(TitleWithRelations);
+title_properties!(NewTitle);
+title_properties!(PatchTitle);
