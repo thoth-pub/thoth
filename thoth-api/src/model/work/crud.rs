@@ -11,7 +11,7 @@ use crate::model::publisher::Publisher;
 use crate::model::title::{Title, TitleWithRelations};
 use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderBy};
 use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
-use crate::schema::{imprint, locale, publisher, title, work, work_history};
+use crate::schema::{imprint, publisher, title, work, work_history};
 use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,

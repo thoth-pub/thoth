@@ -4,9 +4,6 @@ use uuid::Uuid;
 use strum::Display;
 use strum::EnumString;
 
-use crate::schema::locale;
-use crate::schema::sql_types::LocaleCode as LocaleCodeSql;
-
 
 #[cfg_attr(
     feature = "backend",

@@ -605,16 +605,6 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    
-    locale (locale_id) {
-        locale_id -> Uuid,
-        code -> Text,
-        name -> Text,
-    }
-}
-
-table! {
-    use diesel::sql_types::*;
     use super::sql_types::LocaleCode;
 
     title (title_id) {
@@ -737,6 +727,5 @@ allow_tables_to_appear_in_same_query!(
     work_relation,
     work_relation_history,
     title,
-    locale,
     title_history,
 );
