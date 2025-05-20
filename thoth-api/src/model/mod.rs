@@ -1095,5 +1095,28 @@ pub mod publisher;
 pub mod reference;
 pub mod series;
 pub mod subject;
+pub mod title;
 pub mod work;
 pub mod work_relation;
+
+pub mod locale;
+
+pub use affiliation::*;
+pub use contribution::*;
+pub use contributor::*;
+pub use funding::*;
+pub use imprint::*;
+pub use institution::*;
+pub use issue::*;
+pub use language::*;
+pub use locale::*;
+pub use location::*;
+pub use price::*;
+pub use publication::*;
+pub use publisher::*;
+pub use reference::*;
+pub use series::*;
+pub use subject::*;
+pub use title::*;
+pub use work::*;
+pub use work_relation::*;

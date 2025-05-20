@@ -46,6 +46,10 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "relation_type"))]
     pub struct RelationType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "locale_code"))]
+    pub struct LocaleCode;
 }
 
 table! {
@@ -523,9 +527,9 @@ table! {
         work_id -> Uuid,
         work_type -> WorkType,
         work_status -> WorkStatus,
-        full_title -> Text,
-        title -> Text,
-        subtitle -> Nullable<Text>,
+        // full_title -> Text,
+        // title -> Text,
+        // subtitle -> Nullable<Text>,
         reference -> Nullable<Text>,
         edition -> Nullable<Int4>,
         imprint_id -> Uuid,
@@ -599,6 +603,44 @@ table! {
     }
 }
 
+table! {
+    use diesel::sql_types::*;
+    
+    locale (locale_id) {
+        locale_id -> Uuid,
+        code -> Text,
+        name -> Text,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::LocaleCode;
+
+    title (title_id) {
+        title_id -> Uuid,
+        work_id -> Uuid,
+        locale_code -> LocaleCode,
+        full_title -> Text,
+        #[sql_name = "title"]
+        title_ -> Text,
+        subtitle -> Nullable<Text>,
+        canonical -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    
+    title_history (title_history_id) {
+        title_history_id -> Uuid,
+        title_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
 joinable!(affiliation -> contribution (contribution_id));
 joinable!(affiliation -> institution (institution_id));
 joinable!(affiliation_history -> account (account_id));
@@ -653,6 +695,9 @@ joinable!(work_history -> work (work_id));
 joinable!(work_relation -> work (relator_work_id));
 joinable!(work_relation_history -> account (account_id));
 joinable!(work_relation_history -> work_relation (work_relation_id));
+joinable!(title -> work (work_id));
+joinable!(title_history -> title (title_id));
+joinable!(title_history -> account (account_id));
 
 allow_tables_to_appear_in_same_query!(
     account,
@@ -691,4 +736,7 @@ allow_tables_to_appear_in_same_query!(
     work_history,
     work_relation,
     work_relation_history,
+    title,
+    locale,
+    title_history,
 );

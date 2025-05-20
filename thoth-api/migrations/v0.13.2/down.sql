@@ -61,7 +61,10 @@ WHERE
             AND locale.code = 'en'
     );
 
+-- Drop the title_id column from the work table
+-- ALTER TABLE work
+--     DROP COLUMN title_id;
+
 -- Drop title and locale tables
 DROP TABLE title;
-
 DROP TABLE locale;
