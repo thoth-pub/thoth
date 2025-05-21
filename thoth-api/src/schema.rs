@@ -46,6 +46,10 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "relation_type"))]
     pub struct RelationType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "event_type"))]
+    pub struct EventType;
 }
 
 table! {
@@ -403,6 +407,17 @@ table! {
 table! {
     use diesel::sql_types::*;
 
+    publisher_webhook (webhook_id, publisher_id) {
+        webhook_id -> Uuid,
+        publisher_id -> Uuid,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
     publisher_history (publisher_history_id) {
         publisher_history_id -> Uuid,
         publisher_id -> Uuid,
@@ -511,6 +526,21 @@ table! {
         account_id -> Uuid,
         data -> Jsonb,
         timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::EventType;
+
+    webhook (webhook_id) {
+        webhook_id -> Uuid,
+        endpoint -> Text,
+        token -> Nullable<Text>,
+        is_published -> Bool,
+        event_type -> EventType,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
     }
 }
 
@@ -638,6 +668,8 @@ joinable!(publisher_account -> account (account_id));
 joinable!(publisher_account -> publisher (publisher_id));
 joinable!(publisher_history -> account (account_id));
 joinable!(publisher_history -> publisher (publisher_id));
+joinable!(publisher_webhook -> webhook (webhook_id));
+joinable!(publisher_webhook -> publisher (publisher_id));
 joinable!(reference -> work (work_id));
 joinable!(reference_history -> account (account_id));
 joinable!(reference_history -> reference (reference_id));
@@ -681,12 +713,14 @@ allow_tables_to_appear_in_same_query!(
     publisher,
     publisher_account,
     publisher_history,
+    publisher_webhook,
     reference,
     reference_history,
     series,
     series_history,
     subject,
     subject_history,
+    webhook,
     work,
     work_history,
     work_relation,

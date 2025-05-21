@@ -8,7 +8,7 @@ use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
 use crate::db::PgPool;
 use crate::event::handler::send_event;
-use crate::event::model::EventType;
+use crate::event::model::{EventType, Webhook};
 use crate::model::affiliation::*;
 use crate::model::contribution::*;
 use crate::model::contributor::*;
@@ -3182,6 +3182,31 @@ impl Publisher {
             vec![],
             vec![],
             None,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get webhooks linked to this publisher")]
+    pub fn webhooks(
+        &self,
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
+        event_types: Option<Vec<EventType>>,
+        #[graphql(description = "Only show results where is_published is True")]
+        is_published: Option<bool>,
+    ) -> FieldResult<Vec<Webhook>> {
+        Webhook::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            Some(self.publisher_id),
+            event_types.unwrap_or_default(),
+            is_published,
         )
         .map_err(|e| e.into())
     }
