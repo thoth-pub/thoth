@@ -1,8 +1,11 @@
 use chrono::naive::NaiveDate;
 use juniper::RootNode;
-use juniper::{EmptySubscription, FieldResult};
+use juniper::{EmptySubscription, FieldResult, FieldError, Value};
 use std::sync::Arc;
 use uuid::Uuid;
+use crate::schema::title;
+use crate::model::title::Title;
+use diesel::prelude::*;
 
 use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
@@ -2435,20 +2438,38 @@ impl Work {
         &self.work_status
     }
 
-    // #[graphql(description = "Concatenation of title and subtitle with punctuation mark")]
-    // pub fn full_title(&self) -> &str {
-    //     self.full_title.as_str()
-    // }
+    #[graphql(description = "Concatenation of title and subtitle with punctuation mark")]
+    pub fn full_title(&self, ctx: &Context) -> FieldResult<String> {
+        let mut connection = ctx.db.get()?;
+        let title = title::table
+            .filter(title::work_id.eq(&self.work_id))
+            .filter(title::canonical.eq(true))
+            .first::<Title>(&mut connection)
+            .map_err(|e| FieldError::new(e.to_string(), Value::null()))?;
+        Ok(title.full_title)
+    }
 
-    // #[graphql(description = "Main title of the work (excluding subtitle)")]
-    // pub fn title(&self) -> &str {
-    //     self.title.as_str()
-    // }
+    #[graphql(description = "Main title of the work (excluding subtitle)")]
+    pub fn title(&self, ctx: &Context) -> FieldResult<String> {
+        let mut connection = ctx.db.get()?;
+        let title = title::table
+            .filter(title::work_id.eq(&self.work_id))
+            .filter(title::canonical.eq(true))
+            .first::<Title>(&mut connection)
+            .map_err(|e| FieldError::new(e.to_string(), Value::null()))?;
+        Ok(title.title_)
+    }
 
-    // #[graphql(description = "Secondary title of the work (excluding main title)")]
-    // pub fn subtitle(&self) -> Option<&String> {
-    //     self.subtitle.as_ref()
-    // }
+    #[graphql(description = "Secondary title of the work (excluding main title)")]
+    pub fn subtitle(&self, ctx: &Context) -> FieldResult<Option<String>> {
+        let mut connection = ctx.db.get()?;
+        let title = title::table
+            .filter(title::work_id.eq(&self.work_id))
+            .filter(title::canonical.eq(true))
+            .first::<Title>(&mut connection)
+            .map_err(|e| FieldError::new(e.to_string(), Value::null()))?;
+        Ok(title.subtitle)
+    }
 
     #[graphql(description = "Internal reference code")]
     pub fn reference(&self) -> Option<&String> {

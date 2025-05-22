@@ -261,7 +261,7 @@ impl Component for NewWorkComponent {
                     FetchState::Fetched(body) => match &body.data.create_work {
                         Some(w) => {
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Saved {}", w.canonical_title()),
+                                format!("Saved {}", w.title(context)),
                                 NotificationStatus::Success,
                             )));
                             ctx.link().history().unwrap().push(w.edit_route());
@@ -315,7 +315,7 @@ impl Component for NewWorkComponent {
                         work_type: self.work.work_type,
                         work_status: self.work.work_status,
                         full_title: self.work.canonical_full_title().to_string(),
-                        title: self.work.canonical_title().to_string(),
+                        title: self.work.title,
                         subtitle: self.work.titles.as_ref().and_then(|titles| {
                             titles
                                 .iter()
@@ -549,13 +549,13 @@ impl Component for NewWorkComponent {
                     </div>
                     <FormTextInput
                         label = "Title"
-                        value={ self.work.canonical_title().to_string() }
+                        value={ self.work.title }
                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeTitle(e.0.to_value(), e.1.to_value())) }
                         required = true
                     />
                     <FormTextInput
                         label = "Subtitle"
-                        value={ self.work.canonical_title() }
+                        value={ self.work.title }
                         oninput={ ctx.link().callback(|(e1, e2): InputEvent| Msg::ChangeSubtitle(e1.to_value(), e2.to_value())) }
                     />
                     <FormNumberInput

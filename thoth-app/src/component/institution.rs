@@ -513,7 +513,7 @@ impl InstitutionComponent {
                                     <Link<AdminRoute>
                                         to={ work.edit_route() }
                                     >
-                                        { &work.canonical_title() }
+                                        { &work.title }
                                     </Link<AdminRoute>>
                                     { format!(", from: {}", work.imprint.publisher.publisher_name) }
                                 </p>

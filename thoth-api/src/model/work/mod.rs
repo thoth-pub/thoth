@@ -240,9 +240,9 @@ pub struct WorkWithRelations {
     pub work_id: Uuid,
     pub work_type: WorkType,
     pub work_status: WorkStatus,
-    // pub full_title: String,
-    // pub title: String,
-    // pub subtitle: Option<String>,
+    pub full_title: String,
+    pub title: String,
+    pub subtitle: Option<String>,
     pub reference: Option<String>,
     pub edition: Option<i32>,
     pub doi: Option<Doi>,
@@ -509,6 +509,7 @@ impl WorkWithRelations {
             )
     }
 
+    // TODO REMOVE THIS 3 fucntions
     /// Returns the canonical title's title_, or "Untitled" if not present.
     pub fn canonical_title(&self) -> &str {
         self.titles
@@ -519,7 +520,7 @@ impl WorkWithRelations {
     }
 
     /// Returns the canonical title's title_, or "" if not present.
-    pub fn canonical_sub_title(&self) -> &str {
+    pub fn canonical_subtitle(&self) -> &str {
         self.titles
             .as_ref()
             .and_then(|titles| titles.iter().find(|t| t.canonical))
@@ -585,14 +586,14 @@ impl From<Work> for PatchWork {
     }
 }
 
-// impl fmt::Display for Work {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         match &self.doi {
-//             Some(doi) => write!(f, "{} - {}", self.full_title, doi),
-//             None => write!(f, "{}", self.full_title),
-//         }
-//     }
-// }
+impl fmt::Display for WorkWithRelations {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.doi {
+            Some(doi) => write!(f, "{} - {}", self.canonical_full_title(), doi),
+            None => write!(f, "{}", self.canonical_full_title()),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

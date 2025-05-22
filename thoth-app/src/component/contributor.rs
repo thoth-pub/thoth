@@ -374,7 +374,7 @@ impl Component for ContributorComponent {
                                                     <Link<AdminRoute>
                                                         to={ contribution.work.edit_route() }
                                                     >
-                                                        { &contribution.work.canonical_title() }
+                                                        { &contribution.work.title }
                                                     </Link<AdminRoute>>
                                                     { format!(", from: {}", contribution.work.imprint.publisher.publisher_name) }
                                                 </p>
