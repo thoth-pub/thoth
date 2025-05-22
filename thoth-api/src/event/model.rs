@@ -15,12 +15,24 @@ use uuid::Uuid;
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum EventType {
-    #[cfg_attr(feature = "backend", graphql(description = "Work creation event"))]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "WorkCreated",
+        graphql(description = "Work creation event")
+    )]
     WorkCreated,
     #[default]
-    #[cfg_attr(feature = "backend", graphql(description = "Work update event"))]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "WorkUpdated",
+        graphql(description = "Work update event")
+    )]
     WorkUpdated,
-    #[cfg_attr(feature = "backend", graphql(description = "Work publication event"))]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "WorkPublished",
+        graphql(description = "Work publication event")
+    )]
     WorkPublished,
 }
 
