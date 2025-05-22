@@ -8,7 +8,6 @@ use crate::model::{Crud, DbInsert, HistoryEntry, ThothResult};
 use crate::schema::title;
 use crate::schema::title::dsl::*;
 use crate::schema::title_history;
-use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TitleField {

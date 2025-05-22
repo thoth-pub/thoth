@@ -141,6 +141,6 @@ pub enum LocaleCode {
 
 impl LocaleCode {
     pub fn to_string(&self) -> String {
-        self.to_string().to_lowercase()
+        format!("{}", self).to_lowercase()
     }
 }

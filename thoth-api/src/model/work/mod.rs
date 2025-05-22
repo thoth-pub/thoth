@@ -198,9 +198,6 @@ pub struct Work {
     pub work_id: Uuid,
     pub work_type: WorkType,
     pub work_status: WorkStatus,
-    // pub full_title: String,
-    // pub title: String,
-    // pub subtitle: Option<String>,
     pub reference: Option<String>,
     pub edition: Option<i32>,
     pub imprint_id: Uuid,
@@ -404,24 +401,6 @@ pub trait WorkProperties {
     fn first_page(&self) -> Option<&str>;
     fn last_page(&self) -> Option<&str>;
 
-    // fn compile_fulltitle(&self) -> String {
-    //     self.subtitle().map_or_else(
-    //         || self.title().to_string(),
-    //         |subtitle| {
-    //             let title = self.title();
-    //             if title.ends_with('?')
-    //                 || title.ends_with('!')
-    //                 || title.ends_with(':')
-    //                 || title.ends_with('.')
-    //             {
-    //                 format!("{} {}", title, subtitle)
-    //             } else {
-    //                 format!("{}: {}", title, subtitle)
-    //             }
-    //         },
-    //     )
-    // }
-
     fn compile_page_interval(&self) -> Option<String> {
         self.first_page()
             .zip(self.last_page())
@@ -467,12 +446,6 @@ pub trait WorkProperties {
 macro_rules! work_properties {
     ($t:ty) => {
         impl WorkProperties for $t {
-            // fn title(&self) -> &str {
-            //     &self.title
-            // }
-            // fn subtitle(&self) -> Option<&str> {
-            //     self.subtitle.as_deref()
-            // }
             fn work_status(&self) -> &WorkStatus {
                 &self.work_status
             }
@@ -508,41 +481,6 @@ impl WorkWithRelations {
                 |short_name| short_name.to_string(),
             )
     }
-
-    // TODO REMOVE THIS 3 fucntions
-    /// Returns the canonical title's title_, or "Untitled" if not present.
-    pub fn canonical_title(&self) -> &str {
-        self.titles
-            .as_ref()
-            .and_then(|titles| titles.iter().find(|t| t.canonical))
-            .map(|t| t.title_.as_str())
-            .unwrap_or("Untitled")
-    }
-
-    /// Returns the canonical title's title_, or "" if not present.
-    pub fn canonical_subtitle(&self) -> &str {
-        self.titles
-            .as_ref()
-            .and_then(|titles| titles.iter().find(|t| t.canonical))
-            .and_then(|t| t.subtitle.as_deref())
-            .unwrap_or("")
-    }
-
-    /// Returns the canonical title's full_title, or "Untitled" if not present.
-    pub fn canonical_full_title(&self) -> &str {
-        self.titles
-            .as_ref()
-            .and_then(|titles| titles.iter().find(|t| t.canonical))
-            .map(|t| t.full_title.as_str())
-            .unwrap_or("Untitled")
-    }
-
-    /// Returns the canonical Title struct if one exists.
-    pub fn canonical_title_struct(&self) -> Option<&Title> {
-        self.titles
-            .as_ref()
-            .and_then(|titles| titles.iter().find(|title| title.canonical))
-    }
 }
 
 impl From<Work> for PatchWork {
@@ -551,9 +489,6 @@ impl From<Work> for PatchWork {
             work_id: w.work_id,
             work_type: w.work_type,
             work_status: w.work_status,
-            // full_title: w.full_title,
-            // title: w.title,
-            // subtitle: w.subtitle,
             reference: w.reference,
             edition: w.edition,
             imprint_id: w.imprint_id,
@@ -589,8 +524,8 @@ impl From<Work> for PatchWork {
 impl fmt::Display for WorkWithRelations {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.doi {
-            Some(doi) => write!(f, "{} - {}", self.canonical_full_title(), doi),
-            None => write!(f, "{}", self.canonical_full_title()),
+            Some(doi) => write!(f, "{} - {}", self.full_title, doi),
+            None => write!(f, "{}", self.full_title),
         }
     }
 }
@@ -605,9 +540,6 @@ mod tests {
             work_id: Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_type: WorkType::Monograph,
             work_status: WorkStatus::Active,
-            // full_title: "Some title".to_string(),
-            // title: "Some title".to_string(),
-            // subtitle: None,
             reference: None,
             edition: Some(1),
             imprint_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
@@ -654,11 +586,11 @@ mod tests {
         assert_eq!(workstatus, WorkStatus::Forthcoming);
     }
 
-    // #[test]
-    // fn test_workfield_default() {
-    //     let workfield: WorkField = Default::default();
-    //     assert_eq!(workfield, WorkField::FullTitle);
-    // }
+    #[test]
+    fn test_workfield_default() {
+        let workfield: WorkField = Default::default();
+        assert_eq!(workfield, WorkField::FullTitle);
+    }
 
     #[test]
     fn test_worktype_display() {
@@ -793,12 +725,12 @@ mod tests {
             WorkField::from_str("WorkStatus").unwrap(),
             WorkField::WorkStatus
         );
-        // assert_eq!(WorkField::from_str("Title").unwrap(), WorkField::FullTitle);
-        // assert_eq!(WorkField::from_str("ShortTitle").unwrap(), WorkField::Title);
-        // assert_eq!(
-        //     WorkField::from_str("Subtitle").unwrap(),
-        //     WorkField::Subtitle
-        // );
+        assert_eq!(WorkField::from_str("Title").unwrap(), WorkField::FullTitle);
+        assert_eq!(WorkField::from_str("ShortTitle").unwrap(), WorkField::Title);
+        assert_eq!(
+            WorkField::from_str("Subtitle").unwrap(),
+            WorkField::Subtitle
+        );
         assert_eq!(
             WorkField::from_str("Reference").unwrap(),
             WorkField::Reference
@@ -919,9 +851,6 @@ mod tests {
             work_id,
             work_type,
             work_status,
-            // full_title,
-            // title,
-            // subtitle,
             reference,
             edition,
             imprint_id,
@@ -952,36 +881,6 @@ mod tests {
             page_interval
         );
     }
-
-    // #[test]
-    // fn test_compile_full_title() {
-    //     let mut work = test_work();
-    //     assert_eq!(work.compile_fulltitle(), "Some title".to_string());
-
-    //     work.subtitle = Some("With a subtitle".to_string());
-    //     assert_eq!(
-    //         work.compile_fulltitle(),
-    //         "Some title: With a subtitle".to_string()
-    //     );
-
-    //     work.title = "Some title?".to_string();
-    //     assert_eq!(
-    //         work.compile_fulltitle(),
-    //         "Some title? With a subtitle".to_string()
-    //     );
-
-    //     work.title = "Some title.".to_string();
-    //     assert_eq!(
-    //         work.compile_fulltitle(),
-    //         "Some title. With a subtitle".to_string()
-    //     );
-
-    //     work.title = "Some title!".to_string();
-    //     assert_eq!(
-    //         work.compile_fulltitle(),
-    //         "Some title! With a subtitle".to_string()
-    //     );
-    // }
 
     #[test]
     fn test_compile_page_interval() {
