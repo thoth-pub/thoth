@@ -29,6 +29,7 @@ pub struct Event {
 #[serde(rename_all = "camelCase")]
 pub struct Webhook {
     pub webhook_id: Uuid,
+    pub publisher_id: Uuid,
     pub endpoint: String,
     pub token: Option<String>,
     pub is_published: bool,
@@ -52,12 +53,11 @@ impl Webhook {
         use crate::schema::webhook::dsl::*;
         let mut connection = db.get()?;
         let mut query = webhook
-            .inner_join(crate::schema::publisher_webhook::table)
             .select(crate::schema::webhook::all_columns)
             .into_boxed();
 
         if let Some(pid) = publisher_id {
-            query = query.filter(crate::schema::publisher_webhook::publisher_id.eq(pid));
+            query = query.filter(publisher_id.eq(pid));
         }
         if !event_types.is_empty() {
             query = query.filter(event_type.eq_any(event_types));

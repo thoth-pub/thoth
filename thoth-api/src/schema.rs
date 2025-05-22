@@ -407,17 +407,6 @@ table! {
 table! {
     use diesel::sql_types::*;
 
-    publisher_webhook (webhook_id, publisher_id) {
-        webhook_id -> Uuid,
-        publisher_id -> Uuid,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
-    }
-}
-
-table! {
-    use diesel::sql_types::*;
-
     publisher_history (publisher_history_id) {
         publisher_history_id -> Uuid,
         publisher_id -> Uuid,
@@ -535,12 +524,25 @@ table! {
 
     webhook (webhook_id) {
         webhook_id -> Uuid,
+        publisher_id -> Uuid,
         endpoint -> Text,
         token -> Nullable<Text>,
         is_published -> Bool,
         event_type -> EventType,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    webhook_history (webhook_history_id) {
+        webhook_history_id -> Uuid,
+        webhook_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
     }
 }
 
@@ -668,8 +670,6 @@ joinable!(publisher_account -> account (account_id));
 joinable!(publisher_account -> publisher (publisher_id));
 joinable!(publisher_history -> account (account_id));
 joinable!(publisher_history -> publisher (publisher_id));
-joinable!(publisher_webhook -> webhook (webhook_id));
-joinable!(publisher_webhook -> publisher (publisher_id));
 joinable!(reference -> work (work_id));
 joinable!(reference_history -> account (account_id));
 joinable!(reference_history -> reference (reference_id));
@@ -679,6 +679,9 @@ joinable!(series_history -> series (series_id));
 joinable!(subject -> work (work_id));
 joinable!(subject_history -> account (account_id));
 joinable!(subject_history -> subject (subject_id));
+joinable!(webhook -> publisher (publisher_id));
+joinable!(webhook_history -> account (account_id));
+joinable!(webhook_history -> webhook (webhook_id));
 joinable!(work -> imprint (imprint_id));
 joinable!(work_history -> account (account_id));
 joinable!(work_history -> work (work_id));
@@ -713,7 +716,6 @@ allow_tables_to_appear_in_same_query!(
     publisher,
     publisher_account,
     publisher_history,
-    publisher_webhook,
     reference,
     reference_history,
     series,
@@ -721,6 +723,7 @@ allow_tables_to_appear_in_same_query!(
     subject,
     subject_history,
     webhook,
+    webhook_history,
     work,
     work_history,
     work_relation,
