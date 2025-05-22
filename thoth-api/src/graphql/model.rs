@@ -1467,6 +1467,51 @@ impl QueryRoot {
     fn reference_count(context: &Context) -> FieldResult<i32> {
         Reference::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
     }
+
+    #[graphql(description = "Query the full list of webhooks")]
+    fn webhooks(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = WebhookOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<WebhookOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
+        publishers: Option<Vec<Uuid>>,
+    ) -> FieldResult<Vec<Webhook>> {
+        Webhook::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Query a single webhook using its ID")]
+    fn webhook(
+        context: &Context,
+        #[graphql(description = "Thoth webhook ID to search on")] webhook_id: Uuid,
+    ) -> FieldResult<Webhook> {
+        Webhook::from_id(&context.db, &webhook_id).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get the total number of webhooks")]
+    fn webhook_count(context: &Context) -> FieldResult<i32> {
+        Webhook::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
+    }
 }
 
 pub struct MutationRoot;
@@ -1733,6 +1778,17 @@ impl MutationRoot {
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
         Reference::create(&context.db, &data).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Create a new webhook with the specified values")]
+    fn create_webhook(
+        context: &Context,
+        #[graphql(description = "Values for webhook to be created")] data: NewWebhook,
+    ) -> FieldResult<Webhook> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context.account_access.can_edit(data.publisher_id)?;
+
+        Webhook::create(&context.db, &data).map_err(|e| e.into())
     }
 
     #[graphql(description = "Update an existing work with the specified values")]
@@ -2187,6 +2243,26 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
+    #[graphql(description = "Update an existing webhook with the specified values")]
+    fn update_webhook(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing webhook")] data: PatchWebhook,
+    ) -> FieldResult<Webhook> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let webhook = Webhook::from_id(&context.db, &data.webhook_id).unwrap();
+        context
+            .account_access.can_edit(webhook.publisher_id())?;
+
+        if data.publisher_id != webhook.publisher_id {
+            context.account_access.can_edit(data.publisher_id)?;
+        }
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        webhook
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
     #[graphql(description = "Delete a single work using its ID")]
     fn delete_work(
         context: &Context,
@@ -2436,6 +2512,18 @@ impl MutationRoot {
             .can_edit(reference.publisher_id(&context.db)?)?;
 
         reference.delete(&context.db).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Delete a single webhook using its ID")]
+    fn delete_webhook(
+        context: &Context,
+        #[graphql(description = "Thoth ID of webhook to be deleted")] webhook_id: Uuid,
+    ) -> FieldResult<Webhook> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let webhook = Webhook::from_id(&context.db, &webhook_id).unwrap();
+        context.account_access.can_edit(webhook.publisher_id())?;
+
+        webhook.delete(&context.db).map_err(|e| e.into())
     }
 }
 
@@ -4242,6 +4330,54 @@ impl Reference {
     #[graphql(description = "The citing work.")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "A web request made when a specified data event occurs.")]
+impl Webhook {
+    #[graphql(description = "Thoth ID of the webhook")]
+    pub fn webhook_id(&self) -> Uuid {
+        self.webhook_id
+    }
+
+    #[graphql(description = "Thoth ID of the publisher to which this webhook belongs")]
+    pub fn publisher_id(&self) -> Uuid {
+        self.publisher_id
+    }
+
+    #[graphql(description = "URL which is called by the webhook")]
+    pub fn endpoint(&self) -> &String {
+        &self.endpoint
+    }
+
+    #[graphql(description = "Authentication token required for the webhook")]
+    pub fn token(&self) -> Option<&String> {
+        self.token.as_ref()
+    }
+
+    #[graphql(description = "Type of event which triggers the webhook")]
+    pub fn event_type(&self) -> &EventType {
+        &self.event_type
+    }
+
+    #[graphql(description = "Whether the activation of the webhook depends on publication status")]
+    pub fn is_published(&self) -> bool {
+        self.is_published
+    }
+
+    #[graphql(description = "Date and time at which the webhook record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the webhook record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+
+    #[graphql(description = "Get the publisher to which this webhook belongs")]
+    pub fn publisher(&self, context: &Context) -> FieldResult<Publisher> {
+        Publisher::from_id(&context.db, &self.publisher_id).map_err(|e| e.into())
     }
 }
 

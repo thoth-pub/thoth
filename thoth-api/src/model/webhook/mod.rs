@@ -103,6 +103,21 @@ pub struct WebhookOrderBy {
     pub direction: Direction,
 }
 
+impl Default for Webhook {
+    fn default() -> Webhook {
+        Webhook {
+            webhook_id: Default::default(),
+            publisher_id: Default::default(),
+            endpoint: Default::default(),
+            token: Default::default(),
+            is_published: Default::default(),
+            event_type: EventType::WorkUpdated,
+            created_at: Default::default(),
+            updated_at: Default::default(),
+        }
+    }
+}
+
 #[test]
 fn test_webhookfield_default() {
     let webfield: WebhookField = Default::default();
