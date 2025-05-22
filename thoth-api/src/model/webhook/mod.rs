@@ -1,5 +1,5 @@
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 use uuid::Uuid;
 
 use crate::event::model::EventType;
@@ -15,7 +15,7 @@ use crate::schema::webhook_history;
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting webhooks list")
 )]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum WebhookField {
     WebhookId,
@@ -30,7 +30,7 @@ pub enum WebhookField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Webhook {
     pub webhook_id: Uuid,
@@ -101,21 +101,6 @@ pub struct NewWebhookHistory {
 pub struct WebhookOrderBy {
     pub field: WebhookField,
     pub direction: Direction,
-}
-
-impl Default for Webhook {
-    fn default() -> Webhook {
-        Webhook {
-            webhook_id: Default::default(),
-            publisher_id: Default::default(),
-            endpoint: Default::default(),
-            token: Default::default(),
-            is_published: Default::default(),
-            event_type: EventType::WorkUpdated,
-            created_at: Default::default(),
-            updated_at: Default::default(),
-        }
-    }
 }
 
 #[test]
