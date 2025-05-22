@@ -8,7 +8,7 @@ use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
 use crate::db::PgPool;
 use crate::event::handler::send_event;
-use crate::event::model::{EventType, Webhook};
+use crate::event::model::EventType;
 use crate::model::affiliation::*;
 use crate::model::contribution::*;
 use crate::model::contributor::*;
@@ -24,6 +24,7 @@ use crate::model::publisher::*;
 use crate::model::reference::*;
 use crate::model::series::*;
 use crate::model::subject::*;
+use crate::model::webhook::*;
 use crate::model::work::*;
 use crate::model::work_relation::*;
 use crate::model::Convert;
@@ -3193,19 +3194,29 @@ impl Publisher {
         #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
         #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
+            default = WebhookOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<WebhookOrderBy>,
+        #[graphql(
             default = vec![],
             description = "Specific types to filter by",
         )]
         event_types: Option<Vec<EventType>>,
-        #[graphql(description = "Only show results where is_published is True")]
+        #[graphql(description = "Only show results where IsPublished is True")]
         is_published: Option<bool>,
     ) -> FieldResult<Vec<Webhook>> {
         Webhook::all(
             &context.db,
             limit.unwrap_or_default(),
             offset.unwrap_or_default(),
+            None,
+            order.unwrap_or_default(),
+            vec![],
             Some(self.publisher_id),
+            None,
             event_types.unwrap_or_default(),
+            vec![],
             is_published,
         )
         .map_err(|e| e.into())
