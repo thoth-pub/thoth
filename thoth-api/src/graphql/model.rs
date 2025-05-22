@@ -2250,8 +2250,7 @@ impl MutationRoot {
     ) -> FieldResult<Webhook> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let webhook = Webhook::from_id(&context.db, &data.webhook_id).unwrap();
-        context
-            .account_access.can_edit(webhook.publisher_id())?;
+        context.account_access.can_edit(webhook.publisher_id())?;
 
         if data.publisher_id != webhook.publisher_id {
             context.account_access.can_edit(data.publisher_id)?;
