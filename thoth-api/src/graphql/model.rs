@@ -1,16 +1,16 @@
+use crate::model::title::Title;
+use crate::schema::title;
 use chrono::naive::NaiveDate;
+use diesel::dsl::Limit;
+use diesel::prelude::*;
 use juniper::RootNode;
-use juniper::{EmptySubscription, FieldResult, FieldError, Value};
+use juniper::{EmptySubscription, FieldError, FieldResult, Value};
 use std::sync::Arc;
 use uuid::Uuid;
-use crate::schema::title;
-use crate::model::title::Title;
-use diesel::prelude::*;
 
 use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
 use crate::db::PgPool;
-use crate::model::affiliation::*;
 use crate::model::contribution::*;
 use crate::model::contributor::*;
 use crate::model::funding::*;
@@ -36,9 +36,11 @@ use crate::model::Orcid;
 use crate::model::Ror;
 use crate::model::Timestamp;
 use crate::model::WeightUnit;
+use crate::model::{affiliation::*, TitleOrderBy};
 use thoth_errors::{ThothError, ThothResult};
 
 use super::utils::{Direction, Expression};
+use crate::model::LocaleCode;
 
 impl juniper::Context for Context {}
 
@@ -1464,6 +1466,48 @@ impl QueryRoot {
     fn reference_count(context: &Context) -> FieldResult<i32> {
         Reference::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
     }
+
+    #[graphql(description = "Query a title by its ID")]
+    fn title(context: &Context, title_id: Uuid) -> FieldResult<Title> {
+        Title::from_id(&context.db, &title_id).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Query titles by work ID")]
+    fn titles(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on institution_name, ror and institution_doi"
+        )]
+        filter: Option<String>,
+        #[graphql(
+            default = TitleOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<TitleOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results with these locale codes"
+        )]
+        locale_codes: Option<Vec<LocaleCode>>,
+    ) -> FieldResult<Vec<Title>> {
+        Title::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            filter,
+            order.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+            locale_codes.unwrap_or_default(),
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
+    }
 }
 
 pub struct MutationRoot;
@@ -2458,6 +2502,44 @@ impl Work {
             .first::<Title>(&mut connection)
             .map_err(|e| FieldError::new(e.to_string(), Value::null()))?;
         Ok(title.title_)
+    }
+
+    #[graphql(description = "Query titles by work ID")]
+    fn titles(
+        &self,
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on institution_name, ror and institution_doi"
+        )]
+        filter: Option<String>,
+        #[graphql(
+            default = TitleOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<TitleOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results with these locale codes"
+        )]
+        locale_codes: Option<Vec<LocaleCode>>,
+    ) -> FieldResult<Vec<Title>> {
+        Title::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            filter,
+            order.unwrap_or_default(),
+            vec![],
+            Some(self.work_id),
+            None,
+            locale_codes.unwrap_or_default(),
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(description = "Secondary title of the work (excluding main title)")]
@@ -4205,6 +4287,49 @@ impl Reference {
     }
 
     #[graphql(description = "The citing work.")]
+    pub fn work(&self, context: &Context) -> FieldResult<Work> {
+        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "A title associated with a work.")]
+impl Title {
+    #[graphql(description = "Thoth ID of the title")]
+    pub fn title_id(&self) -> Uuid {
+        self.title_id
+    }
+
+    #[graphql(description = "Thoth ID of the work to which the title is linked")]
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
+    }
+
+    #[graphql(description = "Locale code of the title")]
+    pub fn locale_code(&self) -> &LocaleCode {
+        &self.locale_code
+    }
+
+    #[graphql(description = "Full title including subtitle")]
+    pub fn full_title(&self) -> &String {
+        &self.full_title
+    }
+
+    #[graphql(description = "Main title (excluding subtitle)")]
+    pub fn title(&self) -> &String {
+        &self.title_
+    }
+
+    #[graphql(description = "Subtitle of the work")]
+    pub fn subtitle(&self) -> Option<&String> {
+        self.subtitle.as_ref()
+    }
+
+    #[graphql(description = "Whether this is the canonical title for the work")]
+    pub fn canonical(&self) -> bool {
+        self.canonical
+    }
+
+    #[graphql(description = "Get the work to which the title is linked")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }

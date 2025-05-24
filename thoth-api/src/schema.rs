@@ -610,12 +610,12 @@ table! {
     title (title_id) {
         title_id -> Uuid,
         work_id -> Uuid,
-        locale_code -> LocaleCode,
         full_title -> Text,
         #[sql_name = "title"]
         title_ -> Text,
         subtitle -> Nullable<Text>,
         canonical -> Bool,
+        locale_code -> LocaleCode,
     }
 }
 

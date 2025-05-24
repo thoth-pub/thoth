@@ -1,7 +1,9 @@
 use crate::arguments;
 use clap::{ArgMatches, Command};
 use lazy_static::lazy_static;
-use thoth::{api_server, app_server, errors::ThothResult, export_server};
+use thoth::{api_server,
+    //  app_server, 
+     errors::ThothResult, export_server};
 
 lazy_static! {
     pub(crate) static ref COMMAND: Command = Command::new("start")
@@ -66,13 +68,13 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     .map_err(|e| e.into())
 }
 
-pub fn app(arguments: &ArgMatches) -> ThothResult<()> {
-    let host = arguments.get_one::<String>("host").unwrap().to_owned();
-    let port = arguments.get_one::<String>("port").unwrap().to_owned();
-    let threads = *arguments.get_one::<usize>("threads").unwrap();
-    let keep_alive = *arguments.get_one::<u64>("keep-alive").unwrap();
-    app_server(host, port, threads, keep_alive).map_err(|e| e.into())
-}
+// pub fn app(arguments: &ArgMatches) -> ThothResult<()> {
+//     let host = arguments.get_one::<String>("host").unwrap().to_owned();
+//     let port = arguments.get_one::<String>("port").unwrap().to_owned();
+//     let threads = *arguments.get_one::<usize>("threads").unwrap();
+//     let keep_alive = *arguments.get_one::<u64>("keep-alive").unwrap();
+//     app_server(host, port, threads, keep_alive).map_err(|e| e.into())
+// }
 
 pub fn export_api(arguments: &ArgMatches) -> ThothResult<()> {
     let redis_url = arguments.get_one::<String>("redis").unwrap().to_owned();

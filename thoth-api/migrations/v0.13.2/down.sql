@@ -1,70 +1,21 @@
 -- Add title-related columns back to the work table
 ALTER TABLE work
-ADD COLUMN full_title TEXT NOT NULL CHECK (octet_length(full_title) >= 1),
-ADD COLUMN title TEXT NOT NULL CHECK (octet_length(title) >= 1),
-ADD COLUMN subtitle TEXT CHECK (octet_length(subtitle) >= 1);
+    ADD COLUMN full_title TEXT CHECK (octet_length(full_title) >= 1),
+    ADD COLUMN title TEXT CHECK (octet_length(title) >= 1),
+    ADD COLUMN subtitle TEXT CHECK (octet_length(subtitle) >= 1);
 
--- Restore enlish title data from the title table to the work table
-UPDATE work
-SET
-    full_title = COALESCE(
-        (
-            SELECT
-                full_title
-            FROM
-                title
-                JOIN locale ON title.locale_id = locale.locale_id
-            WHERE
-                title.work_id = work.work_id
-                AND locale.code = 'en'
-            LIMIT
-                1
-        ),
-        'Untitled'
-    ),
-    title = COALESCE(
-        (
-            SELECT
-                title
-            FROM
-                title
-                JOIN locale ON title.locale_id = locale.locale_id
-            WHERE
-                title.work_id = work.work_id
-                AND locale.code = 'en'
-            LIMIT
-                1
-        ),
-        'Untitled'
-    ),
-    subtitle = (
-        SELECT
-            subtitle
-        FROM
-            title
-            JOIN locale ON title.locale_id = locale.locale_id
-        WHERE
-            title.work_id = work.work_id
-            AND locale.code = 'en'
-        LIMIT
-            1
-    )
-WHERE
-    EXISTS (
-        SELECT
-            1
-        FROM
-            title
-            JOIN locale ON title.locale_id = locale.locale_id
-        WHERE
-            title.work_id = work.work_id
-            AND locale.code = 'en'
-    );
+-- Migrate data back from title table to work table
+UPDATE work w
+SET 
+    full_title = t.full_title,
+    title = t.title,
+    subtitle = t.subtitle
+FROM title t
+WHERE w.work_id = t.work_id
+    AND t.canonical = TRUE;
 
--- Drop the title_id column from the work table
--- ALTER TABLE work
---     DROP COLUMN title_id;
-
--- Drop title and locale tables
+-- Drop the title table
 DROP TABLE title;
-DROP TABLE locale;
+
+-- Drop the locale_code enum type
+DROP TYPE locale_code;
