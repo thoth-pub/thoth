@@ -88,6 +88,13 @@ FROM work
 WHERE full_title IS NOT NULL
     AND title IS NOT NULL;
 
+-- Only allow one canonical title per work                                         
+CREATE UNIQUE INDEX title_uniq_canonical_true_idx ON title(work_id)
+    WHERE canonical;
+
+-- Only allow one instance of each locale per work
+CREATE UNIQUE INDEX title_uniq_locale_idx ON title(work_id, locale_code);
+
 -- Drop title-related columns from the work table
 ALTER TABLE work
     DROP COLUMN full_title,

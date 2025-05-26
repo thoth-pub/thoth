@@ -14,6 +14,11 @@ FROM title t
 WHERE w.work_id = t.work_id
     AND t.canonical = TRUE;
 
+-- Drop the unique index for canonical titles
+DROP INDEX IF EXISTS title_uniq_locale_idx;
+-- Drop the unique index for locale codes
+DROP INDEX IF EXISTS title_uniq_canonical_true_idx;
+
 -- Drop the title table
 DROP TABLE title;
 
