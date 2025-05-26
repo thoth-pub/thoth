@@ -71,7 +71,7 @@ CREATE TABLE title (
     full_title TEXT NOT NULL CHECK (octet_length(full_title) >= 1),
     title TEXT NOT NULL CHECK (octet_length(title) >= 1),
     subtitle TEXT CHECK (octet_length(subtitle) >= 1),
-    canonical BOOLEAN DEFAULT FALSE
+    canonical BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- Migrate existing work titles to the title table with English locale
