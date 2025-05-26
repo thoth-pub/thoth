@@ -2489,8 +2489,7 @@ impl Work {
         let title = title::table
             .filter(title::work_id.eq(&self.work_id))
             .filter(title::canonical.eq(true))
-            .first::<Title>(&mut connection)
-            .map_err(|e| FieldError::new(e.to_string(), Value::null()))?;
+            .first::<Title>(&mut connection)?;
         Ok(title.full_title)
     }
 
@@ -2501,8 +2500,7 @@ impl Work {
         let title = title::table
             .filter(title::work_id.eq(&self.work_id))
             .filter(title::canonical.eq(true))
-            .first::<Title>(&mut connection)
-            .map_err(|e| FieldError::new(e.to_string(), Value::null()))?;
+            .first::<Title>(&mut connection)?;
         Ok(title.title_)
     }
 
