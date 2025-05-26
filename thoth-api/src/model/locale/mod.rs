@@ -142,9 +142,3 @@ pub enum LocaleCode {
     #[cfg_attr(feature = "backend", graphql(description = "Bengali (India)"))]
     BnIn,
 }
-
-impl LocaleCode {
-    pub fn to_string(&self) -> String {
-        format!("{}", self).to_lowercase()
-    }
-}
