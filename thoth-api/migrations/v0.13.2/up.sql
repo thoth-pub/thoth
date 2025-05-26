@@ -79,7 +79,7 @@ INSERT INTO title (title_id, work_id, locale_code, full_title, title, subtitle, 
 SELECT
     uuid_generate_v4(),
     work_id,
-    'EN'::locale_code,
+    'en'::locale_code,
     full_title,
     title,
     subtitle,
