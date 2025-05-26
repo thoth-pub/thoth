@@ -2483,6 +2483,7 @@ impl Work {
     }
 
     #[graphql(description = "Concatenation of title and subtitle with punctuation mark")]
+    #[graphql(deprecated = "Please use Work `titles` field instead to get the correct full title in a multilingual manner")] 
     pub fn full_title(&self, ctx: &Context) -> FieldResult<String> {
         let mut connection = ctx.db.get()?;
         let title = title::table
@@ -2494,6 +2495,7 @@ impl Work {
     }
 
     #[graphql(description = "Main title of the work (excluding subtitle)")]
+    #[graphql(deprecated = "Please use Work `titles` field instead to get the correct title in a multilingual manner")] 
     pub fn title(&self, ctx: &Context) -> FieldResult<String> {
         let mut connection = ctx.db.get()?;
         let title = title::table
