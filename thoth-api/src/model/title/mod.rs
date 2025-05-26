@@ -56,17 +56,6 @@ pub struct Title {
     pub locale_code: LocaleCode,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TitleWithRelations {
-    pub title_id: Uuid,
-    pub work_id: Uuid,
-    pub full_title: String,
-    pub title_: String,
-    pub subtitle: Option<String>,
-    pub canonical: bool,
-    pub locale_code: LocaleCode,
-}
-
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
@@ -173,7 +162,6 @@ macro_rules! title_properties {
 }
 
 title_properties!(Title);
-title_properties!(TitleWithRelations);
 title_properties!(NewTitle);
 title_properties!(PatchTitle);
 
