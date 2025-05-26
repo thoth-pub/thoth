@@ -1479,7 +1479,7 @@ impl QueryRoot {
         #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
-            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on institution_name, ror and institution_doi"
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on title_, subtitle, full_title fields"
         )]
         filter: Option<String>,
         #[graphql(
@@ -2512,7 +2512,7 @@ impl Work {
         #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
-            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on institution_name, ror and institution_doi"
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on title_, subtitle, full_title fields"
         )]
         filter: Option<String>,
         #[graphql(
