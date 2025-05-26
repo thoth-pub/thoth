@@ -39,6 +39,8 @@ pub enum LocaleCode {
     Am,
     #[cfg_attr(feature = "backend", graphql(description = "Amharic (Ethiopia)"))]
     AmEt,
+    #[cfg_attr(feature = "backend", graphql(description = "Antigua and Barbuda Creole English"))]
+    Aig,
     #[cfg_attr(feature = "backend", graphql(description = "Arabic"))]
     Ar,
     #[cfg_attr(feature = "backend", graphql(description = "Arabic (Algeria)"))]
@@ -107,6 +109,8 @@ pub enum LocaleCode {
     Ksf,
     #[cfg_attr(feature = "backend", graphql(description = "Bafia (Cameroon)"))]
     KsfCm,
+    #[cfg_attr(feature = "backend", graphql(description = "Bahamas Creole English"))]
+    Bah,
     #[cfg_attr(feature = "backend", graphql(description = "Bambara"))]
     Bm,
     #[cfg_attr(feature = "backend", graphql(description = "Bambara (Mali)"))]
