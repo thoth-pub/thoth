@@ -36,8 +36,8 @@ pub struct TitleOrderBy {
 impl Default for TitleOrderBy {
     fn default() -> Self {
         Self {
-            field: TitleField::TitleId,
-            direction: Direction::Asc,
+            field: TitleField::Canonical,
+            direction: Direction::Desc,
         }
     }
 }
