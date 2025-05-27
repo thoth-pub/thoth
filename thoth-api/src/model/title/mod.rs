@@ -11,7 +11,7 @@ use crate::schema::title_history;
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLEnum),
-    graphql(description = "Field to use when sorting fundings list")
+    graphql(description = "Field to use when sorting titles list")
 )]
 pub enum TitleField {
     TitleId,
@@ -26,7 +26,7 @@ pub enum TitleField {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject),
-    graphql(description = "Field and order to use when sorting affiliations list")
+    graphql(description = "Field and order to use when sorting titles list")
 )]
 pub struct TitleOrderBy {
     pub field: TitleField,
