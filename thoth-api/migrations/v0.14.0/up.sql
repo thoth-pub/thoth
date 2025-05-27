@@ -60,7 +60,7 @@ CREATE TYPE locale_code AS ENUM (
 );
 
 -- Create the title table
-CREATE TABLE title (
+CREATE TABLE IF NOT EXISTS title (
     title_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     work_id UUID NOT NULL REFERENCES work (work_id) ON DELETE CASCADE,
     locale_code locale_code NOT NULL,
@@ -71,7 +71,7 @@ CREATE TABLE title (
 );
 
 -- Create the title_history table
-CREATE TABLE title_history (
+CREATE TABLE IF NOT EXISTS title_history (
     title_history_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title_id UUID NOT NULL REFERENCES title (title_id) ON DELETE CASCADE,
     account_id UUID NOT NULL REFERENCES account (account_id) ON DELETE CASCADE,
@@ -94,11 +94,11 @@ WHERE full_title IS NOT NULL
     AND title IS NOT NULL;
 
 -- Only allow one canonical title per work                                         
-CREATE UNIQUE INDEX title_uniq_canonical_true_idx ON title(work_id)
+CREATE UNIQUE INDEX IF NOT EXISTS title_uniq_canonical_true_idx ON title(work_id)
     WHERE canonical;
 
 -- Only allow one instance of each locale per work
-CREATE UNIQUE INDEX title_uniq_locale_idx ON title(work_id, locale_code);
+CREATE UNIQUE INDEX IF NOT EXISTS title_uniq_locale_idx ON title(work_id, locale_code);
 
 -- Drop title-related columns from the work table
 ALTER TABLE work

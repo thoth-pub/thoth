@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
 use crate::model::{HistoryEntry};
-use crate::schema::title;
+use crate::schema::work_title;
 use crate::schema::title_history;
 
 #[cfg_attr(
@@ -49,8 +49,7 @@ pub struct Title {
     pub title_id: Uuid,
     pub work_id: Uuid,
     pub full_title: String,
-    #[diesel(column_name = "title")]
-    pub title_: String,
+    pub title: String,
     pub subtitle: Option<String>,
     pub canonical: bool,
     pub locale_code: LocaleCode,
@@ -60,13 +59,13 @@ pub struct Title {
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
     graphql(description = "Set of values required to define a new work's title"),
-    diesel(table_name = title)
+    diesel(table_name = work_title)
 )]
 pub struct NewTitle {
     pub work_id: Uuid,
     pub locale_code: LocaleCode,
     pub full_title: String,
-    pub title_: String,
+    pub title: String,
     pub subtitle: Option<String>,
     pub canonical: bool,
 }
@@ -75,14 +74,14 @@ pub struct NewTitle {
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
     graphql(description = "Set of values required to update an existing work's title"),
-    diesel(table_name = title, treat_none_as_null = true)
+    diesel(table_name = work_title, treat_none_as_null = true)
 )]
 pub struct PatchTitle {
     pub work_id: Uuid,
     pub title_id: Uuid,
     pub locale_code: LocaleCode,
     pub full_title: String,
-    pub title_: String,
+    pub title: String,
     pub subtitle: Option<String>,
     pub canonical: bool,
 }
@@ -152,7 +151,7 @@ macro_rules! title_properties {
     ($t:ty) => {
         impl TitleProperties for $t {
             fn title(&self) -> &str {
-                &self.title_
+                &self.title
             }
             fn subtitle(&self) -> Option<&str> {
                 self.subtitle.as_deref()

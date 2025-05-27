@@ -607,12 +607,12 @@ table! {
     use diesel::sql_types::*;
     use super::sql_types::LocaleCode;
 
-    title (title_id) {
+    #[sql_name = "title"]
+    work_title (title_id) {
         title_id -> Uuid,
         work_id -> Uuid,
         full_title -> Text,
-        #[sql_name = "title"]
-        title_ -> Text,
+        title -> Text,
         subtitle -> Nullable<Text>,
         canonical -> Bool,
         locale_code -> LocaleCode,
@@ -685,8 +685,8 @@ joinable!(work_history -> work (work_id));
 joinable!(work_relation -> work (relator_work_id));
 joinable!(work_relation_history -> account (account_id));
 joinable!(work_relation_history -> work_relation (work_relation_id));
-joinable!(title -> work (work_id));
-joinable!(title_history -> title (title_id));
+joinable!(work_title -> work (work_id));
+joinable!(title_history -> work_title (title_id));
 joinable!(title_history -> account (account_id));
 
 allow_tables_to_appear_in_same_query!(
@@ -726,6 +726,6 @@ allow_tables_to_appear_in_same_query!(
     work_history,
     work_relation,
     work_relation_history,
-    title,
+    work_title,
     title_history,
 );

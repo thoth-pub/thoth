@@ -2,8 +2,8 @@ use super::{NewTitle, NewTitleHistory, PatchTitle, Title, TitleField, TitleHisto
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use super::LocaleCode;
-use crate::schema::{title, title_history};
-use crate::schema::title::dsl::*;
+use crate::schema::{work_title, title_history};
+use crate::schema::work_title::dsl::*;
 use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
@@ -42,7 +42,7 @@ impl Crud for Title {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Title>> {
         let mut connection = db.get()?;
-        let mut query = title.select(crate::schema::title::all_columns).into_boxed();
+        let mut query = work_title.select(crate::schema::work_title::all_columns).into_boxed();
 
         query = match order.field {
             TitleField::TitleId => match order.direction {
@@ -62,8 +62,8 @@ impl Crud for Title {
                 Direction::Desc => query.order(full_title.desc()),
             },
             TitleField::Title => match order.direction {
-                Direction::Asc => query.order(title_.asc()),
-                Direction::Desc => query.order(title_.desc()),
+                Direction::Asc => query.order(title.asc()),
+                Direction::Desc => query.order(title.desc()),
             },
             TitleField::Subtitle => match order.direction {
                 Direction::Asc => query.order(subtitle.asc()),
@@ -79,7 +79,7 @@ impl Crud for Title {
             query = query.filter(
                 full_title
                     .ilike(format!("%{filter}%"))
-                    .or(title_.ilike(format!("%{filter}%")))
+                    .or(title.ilike(format!("%{filter}%")))
                     .or(subtitle.ilike(format!("%{filter}%"))),
             );
         }
@@ -108,13 +108,13 @@ impl Crud for Title {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         let mut connection = db.get()?;
-        let mut query = title.into_boxed();
+        let mut query = work_title.into_boxed();
 
         if let Some(filter) = filter {
             query = query.filter(
                 full_title
                     .ilike(format!("%{filter}%"))
-                    .or(title_.ilike(format!("%{filter}%")))
+                    .or(title.ilike(format!("%{filter}%")))
                     .or(subtitle.ilike(format!("%{filter}%"))),
             );
         }
@@ -126,7 +126,7 @@ impl Crud for Title {
             .map_err(Into::into)
     }
 
-    crud_methods!(title::table, title::dsl::title);
+    crud_methods!(work_title::table, work_title::dsl::work_title);
 }
 
 impl DbInsert for NewTitleHistory {

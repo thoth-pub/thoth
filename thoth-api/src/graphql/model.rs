@@ -1,5 +1,5 @@
 use crate::model::title::{PatchTitle, Title};
-use crate::schema::title;
+use crate::schema::work_title;
 use chrono::naive::NaiveDate;
 use diesel::dsl::Limit;
 use diesel::prelude::*;
@@ -11,7 +11,6 @@ use uuid::Uuid;
 use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
 use crate::db::PgPool;
-use crate::model::{contribution::*, NewTitle};
 use crate::model::contributor::*;
 use crate::model::funding::*;
 use crate::model::imprint::*;
@@ -37,6 +36,7 @@ use crate::model::Ror;
 use crate::model::Timestamp;
 use crate::model::WeightUnit;
 use crate::model::{affiliation::*, TitleOrderBy};
+use crate::model::{contribution::*, NewTitle};
 use thoth_errors::{ThothError, ThothResult};
 
 use super::utils::{Direction, Expression};
@@ -1642,6 +1642,16 @@ impl MutationRoot {
             .account_access
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
+        let has_canonical_title = match Work::from_id(&context.db, &data.work_id)?.title(context) {
+            Ok(_) => true,
+            Err(_) => false,
+        };
+
+        // Only superusers can update the canonical location when a Thoth Location Platform canonical location already exists
+        if has_canonical_title && data.canonical && !context.account_access.is_superuser {
+            return Err(ThothError::ThothUpdateCanonicalError.into());
+        }
+
         Title::create(&context.db, &data).map_err(|e| e.into())
     }
 
@@ -2011,6 +2021,16 @@ impl MutationRoot {
             context
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+        }
+
+        let has_canonical_title = match Work::from_id(&context.db, &data.work_id)?.title(context) {
+            Ok(_) => true,
+            Err(_) => false,
+        };
+
+        // Only superusers can update the canonical location when a Thoth Location Platform canonical location already exists
+        if has_canonical_title && data.canonical && !context.account_access.is_superuser {
+            return Err(ThothError::ThothUpdateCanonicalError.into());
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
@@ -2533,25 +2553,29 @@ impl Work {
     }
 
     #[graphql(description = "Concatenation of title and subtitle with punctuation mark")]
-    #[graphql(deprecated = "Please use Work `titles` field instead to get the correct full title in a multilingual manner")] 
+    #[graphql(
+        deprecated = "Please use Work `titles` field instead to get the correct full title in a multilingual manner"
+    )]
     pub fn full_title(&self, ctx: &Context) -> FieldResult<String> {
         let mut connection = ctx.db.get()?;
-        let title = title::table
-            .filter(title::work_id.eq(&self.work_id))
-            .filter(title::canonical.eq(true))
+        let title = work_title::table
+            .filter(work_title::work_id.eq(&self.work_id))
+            .filter(work_title::canonical.eq(true))
             .first::<Title>(&mut connection)?;
         Ok(title.full_title)
     }
 
     #[graphql(description = "Main title of the work (excluding subtitle)")]
-    #[graphql(deprecated = "Please use Work `titles` field instead to get the correct title in a multilingual manner")] 
+    #[graphql(
+        deprecated = "Please use Work `titles` field instead to get the correct title in a multilingual manner"
+    )]
     pub fn title(&self, ctx: &Context) -> FieldResult<String> {
         let mut connection = ctx.db.get()?;
-        let title = title::table
-            .filter(title::work_id.eq(&self.work_id))
-            .filter(title::canonical.eq(true))
+        let title = work_title::table
+            .filter(work_title::work_id.eq(&self.work_id))
+            .filter(work_title::canonical.eq(true))
             .first::<Title>(&mut connection)?;
-        Ok(title.title_)
+        Ok(title.title)
     }
 
     #[graphql(description = "Query titles by work ID")]
@@ -2595,9 +2619,9 @@ impl Work {
     #[graphql(description = "Secondary title of the work (excluding main title)")]
     pub fn subtitle(&self, ctx: &Context) -> FieldResult<Option<String>> {
         let mut connection = ctx.db.get()?;
-        let title = title::table
-            .filter(title::work_id.eq(&self.work_id))
-            .filter(title::canonical.eq(true))
+        let title = work_title::table
+            .filter(work_title::work_id.eq(&self.work_id))
+            .filter(work_title::canonical.eq(true))
             .first::<Title>(&mut connection)
             .map_err(|e| FieldError::new(e.to_string(), Value::null()))?;
         Ok(title.subtitle)
@@ -4366,7 +4390,7 @@ impl Title {
 
     #[graphql(description = "Main title (excluding subtitle)")]
     pub fn title(&self) -> &String {
-        &self.title_
+        &self.title
     }
 
     #[graphql(description = "Subtitle of the work")]

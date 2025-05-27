@@ -10,7 +10,7 @@ use crate::model::publisher::Publisher;
 use crate::model::title::Title;
 use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderBy};
 use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
-use crate::schema::{imprint, publisher, title, work, work_history};
+use crate::schema::{imprint, publisher, work_title, work, work_history};
 use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
@@ -115,9 +115,9 @@ impl Work {
             .find(work_id)
             .get_result::<Work>(&mut connection)?;
 
-        let titles: Vec<Title> = title::table
-            .filter(title::work_id.eq(work_id))
-            .select(title::all_columns)
+        let titles: Vec<Title> = work_title::table
+            .filter(work_title::work_id.eq(work_id))
+            .select(work_title::all_columns)
             .load::<Title>(&mut connection)?;
 
         let imprint = imprint::table
@@ -131,7 +131,7 @@ impl Work {
             work_type: work.work_type,
             work_status: work.work_status,
             full_title: titles.first().map(|t| t.full_title.clone()).unwrap_or_default(),
-            title: titles.first().map(|t| t.title_.clone()).unwrap_or_default(),
+            title: titles.first().map(|t| t.title.clone()).unwrap_or_default(),
             subtitle: titles.first().and_then(|t| t.subtitle.clone()),
             reference: work.reference,
             edition: work.edition,
@@ -212,9 +212,9 @@ impl Crud for Work {
         let mut query = dsl::work
             .inner_join(crate::schema::imprint::table)
             .left_join(
-                title::table.on(title::work_id
+                work_title::table.on(work_title::work_id
                     .eq(dsl::work_id)
-                    .and(title::canonical.eq(true))),
+                    .and(work_title::canonical.eq(true))),
             )
             .select(crate::schema::work::all_columns)
             .into_boxed();
@@ -225,16 +225,16 @@ impl Crud for Work {
                 Direction::Desc => query.order(dsl::work_id.desc()),
             },
             WorkField::FullTitle => match order.direction {
-                Direction::Asc => query.order(title::full_title.asc()),
-                Direction::Desc => query.order(title::full_title.desc()),
+                Direction::Asc => query.order(work_title::full_title.asc()),
+                Direction::Desc => query.order(work_title::full_title.desc()),
             },
             WorkField::Title => match order.direction {
-                Direction::Asc => query.order(title::title_.asc()),
-                Direction::Desc => query.order(title::title_.desc()),
+                Direction::Asc => query.order(work_title::title.asc()),
+                Direction::Desc => query.order(work_title::title.desc()),
             },
             WorkField::Subtitle => match order.direction {
-                Direction::Asc => query.order(title::subtitle.asc()),
-                Direction::Desc => query.order(title::subtitle.desc()),
+                Direction::Asc => query.order(work_title::subtitle.asc()),
+                Direction::Desc => query.order(work_title::subtitle.desc()),
             },
             WorkField::WorkType => match order.direction {
                 Direction::Asc => query.order(dsl::work_type.asc()),
@@ -388,9 +388,9 @@ impl Crud for Work {
             }
         }
         if let Some(filter) = filter {
-            let title_work_ids = title::table
-                .filter(title::full_title.ilike(format!("%{filter}%")))
-                .select(title::work_id)
+            let title_work_ids = work_title::table
+                .filter(work_title::full_title.ilike(format!("%{filter}%")))
+                .select(work_title::work_id)
                 .load::<Uuid>(&mut connection)?;
 
             query = query.filter(
@@ -444,9 +444,9 @@ impl Crud for Work {
             }
         }
         if let Some(filter) = filter {
-            let title_work_ids = title::table
-                .filter(title::full_title.ilike(format!("%{filter}%")))
-                .select(title::work_id)
+            let title_work_ids = work_title::table
+                .filter(work_title::full_title.ilike(format!("%{filter}%")))
+                .select(work_title::work_id)
                 .load::<Uuid>(&mut connection)?;
 
             query = query.filter(

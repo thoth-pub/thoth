@@ -20,6 +20,9 @@ DROP INDEX IF EXISTS title_uniq_locale_idx;
 DROP INDEX IF EXISTS title_uniq_canonical_true_idx;
 
 -- Drop the title table
+DROP TABLE title_history;
+
+-- Drop the title table
 DROP TABLE title;
 
 -- Drop the locale_code enum type
