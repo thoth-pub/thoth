@@ -86,6 +86,12 @@ impl TryFrom<Work> for KbartOclcRow {
                 KBART_ERROR.to_string(),
                 "Missing Publication Date".to_string(),
             ))
+        // Don't output works with no license
+        } else if work.license.is_none() {
+            Err(ThothError::IncompleteMetadataRecord(
+                KBART_ERROR.to_string(),
+                "Missing License".to_string(),
+            ))
         } else {
             let mut print_identifier = None;
             let mut online_identifier = None;
@@ -147,7 +153,7 @@ impl TryFrom<Work> for KbartOclcRow {
                 num_last_issue_online: None,
                 title_url: work.landing_page.unwrap(),
                 first_author,
-                title_id: work.doi.map(|d| d.to_string()),
+                title_id: work.doi.map(|d| d.to_string()).or_else(|| Some(work.work_id.to_string())),
                 embargo_info: None,
                 coverage_depth: "fulltext".to_string(),
                 notes: None,
