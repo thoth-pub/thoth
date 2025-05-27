@@ -1,9 +1,9 @@
+use super::LocaleCode;
 use super::{NewTitle, NewTitleHistory, PatchTitle, Title, TitleField, TitleHistory, TitleOrderBy};
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
-use super::LocaleCode;
-use crate::schema::{work_title, title_history};
 use crate::schema::work_title::dsl::*;
+use crate::schema::{title_history, work_title};
 use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
@@ -42,7 +42,9 @@ impl Crud for Title {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Title>> {
         let mut connection = db.get()?;
-        let mut query = work_title.select(crate::schema::work_title::all_columns).into_boxed();
+        let mut query = work_title
+            .select(crate::schema::work_title::all_columns)
+            .into_boxed();
 
         query = match order.field {
             TitleField::TitleId => match order.direction {

@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
-use crate::model::{HistoryEntry};
-use crate::schema::work_title;
+use crate::model::HistoryEntry;
 use crate::schema::title_history;
+use crate::schema::work_title;
 
 #[cfg_attr(
     feature = "backend",

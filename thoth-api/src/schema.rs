@@ -621,7 +621,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    
+
     title_history (title_history_id) {
         title_history_id -> Uuid,
         title_id -> Uuid,

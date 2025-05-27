@@ -10,7 +10,7 @@ use crate::model::publisher::Publisher;
 use crate::model::title::Title;
 use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderBy};
 use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
-use crate::schema::{imprint, publisher, work_title, work, work_history};
+use crate::schema::{imprint, publisher, work, work_history, work_title};
 use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
@@ -130,7 +130,10 @@ impl Work {
             work_id: work.work_id,
             work_type: work.work_type,
             work_status: work.work_status,
-            full_title: titles.first().map(|t| t.full_title.clone()).unwrap_or_default(),
+            full_title: titles
+                .first()
+                .map(|t| t.full_title.clone())
+                .unwrap_or_default(),
             title: titles.first().map(|t| t.title.clone()).unwrap_or_default(),
             subtitle: titles.first().and_then(|t| t.subtitle.clone()),
             reference: work.reference,
