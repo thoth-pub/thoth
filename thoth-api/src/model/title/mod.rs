@@ -11,7 +11,7 @@ use crate::schema::title_history;
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLEnum),
-    graphql(description = "Field to use when sorting titles list")
+    graphql(description = "Field to use when sorting title list")
 )]
 pub enum TitleField {
     TitleId,
