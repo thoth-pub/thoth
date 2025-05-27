@@ -94,7 +94,7 @@ WHERE full_title IS NOT NULL
     AND title IS NOT NULL;
 
 -- Only allow one canonical title per work                                         
-CREATE UNIQUE INDEX IF NOT EXISTS title_uniq_canonical_true_idx ON title(work_id)
+CREATE UNIQUE INDEX IF NOT EXISTS title_unique_canonical_true_idx ON title(work_id)
     WHERE canonical;
 
 -- Only allow one instance of each locale per work
