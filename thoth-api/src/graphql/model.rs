@@ -1,4 +1,4 @@
-use crate::model::title::Title;
+use crate::model::title::{PatchTitle, Title};
 use crate::schema::title;
 use chrono::naive::NaiveDate;
 use diesel::dsl::Limit;
@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
 use crate::db::PgPool;
-use crate::model::contribution::*;
+use crate::model::{contribution::*, NewTitle};
 use crate::model::contributor::*;
 use crate::model::funding::*;
 use crate::model::imprint::*;
@@ -1632,6 +1632,19 @@ impl MutationRoot {
         Language::create(&context.db, &data).map_err(|e| e.into())
     }
 
+    #[graphql(description = "Create a new title with the specified values")]
+    fn create_title(
+        context: &Context,
+        #[graphql(description = "Values for title to be created")] data: NewTitle,
+    ) -> FieldResult<Title> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+
+        Title::create(&context.db, &data).map_err(|e| e.into())
+    }
+
     #[graphql(description = "Create a new institution with the specified values")]
     fn create_institution(
         context: &Context,
@@ -1979,6 +1992,29 @@ impl MutationRoot {
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         language
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Update an existing title with the specified values")]
+    fn update_title(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing title")] data: PatchTitle,
+    ) -> FieldResult<Title> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let title = Title::from_id(&context.db, &data.title_id).unwrap();
+        context
+            .account_access
+            .can_edit(title.publisher_id(&context.db)?)?;
+
+        if data.work_id != title.work_id {
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+        }
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        title
             .update(&context.db, &data, &account_id)
             .map_err(|e| e.into())
     }
@@ -2337,6 +2373,20 @@ impl MutationRoot {
             .can_edit(language.publisher_id(&context.db)?)?;
 
         language.delete(&context.db).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Delete a single title using its ID")]
+    fn delete_title(
+        context: &Context,
+        #[graphql(description = "Thoth ID of title to be deleted")] title_id: Uuid,
+    ) -> FieldResult<Title> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let title = Title::from_id(&context.db, &title_id).unwrap();
+        context
+            .account_access
+            .can_edit(title.publisher_id(&context.db)?)?;
+
+        title.delete(&context.db).map_err(|e| e.into())
     }
 
     #[graphql(description = "Delete a single institution using its ID")]

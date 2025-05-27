@@ -59,7 +59,7 @@ pub struct Title {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    graphql(description = "Set of values required to define a new written text that can be published"),
+    graphql(description = "Set of values required to define a new work's title"),
     diesel(table_name = title)
 )]
 pub struct NewTitle {
@@ -71,9 +71,15 @@ pub struct NewTitle {
     pub canonical: bool,
 }
 
-#[derive(Debug, Clone, AsChangeset, Serialize, Deserialize, PartialEq, Eq)]
-#[diesel(table_name = title)]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, AsChangeset),
+    graphql(description = "Set of values required to update an existing work's title"),
+    diesel(table_name = title, treat_none_as_null = true)
+)]
 pub struct PatchTitle {
+    pub work_id: Uuid,
+    pub title_id: Uuid,
     pub locale_code: LocaleCode,
     pub full_title: String,
     pub title_: String,

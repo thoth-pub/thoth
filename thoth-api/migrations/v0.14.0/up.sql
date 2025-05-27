@@ -70,6 +70,15 @@ CREATE TABLE title (
     canonical BOOLEAN NOT NULL DEFAULT FALSE
 );
 
+-- Create the title_history table
+CREATE TABLE title_history (
+    title_history_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title_id UUID NOT NULL REFERENCES title (title_id) ON DELETE CASCADE,
+    account_id UUID NOT NULL REFERENCES account (account_id) ON DELETE CASCADE,
+    data JSONB NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Migrate existing work titles to the title table with English locale
 INSERT INTO title (title_id, work_id, locale_code, full_title, title, subtitle, canonical)
 SELECT
