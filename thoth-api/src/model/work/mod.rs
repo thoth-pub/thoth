@@ -289,9 +289,9 @@ pub struct WorkWithRelations {
 pub struct NewWork {
     pub work_type: WorkType,
     pub work_status: WorkStatus,
-    // pub full_title: String,
-    // pub title: String,
-    // pub subtitle: Option<String>,
+    pub full_title: String,
+    pub title: String,
+    pub subtitle: Option<String>,
     pub reference: Option<String>,
     pub edition: Option<i32>,
     pub imprint_id: Uuid,
@@ -393,8 +393,8 @@ pub struct WorkOrderBy {
 }
 
 pub trait WorkProperties {
-    // fn title(&self) -> &str;
-    // fn subtitle(&self) -> Option<&str>;
+    fn title(&self) -> &str;
+    fn subtitle(&self) -> Option<&str>;
     fn work_status(&self) -> &WorkStatus;
     fn publication_date(&self) -> &Option<NaiveDate>;
     fn withdrawn_date(&self) -> &Option<NaiveDate>;
