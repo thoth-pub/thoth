@@ -8,6 +8,11 @@ mod manifest;
 use crate::manifest::manifest_source;
 
 const NO_CACHE: &str = "no-cache";
+const STRICT_TRANSPORT_SECURITY: &str = "max-age=63072000; includeSubDomains; preload";
+const X_CONTENT_TYPE_OPTIONS: &str = "nosniff";
+const X_FRAME_OPTIONS: &str = "DENY";
+const REFERRER_POLICY: &str = "strict-origin-when-cross-origin";
+const PERMISSIONS_POLICY: &str = "geolocation=(), camera=(), microphone=()";
 const LOG_FORMAT: &str = r#"%{r}a %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#;
 
 macro_rules! static_files {
@@ -17,7 +22,15 @@ macro_rules! static_files {
 
             #[get($dest_path)]
             async fn $fname() -> HttpResponse {
-                HttpResponse::Ok().content_type($type).append_header(("Cache-Control", NO_CACHE)).body($cname)
+                HttpResponse::Ok()
+                    .content_type($type)
+                    .append_header(("Cache-Control", NO_CACHE))
+                    .append_header(("Strict-Transport-Security", STRICT_TRANSPORT_SECURITY))
+                    .append_header(("X-Content-Type-Options", X_CONTENT_TYPE_OPTIONS))
+                    .append_header(("X-Frame-Options", X_FRAME_OPTIONS))
+                    .append_header(("Referrer-Policy", REFERRER_POLICY))
+                    .append_header(("Permissions-Policy", PERMISSIONS_POLICY))
+                    .body($cname)
             }
         )*
 
@@ -40,6 +53,11 @@ async fn index() -> HttpResponse {
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .append_header(("Cache-Control", NO_CACHE))
+        .append_header(("Strict-Transport-Security", STRICT_TRANSPORT_SECURITY))
+        .append_header(("X-Content-Type-Options", X_CONTENT_TYPE_OPTIONS))
+        .append_header(("X-Frame-Options", X_FRAME_OPTIONS))
+        .append_header(("Referrer-Policy", REFERRER_POLICY))
+        .append_header(("Permissions-Policy", PERMISSIONS_POLICY))
         .body(INDEX_FILE)
 }
 
@@ -47,6 +65,11 @@ async fn index() -> HttpResponse {
 async fn app_manifest() -> HttpResponse {
     HttpResponse::Ok()
         .content_type("application/json")
+        .append_header(("Strict-Transport-Security", STRICT_TRANSPORT_SECURITY))
+        .append_header(("X-Content-Type-Options", X_CONTENT_TYPE_OPTIONS))
+        .append_header(("X-Frame-Options", X_FRAME_OPTIONS))
+        .append_header(("Referrer-Policy", REFERRER_POLICY))
+        .append_header(("Permissions-Policy", PERMISSIONS_POLICY))
         .body(manifest_source())
 }
 
