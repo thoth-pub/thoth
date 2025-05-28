@@ -1,12 +1,7 @@
 use crate::arguments;
 use clap::{ArgMatches, Command};
 use lazy_static::lazy_static;
-use thoth::{
-    api_server,
-    //  app_server,
-    errors::ThothResult,
-    export_server,
-};
+use thoth::{api_server, app_server, errors::ThothResult, export_server};
 
 lazy_static! {
     pub(crate) static ref COMMAND: Command = Command::new("start")
