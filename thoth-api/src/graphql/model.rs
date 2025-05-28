@@ -1642,7 +1642,9 @@ impl MutationRoot {
             .account_access
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
-        let has_canonical_title = Work::from_id(&context.db, &data.work_id)?.title(context).is_ok();
+        let has_canonical_title = Work::from_id(&context.db, &data.work_id)?
+            .title(context)
+            .is_ok();
 
         // Only superusers can update the canonical location when a Thoth Location Platform canonical location already exists
         if has_canonical_title && data.canonical && !context.account_access.is_superuser {
@@ -2020,7 +2022,9 @@ impl MutationRoot {
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
 
-        let has_canonical_title = Work::from_id(&context.db, &data.work_id)?.title(context).is_ok();
+        let has_canonical_title = Work::from_id(&context.db, &data.work_id)?
+            .title(context)
+            .is_ok();
 
         // Only superusers can update the canonical location when a Thoth Location Platform canonical location already exists
         if has_canonical_title && data.canonical && !context.account_access.is_superuser {
