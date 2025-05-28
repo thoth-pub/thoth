@@ -2615,6 +2615,9 @@ impl Work {
     }
 
     #[graphql(description = "Secondary title of the work (excluding main title)")]
+    #[graphql(
+        deprecated = "Please use Work `titles` field instead to get the correct sub_title in a multilingual manner"
+    )]
     pub fn subtitle(&self, ctx: &Context) -> FieldResult<Option<String>> {
         let mut connection = ctx.db.get()?;
         let title = work_title::table
