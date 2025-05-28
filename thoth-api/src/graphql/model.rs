@@ -1648,7 +1648,7 @@ impl MutationRoot {
 
         // Only superusers can update the canonical location when a Thoth Location Platform canonical location already exists
         if has_canonical_title && data.canonical && !context.account_access.is_superuser {
-            return Err(ThothError::ThothUpdateCanonicalError.into());
+            return Err(ThothError::CanonicalTitleExistsError.into());
         }
 
         Title::create(&context.db, &data).map_err(|e| e.into())
@@ -2028,7 +2028,7 @@ impl MutationRoot {
 
         // Only superusers can update the canonical location when a Thoth Location Platform canonical location already exists
         if has_canonical_title && data.canonical && !context.account_access.is_superuser {
-            return Err(ThothError::ThothUpdateCanonicalError.into());
+            return Err(ThothError::CanonicalTitleExistsError.into());
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
