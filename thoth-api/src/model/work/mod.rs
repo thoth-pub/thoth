@@ -289,9 +289,9 @@ pub struct WorkWithRelations {
 pub struct NewWork {
     pub work_type: WorkType,
     pub work_status: WorkStatus,
-    pub full_title: String,
-    pub title: String,
-    pub subtitle: Option<String>,
+    // pub full_title: String,
+    // pub title: String,
+    // pub subtitle: Option<String>,
     pub reference: Option<String>,
     pub edition: Option<i32>,
     pub imprint_id: Uuid,
@@ -393,8 +393,8 @@ pub struct WorkOrderBy {
 }
 
 pub trait WorkProperties {
-    fn title(&self) -> &str;
-    fn subtitle(&self) -> Option<&str>;
+    // fn title(&self) -> &str;
+    // fn subtitle(&self) -> Option<&str>;
     fn work_status(&self) -> &WorkStatus;
     fn publication_date(&self) -> &Option<NaiveDate>;
     fn withdrawn_date(&self) -> &Option<NaiveDate>;
@@ -481,6 +481,31 @@ impl WorkWithRelations {
                 |short_name| short_name.to_string(),
             )
     }
+
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+    pub fn subtitle(&self) -> Option<&str> {
+        self.subtitle.as_deref()
+    }
+
+    pub fn compile_fulltitle(&self) -> String {
+        self.subtitle().map_or_else(
+            || self.title().to_string(),
+            |subtitle| {
+                let title = self.title();
+                if title.ends_with('?')
+                    || title.ends_with('!')
+                    || title.ends_with(':')
+                    || title.ends_with('.')
+                {
+                    format!("{} {}", title, subtitle)
+                } else {
+                    format!("{}: {}", title, subtitle)
+                }
+            },
+        )
+    }
 }
 
 impl From<Work> for PatchWork {
@@ -517,6 +542,15 @@ impl From<Work> for PatchWork {
             first_page: w.first_page,
             last_page: w.last_page,
             page_interval: w.page_interval,
+        }
+    }
+}
+
+impl fmt::Display for Work {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.doi {
+            Some(doi) => write!(f, "{} - {}", self.work_id, doi),
+            None => write!(f, "{}", self.work_id),
         }
     }
 }

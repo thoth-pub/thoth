@@ -1,12 +1,13 @@
 use crate::model::locale::LocaleCode;
-use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
-use crate::model::HistoryEntry;
-use crate::schema::title_history;
+
+#[cfg(feature = "backend")]
 use crate::schema::work_title;
+#[cfg(feature = "backend")]
+use crate::schema::title_history;
 
 #[cfg_attr(
     feature = "backend",
@@ -104,18 +105,6 @@ pub struct TitleHistory {
     pub account_id: Uuid,
     pub data: serde_json::Value,
     pub timestamp: chrono::DateTime<chrono::Utc>,
-}
-
-impl HistoryEntry for Title {
-    type NewHistoryEntity = NewTitleHistory;
-
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
-        Self::NewHistoryEntity {
-            title_id: self.title_id,
-            account_id: *account_id,
-            data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
-        }
-    }
 }
 
 pub trait TitleProperties {

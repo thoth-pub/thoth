@@ -11,9 +11,6 @@ const CREATE_WORK_MUTATION: &str = "
     mutation CreateWork(
         $workType: WorkType!,
         $workStatus: WorkStatus!,
-        $fullTitle: String!,
-        $title: String!,
-        $subtitle: String,
         $reference: String,
         $edition: Int,
         $imprintId: Uuid!,
@@ -47,9 +44,6 @@ const CREATE_WORK_MUTATION: &str = "
             data: {
             workType: $workType
             workStatus: $workStatus
-            fullTitle: $fullTitle
-            title: $title
-            subtitle: $subtitle
             reference: $reference
             edition: $edition
             imprintId: $imprintId
@@ -82,8 +76,6 @@ const CREATE_WORK_MUTATION: &str = "
             workId
             workType
             workStatus
-            fullTitle
-            title
             imprintId
             createdAt
             updatedAt

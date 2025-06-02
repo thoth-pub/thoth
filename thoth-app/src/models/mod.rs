@@ -193,5 +193,6 @@ pub mod reference;
 pub mod series;
 pub mod stats;
 pub mod subject;
+pub mod title;
 pub mod work;
 pub mod work_relation;

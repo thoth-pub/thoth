@@ -9,8 +9,6 @@ pub const SLIM_WORKS_QUERY_BODY: &str = "
             workId
             workType
             workStatus
-            fullTitle
-            title
             imprintId
             doi
             copyrightHolder

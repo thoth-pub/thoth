@@ -13,8 +13,6 @@ const DELETE_WORK_MUTATION: &str = "
             workId
             workType
             workStatus
-            fullTitle
-            title
             imprintId
             createdAt
             updatedAt

@@ -280,7 +280,7 @@ impl Component for WorkComponent {
                             // After save, update work_status_in_db to match database
                             self.work_status_in_db = self.work.work_status;
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Saved {}", w.title),
+                                format!("Saved {}", w.work_id),
                                 NotificationStatus::Success,
                             )));
                             // Set publish_confirmation_required to false after save, closing the modal
@@ -328,14 +328,12 @@ impl Component for WorkComponent {
                 if !self.work.is_out_of_print() {
                     self.work.withdrawn_date = None;
                 }
+                // TODO: Update title here also 
                 let body = UpdateWorkRequestBody {
                     variables: UpdateVariables {
                         work_id: self.work.work_id,
                         work_type: self.work.work_type,
                         work_status: self.work.work_status,
-                        full_title: self.work.full_title.clone(),
-                        title: self.work.title.clone(),
-                        subtitle: self.work.subtitle.clone(),
                         reference: self.work.reference.clone(),
                         edition: self.work.edition,
                         imprint_id: self.work.imprint.imprint_id,
@@ -386,7 +384,7 @@ impl Component for WorkComponent {
                     FetchState::Fetched(body) => match &body.data.delete_work {
                         Some(w) => {
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Deleted {}", w.title),
+                                format!("Deleted {}", w.work_id),
                                 NotificationStatus::Success,
                             )));
                             ctx.link().history().unwrap().push(AdminRoute::Works);
@@ -425,7 +423,7 @@ impl Component for WorkComponent {
                 false
             }
             Msg::ChangeTitle(title) => {
-                if self.work.title.neq_assign(title.trim().to_owned()) {
+                if self.work.full_title.neq_assign(title.trim().to_owned()) {
                     self.work.full_title = self.work.compile_fulltitle();
                     true
                 } else {
@@ -638,7 +636,7 @@ impl Component for WorkComponent {
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
                                         onclick={ ctx.link().callback(|_| Msg::DeleteWork) }
-                                        object_name={ self.work.title.clone() }
+                                        object_name={ self.work.full_title.clone() }
                                         deactivated={ is_delete_deactivated }
                                     />
                                 </p>

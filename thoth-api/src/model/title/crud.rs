@@ -131,6 +131,18 @@ impl Crud for Title {
     crud_methods!(work_title::table, work_title::dsl::work_title);
 }
 
+impl HistoryEntry for Title {
+    type NewHistoryEntity = NewTitleHistory;
+
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+        Self::NewHistoryEntity {
+            title_id: self.title_id,
+            account_id: *account_id,
+            data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
+        }
+    }
+}
+
 impl DbInsert for NewTitleHistory {
     type MainEntity = TitleHistory;
 

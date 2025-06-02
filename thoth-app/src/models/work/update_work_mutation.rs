@@ -12,9 +12,6 @@ const UPDATE_WORK_MUTATION: &str = "
         $workId: Uuid!,
         $workType: WorkType!,
         $workStatus: WorkStatus!,
-        $fullTitle: String!,
-        $title: String!,
-        $subtitle: String,
         $reference: String,
         $edition: Int,
         $imprintId: Uuid!,
@@ -49,9 +46,6 @@ const UPDATE_WORK_MUTATION: &str = "
             workId: $workId
             workType: $workType
             workStatus: $workStatus
-            fullTitle: $fullTitle
-            title: $title
-            subtitle: $subtitle
             reference: $reference
             edition: $edition
             imprintId: $imprintId
@@ -84,8 +78,6 @@ const UPDATE_WORK_MUTATION: &str = "
             workId
             workType
             workStatus
-            fullTitle
-            title
             imprintId
             createdAt
             updatedAt
@@ -111,9 +103,6 @@ pub struct Variables {
     pub work_id: Uuid,
     pub work_type: WorkType,
     pub work_status: WorkStatus,
-    pub full_title: String,
-    pub title: String,
-    pub subtitle: Option<String>,
     pub reference: Option<String>,
     pub edition: Option<i32>,
     pub doi: Option<Doi>,

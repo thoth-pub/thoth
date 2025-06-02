@@ -13,9 +13,6 @@ pub const WORK_QUERY: &str = "
             workId
             workType
             workStatus
-            fullTitle
-            title
-            subtitle
             reference
             edition
             doi

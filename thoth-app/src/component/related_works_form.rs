@@ -546,7 +546,7 @@ impl Component for RelatedWorksFormComponent {
                                 <div class="field">
                                     <label class="label">{ "Work" }</label>
                                     <div class="control is-expanded">
-                                        {&self.relation.related_work.full_title}
+                                        {self.relation.related_work.work_id}
                                     </div>
                                 </div>
                                 <FormNumberInput
@@ -652,7 +652,7 @@ impl RelatedWorksFormComponent {
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "Work" }</label>
                         <div class="control is-expanded">
-                            {&r.related_work.full_title}
+                            {self.relation.related_work.work_id}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">
