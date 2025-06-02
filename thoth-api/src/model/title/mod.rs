@@ -78,8 +78,8 @@ pub struct NewTitle {
     diesel(table_name = work_title, treat_none_as_null = true)
 )]
 pub struct PatchTitle {
-    pub work_id: Uuid,
     pub title_id: Uuid,
+    pub work_id: Uuid,
     pub locale_code: LocaleCode,
     pub full_title: String,
     pub title: String,

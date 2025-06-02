@@ -23,11 +23,11 @@ const CREATE_TITLE_MUTATION: &str = "
         }){
             titleId
             workId
-            languageCode
-            languageRelation
-            mainLanguage
-            createdAt
-            updatedAt
+            localeCode
+            fullTitle
+            title
+            subtitle
+            canonical
         }
     }
 ";
