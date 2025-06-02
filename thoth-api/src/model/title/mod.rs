@@ -5,9 +5,9 @@ use uuid::Uuid;
 use crate::graphql::utils::Direction;
 
 #[cfg(feature = "backend")]
-use crate::schema::work_title;
-#[cfg(feature = "backend")]
 use crate::schema::title_history;
+#[cfg(feature = "backend")]
+use crate::schema::work_title;
 
 #[cfg_attr(
     feature = "backend",
