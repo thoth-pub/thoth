@@ -11,8 +11,8 @@ lazy_static::lazy_static! {
         .subcommand(commands::MIGRATE.clone())
         .subcommand(commands::start::COMMAND.clone())
         .subcommand(commands::INIT.clone())
-        .subcommand(commands::account::COMMAND.clone())
-        .subcommand(commands::cache::COMMAND.clone());
+        .subcommand(commands::cache::COMMAND.clone())
+        .subcommand(commands::zitadel::COMMAND.clone());
 }
 
 fn main() -> thoth::errors::ThothResult<()> {
@@ -31,14 +31,12 @@ fn main() -> thoth::errors::ThothResult<()> {
             commands::run_migrations(arguments)?;
             commands::start::graphql_api(arguments)
         }
-        Some(("account", arguments)) => match arguments.subcommand() {
-            Some(("register", _)) => commands::account::register(arguments),
-            Some(("publishers", _)) => commands::account::publishers(arguments),
-            Some(("password", _)) => commands::account::password(arguments),
-            _ => unreachable!(),
-        },
         Some(("cache", arguments)) => match arguments.subcommand() {
             Some(("delete", _)) => commands::cache::delete(arguments),
+            _ => unreachable!(),
+        },
+        Some(("zitadel", arguments)) => match arguments.subcommand() {
+            Some(("setup", _)) => commands::zitadel::setup(arguments),
             _ => unreachable!(),
         },
         _ => unreachable!(),

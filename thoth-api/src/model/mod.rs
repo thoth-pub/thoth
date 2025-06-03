@@ -350,7 +350,7 @@ where
         &self,
         db: &crate::db::PgPool,
         data: &Self::PatchEntity,
-        account_id: &Uuid,
+        user_id: &str,
     ) -> ThothResult<Self>;
 
     /// Delete the record from the database and obtain the deleted instance
@@ -369,7 +369,7 @@ where
     /// The structure used to create a new history entity, e.g. `NewImprintHistory` for `Imprint`
     type NewHistoryEntity;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity;
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity;
 }
 
 #[cfg(feature = "backend")]
@@ -435,7 +435,7 @@ macro_rules! crud_methods {
             &self,
             db: &$crate::db::PgPool,
             data: &Self::PatchEntity,
-            account_id: &Uuid,
+            user_id: &str,
         ) -> ThothResult<Self> {
             use diesel::{Connection, QueryDsl, RunQueryDsl};
 
@@ -446,7 +446,7 @@ macro_rules! crud_methods {
                     .get_result(connection)
                     .map_err(Into::into)
                     .and_then(|c| {
-                        self.new_history_entry(&account_id)
+                        self.new_history_entry(user_id)
                             .insert(connection)
                             .map(|_| c)
                     })

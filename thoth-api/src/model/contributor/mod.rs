@@ -82,7 +82,7 @@ pub struct PatchContributor {
 pub struct ContributorHistory {
     pub contributor_history_id: Uuid,
     pub contributor_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -94,7 +94,7 @@ pub struct ContributorHistory {
 )]
 pub struct NewContributorHistory {
     pub contributor_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 

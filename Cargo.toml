@@ -25,3 +25,4 @@ dialoguer = { version = "0.11.0", features = ["password"] }
 dotenv = "0.15.0"
 lazy_static = "1.5.0"
 tokio = { version = "1.44.1", features = ["rt", "rt-multi-thread", "macros"] }
+zitadel = { version = "5.5.1", features = ["api", "interceptors"]}

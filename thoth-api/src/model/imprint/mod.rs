@@ -89,7 +89,7 @@ pub struct PatchImprint {
 pub struct ImprintHistory {
     pub imprint_history_id: Uuid,
     pub imprint_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -101,7 +101,7 @@ pub struct ImprintHistory {
 )]
 pub struct NewImprintHistory {
     pub imprint_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 

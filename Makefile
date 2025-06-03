@@ -11,6 +11,8 @@
 	docker-dev-run \
 	docker-dev-db \
 	docker-dev-redis \
+	docker-dev-zitadel \
+	docker-dev-zitadel-db \
 	build \
 	test \
 	clippy \
@@ -47,6 +49,12 @@ docker-dev-db:
 
 docker-dev-redis:
 	docker compose -f docker-compose.dev.yml up redis
+
+docker-dev-zitadel:
+	docker compose -f docker-compose.dev.yml up zitadel
+
+docker-dev-zitadel-db:
+	docker compose -f docker-compose.dev.yml up zitadel-db
 
 build:
 	cargo build -vv

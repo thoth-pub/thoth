@@ -120,10 +120,10 @@ impl Crud for Price {
 impl HistoryEntry for Price {
     type NewHistoryEntity = NewPriceHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             price_id: self.price_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -148,10 +148,10 @@ mod tests {
     #[test]
     fn test_new_price_history_from_price() {
         let price: Price = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_price_history = price.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_price_history = price.new_history_entry(&user_id);
         assert_eq!(new_price_history.price_id, price.price_id);
-        assert_eq!(new_price_history.account_id, account_id);
+        assert_eq!(new_price_history.user_id, user_id);
         assert_eq!(
             new_price_history.data,
             serde_json::Value::String(serde_json::to_string(&price).unwrap())

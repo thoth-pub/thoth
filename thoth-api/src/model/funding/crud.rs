@@ -130,10 +130,10 @@ impl Crud for Funding {
 impl HistoryEntry for Funding {
     type NewHistoryEntity = NewFundingHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             funding_id: self.funding_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -158,10 +158,10 @@ mod tests {
     #[test]
     fn test_new_funding_history_from_funding() {
         let funding: Funding = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_funding_history = funding.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_funding_history = funding.new_history_entry(&user_id);
         assert_eq!(new_funding_history.funding_id, funding.funding_id);
-        assert_eq!(new_funding_history.account_id, account_id);
+        assert_eq!(new_funding_history.user_id, user_id);
         assert_eq!(
             new_funding_history.data,
             serde_json::Value::String(serde_json::to_string(&funding).unwrap())

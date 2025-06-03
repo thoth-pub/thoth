@@ -162,7 +162,7 @@ pub struct PatchWorkRelation {
 pub struct WorkRelationHistory {
     pub work_relation_history_id: Uuid,
     pub work_relation_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -174,7 +174,7 @@ pub struct WorkRelationHistory {
 )]
 pub struct NewWorkRelationHistory {
     pub work_relation_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 

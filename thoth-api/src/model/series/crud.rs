@@ -161,10 +161,10 @@ impl Crud for Series {
 impl HistoryEntry for Series {
     type NewHistoryEntity = NewSeriesHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             series_id: self.series_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -189,10 +189,10 @@ mod tests {
     #[test]
     fn test_new_series_history_from_series() {
         let series: Series = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_series_history = series.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_series_history = series.new_history_entry(&user_id);
         assert_eq!(new_series_history.series_id, series.series_id);
-        assert_eq!(new_series_history.account_id, account_id);
+        assert_eq!(new_series_history.user_id, user_id);
         assert_eq!(
             new_series_history.data,
             serde_json::Value::String(serde_json::to_string(&series).unwrap())

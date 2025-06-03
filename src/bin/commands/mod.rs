@@ -3,18 +3,15 @@ use clap::Command;
 use lazy_static::lazy_static;
 use thoth::{
     api::{
-        db::{
-            init_pool as init_pg_pool, revert_migrations as revert_db_migrations,
-            run_migrations as run_db_migrations, PgPool,
-        },
+        db::{revert_migrations as revert_db_migrations, run_migrations as run_db_migrations},
         redis::{init_pool as init_redis_pool, RedisPool},
     },
     errors::ThothResult,
 };
 
-pub(super) mod account;
 pub(super) mod cache;
 pub(super) mod start;
+pub(super) mod zitadel;
 
 lazy_static! {
     pub(super) static ref INIT: Command = Command::new("init")
@@ -25,9 +22,7 @@ lazy_static! {
         .arg(arguments::threads("GRAPHQL_API_THREADS"))
         .arg(arguments::keep_alive("GRAPHQL_API_KEEP_ALIVE"))
         .arg(arguments::gql_url())
-        .arg(arguments::domain())
-        .arg(arguments::key())
-        .arg(arguments::session());
+        .arg(arguments::key());
 }
 
 lazy_static! {
@@ -35,11 +30,6 @@ lazy_static! {
         .about("Run the database migrations")
         .arg(arguments::database())
         .arg(arguments::revert());
-}
-
-fn get_pg_pool(arguments: &clap::ArgMatches) -> PgPool {
-    let database_url = arguments.get_one::<String>("db").unwrap();
-    init_pg_pool(database_url)
 }
 
 fn get_redis_pool(arguments: &clap::ArgMatches) -> RedisPool {
