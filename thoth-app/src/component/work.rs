@@ -54,6 +54,11 @@ use crate::component::utils::FormWorkStatusSelect;
 use crate::component::utils::FormWorkTypeSelect;
 use crate::component::utils::Loader;
 use crate::component::work_status_modal::ConfirmWorkStatusComponent;
+use crate::models::title::delete_title_mutation::DeleteTitleRequest;
+use crate::models::title::delete_title_mutation::DeleteTitleRequestBody;
+use crate::models::title::delete_title_mutation::PushActionDeleteTitle;
+use crate::models::title::delete_title_mutation::PushDeleteTitle;
+use crate::models::title::delete_title_mutation::Variables as DeleteTitlekVariables;
 use crate::models::title::update_title_mutation::PushActionUpdateTitle;
 use crate::models::title::update_title_mutation::PushUpdateTitle;
 use crate::models::title::update_title_mutation::UpdateTitleRequest;
@@ -63,7 +68,7 @@ use crate::models::work::delete_work_mutation::DeleteWorkRequest;
 use crate::models::work::delete_work_mutation::DeleteWorkRequestBody;
 use crate::models::work::delete_work_mutation::PushActionDeleteWork;
 use crate::models::work::delete_work_mutation::PushDeleteWork;
-use crate::models::work::delete_work_mutation::Variables as DeleteVariables;
+use crate::models::work::delete_work_mutation::Variables as DeleteWorkVariables;
 use crate::models::work::update_work_mutation::PushActionUpdateWork;
 use crate::models::work::update_work_mutation::PushUpdateWork;
 use crate::models::work::update_work_mutation::UpdateWorkRequest;
@@ -101,6 +106,7 @@ pub struct WorkComponent {
     push_work: PushUpdateWork,
     push_title: PushUpdateTitle,
     delete_work: PushDeleteWork,
+    delete_title: PushDeleteTitle,
     notification_bus: NotificationDispatcher,
     // Store props values locally in order to test whether they have been updated on props change
     resource_access: AccountAccess,
@@ -123,6 +129,7 @@ pub enum Msg {
     SetWorkPushState(PushActionUpdateWork),
     UpdateWork,
     SetWorkDeleteState(PushActionDeleteWork),
+    SetTitleDeleteState(PushActionDeleteTitle),
     DeleteWork,
     ChangeTitle(String),
     ChangeSubtitle(String),
@@ -213,6 +220,7 @@ impl Component for WorkComponent {
             publish_confirmation_required: false,
             title: Default::default(),
             push_title: Default::default(),
+            delete_title: Default::default(),
         }
     }
 
@@ -387,8 +395,10 @@ impl Component for WorkComponent {
                     body: update_title_request_body,
                 };
 
+                self.push_title = Fetch::new(update_title_request);
+
                 ctx.link()
-                    .send_future(Fetch::new(update_title_request).fetch(Msg::SetTitlePushState)); // TODO: SetTitlePushState
+                    .send_future(self.push_title.fetch(Msg::SetTitlePushState)); // TODO: SetTitlePushState
                 ctx.link()
                     .send_message(Msg::SetTitlePushState(FetchAction::Fetching));
 
@@ -472,16 +482,65 @@ impl Component for WorkComponent {
                     }
                 }
             }
+            Msg::SetTitleDeleteState(fetch_state) => {
+                self.delete_title.apply(fetch_state);
+                match self.delete_title.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.delete_title {
+                        Some(t) => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                format!("Deleted work {} title {}", t.work_id, t.title_id),
+                                NotificationStatus::Success,
+                            )));
+                            // TODO: ask here about admin route
+                            ctx.link().history().unwrap().push(AdminRoute::Works);
+                            true
+                        }
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            ThothError::from(err).to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
             Msg::DeleteWork => {
                 // TODO delete title also
-                let body = DeleteWorkRequestBody {
-                    variables: DeleteVariables {
+                let delete_title_request_body = DeleteTitleRequestBody {
+                    variables: DeleteTitlekVariables {
+                        title_id: self.title.title_id,
+                    },
+                    ..Default::default()
+                };
+                let delete_title_request = DeleteTitleRequest {
+                    body: delete_title_request_body,
+                };
+                self.delete_title = Fetch::new(delete_title_request);
+                ctx.link()
+                    .send_future(self.delete_title.fetch(Msg::SetTitleDeleteState));
+                ctx.link()
+                    .send_message(Msg::SetTitleDeleteState(FetchAction::Fetching));
+
+                let delete_work_request_body = DeleteWorkRequestBody {
+                    variables: DeleteWorkVariables {
                         work_id: self.work.work_id,
                     },
                     ..Default::default()
                 };
-                let request = DeleteWorkRequest { body };
-                self.delete_work = Fetch::new(request);
+                let delete_work_request = DeleteWorkRequest {
+                    body: delete_work_request_body,
+                };
+                self.delete_work = Fetch::new(delete_work_request);
                 ctx.link()
                     .send_future(self.delete_work.fetch(Msg::SetWorkDeleteState));
                 ctx.link()
