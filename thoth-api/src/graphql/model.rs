@@ -1,7 +1,6 @@
 use crate::model::title::{PatchTitle, Title};
 use crate::schema::work_title;
 use chrono::naive::NaiveDate;
-use diesel::dsl::Limit;
 use diesel::prelude::*;
 use juniper::RootNode;
 use juniper::{EmptySubscription, FieldError, FieldResult, Value};

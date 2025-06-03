@@ -11,17 +11,17 @@ const UPDATE_TITLE_MUTATION: &str = "
         $localeCode: LocaleCode!,
         $fullTitle: String!,
         $title: String!,
-        $subtitle: String!,
+        $subtitle: String,
         $canonical: Boolean!
     ) {
         updateTitle(data: {
-            titleId: $Uuid!,
-            workId: $Uuid!,
-            localeCode: $LocaleCode!,
-            fullTitle: $String!,
-            title: $String!,
-            subtitle: $String!,
-            canonical: $Boolean!
+            titleId: $Uuid,
+            workId: $Uuid,
+            localeCode: $LocaleCode,
+            fullTitle: $String,
+            title: $String,
+            subtitle: $String,
+            canonical: $Boolean
         }){
             titleId
             workId
@@ -53,7 +53,7 @@ pub struct Variables {
     pub locale_code: LocaleCode,
     pub full_title: String,
     pub title: String,
-    pub subtitle: String,
+    pub subtitle: Option<String>,
     pub canonical: bool,
 }
 

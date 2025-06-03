@@ -53,6 +53,9 @@ use crate::component::utils::FormWorkStatusSelect;
 use crate::component::utils::FormWorkTypeSelect;
 use crate::component::utils::Loader;
 use crate::component::work_status_modal::ConfirmWorkStatusComponent;
+use crate::models::title::update_title_mutation::UpdateTitleRequest;
+use crate::models::title::update_title_mutation::UpdateTitleRequestBody;
+use crate::models::title::update_title_mutation::Variables as UpdateTitleVariables;
 use crate::models::work::delete_work_mutation::DeleteWorkRequest;
 use crate::models::work::delete_work_mutation::DeleteWorkRequestBody;
 use crate::models::work::delete_work_mutation::PushActionDeleteWork;
@@ -62,7 +65,7 @@ use crate::models::work::update_work_mutation::PushActionUpdateWork;
 use crate::models::work::update_work_mutation::PushUpdateWork;
 use crate::models::work::update_work_mutation::UpdateWorkRequest;
 use crate::models::work::update_work_mutation::UpdateWorkRequestBody;
-use crate::models::work::update_work_mutation::Variables as UpdateVariables;
+use crate::models::work::update_work_mutation::Variables as UpdateWorkVariables;
 use crate::models::work::work_query::FetchActionWork;
 use crate::models::work::work_query::FetchWork;
 use crate::models::work::work_query::Variables;
@@ -329,8 +332,37 @@ impl Component for WorkComponent {
                     self.work.withdrawn_date = None;
                 }
                 // TODO: Update title here also
-                let body = UpdateWorkRequestBody {
-                    variables: UpdateVariables {
+                // let title = self
+                //     .work
+                //     .titles
+                //     .unwrap()
+                //     .iter()
+                //     .find(|t| t.canonical)
+                //     .unwrap();
+
+                // let update_title_request_body = UpdateTitleRequestBody {
+                //     variables: UpdateTitleVariables {
+                //         title_id: title.title_id,
+                //         work_id: self.work.work_id,
+                //         locale_code: title.locale_code.clone(),
+                //         full_title: self.work.full_title.clone(),
+                //         title: self.work.title.clone(),
+                //         subtitle: self.work.subtitle,
+                //         canonical: title.canonical,
+                //     },
+                //     ..Default::default()
+                // };
+                // let update_title_request = UpdateTitleRequest {
+                //     body: update_title_request_body,
+                // };
+
+                // ctx.link()
+                //     .send_future(Fetch::new(update_title_request).fetch(Msg::SetWorkPushState));
+                // ctx.link()
+                //     .send_message(Msg::SetWorkPushState(FetchAction::Fetching));
+
+                let update_work_request_body = UpdateWorkRequestBody {
+                    variables: UpdateWorkVariables {
                         work_id: self.work.work_id,
                         work_type: self.work.work_type,
                         work_status: self.work.work_status,
@@ -365,8 +397,10 @@ impl Component for WorkComponent {
                     },
                     ..Default::default()
                 };
-                let request = UpdateWorkRequest { body };
-                self.push_work = Fetch::new(request);
+                let update_work_request = UpdateWorkRequest {
+                    body: update_work_request_body,
+                };
+                self.push_work = Fetch::new(update_work_request);
                 ctx.link()
                     .send_future(self.push_work.fetch(Msg::SetWorkPushState));
                 ctx.link()

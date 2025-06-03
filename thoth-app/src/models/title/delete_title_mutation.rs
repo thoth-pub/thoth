@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::model::locale::LocaleCode;
 use thoth_api::model::title::Title;
 use uuid::Uuid;
 
