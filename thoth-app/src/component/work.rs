@@ -15,6 +15,7 @@ use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
+use thoth_api::model::Title;
 use thoth_api::model::{Doi, DOI_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -53,6 +54,8 @@ use crate::component::utils::FormWorkStatusSelect;
 use crate::component::utils::FormWorkTypeSelect;
 use crate::component::utils::Loader;
 use crate::component::work_status_modal::ConfirmWorkStatusComponent;
+use crate::models::title::update_title_mutation::PushActionUpdateTitle;
+use crate::models::title::update_title_mutation::PushUpdateTitle;
 use crate::models::title::update_title_mutation::UpdateTitleRequest;
 use crate::models::title::update_title_mutation::UpdateTitleRequestBody;
 use crate::models::title::update_title_mutation::Variables as UpdateTitleVariables;
@@ -82,6 +85,7 @@ use super::ToOption;
 
 pub struct WorkComponent {
     work: WorkWithRelations,
+    title: Title,
     // Track the user-entered DOI string, which may not be validly formatted
     doi: String,
     doi_warning: String,
@@ -95,6 +99,7 @@ pub struct WorkComponent {
     data: WorkFormData,
     fetch_work: FetchWork,
     push_work: PushUpdateWork,
+    push_title: PushUpdateTitle,
     delete_work: PushDeleteWork,
     notification_bus: NotificationDispatcher,
     // Store props values locally in order to test whether they have been updated on props change
@@ -114,6 +119,7 @@ struct WorkFormData {
 pub enum Msg {
     SetWorkFetchState(FetchActionWork),
     GetWork,
+    SetTitlePushState(PushActionUpdateTitle),
     SetWorkPushState(PushActionUpdateWork),
     UpdateWork,
     SetWorkDeleteState(PushActionDeleteWork),
@@ -205,6 +211,8 @@ impl Component for WorkComponent {
             resource_access,
             work_id,
             publish_confirmation_required: false,
+            title: Default::default(),
+            push_title: Default::default(),
         }
     }
 
@@ -267,6 +275,37 @@ impl Component for WorkComponent {
                 ctx.link()
                     .send_message(Msg::SetWorkFetchState(FetchAction::Fetching));
                 false
+            }
+            Msg::SetTitlePushState(fetch_state) => {
+                self.push_title.apply(fetch_state);
+                match self.push_title.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.update_title {
+                        Some(t) => {
+                            self.title = t.clone();
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                format!("Saved work {} title {}", t.work_id, t.title_id),
+                                NotificationStatus::Success,
+                            )));
+                            true
+                        }
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            ThothError::from(err).to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
             }
             Msg::SetWorkPushState(fetch_state) => {
                 self.push_work.apply(fetch_state);
@@ -331,35 +370,27 @@ impl Component for WorkComponent {
                 if !self.work.is_out_of_print() {
                     self.work.withdrawn_date = None;
                 }
-                // TODO: Update title here also
-                // let title = self
-                //     .work
-                //     .titles
-                //     .unwrap()
-                //     .iter()
-                //     .find(|t| t.canonical)
-                //     .unwrap();
 
-                // let update_title_request_body = UpdateTitleRequestBody {
-                //     variables: UpdateTitleVariables {
-                //         title_id: title.title_id,
-                //         work_id: self.work.work_id,
-                //         locale_code: title.locale_code.clone(),
-                //         full_title: self.work.full_title.clone(),
-                //         title: self.work.title.clone(),
-                //         subtitle: self.work.subtitle,
-                //         canonical: title.canonical,
-                //     },
-                //     ..Default::default()
-                // };
-                // let update_title_request = UpdateTitleRequest {
-                //     body: update_title_request_body,
-                // };
+                let update_title_request_body = UpdateTitleRequestBody {
+                    variables: UpdateTitleVariables {
+                        title_id: self.title.title_id,
+                        work_id: self.title.work_id,
+                        locale_code: self.title.locale_code.clone(),
+                        full_title: self.title.full_title.clone(),
+                        title: self.title.title.clone(),
+                        subtitle: self.title.subtitle.clone(),
+                        canonical: self.title.canonical,
+                    },
+                    ..Default::default()
+                };
+                let update_title_request = UpdateTitleRequest {
+                    body: update_title_request_body,
+                };
 
-                // ctx.link()
-                //     .send_future(Fetch::new(update_title_request).fetch(Msg::SetWorkPushState));
-                // ctx.link()
-                //     .send_message(Msg::SetWorkPushState(FetchAction::Fetching));
+                ctx.link()
+                    .send_future(Fetch::new(update_title_request).fetch(Msg::SetTitlePushState)); // TODO: SetTitlePushState
+                ctx.link()
+                    .send_message(Msg::SetTitlePushState(FetchAction::Fetching));
 
                 let update_work_request_body = UpdateWorkRequestBody {
                     variables: UpdateWorkVariables {
@@ -442,6 +473,7 @@ impl Component for WorkComponent {
                 }
             }
             Msg::DeleteWork => {
+                // TODO delete title also
                 let body = DeleteWorkRequestBody {
                     variables: DeleteVariables {
                         work_id: self.work.work_id,
