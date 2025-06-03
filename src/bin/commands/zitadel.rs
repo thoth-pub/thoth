@@ -4,15 +4,15 @@ use clap::{ArgMatches, Command};
 use lazy_static::lazy_static;
 use thoth::errors::{ThothError, ThothResult};
 use zitadel::api::{
-    zitadel::authn::v1::KeyType,
     clients::ClientBuilder,
     zitadel::app::v1::{
         ApiAuthMethodType, OidcAppType, OidcAuthMethodType, OidcGrantType, OidcResponseType,
         OidcTokenType, OidcVersion,
     },
+    zitadel::authn::v1::KeyType,
     zitadel::management::v1::{
-        AddApiAppRequest, AddOidcAppRequest, AddProjectRequest, AddProjectRoleRequest,
-        AddUserGrantRequest, AddAppKeyRequest,
+        AddApiAppRequest, AddAppKeyRequest, AddOidcAppRequest, AddProjectRequest,
+        AddProjectRoleRequest, AddUserGrantRequest,
     },
     zitadel::project::v1::PrivateLabelingSetting,
     zitadel::user::v2::{ListUsersRequest, UserFieldName},
@@ -109,15 +109,19 @@ pub fn setup(arguments: &ArgMatches) -> ThothResult<()> {
                 name: graphql_api_name.to_string(),
                 auth_method_type: ApiAuthMethodType::PrivateKeyJwt as i32,
             })
-            .await?.into_inner();
+            .await?
+            .into_inner();
         println!("\n✅ Created API app: {}", graphql_api_name);
 
-        let graphql_api_key = management_client.add_app_key(AddAppKeyRequest {
-            project_id: project.id.clone(),
-            app_id: graphql_api.app_id,
-            r#type: KeyType::Json as i32,
-            expiration_date: None,
-        }).await?.into_inner();
+        let graphql_api_key = management_client
+            .add_app_key(AddAppKeyRequest {
+                project_id: project.id.clone(),
+                app_id: graphql_api.app_id,
+                r#type: KeyType::Json as i32,
+                expiration_date: None,
+            })
+            .await?
+            .into_inner();
         let encoded_key = general_purpose::STANDARD.encode(&graphql_api_key.key_details);
         println!("\n✅ {} application key generated.", graphql_api_name);
         println!("👉 Please copy the following and add it to the `.env` file as `PRIVATE_KEY`:\n");
