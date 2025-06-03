@@ -59,6 +59,11 @@ use crate::models::title::delete_title_mutation::DeleteTitleRequestBody;
 use crate::models::title::delete_title_mutation::PushActionDeleteTitle;
 use crate::models::title::delete_title_mutation::PushDeleteTitle;
 use crate::models::title::delete_title_mutation::Variables as DeleteTitlekVariables;
+use crate::models::title::title_query::FetchActionTitle;
+use crate::models::title::title_query::FetchTitle;
+use crate::models::title::title_query::TitleRequest;
+use crate::models::title::title_query::TitleRequestBody;
+use crate::models::title::title_query::Variables as TitleQueryVariables;
 use crate::models::title::update_title_mutation::PushActionUpdateTitle;
 use crate::models::title::update_title_mutation::PushUpdateTitle;
 use crate::models::title::update_title_mutation::UpdateTitleRequest;
@@ -76,7 +81,7 @@ use crate::models::work::update_work_mutation::UpdateWorkRequestBody;
 use crate::models::work::update_work_mutation::Variables as UpdateWorkVariables;
 use crate::models::work::work_query::FetchActionWork;
 use crate::models::work::work_query::FetchWork;
-use crate::models::work::work_query::Variables;
+use crate::models::work::work_query::Variables as WorkQueryVariables;
 use crate::models::work::work_query::WorkRequest;
 use crate::models::work::work_query::WorkRequestBody;
 use crate::models::work::WorkStatusValues;
@@ -103,6 +108,7 @@ pub struct WorkComponent {
     is_published_in_db: bool,
     data: WorkFormData,
     fetch_work: FetchWork,
+    fetch_title: FetchTitle,
     push_work: PushUpdateWork,
     push_title: PushUpdateTitle,
     delete_work: PushDeleteWork,
@@ -124,6 +130,7 @@ struct WorkFormData {
 #[allow(clippy::large_enum_variant)]
 pub enum Msg {
     SetWorkFetchState(FetchActionWork),
+    SetTitleFetchState(FetchActionTitle),
     GetWork,
     SetTitlePushState(PushActionUpdateTitle),
     SetWorkPushState(PushActionUpdateWork),
@@ -199,6 +206,10 @@ impl Component for WorkComponent {
         let data: WorkFormData = Default::default();
         let resource_access = ctx.props().current_user.resource_access.clone();
         let work_id = ctx.props().work_id;
+        let title: Title = Default::default();
+        let push_title = Default::default();
+        let delete_title = Default::default();
+        let fetch_title: FetchTitle = Default::default();
 
         ctx.link().send_message(Msg::GetWork);
 
@@ -218,9 +229,10 @@ impl Component for WorkComponent {
             resource_access,
             work_id,
             publish_confirmation_required: false,
-            title: Default::default(),
-            push_title: Default::default(),
-            delete_title: Default::default(),
+            title,
+            push_title,
+            delete_title,
+            fetch_title,
         }
     }
 
@@ -267,16 +279,48 @@ impl Component for WorkComponent {
                     FetchState::Failed(_, _err) => false,
                 }
             }
+            Msg::SetTitleFetchState(fetch_state) => {
+                self.fetch_title.apply(fetch_state);
+                match self.fetch_title.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => {
+                        self.title = match &body.data.title {
+                            Some(t) => t.to_owned(),
+                            None => Default::default(),
+                        };
+                        true
+                    }
+                    FetchState::Failed(_, _err) => false,
+                }
+            }
             Msg::GetWork => {
-                let body = WorkRequestBody {
-                    variables: Variables {
+                let title_request_body = TitleRequestBody {
+                    variables: TitleQueryVariables {
+                        title_id: self.title.title_id,
+                    },
+                    ..Default::default()
+                };
+                let title_request = TitleRequest {
+                    body: title_request_body,
+                };
+                self.fetch_title = Fetch::new(title_request);
+                ctx.link()
+                    .send_future(self.fetch_title.fetch(Msg::SetTitleFetchState));
+                ctx.link()
+                    .send_message(Msg::SetTitleFetchState(FetchAction::Fetching));
+
+                let work_request_body = WorkRequestBody {
+                    variables: WorkQueryVariables {
                         work_id: Some(ctx.props().work_id),
                         publishers: ctx.props().current_user.resource_access.restricted_to(),
                     },
                     ..Default::default()
                 };
-                let request = WorkRequest { body };
-                self.fetch_work = Fetch::new(request);
+                let work_request = WorkRequest {
+                    body: work_request_body,
+                };
+                self.fetch_work = Fetch::new(work_request);
 
                 ctx.link()
                     .send_future(self.fetch_work.fetch(Msg::SetWorkFetchState));
