@@ -1,8 +1,10 @@
 use crate::arguments;
+use base64::{engine::general_purpose, Engine as _};
 use clap::{ArgMatches, Command};
 use lazy_static::lazy_static;
 use thoth::errors::{ThothError, ThothResult};
 use zitadel::api::{
+    zitadel::authn::v1::KeyType,
     clients::ClientBuilder,
     zitadel::app::v1::{
         ApiAuthMethodType, OidcAppType, OidcAuthMethodType, OidcGrantType, OidcResponseType,
@@ -10,7 +12,7 @@ use zitadel::api::{
     },
     zitadel::management::v1::{
         AddApiAppRequest, AddOidcAppRequest, AddProjectRequest, AddProjectRoleRequest,
-        AddUserGrantRequest,
+        AddUserGrantRequest, AddAppKeyRequest,
     },
     zitadel::project::v1::PrivateLabelingSetting,
     zitadel::user::v2::{ListUsersRequest, UserFieldName},
@@ -45,9 +47,10 @@ pub fn setup(arguments: &ArgMatches) -> ThothResult<()> {
             .await?;
 
         // Create Zitadel project
+        let project_name = "Thoth";
         let project = management_client
             .add_project(AddProjectRequest {
-                name: "Thoth".to_string(),
+                name: project_name.to_string(),
                 project_role_assertion: false,
                 project_role_check: false,
                 has_project_check: false,
@@ -56,6 +59,7 @@ pub fn setup(arguments: &ArgMatches) -> ThothResult<()> {
             })
             .await?
             .into_inner();
+        println!("\n✅ Created Zitadel project: {}", project_name);
 
         // Create project user roles
         let roles = [
@@ -72,6 +76,7 @@ pub fn setup(arguments: &ArgMatches) -> ThothResult<()> {
                     group: group.to_string(),
                 })
                 .await?;
+            println!("\n✅ Added project role: {}", role_key);
         }
 
         // Assign SUPERUSER role to default accounts
@@ -93,20 +98,36 @@ pub fn setup(arguments: &ArgMatches) -> ThothResult<()> {
                     role_keys: vec!["SUPERUSER".to_string()],
                 })
                 .await?;
+            println!("\n✅ Granted SUPERUSER role to user: {}", user.username);
         }
 
         // Create Zitadel APPs for GraphQL API and APP
-        management_client
+        let graphql_api_name = "Thoth GraphQL API";
+        let graphql_api = management_client
             .add_api_app(AddApiAppRequest {
                 project_id: project.id.clone(),
-                name: "Thoth GraphQL API".to_string(),
-                auth_method_type: ApiAuthMethodType::Basic as i32,
+                name: graphql_api_name.to_string(),
+                auth_method_type: ApiAuthMethodType::PrivateKeyJwt as i32,
             })
-            .await?;
+            .await?.into_inner();
+        println!("\n✅ Created API app: {}", graphql_api_name);
+
+        let graphql_api_key = management_client.add_app_key(AddAppKeyRequest {
+            project_id: project.id.clone(),
+            app_id: graphql_api.app_id,
+            r#type: KeyType::Json as i32,
+            expiration_date: None,
+        }).await?.into_inner();
+        let encoded_key = general_purpose::STANDARD.encode(&graphql_api_key.key_details);
+        println!("\n✅ {} application key generated.", graphql_api_name);
+        println!("👉 Please copy the following and add it to the `.env` file as `PRIVATE_KEY`:\n");
+        println!("PRIVATE_KEY={}\n", encoded_key);
+
+        let app_name = "Thoth APP";
         management_client
             .add_oidc_app(AddOidcAppRequest {
-                project_id: project.id,
-                name: "Thoth APP".to_string(),
+                project_id: project.id.clone(),
+                name: app_name.to_string(),
                 redirect_uris: vec!["http://localhost:8080/callback".to_string()],
                 response_types: vec![OidcResponseType::Code as i32],
                 grant_types: vec![OidcGrantType::AuthorizationCode as i32],
@@ -126,6 +147,7 @@ pub fn setup(arguments: &ArgMatches) -> ThothResult<()> {
                 login_version: None,
             })
             .await?;
+        println!("\n✅ Created OIDC app: {}", app_name);
 
         Ok::<(), ThothError>(())
     })

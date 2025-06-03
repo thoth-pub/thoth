@@ -5,6 +5,7 @@ ALTER TABLE contributor_history        DROP CONSTRAINT IF EXISTS contributor_his
 ALTER TABLE funding_history            DROP CONSTRAINT IF EXISTS funding_history_account_id_fkey;
 ALTER TABLE imprint_history            DROP CONSTRAINT IF EXISTS imprint_history_account_id_fkey;
 ALTER TABLE institution_history        DROP CONSTRAINT IF EXISTS institution_history_account_id_fkey;
+ALTER TABLE institution_history        DROP CONSTRAINT IF EXISTS funder_history_account_id_fkey; -- historical
 ALTER TABLE issue_history              DROP CONSTRAINT IF EXISTS issue_history_account_id_fkey;
 ALTER TABLE language_history           DROP CONSTRAINT IF EXISTS language_history_account_id_fkey;
 ALTER TABLE location_history           DROP CONSTRAINT IF EXISTS location_history_account_id_fkey;

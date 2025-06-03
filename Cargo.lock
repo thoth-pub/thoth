@@ -4253,6 +4253,7 @@ dependencies = [
 name = "thoth"
 version = "0.13.12"
 dependencies = [
+ "base64 0.22.1",
  "clap",
  "dialoguer",
  "dotenv",
