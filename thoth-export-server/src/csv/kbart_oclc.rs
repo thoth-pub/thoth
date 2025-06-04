@@ -153,7 +153,10 @@ impl TryFrom<Work> for KbartOclcRow {
                 num_last_issue_online: None,
                 title_url: work.landing_page.unwrap(),
                 first_author,
-                title_id: work.doi.map(|d| d.to_string()).or_else(|| Some(work.work_id.to_string())),
+                title_id: work
+                    .doi
+                    .map(|d| d.to_string())
+                    .or_else(|| Some(work.work_id.to_string())),
                 embargo_info: None,
                 coverage_depth: "fulltext".to_string(),
                 notes: None,
@@ -482,9 +485,9 @@ mod tests {
             KbartOclc.generate(&[test_work.clone()], QuoteStyle::Necessary, DELIMITER_TAB);
         assert_eq!(to_test, Ok(test_result.to_string()));
 
-        // Remove DOI: no title_id
+        // Remove DOI: title_id falls back to work_id
         test_work.doi = None;
-        test_result.title_id = "".to_string();
+        test_result.title_id = "00000000-0000-0000-aaaa-000000000001".to_string();
         // Remove paperback publication: date_monograph_published_print (for hardback)
         // still appears, but no print_identifier (paperback ISBN) is present
         test_work.publications.remove(2);
@@ -539,6 +542,19 @@ mod tests {
             Err(ThothError::IncompleteMetadataRecord(
                 KBART_ERROR.to_string(),
                 "Missing Publication Date".to_string(),
+            ))
+        );
+
+        // Reinstate publication date but remove license: ditto
+        test_work.publication_date = chrono::NaiveDate::from_ymd_opt(1999, 12, 31);
+        test_work.license = None;
+        let to_test =
+            KbartOclc.generate(&[test_work.clone()], QuoteStyle::Necessary, DELIMITER_TAB);
+        assert_eq!(
+            to_test,
+            Err(ThothError::IncompleteMetadataRecord(
+                KBART_ERROR.to_string(),
+                "Missing License".to_string(),
             ))
         );
     }
