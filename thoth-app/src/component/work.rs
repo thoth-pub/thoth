@@ -336,10 +336,6 @@ impl Component for WorkComponent {
                     FetchState::Fetched(body) => match &body.data.update_title {
                         Some(t) => {
                             self.title = t.clone();
-                            self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Saved work {} title {}", t.work_id, t.title_id),
-                                NotificationStatus::Success,
-                            )));
                             true
                         }
                         None => {
@@ -442,7 +438,7 @@ impl Component for WorkComponent {
                 self.push_title = Fetch::new(update_title_request);
 
                 ctx.link()
-                    .send_future(self.push_title.fetch(Msg::SetTitlePushState)); // TODO: SetTitlePushState
+                    .send_future(self.push_title.fetch(Msg::SetTitlePushState));
                 ctx.link()
                     .send_message(Msg::SetTitlePushState(FetchAction::Fetching));
 
@@ -533,12 +529,6 @@ impl Component for WorkComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_title {
                         Some(t) => {
-                            self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Deleted work {} title {}", t.work_id, t.title_id),
-                                NotificationStatus::Success,
-                            )));
-                            // TODO: ask here about admin route
-                            ctx.link().history().unwrap().push(AdminRoute::Works);
                             true
                         }
                         None => {
@@ -559,7 +549,6 @@ impl Component for WorkComponent {
                 }
             }
             Msg::DeleteWork => {
-                // TODO delete title also
                 let delete_title_request_body = DeleteTitleRequestBody {
                     variables: DeleteTitlekVariables {
                         title_id: self.title.title_id,
