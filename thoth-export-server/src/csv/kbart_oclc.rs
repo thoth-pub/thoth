@@ -25,7 +25,7 @@ struct KbartOclcRow {
     num_last_issue_online: Option<i64>,
     title_url: String,
     first_author: Option<String>,
-    title_id: Option<String>,
+    title_id: String,
     embargo_info: Option<String>,
     coverage_depth: String,
     notes: Option<String>,
@@ -156,7 +156,7 @@ impl TryFrom<Work> for KbartOclcRow {
                 title_id: work
                     .doi
                     .map(|d| d.to_string())
-                    .or_else(|| Some(work.work_id.to_string())),
+                    .unwrap_or_else(|| work.work_id.to_string()),
                 embargo_info: None,
                 coverage_depth: "fulltext".to_string(),
                 notes: None,
