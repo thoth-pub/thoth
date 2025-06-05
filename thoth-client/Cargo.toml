@@ -1,6 +1,6 @@
 [package]
 name = "thoth-client"
-version = "0.13.12"
+version = "0.13.13"
 authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -10,8 +10,8 @@ readme = "README.md"
 build = "build.rs"
 
 [dependencies]
-thoth-api = {version = "=0.13.12", path = "../thoth-api" }
-thoth-errors = {version = "=0.13.12", path = "../thoth-errors" }
+thoth-api = {version = "=0.13.13", path = "../thoth-api" }
+thoth-errors = {version = "=0.13.13", path = "../thoth-errors" }
 graphql_client = "0.14.0"
 chrono = { version = "0.4.40", features = ["serde"] }
 reqwest = { version = "0.12", features = ["json"] }
@@ -22,4 +22,4 @@ serde_json = "1.0"
 uuid = { version = "1.16.0", features = ["serde"] }
 
 [build-dependencies]
-thoth-api = { version = "=0.13.12", path = "../thoth-api", features = ["backend"] }
+thoth-api = { version = "=0.13.13", path = "../thoth-api", features = ["backend"] }
