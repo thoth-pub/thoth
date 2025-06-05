@@ -136,7 +136,7 @@ impl TryFrom<Work> for KbartOclcRow {
                 false => None,
             };
             Ok(KbartOclcRow {
-                publication_title: work.full_title,
+                publication_title: work.titles[0].full_title.clone(),
                 print_identifier,
                 online_identifier,
                 date_first_issue_online: None,
@@ -240,9 +240,14 @@ mod tests {
             work_status: WorkStatus::ACTIVE,
             // We must manually set full_title within this test framework, but
             // Thoth UI compiles it automatically from title + (optional) subtitle
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(1),

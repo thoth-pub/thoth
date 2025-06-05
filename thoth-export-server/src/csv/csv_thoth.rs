@@ -115,8 +115,8 @@ impl From<Work> for CsvThothRow {
             imprint: work.imprint.imprint_name,
             work_type: format!("{:?}", work.work_type),
             work_status: format!("{:?}", work.work_status),
-            title: work.title,
-            subtitle: work.subtitle,
+            title: work.titles[0].title.clone(),
+            subtitle: work.titles[0].subtitle.clone(),
             reference: work.reference,
             edition: work.edition,
             doi: work.doi.map(|d| d.to_string()),
@@ -453,7 +453,7 @@ impl CsvCell<CsvThoth> for WorkRelations {
     fn csv_cell(&self) -> String {
         format!(
             "(\"{}\", \"{}\", \"{:?}\", \"{}\")",
-            self.related_work.full_title,
+            self.related_work.titles[0].full_title,
             self.related_work
                 .doi
                 .as_ref()
@@ -517,9 +517,14 @@ mod tests {
         static ref TEST_WORK: Work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
             work_type: WorkType::MONOGRAPH,
             edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
@@ -825,9 +830,14 @@ mod tests {
                 relation_ordinal: 1,
                 related_work: WorkRelationsRelatedWork {
                     work_status: WorkStatus::ACTIVE,
-                    full_title: "Related work title".to_string(),
-                    title: "N/A".to_string(),
-                    subtitle: None,
+                    titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                        title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        full_title: "Related work title".to_string(),
+                        title: "N/A".to_string(),
+                        subtitle: None,
+                        canonical: true,
+                    }],
                     edition: None,
                     doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
                     publication_date: None,
@@ -1157,9 +1167,14 @@ mod tests {
             relation_ordinal: 1,
             related_work: WorkRelationsRelatedWork {
                 work_status: WorkStatus::ACTIVE,
-                full_title: "Related work title".to_string(),
-                title: "N/A".to_string(),
-                subtitle: None,
+                titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                    title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    full_title: "Related work title".to_string(),
+                    title: "N/A".to_string(),
+                    subtitle: None,
+                    canonical: true,
+                }],
                 edition: None,
                 doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
                 publication_date: None,
@@ -1194,7 +1209,7 @@ mod tests {
         );
         relation.relation_type = RelationType::IS_TRANSLATION_OF;
         relation.relation_ordinal = 2;
-        relation.related_work.full_title = "Different related work title".to_string();
+        relation.related_work.titles[0].full_title = "Different related work title".to_string();
         relation.related_work.doi = None;
         assert_eq!(
             CsvCell::<CsvThoth>::csv_cell(&relation),

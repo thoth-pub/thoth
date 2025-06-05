@@ -20,8 +20,8 @@ graphql_query_builder! {
     LOCALE_CODES_QUERY,
     LocaleCodesResponseBody,
     LocaleCodesResponseData,
-    FetchLocaleCodes,
-    FetchActionLocaleCodes
+    _FetchLocaleCodes,
+    _FetchActionLocaleCodes
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]

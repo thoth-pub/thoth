@@ -423,7 +423,7 @@ impl Component for WorkComponent {
                     variables: UpdateTitleVariables {
                         title_id: self.title.title_id,
                         work_id: self.title.work_id,
-                        locale_code: self.title.locale_code.clone(),
+                        locale_code: self.title.locale_code,
                         full_title: self.title.full_title.clone(),
                         title: self.title.title.clone(),
                         subtitle: self.title.subtitle.clone(),
@@ -528,9 +528,7 @@ impl Component for WorkComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_title {
-                        Some(t) => {
-                            true
-                        }
+                        Some(_) => true,
                         None => {
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),

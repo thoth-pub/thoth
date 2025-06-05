@@ -22,7 +22,7 @@ fn main() -> thoth::errors::ThothResult<()> {
     match THOTH.clone().get_matches().subcommand() {
         Some(("start", start_arguments)) => match start_arguments.subcommand() {
             Some(("graphql-api", arguments)) => commands::start::graphql_api(arguments),
-            // Some(("app", arguments)) => commands::start::app(arguments),
+            Some(("app", arguments)) => commands::start::app(arguments),
             Some(("export-api", arguments)) => commands::start::export_api(arguments),
             _ => unreachable!(),
         },

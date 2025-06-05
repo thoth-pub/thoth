@@ -124,7 +124,7 @@ impl TryFrom<Work> for BibtexThothEntry {
         contributions.sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
         let (author, editor) = extract_authors_and_editors(contributions)?;
 
-        let shorttitle = work.subtitle.as_ref().map(|_| work.title.clone());
+        let shorttitle = Some(work.titles[0].title.clone());
         let (entry_type, booktitle, chapter, pages) = match work.work_type {
             WorkType::BOOK_CHAPTER => {
                 let (booktitle, chapter, pages) = work
@@ -133,7 +133,7 @@ impl TryFrom<Work> for BibtexThothEntry {
                     .filter_map(|r| {
                         if r.relation_type == RelationType::IS_CHILD_OF {
                             Some((
-                                r.related_work.full_title.clone(),
+                                r.related_work.titles[0].full_title.clone(),
                                 r.relation_ordinal,
                                 // BibTeX page ranges require a double dash between the page numbers
                                 work.page_interval.as_ref().map(|p| p.replace('–', "--")),
@@ -153,7 +153,7 @@ impl TryFrom<Work> for BibtexThothEntry {
 
         Ok(BibtexThothEntry {
             entry_type,
-            title: work.full_title,
+            title: work.titles[0].full_title.clone(),
             shorttitle,
             author,
             editor,
@@ -275,9 +275,14 @@ mod tests {
         Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Work Title: Work Subtitle".to_string(),
-            title: "Work Title".to_string(),
-            subtitle: Some("Work Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Work Title: Work Subtitle".to_string(),
+                title: "Work Title".to_string(),
+                subtitle: Some("Work Subtitle".to_string()),
+                canonical: true,
+            }],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(1),
@@ -475,9 +480,14 @@ mod tests {
                 relation_ordinal: 7,
                 related_work: WorkRelationsRelatedWork {
                     work_status: WorkStatus::ACTIVE,
-                    full_title: "Related work title".to_string(),
-                    title: "N/A".to_string(),
-                    subtitle: None,
+                    titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                        title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        full_title: "Related work title".to_string(),
+                        title: "N/A".to_string(),
+                        subtitle: None,
+                        canonical: true,
+                    }],
                     edition: None,
                     doi: None,
                     publication_date: None,
@@ -511,9 +521,14 @@ mod tests {
                 relation_ordinal: 4,
                 related_work: WorkRelationsRelatedWork {
                     work_status: WorkStatus::ACTIVE,
-                    full_title: "Irrelevant related work".to_string(),
-                    title: "N/A".to_string(),
-                    subtitle: None,
+                    titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                        title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        full_title: "Irrelevant related work".to_string(),
+                        title: "N/A".to_string(),
+                        subtitle: None,
+                        canonical: true,
+                    }],
                     edition: None,
                     doi: None,
                     publication_date: None,
@@ -601,10 +616,10 @@ mod tests {
     fn test_work_without_subtitle() {
         let mut test_work = test_work();
         // Remove subtitle field: shorttitle is removed (as it would duplicate title)
-        test_work.subtitle = None;
-        // We need to manually update the full title to remove the subtitle
+        test_work.titles[0].subtitle = None;
+        // We need to manually update the   full title to remove the subtitle
         // in this test framework, but within the Thoth database this is automatic
-        test_work.full_title = "Work Title".to_string();
+        test_work.titles[0].full_title = "Work Title".to_string();
         let to_test = BibtexThoth.generate(&[test_work.clone()]);
         assert_eq!(
             to_test,
@@ -618,8 +633,8 @@ mod tests {
     #[test]
     fn test_bibtex_thoth_chapter() {
         let mut test_work = test_work();
-        test_work.subtitle = None;
-        test_work.full_title = "Work Title".to_string();
+        test_work.titles[0].subtitle = None;
+        test_work.titles[0].full_title = "Work Title".to_string();
         test_work.publications[1].isbn = None;
         test_work.place = None;
         test_work.doi = None;

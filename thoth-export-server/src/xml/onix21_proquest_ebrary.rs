@@ -163,10 +163,10 @@ impl XmlElementBlock<Onix21ProquestEbrary> for Work {
                     w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                 })?;
                 write_element_block("TitleText", w, |w| {
-                    w.write(XmlEvent::Characters(&self.title))
+                    w.write(XmlEvent::Characters(&self.titles[0].title))
                         .map_err(|e| e.into())
                 })?;
-                if let Some(subtitle) = &self.subtitle {
+                if let Some(subtitle) = &self.titles[0].subtitle {
                     write_element_block("Subtitle", w, |w| {
                         w.write(XmlEvent::Characters(subtitle))
                             .map_err(|e| e.into())
@@ -888,9 +888,14 @@ mod tests {
         let mut test_work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(1),
@@ -1124,7 +1129,7 @@ mod tests {
         // Remove some values to test non-output of optional blocks
         test_work.doi = None;
         test_work.license = None;
-        test_work.subtitle = None;
+        test_work.titles[0].subtitle = None;
         test_work.page_count = None;
         test_work.long_abstract = None;
         test_work.place = None;

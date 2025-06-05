@@ -38,9 +38,6 @@ fragment Funding on Funding {
 fragment Work on Work {
     workId
     workStatus
-    fullTitle
-    title
-    subtitle
     workType
     reference
     edition
@@ -69,6 +66,14 @@ fragment Work on Work {
     oclc
     coverUrl
     coverCaption
+    titles(limit: 1) {
+        titleId
+        localeCode
+        fullTitle
+        title
+        subtitle
+        canonical
+    }
     imprint {
         imprintName
         imprintUrl
@@ -158,9 +163,6 @@ fragment Work on Work {
         relationType
         relationOrdinal
         relatedWork {
-            fullTitle
-            title
-            subtitle
             edition
             doi
             publicationDate
@@ -177,6 +179,14 @@ fragment Work on Work {
             pageCount
             pageInterval
             landingPage
+            titles(limit: 1) {
+                titleId
+                localeCode
+                fullTitle
+                title
+                subtitle
+                canonical
+            }
             imprint {
                 crossmarkDoi
                 publisher {

@@ -41,6 +41,14 @@ pub const WORK_QUERY: &str = "
             firstPage
             lastPage
             pageInterval
+            titles(limit: 1) {
+                titleId
+                localeCode
+                fullTitle
+                title
+                subtitle
+                canonical
+            }
             relations(order: {field: RELATION_ORDINAL, direction: ASC}) {
                 workRelationId
                 relatorWorkId
@@ -53,12 +61,17 @@ pub const WORK_QUERY: &str = "
                     workId
                     workType
                     workStatus
-                    fullTitle
-                    title
-                    imprintId
                     createdAt
                     updatedAt
                     updatedAtWithRelations
+                    titles(limit: 1) {
+                        titleId
+                        localeCode
+                        fullTitle
+                        title
+                        subtitle
+                        canonical
+                    }
                 }
             }
             contributions(order: {field: CONTRIBUTION_ORDINAL, direction: ASC}) {
