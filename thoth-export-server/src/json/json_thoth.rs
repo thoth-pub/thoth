@@ -391,14 +391,6 @@ mod tests {
                 relation_ordinal: 1,
                 related_work: WorkRelationsRelatedWork {
                     work_status: WorkStatus::ACTIVE,
-                    titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
-                      title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
-                      locale_code: thoth_client::LocaleCode::EN,
-                      full_title: "Related work title".to_string(),
-                      title: "N/A".to_string(),
-                      subtitle: None,
-                      canonical: true,
-                    }],
                     edition: None,
                     doi: None,
                     publication_date: None,
@@ -414,6 +406,14 @@ mod tests {
                     page_count: None,
                     page_interval: None,
                     landing_page: None,
+                    titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                      title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                      locale_code: thoth_client::LocaleCode::EN,
+                      full_title: "Related work title".to_string(),
+                      title: "N/A".to_string(),
+                      subtitle: None,
+                      canonical: true,
+                    }],
                     imprint: WorkRelationsRelatedWorkImprint {
                         crossmark_doi: None,
                         publisher: WorkRelationsRelatedWorkImprintPublisher {
@@ -455,9 +455,6 @@ mod tests {
     const TEST_RESULT: &str = r#"
   "workId": "00000000-0000-0000-aaaa-000000000001",
   "workStatus": "ACTIVE",
-  "fullTitle": "Book Title: Book Subtitle",
-  "title": "Book Title",
-  "subtitle": "Book Subtitle",
   "workType": "MONOGRAPH",
   "reference": null,
   "edition": 1,
@@ -486,6 +483,16 @@ mod tests {
   "oclc": "987654321",
   "coverUrl": "https://www.book.com/cover",
   "coverCaption": "This is a cover caption",
+  "titles": [
+    {
+      "titleId": "00000000-0000-0000-cccc-000000000001",
+      "localeCode": "EN",
+      "fullTitle": "Book Title: Book Subtitle",
+      "title": "Book Title",
+      "subtitle": "Book Subtitle",
+      "canonical": true
+    }
+  ],
   "imprint": {
     "imprintName": "OA Editions Imprint",
     "imprintUrl": null,
@@ -771,9 +778,6 @@ mod tests {
       "relationType": "HAS_CHILD",
       "relationOrdinal": 1,
       "relatedWork": {
-        "fullTitle": "Related work title",
-        "title": "N/A",
-        "subtitle": null,
         "edition": null,
         "doi": null,
         "publicationDate": null,
@@ -790,6 +794,16 @@ mod tests {
         "pageCount": null,
         "pageInterval": null,
         "landingPage": null,
+        "titles": [
+          {
+            "titleId": "00000000-0000-0000-cccc-000000000001",
+            "localeCode": "EN",
+            "fullTitle": "Related work title",
+            "title": "N/A",
+            "subtitle": null,
+            "canonical": true
+          }
+        ],
         "imprint": {
           "crossmarkDoi": null,
           "publisher": {

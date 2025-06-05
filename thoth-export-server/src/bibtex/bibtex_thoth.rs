@@ -124,7 +124,10 @@ impl TryFrom<Work> for BibtexThothEntry {
         contributions.sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
         let (author, editor) = extract_authors_and_editors(contributions)?;
 
-        let shorttitle = Some(work.titles[0].title.clone());
+        let shorttitle = work.titles[0]
+            .subtitle
+            .as_ref()
+            .map(|_| work.titles[0].title.clone());
         let (entry_type, booktitle, chapter, pages) = match work.work_type {
             WorkType::BOOK_CHAPTER => {
                 let (booktitle, chapter, pages) = work
