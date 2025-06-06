@@ -2,10 +2,6 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::model::Timestamp;
-#[cfg(feature = "backend")]
-use crate::schema::account;
-#[cfg(feature = "backend")]
-use crate::schema::publisher_account;
 use thoth_errors::ThothError;
 use thoth_errors::ThothResult;
 
@@ -26,18 +22,6 @@ pub struct Account {
     pub token: Option<String>,
 }
 
-#[cfg_attr(feature = "backend", derive(Insertable))]
-#[cfg_attr(feature = "backend", diesel(table_name = account))]
-pub struct NewAccount {
-    pub name: String,
-    pub surname: String,
-    pub email: String,
-    pub hash: Vec<u8>,
-    pub salt: String,
-    pub is_superuser: bool,
-    pub is_bot: bool,
-}
-
 #[derive(Debug)]
 pub struct AccountData {
     pub name: String,
@@ -46,23 +30,6 @@ pub struct AccountData {
     pub password: String,
     pub is_superuser: bool,
     pub is_bot: bool,
-}
-
-#[cfg_attr(feature = "backend", derive(Queryable))]
-pub struct PublisherAccount {
-    pub account_id: Uuid,
-    pub publisher_id: Uuid,
-    pub is_admin: bool,
-    pub created_at: Timestamp,
-    pub updated_at: Timestamp,
-}
-
-#[cfg_attr(feature = "backend", derive(Insertable))]
-#[cfg_attr(feature = "backend", diesel(table_name = publisher_account))]
-pub struct NewPublisherAccount {
-    pub account_id: Uuid,
-    pub publisher_id: Uuid,
-    pub is_admin: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -112,13 +79,6 @@ pub struct DecodedToken {
 pub struct LoginCredentials {
     pub email: String,
     pub password: String,
-}
-
-#[cfg_attr(feature = "backend", derive(AsChangeset), diesel(table_name = account))]
-pub struct NewPassword {
-    pub email: String,
-    pub hash: Vec<u8>,
-    pub salt: String,
 }
 
 impl DecodedToken {

@@ -42,37 +42,14 @@ pub fn port(default_value: &'static str, env_value: &'static str) -> Arg {
         .num_args(1)
 }
 
-pub fn domain() -> Arg {
-    Arg::new("domain")
-        .short('d')
-        .long("domain")
-        .value_name("THOTH_DOMAIN")
-        .env("THOTH_DOMAIN")
-        .default_value("localhost")
-        .help("Authentication cookie domain")
-        .num_args(1)
-}
-
 pub fn key() -> Arg {
     Arg::new("key")
         .short('k')
-        .long("secret-key")
-        .value_name("SECRET")
-        .env("SECRET_KEY")
-        .help("Authentication cookie secret key")
+        .long("private-key")
+        .value_name("PRIVATE_KEY")
+        .env("PRIVATE_KEY")
+        .help("Thoth's GraphQL API zitadel private key (base64-encoded JSON key)")
         .num_args(1)
-}
-
-pub fn session() -> Arg {
-    Arg::new("duration")
-        .short('s')
-        .long("session-length")
-        .value_name("DURATION")
-        .env("SESSION_DURATION_SECONDS")
-        .default_value("3600")
-        .help("Authentication cookie session duration (seconds)")
-        .num_args(1)
-        .value_parser(value_parser!(i64))
 }
 
 pub fn gql_url() -> Arg {
@@ -105,6 +82,27 @@ pub fn export_url() -> Arg {
         .env("THOTH_EXPORT_API")
         .default_value("http://localhost:8181")
         .help("Thoth Export API's, public facing, root URL.")
+        .num_args(1)
+}
+
+pub fn zitadel_url() -> Arg {
+    Arg::new("zitadel-url")
+        .short('z')
+        .long("zitadel-url")
+        .value_name("ZITADEL_URL")
+        .env("ZITADEL_URL")
+        .default_value("http://localhost:8282")
+        .help("Zitadel's, public facing, root URL.")
+        .num_args(1)
+}
+
+pub fn thoth_pat() -> Arg {
+    Arg::new("thoth-pat")
+        .short('P')
+        .long("thoth-pat")
+        .value_name("THOTH_PAT")
+        .env("THOTH_PAT")
+        .help("Thoth service account Personal Access Token (PAT)")
         .num_args(1)
 }
 

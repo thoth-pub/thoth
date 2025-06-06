@@ -138,7 +138,7 @@ pub struct PatchSeries {
 pub struct SeriesHistory {
     pub series_history_id: Uuid,
     pub series_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -146,7 +146,7 @@ pub struct SeriesHistory {
 #[cfg_attr(feature = "backend", derive(Insertable), diesel(table_name = series_history))]
 pub struct NewSeriesHistory {
     pub series_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 

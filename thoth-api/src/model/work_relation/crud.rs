@@ -164,7 +164,7 @@ impl Crud for WorkRelation {
         &self,
         db: &crate::db::PgPool,
         data: &PatchWorkRelation,
-        account_id: &Uuid,
+        user_id: &str,
     ) -> ThothResult<Self> {
         // For each Relator - Relationship - Related record we update, we must also
         // update the corresponding Related - InverseRelationship - Relator record.
@@ -190,7 +190,7 @@ impl Crud for WorkRelation {
                 .and_then(|t| {
                     // On success, create a new history table entry.
                     // Only record the original update, not the automatic inverse update.
-                    self.new_history_entry(account_id)
+                    self.new_history_entry(user_id)
                         .insert(connection)
                         .map(|_| t)
                 })
@@ -224,10 +224,10 @@ impl Crud for WorkRelation {
 impl HistoryEntry for WorkRelation {
     type NewHistoryEntity = NewWorkRelationHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             work_relation_id: self.work_relation_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -279,13 +279,13 @@ mod tests {
     #[test]
     fn test_new_work_relation_history_from_work_relation() {
         let work_relation: WorkRelation = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_work_relation_history = work_relation.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_work_relation_history = work_relation.new_history_entry(&user_id);
         assert_eq!(
             new_work_relation_history.work_relation_id,
             work_relation.work_relation_id
         );
-        assert_eq!(new_work_relation_history.account_id, account_id);
+        assert_eq!(new_work_relation_history.user_id, user_id);
         assert_eq!(
             new_work_relation_history.data,
             serde_json::Value::String(serde_json::to_string(&work_relation).unwrap())

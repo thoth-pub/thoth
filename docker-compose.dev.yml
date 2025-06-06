@@ -9,6 +9,14 @@ services:
     env_file:
       - .env
 
+  zitadel-db:
+    image: postgres:17
+    container_name: "zitadel_db"
+    volumes:
+      - ./db/_zitadel:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: postgres
+
   redis:
     image: redis:alpine
     container_name: "thoth_redis"
@@ -27,6 +35,7 @@ services:
       - .env
     depends_on:
       - db
+      - zitadel
 
   export-api:
     build:
@@ -54,3 +63,16 @@ services:
     depends_on:
       - graphql-api
       - export-api
+
+  zitadel:
+    image: 'ghcr.io/zitadel/zitadel:v3.2.2'
+    command: 'start-from-init --masterkey "${ZITADEL_MASTERKEY}" --tlsMode disabled'
+    container_name: "zitadel"
+    ports:
+      - "8282:8080"
+    env_file:
+      - .env
+    volumes:
+      - ./machinekey:/machinekey
+    depends_on:
+      - zitadel-db

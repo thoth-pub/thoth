@@ -127,10 +127,10 @@ impl Crud for Publisher {
 impl HistoryEntry for Publisher {
     type NewHistoryEntity = NewPublisherHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             publisher_id: self.publisher_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -155,10 +155,10 @@ mod tests {
     #[test]
     fn test_new_publisher_history_from_publisher() {
         let publisher: Publisher = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_publisher_history = publisher.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_publisher_history = publisher.new_history_entry(&user_id);
         assert_eq!(new_publisher_history.publisher_id, publisher.publisher_id);
-        assert_eq!(new_publisher_history.account_id, account_id);
+        assert_eq!(new_publisher_history.user_id, user_id);
         assert_eq!(
             new_publisher_history.data,
             serde_json::Value::String(serde_json::to_string(&publisher).unwrap())
