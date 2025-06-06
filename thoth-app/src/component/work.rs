@@ -15,6 +15,7 @@ use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
+use thoth_api::model::Title;
 use thoth_api::model::{Doi, DOI_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -53,19 +54,34 @@ use crate::component::utils::FormWorkStatusSelect;
 use crate::component::utils::FormWorkTypeSelect;
 use crate::component::utils::Loader;
 use crate::component::work_status_modal::ConfirmWorkStatusComponent;
+use crate::models::title::delete_title_mutation::DeleteTitleRequest;
+use crate::models::title::delete_title_mutation::DeleteTitleRequestBody;
+use crate::models::title::delete_title_mutation::PushActionDeleteTitle;
+use crate::models::title::delete_title_mutation::PushDeleteTitle;
+use crate::models::title::delete_title_mutation::Variables as DeleteTitlekVariables;
+use crate::models::title::title_query::FetchActionTitle;
+use crate::models::title::title_query::FetchTitle;
+use crate::models::title::title_query::TitleRequest;
+use crate::models::title::title_query::TitleRequestBody;
+use crate::models::title::title_query::Variables as TitleQueryVariables;
+use crate::models::title::update_title_mutation::PushActionUpdateTitle;
+use crate::models::title::update_title_mutation::PushUpdateTitle;
+use crate::models::title::update_title_mutation::UpdateTitleRequest;
+use crate::models::title::update_title_mutation::UpdateTitleRequestBody;
+use crate::models::title::update_title_mutation::Variables as UpdateTitleVariables;
 use crate::models::work::delete_work_mutation::DeleteWorkRequest;
 use crate::models::work::delete_work_mutation::DeleteWorkRequestBody;
 use crate::models::work::delete_work_mutation::PushActionDeleteWork;
 use crate::models::work::delete_work_mutation::PushDeleteWork;
-use crate::models::work::delete_work_mutation::Variables as DeleteVariables;
+use crate::models::work::delete_work_mutation::Variables as DeleteWorkVariables;
 use crate::models::work::update_work_mutation::PushActionUpdateWork;
 use crate::models::work::update_work_mutation::PushUpdateWork;
 use crate::models::work::update_work_mutation::UpdateWorkRequest;
 use crate::models::work::update_work_mutation::UpdateWorkRequestBody;
-use crate::models::work::update_work_mutation::Variables as UpdateVariables;
+use crate::models::work::update_work_mutation::Variables as UpdateWorkVariables;
 use crate::models::work::work_query::FetchActionWork;
 use crate::models::work::work_query::FetchWork;
-use crate::models::work::work_query::Variables;
+use crate::models::work::work_query::Variables as WorkQueryVariables;
 use crate::models::work::work_query::WorkRequest;
 use crate::models::work::work_query::WorkRequestBody;
 use crate::models::work::WorkStatusValues;
@@ -79,6 +95,7 @@ use super::ToOption;
 
 pub struct WorkComponent {
     work: WorkWithRelations,
+    title: Title,
     // Track the user-entered DOI string, which may not be validly formatted
     doi: String,
     doi_warning: String,
@@ -91,8 +108,11 @@ pub struct WorkComponent {
     is_published_in_db: bool,
     data: WorkFormData,
     fetch_work: FetchWork,
+    fetch_title: FetchTitle,
     push_work: PushUpdateWork,
+    push_title: PushUpdateTitle,
     delete_work: PushDeleteWork,
+    delete_title: PushDeleteTitle,
     notification_bus: NotificationDispatcher,
     // Store props values locally in order to test whether they have been updated on props change
     resource_access: AccountAccess,
@@ -110,10 +130,13 @@ struct WorkFormData {
 #[allow(clippy::large_enum_variant)]
 pub enum Msg {
     SetWorkFetchState(FetchActionWork),
+    SetTitleFetchState(FetchActionTitle),
     GetWork,
+    SetTitlePushState(PushActionUpdateTitle),
     SetWorkPushState(PushActionUpdateWork),
     UpdateWork,
     SetWorkDeleteState(PushActionDeleteWork),
+    SetTitleDeleteState(PushActionDeleteTitle),
     DeleteWork,
     ChangeTitle(String),
     ChangeSubtitle(String),
@@ -183,6 +206,10 @@ impl Component for WorkComponent {
         let data: WorkFormData = Default::default();
         let resource_access = ctx.props().current_user.resource_access.clone();
         let work_id = ctx.props().work_id;
+        let title: Title = Default::default();
+        let push_title = Default::default();
+        let delete_title = Default::default();
+        let fetch_title: FetchTitle = Default::default();
 
         ctx.link().send_message(Msg::GetWork);
 
@@ -202,6 +229,10 @@ impl Component for WorkComponent {
             resource_access,
             work_id,
             publish_confirmation_required: false,
+            title,
+            push_title,
+            delete_title,
+            fetch_title,
         }
     }
 
@@ -248,22 +279,81 @@ impl Component for WorkComponent {
                     FetchState::Failed(_, _err) => false,
                 }
             }
+            Msg::SetTitleFetchState(fetch_state) => {
+                self.fetch_title.apply(fetch_state);
+                match self.fetch_title.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => {
+                        self.title = match &body.data.title {
+                            Some(t) => t.to_owned(),
+                            None => Default::default(),
+                        };
+                        true
+                    }
+                    FetchState::Failed(_, _err) => false,
+                }
+            }
             Msg::GetWork => {
-                let body = WorkRequestBody {
-                    variables: Variables {
+                let title_request_body = TitleRequestBody {
+                    variables: TitleQueryVariables {
+                        title_id: self.title.title_id,
+                    },
+                    ..Default::default()
+                };
+                let title_request = TitleRequest {
+                    body: title_request_body,
+                };
+                self.fetch_title = Fetch::new(title_request);
+                ctx.link()
+                    .send_future(self.fetch_title.fetch(Msg::SetTitleFetchState));
+                ctx.link()
+                    .send_message(Msg::SetTitleFetchState(FetchAction::Fetching));
+
+                let work_request_body = WorkRequestBody {
+                    variables: WorkQueryVariables {
                         work_id: Some(ctx.props().work_id),
                         publishers: ctx.props().current_user.resource_access.restricted_to(),
                     },
                     ..Default::default()
                 };
-                let request = WorkRequest { body };
-                self.fetch_work = Fetch::new(request);
+                let work_request = WorkRequest {
+                    body: work_request_body,
+                };
+                self.fetch_work = Fetch::new(work_request);
 
                 ctx.link()
                     .send_future(self.fetch_work.fetch(Msg::SetWorkFetchState));
                 ctx.link()
                     .send_message(Msg::SetWorkFetchState(FetchAction::Fetching));
                 false
+            }
+            Msg::SetTitlePushState(fetch_state) => {
+                self.push_title.apply(fetch_state);
+                match self.push_title.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.update_title {
+                        Some(t) => {
+                            self.title = t.clone();
+                            true
+                        }
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            ThothError::from(err).to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
             }
             Msg::SetWorkPushState(fetch_state) => {
                 self.push_work.apply(fetch_state);
@@ -280,7 +370,7 @@ impl Component for WorkComponent {
                             // After save, update work_status_in_db to match database
                             self.work_status_in_db = self.work.work_status;
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Saved {}", w.title),
+                                format!("Saved {}", w.work_id),
                                 NotificationStatus::Success,
                             )));
                             // Set publish_confirmation_required to false after save, closing the modal
@@ -328,14 +418,35 @@ impl Component for WorkComponent {
                 if !self.work.is_out_of_print() {
                     self.work.withdrawn_date = None;
                 }
-                let body = UpdateWorkRequestBody {
-                    variables: UpdateVariables {
+
+                let update_title_request_body = UpdateTitleRequestBody {
+                    variables: UpdateTitleVariables {
+                        title_id: self.title.title_id,
+                        work_id: self.title.work_id,
+                        locale_code: self.title.locale_code,
+                        full_title: self.title.full_title.clone(),
+                        title: self.title.title.clone(),
+                        subtitle: self.title.subtitle.clone(),
+                        canonical: self.title.canonical,
+                    },
+                    ..Default::default()
+                };
+                let update_title_request = UpdateTitleRequest {
+                    body: update_title_request_body,
+                };
+
+                self.push_title = Fetch::new(update_title_request);
+
+                ctx.link()
+                    .send_future(self.push_title.fetch(Msg::SetTitlePushState));
+                ctx.link()
+                    .send_message(Msg::SetTitlePushState(FetchAction::Fetching));
+
+                let update_work_request_body = UpdateWorkRequestBody {
+                    variables: UpdateWorkVariables {
                         work_id: self.work.work_id,
                         work_type: self.work.work_type,
                         work_status: self.work.work_status,
-                        full_title: self.work.full_title.clone(),
-                        title: self.work.title.clone(),
-                        subtitle: self.work.subtitle.clone(),
                         reference: self.work.reference.clone(),
                         edition: self.work.edition,
                         imprint_id: self.work.imprint.imprint_id,
@@ -367,8 +478,10 @@ impl Component for WorkComponent {
                     },
                     ..Default::default()
                 };
-                let request = UpdateWorkRequest { body };
-                self.push_work = Fetch::new(request);
+                let update_work_request = UpdateWorkRequest {
+                    body: update_work_request_body,
+                };
+                self.push_work = Fetch::new(update_work_request);
                 ctx.link()
                     .send_future(self.push_work.fetch(Msg::SetWorkPushState));
                 ctx.link()
@@ -386,7 +499,7 @@ impl Component for WorkComponent {
                     FetchState::Fetched(body) => match &body.data.delete_work {
                         Some(w) => {
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Deleted {}", w.title),
+                                format!("Deleted {}", w.work_id),
                                 NotificationStatus::Success,
                             )));
                             ctx.link().history().unwrap().push(AdminRoute::Works);
@@ -409,15 +522,56 @@ impl Component for WorkComponent {
                     }
                 }
             }
+            Msg::SetTitleDeleteState(fetch_state) => {
+                self.delete_title.apply(fetch_state);
+                match self.delete_title.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.delete_title {
+                        Some(_) => true,
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            ThothError::from(err).to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
             Msg::DeleteWork => {
-                let body = DeleteWorkRequestBody {
-                    variables: DeleteVariables {
+                let delete_title_request_body = DeleteTitleRequestBody {
+                    variables: DeleteTitlekVariables {
+                        title_id: self.title.title_id,
+                    },
+                    ..Default::default()
+                };
+                let delete_title_request = DeleteTitleRequest {
+                    body: delete_title_request_body,
+                };
+                self.delete_title = Fetch::new(delete_title_request);
+                ctx.link()
+                    .send_future(self.delete_title.fetch(Msg::SetTitleDeleteState));
+                ctx.link()
+                    .send_message(Msg::SetTitleDeleteState(FetchAction::Fetching));
+
+                let delete_work_request_body = DeleteWorkRequestBody {
+                    variables: DeleteWorkVariables {
                         work_id: self.work.work_id,
                     },
                     ..Default::default()
                 };
-                let request = DeleteWorkRequest { body };
-                self.delete_work = Fetch::new(request);
+                let delete_work_request = DeleteWorkRequest {
+                    body: delete_work_request_body,
+                };
+                self.delete_work = Fetch::new(delete_work_request);
                 ctx.link()
                     .send_future(self.delete_work.fetch(Msg::SetWorkDeleteState));
                 ctx.link()
@@ -425,7 +579,7 @@ impl Component for WorkComponent {
                 false
             }
             Msg::ChangeTitle(title) => {
-                if self.work.title.neq_assign(title.trim().to_owned()) {
+                if self.work.full_title.neq_assign(title.trim().to_owned()) {
                     self.work.full_title = self.work.compile_fulltitle();
                     true
                 } else {
@@ -638,7 +792,7 @@ impl Component for WorkComponent {
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
                                         onclick={ ctx.link().callback(|_| Msg::DeleteWork) }
-                                        object_name={ self.work.title.clone() }
+                                        object_name={ self.work.full_title.clone() }
                                         deactivated={ is_delete_deactivated }
                                     />
                                 </p>
