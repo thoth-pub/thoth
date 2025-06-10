@@ -1,14 +1,15 @@
+use crate::model::title::{PatchTitle, Title};
+use crate::schema::work_title;
 use chrono::naive::NaiveDate;
+use diesel::prelude::*;
 use juniper::RootNode;
-use juniper::{EmptySubscription, FieldResult};
+use juniper::{EmptySubscription, FieldError, FieldResult, Value};
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
 use crate::db::PgPool;
-use crate::model::affiliation::*;
-use crate::model::contribution::*;
 use crate::model::contributor::*;
 use crate::model::funding::*;
 use crate::model::imprint::*;
@@ -33,9 +34,12 @@ use crate::model::Orcid;
 use crate::model::Ror;
 use crate::model::Timestamp;
 use crate::model::WeightUnit;
+use crate::model::{affiliation::*, TitleOrderBy};
+use crate::model::{contribution::*, NewTitle};
 use thoth_errors::{ThothError, ThothResult};
 
 use super::utils::{Direction, Expression};
+use crate::model::LocaleCode;
 
 impl juniper::Context for Context {}
 
@@ -1461,6 +1465,48 @@ impl QueryRoot {
     fn reference_count(context: &Context) -> FieldResult<i32> {
         Reference::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
     }
+
+    #[graphql(description = "Query a title by its ID")]
+    fn title(context: &Context, title_id: Uuid) -> FieldResult<Title> {
+        Title::from_id(&context.db, &title_id).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Query titles by work ID")]
+    fn titles(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on title_, subtitle, full_title fields"
+        )]
+        filter: Option<String>,
+        #[graphql(
+            default = TitleOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<TitleOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results with these locale codes"
+        )]
+        locale_codes: Option<Vec<LocaleCode>>,
+    ) -> FieldResult<Vec<Title>> {
+        Title::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            filter,
+            order.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+            locale_codes.unwrap_or_default(),
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
+    }
 }
 
 pub struct MutationRoot;
@@ -1583,6 +1629,28 @@ impl MutationRoot {
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
         Language::create(&context.db, &data).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Create a new title with the specified values")]
+    fn create_title(
+        context: &Context,
+        #[graphql(description = "Values for title to be created")] data: NewTitle,
+    ) -> FieldResult<Title> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+
+        let has_canonical_title = Work::from_id(&context.db, &data.work_id)?
+            .title(context)
+            .is_ok();
+
+        // Only superusers can update the canonical location when a Thoth Location Platform canonical location already exists
+        if has_canonical_title && data.canonical && !context.account_access.is_superuser {
+            return Err(ThothError::CanonicalTitleExistsError.into());
+        }
+
+        Title::create(&context.db, &data).map_err(|e| e.into())
     }
 
     #[graphql(description = "Create a new institution with the specified values")]
@@ -1932,6 +2000,38 @@ impl MutationRoot {
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         language
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Update an existing title with the specified values")]
+    fn update_title(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing title")] data: PatchTitle,
+    ) -> FieldResult<Title> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let title = Title::from_id(&context.db, &data.title_id).unwrap();
+        context
+            .account_access
+            .can_edit(title.publisher_id(&context.db)?)?;
+
+        if data.work_id != title.work_id {
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+        }
+
+        let has_canonical_title = Work::from_id(&context.db, &data.work_id)?
+            .title(context)
+            .is_ok();
+
+        // Only superusers can update the canonical location when a Thoth Location Platform canonical location already exists
+        if has_canonical_title && data.canonical && !context.account_access.is_superuser {
+            return Err(ThothError::CanonicalTitleExistsError.into());
+        }
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        title
             .update(&context.db, &data, &account_id)
             .map_err(|e| e.into())
     }
@@ -2292,6 +2392,20 @@ impl MutationRoot {
         language.delete(&context.db).map_err(|e| e.into())
     }
 
+    #[graphql(description = "Delete a single title using its ID")]
+    fn delete_title(
+        context: &Context,
+        #[graphql(description = "Thoth ID of title to be deleted")] title_id: Uuid,
+    ) -> FieldResult<Title> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let title = Title::from_id(&context.db, &title_id).unwrap();
+        context
+            .account_access
+            .can_edit(title.publisher_id(&context.db)?)?;
+
+        title.delete(&context.db).map_err(|e| e.into())
+    }
+
     #[graphql(description = "Delete a single institution using its ID")]
     fn delete_institution(
         context: &Context,
@@ -2436,18 +2550,81 @@ impl Work {
     }
 
     #[graphql(description = "Concatenation of title and subtitle with punctuation mark")]
-    pub fn full_title(&self) -> &str {
-        self.full_title.as_str()
+    #[graphql(
+        deprecated = "Please use Work `titles` field instead to get the correct full title in a multilingual manner"
+    )]
+    pub fn full_title(&self, ctx: &Context) -> FieldResult<String> {
+        let mut connection = ctx.db.get()?;
+        let title = work_title::table
+            .filter(work_title::work_id.eq(&self.work_id))
+            .filter(work_title::canonical.eq(true))
+            .first::<Title>(&mut connection)?;
+        Ok(title.full_title)
     }
 
     #[graphql(description = "Main title of the work (excluding subtitle)")]
-    pub fn title(&self) -> &str {
-        self.title.as_str()
+    #[graphql(
+        deprecated = "Please use Work `titles` field instead to get the correct title in a multilingual manner"
+    )]
+    pub fn title(&self, ctx: &Context) -> FieldResult<String> {
+        let mut connection = ctx.db.get()?;
+        let title = work_title::table
+            .filter(work_title::work_id.eq(&self.work_id))
+            .filter(work_title::canonical.eq(true))
+            .first::<Title>(&mut connection)?;
+        Ok(title.title)
+    }
+
+    #[graphql(description = "Query titles by work ID")]
+    fn titles(
+        &self,
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on title_, subtitle, full_title fields"
+        )]
+        filter: Option<String>,
+        #[graphql(
+            default = TitleOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<TitleOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results with these locale codes"
+        )]
+        locale_codes: Option<Vec<LocaleCode>>,
+    ) -> FieldResult<Vec<Title>> {
+        Title::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            filter,
+            order.unwrap_or_default(),
+            vec![],
+            Some(self.work_id),
+            None,
+            locale_codes.unwrap_or_default(),
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(description = "Secondary title of the work (excluding main title)")]
-    pub fn subtitle(&self) -> Option<&String> {
-        self.subtitle.as_ref()
+    #[graphql(
+        deprecated = "Please use Work `titles` field instead to get the correct sub_title in a multilingual manner"
+    )]
+    pub fn subtitle(&self, ctx: &Context) -> FieldResult<Option<String>> {
+        let mut connection = ctx.db.get()?;
+        let title = work_title::table
+            .filter(work_title::work_id.eq(&self.work_id))
+            .filter(work_title::canonical.eq(true))
+            .first::<Title>(&mut connection)
+            .map_err(|e| FieldError::new(e.to_string(), Value::null()))?;
+        Ok(title.subtitle)
     }
 
     #[graphql(description = "Internal reference code")]
@@ -4184,6 +4361,49 @@ impl Reference {
     }
 
     #[graphql(description = "The citing work.")]
+    pub fn work(&self, context: &Context) -> FieldResult<Work> {
+        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "A title associated with a work.")]
+impl Title {
+    #[graphql(description = "Thoth ID of the title")]
+    pub fn title_id(&self) -> Uuid {
+        self.title_id
+    }
+
+    #[graphql(description = "Thoth ID of the work to which the title is linked")]
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
+    }
+
+    #[graphql(description = "Locale code of the title")]
+    pub fn locale_code(&self) -> &LocaleCode {
+        &self.locale_code
+    }
+
+    #[graphql(description = "Full title including subtitle")]
+    pub fn full_title(&self) -> &String {
+        &self.full_title
+    }
+
+    #[graphql(description = "Main title (excluding subtitle)")]
+    pub fn title(&self) -> &String {
+        &self.title
+    }
+
+    #[graphql(description = "Subtitle of the work")]
+    pub fn subtitle(&self) -> Option<&String> {
+        self.subtitle.as_ref()
+    }
+
+    #[graphql(description = "Whether this is the canonical title for the work")]
+    pub fn canonical(&self) -> bool {
+        self.canonical
+    }
+
+    #[graphql(description = "Get the work to which the title is linked")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }

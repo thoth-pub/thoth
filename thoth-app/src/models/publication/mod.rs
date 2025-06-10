@@ -58,7 +58,7 @@ impl MetadataTable for PublicationWithRelations {
                 onclick={ callback }
             >
                 <td>{&self.publication_id}</td>
-                <td>{&self.work.title}</td>
+                <td>{&self.work.full_title}</td>
                 <td>{doi}</td>
                 <td>{&self.work.publisher()}</td>
                 <td>{&self.publication_type}</td>

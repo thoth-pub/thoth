@@ -111,6 +111,8 @@ pub enum ThothError {
     ThothSetWorkStatusError,
     #[error("Once a Work has been published, it cannot be deleted.")]
     ThothDeleteWorkError,
+    #[error("If canonical title already exists, other title can't be setted as canonical.")]
+    CanonicalTitleExistsError,
 }
 
 impl ThothError {
