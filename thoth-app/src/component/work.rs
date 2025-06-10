@@ -15,7 +15,6 @@ use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
-use thoth_api::model::Title;
 use thoth_api::model::{Doi, DOI_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -59,11 +58,6 @@ use crate::models::title::delete_title_mutation::DeleteTitleRequestBody;
 use crate::models::title::delete_title_mutation::PushActionDeleteTitle;
 use crate::models::title::delete_title_mutation::PushDeleteTitle;
 use crate::models::title::delete_title_mutation::Variables as DeleteTitlekVariables;
-use crate::models::title::title_query::FetchActionTitle;
-use crate::models::title::title_query::FetchTitle;
-use crate::models::title::title_query::TitleRequest;
-use crate::models::title::title_query::TitleRequestBody;
-use crate::models::title::title_query::Variables as TitleQueryVariables;
 use crate::models::title::update_title_mutation::PushActionUpdateTitle;
 use crate::models::title::update_title_mutation::PushUpdateTitle;
 use crate::models::title::update_title_mutation::UpdateTitleRequest;
@@ -107,7 +101,7 @@ pub struct WorkComponent {
     is_published_in_db: bool,
     data: WorkFormData,
     fetch_work: FetchWork,
-    fetch_title: FetchTitle,
+    // fetch_title: FetchTitle,
     push_work: PushUpdateWork,
     push_title: PushUpdateTitle,
     delete_work: PushDeleteWork,
@@ -206,7 +200,7 @@ impl Component for WorkComponent {
         let work_id = ctx.props().work_id;
         let push_title = Default::default();
         let delete_title = Default::default();
-        let fetch_title: FetchTitle = Default::default();
+        // let fetch_title: FetchTitle = Default::default();
 
         ctx.link().send_message(Msg::GetWork);
 
@@ -228,7 +222,7 @@ impl Component for WorkComponent {
             publish_confirmation_required: false,
             push_title,
             delete_title,
-            fetch_title,
+            // fetch_title,
         }
     }
 
