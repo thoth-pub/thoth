@@ -14,12 +14,12 @@ const CREATE_TITLE_MUTATION: &str = "
         $canonical: Boolean!
     ) {
         createTitle(data: {
-            workId: $Uuid!,
-            localeCode: $LocaleCode!,
-            fullTitle: $String!,
-            title: $String!,
-            subtitle: $String!,
-            canonical: $Boolean!
+            workId: $workId,
+            localeCode: $localeCode,
+            fullTitle: $fullTitle,
+            title: $title,
+            subtitle: $subtitle,
+            canonical: $canonical
         }){
             titleId
             workId

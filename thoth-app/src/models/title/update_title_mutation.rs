@@ -15,13 +15,13 @@ const UPDATE_TITLE_MUTATION: &str = "
         $canonical: Boolean!
     ) {
         updateTitle(data: {
-            titleId: $Uuid,
-            workId: $Uuid,
-            localeCode: $LocaleCode,
-            fullTitle: $String,
-            title: $String,
-            subtitle: $String,
-            canonical: $Boolean
+            titleId: $titleId,
+            workId: $workId,
+            localeCode: $localeCode,
+            fullTitle: $fullTitle,
+            title: $title,
+            subtitle: $subtitle,
+            canonical: $canonical
         }){
             titleId
             workId

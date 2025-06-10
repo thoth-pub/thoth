@@ -13,6 +13,9 @@ pub const WORKS_QUERY_BODY: &str = "
             workId
             workType
             workStatus
+            fullTitle
+            title
+            subtitle
             landingPage
             doi
             coverUrl

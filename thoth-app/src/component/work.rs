@@ -95,7 +95,6 @@ use super::ToOption;
 
 pub struct WorkComponent {
     work: WorkWithRelations,
-    title: Title,
     // Track the user-entered DOI string, which may not be validly formatted
     doi: String,
     doi_warning: String,
@@ -130,7 +129,6 @@ struct WorkFormData {
 #[allow(clippy::large_enum_variant)]
 pub enum Msg {
     SetWorkFetchState(FetchActionWork),
-    SetTitleFetchState(FetchActionTitle),
     GetWork,
     SetTitlePushState(PushActionUpdateTitle),
     SetWorkPushState(PushActionUpdateWork),
@@ -206,7 +204,6 @@ impl Component for WorkComponent {
         let data: WorkFormData = Default::default();
         let resource_access = ctx.props().current_user.resource_access.clone();
         let work_id = ctx.props().work_id;
-        let title: Title = Default::default();
         let push_title = Default::default();
         let delete_title = Default::default();
         let fetch_title: FetchTitle = Default::default();
@@ -229,7 +226,6 @@ impl Component for WorkComponent {
             resource_access,
             work_id,
             publish_confirmation_required: false,
-            title,
             push_title,
             delete_title,
             fetch_title,
@@ -241,8 +237,14 @@ impl Component for WorkComponent {
             Msg::SetWorkFetchState(fetch_state) => {
                 self.fetch_work.apply(fetch_state);
                 match self.fetch_work.as_ref().state() {
-                    FetchState::NotFetching(_) => false,
-                    FetchState::Fetching(_) => false,
+                    FetchState::NotFetching(_) => {
+                        web_sys::console::log_1(&wasm_bindgen::JsValue::from_str("NotFetching"));
+                        false
+                    }
+                    FetchState::Fetching(_) => {
+                        web_sys::console::log_1(&wasm_bindgen::JsValue::from_str("Fetching"));
+                        false
+                    }
                     FetchState::Fetched(body) => {
                         self.work = match &body.data.work {
                             Some(w) => w.to_owned(),
@@ -276,40 +278,16 @@ impl Component for WorkComponent {
                         }
                         true
                     }
-                    FetchState::Failed(_, _err) => false,
-                }
-            }
-            Msg::SetTitleFetchState(fetch_state) => {
-                self.fetch_title.apply(fetch_state);
-                match self.fetch_title.as_ref().state() {
-                    FetchState::NotFetching(_) => false,
-                    FetchState::Fetching(_) => false,
-                    FetchState::Fetched(body) => {
-                        self.title = match &body.data.title {
-                            Some(t) => t.to_owned(),
-                            None => Default::default(),
-                        };
-                        true
+                    FetchState::Failed(_, err) => {
+                        web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(
+                            format!("Failed: {:?}", err).as_str(),
+                        ));
+
+                        false
                     }
-                    FetchState::Failed(_, _err) => false,
                 }
             }
             Msg::GetWork => {
-                let title_request_body = TitleRequestBody {
-                    variables: TitleQueryVariables {
-                        title_id: self.title.title_id,
-                    },
-                    ..Default::default()
-                };
-                let title_request = TitleRequest {
-                    body: title_request_body,
-                };
-                self.fetch_title = Fetch::new(title_request);
-                ctx.link()
-                    .send_future(self.fetch_title.fetch(Msg::SetTitleFetchState));
-                ctx.link()
-                    .send_message(Msg::SetTitleFetchState(FetchAction::Fetching));
-
                 let work_request_body = WorkRequestBody {
                     variables: WorkQueryVariables {
                         work_id: Some(ctx.props().work_id),
@@ -334,10 +312,7 @@ impl Component for WorkComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.update_title {
-                        Some(t) => {
-                            self.title = t.clone();
-                            true
-                        }
+                        Some(_t) => true,
                         None => {
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
@@ -419,15 +394,16 @@ impl Component for WorkComponent {
                     self.work.withdrawn_date = None;
                 }
 
+                let title = self.work.titles.as_ref().unwrap()[0].clone();
                 let update_title_request_body = UpdateTitleRequestBody {
                     variables: UpdateTitleVariables {
-                        title_id: self.title.title_id,
-                        work_id: self.title.work_id,
-                        locale_code: self.title.locale_code,
-                        full_title: self.title.full_title.clone(),
-                        title: self.title.title.clone(),
-                        subtitle: self.title.subtitle.clone(),
-                        canonical: self.title.canonical,
+                        title_id: title.title_id,
+                        work_id: title.work_id,
+                        locale_code: title.locale_code,
+                        full_title: title.full_title.clone(),
+                        title: title.title.clone(),
+                        subtitle: title.subtitle.clone(),
+                        canonical: title.canonical,
                     },
                     ..Default::default()
                 };
@@ -549,7 +525,7 @@ impl Component for WorkComponent {
             Msg::DeleteWork => {
                 let delete_title_request_body = DeleteTitleRequestBody {
                     variables: DeleteTitlekVariables {
-                        title_id: self.title.title_id,
+                        title_id: self.work.titles.as_ref().unwrap()[0].title_id,
                     },
                     ..Default::default()
                 };
@@ -579,16 +555,26 @@ impl Component for WorkComponent {
                 false
             }
             Msg::ChangeTitle(title) => {
-                if self.work.full_title.neq_assign(title.trim().to_owned()) {
-                    self.work.full_title = self.work.compile_fulltitle();
+                if self.work.titles.as_mut().unwrap()[0]
+                    .title
+                    .neq_assign(title.trim().to_owned())
+                {
+                    self.work.title = title;
+                    self.work.titles.as_mut().unwrap()[0].full_title =
+                        self.work.compile_fulltitle();
                     true
                 } else {
                     false
                 }
             }
             Msg::ChangeSubtitle(value) => {
-                if self.work.subtitle.neq_assign(value.to_opt_string()) {
-                    self.work.full_title = self.work.compile_fulltitle();
+                if self.work.titles.as_mut().unwrap()[0]
+                    .subtitle
+                    .neq_assign(value.clone().to_opt_string())
+                {
+                    self.work.subtitle = Some(value);
+                    self.work.titles.as_mut().unwrap()[0].full_title =
+                        self.work.compile_fulltitle();
                     true
                 } else {
                     false

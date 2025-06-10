@@ -13,6 +13,9 @@ pub const WORK_QUERY: &str = "
             workId
             workType
             workStatus
+            fullTitle
+            title
+            subtitle
             reference
             edition
             doi
@@ -43,6 +46,7 @@ pub const WORK_QUERY: &str = "
             pageInterval
             titles(limit: 1) {
                 titleId
+                workId
                 localeCode
                 fullTitle
                 title
@@ -61,11 +65,15 @@ pub const WORK_QUERY: &str = "
                     workId
                     workType
                     workStatus
+                    fullTitle
+                    title
+                    subtitle
                     createdAt
                     updatedAt
                     updatedAtWithRelations
                     titles(limit: 1) {
                         titleId
+                        workId
                         localeCode
                         fullTitle
                         title

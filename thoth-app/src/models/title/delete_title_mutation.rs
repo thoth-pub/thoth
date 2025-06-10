@@ -8,7 +8,7 @@ const DELETE_TITLE_MUTATION: &str = "
         $titleId: Uuid!
     ) {
         deleteTitle(data: {
-            titleId: $Uuid!
+            titleId: $titleId
         }){
             titleId
             workId
