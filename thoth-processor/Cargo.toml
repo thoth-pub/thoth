@@ -18,7 +18,7 @@ axum = { version = "0.8.1" }
 tracing = { version = "0.1.40" }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter", "json"] }
 regex = { version = "1.11.1" }
-thoth-api = { version = "=0.13.11", path = "../thoth-api"  }
+thoth-api = { version = "=0.13.13", path = "../thoth-api"  }
 
 [dev-dependencies]
 loco-rs = { version = "0.14.0", default-features = false, features = ["testing"] }

@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - Webhooks: event creation in GraphQL when works are changed, event handling via Loco
 
+## [[0.13.13]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.13) - 2025-06-05
+### Changed
+  - [691](https://github.com/thoth-pub/thoth/issues/691) - Require a license for full KBART output, fall back to work\_id for KBART title ID if no DOI available
+
+## [[0.13.12]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.12) - 2025-05-28
+### Changed
+  - Add security policies to APP headers
+
 ## [[0.13.11]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.11) - 2025-05-14
 ### Changed
   - [687](https://github.com/thoth-pub/thoth/pull/687) - Upgrade database engine to PostgreSQL v17
