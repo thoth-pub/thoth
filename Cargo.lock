@@ -5360,6 +5360,7 @@ dependencies = [
  "insta",
  "loco-rs",
  "regex",
+ "reqwest",
  "rstest",
  "serde",
  "serde_json",

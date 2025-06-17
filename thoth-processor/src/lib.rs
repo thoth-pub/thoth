@@ -1,5 +1,6 @@
 pub mod app;
 pub mod initializers;
+pub mod requests;
 pub mod workers;
 
 use crate::app::App;

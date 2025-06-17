@@ -18,6 +18,7 @@ axum = { version = "0.8.1" }
 tracing = { version = "0.1.40" }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter", "json"] }
 regex = { version = "1.11.1" }
+reqwest = { version = "0.12", features = ["json"] }
 thoth-api = { version = "=0.13.13", path = "../thoth-api"  }
 
 [dev-dependencies]

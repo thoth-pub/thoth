@@ -1,3 +1,4 @@
+use crate::requests::graphql::query_webhooks;
 use loco_rs::prelude::*;
 use serde::{Deserialize, Serialize};
 use thoth_api::event::model::Event;
@@ -21,6 +22,8 @@ impl BackgroundWorker<WorkPublishedWorkerArgs> for WorkPublishedWorker {
         tracing::info!("WorkPublishedWorker start");
         tracing::info!("Event: {:?}", args.event);
         tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+        let response = query_webhooks(args.event).await?;
+        tracing::info!("Response: {:?}", response);
         tracing::info!("WorkPublishedWorker end");
 
         Ok(())
