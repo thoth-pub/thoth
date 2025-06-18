@@ -1,12 +1,14 @@
 use loco_rs::prelude::*;
 use serde::{Deserialize, Serialize};
-use thoth_api::event::model::Event;
+use thoth_api::event::model::{Event, EventType};
 use uuid::Uuid;
 
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebhooksVariables {
     work_id: Uuid,
+    event_types: Vec<EventType>,
+    is_published: bool,
 }
 
 #[derive(Deserialize, Debug, Serialize)]
@@ -21,15 +23,25 @@ pub async fn query_webhooks(event: Event) -> Result<String, Error> {
     let url = "https://api.thoth.pub/graphql".to_string();
     let query =
         "
-query WebhooksQuery($workId: Uuid!) {
+query WebhooksQuery($workId: Uuid!, $eventTypes: [EventType!], $isPublished: Boolean!) {
     work(workId: $workId) {
-        workId
-        fullTitle
+        imprint {
+            publisher {
+                webhooks(eventTypes: $eventTypes, isPublished: $isPublished) {
+                    endpoint
+                    token
+                    isPublished
+                    eventType
+                }
+            }
+        }
     }
 }".to_string();
 
     let variables = WebhooksVariables {
         work_id: event.work_id,
+        event_types: vec![event.event_type],
+        is_published: event.is_published,
     };
     let body = WebhooksQueryBody {
         query,
