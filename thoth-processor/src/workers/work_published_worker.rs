@@ -23,11 +23,13 @@ impl BackgroundWorker<WorkPublishedWorkerArgs> for WorkPublishedWorker {
         tracing::info!("WorkPublishedWorker start");
         tracing::info!("Event: {:?}", args.event);
         tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-        let response = query_webhooks(args.event).await?;
-        tracing::info!("Response: {:?}", response);
+        let webhooks = query_webhooks(args.event).await?;
+        tracing::info!("Webhooks: {:?}", webhooks);
 
-        let target_rsp = fire_webhook().await?;
-        tracing::info!("Target response: {:?}", target_rsp);
+        for webhook in webhooks {
+            let target_rsp = fire_webhook(webhook.endpoint, webhook.token).await?;
+            tracing::info!("Target response: {:?}", target_rsp);
+        }
 
         tracing::info!("WorkPublishedWorker end");
 

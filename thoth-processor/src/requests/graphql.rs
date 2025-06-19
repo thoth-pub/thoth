@@ -57,7 +57,7 @@ pub struct WebhooksResponseBody {
     pub data: WebhooksResponseData
 }
 
-pub async fn query_webhooks(event: Event) -> Result<WebhooksResponseBody, Error> {
+pub async fn query_webhooks(event: Event) -> Result<Vec<Webhook>, Error> {
     let client = reqwest::Client::new();
     let url = "https://api.thoth.pub/graphql".to_string();
     let query =
@@ -100,5 +100,5 @@ query WebhooksQuery($workId: Uuid!, $eventTypes: [EventType!], $isPublished: Boo
     let response_text = response.json::<WebhooksResponseBody>().await?;
     tracing::info!("response_text: {:?}", response_text);
 
-    Ok(response_text)
+    Ok(response_text.data.work.imprint.publisher.webhooks)
 }
