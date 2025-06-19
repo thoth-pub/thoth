@@ -54,14 +54,13 @@ pub struct WebhooksResponseData {
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebhooksResponseBody {
-    pub data: WebhooksResponseData
+    pub data: WebhooksResponseData,
 }
 
 pub async fn query_webhooks(event: Event) -> Result<Vec<Webhook>, Error> {
     let client = reqwest::Client::new();
     let url = "https://api.thoth.pub/graphql".to_string();
-    let query =
-        "
+    let query = "
 query WebhooksQuery($workId: Uuid!, $eventTypes: [EventType!], $isPublished: Boolean!) {
     work(workId: $workId) {
         imprint {
@@ -75,17 +74,15 @@ query WebhooksQuery($workId: Uuid!, $eventTypes: [EventType!], $isPublished: Boo
             }
         }
     }
-}".to_string();
+}"
+    .to_string();
 
     let variables = WebhooksVariables {
         work_id: event.work_id,
         event_types: vec![event.event_type],
         is_published: event.is_published,
     };
-    let body = WebhooksQueryBody {
-        query,
-        variables,
-    };
+    let body = WebhooksQueryBody { query, variables };
     let token = "placeholder".to_string();
 
     let response = client

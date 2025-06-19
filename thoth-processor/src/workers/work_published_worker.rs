@@ -26,11 +26,8 @@ impl BackgroundWorker<WorkPublishedWorkerArgs> for WorkPublishedWorker {
         tracing::info!("Webhooks: {:?}", webhooks);
 
         for webhook in webhooks {
-            let _ = FireWebhookWorker::perform_later(
-                &self.ctx,
-                FireWebhookWorkerArgs { webhook },
-            )
-            .await;
+            let _ = FireWebhookWorker::perform_later(&self.ctx, FireWebhookWorkerArgs { webhook })
+                .await;
         }
 
         tracing::info!("WorkPublishedWorker end");
