@@ -1284,6 +1284,78 @@ mod tests {
         let round_trip_timestamp = Timestamp::parse_from_rfc3339(&converted_string).unwrap();
         assert_eq!(timestamp, round_trip_timestamp);
     }
+
+    #[test]
+    fn test_extract_title_html() {
+        let html = "<h1>Main Title</h1>\n<h2>Subtitle Here</h2>";
+        let (title, subtitle) = extract_title(html, MarkupFormat::Html).unwrap();
+        assert_eq!(title, "Main Title");
+        assert_eq!(subtitle, "Subtitle Here");
+    }
+
+    #[test]
+    fn test_extract_title_markdown() {
+        let md = "# Main Title\n## Subtitle Here";
+        let (title, subtitle) = extract_title(md, MarkupFormat::Markdown).unwrap();
+        assert_eq!(title, "Main Title");
+        assert_eq!(subtitle, "Subtitle Here");
+    }
+
+    #[test]
+    fn test_extract_title_jatsxml() {
+        let xml = "<title>Main Title</title>\n<subtitle>Subtitle Here</subtitle>";
+        let (title, subtitle) = extract_title(xml, MarkupFormat::JatsXml).unwrap();
+        assert_eq!(title, "Main Title");
+        assert_eq!(subtitle, "Subtitle Here");
+    }
+
+    #[test]
+    fn test_extract_title_plaintext() {
+        let txt = "MAIN TITLE\nSubtitle Here";
+        let (title, subtitle) = extract_title(txt, MarkupFormat::PlainText).unwrap();
+        assert_eq!(title, "MAIN TITLE");
+        assert_eq!(subtitle, "Subtitle Here");
+    }
+
+    #[test]
+    fn test_convert_to_jats() {
+        let title = "Main Title".to_string();
+        let subtitle = "Subtitle Here".to_string();
+        let jats = convert_to_jats(title.clone(), subtitle.clone()).unwrap();
+        assert!(jats.contains(&format!("<title>{}</title>", title)));
+        assert!(jats.contains(&format!("<subtitle>{}</subtitle>", subtitle)));
+    }
+
+    #[test]
+    fn test_convert_from_jats_html() {
+        let jats = r#"<title>Main Title</title>\n<subtitle>Subtitle Here</subtitle>"#;
+        let html = convert_from_jats(jats, MarkupFormat::Html).unwrap();
+        assert!(html.contains("<h1>Main Title</h1>"));
+        assert!(html.contains("<h2>Subtitle Here</h2>"));
+    }
+
+    #[test]
+    fn test_convert_from_jats_markdown() {
+        let jats = r#"<title>Main Title</title>\n<subtitle>Subtitle Here</subtitle>"#;
+        let md = convert_from_jats(jats, MarkupFormat::Markdown).unwrap();
+        assert!(md.contains("# Main Title"));
+        assert!(md.contains("## Subtitle Here"));
+    }
+
+    #[test]
+    fn test_convert_from_jats_plaintext() {
+        let jats = r#"<title>Main Title</title>\n<subtitle>Subtitle Here</subtitle>"#;
+        let txt = convert_from_jats(jats, MarkupFormat::PlainText).unwrap();
+        assert!(txt.contains("MAIN TITLE"));
+        assert!(txt.contains("Subtitle Here"));
+    }
+
+    #[test]
+    fn test_convert_from_jats_jatsxml() {
+        let jats = r#"<title>Main Title</title>\n<subtitle>Subtitle Here</subtitle>"#;
+        let xml = convert_from_jats(jats, MarkupFormat::JatsXml).unwrap();
+        assert_eq!(xml, jats);
+    }
 }
 
 pub mod affiliation;
