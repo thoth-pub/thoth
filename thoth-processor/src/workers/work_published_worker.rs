@@ -22,7 +22,6 @@ impl BackgroundWorker<WorkPublishedWorkerArgs> for WorkPublishedWorker {
     async fn perform(&self, args: WorkPublishedWorkerArgs) -> Result<()> {
         tracing::info!("WorkPublishedWorker start");
         tracing::info!("Event: {:?}", args.event);
-        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
         let webhooks = query_webhooks(args.event).await?;
         tracing::info!("Webhooks: {:?}", webhooks);
 
