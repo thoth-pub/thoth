@@ -113,6 +113,10 @@ pub enum ThothError {
     ThothDeleteWorkError,
     #[error("If canonical title already exists, other title can't be setted as canonical.")]
     CanonicalTitleExistsError,
+    #[error("If file extension is not found, the file format is not supported.")]
+    NoFileExtensionFound,
+    #[error("Unsupported file format")]
+    UnsuportedFileFormatError,
 }
 
 impl ThothError {

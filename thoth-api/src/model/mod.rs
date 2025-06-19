@@ -1,5 +1,6 @@
 use chrono::{DateTime, TimeZone, Utc};
 use isbn2::Isbn13;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -8,6 +9,7 @@ use strum::EnumString;
 use thoth_errors::{ThothError, ThothResult};
 #[cfg(feature = "backend")]
 use uuid::Uuid;
+use std::fs;
 
 pub const DOI_DOMAIN: &str = "https://doi.org/";
 pub const ORCID_DOMAIN: &str = "https://orcid.org/";
@@ -583,6 +585,210 @@ impl UrlIdentifier for Ror {
 impl IdentifierWithDomain for Doi {}
 impl IdentifierWithDomain for Orcid {}
 impl IdentifierWithDomain for Ror {}
+
+/// Enum to represent the input format
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum MarkupFormat {
+    Html,
+    Markdown,
+    PlainText,
+    JatsXml,
+}
+
+impl MarkupFormat {
+    pub fn parse(input: &str) -> ThothResult<Self> {
+        // Extract format from input extension
+        let format = input
+            .split('.')
+            .last()
+            .ok_or_else(|| ThothError::UnsuportedFileFormatError)?;
+
+        match format.to_lowercase().as_str() {
+            "html" | "htm" => Ok(MarkupFormat::Html),
+            "md" | "markdown" => Ok(MarkupFormat::Markdown),
+            "txt" | "text" => Ok(MarkupFormat::PlainText),
+            "xml" => Ok(MarkupFormat::JatsXml),
+            _ => Err(ThothError::UnsuportedFileFormatError),
+        }
+    }
+}
+
+/// Enum to represent abstract types
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum AbstractType {
+    Short,
+    Long,
+}
+
+/// Extract title and subtitle from content based on format
+fn extract_title(content: &str, format: MarkupFormat) -> ThothResult<(String, String)> {
+    match format {
+        MarkupFormat::Html => {
+            let title_regex = Regex::new(r"<h1>(.*?)</h1>").unwrap();
+            let subtitle_regex = Regex::new(r"<h2>(.*?)</h2>").unwrap();
+            
+            let title = title_regex.captures(content)
+                .and_then(|caps| caps.get(1))
+                .map(|m| m.as_str().trim().to_string())
+                .unwrap_or_default();
+            
+            let subtitle = subtitle_regex.captures(content)
+                .and_then(|caps| caps.get(1))
+                .map(|m| m.as_str().trim().to_string())
+                .unwrap_or_default();
+            
+            Ok((title, subtitle))
+        }
+        MarkupFormat::Markdown => {
+            let title_regex = Regex::new(r"^#\s+(.*?)$").unwrap();
+            let subtitle_regex = Regex::new(r"^##\s+(.*?)$").unwrap();
+            
+            let title = content.lines()
+                .find_map(|line| title_regex.captures(line)
+                    .and_then(|caps| caps.get(1))
+                    .map(|m| m.as_str().trim().to_string()))
+                .unwrap_or_default();
+            
+            let subtitle = content.lines()
+                .find_map(|line| subtitle_regex.captures(line)
+                    .and_then(|caps| caps.get(1))
+                    .map(|m| m.as_str().trim().to_string()))
+                .unwrap_or_default();
+            
+            Ok((title, subtitle))
+        }
+        MarkupFormat::JatsXml => {
+            let title_regex = Regex::new(r"<title>(.*?)</title>").unwrap();
+            let subtitle_regex = Regex::new(r"<subtitle>(.*?)</subtitle>").unwrap();
+            
+            let title = title_regex.captures(content)
+                .and_then(|caps| caps.get(1))
+                .map(|m| m.as_str().trim().to_string())
+                .unwrap_or_default();
+            
+            let subtitle = subtitle_regex.captures(content)
+                .and_then(|caps| caps.get(1))
+                .map(|m| m.as_str().trim().to_string())
+                .unwrap_or_default();
+            
+            Ok((title, subtitle))
+        }
+        MarkupFormat::PlainText => {
+            let mut lines = content.lines();
+            let first_line = lines.next().unwrap_or("").trim();
+            let second_line = lines.next().unwrap_or("").trim();
+            
+            // Check if first line is all uppercase (potential title)
+            let is_title = first_line.chars().all(|c| !c.is_lowercase());
+            
+            // Check if second line is title case (potential subtitle)
+            let is_subtitle = second_line.chars().next().map_or(false, |c| c.is_uppercase()) &&
+                            second_line.chars().any(|c| c.is_lowercase());
+            
+            let title = if is_title && !first_line.is_empty() {
+                first_line.to_string()
+            } else {
+                String::new()
+            };
+            
+            let subtitle = if is_subtitle && !second_line.is_empty() {
+                second_line.to_string()
+            } else {
+                String::new()
+            };
+            
+            Ok((title, subtitle))
+        }
+    }
+}
+
+/// Convert input to JATS XML for storage
+pub fn convert_to_jats(title: String, subtitle: String) -> ThothResult<String> {
+    // Create JATS XML with title and subtitle
+    let jats = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" article-type="research-article">
+    <front>
+        <article-meta>
+            <title-group>
+                <title>{}</title>
+                <subtitle>{}</subtitle>
+            </title-group>
+        </article-meta>
+    </front>
+    <body>
+        <p>Content will be added here</p>
+    </body>
+</article>"#,
+        title,
+        subtitle
+    );
+
+    Ok(jats)
+}
+
+/// Convert from JATS XML to specified format
+pub fn convert_from_jats(jats_xml: &str, format: MarkupFormat) -> ThothResult<String> {
+    // Extract title and subtitle from JATS XML
+    let title_regex = Regex::new(r"<title>(.*?)</title>").unwrap();
+    let subtitle_regex = Regex::new(r"<subtitle>(.*?)</subtitle>").unwrap();
+    
+    let title = title_regex.captures(jats_xml)
+        .and_then(|caps| caps.get(1))
+        .map(|m| m.as_str().trim().to_string())
+        .unwrap_or_default();
+    
+    let subtitle = subtitle_regex.captures(jats_xml)
+        .and_then(|caps| caps.get(1))
+        .map(|m| m.as_str().trim().to_string())
+        .unwrap_or_default();
+
+    match format {
+        MarkupFormat::Html => {
+            let mut html = String::new();
+            if !title.is_empty() {
+                html.push_str(&format!("<h1>{}</h1>\n", title));
+            }
+            if !subtitle.is_empty() {
+                html.push_str(&format!("<h2>{}</h2>\n", subtitle));
+            }
+            Ok(html)
+        }
+        MarkupFormat::Markdown => {
+            let mut markdown = String::new();
+            if !title.is_empty() {
+                markdown.push_str(&format!("# {}\n", title));
+            }
+            if !subtitle.is_empty() {
+                markdown.push_str(&format!("## {}\n", subtitle));
+            }
+            Ok(markdown)
+        }
+        MarkupFormat::PlainText => {
+            let mut text = String::new();
+            if !title.is_empty() {
+                text.push_str(&format!("{}\n", title.to_uppercase()));
+            }
+            if !subtitle.is_empty() {
+                // Convert to title case
+                let title_case = subtitle
+                    .split_whitespace()
+                    .map(|word| {
+                        let mut chars = word.chars();
+                        match chars.next() {
+                            None => String::new(),
+                            Some(first) => first.to_uppercase().chain(chars.flat_map(|c| c.to_lowercase())).collect(),
+                        }
+                    })
+                    .collect::<Vec<String>>()
+                    .join(" ");
+                text.push_str(&format!("{}\n", title_case));
+            }
+            Ok(text)
+        }
+        MarkupFormat::JatsXml => Ok(jats_xml.to_string()),
+    }
+}
 
 #[cfg(test)]
 mod tests {
