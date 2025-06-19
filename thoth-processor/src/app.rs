@@ -1,8 +1,8 @@
 use crate::{
     initializers::handle_events::HandleEvents,
     workers::{
-        work_created_worker::WorkCreatedWorker, work_published_worker::WorkPublishedWorker,
-        work_updated_worker::WorkUpdatedWorker,
+        fire_webhook_worker::FireWebhookWorker, work_created_worker::WorkCreatedWorker,
+        work_published_worker::WorkPublishedWorker, work_updated_worker::WorkUpdatedWorker,
     },
 };
 use async_trait::async_trait;
@@ -50,6 +50,7 @@ impl Hooks for App {
         AppRoutes::with_default_routes()
     }
     async fn connect_workers(ctx: &AppContext, queue: &Queue) -> Result<()> {
+        queue.register(FireWebhookWorker::build(ctx)).await?;
         queue.register(WorkCreatedWorker::build(ctx)).await?;
         queue.register(WorkUpdatedWorker::build(ctx)).await?;
         queue.register(WorkPublishedWorker::build(ctx)).await?;

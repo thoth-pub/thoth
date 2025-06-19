@@ -1,5 +1,5 @@
+use super::fire_webhook_worker::{FireWebhookWorker, FireWebhookWorkerArgs};
 use crate::requests::graphql::query_webhooks;
-use crate::requests::target::fire_webhook;
 use loco_rs::prelude::*;
 use serde::{Deserialize, Serialize};
 use thoth_api::event::model::Event;
@@ -27,8 +27,11 @@ impl BackgroundWorker<WorkPublishedWorkerArgs> for WorkPublishedWorker {
         tracing::info!("Webhooks: {:?}", webhooks);
 
         for webhook in webhooks {
-            let target_rsp = fire_webhook(webhook.endpoint, webhook.token).await?;
-            tracing::info!("Target response: {:?}", target_rsp);
+            let _ = FireWebhookWorker::perform_later(
+                &self.ctx,
+                FireWebhookWorkerArgs { webhook },
+            )
+            .await;
         }
 
         tracing::info!("WorkPublishedWorker end");
