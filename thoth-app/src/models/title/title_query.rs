@@ -13,6 +13,7 @@ pub const TITLE_QUERY: &str = "
             title
             subtitle
             canonical
+            markupFormat
         }
     }
 ";

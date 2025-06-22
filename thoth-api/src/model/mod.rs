@@ -586,12 +586,27 @@ impl IdentifierWithDomain for Doi {}
 impl IdentifierWithDomain for Orcid {}
 impl IdentifierWithDomain for Ror {}
 
-/// Enum to represent the input format
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+/// Enum to represent the markup format
+#[cfg_attr(
+    feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Allowed markup formats for multilingual paradigm"),
+    ExistingTypePath = "crate::schema::sql_types::MarkupFormat"
+)]
+#[derive(
+    Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display,
+)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[strum(serialize_all = "UPPERCASE")]
 pub enum MarkupFormat {
+    #[cfg_attr(feature = "backend", graphql(description = "HTML format"))]
     Html,
+    #[cfg_attr(feature = "backend", graphql(description = "Markdown format"))]
     Markdown,
+    #[cfg_attr(feature = "backend", graphql(description = "Plain text format"))]
     PlainText,
+    #[cfg_attr(feature = "backend", graphql(description = "JATS XML format"))]
+    #[default]
     JatsXml,
 }
 

@@ -1,4 +1,5 @@
 use crate::model::locale::LocaleCode;
+use crate::model::MarkupFormat;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -54,6 +55,7 @@ pub struct Title {
     pub subtitle: Option<String>,
     pub canonical: bool,
     pub locale_code: LocaleCode,
+    pub markup_format: MarkupFormat,
 }
 
 #[cfg_attr(
@@ -69,6 +71,21 @@ pub struct NewTitle {
     pub title: String,
     pub subtitle: Option<String>,
     pub canonical: bool,
+    pub markup_format: MarkupFormat,
+}
+
+impl Default for NewTitle {
+    fn default() -> Self {
+        Self {
+            work_id: Default::default(),
+            locale_code: Default::default(),
+            full_title: String::new(),
+            title: String::new(),
+            subtitle: None,
+            canonical: false,
+            markup_format: MarkupFormat::PlainText,
+        }
+    }
 }
 
 #[cfg_attr(
@@ -85,6 +102,7 @@ pub struct PatchTitle {
     pub title: String,
     pub subtitle: Option<String>,
     pub canonical: bool,
+    pub markup_format: MarkupFormat,
 }
 
 #[cfg_attr(

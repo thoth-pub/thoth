@@ -50,6 +50,10 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "locale_code"))]
     pub struct LocaleCode;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "markup_format"))]
+    pub struct MarkupFormat;
 }
 
 table! {
@@ -606,6 +610,7 @@ table! {
 table! {
     use diesel::sql_types::*;
     use super::sql_types::LocaleCode;
+    use super::sql_types::MarkupFormat;
 
     #[sql_name = "title"]
     work_title (title_id) {
@@ -616,6 +621,7 @@ table! {
         subtitle -> Nullable<Text>,
         canonical -> Bool,
         locale_code -> LocaleCode,
+        markup_format -> MarkupFormat,
     }
 }
 

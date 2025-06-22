@@ -398,6 +398,7 @@ impl Component for WorkComponent {
                         title: title.title.clone(),
                         subtitle: title.subtitle.clone(),
                         canonical: title.canonical,
+                        markup_format: title.markup_format,
                     },
                     ..Default::default()
                 };

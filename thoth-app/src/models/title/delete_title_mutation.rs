@@ -17,6 +17,7 @@ const DELETE_TITLE_MUTATION: &str = "
             title
             subtitle
             canonical
+            markupFormat
         }
     }
 ";

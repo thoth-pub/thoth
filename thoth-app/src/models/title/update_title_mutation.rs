@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::model::locale::LocaleCode;
+use thoth_api::model::MarkupFormat;
 use thoth_api::model::title::Title;
 use uuid::Uuid;
 
@@ -12,7 +13,8 @@ const UPDATE_TITLE_MUTATION: &str = "
         $fullTitle: String!,
         $title: String!,
         $subtitle: String,
-        $canonical: Boolean!
+        $canonical: Boolean!,
+        $markupFormat: MarkupFormat!
     ) {
         updateTitle(data: {
             titleId: $titleId,
@@ -21,7 +23,8 @@ const UPDATE_TITLE_MUTATION: &str = "
             fullTitle: $fullTitle,
             title: $title,
             subtitle: $subtitle,
-            canonical: $canonical
+            canonical: $canonical,
+            markupFormat: $markupFormat
         }){
             titleId
             workId
@@ -30,6 +33,7 @@ const UPDATE_TITLE_MUTATION: &str = "
             title
             subtitle
             canonical
+            markupFormat
         }
     }
 ";
@@ -55,6 +59,7 @@ pub struct Variables {
     pub title: String,
     pub subtitle: Option<String>,
     pub canonical: bool,
+    pub markup_format: MarkupFormat,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
