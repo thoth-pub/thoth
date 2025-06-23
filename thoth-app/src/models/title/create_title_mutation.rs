@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::model::locale::LocaleCode;
-use thoth_api::model::MarkupFormat;
 use thoth_api::model::title::Title;
+use thoth_api::model::MarkupFormat;
 use uuid::Uuid;
 
 const CREATE_TITLE_MUTATION: &str = "

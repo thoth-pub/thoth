@@ -34,7 +34,7 @@ use crate::model::Orcid;
 use crate::model::Ror;
 use crate::model::Timestamp;
 use crate::model::WeightUnit;
-use crate::model::{affiliation::*, TitleOrderBy};
+use crate::model::{affiliation::*, convert_to_jats, extract_title, TitleOrderBy};
 use crate::model::{contribution::*, NewTitle};
 use thoth_errors::{ThothError, ThothResult};
 
@@ -1650,6 +1650,18 @@ impl MutationRoot {
             return Err(ThothError::CanonicalTitleExistsError.into());
         }
 
+        // Extract title and subtitle from full_title
+        let (title, subtitle) = extract_title(&data.full_title, &data.markup_format)?;
+
+        let (title_jats_xml, subtitle_jats_xml) = (
+            convert_to_jats(title, "title".to_string())?,
+            convert_to_jats(subtitle, "subtitle".to_string())?,
+        );
+
+        let mut data = data.clone();
+        data.title = title_jats_xml;
+        data.subtitle = Some(subtitle_jats_xml);
+
         Title::create(&context.db, &data).map_err(|e| e.into())
     }
 
@@ -2029,6 +2041,17 @@ impl MutationRoot {
         if has_canonical_title && data.canonical && !context.account_access.is_superuser {
             return Err(ThothError::CanonicalTitleExistsError.into());
         }
+
+        // Extract title and subtitle from full_title
+        let (title, subtitle) = extract_title(&data.full_title, &data.markup_format)?;
+
+        let (title_jats_xml, subtitle_jats_xml) = (
+            convert_to_jats(title, "title".to_string())?, convert_to_jats(subtitle, "subtitle".to_string())?,
+        );
+
+        let mut data = data.clone();
+        data.title = title_jats_xml;
+        data.subtitle = Some(subtitle_jats_xml);
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         title

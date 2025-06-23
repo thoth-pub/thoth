@@ -60,7 +60,7 @@ pub struct Title {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, Insertable, Clone),
     graphql(description = "Set of values required to define a new work's title"),
     diesel(table_name = work_title)
 )]
@@ -90,7 +90,7 @@ impl Default for NewTitle {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, AsChangeset, Clone),
     graphql(description = "Set of values required to update an existing work's title"),
     diesel(table_name = work_title, treat_none_as_null = true)
 )]
