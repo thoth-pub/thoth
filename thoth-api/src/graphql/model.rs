@@ -2043,10 +2043,10 @@ impl MutationRoot {
         }
 
         // Extract title and subtitle from full_title
-        let (title, subtitle) = extract_title(&data.full_title, &data.markup_format)?;
+        let (t, s) = extract_title(&data.full_title, &data.markup_format)?;
 
         let (title_jats_xml, subtitle_jats_xml) = (
-            convert_to_jats(title, "title".to_string())?, convert_to_jats(subtitle, "subtitle".to_string())?,
+            convert_to_jats(t, "title".to_string())?, convert_to_jats(s, "subtitle".to_string())?,
         );
 
         let mut data = data.clone();
