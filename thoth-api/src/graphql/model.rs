@@ -1469,7 +1469,7 @@ impl QueryRoot {
 
     #[graphql(description = "Query a title by its ID")]
     fn title(context: &Context, title_id: Uuid, markup_format: MarkupFormat) -> FieldResult<Title> {
-        let mut title = Title::from_id(&context.db, &title_id).map_err(|e| e.into())?;
+        let mut title = Title::from_id(&context.db, &title_id).map_err(|e| FieldError::from(e))?;
         title.title = convert_from_jats(&title.title, markup_format)?;
         if let Some(subtitle) = &title.subtitle {
             title.subtitle = Some(convert_from_jats(subtitle, markup_format)?);
@@ -1513,7 +1513,7 @@ impl QueryRoot {
             vec![],
             None,
         )
-        .map_err(FieldError::from)?;
+        .map_err(|e| FieldError::from(e))?;
 
         for title in &mut titles {
             title.title = convert_from_jats(&title.title, markup_format)?;
