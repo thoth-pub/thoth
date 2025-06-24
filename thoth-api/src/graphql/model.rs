@@ -40,6 +40,7 @@ use thoth_errors::{ThothError, ThothResult};
 
 use super::utils::{Direction, Expression};
 use crate::model::LocaleCode;
+use crate::model::{convert_from_jats, MarkupFormat};
 
 impl juniper::Context for Context {}
 
@@ -1467,8 +1468,14 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Query a title by its ID")]
-    fn title(context: &Context, title_id: Uuid) -> FieldResult<Title> {
-        Title::from_id(&context.db, &title_id).map_err(|e| e.into())
+    fn title(context: &Context, title_id: Uuid, markup_format: MarkupFormat) -> FieldResult<Title> {
+        let mut title = Title::from_id(&context.db, &title_id).map_err(|e| e.into())?;
+        title.title = convert_from_jats(&title.title, markup_format)?;
+        if let Some(subtitle) = &title.subtitle {
+            title.subtitle = Some(convert_from_jats(subtitle, markup_format)?);
+        }
+        title.full_title = convert_from_jats(&title.full_title, markup_format)?;
+        Ok(title)
     }
 
     #[graphql(description = "Query titles by work ID")]
@@ -1491,8 +1498,9 @@ impl QueryRoot {
             description = "If set, only shows results with these locale codes"
         )]
         locale_codes: Option<Vec<LocaleCode>>,
+        markup_format: MarkupFormat,
     ) -> FieldResult<Vec<Title>> {
-        Title::all(
+        let mut titles = Title::all(
             &context.db,
             limit.unwrap_or_default(),
             offset.unwrap_or_default(),
@@ -1505,7 +1513,16 @@ impl QueryRoot {
             vec![],
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(FieldError::from)?;
+
+        for title in &mut titles {
+            title.title = convert_from_jats(&title.title, markup_format)?;
+            if let Some(subtitle) = &title.subtitle {
+                title.subtitle = Some(convert_from_jats(subtitle, markup_format)?);
+            }
+            title.full_title = convert_from_jats(&title.full_title, markup_format)?;
+        }
+        Ok(titles)
     }
 }
 
@@ -2046,7 +2063,8 @@ impl MutationRoot {
         let (t, s) = extract_title(&data.full_title, &data.markup_format)?;
 
         let (title_jats_xml, subtitle_jats_xml) = (
-            convert_to_jats(t, "title".to_string())?, convert_to_jats(s, "subtitle".to_string())?,
+            convert_to_jats(t, "title".to_string())?,
+            convert_to_jats(s, "subtitle".to_string())?,
         );
 
         let mut data = data.clone();

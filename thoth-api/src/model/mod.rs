@@ -610,21 +610,21 @@ pub enum MarkupFormat {
 }
 
 // impl MarkupFormat {
-    // pub fn parse(input: &str) -> ThothResult<Self> {
-    //     // Extract format from input extension
-    //     let format = input
-    //         .split('.')
-    //         .last()
-    //         .ok_or_else(|| ThothError::UnsuportedFileFormatError)?;
+// pub fn parse(input: &str) -> ThothResult<Self> {
+//     // Extract format from input extension
+//     let format = input
+//         .split('.')
+//         .last()
+//         .ok_or_else(|| ThothError::UnsuportedFileFormatError)?;
 
-    //     match format.to_lowercase().as_str() {
-    //         "html" | "htm" => Ok(MarkupFormat::Html),
-    //         "md" | "markdown" => Ok(MarkupFormat::Markdown),
-    //         "txt" | "text" => Ok(MarkupFormat::PlainText),
-    //         "xml" => Ok(MarkupFormat::JatsXml),
-    //         _ => Err(ThothError::UnsuportedFileFormatError),
-    //     }
-    // }
+//     match format.to_lowercase().as_str() {
+//         "html" | "htm" => Ok(MarkupFormat::Html),
+//         "md" | "markdown" => Ok(MarkupFormat::Markdown),
+//         "txt" | "text" => Ok(MarkupFormat::PlainText),
+//         "xml" => Ok(MarkupFormat::JatsXml),
+//         _ => Err(ThothError::UnsuportedFileFormatError),
+//     }
+// }
 // }
 
 /// Enum to represent abstract types
@@ -759,10 +759,7 @@ pub fn extract_title(content: &str, format: &MarkupFormat) -> ThothResult<(Strin
             let is_title = first_line.chars().all(|c| !c.is_lowercase());
 
             // Check if second line is title case (potential subtitle)
-            let is_subtitle = second_line
-                .chars()
-                .next()
-                .is_some_and(|c| c.is_uppercase())
+            let is_subtitle = second_line.chars().next().is_some_and(|c| c.is_uppercase())
                 && second_line.chars().any(|c| c.is_lowercase());
 
             let title = if is_title && !first_line.is_empty() {
@@ -804,65 +801,67 @@ pub fn convert_to_jats(content: String, tag_name: String) -> ThothResult<String>
 
 /// Convert from JATS XML to specified format
 pub fn convert_from_jats(jats_xml: &str, format: MarkupFormat) -> ThothResult<String> {
-    // Extract title and subtitle from JATS XML
-    let title_regex = Regex::new(r"<title>(.*?)</title>").unwrap();
-    let subtitle_regex = Regex::new(r"<subtitle>(.*?)</subtitle>").unwrap();
+    validate_format(jats_xml, &MarkupFormat::JatsXml)?;
 
-    let title = title_regex
-        .captures(jats_xml)
-        .and_then(|caps| caps.get(1))
-        .map(|m| m.as_str().trim().to_string())
-        .unwrap_or_default();
+    let content_regex =
+        Regex::new(r"<([^>]+)>(.*?)</\1>").map_err(|_| ThothError::UnsuportedFileFormatError)?;
 
-    let subtitle = subtitle_regex
-        .captures(jats_xml)
-        .and_then(|caps| caps.get(1))
-        .map(|m| m.as_str().trim().to_string())
-        .unwrap_or_default();
+    let mut elements = Vec::new();
+    for caps in content_regex.captures_iter(jats_xml) {
+        let tag = caps
+            .get(1)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_default();
+        let content = caps
+            .get(2)
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_default();
+        elements.push((tag, content));
+    }
 
     match format {
         MarkupFormat::Html => {
             let mut html = String::new();
-            if !title.is_empty() {
-                html.push_str(&format!("<h1>{}</h1>\n", title));
-            }
-            if !subtitle.is_empty() {
-                html.push_str(&format!("<h2>{}</h2>\n", subtitle));
+            for (tag, content) in elements {
+                html.push_str(&format!("<{}>{}</{}>\n", tag, content, tag));
             }
             Ok(html)
         }
         MarkupFormat::Markdown => {
             let mut markdown = String::new();
-            if !title.is_empty() {
-                markdown.push_str(&format!("# {}\n", title));
-            }
-            if !subtitle.is_empty() {
-                markdown.push_str(&format!("## {}\n", subtitle));
+            for (tag, content) in elements {
+                match tag.as_str() {
+                    "title" => markdown.push_str(&format!("# {}\n", content)),
+                    "subtitle" => markdown.push_str(&format!("## {}\n", content)),
+                    _ => markdown.push_str(&format!("{}\n", content)),
+                }
             }
             Ok(markdown)
         }
         MarkupFormat::PlainText => {
             let mut text = String::new();
-            if !title.is_empty() {
-                text.push_str(&format!("{}\n", title.to_uppercase()));
-            }
-            if !subtitle.is_empty() {
-                // Convert to title case
-                let title_case = subtitle
-                    .split_whitespace()
-                    .map(|word| {
-                        let mut chars = word.chars();
-                        match chars.next() {
-                            None => String::new(),
-                            Some(first) => first
-                                .to_uppercase()
-                                .chain(chars.flat_map(|c| c.to_lowercase()))
-                                .collect(),
-                        }
-                    })
-                    .collect::<Vec<String>>()
-                    .join(" ");
-                text.push_str(&format!("{}\n", title_case));
+            for (tag, content) in elements {
+                match tag.as_str() {
+                    "title" => text.push_str(&format!("{}\n", content.to_uppercase())),
+                    "subtitle" => {
+                        let title_case = content
+                            .split_whitespace()
+                            .map(|word| {
+                                let mut chars = word.chars();
+                                match chars.next() {
+                                    None => String::new(),
+                                    Some(first) => first
+                                        .to_uppercase()
+                                        .chain(chars.flat_map(|c| c.to_lowercase()))
+                                        .collect(),
+                                }
+                            })
+                            .collect::<Vec<String>>()
+                            .join(" ");
+                        text.push_str(&format!("{}\n", title_case));
+                    }
+                    _ => text.push_str(&format!("{}\n", content)),
+                }
             }
             Ok(text)
         }
