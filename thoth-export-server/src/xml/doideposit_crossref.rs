@@ -205,7 +205,7 @@ fn write_chapter_contributions<W: Write>(
 }
 
 fn write_work_title<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
-    write_title_content(&work.title, work.subtitle.as_deref(), w)
+    write_title_content(&work.titles[0].title, work.titles[0].subtitle.as_deref(), w)
 }
 
 fn write_chapter_title<W: Write>(
@@ -213,8 +213,8 @@ fn write_chapter_title<W: Write>(
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
     write_title_content(
-        &chapter.related_work.title,
-        chapter.related_work.subtitle.as_deref(),
+        &chapter.related_work.titles[0].title,
+        chapter.related_work.titles[0].subtitle.as_deref(),
         w,
     )
 }
@@ -1250,9 +1250,14 @@ mod tests {
             relation_ordinal: 1,
             related_work: WorkRelationsRelatedWork {
                 work_status: WorkStatus::ACTIVE,
-                full_title: "Chapter: One".to_string(),
-                title: "Chapter".to_string(),
-                subtitle: Some("One".to_string()),
+                titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                    title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    full_title: "Chapter: One".to_string(),
+                    title: "Chapter".to_string(),
+                    subtitle: Some("One".to_string()),
+                    canonical: true,
+                }],
                 edition: None,
                 doi: Some(Doi::from_str("https://doi.org/10.00001/CHAPTER.0001").unwrap()),
                 publication_date: chrono::NaiveDate::from_ymd_opt(2000, 2, 28),
@@ -1381,7 +1386,7 @@ mod tests {
         assert!(output.contains(r#"    <collection property="text-mining">"#));
 
         // Remove/change some values to test variations/non-output of optional blocks
-        test_relations.related_work.subtitle = None;
+        test_relations.related_work.titles[0].subtitle = None;
         test_relations.related_work.last_page = None;
         test_relations.related_work.publication_date = None;
         test_relations.related_work.license = None;
@@ -1458,9 +1463,14 @@ mod tests {
         let mut test_work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(100),
@@ -1712,9 +1722,14 @@ mod tests {
                 relation_ordinal: 1,
                 related_work: WorkRelationsRelatedWork {
                     work_status: WorkStatus::ACTIVE,
-                    full_title: "Part: One".to_string(),
-                    title: "Part".to_string(),
-                    subtitle: Some("One".to_string()),
+                    titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                        title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        full_title: "Part: One".to_string(),
+                        title: "Part".to_string(),
+                        subtitle: Some("One".to_string()),
+                        canonical: true,
+                    }],
                     edition: None,
                     doi: Some(Doi::from_str("https://doi.org/10.00001/PART.0001").unwrap()),
                     publication_date: chrono::NaiveDate::from_ymd_opt(2000, 2, 28),
@@ -1928,9 +1943,14 @@ mod tests {
             relation_ordinal: 2,
             related_work: WorkRelationsRelatedWork {
                 work_status: WorkStatus::SUPERSEDED,
-                full_title: "Book Title: Book Subtitle: 1st Edition".to_string(),
-                title: "Part".to_string(),
-                subtitle: Some("One".to_string()),
+                titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                    title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000002").unwrap(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    full_title: "Book Title: Book Subtitle: 1st Edition".to_string(),
+                    title: "Part".to_string(),
+                    subtitle: Some("One".to_string()),
+                    canonical: true,
+                }],
                 edition: None,
                 doi: Some(Doi::from_str("https://doi.org/10.00002/old_edition").unwrap()),
                 publication_date: chrono::NaiveDate::from_ymd_opt(1997, 2, 28),
@@ -1976,7 +1996,7 @@ mod tests {
         // Remove/change some values to test variations/non-output of optional blocks
         test_work.work_type = WorkType::EDITED_BOOK;
         test_work.issues.clear();
-        test_work.subtitle = None;
+        test_work.titles[0].subtitle = None;
         test_work.place = None;
         test_work.license = None;
         // Remove last (translator) contributor
@@ -2143,9 +2163,14 @@ mod tests {
         let mut test_work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(100),

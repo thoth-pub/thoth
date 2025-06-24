@@ -242,7 +242,11 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                     for issue in &self.issues {
                         XmlElementBlock::<Onix31Thoth>::xml_element(issue, w).ok();
                     }
-                    write_title(self.title.clone(), self.subtitle.clone(), w)?;
+                    write_title(
+                        self.titles[0].title.clone(),
+                        self.titles[0].subtitle.clone(),
+                        w,
+                    )?;
                     for contribution in &self.contributions {
                         XmlElementBlock::<Onix31Thoth>::xml_element(contribution, w).ok();
                     }
@@ -511,7 +515,11 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                                 write_element_block("ComponentTypeName", w, |w| {
                                     w.write(XmlEvent::Characters("Chapter")).map_err(Into::into)
                                 })?;
-                                write_title(chapter.title.clone(), chapter.subtitle.clone(), w)?;
+                                write_title(
+                                    chapter.titles[0].title.clone(),
+                                    chapter.titles[0].subtitle.clone(),
+                                    w,
+                                )?;
                                 for contribution in &chapter.contributions {
                                     XmlElementBlock::<Onix31Thoth>::xml_element(contribution, w)
                                         .ok();
@@ -2310,9 +2318,14 @@ mod tests {
             relation_ordinal: 1,
             related_work: WorkRelationsRelatedWork {
                 work_status: WorkStatus::ACTIVE,
-                full_title: "N/A".to_string(),
-                title: "N/A".to_string(),
-                subtitle: None,
+                titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                    title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    full_title: "N/A".to_string(),
+                    title: "N/A".to_string(),
+                    subtitle: None,
+                    canonical: true,
+                }],
                 edition: None,
                 doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
                 publication_date: None,
@@ -2395,9 +2408,14 @@ mod tests {
         let mut test_work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
             work_type: WorkType::MONOGRAPH,
             reference: Some("IntRef1".to_string()),
             edition: Some(2),
@@ -2530,9 +2548,15 @@ mod tests {
                     relation_ordinal: 1,
                     related_work: WorkRelationsRelatedWork {
                         work_status: WorkStatus::ACTIVE,
-                        full_title: "Related work title".to_string(),
-                        title: "The first chapter:".to_string(),
-                        subtitle: Some("An introduction".to_string()),
+                        titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                            title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001")
+                                .unwrap(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            full_title: "Related work title".to_string(),
+                            title: "The first chapter:".to_string(),
+                            subtitle: Some("An introduction".to_string()),
+                            canonical: true,
+                        }],
                         edition: None,
                         doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
                         publication_date: None,
@@ -2624,9 +2648,15 @@ mod tests {
                     relation_ordinal: 2,
                     related_work: WorkRelationsRelatedWork {
                         work_status: WorkStatus::ACTIVE,
-                        full_title: "N/A".to_string(),
-                        title: "N/A".to_string(),
-                        subtitle: None,
+                        titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                            title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001")
+                                .unwrap(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            full_title: "N/A".to_string(),
+                            title: "N/A".to_string(),
+                            subtitle: None,
+                            canonical: true,
+                        }],
                         edition: None,
                         doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0002").unwrap()),
                         publication_date: None,
@@ -2660,9 +2690,15 @@ mod tests {
                     relation_ordinal: 3,
                     related_work: WorkRelationsRelatedWork {
                         work_status: WorkStatus::ACTIVE,
-                        full_title: "N/A".to_string(),
-                        title: "N/A".to_string(),
-                        subtitle: None,
+                        titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                            title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001")
+                                .unwrap(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            full_title: "N/A".to_string(),
+                            title: "N/A".to_string(),
+                            subtitle: None,
+                            canonical: true,
+                        }],
                         edition: None,
                         doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0003").unwrap()),
                         publication_date: None,
@@ -3450,7 +3486,7 @@ mod tests {
         test_work.oclc = None;
         test_work.reference = None;
         test_work.license = None;
-        test_work.subtitle = None;
+        test_work.titles[0].subtitle = None;
         test_work.edition = Some(1);
         test_work.page_count = None;
         test_work.bibliography_note = None;
