@@ -41,7 +41,7 @@ workers:
   mode: BackgroundQueue
 
 queue:
-  kind: Redis
-  # Redis connection URI
-  uri: {{ get_env(name="REDIS_URL") }}
+  kind: Postgres
+  # Postgres connection URI
+  uri: {{ get_env(name="DATABASE_URL") }}
   dangerously_flush: false

@@ -23,10 +23,7 @@ impl Initializer for HandleEvents {
 
     async fn before_run(&self, ctx: &AppContext) -> Result<()> {
         let ctx = ctx.clone();
-        let redis_url = match ctx.config.queue.as_ref().unwrap() {
-            QueueConfig::Redis(queue) => &queue.uri,
-            _ => unreachable!(),
-        };
+        let redis_url = "redis://localhost:6379";
         let redis = init_pool(redis_url);
 
         tokio::spawn(async move {
