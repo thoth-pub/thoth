@@ -193,11 +193,11 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         };
         let nonfiling_char_count = nonfiling_char_count(&self.title, &language);
         let mut title_field =
-            FieldRepr::from((b"245", format!("{}{}", added_entry, nonfiling_char_count)));
+            FieldRepr::from((b"245", format!("{added_entry}{nonfiling_char_count}")));
         if let Some(subtitle) = self.subtitle.clone() {
             title_field = title_field
                 .add_subfield(b"a", format!("{} :", self.title.clone()).as_bytes())
-                .and_then(|f| f.add_subfield(b"b", format!("{} /", subtitle).as_bytes()))?;
+                .and_then(|f| f.add_subfield(b"b", format!("{subtitle} /").as_bytes()))?;
         } else {
             title_field =
                 title_field.add_subfield(b"a", format!("{} /", self.title.clone()).as_bytes())?;
@@ -222,7 +222,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
                         3 if edition % 100 != 13 => "rd",
                         _ => "th",
                     };
-                    Some(format!("{}{} edition.", edition, suffix))
+                    Some(format!("{edition}{suffix} edition."))
                 }
             } {
                 FieldRepr::from((b"250", "\\\\"))
@@ -235,7 +235,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         let year = publication_date.year().to_string();
         if let Some(place) = self.place.clone() {
             FieldRepr::from((b"264", "\\1"))
-                .add_subfield(b"a", format!("{} :", place).into_bytes())
+                .add_subfield(b"a", format!("{place} :").into_bytes())
                 .and_then(|f| {
                     f.add_subfield(
                         b"b",
@@ -246,7 +246,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
                 .and_then(|f| builder.add_field(f))?;
         }
         FieldRepr::from((b"264", "\\4"))
-            .add_subfield(b"c", format!("©{}", year).into_bytes())
+            .add_subfield(b"c", format!("©{year}").into_bytes())
             .and_then(|f| builder.add_field(f))?;
 
         // 300 - extent and physical description
@@ -466,9 +466,9 @@ fn contributor_fields(contributions: &[WorkContributions]) -> ThothResult<Vec<Fi
 
         let mut contributor_field = FieldRepr::from((field_code, indicator.as_str()));
         contributor_field =
-            contributor_field.add_subfield(b"a", format!("{},", name).as_bytes())?;
+            contributor_field.add_subfield(b"a", format!("{name},").as_bytes())?;
         contributor_field =
-            contributor_field.add_subfield(b"e", format!("{}.", roles).as_bytes())?;
+            contributor_field.add_subfield(b"e", format!("{roles}.").as_bytes())?;
         if let Some(affiliation) = &contributions.first().unwrap().affiliations.first() {
             contributor_field = contributor_field.add_subfield(
                 b"u",
@@ -587,7 +587,7 @@ fn toc_field(relations: &[WorkRelations]) -> ThothResult<FieldRepr> {
             separator = ".";
         }
         if !chapter_authors.is_empty() {
-            toc_field = toc_field.add_subfield(b"t", format!("{} /", chapter_title))?;
+            toc_field = toc_field.add_subfield(b"t", format!("{chapter_title} /"))?;
             if chapter_pages.is_some() {
                 toc_field = toc_field.add_subfield(b"r", chapter_authors)?;
                 toc_field = toc_field.add_subfield(
@@ -596,7 +596,7 @@ fn toc_field(relations: &[WorkRelations]) -> ThothResult<FieldRepr> {
                 )?;
             } else {
                 toc_field =
-                    toc_field.add_subfield(b"r", format!("{}{}", chapter_authors, separator))?;
+                    toc_field.add_subfield(b"r", format!("{chapter_authors}{separator}"))?;
             }
         } else if chapter_pages.is_some() {
             toc_field = toc_field.add_subfield(b"t", chapter_title)?;
@@ -605,7 +605,7 @@ fn toc_field(relations: &[WorkRelations]) -> ThothResult<FieldRepr> {
                 format!("(pp{}){}", chapter_pages.as_ref().unwrap(), separator),
             )?;
         } else {
-            toc_field = toc_field.add_subfield(b"t", format!("{}{}", chapter_title, separator))?;
+            toc_field = toc_field.add_subfield(b"t", format!("{chapter_title}{separator}"))?;
         }
     }
     Ok(toc_field)
@@ -621,7 +621,7 @@ impl Marc21Field<Marc21RecordThoth> for WorkPublications {
             };
             FieldRepr::from((b"020", "\\\\"))
                 .add_subfield(identifier, isbn.to_hyphenless_string().as_bytes())
-                .and_then(|f| f.add_subfield(b"q", format!("({})", publication_type)))
+                .and_then(|f| f.add_subfield(b"q", format!("({publication_type})")))
                 .and_then(|f| builder.add_field(f))?;
         }
         Ok(())
@@ -700,8 +700,8 @@ impl Marc21Field<Marc21RecordThoth> for WorkSubjects {
 
 fn description_string(work: &Work) -> (String, Option<String>) {
     let description = match (work.page_breakdown.as_ref(), work.page_count) {
-        (Some(breakdown), _) => format!("1 online resource ({} pages)", breakdown),
-        (_, Some(count)) => format!("1 online resource ({} pages)", count),
+        (Some(breakdown), _) => format!("1 online resource ({breakdown} pages)"),
+        (_, Some(count)) => format!("1 online resource ({count} pages)"),
         _ => "1 online resource".to_string(),
     };
 
@@ -751,11 +751,11 @@ fn contributors_string(contributions: &[WorkContributions]) -> String {
 
         let type_string = match contribution_type {
             ContributionType::Author => names,
-            ContributionType::Editor => format!("edited by {}", names),
-            ContributionType::Translator => format!("translated by {}", names),
-            ContributionType::Photographer => format!("photography by {}", names),
-            ContributionType::Illustrator => format!("illustrations by {}", names),
-            ContributionType::MusicEditor => format!("music edited by {}", names),
+            ContributionType::Editor => format!("edited by {names}"),
+            ContributionType::Translator => format!("translated by {names}"),
+            ContributionType::Photographer => format!("photography by {names}"),
+            ContributionType::Illustrator => format!("illustrations by {names}"),
+            ContributionType::MusicEditor => format!("music edited by {names}"),
             _ => format!("{} {}", contribution_type.to_string().to_lowercase(), names),
         };
         type_strings.push(type_string);

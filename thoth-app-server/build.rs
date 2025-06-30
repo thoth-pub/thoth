@@ -37,7 +37,7 @@ fn get_trunk_version() -> Option<String> {
 }
 
 fn install_trunk() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Installing trunk {}...", TRUNK_VERSION);
+    println!("Installing trunk {TRUNK_VERSION}...");
 
     let output = Command::new("cargo")
         .arg("install")
@@ -66,16 +66,16 @@ fn main() {
 
     if let Some(version) = get_trunk_version() {
         if !version.eq(TRUNK_VERSION) {
-            println!("Current trunk version: {}", version);
+            println!("Current trunk version: {version}");
             install_trunk().unwrap_or_else(|e| {
-                eprintln!("Error: {}", e);
+                eprintln!("Error: {e}");
                 exit(1);
             });
         }
     } else {
         println!("trunk not found");
         install_trunk().unwrap_or_else(|e| {
-            eprintln!("Error: {}", e);
+            eprintln!("Error: {e}");
             exit(1);
         });
     }
