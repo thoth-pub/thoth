@@ -465,10 +465,8 @@ fn contributor_fields(contributions: &[WorkContributions]) -> ThothResult<Vec<Fi
             .join(", ");
 
         let mut contributor_field = FieldRepr::from((field_code, indicator.as_str()));
-        contributor_field =
-            contributor_field.add_subfield(b"a", format!("{name},").as_bytes())?;
-        contributor_field =
-            contributor_field.add_subfield(b"e", format!("{roles}.").as_bytes())?;
+        contributor_field = contributor_field.add_subfield(b"a", format!("{name},").as_bytes())?;
+        contributor_field = contributor_field.add_subfield(b"e", format!("{roles}.").as_bytes())?;
         if let Some(affiliation) = &contributions.first().unwrap().affiliations.first() {
             contributor_field = contributor_field.add_subfield(
                 b"u",
