@@ -44,7 +44,7 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Set Rust toolchain version
-        run: rustup override set stable
+        run: rustup override set 1.88.0
       - name: Build binary
         run: cargo build -vv
   test:
@@ -70,6 +70,8 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Set Rust toolchain version
+        run: rustup override set 1.88.0
       - name: Run tests
         run: cargo test --workspace -vv
   lint:
@@ -91,5 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Set Rust toolchain version
+        run: rustup override set 1.88.0
       - name: Run format
         run: cargo fmt --all -- --check
