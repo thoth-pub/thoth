@@ -1,4 +1,4 @@
-ARG MUSL_IMAGE=clux/muslrust:1.88.0-stable
+ARG MUSL_IMAGE=ghcr.io/blackdex/rust-musl:x86_64-musl-stable-1.88.0
 
 FROM ${MUSL_IMAGE} as build
 
