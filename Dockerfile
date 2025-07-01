@@ -1,11 +1,14 @@
-ARG MUSL_IMAGE=ghcr.io/blackdex/rust-musl:x86_64-musl-stable-1.88.0
+ARG RUST_VERSION=1.88.0
 
-FROM ${MUSL_IMAGE} as build
+FROM clux/muslrust:1.86.0-stable AS build
 
 ARG THOTH_GRAPHQL_API=https://api.thoth.pub
 ARG THOTH_EXPORT_API=https://export.thoth.pub
 ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
 ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
+
+# Upgrade Rust to desired version
+RUN rustup install ${RUST_VERSION} && rustup default ${RUST_VERSION}
 
 # Get source
 COPY . .
