@@ -45,8 +45,6 @@ fn install_trunk() -> Result<(), Box<dyn std::error::Error>> {
         .arg("--version")
         .arg(TRUNK_VERSION)
         .arg("--force")
-        .env("RUSTFLAGS", "-C target-cpu=x86-64")
-        .env("CFLAGS", "-march=x86-64")
         .output()?;
 
     if !output.status.success() {
