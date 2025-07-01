@@ -10,6 +10,10 @@ ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
 # Get source
 COPY . .
 
+# Disable SIMD
+ENV RUSTFLAGS="-C target-cpu=x86-64"
+ENV CFLAGS="-march=x86-64"
+
 # Build Thoth for release
 RUN cargo build --release
 
