@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
   - [699](https://github.com/thoth-pub/thoth/pull/699) - Moved format string variables inline to comply with [`rustc 1.88.0`](https://github.com/rust-lang/rust/releases/tag/1.88.0)
   - [699](https://github.com/thoth-pub/thoth/pull/699) - Upgrade rust to `1.88.0` in production `Dockerfile`
+  - [699](https://github.com/thoth-pub/thoth/pull/699) - Removed `openssl`
 
 ## [[0.13.13]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.13) - 2025-06-05
 ### Changed
