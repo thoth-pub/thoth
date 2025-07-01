@@ -10,7 +10,9 @@ ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
 ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
 
 # Upgrade Rust to desired version
-RUN rustup install ${RUST_VERSION} && rustup default ${RUST_VERSION}
+RUN rustup install ${RUST_VERSION} \
+ && rustup default ${RUST_VERSION} \
+ && rustup target add x86_64-unknown-linux-musl
 
 # Get source
 COPY . .
