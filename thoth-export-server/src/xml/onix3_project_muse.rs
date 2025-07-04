@@ -201,7 +201,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                                     3 if edition % 100 != 13 => "rd",
                                     _ => "th",
                                 };
-                                Some(format!("{}{} edition.", edition, suffix))
+                                Some(format!("{edition}{suffix} edition."))
                             }
                         } {
                             write_element_block("EditionStatement", w, |w| {

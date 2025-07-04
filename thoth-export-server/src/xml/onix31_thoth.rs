@@ -792,8 +792,7 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                                         })?;
                                         write_element_block("WebsiteDescription", w, |w| {
                                             w.write(XmlEvent::Characters(&format!(
-                                                "{}: webpage for this product",
-                                                description_string
+                                                "{description_string}: webpage for this product"
                                             )))
                                             .map_err(Into::into)
                                         })?;
@@ -810,8 +809,7 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                                         })?;
                                         write_element_block("WebsiteDescription", w, |w| {
                                             w.write(XmlEvent::Characters(&format!(
-                                                "{}: download the title",
-                                                description_string
+                                                "{description_string}: download the title"
                                             )))
                                             .map_err(Into::into)
                                         })?;

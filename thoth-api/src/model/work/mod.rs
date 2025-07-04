@@ -411,9 +411,9 @@ pub trait WorkProperties {
                     || title.ends_with(':')
                     || title.ends_with('.')
                 {
-                    format!("{} {}", title, subtitle)
+                    format!("{title} {subtitle}")
                 } else {
-                    format!("{}: {}", title, subtitle)
+                    format!("{title}: {subtitle}")
                 }
             },
         )
