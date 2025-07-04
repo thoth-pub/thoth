@@ -12,6 +12,7 @@ COPY . .
 RUN cargo build --release
 
 RUN find /volume/target -name 'thoth*'
+RUN file /volume/target/release/thoth
 
 # Switch to minimal image for run time
 FROM scratch
