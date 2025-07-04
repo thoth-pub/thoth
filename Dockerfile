@@ -11,6 +11,8 @@ COPY . .
 # Build Thoth for release
 RUN cargo build --release
 
+RUN find /volume/target -name 'thoth*'
+
 # Switch to minimal image for run time
 FROM scratch
 
