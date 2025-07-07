@@ -1512,6 +1512,103 @@ impl QueryRoot {
     fn webhook_count(context: &Context) -> FieldResult<i32> {
         Webhook::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
     }
+
+    #[graphql(description = "Get information about retried jobs")]
+    async fn retried_jobs(context: &Context) -> FieldResult<Vec<Job>> {
+        get_jobs(&context.redis).await.map_err(|e| e.into())
+    }
+}
+
+use serde::{Deserialize, Serialize};
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Job {
+    pub queue: String,
+    pub args: Vec<crate::event::model::EventWrapper>,
+    pub retry: bool,
+    pub class: String,
+    pub jid: String,
+    pub created_at: f64,
+    pub enqueued_at: f64,
+    pub failed_at: f64,
+    pub error_message: String,
+    pub error_class: Option<String>,
+    pub retry_count: i32,
+    pub retried_at: f64,
+}
+
+pub const RETRY_QUEUE_KEY: &str = "retry";
+
+pub async fn get_jobs(redis: &RedisPool) -> ThothResult<Vec<Job>> {
+    use crate::redis::zrange;
+    let jobs_vec_string = zrange(redis, RETRY_QUEUE_KEY, 0, -1).await?;
+    let jobs_vec_json_result = jobs_vec_string
+        .into_iter()
+        .map(|j| serde_json::from_str(&j).map_err(|e| e.into()))
+        .collect::<ThothResult<Vec<Job>>>();
+    jobs_vec_json_result
+}
+
+#[juniper::graphql_object(Context = Context, description = "")]
+impl Job {
+    #[graphql(description = "")]
+    pub fn queue(&self) -> &String {
+        &self.queue
+    }
+
+    #[graphql(description = "")]
+    pub fn args(&self) -> &Vec<crate::event::model::EventWrapper> {
+        &self.args
+    }
+
+    #[graphql(description = "")]
+    pub fn retry(&self) -> bool {
+        self.retry
+    }
+
+    #[graphql(description = "")]
+    pub fn class(&self) -> &String {
+        &self.class
+    }
+
+    #[graphql(description = "")]
+    pub fn jid(&self) -> &String {
+        &self.jid
+    }
+
+    #[graphql(description = "")]
+    pub fn created_at(&self) -> f64 {
+        self.created_at
+    }
+
+    #[graphql(description = "")]
+    pub fn enqueued_at(&self) -> f64 {
+        self.enqueued_at
+    }
+
+    #[graphql(description = "")]
+    pub fn failed_at(&self) -> f64 {
+        self.failed_at
+    }
+
+    #[graphql(description = "")]
+    pub fn error_message(&self) -> &String {
+        &self.error_message
+    }
+
+    #[graphql(description = "")]
+    pub fn error_class(&self) -> Option<&String> {
+        self.error_class.as_ref()
+    }
+
+    #[graphql(description = "")]
+    pub fn retry_count(&self) -> i32 {
+        self.retry_count
+    }
+
+    #[graphql(description = "")]
+    pub fn retried_at(&self) -> f64 {
+        self.retried_at
+    }
 }
 
 pub struct MutationRoot;

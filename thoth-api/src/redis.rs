@@ -49,6 +49,16 @@ pub async fn blpop(pool: &RedisPool, key: &str) -> ThothResult<String> {
     Ok(value)
 }
 
+pub async fn zrange(
+    pool: &RedisPool,
+    key: &str,
+    start: isize,
+    stop: isize,
+) -> ThothResult<Vec<String>> {
+    let mut con = create_connection(pool).await?;
+    con.zrange(key, start, stop).await.map_err(Into::into)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
