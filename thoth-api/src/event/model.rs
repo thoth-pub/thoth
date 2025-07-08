@@ -36,7 +36,11 @@ pub enum EventType {
     WorkPublished,
 }
 
-#[cfg_attr(feature = "backend", derive(juniper::GraphQLObject))]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLObject),
+    graphql(description = "Details of a change made to a record which may require follow-up processing"),
+)]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Event {
     pub event_type: EventType,
@@ -45,6 +49,7 @@ pub struct Event {
     pub event_timestamp: Timestamp,
     pub thoth_version: String,
 }
+
 #[cfg_attr(feature = "backend", derive(juniper::GraphQLObject))]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct EventWrapper {

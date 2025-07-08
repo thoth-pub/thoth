@@ -8,7 +8,9 @@ use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
 use crate::db::PgPool;
 use crate::event::handler::send_event;
-use crate::event::model::EventType;
+use crate::event::model::{EventType, EventWrapper};
+use crate::job::handler::get_jobs;
+use crate::job::model::Job;
 use crate::model::affiliation::*;
 use crate::model::contribution::*;
 use crate::model::contributor::*;
@@ -1516,98 +1518,6 @@ impl QueryRoot {
     #[graphql(description = "Get information about retried jobs")]
     async fn retried_jobs(context: &Context) -> FieldResult<Vec<Job>> {
         get_jobs(&context.redis).await.map_err(|e| e.into())
-    }
-}
-
-use serde::{Deserialize, Serialize};
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Job {
-    pub queue: String,
-    pub args: Vec<crate::event::model::EventWrapper>,
-    pub retry: bool,
-    pub class: String,
-    pub jid: String,
-    pub created_at: f64,
-    pub enqueued_at: f64,
-    pub failed_at: f64,
-    pub error_message: String,
-    pub error_class: Option<String>,
-    pub retry_count: i32,
-    pub retried_at: f64,
-}
-
-pub const RETRY_QUEUE_KEY: &str = "retry";
-
-pub async fn get_jobs(redis: &RedisPool) -> ThothResult<Vec<Job>> {
-    use crate::redis::zrange;
-    let jobs_vec_string = zrange(redis, RETRY_QUEUE_KEY, 0, -1).await?;
-    let jobs_vec_json_result = jobs_vec_string
-        .into_iter()
-        .map(|j| serde_json::from_str(&j).map_err(|e| e.into()))
-        .collect::<ThothResult<Vec<Job>>>();
-    jobs_vec_json_result
-}
-
-#[juniper::graphql_object(Context = Context, description = "")]
-impl Job {
-    #[graphql(description = "")]
-    pub fn queue(&self) -> &String {
-        &self.queue
-    }
-
-    #[graphql(description = "")]
-    pub fn args(&self) -> &Vec<crate::event::model::EventWrapper> {
-        &self.args
-    }
-
-    #[graphql(description = "")]
-    pub fn retry(&self) -> bool {
-        self.retry
-    }
-
-    #[graphql(description = "")]
-    pub fn class(&self) -> &String {
-        &self.class
-    }
-
-    #[graphql(description = "")]
-    pub fn jid(&self) -> &String {
-        &self.jid
-    }
-
-    #[graphql(description = "")]
-    pub fn created_at(&self) -> f64 {
-        self.created_at
-    }
-
-    #[graphql(description = "")]
-    pub fn enqueued_at(&self) -> f64 {
-        self.enqueued_at
-    }
-
-    #[graphql(description = "")]
-    pub fn failed_at(&self) -> f64 {
-        self.failed_at
-    }
-
-    #[graphql(description = "")]
-    pub fn error_message(&self) -> &String {
-        &self.error_message
-    }
-
-    #[graphql(description = "")]
-    pub fn error_class(&self) -> Option<&String> {
-        self.error_class.as_ref()
-    }
-
-    #[graphql(description = "")]
-    pub fn retry_count(&self) -> i32 {
-        self.retry_count
-    }
-
-    #[graphql(description = "")]
-    pub fn retried_at(&self) -> f64 {
-        self.retried_at
     }
 }
 
@@ -4429,7 +4339,7 @@ impl Reference {
     }
 }
 
-#[juniper::graphql_object(Context = Context, description = "A web request made when a specified data event occurs.")]
+#[juniper::graphql_object(Context = Context, description = "A web request to be made when a specified data event occurs")]
 impl Webhook {
     #[graphql(description = "Thoth ID of the webhook")]
     pub fn webhook_id(&self) -> Uuid {
@@ -4474,6 +4384,73 @@ impl Webhook {
     #[graphql(description = "Get the publisher to which this webhook belongs")]
     pub fn publisher(&self, context: &Context) -> FieldResult<Publisher> {
         Publisher::from_id(&context.db, &self.publisher_id).map_err(|e| e.into())
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "A task generated when a webhook is triggered")]
+impl Job {
+    #[graphql(description = "Name of the processing queue where this job was initially created")]
+    pub fn queue(&self) -> &String {
+        &self.queue
+    }
+
+    #[graphql(description = "Arguments which were supplied when generating the job")]
+    pub fn args(&self) -> &Vec<EventWrapper> {
+        &self.args
+    }
+
+    #[graphql(description = "Whether or not the job should be retried on failure")]
+    pub fn retry(&self) -> bool {
+        self.retry
+    }
+
+    #[graphql(description = "Type of the job (defined by the name of the worker processing it)")]
+    pub fn class(&self) -> &String {
+        &self.class
+    }
+
+    #[graphql(description = "Unique identifier of the job")]
+    pub fn jid(&self) -> &String {
+        &self.jid
+    }
+
+    #[graphql(description = "Date and time at which the job was created (in unix epoch format)")]
+    pub fn created_at(&self) -> f64 {
+        self.created_at
+    }
+
+    #[graphql(
+        description = "Date and time at which the job was added to the queue (in unix epoch format)"
+    )]
+    pub fn enqueued_at(&self) -> f64 {
+        self.enqueued_at
+    }
+
+    #[graphql(description = "Date and time at which the job failed (in unix epoch format)")]
+    pub fn failed_at(&self) -> f64 {
+        self.failed_at
+    }
+
+    #[graphql(description = "Error message returned on failure of the job")]
+    pub fn error_message(&self) -> &String {
+        &self.error_message
+    }
+
+    #[graphql(description = "Type of error with which the job failed")]
+    pub fn error_class(&self) -> Option<&String> {
+        self.error_class.as_ref()
+    }
+
+    #[graphql(description = "Number of times the job has been retried")]
+    pub fn retry_count(&self) -> i32 {
+        self.retry_count
+    }
+
+    #[graphql(
+        description = "Date and time at which the job was last retried (in unix epoch format)"
+    )]
+    pub fn retried_at(&self) -> f64 {
+        self.retried_at
     }
 }
 

@@ -19,6 +19,8 @@ pub mod account;
 pub mod db;
 pub mod event;
 pub mod graphql;
+#[cfg(feature = "backend")]
+pub mod job;
 #[macro_use]
 pub mod model;
 #[cfg(feature = "backend")]
