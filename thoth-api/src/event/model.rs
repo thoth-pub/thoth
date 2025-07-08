@@ -39,7 +39,9 @@ pub enum EventType {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLObject),
-    graphql(description = "Details of a change made to a record which may require follow-up processing"),
+    graphql(
+        description = "Details of a change made to a record which may require follow-up processing"
+    )
 )]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Event {
