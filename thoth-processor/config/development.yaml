@@ -17,7 +17,7 @@ logger:
 # Web server configuration
 server:
   # Port on which the server will listen. the server binding is 0.0.0.0:{PORT}
-  port: 5150
+  port: 8282
   # Binding for the server (which interface to bind to)
   binding: localhost
   # The UI hostname or IP address that mailers will point to.

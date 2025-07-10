@@ -20,7 +20,6 @@ impl BackgroundWorker<WorkCreatedWorkerArgs> for WorkCreatedWorker {
     }
 
     async fn perform(&self, args: WorkCreatedWorkerArgs) -> Result<()> {
-        tracing::info!("WorkCreatedWorker start");
         tracing::info!("Event: {:?}", args.event);
         let webhooks = query_webhooks(args.event).await?;
         tracing::info!("Webhooks: {:?}", webhooks);
@@ -29,8 +28,6 @@ impl BackgroundWorker<WorkCreatedWorkerArgs> for WorkCreatedWorker {
             let _ = FireWebhookWorker::perform_later(&self.ctx, FireWebhookWorkerArgs { webhook })
                 .await;
         }
-
-        tracing::info!("WorkCreatedWorker end");
 
         Ok(())
     }

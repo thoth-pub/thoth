@@ -3,6 +3,27 @@ use serde::{Deserialize, Serialize};
 use thoth_api::event::model::{Event, EventType};
 use uuid::Uuid;
 
+const WEBHOOKS_QUERY: &str = "
+    query WebhooksQuery(
+        $workId: Uuid!,
+        $eventTypes: [EventType!],
+        $isPublished: Boolean!,
+    ) {
+        work(workId: $workId) {
+            imprint {
+                publisher {
+                    webhooks(eventTypes: $eventTypes, isPublished: $isPublished) {
+                        endpoint
+                        token
+                        isPublished
+                        eventType
+                    }
+                }
+            }
+        }
+    }
+";
+
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebhooksVariables {
@@ -60,29 +81,16 @@ pub struct WebhooksResponseBody {
 pub async fn query_webhooks(event: Event) -> Result<Vec<Webhook>, Error> {
     let client = reqwest::Client::new();
     let url = "https://api.thoth.pub/graphql".to_string();
-    let query = "
-query WebhooksQuery($workId: Uuid!, $eventTypes: [EventType!], $isPublished: Boolean!) {
-    work(workId: $workId) {
-        imprint {
-            publisher {
-                webhooks(eventTypes: $eventTypes, isPublished: $isPublished) {
-                    endpoint
-                    token
-                    isPublished
-                    eventType
-                }
-            }
-        }
-    }
-}"
-    .to_string();
 
     let variables = WebhooksVariables {
         work_id: event.work_id,
         event_types: vec![event.event_type],
         is_published: event.is_published,
     };
-    let body = WebhooksQueryBody { query, variables };
+    let body = WebhooksQueryBody {
+        query: WEBHOOKS_QUERY.to_string(),
+        variables,
+    };
     let token = "placeholder".to_string();
 
     let response = client

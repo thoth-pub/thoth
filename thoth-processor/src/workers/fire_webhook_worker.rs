@@ -19,11 +19,9 @@ impl BackgroundWorker<FireWebhookWorkerArgs> for FireWebhookWorker {
     }
 
     async fn perform(&self, args: FireWebhookWorkerArgs) -> Result<()> {
-        tracing::info!("FireWebhookWorker start");
         tracing::info!("Webhook: {:?}", args.webhook);
         let target_rsp = fire_webhook(args.webhook.endpoint, args.webhook.token).await?;
         tracing::info!("Target response: {:?}", target_rsp);
-        tracing::info!("FireWebhookWorker end");
 
         Ok(())
     }
