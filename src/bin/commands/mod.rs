@@ -20,6 +20,7 @@ lazy_static! {
     pub(super) static ref INIT: Command = Command::new("init")
         .about("Run the database migrations and start the thoth API server")
         .arg(arguments::database())
+        .arg(arguments::redis())
         .arg(arguments::host("GRAPHQL_API_HOST"))
         .arg(arguments::port("8000", "GRAPHQL_API_PORT"))
         .arg(arguments::threads("GRAPHQL_API_THREADS"))

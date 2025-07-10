@@ -17,7 +17,10 @@ extern crate juniper;
 pub mod account;
 #[cfg(feature = "backend")]
 pub mod db;
+pub mod event;
 pub mod graphql;
+#[cfg(feature = "backend")]
+pub mod job;
 #[macro_use]
 pub mod model;
 #[cfg(feature = "backend")]
