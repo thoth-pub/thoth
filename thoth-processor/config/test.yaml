@@ -45,3 +45,6 @@ queue:
   # Redis connection URI
   uri: {{ get_env(name="TEST_REDIS_URL") }}
   dangerously_flush: false
+
+settings:
+  thoth_graphql_api: {{ get_env(name="THOTH_GRAPHQL_API") }}

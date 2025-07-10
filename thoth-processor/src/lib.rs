@@ -1,4 +1,5 @@
 pub mod app;
+pub mod common;
 pub mod initializers;
 pub mod requests;
 pub mod workers;

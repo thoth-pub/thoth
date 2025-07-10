@@ -78,10 +78,8 @@ pub struct WebhooksResponseBody {
     pub data: WebhooksResponseData,
 }
 
-pub async fn query_webhooks(event: Event) -> Result<Vec<Webhook>, Error> {
+pub async fn query_webhooks(url: String, event: Event) -> Result<Vec<Webhook>, Error> {
     let client = reqwest::Client::new();
-    let url = "https://api.thoth.pub/graphql".to_string();
-
     let variables = WebhooksVariables {
         work_id: event.work_id,
         event_types: vec![event.event_type],
