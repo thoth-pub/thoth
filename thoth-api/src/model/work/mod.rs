@@ -23,6 +23,7 @@ use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 use super::title::Title;
+use super::r#abstract::Abstract;
 
 #[cfg_attr(
     feature = "backend",
@@ -216,8 +217,8 @@ pub struct Work {
     pub landing_page: Option<String>,
     pub lccn: Option<String>,
     pub oclc: Option<String>,
-    pub short_abstract: Option<String>,
-    pub long_abstract: Option<String>,
+    // pub short_abstract: Option<String>,
+    // pub long_abstract: Option<String>,
     pub general_note: Option<String>,
     pub bibliography_note: Option<String>,
     pub toc: Option<String>,
@@ -278,6 +279,7 @@ pub struct WorkWithRelations {
     pub relations: Option<Vec<WorkRelationWithRelatedWork>>,
     pub references: Option<Vec<Reference>>,
     pub titles: Option<Vec<Title>>,
+    pub abstracts: Option<Vec<Abstract>>,
 }
 
 #[cfg_attr(
@@ -310,8 +312,8 @@ pub struct NewWork {
     pub landing_page: Option<String>,
     pub lccn: Option<String>,
     pub oclc: Option<String>,
-    pub short_abstract: Option<String>,
-    pub long_abstract: Option<String>,
+    // pub short_abstract: Option<String>,
+    // pub long_abstract: Option<String>,
     pub general_note: Option<String>,
     pub bibliography_note: Option<String>,
     pub toc: Option<String>,
@@ -353,8 +355,8 @@ pub struct PatchWork {
     pub landing_page: Option<String>,
     pub lccn: Option<String>,
     pub oclc: Option<String>,
-    pub short_abstract: Option<String>,
-    pub long_abstract: Option<String>,
+    // pub short_abstract: Option<String>,
+    // pub long_abstract: Option<String>,
     pub general_note: Option<String>,
     pub bibliography_note: Option<String>,
     pub toc: Option<String>,
@@ -532,8 +534,8 @@ impl From<Work> for PatchWork {
             landing_page: w.landing_page,
             lccn: w.lccn,
             oclc: w.oclc,
-            short_abstract: w.short_abstract,
-            long_abstract: w.long_abstract,
+            // short_abstract: w.short_abstract,
+            // long_abstract: w.long_abstract,
             general_note: w.general_note,
             bibliography_note: w.bibliography_note,
             toc: w.toc,
@@ -592,8 +594,8 @@ mod tests {
             landing_page: Some("https://book.page".to_string()),
             lccn: None,
             oclc: None,
-            short_abstract: Some("Short abstract".to_string()),
-            long_abstract: Some("Long abstract".to_string()),
+            // short_abstract: Some("Short abstract".to_string()),
+            // long_abstract: Some("Long abstract".to_string()),
             general_note: None,
             bibliography_note: None,
             toc: None,
@@ -903,8 +905,8 @@ mod tests {
             landing_page,
             lccn,
             oclc,
-            short_abstract,
-            long_abstract,
+            // short_abstract,
+            // long_abstract,
             general_note,
             bibliography_note,
             toc,

@@ -21,8 +21,7 @@ const CREATE_TITLE_MUTATION: &str = "
             fullTitle: $fullTitle,
             title: $title,
             subtitle: $subtitle,
-            canonical: $canonical,
-            markupFormat: $markupFormat
+            canonical: $canonical
         }){
             titleId
             workId
@@ -31,7 +30,6 @@ const CREATE_TITLE_MUTATION: &str = "
             title
             subtitle
             canonical
-            markupFormat
         }
     }
 ";
@@ -56,7 +54,6 @@ pub struct Variables {
     pub title: String,
     pub subtitle: String,
     pub canonical: bool,
-    pub markup_format: MarkupFormat,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
