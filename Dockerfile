@@ -9,7 +9,7 @@ ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
 COPY . .
 
 # Build Thoth for release
-RUN cargo build --release --target x86_64-unknown-linux-musl
+RUN cargo build --release --workspace --exclude thoth-app --target x86_64-unknown-linux-musl
 
 RUN find /volume/target -name 'thoth*'
 RUN file /volume/target/release/thoth
