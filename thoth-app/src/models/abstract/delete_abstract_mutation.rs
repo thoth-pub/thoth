@@ -40,5 +40,5 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct DeleteAbstractResponseData {
-    pub delete_abstracts: Option<Abstract>,
+    pub delete_abstract: Option<Abstract>,
 } 

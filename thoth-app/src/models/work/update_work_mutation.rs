@@ -64,8 +64,6 @@ const UPDATE_WORK_MUTATION: &str = "
             landingPage: $landingPage
             lccn: $lccn
             oclc: $oclc
-            shortAbstract: $shortAbstract
-            longAbstract: $longAbstract
             generalNote: $generalNote
             bibliographyNote: $bibliographyNote
             toc: $toc
@@ -120,8 +118,8 @@ pub struct Variables {
     pub landing_page: Option<String>,
     pub lccn: Option<String>,
     pub oclc: Option<String>,
-    pub short_abstract: Option<String>,
-    pub long_abstract: Option<String>,
+    // pub short_abstract: Option<String>,
+    // pub long_abstract: Option<String>,
     pub general_note: Option<String>,
     pub bibliography_note: Option<String>,
     pub toc: Option<String>,

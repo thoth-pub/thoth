@@ -57,7 +57,6 @@ pub struct Variables {
     pub locale_code: LocaleCode,
     pub abstract_type: AbstractType,
     pub canonical: bool,
-    pub markup_format: MarkupFormat,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]

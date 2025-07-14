@@ -15,6 +15,7 @@ use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
+use thoth_api::model::AbstractType;
 use thoth_api::model::{Doi, DOI_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -53,6 +54,16 @@ use crate::component::utils::FormWorkStatusSelect;
 use crate::component::utils::FormWorkTypeSelect;
 use crate::component::utils::Loader;
 use crate::component::work_status_modal::ConfirmWorkStatusComponent;
+use crate::models::r#abstract::delete_abstract_mutation::DeleteAbstractRequest;
+use crate::models::r#abstract::delete_abstract_mutation::DeleteAbstractRequestBody;
+use crate::models::r#abstract::delete_abstract_mutation::PushActionDeleteAbstract;
+use crate::models::r#abstract::delete_abstract_mutation::PushDeleteAbstract;
+use crate::models::r#abstract::delete_abstract_mutation::Variables as DeleteAbstractVariables;
+use crate::models::r#abstract::update_abstract_mutation::PushActionUpdateAbstract;
+use crate::models::r#abstract::update_abstract_mutation::PushUpdateAbstract;
+use crate::models::r#abstract::update_abstract_mutation::UpdateAbstractRequest;
+use crate::models::r#abstract::update_abstract_mutation::UpdateAbstractRequestBody;
+use crate::models::r#abstract::update_abstract_mutation::Variables as UpdateAbstractVariables;
 use crate::models::title::delete_title_mutation::DeleteTitleRequest;
 use crate::models::title::delete_title_mutation::DeleteTitleRequestBody;
 use crate::models::title::delete_title_mutation::PushActionDeleteTitle;
@@ -104,8 +115,10 @@ pub struct WorkComponent {
     // fetch_title: FetchTitle,
     push_work: PushUpdateWork,
     push_title: PushUpdateTitle,
+    push_abstract: PushUpdateAbstract,
     delete_work: PushDeleteWork,
     delete_title: PushDeleteTitle,
+    delete_abstract: PushDeleteAbstract,
     notification_bus: NotificationDispatcher,
     // Store props values locally in order to test whether they have been updated on props change
     resource_access: AccountAccess,
@@ -125,10 +138,12 @@ pub enum Msg {
     SetWorkFetchState(FetchActionWork),
     GetWork,
     SetTitlePushState(PushActionUpdateTitle),
+    SetAbstractPushState(PushActionUpdateAbstract),
     SetWorkPushState(PushActionUpdateWork),
     UpdateWork,
     SetWorkDeleteState(PushActionDeleteWork),
     SetTitleDeleteState(PushActionDeleteTitle),
+    SetAbstractDeleteState(PushActionDeleteAbstract),
     DeleteWork,
     ChangeTitle(String),
     ChangeSubtitle(String),
@@ -199,8 +214,9 @@ impl Component for WorkComponent {
         let resource_access = ctx.props().current_user.resource_access.clone();
         let work_id = ctx.props().work_id;
         let push_title = Default::default();
+        let push_abstract = Default::default();
         let delete_title = Default::default();
-        // let fetch_title: FetchTitle = Default::default();
+        let delete_abstract = Default::default();
 
         ctx.link().send_message(Msg::GetWork);
 
@@ -221,8 +237,9 @@ impl Component for WorkComponent {
             work_id,
             publish_confirmation_required: false,
             push_title,
+            push_abstract,
             delete_title,
-            // fetch_title,
+            delete_abstract,
         }
     }
 
@@ -306,6 +323,30 @@ impl Component for WorkComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.update_title {
+                        Some(_t) => true,
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            ThothError::from(err).to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::SetAbstractPushState(fetch_state) => {
+                self.push_abstract.apply(fetch_state);
+                match self.push_abstract.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.update_abstract {
                         Some(_t) => true,
                         None => {
                             self.notification_bus.send(Request::NotificationBusMsg((
@@ -412,6 +453,39 @@ impl Component for WorkComponent {
                 ctx.link()
                     .send_message(Msg::SetTitlePushState(FetchAction::Fetching));
 
+                // --abstract--
+                let r#abstract = self
+                    .work
+                    .abstracts
+                    .unwrap()
+                    .iter()
+                    .find(|a| a.canonical)
+                    .unwrap()
+                    .clone();
+                let update_abstract_request_body = UpdateAbstractRequestBody {
+                    variables: UpdateAbstractVariables {
+                        abstract_id: r#abstract.abstract_id,
+                        work_id: r#abstract.work_id,
+                        content: r#abstract.content.clone(),
+                        locale_code: r#abstract.locale_code,
+                        abstract_type: r#abstract.abstract_type,
+                        canonical: r#abstract.canonical,
+                    },
+                    ..Default::default()
+                };
+                let update_abstract_request = UpdateAbstractRequest {
+                    body: update_abstract_request_body,
+                };
+
+                self.push_abstract = Fetch::new(update_abstract_request);
+
+                ctx.link()
+                    .send_future(self.push_abstract.fetch(Msg::SetAbstractPushState));
+                ctx.link()
+                    .send_message(Msg::SetAbstractPushState(FetchAction::Fetching));
+
+                // --abstract--
+
                 let update_work_request_body = UpdateWorkRequestBody {
                     variables: UpdateWorkVariables {
                         work_id: self.work.work_id,
@@ -435,8 +509,8 @@ impl Component for WorkComponent {
                         landing_page: self.work.landing_page.clone(),
                         lccn: self.work.lccn.clone(),
                         oclc: self.work.oclc.clone(),
-                        short_abstract: self.work.short_abstract.clone(),
-                        long_abstract: self.work.long_abstract.clone(),
+                        // short_abstract: self.work.short_abstract.clone(),
+                        // long_abstract: self.work.long_abstract.clone(),
                         general_note: self.work.general_note.clone(),
                         bibliography_note: self.work.bibliography_note.clone(),
                         toc: self.work.toc.clone(),
@@ -516,6 +590,30 @@ impl Component for WorkComponent {
                     }
                 }
             }
+            Msg::SetAbstractDeleteState(fetch_state) => {
+                self.delete_abstract.apply(fetch_state);
+                match self.delete_abstract.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.delete_abstract {
+                        Some(_) => true,
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            ThothError::from(err).to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
             Msg::DeleteWork => {
                 let delete_title_request_body = DeleteTitleRequestBody {
                     variables: DeleteTitlekVariables {
@@ -531,6 +629,31 @@ impl Component for WorkComponent {
                     .send_future(self.delete_title.fetch(Msg::SetTitleDeleteState));
                 ctx.link()
                     .send_message(Msg::SetTitleDeleteState(FetchAction::Fetching));
+
+                // --abstract--
+                let r#abstract = self
+                    .work
+                    .abstracts
+                    .unwrap()
+                    .iter()
+                    .find(|a| a.canonical)
+                    .unwrap()
+                    .clone();
+                let delete_abstract_request_body = DeleteAbstractRequestBody {
+                    variables: DeleteAbstractVariables {
+                        abstract_id: r#abstract.abstract_id,
+                    },
+                    ..Default::default()
+                };
+                let delete_abstract_request = DeleteAbstractRequest {
+                    body: delete_abstract_request_body,
+                };
+                self.delete_abstract = Fetch::new(delete_abstract_request);
+                ctx.link()
+                    .send_future(self.delete_abstract.fetch(Msg::SetAbstractDeleteState));
+                ctx.link()
+                    .send_message(Msg::SetAbstractDeleteState(FetchAction::Fetching));
+                // --abstract--
 
                 let delete_work_request_body = DeleteWorkRequestBody {
                     variables: DeleteWorkVariables {
@@ -663,10 +786,40 @@ impl Component for WorkComponent {
             Msg::ChangeLccn(value) => self.work.lccn.neq_assign(value.to_opt_string()),
             Msg::ChangeOclc(value) => self.work.oclc.neq_assign(value.to_opt_string()),
             Msg::ChangeShortAbstract(value) => {
-                self.work.short_abstract.neq_assign(value.to_opt_string())
+                if self
+                    .work
+                    .abstracts
+                    .unwrap()
+                    .iter()
+                    .find(|a| a.abstract_type == AbstractType::Short)
+                    .unwrap()
+                    .clone()
+                    .content
+                    .neq_assign(value.trim().to_owned())
+                {
+                    self.work.short_abstract.neq_assign(value.to_opt_string());
+                    true
+                } else {
+                    false
+                }
             }
             Msg::ChangeLongAbstract(value) => {
-                self.work.long_abstract.neq_assign(value.to_opt_string())
+                if self
+                    .work
+                    .abstracts
+                    .unwrap()
+                    .iter()
+                    .find(|a| a.abstract_type == AbstractType::Long)
+                    .unwrap()
+                    .clone()
+                    .content
+                    .neq_assign(value.trim().to_owned())
+                {
+                    self.work.long_abstract.neq_assign(value.to_opt_string());
+                    true
+                } else {
+                    false
+                }
             }
             Msg::ChangeNote(value) => self.work.general_note.neq_assign(value.to_opt_string()),
             Msg::ChangeBibliographyNote(value) => self
