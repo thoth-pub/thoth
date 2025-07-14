@@ -52,6 +52,8 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Set Rust toolchain version
+        run: rustup override set 1.88.0
       - name: Build binary
         run: cargo build -vv
       - name: Run migrations

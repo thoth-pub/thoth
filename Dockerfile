@@ -1,6 +1,4 @@
-ARG MUSL_IMAGE=clux/muslrust:1.86.0-stable
-
-FROM ${MUSL_IMAGE} as build
+FROM ghcr.io/thoth-pub/muslrust AS build
 
 ARG THOTH_GRAPHQL_API=https://api.thoth.pub
 ARG THOTH_EXPORT_API=https://export.thoth.pub
@@ -11,7 +9,10 @@ ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
 COPY . .
 
 # Build Thoth for release
-RUN cargo build --release
+RUN cargo build --release --workspace --exclude thoth-app --target x86_64-unknown-linux-musl
+
+RUN find /volume/target -name 'thoth*'
+RUN file /volume/target/release/thoth
 
 # Switch to minimal image for run time
 FROM scratch

@@ -286,7 +286,7 @@ fn test_display_with_issns() {
         ..Default::default()
     };
 
-    let formatted = format!("{}", series);
+    let formatted = format!("{series}");
     assert_eq!(formatted, "Test Series (1234-5678, 8765-4321)");
 }
 
@@ -298,7 +298,7 @@ fn test_display_with_single_issn() {
         ..Default::default()
     };
 
-    let formatted = format!("{}", series);
+    let formatted = format!("{series}");
     assert_eq!(formatted, "Test Series (1234-5678)");
 }
 
@@ -309,7 +309,7 @@ fn test_display_without_issns() {
         ..Default::default()
     };
 
-    let formatted = format!("{}", series);
+    let formatted = format!("{series}");
     assert_eq!(formatted, "Test Series");
 }
 
