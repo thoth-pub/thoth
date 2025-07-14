@@ -61,4 +61,4 @@ pub struct Variables {
 #[serde(rename_all = "camelCase")]
 pub struct CreateAbstractResponseData {
     pub create_abstract: Option<Abstract>,
-} 
+}

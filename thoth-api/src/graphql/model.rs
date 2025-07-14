@@ -2846,7 +2846,7 @@ impl Work {
             default = vec![],
             description = "If set, only shows results with these locale codes"
         )]
-        locale_codes: Option<Vec<LocaleCode>>
+        locale_codes: Option<Vec<LocaleCode>>,
     ) -> FieldResult<Vec<Title>> {
         Title::all(
             &context.db,

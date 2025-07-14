@@ -433,8 +433,9 @@ impl Crud for Work {
                     .ilike(format!("%{filter}%"))
                     .or(dsl::reference.ilike(format!("%{filter}%")))
                     .or(dsl::landing_page.ilike(format!("%{filter}%")))
-                    .or(dsl::work_id.eq_any(title_work_ids)
-                    .or(dsl::work_id.eq_any(abstract_work_ids))),
+                    .or(dsl::work_id
+                        .eq_any(title_work_ids)
+                        .or(dsl::work_id.eq_any(abstract_work_ids))),
             );
         }
         query

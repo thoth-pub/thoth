@@ -22,8 +22,8 @@ use strum::EnumString;
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
-use super::title::Title;
 use super::r#abstract::Abstract;
+use super::title::Title;
 
 #[cfg_attr(
     feature = "backend",

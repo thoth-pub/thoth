@@ -783,7 +783,11 @@ pub fn extract_title(content: &str, format: &MarkupFormat) -> ThothResult<(Strin
 }
 
 /// Extract title and subtitle from content based on format
-pub fn extract_content(content: &str, format: &MarkupFormat, tag_name: String) -> ThothResult<String> {
+pub fn extract_content(
+    content: &str,
+    format: &MarkupFormat,
+    tag_name: String,
+) -> ThothResult<String> {
     // Validate format first
     validate_format(content, format)?;
     match format {
@@ -857,7 +861,11 @@ pub fn convert_to_jats(content: String, tag_name: String) -> ThothResult<String>
 }
 
 /// Convert from JATS XML to specified format using a specific tag name
-pub fn convert_from_jats(jats_xml: &str, format: MarkupFormat, tag_name: &str) -> ThothResult<String> {
+pub fn convert_from_jats(
+    jats_xml: &str,
+    format: MarkupFormat,
+    tag_name: &str,
+) -> ThothResult<String> {
     validate_format(jats_xml, &MarkupFormat::JatsXml)?;
 
     let tag_regex = Regex::new(&format!(r"<{}>(.*?)</{}>", tag_name, tag_name))

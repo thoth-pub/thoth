@@ -36,4 +36,4 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct AbstractResponseData {
     pub r#abstract: Option<Abstract>,
-} 
+}

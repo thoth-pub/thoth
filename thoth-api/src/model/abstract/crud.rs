@@ -1,7 +1,7 @@
 use super::LocaleCode;
 use super::{
-    Abstract, AbstractField, AbstractHistory, AbstractOrderBy, NewAbstract, NewAbstractHistory,
-    PatchAbstract, AbstractType
+    Abstract, AbstractField, AbstractHistory, AbstractOrderBy, AbstractType, NewAbstract,
+    NewAbstractHistory, PatchAbstract,
 };
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
@@ -86,8 +86,9 @@ impl Crud for Abstract {
 
         if !locale_codes.is_empty() && abstract_type.is_some() {
             query = query.filter(
-                dsl::locale_code.eq_any(&locale_codes)
-                    .and(dsl::abstract_type.eq(abstract_type.unwrap()))
+                dsl::locale_code
+                    .eq_any(&locale_codes)
+                    .and(dsl::abstract_type.eq(abstract_type.unwrap())),
             );
         } else if !locale_codes.is_empty() {
             query = query.filter(dsl::locale_code.eq_any(locale_codes));

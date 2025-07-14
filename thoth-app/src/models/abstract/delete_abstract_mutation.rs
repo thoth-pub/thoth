@@ -41,4 +41,4 @@ pub struct Variables {
 #[serde(rename_all = "camelCase")]
 pub struct DeleteAbstractResponseData {
     pub delete_abstract: Option<Abstract>,
-} 
+}
