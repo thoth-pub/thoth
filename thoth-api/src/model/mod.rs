@@ -875,7 +875,7 @@ pub fn convert_from_jats(
         .captures(jats_xml)
         .and_then(|caps| caps.get(1))
         .map(|m| m.as_str().trim().to_string())
-        .ok_or_else(|| ThothError::TagNotFoundError)?;
+        .ok_or(ThothError::TagNotFoundError)?;
 
     match format {
         MarkupFormat::Html => Ok(format!("<text>{}</text>", content)),
@@ -887,20 +887,20 @@ pub fn convert_from_jats(
 pub fn convert_title_from_jats(jats_xml: &str, format: MarkupFormat) -> ThothResult<String> {
     validate_format(jats_xml, &MarkupFormat::JatsXml)?;
 
-    let content_regex =
-        Regex::new(r"<([^>]+)>(.*?)</\1>").map_err(|_| ThothError::UnsuportedFileFormatError)?;
+    let content_regex = Regex::new(r"<([^>]+)>(.*?)</([^>]+)>")
+        .map_err(|_| ThothError::UnsuportedFileFormatError)?;
 
     let mut elements = Vec::new();
     for caps in content_regex.captures_iter(jats_xml) {
-        let tag = caps
-            .get(1)
-            .map(|m| m.as_str().to_string())
-            .unwrap_or_default();
-        let content = caps
-            .get(2)
-            .map(|m| m.as_str().trim().to_string())
-            .unwrap_or_default();
-        elements.push((tag, content));
+        let open_tag = caps.get(1).map(|m| m.as_str()).unwrap_or_default();
+        let content = caps.get(2).map(|m| m.as_str().trim()).unwrap_or_default();
+        let close_tag = caps.get(3).map(|m| m.as_str()).unwrap_or_default();
+
+        if open_tag == close_tag {
+            elements.push((open_tag.to_string(), content.to_string()));
+        } else {
+            return Err(ThothError::UnsuportedFileFormatError); // теги не совпали — ошибка
+        }
     }
 
     match format {

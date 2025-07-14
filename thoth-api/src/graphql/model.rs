@@ -1,7 +1,6 @@
 use crate::model::r#abstract::{Abstract, AbstractOrderBy, NewAbstract, PatchAbstract};
 use crate::model::title::{PatchTitle, Title};
 use crate::schema::{work_abstract, work_title};
-use chrono::format;
 use chrono::naive::NaiveDate;
 use diesel::prelude::*;
 use juniper::RootNode;
@@ -1473,7 +1472,7 @@ impl QueryRoot {
 
     #[graphql(description = "Query a title by its ID")]
     fn title(context: &Context, title_id: Uuid, markup_format: MarkupFormat) -> FieldResult<Title> {
-        let mut title = Title::from_id(&context.db, &title_id).map_err(|e| FieldError::from(e))?;
+        let mut title = Title::from_id(&context.db, &title_id).map_err(FieldError::from)?;
         title.title = convert_from_jats(&title.title, markup_format, "title")?;
         if let Some(subtitle) = &title.subtitle {
             title.subtitle = Some(convert_from_jats(subtitle, markup_format, "subtitle")?);
@@ -1517,7 +1516,7 @@ impl QueryRoot {
             vec![],
             None,
         )
-        .map_err(|e| FieldError::from(e))?;
+        .map_err(FieldError::from)?;
 
         for title in &mut titles {
             title.title = convert_from_jats(&title.title, markup_format, "title")?;
@@ -1536,7 +1535,7 @@ impl QueryRoot {
         markup_format: MarkupFormat,
     ) -> FieldResult<Abstract> {
         let mut r#abstract =
-            Abstract::from_id(&context.db, &abstgract_id).map_err(|e| FieldError::from(e))?;
+            Abstract::from_id(&context.db, &abstgract_id).map_err(FieldError::from)?;
         r#abstract.content = convert_from_jats(&r#abstract.content, markup_format, "abstract")?;
         Ok(r#abstract)
     }
@@ -1576,7 +1575,7 @@ impl QueryRoot {
             vec![],
             None,
         )
-        .map_err(|e| FieldError::from(e))?;
+        .map_err(FieldError::from)?;
 
         for r#abstract in &mut abstracts {
             r#abstract.content = convert_from_jats(&r#abstract.content, markup_format, "abstract")?;

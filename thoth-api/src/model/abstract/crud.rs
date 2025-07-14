@@ -1,7 +1,7 @@
 use super::LocaleCode;
 use super::{
-    Abstract, AbstractField, AbstractHistory, AbstractOrderBy, AbstractType, NewAbstract,
-    NewAbstractHistory, PatchAbstract,
+    Abstract, AbstractField, AbstractHistory, AbstractOrderBy, NewAbstract, NewAbstractHistory,
+    PatchAbstract,
 };
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};

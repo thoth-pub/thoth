@@ -171,11 +171,11 @@ impl Work {
             short_abstract: abstracts
                 .iter()
                 .find(|a| a.canonical && a.abstract_type == AbstractType::Short)
-                .and_then(|a| Some(a.content.clone())),
+                .map(|a| a.content.clone()),
             long_abstract: abstracts
                 .iter()
                 .find(|a| a.canonical && a.abstract_type == AbstractType::Long)
-                .and_then(|a| Some(a.content.clone())),
+                .map(|a| a.content.clone()),
             general_note: work.general_note,
             bibliography_note: work.bibliography_note,
             toc: work.toc,

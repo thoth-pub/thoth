@@ -1,5 +1,4 @@
 use crate::model::locale::LocaleCode;
-use crate::model::MarkupFormat;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use strum::EnumString;

@@ -62,6 +62,8 @@ pub struct Title {
     graphql(description = "Set of values required to define a new work's title"),
     diesel(table_name = work_title)
 )]
+
+#[derive(Default)]
 pub struct NewTitle {
     pub work_id: Uuid,
     pub locale_code: LocaleCode,
@@ -69,19 +71,6 @@ pub struct NewTitle {
     pub title: String,
     pub subtitle: Option<String>,
     pub canonical: bool,
-}
-
-impl Default for NewTitle {
-    fn default() -> Self {
-        Self {
-            work_id: Default::default(),
-            locale_code: Default::default(),
-            full_title: String::new(),
-            title: String::new(),
-            subtitle: None,
-            canonical: false,
-        }
-    }
 }
 
 #[cfg_attr(

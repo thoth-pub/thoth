@@ -3,7 +3,6 @@ use serde::Serialize;
 use thoth_api::model::locale::LocaleCode;
 use thoth_api::model::r#abstract::Abstract;
 use thoth_api::model::r#abstract::AbstractType;
-use thoth_api::model::MarkupFormat;
 use uuid::Uuid;
 
 const UPDATE_ABSTRACT_MUTATION: &str = "
