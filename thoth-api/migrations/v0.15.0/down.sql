@@ -25,3 +25,5 @@ DROP TYPE IF EXISTS abstract_type;
 -- Drop unique indexes created for the abstract table
 DROP INDEX IF EXISTS abstract_unique_canonical_true_idx;
 DROP INDEX IF EXISTS abstract_uniq_locale_idx;
+
+DROP TABLE IF EXISTS abstract;

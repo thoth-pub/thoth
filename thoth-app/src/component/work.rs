@@ -15,7 +15,7 @@ use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
-use thoth_api::model::AbstractType;
+use thoth_api::model::r#abstract::AbstractType;
 use thoth_api::model::{Doi, DOI_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -457,6 +457,7 @@ impl Component for WorkComponent {
                 let r#abstract = self
                     .work
                     .abstracts
+                    .as_ref()
                     .unwrap()
                     .iter()
                     .find(|a| a.canonical)
@@ -634,6 +635,7 @@ impl Component for WorkComponent {
                 let r#abstract = self
                     .work
                     .abstracts
+                    .as_ref()
                     .unwrap()
                     .iter()
                     .find(|a| a.canonical)
@@ -789,6 +791,7 @@ impl Component for WorkComponent {
                 if self
                     .work
                     .abstracts
+                    .as_ref()
                     .unwrap()
                     .iter()
                     .find(|a| a.abstract_type == AbstractType::Short)
@@ -807,6 +810,7 @@ impl Component for WorkComponent {
                 if self
                     .work
                     .abstracts
+                    .as_ref()
                     .unwrap()
                     .iter()
                     .find(|a| a.abstract_type == AbstractType::Long)
