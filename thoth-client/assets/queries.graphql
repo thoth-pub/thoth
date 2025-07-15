@@ -46,8 +46,6 @@ fragment Work on Work {
     withdrawnDate
     license
     copyrightHolder
-    shortAbstract
-    longAbstract
     generalNote
     bibliographyNote
     place
@@ -72,6 +70,14 @@ fragment Work on Work {
         fullTitle
         title
         subtitle
+        canonical
+    }
+    abstracts(limit: 1) {
+        abstractId
+        workId
+        content
+        localeCode
+        abstractType
         canonical
     }
     imprint {
@@ -170,8 +176,6 @@ fragment Work on Work {
             workStatus
             license
             copyrightHolder
-            shortAbstract
-            longAbstract
             generalNote
             place
             firstPage
@@ -185,6 +189,14 @@ fragment Work on Work {
                 fullTitle
                 title
                 subtitle
+                canonical
+            }
+            abstracts(limit: 1) {
+                abstractId
+                workId
+                content
+                localeCode
+                abstractType
                 canonical
             }
             imprint {

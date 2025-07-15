@@ -53,6 +53,14 @@ pub const WORK_QUERY: &str = "
                 subtitle
                 canonical
             }
+            abstracts(limit: 2) {
+                abstractId
+                workId
+                content
+                localeCode
+                abstractType
+                canonical
+            }
             relations(order: {field: RELATION_ORDINAL, direction: ASC}) {
                 workRelationId
                 relatorWorkId
@@ -78,6 +86,14 @@ pub const WORK_QUERY: &str = "
                         fullTitle
                         title
                         subtitle
+                        canonical
+                    }
+                    abstracts(limit: 1) {
+                        abstractId
+                        workId
+                        content
+                        localeCode
+                        abstractType
                         canonical
                     }
                 }

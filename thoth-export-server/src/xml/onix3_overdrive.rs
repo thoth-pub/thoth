@@ -2,8 +2,8 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType, Work,
-    WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkStatus,
+    AbstractType, ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType,
+    Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkStatus,
     WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
@@ -68,7 +68,11 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                 "Missing Publication Date".to_string(),
             ))
         // Don't output works with no long abstract (Description element mandatory in OverDrive)
-        } else if self.long_abstract.is_none() {
+        } else if !self
+            .abstracts
+            .iter()
+            .any(|a| a.abstract_type == AbstractType::LONG)
+        {
             Err(ThothError::IncompleteMetadataRecord(
                 ONIX_ERROR.to_string(),
                 "Missing Long Abstract".to_string(),
@@ -268,8 +272,15 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                             w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                         })?;
                         write_full_element_block("Text", Some(vec![("language", "eng")]), w, |w| {
-                            w.write(XmlEvent::Characters(self.long_abstract.as_ref().unwrap()))
-                                .map_err(|e| e.into())
+                            w.write(XmlEvent::Characters(
+                                &self
+                                    .abstracts
+                                    .iter()
+                                    .find(|a| a.abstract_type == AbstractType::LONG)
+                                    .map(|a| a.content.clone())
+                                    .unwrap(),
+                            ))
+                            .map_err(|e| e.into())
                         })
                     })?;
                     if let Some(toc) = &self.toc {
@@ -1091,6 +1102,16 @@ mod tests {
                 subtitle: Some("Book Subtitle".to_string()),
                 canonical: true,
             }],
+            abstracts: vec![
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::SHORT,
+                    canonical: true,
+                },
+            ],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(1),
@@ -1099,8 +1120,8 @@ mod tests {
             withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
-            short_abstract: None,
-            long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
+            // short_abstract: None,
+            // long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
             bibliography_note: None,
             place: Some("León, Spain".to_string()),
@@ -1429,7 +1450,7 @@ mod tests {
             language_relation: LanguageRelation::TRANSLATED_FROM,
             main_language: true,
         }];
-        test_work.long_abstract = None;
+        // test_work.long_abstract = None;
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
@@ -1437,7 +1458,7 @@ mod tests {
         );
 
         // Replace long abstract but remove publication date: result is error
-        test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
+        // test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
         test_work.publication_date = None;
         let output = generate_test_output(false, &test_work);
         assert_eq!(

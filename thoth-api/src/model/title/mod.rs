@@ -62,7 +62,6 @@ pub struct Title {
     graphql(description = "Set of values required to define a new work's title"),
     diesel(table_name = work_title)
 )]
-
 #[derive(Default)]
 pub struct NewTitle {
     pub work_id: Uuid,

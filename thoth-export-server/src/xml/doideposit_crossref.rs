@@ -2,9 +2,9 @@ use chrono::Utc;
 use std::io::Write;
 use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
-    ContributionType, Funding, PublicationType, Reference, RelationType, Work, WorkContributions,
-    WorkContributionsAffiliationsInstitution, WorkFundings, WorkIssuesSeries, WorkPublications,
-    WorkReferences, WorkRelations, WorkRelationsRelatedWorkContributions,
+    AbstractType, ContributionType, Funding, PublicationType, Reference, RelationType, Work,
+    WorkContributions, WorkContributionsAffiliationsInstitution, WorkFundings, WorkIssuesSeries,
+    WorkPublications, WorkReferences, WorkRelations, WorkRelationsRelatedWorkContributions,
     WorkRelationsRelatedWorkContributionsAffiliationsInstitution, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
@@ -244,10 +244,20 @@ fn write_work_abstract<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothRe
     // which can be set to any value. In our case we use "long" or "short".
     // Abstracts must be output in JATS, we simply convert them into JATS by extracting its
     // paragraphs and tagging them with <jats:p>
-    if let Some(long_abstract) = &work.long_abstract {
+    if let Some(long_abstract) = &work
+        .abstracts
+        .iter()
+        .find(|a| a.abstract_type == AbstractType::LONG)
+        .map(|a| a.content.clone())
+    {
         write_abstract_content(long_abstract, "long", w)?;
     }
-    if let Some(short_abstract) = &work.short_abstract {
+    if let Some(short_abstract) = &work
+        .abstracts
+        .iter()
+        .find(|a| a.abstract_type == AbstractType::SHORT)
+        .map(|a| a.content.clone())
+    {
         write_abstract_content(short_abstract, "short", w)?;
     }
     Ok(())
@@ -261,10 +271,22 @@ fn write_chapter_abstract<W: Write>(
     // which can be set to any value. In our case we use "long" or "short".
     // Abstracts must be output in JATS, we simply convert them into JATS by extracting its
     // paragraphs and tagging them with <jats:p>
-    if let Some(long_abstract) = &chapter.related_work.long_abstract {
+    if let Some(long_abstract) = &chapter
+        .related_work
+        .abstracts
+        .iter()
+        .find(|a| a.abstract_type == AbstractType::LONG)
+        .map(|a| a.content.clone())
+    {
         write_abstract_content(long_abstract, "long", w)?;
     }
-    if let Some(short_abstract) = &chapter.related_work.short_abstract {
+    if let Some(short_abstract) = &chapter
+        .related_work
+        .abstracts
+        .iter()
+        .find(|a| a.abstract_type == AbstractType::LONG)
+        .map(|a| a.content.clone())
+    {
         write_abstract_content(short_abstract, "short", w)?;
     }
     Ok(())
@@ -1258,14 +1280,24 @@ mod tests {
                     subtitle: Some("One".to_string()),
                     canonical: true,
                 }],
+                abstracts: vec![
+                    thoth_client::WorkRelationsRelatedWorkAbstracts {
+                        abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                        work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                        content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        abstract_type: thoth_client::AbstractType::SHORT,
+                        canonical: true,
+                    },
+                ],
                 edition: None,
                 doi: Some(Doi::from_str("https://doi.org/10.00001/CHAPTER.0001").unwrap()),
                 publication_date: chrono::NaiveDate::from_ymd_opt(2000, 2, 28),
                 withdrawn_date: None,
                 license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
                 copyright_holder: None,
-                short_abstract: Some("A shorter abstract".to_string()),
-                long_abstract: Some("First paragraph.\n\nSecond paragraph.".to_string()),
+                // short_abstract: Some("A shorter abstract".to_string()),
+                // long_abstract: Some("First paragraph.\n\nSecond paragraph.".to_string()),
                 general_note: None,
                 place: Some("Other Place".to_string()),
                 first_page: Some("10".to_string()),
@@ -1471,6 +1503,16 @@ mod tests {
                 subtitle: Some("Book Subtitle".to_string()),
                 canonical: true,
             }],
+            abstracts: vec![
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::SHORT,
+                    canonical: true,
+                },
+            ],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(100),
@@ -1479,8 +1521,6 @@ mod tests {
             withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
-            short_abstract: None,
-            long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
             bibliography_note: None,
             place: Some("León, Spain".to_string()),
@@ -1730,14 +1770,24 @@ mod tests {
                         subtitle: Some("One".to_string()),
                         canonical: true,
                     }],
+                    abstracts: vec![
+                        thoth_client::WorkRelationsRelatedWorkAbstracts {
+                            abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            abstract_type: thoth_client::AbstractType::SHORT,
+                            canonical: true,
+                        },
+                    ],
                     edition: None,
                     doi: Some(Doi::from_str("https://doi.org/10.00001/PART.0001").unwrap()),
                     publication_date: chrono::NaiveDate::from_ymd_opt(2000, 2, 28),
                     withdrawn_date: None,
                     license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
                     copyright_holder: None,
-                    short_abstract: None,
-                    long_abstract: None,
+                    // short_abstract: None,
+                    // long_abstract: None,
                     general_note: None,
                     place: Some("Other Place".to_string()),
                     first_page: Some("10".to_string()),
@@ -1951,14 +2001,24 @@ mod tests {
                     subtitle: Some("One".to_string()),
                     canonical: true,
                 }],
+                abstracts: vec![
+                    thoth_client::WorkRelationsRelatedWorkAbstracts {
+                        abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                        work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                        content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        abstract_type: thoth_client::AbstractType::SHORT,
+                        canonical: true,
+                    },
+                ],
                 edition: None,
                 doi: Some(Doi::from_str("https://doi.org/10.00002/old_edition").unwrap()),
                 publication_date: chrono::NaiveDate::from_ymd_opt(1997, 2, 28),
                 withdrawn_date: chrono::NaiveDate::from_ymd_opt(1998, 2, 28),
                 license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
                 copyright_holder: None,
-                short_abstract: None,
-                long_abstract: None,
+                // short_abstract: None,
+                // long_abstract: None,
                 general_note: None,
                 place: Some("Other Place".to_string()),
                 first_page: Some("10".to_string()),
@@ -2171,6 +2231,16 @@ mod tests {
                 subtitle: Some("Book Subtitle".to_string()),
                 canonical: true,
             }],
+            abstracts: vec![
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::SHORT,
+                    canonical: true,
+                },
+            ],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(100),
@@ -2179,8 +2249,8 @@ mod tests {
             withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
-            short_abstract: None,
-            long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
+            // short_abstract: None,
+            // long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
             bibliography_note: None,
             place: Some("León, Spain".to_string()),

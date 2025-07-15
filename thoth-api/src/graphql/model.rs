@@ -1540,6 +1540,7 @@ impl QueryRoot {
         Ok(r#abstract)
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[graphql(description = "Query abstracts by work ID")]
     fn abstracts(
         context: &Context,
@@ -1547,7 +1548,7 @@ impl QueryRoot {
         #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
-            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on title_, subtitle, full_title fields"
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on content fields"
         )]
         filter: Option<String>,
         #[graphql(
@@ -2861,6 +2862,52 @@ impl Work {
             None,
         )
         .map_err(|e| e.into())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[graphql(description = "Query abstracts by work ID")]
+    fn abstracts(
+        &self,
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on title_, subtitle, full_title fields"
+        )]
+        filter: Option<String>,
+        #[graphql(
+            default = AbstractOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<AbstractOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results with these locale codes"
+        )]
+        locale_codes: Option<Vec<LocaleCode>>,
+        markup_format: MarkupFormat,
+    ) -> FieldResult<Vec<Abstract>> {
+        let mut abstracts = Abstract::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            filter,
+            order.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+            locale_codes.unwrap_or_default(),
+            vec![],
+            None,
+        )
+        .map_err(FieldError::from)?;
+
+        for r#abstract in &mut abstracts {
+            r#abstract.content = convert_from_jats(&r#abstract.content, markup_format, "abstract")?;
+        }
+
+        Ok(abstracts)
     }
 
     #[graphql(description = "Secondary title of the work (excluding main title)")]

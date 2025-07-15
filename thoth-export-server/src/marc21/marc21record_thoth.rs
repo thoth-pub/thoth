@@ -6,8 +6,9 @@ use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
-    LanguageRelation, RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues,
-    WorkLanguages, WorkPublications, WorkRelations, WorkSubjects, WorkType,
+    AbstractType, LanguageRelation, RelationType, SubjectType, Work, WorkContributions,
+    WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkRelations, WorkSubjects,
+    WorkType,
 };
 use thoth_errors::{ThothError, ThothResult};
 
@@ -335,7 +336,12 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
 
         // 520 - abstract
-        if let Some(mut long_abstract) = self.long_abstract.clone() {
+        if let Some(r#abstract) = self
+            .abstracts
+            .iter()
+            .find(|a| a.abstract_type == AbstractType::LONG)
+        {
+            let mut long_abstract = r#abstract.content.clone();
             // Strip out formatting marks as these may stop records loading successfully
             long_abstract.retain(|c| c != '\n' && c != '\r' && c != '\t');
             FieldRepr::from((b"520", "\\\\"))
@@ -813,6 +819,16 @@ pub(crate) mod tests {
                 subtitle: Some("Book Subtitle".to_string()),
                 canonical: true,
             }],
+            abstracts: vec![
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::SHORT,
+                    canonical: true,
+                },
+            ],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(2),
@@ -821,8 +837,6 @@ pub(crate) mod tests {
             withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: None,
-            short_abstract: None,
-            long_abstract: Some("Lorem\tipsum\r\ndolor sit amet".to_string()),
             general_note: Some(
                 "Please note that in this book the mathematical formulas are encoded in MathML."
                     .to_string(),
@@ -1087,14 +1101,24 @@ pub(crate) mod tests {
                     subtitle: None,
                     canonical: true,
                 }],
+                abstracts: vec![
+                    thoth_client::WorkRelationsRelatedWorkAbstracts {
+                        abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                        work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                        content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        abstract_type: thoth_client::AbstractType::SHORT,
+                        canonical: true,
+                    },
+                ],
                 edition: None,
                 doi: None,
                 publication_date: None,
                 withdrawn_date: None,
                 license: None,
                 copyright_holder: None,
-                short_abstract: None,
-                long_abstract: None,
+                // short_abstract: None,
+                // long_abstract: None,
                 general_note: None,
                 place: None,
                 first_page: None,

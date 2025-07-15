@@ -2,8 +2,8 @@ use cc_license::License;
 use chrono::Utc;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, LanguageRelation, LocationPlatform, PublicationType, RelationType,
-    SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages,
+    AbstractType, ContributionType, LanguageRelation, LocationPlatform, PublicationType,
+    RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages,
     WorkPublicationsLocations, WorkReferences, WorkRelations, WorkStatus, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
@@ -421,15 +421,26 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         })
                     })
                 })?;
-                if self.short_abstract.is_some()
-                    || self.long_abstract.is_some()
+                if self
+                    .abstracts
+                    .iter()
+                    .any(|a| a.abstract_type == AbstractType::SHORT)
+                    || self
+                        .abstracts
+                        .iter()
+                        .any(|a| a.abstract_type == AbstractType::LONG)
                     || self.toc.is_some()
                     || self.general_note.is_some()
                     || self.cover_url.is_some()
                     || is_open_access
                 {
                     write_element_block("CollateralDetail", w, |w| {
-                        if let Some(mut short_abstract) = self.short_abstract.clone() {
+                        if let Some(mut short_abstract) = self
+                            .abstracts
+                            .iter()
+                            .find(|a| a.abstract_type == AbstractType::SHORT)
+                            .map(|a| a.content.clone())
+                        {
                             // Short description field may not exceed 350 characters.
                             // Ensure that the string is truncated at a valid UTF-8 boundary
                             // by finding the byte index of the 350th character and then truncating
@@ -452,7 +463,12 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                 })
                             })?;
                         }
-                        if let Some(long_abstract) = &self.long_abstract {
+                        if let Some(long_abstract) = &self
+                            .abstracts
+                            .iter()
+                            .find(|a| a.abstract_type == AbstractType::LONG)
+                            .map(|a| a.content.clone())
+                        {
                             // 03 Description, 30 Abstract
                             for text_type in ["03", "30"] {
                                 write_element_block("TextContent", w, |w| {
@@ -2062,14 +2078,23 @@ mod tests {
                     subtitle: None,
                     canonical: true,
                 }],
+                abstracts: vec![thoth_client::WorkRelationsRelatedWorkAbstracts {
+                        abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                        work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                        content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        abstract_type: thoth_client::AbstractType::SHORT,
+                        canonical: true,
+                    },
+                ],
                 edition: None,
                 doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
                 publication_date: None,
                 withdrawn_date: None,
                 license: None,
                 copyright_holder: None,
-                short_abstract: None,
-                long_abstract: None,
+                // short_abstract: None,
+                // long_abstract: None,
                 general_note: None,
                 place: None,
                 first_page: None,
@@ -2152,6 +2177,16 @@ mod tests {
                 subtitle: Some("Book Subtitle".to_string()),
                 canonical: true,
             }],
+            abstracts: vec![
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::SHORT,
+                    canonical: true,
+                },
+            ],
             work_type: WorkType::MONOGRAPH,
             reference: Some("IntRef1".to_string()),
             edition: Some(2),
@@ -2160,10 +2195,10 @@ mod tests {
             withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
-            short_abstract: Some("Lorem ipsum dolor sit amet.".to_string()),
-            long_abstract: Some(
-                "Lorem ipsum dolor sit amet, consectetur adipiscing elit.".to_string(),
-            ),
+            // short_abstract: Some("Lorem ipsum dolor sit amet.".to_string()),
+            // long_abstract: Some(
+            //     "Lorem ipsum dolor sit amet, consectetur adipiscing elit.".to_string(),
+            // ),
             general_note: Some("This is a general note".to_string()),
             bibliography_note: Some("This is a bibliography note".to_string()),
             place: Some("León, Spain".to_string()),
@@ -2293,14 +2328,23 @@ mod tests {
                             subtitle: None,
                             canonical: true,
                         }],
+                        abstracts: vec![thoth_client::WorkRelationsRelatedWorkAbstracts {
+                                abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                                content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                                locale_code: thoth_client::LocaleCode::EN,
+                                abstract_type: thoth_client::AbstractType::SHORT,
+                                canonical: true,
+                            },
+                        ],
                         edition: None,
                         doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
                         publication_date: None,
                         withdrawn_date: None,
                         license: None,
                         copyright_holder: None,
-                        short_abstract: None,
-                        long_abstract: None,
+                        // short_abstract: None,
+                        // long_abstract: None,
                         general_note: None,
                         place: None,
                         first_page: Some("10".to_string()),
@@ -2335,14 +2379,24 @@ mod tests {
                             subtitle: None,
                             canonical: true,
                         }],
+                        abstracts: vec![
+                            thoth_client::WorkRelationsRelatedWorkAbstracts {
+                                abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                                content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                                locale_code: thoth_client::LocaleCode::EN,
+                                abstract_type: thoth_client::AbstractType::SHORT,
+                                canonical: true,
+                            },
+                        ],
                         edition: None,
                         doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0002").unwrap()),
                         publication_date: None,
                         withdrawn_date: None,
                         license: None,
                         copyright_holder: None,
-                        short_abstract: None,
-                        long_abstract: None,
+                        // short_abstract: None,
+                        // long_abstract: None,
                         general_note: None,
                         place: None,
                         first_page: None,
@@ -2377,14 +2431,24 @@ mod tests {
                             subtitle: None,
                             canonical: true,
                         }],
+                        abstracts: vec![
+                            thoth_client::WorkRelationsRelatedWorkAbstracts {
+                                abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                                content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                                locale_code: thoth_client::LocaleCode::EN,
+                                abstract_type: thoth_client::AbstractType::SHORT,
+                                canonical: true,
+                            },
+                        ],
                         edition: None,
                         doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0003").unwrap()),
                         publication_date: None,
                         withdrawn_date: None,
                         license: None,
                         copyright_holder: None,
-                        short_abstract: None,
-                        long_abstract: None,
+                        // short_abstract: None,
+                        // long_abstract: None,
                         general_note: None,
                         place: None,
                         first_page: None,
@@ -3048,8 +3112,8 @@ mod tests {
         test_work.page_count = None;
         test_work.bibliography_note = None;
         test_work.image_count = None;
-        test_work.short_abstract = None;
-        test_work.long_abstract = None;
+        // test_work.short_abstract = None;
+        // test_work.long_abstract = None;
         test_work.toc = None;
         test_work.general_note = None;
         test_work.cover_caption = None;
@@ -3324,7 +3388,7 @@ mod tests {
         ));
 
         // Test truncation of short abstract
-        test_work.short_abstract = Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string());
+        // test_work.short_abstract = Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string());
         // Remove even more values
         test_work.edition = None;
         test_work.table_count = None;
@@ -3414,7 +3478,7 @@ mod tests {
         // Remove remaining related work DOI: can't output RelatedMaterial block
         test_work.relations[1].related_work.doi = None;
         // Remove short abstract: can't output CollateralDetail block
-        test_work.short_abstract = None;
+        // test_work.short_abstract = None;
         // Reinstate landing page: supplier block for publisher now contains it
         test_work.landing_page = Some("https://www.book.com".to_string());
         let output = generate_test_output(true, &test_work);

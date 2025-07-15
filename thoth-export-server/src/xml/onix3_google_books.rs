@@ -1,8 +1,8 @@
 use chrono::Utc;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType, Work,
-    WorkContributions, WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkType,
+    AbstractType, ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType,
+    Work, WorkContributions, WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -261,9 +261,19 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                         })
                     })
                 })?;
-                if self.long_abstract.is_some() || self.toc.is_some() {
+                if self
+                    .abstracts
+                    .iter()
+                    .any(|a| a.abstract_type == AbstractType::LONG)
+                    || self.toc.is_some()
+                {
                     write_element_block("CollateralDetail", w, |w| {
-                        if let Some(labstract) = &self.long_abstract {
+                        if let Some(labstract) = &self
+                            .abstracts
+                            .iter()
+                            .find(|a| a.abstract_type == AbstractType::LONG)
+                            .map(|a| a.content.clone())
+                        {
                             write_element_block("TextContent", w, |w| {
                                 // 03 Description ("30 Abstract" not implemented in Google Books)
                                 write_element_block("TextType", w, |w| {
@@ -846,6 +856,16 @@ mod tests {
                 subtitle: Some("Book Subtitle".to_string()),
                 canonical: true,
             }],
+            abstracts: vec![
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::SHORT,
+                    canonical: true,
+                },
+            ],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(1),
@@ -854,8 +874,8 @@ mod tests {
             withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
-            short_abstract: None,
-            long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
+            // short_abstract: None,
+            // long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
             bibliography_note: None,
             place: Some("León, Spain".to_string()),
@@ -1085,7 +1105,7 @@ mod tests {
         // Remove/change some values to test (non-)output of optional blocks
         test_work.titles[0].subtitle = None;
         test_work.page_count = None;
-        test_work.long_abstract = None;
+        // test_work.long_abstract = None;
         test_work.publications[0].prices.pop();
         test_work.publications[0].publication_type = PublicationType::EPUB;
         let output = generate_test_output(true, &test_work);
@@ -1117,7 +1137,7 @@ mod tests {
 
         // Replace long abstract but remove table of contents
         // Result: CollateralDetail block still present, but now only contains long abstract
-        test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
+        // test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
         test_work.toc = None;
         let output = generate_test_output(true, &test_work);
         assert!(output.contains(r#"  <CollateralDetail>"#));
@@ -1130,7 +1150,7 @@ mod tests {
 
         // Remove both table of contents and long abstract
         // Result: No CollateralDetail block present at all
-        test_work.long_abstract = None;
+        // test_work.long_abstract = None;
         let output = generate_test_output(true, &test_work);
         assert!(!output.contains(r#"  <CollateralDetail>"#));
         assert!(!output.contains(r#"    <TextContent>"#));
