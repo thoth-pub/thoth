@@ -128,9 +128,9 @@ pub trait TitleProperties {
                     || _title.ends_with(':')
                     || _title.ends_with('.')
                 {
-                    format!("{} {}", _title, _subtitle)
+                    format!("{_title} {_subtitle}")
                 } else {
-                    format!("{}: {}", _title, _subtitle)
+                    format!("{_title}: {_subtitle}")
                 }
             },
         )

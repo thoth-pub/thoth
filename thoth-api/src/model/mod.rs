@@ -866,8 +866,7 @@ pub fn convert_to_jats(content: String, content_entity: ContentEntity) -> ThothR
         .replace("'", "&apos;");
 
     Ok(format!(
-        "<{}>{}</{}>",
-        content_entity, escaped_content, content_entity,
+        "<{content_entity}>{escaped_content}</{content_entity}>"
     ))
 }
 
@@ -889,77 +888,9 @@ pub fn convert_from_jats(
         .ok_or(ThothError::TagNotFoundError)?;
 
     match format {
-        MarkupFormat::Html => Ok(format!("<text>{}</text>", content)),
-        MarkupFormat::Markdown => Ok(format!("**{}**", content)),
+        MarkupFormat::Html => Ok(format!("<text>{content}</text>")),
+        MarkupFormat::Markdown => Ok(format!("**{content}**")),
         MarkupFormat::PlainText => Ok(content.to_uppercase()),
-        MarkupFormat::JatsXml => Ok(jats_xml.to_string()),
-    }
-}
-pub fn convert_title_from_jats(jats_xml: &str, format: MarkupFormat) -> ThothResult<String> {
-    validate_format(jats_xml, &MarkupFormat::JatsXml)?;
-
-    let content_regex = Regex::new(r"<([^>]+)>(.*?)</([^>]+)>")
-        .map_err(|_| ThothError::UnsuportedFileFormatError)?;
-
-    let mut elements = Vec::new();
-    for caps in content_regex.captures_iter(jats_xml) {
-        let open_tag = caps.get(1).map(|m| m.as_str()).unwrap_or_default();
-        let content = caps.get(2).map(|m| m.as_str().trim()).unwrap_or_default();
-        let close_tag = caps.get(3).map(|m| m.as_str()).unwrap_or_default();
-
-        if open_tag == close_tag {
-            elements.push((open_tag.to_string(), content.to_string()));
-        } else {
-            return Err(ThothError::UnsuportedFileFormatError); // теги не совпали — ошибка
-        }
-    }
-
-    match format {
-        MarkupFormat::Html => {
-            let mut html = String::new();
-            for (tag, content) in elements {
-                html.push_str(&format!("<{}>{}</{}>\n", tag, content, tag));
-            }
-            Ok(html)
-        }
-        MarkupFormat::Markdown => {
-            let mut markdown = String::new();
-            for (tag, content) in elements {
-                match tag.as_str() {
-                    "title" => markdown.push_str(&format!("# {}\n", content)),
-                    "subtitle" => markdown.push_str(&format!("## {}\n", content)),
-                    _ => markdown.push_str(&format!("{}\n", content)),
-                }
-            }
-            Ok(markdown)
-        }
-        MarkupFormat::PlainText => {
-            let mut text = String::new();
-            for (tag, content) in elements {
-                match tag.as_str() {
-                    "title" => text.push_str(&format!("{}\n", content.to_uppercase())),
-                    "subtitle" => {
-                        let title_case = content
-                            .split_whitespace()
-                            .map(|word| {
-                                let mut chars = word.chars();
-                                match chars.next() {
-                                    None => String::new(),
-                                    Some(first) => first
-                                        .to_uppercase()
-                                        .chain(chars.flat_map(|c| c.to_lowercase()))
-                                        .collect(),
-                                }
-                            })
-                            .collect::<Vec<String>>()
-                            .join(" ");
-                        text.push_str(&format!("{}\n", title_case));
-                    }
-                    _ => text.push_str(&format!("{}\n", content)),
-                }
-            }
-            Ok(text)
-        }
         MarkupFormat::JatsXml => Ok(jats_xml.to_string()),
     }
 }
