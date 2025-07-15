@@ -46,11 +46,13 @@ WHERE
     long_abstract IS NOT NULL;
 
 -- Only allow one canonical abstract per work                                         
-CREATE UNIQUE INDEX IF NOT EXISTS abstract_unique_canonical_true_idx ON abstract(work_id)
-    WHERE canonical;
+CREATE UNIQUE INDEX IF NOT EXISTS abstract_unique_canonical_true_idx
+ON abstract(work_id, abstract_type)
+WHERE canonical;
 
 -- Only allow one instance of each locale per work
-CREATE UNIQUE INDEX IF NOT EXISTS abstract_uniq_locale_idx ON abstract(work_id, locale_code);
+CREATE UNIQUE INDEX IF NOT EXISTS abstract_uniq_locale_idx
+ON abstract(work_id, locale_code, abstract_type);
 -- Drop title-related columns from the work table
 ALTER TABLE work
     DROP COLUMN short_abstract,

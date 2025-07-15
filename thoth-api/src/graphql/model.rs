@@ -27,6 +27,7 @@ use crate::model::series::*;
 use crate::model::subject::*;
 use crate::model::work::*;
 use crate::model::work_relation::*;
+use crate::model::ContentEntity;
 use crate::model::Convert;
 use crate::model::Crud;
 use crate::model::Doi;
@@ -36,7 +37,7 @@ use crate::model::Orcid;
 use crate::model::Ror;
 use crate::model::Timestamp;
 use crate::model::WeightUnit;
-use crate::model::{affiliation::*, convert_to_jats, extract_content, extract_title, TitleOrderBy};
+use crate::model::{affiliation::*, convert_to_jats, extract_content, TitleOrderBy};
 use crate::model::{contribution::*, NewTitle};
 use thoth_errors::{ThothError, ThothResult};
 
@@ -1728,17 +1729,22 @@ impl MutationRoot {
             return Err(ThothError::CanonicalTitleExistsError.into());
         }
 
-        // Extract title and subtitle from full_title
-        let (title, subtitle) = extract_title(&data.full_title, &markup_format)?;
-
-        let (title_jats_xml, subtitle_jats_xml) = (
-            convert_to_jats(title, "title".to_string())?,
-            convert_to_jats(subtitle, "subtitle".to_string())?,
-        );
-
         let mut data = data.clone();
-        data.title = title_jats_xml;
-        data.subtitle = Some(subtitle_jats_xml);
+
+        data.title = convert_to_jats(
+            extract_content(&data.title, &markup_format)?,
+            ContentEntity::Title,
+        )?;
+        data.subtitle = data
+            .subtitle
+            .map(|subtitle| extract_content(&subtitle, &markup_format))
+            .transpose()?
+            .map(|subtitle_content| convert_to_jats(subtitle_content, ContentEntity::Subtitle))
+            .transpose()?;
+        data.full_title = convert_to_jats(
+            extract_content(&data.full_title, &markup_format)?,
+            ContentEntity::FullTitle,
+        )?;
 
         Title::create(&context.db, &data).map_err(|e| e.into())
     }
@@ -1776,10 +1782,9 @@ impl MutationRoot {
         }
 
         // Extract abstract content
-        let abstract_content =
-            extract_content(&data.content, &markup_format, "abstract".to_string())?;
+        let abstract_content = extract_content(&data.content, &markup_format)?;
 
-        let abstract_content_jats_xml = convert_to_jats(abstract_content, "abstract".to_string())?;
+        let abstract_content_jats_xml = convert_to_jats(abstract_content, ContentEntity::Abstract)?;
 
         let mut data = data.clone();
         data.content = abstract_content_jats_xml;
@@ -1827,10 +1832,9 @@ impl MutationRoot {
         }
 
         // Extract abstract content
-        let abstract_content =
-            extract_content(&data.content, &markup_format, "abstract".to_string())?;
+        let abstract_content = extract_content(&data.content, &markup_format)?;
 
-        let abstract_content_jats_xml = convert_to_jats(abstract_content, "abstract".to_string())?;
+        let abstract_content_jats_xml = convert_to_jats(abstract_content, ContentEntity::Abstract)?;
 
         let mut data = data.clone();
         data.content = abstract_content_jats_xml;
@@ -2233,17 +2237,21 @@ impl MutationRoot {
             return Err(ThothError::CanonicalTitleExistsError.into());
         }
 
-        // Extract title and subtitle from full_title
-        let (t, s) = extract_title(&data.full_title, &markup_format)?;
-
-        let (title_jats_xml, subtitle_jats_xml) = (
-            convert_to_jats(t, "title".to_string())?,
-            convert_to_jats(s, "subtitle".to_string())?,
-        );
-
         let mut data = data.clone();
-        data.title = title_jats_xml;
-        data.subtitle = Some(subtitle_jats_xml);
+        data.title = convert_to_jats(
+            extract_content(&data.title, &markup_format)?,
+            ContentEntity::Title,
+        )?;
+        data.subtitle = data
+            .subtitle
+            .map(|subtitle| extract_content(&subtitle, &markup_format))
+            .transpose()?
+            .map(|subtitle_content| convert_to_jats(subtitle_content, ContentEntity::Subtitle))
+            .transpose()?;
+        data.full_title = convert_to_jats(
+            extract_content(&data.full_title, &markup_format)?,
+            ContentEntity::FullTitle,
+        )?;
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         title
