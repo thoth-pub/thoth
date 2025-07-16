@@ -637,29 +637,16 @@ pub enum AbstractType {
 /// Validate content format based on markup format
 pub fn validate_format(content: &str, format: &MarkupFormat) -> ThothResult<()> {
     match format {
-        MarkupFormat::Html => {
+        MarkupFormat::Html | MarkupFormat::JatsXml => {
             // Basic HTML validation - check for opening and closing tags
-            if !content.contains('<') || !content.contains('>') {
-                return Err(ThothError::UnsuportedFileFormatError);
-            }
-            // Check for basic HTML structure
-            if !content.contains("</") {
+            if !content.contains('<') || !content.contains('>') || !content.contains("</") {
                 return Err(ThothError::UnsuportedFileFormatError);
             }
         }
         MarkupFormat::Markdown => {
             // Basic Markdown validation - check for markdown syntax
-            if !content.contains('#') && !content.contains('*') && !content.contains('`') {
+            if !content.contains('#') {
                 // At least one markdown element should be present
-                return Err(ThothError::UnsuportedFileFormatError);
-            }
-        }
-        MarkupFormat::JatsXml => {
-            // Basic JATS XML validation
-            // if !content.contains("<?xml") && !content.contains("<article") {
-            //     return Err(ThothError::UnsuportedFileFormatError);
-            // }
-            if !content.contains("</") {
                 return Err(ThothError::UnsuportedFileFormatError);
             }
         }
@@ -671,115 +658,6 @@ pub fn validate_format(content: &str, format: &MarkupFormat) -> ThothResult<()> 
         }
     }
     Ok(())
-}
-
-/// Extract title and subtitle from content based on format
-pub fn extract_title(content: &str, format: &MarkupFormat) -> ThothResult<(String, String)> {
-    // Validate format first
-    validate_format(content, format)?;
-
-    match format {
-        MarkupFormat::Html => {
-            let title_regex =
-                Regex::new(r"<h1>(.*?)</h1>").map_err(|_| ThothError::UnsuportedFileFormatError)?;
-            let subtitle_regex =
-                Regex::new(r"<h2>(.*?)</h2>").map_err(|_| ThothError::UnsuportedFileFormatError)?;
-
-            let title = title_regex
-                .captures(content)
-                .and_then(|caps| caps.get(1))
-                .map(|m| m.as_str().trim().to_string())
-                .unwrap_or_default();
-
-            let subtitle = subtitle_regex
-                .captures(content)
-                .and_then(|caps| caps.get(1))
-                .map(|m| m.as_str().trim().to_string())
-                .unwrap_or_default();
-
-            Ok((title, subtitle))
-        }
-        MarkupFormat::Markdown => {
-            let title_regex =
-                Regex::new(r"^#\s+(.*?)$").map_err(|_| ThothError::UnsuportedFileFormatError)?;
-            let subtitle_regex =
-                Regex::new(r"^##\s+(.*?)$").map_err(|_| ThothError::UnsuportedFileFormatError)?;
-
-            let title = content
-                .lines()
-                .find_map(|line| {
-                    title_regex
-                        .captures(line)
-                        .and_then(|caps| caps.get(1))
-                        .map(|m| m.as_str().trim().to_string())
-                })
-                .unwrap_or_default();
-
-            let subtitle = content
-                .lines()
-                .find_map(|line| {
-                    subtitle_regex
-                        .captures(line)
-                        .and_then(|caps| caps.get(1))
-                        .map(|m| m.as_str().trim().to_string())
-                })
-                .unwrap_or_default();
-
-            Ok((title, subtitle))
-        }
-        MarkupFormat::JatsXml => {
-            let title_regex = Regex::new(r"<title>(.*?)</title>")
-                .map_err(|_| ThothError::UnsuportedFileFormatError)?;
-            let subtitle_regex = Regex::new(r"<subtitle>(.*?)</subtitle>")
-                .map_err(|_| ThothError::UnsuportedFileFormatError)?;
-
-            let title = title_regex
-                .captures(content)
-                .and_then(|caps| caps.get(1))
-                .map(|m| m.as_str().trim().to_string())
-                .unwrap_or_default();
-
-            let subtitle = subtitle_regex
-                .captures(content)
-                .and_then(|caps| caps.get(1))
-                .map(|m| m.as_str().trim().to_string())
-                .unwrap_or_default();
-
-            Ok((title, subtitle))
-        }
-        MarkupFormat::PlainText => {
-            let mut lines = content.lines();
-            let first_line = lines
-                .next()
-                .ok_or(ThothError::UnsuportedFileFormatError)?
-                .trim();
-            let second_line = lines.next().unwrap_or("").trim();
-
-            // Check if first line is all uppercase (potential title)
-            let is_title = first_line.chars().all(|c| !c.is_lowercase());
-
-            // Check if second line is title case (potential subtitle)
-            let is_subtitle = second_line.chars().next().is_some_and(|c| c.is_uppercase())
-                && second_line.chars().any(|c| c.is_lowercase());
-
-            let title = if is_title && !first_line.is_empty() {
-                first_line.to_string()
-            } else {
-                return Err(ThothError::UnsuportedFileFormatError);
-            };
-
-            let subtitle = if is_subtitle && !second_line.is_empty() {
-                second_line.to_string()
-            } else if !second_line.is_empty() {
-                // If second line exists but doesn't follow title case pattern, return error
-                return Err(ThothError::UnsuportedFileFormatError);
-            } else {
-                String::new()
-            };
-
-            Ok((title, subtitle))
-        }
-    }
 }
 
 /// Extract content based on format
@@ -871,25 +749,23 @@ pub fn convert_to_jats(content: String, content_entity: ContentEntity) -> ThothR
 }
 
 /// Convert from JATS XML to specified format using a specific tag name
-pub fn convert_from_jats(
-    jats_xml: &str,
-    format: MarkupFormat,
-    tag_name: &str,
-) -> ThothResult<String> {
+pub fn convert_from_jats(jats_xml: &str, format: MarkupFormat) -> ThothResult<String> {
+    // Всегда валидируем как JATS
     validate_format(jats_xml, &MarkupFormat::JatsXml)?;
 
-    let tag_regex = Regex::new(&format!(r"<{}>(.*?)</{}>", tag_name, tag_name))
+    // Найти первое вхождение <tag>...</tag>
+    let tag_regex = Regex::new(r"<([^>/\s]+)>(.*?)</([^>/\s]+)>")
         .map_err(|_| ThothError::UnsuportedFileFormatError)?;
 
     let content = tag_regex
         .captures(jats_xml)
-        .and_then(|caps| caps.get(1))
+        .and_then(|caps| caps.get(2)) // (.*?) — содержимое
         .map(|m| m.as_str().trim().to_string())
         .ok_or(ThothError::TagNotFoundError)?;
 
     match format {
         MarkupFormat::Html => Ok(format!("<text>{content}</text>")),
-        MarkupFormat::Markdown => Ok(format!("**{content}**")),
+        MarkupFormat::Markdown => Ok(format!("# {content}")), // ⬅️ вот это изменено
         MarkupFormat::PlainText => Ok(content.to_uppercase()),
         MarkupFormat::JatsXml => Ok(jats_xml.to_string()),
     }
