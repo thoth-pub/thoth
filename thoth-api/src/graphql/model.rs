@@ -1474,11 +1474,11 @@ impl QueryRoot {
     #[graphql(description = "Query a title by its ID")]
     fn title(context: &Context, title_id: Uuid, markup_format: MarkupFormat) -> FieldResult<Title> {
         let mut title = Title::from_id(&context.db, &title_id).map_err(FieldError::from)?;
-        title.title = convert_from_jats(&title.title, markup_format)?;
+        title.title = convert_from_jats(&title.title, markup_format, ContentEntity::Title)?;
         if let Some(subtitle) = &title.subtitle {
-            title.subtitle = Some(convert_from_jats(subtitle, markup_format)?);
+            title.subtitle = Some(convert_from_jats(subtitle, markup_format, ContentEntity::Subtitle)?);
         }
-        title.full_title = convert_from_jats(&title.full_title, markup_format)?;
+        title.full_title = convert_from_jats(&title.full_title, markup_format, ContentEntity::FullTitle)?;
         Ok(title)
     }
 
@@ -1520,11 +1520,11 @@ impl QueryRoot {
         .map_err(FieldError::from)?;
 
         for title in &mut titles {
-            title.title = convert_from_jats(&title.title, markup_format)?;
+            title.title = convert_from_jats(&title.title, markup_format, ContentEntity::Title)?;
             if let Some(subtitle) = &title.subtitle {
-                title.subtitle = Some(convert_from_jats(subtitle, markup_format)?);
+                title.subtitle = Some(convert_from_jats(subtitle, markup_format, ContentEntity::Subtitle)?);
             }
-            title.full_title = convert_from_jats(&title.full_title, markup_format)?;
+            title.full_title = convert_from_jats(&title.full_title, markup_format, ContentEntity::FullTitle)?;
         }
         Ok(titles)
     }
@@ -1537,7 +1537,7 @@ impl QueryRoot {
     ) -> FieldResult<Abstract> {
         let mut r#abstract =
             Abstract::from_id(&context.db, &abstgract_id).map_err(FieldError::from)?;
-        r#abstract.content = convert_from_jats(&r#abstract.content, markup_format)?;
+        r#abstract.content = convert_from_jats(&r#abstract.content, markup_format, ContentEntity::Abstract)?;
         Ok(r#abstract)
     }
 
@@ -1580,7 +1580,7 @@ impl QueryRoot {
         .map_err(FieldError::from)?;
 
         for r#abstract in &mut abstracts {
-            r#abstract.content = convert_from_jats(&r#abstract.content, markup_format)?;
+            r#abstract.content = convert_from_jats(&r#abstract.content, markup_format, ContentEntity::Abstract)?;
         }
 
         Ok(abstracts)
@@ -2912,7 +2912,7 @@ impl Work {
         .map_err(FieldError::from)?;
 
         for r#abstract in &mut abstracts {
-            r#abstract.content = convert_from_jats(&r#abstract.content, markup_format)?;
+            r#abstract.content = convert_from_jats(&r#abstract.content, markup_format, ContentEntity::Abstract)?;
         }
 
         Ok(abstracts)

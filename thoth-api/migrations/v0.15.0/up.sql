@@ -22,7 +22,7 @@ INSERT INTO abstract (abstract_id, work_id, content, locale_code, abstract_type,
 SELECT 
     uuid_generate_v4() AS abstract_id,
     work_id,
-    short_abstract AS content,
+    '<abstract>' || short_abstract || '</abstract>' AS content,
     'en'::locale_code, -- Assuming 'en' as the default locale code
     'short'::abstract_type,
     TRUE
@@ -36,7 +36,7 @@ INSERT INTO abstract (abstract_id, work_id, content, locale_code, abstract_type,
 SELECT 
     uuid_generate_v4() AS abstract_id,
     work_id,
-    long_abstract AS content,
+    '<abstract>' || long_abstract || '</abstract>' AS content,
     'en'::locale_code, -- Assuming 'en' as the default locale code
     'long'::abstract_type,
     TRUE

@@ -119,7 +119,7 @@ pub enum ThothError {
     NoFileExtensionFound,
     #[error("Unsupported file format")]
     UnsuportedFileFormatError,
-    #[error("Content tag npt found")]
+    #[error("Content tag not found")]
     TagNotFoundError,
 }
 

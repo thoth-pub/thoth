@@ -85,9 +85,9 @@ SELECT
     uuid_generate_v4(),
     work_id,
     'en'::locale_code,
-    full_title,
-    title,
-    subtitle,
+    '<full_title>' || full_title || '</full_title>',
+    '<title>' || title || '</title>',
+    CASE WHEN subtitle IS NOT NULL THEN '<subtitle>' || subtitle || '</subtitle>' ELSE NULL END,
     TRUE
 FROM work
 WHERE full_title IS NOT NULL

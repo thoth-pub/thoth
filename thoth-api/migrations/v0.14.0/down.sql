@@ -7,9 +7,9 @@ ALTER TABLE work
 -- Migrate data back from title table to work table
 UPDATE work w
 SET 
-    full_title = t.full_title,
-    title = t.title,
-    subtitle = t.subtitle
+    full_title = regexp_replace(t.full_title, '^<full_title>(.*)</full_title>$', '\\1'),
+    title = regexp_replace(t.title, '^<title>(.*)</title>$', '\\1'),
+    subtitle = CASE WHEN t.subtitle IS NOT NULL THEN regexp_replace(t.subtitle, '^<subtitle>(.*)</subtitle>$', '\\1') ELSE NULL END
 FROM title t
 WHERE w.work_id = t.work_id
     AND t.canonical = TRUE;
