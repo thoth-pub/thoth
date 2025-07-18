@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 pub const ABSTRACT_QUERY: &str = "
     query AbstractQuery($abstractId: Uuid!) {
-        abstract(abstractId: $abstractId) {
+        abstract(abstractId: $abstractId, markupFormat: JATS_XML) {
             abstractId
             workId
             content

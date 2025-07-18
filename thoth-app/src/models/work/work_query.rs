@@ -53,7 +53,7 @@ pub const WORK_QUERY: &str = "
                 subtitle
                 canonical
             }
-            abstracts(limit: 2) {
+            abstracts(limit: 2, markupFormat: JATS_XML) {
                 abstractId
                 workId
                 content
@@ -88,7 +88,7 @@ pub const WORK_QUERY: &str = "
                         subtitle
                         canonical
                     }
-                    abstracts(limit: 1) {
+                    abstracts(limit: 1, markupFormat: JATS_XML) {
                         abstractId
                         workId
                         content

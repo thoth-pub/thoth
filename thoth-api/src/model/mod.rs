@@ -645,7 +645,7 @@ pub fn validate_format(content: &str, format: &MarkupFormat) -> ThothResult<()> 
         }
         MarkupFormat::Markdown => {
             // Basic Markdown validation - check for markdown syntax
-            if !content.contains('#') {
+            if content.contains('<') && content.contains('>') {
                 // At least one markdown element should be present
                 return Err(ThothError::UnsuportedFileFormatError);
             }
@@ -665,7 +665,6 @@ pub fn extract_content(content: &str, format: &MarkupFormat) -> ThothResult<Stri
     validate_format(content, format)?;
 
     match format {
-        // HTML и JATS: извлекаем содержимое из первого тега
         MarkupFormat::Html | MarkupFormat::JatsXml => {
             let tag_regex = Regex::new(r"<([^>/\s]+)>(.*?)</([^>/\s]+)>")
                 .map_err(|_| ThothError::UnsuportedFileFormatError)?;
@@ -686,18 +685,17 @@ pub fn extract_content(content: &str, format: &MarkupFormat) -> ThothResult<Stri
 
             Ok(extracted)
         }
-
-        // Markdown: извлекаем текст из первого заголовка `#`, `##`, и т.д.
+        
         MarkupFormat::Markdown => {
             let heading_regex =
-                Regex::new(r"^(#+)\s+(.*)$").map_err(|_| ThothError::UnsuportedFileFormatError)?;
+                Regex::new(r"^(#+)\s+(.*)$").map_err(|_| ThothError::UnsuportedFileFormatError)?; 
 
             let extracted = content
                 .lines()
                 .find_map(|line| {
                     heading_regex
                         .captures(line)
-                        .and_then(|caps| caps.get(2)) // get(2) — текст заголовка
+                        .and_then(|caps| caps.get(2)) 
                         .map(|m| m.as_str().trim().to_string())
                 })
                 .unwrap_or_default();
@@ -705,7 +703,6 @@ pub fn extract_content(content: &str, format: &MarkupFormat) -> ThothResult<Stri
             Ok(extracted)
         }
 
-        // Простой текст: возвращаем как есть
         MarkupFormat::PlainText => Ok(content.to_string()),
     }
 }
