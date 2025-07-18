@@ -44,6 +44,23 @@ pub const WORK_QUERY: &str = "
             firstPage
             lastPage
             pageInterval
+            titles(limit: 1) {
+                titleId
+                workId
+                localeCode
+                fullTitle
+                title
+                subtitle
+                canonical
+            }
+            abstracts(limit: 2, markupFormat: JATS_XML) {
+                abstractId
+                workId
+                content
+                localeCode
+                abstractType
+                canonical
+            }
             relations(order: {field: RELATION_ORDINAL, direction: ASC}) {
                 workRelationId
                 relatorWorkId
@@ -58,10 +75,27 @@ pub const WORK_QUERY: &str = "
                     workStatus
                     fullTitle
                     title
-                    imprintId
+                    subtitle
                     createdAt
                     updatedAt
                     updatedAtWithRelations
+                    titles(limit: 1) {
+                        titleId
+                        workId
+                        localeCode
+                        fullTitle
+                        title
+                        subtitle
+                        canonical
+                    }
+                    abstracts(limit: 1, markupFormat: JATS_XML) {
+                        abstractId
+                        workId
+                        content
+                        localeCode
+                        abstractType
+                        canonical
+                    }
                 }
             }
             contributions(order: {field: CONTRIBUTION_ORDINAL, direction: ASC}) {

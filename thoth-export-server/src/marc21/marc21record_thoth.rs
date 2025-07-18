@@ -6,8 +6,9 @@ use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
-    LanguageRelation, RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues,
-    WorkLanguages, WorkPublications, WorkRelations, WorkSubjects, WorkType,
+    AbstractType, LanguageRelation, RelationType, SubjectType, Work, WorkContributions,
+    WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkRelations, WorkSubjects,
+    WorkType,
 };
 use thoth_errors::{ThothError, ThothResult};
 
@@ -191,16 +192,21 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             true => "1",
             false => "0",
         };
-        let nonfiling_char_count = nonfiling_char_count(&self.title, &language);
+        let nonfiling_char_count = nonfiling_char_count(&self.titles[0].title, &language);
         let mut title_field =
             FieldRepr::from((b"245", format!("{}{}", added_entry, nonfiling_char_count)));
-        if let Some(subtitle) = self.subtitle.clone() {
+        if let Some(subtitle) = self.titles[0].subtitle.clone() {
             title_field = title_field
-                .add_subfield(b"a", format!("{} :", self.title.clone()).as_bytes())
+                .add_subfield(
+                    b"a",
+                    format!("{} :", self.titles[0].title.clone()).as_bytes(),
+                )
                 .and_then(|f| f.add_subfield(b"b", format!("{} /", subtitle).as_bytes()))?;
         } else {
-            title_field =
-                title_field.add_subfield(b"a", format!("{} /", self.title.clone()).as_bytes())?;
+            title_field = title_field.add_subfield(
+                b"a",
+                format!("{} /", self.titles[0].title.clone()).as_bytes(),
+            )?;
         }
         title_field
             .add_subfield(b"c", contributors_string(&self.contributions).as_bytes())
@@ -330,7 +336,12 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
 
         // 520 - abstract
-        if let Some(mut long_abstract) = self.long_abstract.clone() {
+        if let Some(r#abstract) = self
+            .abstracts
+            .iter()
+            .find(|a| a.abstract_type == AbstractType::LONG)
+        {
+            let mut long_abstract = r#abstract.content.clone();
             // Strip out formatting marks as these may stop records loading successfully
             long_abstract.retain(|c| c != '\n' && c != '\r' && c != '\t');
             FieldRepr::from((b"520", "\\\\"))
@@ -573,7 +584,7 @@ fn toc_field(relations: &[WorkRelations]) -> ThothResult<FieldRepr> {
     let mut toc_field: FieldRepr = FieldRepr::from((b"505", "00"));
     let mut separator = " --";
     while let Some(chapter) = chapter_list.next() {
-        let chapter_title = &chapter.related_work.full_title;
+        let chapter_title = &chapter.related_work.titles[0].full_title;
         let chapter_pages = &chapter.related_work.page_interval;
         let chapter_authors = chapter
             .related_work
@@ -800,9 +811,24 @@ pub(crate) mod tests {
         Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
+            abstracts: vec![
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::SHORT,
+                    canonical: true,
+                },
+            ],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(2),
@@ -811,8 +837,6 @@ pub(crate) mod tests {
             withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: None,
-            short_abstract: None,
-            long_abstract: Some("Lorem\tipsum\r\ndolor sit amet".to_string()),
             general_note: Some(
                 "Please note that in this book the mathematical formulas are encoded in MathML."
                     .to_string(),
@@ -1069,17 +1093,32 @@ pub(crate) mod tests {
             relation_ordinal: 1,
             related_work: WorkRelationsRelatedWork {
                 work_status: WorkStatus::ACTIVE,
-                full_title: "Chapter One".to_string(),
-                title: "N/A".to_string(),
-                subtitle: None,
+                titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                    title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    full_title: "Chapter One".to_string(),
+                    title: "N/A".to_string(),
+                    subtitle: None,
+                    canonical: true,
+                }],
+                abstracts: vec![
+                    thoth_client::WorkRelationsRelatedWorkAbstracts {
+                        abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                        work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                        content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        abstract_type: thoth_client::AbstractType::SHORT,
+                        canonical: true,
+                    },
+                ],
                 edition: None,
                 doi: None,
                 publication_date: None,
                 withdrawn_date: None,
                 license: None,
                 copyright_holder: None,
-                short_abstract: None,
-                long_abstract: None,
+                // short_abstract: None,
+                // long_abstract: None,
                 general_note: None,
                 place: None,
                 first_page: None,
@@ -1633,7 +1672,7 @@ pub(crate) mod tests {
     fn test_toc_field_two_chapters_one_author_each() {
         let mut second_relation = test_relation();
         second_relation.relation_ordinal = 2;
-        second_relation.related_work.full_title = "Chapter Two".to_string();
+        second_relation.related_work.titles[0].full_title = "Chapter Two".to_string();
         second_relation.related_work.contributions[0].full_name = "Chapter-Two Author".to_string();
         // Place in reverse order and test correct re-ordering
         let relations = vec![second_relation, test_relation()];
@@ -1652,7 +1691,7 @@ pub(crate) mod tests {
         first_relation.related_work.contributions.clear();
         let mut second_relation = test_relation();
         second_relation.relation_ordinal = 2;
-        second_relation.related_work.full_title = "Chapter Two".to_string();
+        second_relation.related_work.titles[0].full_title = "Chapter Two".to_string();
         second_relation.related_work.contributions.clear();
         let relations = vec![first_relation, second_relation];
         let expected = Ok(FieldRepr::from((b"505", "00"))
@@ -1669,7 +1708,7 @@ pub(crate) mod tests {
         first_relation.related_work.contributions.clear();
         let mut second_relation = test_relation();
         second_relation.relation_ordinal = 2;
-        second_relation.related_work.full_title = "Chapter Two".to_string();
+        second_relation.related_work.titles[0].full_title = "Chapter Two".to_string();
         second_relation.related_work.page_interval = Some("20–30".to_string());
         second_relation.related_work.contributions.clear();
         let relations = vec![first_relation, second_relation];

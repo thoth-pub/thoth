@@ -2,8 +2,9 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
-    WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkSubjects, WorkType,
+    AbstractType, ContributionType, LanguageRelation, PublicationType, SubjectType, Work,
+    WorkContributions, WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkSubjects,
+    WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -162,10 +163,10 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
                     w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                 })?;
                 write_element_block("TitleText", w, |w| {
-                    w.write(XmlEvent::Characters(&self.title))
+                    w.write(XmlEvent::Characters(&self.titles[0].title))
                         .map_err(|e| e.into())
                 })?;
-                if let Some(subtitle) = &self.subtitle {
+                if let Some(subtitle) = &self.titles[0].subtitle {
                     write_element_block("Subtitle", w, |w| {
                         w.write(XmlEvent::Characters(subtitle))
                             .map_err(|e| e.into())
@@ -293,7 +294,12 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
                     })
                 })?;
             }
-            if let Some(labstract) = &self.long_abstract {
+            if let Some(labstract) = &self
+                .abstracts
+                .iter()
+                .find(|a| a.abstract_type == AbstractType::LONG)
+                .map(|a| a.content.clone())
+            {
                 write_element_block("OtherText", w, |w| {
                     // 03 Long description
                     write_element_block("TextTypeCode", w, |w| {
@@ -910,9 +916,24 @@ mod tests {
         let mut test_work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
+            abstracts: vec![
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::SHORT,
+                    canonical: true,
+                },
+            ],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(1),
@@ -921,8 +942,8 @@ mod tests {
             withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
-            short_abstract: None,
-            long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
+            // short_abstract: None,
+            // long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
             bibliography_note: None,
             place: Some("León, Spain".to_string()),
@@ -1150,9 +1171,9 @@ mod tests {
         // Remove some values to test non-output of optional blocks
         test_work.doi = None;
         test_work.license = None;
-        test_work.subtitle = None;
+        test_work.titles[0].subtitle = None;
         test_work.page_count = None;
-        test_work.long_abstract = None;
+        // test_work.long_abstract = None;
         test_work.place = None;
         test_work.publication_date = None;
         test_work.landing_page = None;

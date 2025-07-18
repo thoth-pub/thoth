@@ -2,11 +2,17 @@ use super::{
     NewWork, NewWorkHistory, PatchWork, Work, WorkField, WorkHistory, WorkOrderBy, WorkStatus,
     WorkType,
 };
+use crate::diesel::JoinOnDsl;
 use crate::graphql::model::TimeExpression;
 use crate::graphql::utils::{Direction, Expression};
+use crate::model::imprint::{Imprint, ImprintWithPublisher};
+use crate::model::publisher::Publisher;
+use crate::model::r#abstract::AbstractType;
+use crate::model::title::Title;
+use crate::model::work::Abstract;
 use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderBy};
 use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
-use crate::schema::{work, work_history};
+use crate::schema::{imprint, publisher, work, work_abstract, work_history, work_title};
 use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
@@ -101,6 +107,104 @@ impl Work {
         .map(|relation| Work::from_id(db, &relation.related_work_id))
         .collect()
     }
+
+    pub fn with_relations(
+        db: &crate::db::PgPool,
+        work_id: &Uuid,
+    ) -> ThothResult<super::WorkWithRelations> {
+        let mut connection = db.get()?;
+        let work = work::table
+            .find(work_id)
+            .get_result::<Work>(&mut connection)?;
+
+        let titles: Vec<Title> = work_title::table
+            .filter(work_title::work_id.eq(work_id))
+            .select(work_title::all_columns)
+            .load::<Title>(&mut connection)?;
+
+        let abstracts: Vec<Abstract> = work_abstract::table
+            .filter(work_abstract::work_id.eq(work_id))
+            .select(work_abstract::all_columns)
+            .load::<Abstract>(&mut connection)?;
+
+        let imprint = imprint::table
+            .inner_join(publisher::table)
+            .filter(imprint::imprint_id.eq(work_id))
+            .select((imprint::all_columns, publisher::all_columns))
+            .first::<(Imprint, Publisher)>(&mut connection)?;
+
+        Ok(super::WorkWithRelations {
+            work_id: work.work_id,
+            work_type: work.work_type,
+            work_status: work.work_status,
+            full_title: titles
+                .iter()
+                .find(|t| t.canonical)
+                .map(|t| t.full_title.clone())
+                .unwrap_or_default(),
+            title: titles
+                .iter()
+                .find(|t| t.canonical)
+                .map(|t| t.title.clone())
+                .unwrap_or_default(),
+            subtitle: titles
+                .iter()
+                .find(|t| t.canonical)
+                .and_then(|t| t.subtitle.clone()),
+            reference: work.reference,
+            edition: work.edition,
+            doi: work.doi,
+            publication_date: work.publication_date,
+            withdrawn_date: work.withdrawn_date,
+            place: work.place,
+            page_count: work.page_count,
+            page_breakdown: work.page_breakdown,
+            image_count: work.image_count,
+            table_count: work.table_count,
+            audio_count: work.audio_count,
+            video_count: work.video_count,
+            license: work.license,
+            copyright_holder: work.copyright_holder,
+            landing_page: work.landing_page,
+            lccn: work.lccn,
+            oclc: work.oclc,
+            short_abstract: abstracts
+                .iter()
+                .find(|a| a.canonical && a.abstract_type == AbstractType::Short)
+                .map(|a| a.content.clone()),
+            long_abstract: abstracts
+                .iter()
+                .find(|a| a.canonical && a.abstract_type == AbstractType::Long)
+                .map(|a| a.content.clone()),
+            general_note: work.general_note,
+            bibliography_note: work.bibliography_note,
+            toc: work.toc,
+            cover_url: work.cover_url,
+            cover_caption: work.cover_caption,
+            updated_at: work.updated_at,
+            first_page: work.first_page,
+            last_page: work.last_page,
+            page_interval: work.page_interval,
+            contributions: None,
+            publications: None,
+            languages: None,
+            fundings: None,
+            subjects: None,
+            issues: None,
+            imprint: ImprintWithPublisher {
+                imprint_id: imprint.0.imprint_id,
+                imprint_name: imprint.0.imprint_name,
+                imprint_url: imprint.0.imprint_url,
+                crossmark_doi: imprint.0.crossmark_doi,
+                updated_at: imprint.0.updated_at,
+                publisher: imprint.1,
+            },
+            relations: None,
+            references: None,
+            titles: Some(titles),
+            abstracts: Some(abstracts),
+        })
+    }
 }
 
 impl Crud for Work {
@@ -132,6 +236,16 @@ impl Crud for Work {
         let mut connection = db.get()?;
         let mut query = dsl::work
             .inner_join(crate::schema::imprint::table)
+            .left_join(
+                work_title::table.on(work_title::work_id
+                    .eq(dsl::work_id)
+                    .and(work_title::canonical.eq(true))),
+            )
+            .left_join(
+                work_abstract::table.on(work_abstract::work_id
+                    .eq(dsl::work_id)
+                    .and(work_abstract::canonical.eq(true))),
+            )
             .select(crate::schema::work::all_columns)
             .into_boxed();
 
@@ -140,6 +254,18 @@ impl Crud for Work {
                 Direction::Asc => query.order(dsl::work_id.asc()),
                 Direction::Desc => query.order(dsl::work_id.desc()),
             },
+            WorkField::FullTitle => match order.direction {
+                Direction::Asc => query.order(work_title::full_title.asc()),
+                Direction::Desc => query.order(work_title::full_title.desc()),
+            },
+            WorkField::Title => match order.direction {
+                Direction::Asc => query.order(work_title::title.asc()),
+                Direction::Desc => query.order(work_title::title.desc()),
+            },
+            WorkField::Subtitle => match order.direction {
+                Direction::Asc => query.order(work_title::subtitle.asc()),
+                Direction::Desc => query.order(work_title::subtitle.desc()),
+            },
             WorkField::WorkType => match order.direction {
                 Direction::Asc => query.order(dsl::work_type.asc()),
                 Direction::Desc => query.order(dsl::work_type.desc()),
@@ -147,18 +273,6 @@ impl Crud for Work {
             WorkField::WorkStatus => match order.direction {
                 Direction::Asc => query.order(dsl::work_status.asc()),
                 Direction::Desc => query.order(dsl::work_status.desc()),
-            },
-            WorkField::FullTitle => match order.direction {
-                Direction::Asc => query.order(dsl::full_title.asc()),
-                Direction::Desc => query.order(dsl::full_title.desc()),
-            },
-            WorkField::Title => match order.direction {
-                Direction::Asc => query.order(dsl::title.asc()),
-                Direction::Desc => query.order(dsl::title.desc()),
-            },
-            WorkField::Subtitle => match order.direction {
-                Direction::Asc => query.order(dsl::subtitle.asc()),
-                Direction::Desc => query.order(dsl::subtitle.desc()),
             },
             WorkField::Reference => match order.direction {
                 Direction::Asc => query.order(dsl::reference.asc()),
@@ -241,12 +355,12 @@ impl Crud for Work {
                 Direction::Desc => query.order(dsl::oclc.desc()),
             },
             WorkField::ShortAbstract => match order.direction {
-                Direction::Asc => query.order(dsl::short_abstract.asc()),
-                Direction::Desc => query.order(dsl::short_abstract.desc()),
+                Direction::Asc => query.order(work_abstract::content.asc()),
+                Direction::Desc => query.order(work_abstract::content.desc()),
             },
             WorkField::LongAbstract => match order.direction {
-                Direction::Asc => query.order(dsl::long_abstract.asc()),
-                Direction::Desc => query.order(dsl::long_abstract.desc()),
+                Direction::Asc => query.order(work_abstract::content.asc()),
+                Direction::Desc => query.order(work_abstract::content.desc()),
             },
             WorkField::GeneralNote => match order.direction {
                 Direction::Asc => query.order(dsl::general_note.asc()),
@@ -304,14 +418,24 @@ impl Crud for Work {
             }
         }
         if let Some(filter) = filter {
+            let title_work_ids = work_title::table
+                .filter(work_title::full_title.ilike(format!("%{filter}%")))
+                .select(work_title::work_id)
+                .load::<Uuid>(&mut connection)?;
+
+            let abstract_work_ids = work_abstract::table
+                .filter(work_abstract::content.ilike(format!("%{filter}%")))
+                .select(work_abstract::work_id)
+                .load::<Uuid>(&mut connection)?;
+
             query = query.filter(
-                dsl::full_title
+                dsl::doi
                     .ilike(format!("%{filter}%"))
-                    .or(dsl::doi.ilike(format!("%{filter}%")))
                     .or(dsl::reference.ilike(format!("%{filter}%")))
-                    .or(dsl::short_abstract.ilike(format!("%{filter}%")))
-                    .or(dsl::long_abstract.ilike(format!("%{filter}%")))
-                    .or(dsl::landing_page.ilike(format!("%{filter}%"))),
+                    .or(dsl::landing_page.ilike(format!("%{filter}%")))
+                    .or(dsl::work_id
+                        .eq_any(title_work_ids)
+                        .or(dsl::work_id.eq_any(abstract_work_ids))),
             );
         }
         query
@@ -355,14 +479,23 @@ impl Crud for Work {
             }
         }
         if let Some(filter) = filter {
+            let title_work_ids = work_title::table
+                .filter(work_title::full_title.ilike(format!("%{filter}%")))
+                .select(work_title::work_id)
+                .load::<Uuid>(&mut connection)?;
+
+            let abstract_work_ids = work_abstract::table
+                .filter(work_abstract::content.ilike(format!("%{filter}%")))
+                .select(work_abstract::work_id)
+                .load::<Uuid>(&mut connection)?;
+
             query = query.filter(
-                dsl::full_title
+                dsl::doi
                     .ilike(format!("%{filter}%"))
-                    .or(dsl::doi.ilike(format!("%{filter}%")))
                     .or(dsl::reference.ilike(format!("%{filter}%")))
-                    .or(dsl::short_abstract.ilike(format!("%{filter}%")))
-                    .or(dsl::long_abstract.ilike(format!("%{filter}%")))
-                    .or(dsl::landing_page.ilike(format!("%{filter}%"))),
+                    .or(dsl::landing_page.ilike(format!("%{filter}%")))
+                    .or(dsl::work_id.eq_any(title_work_ids))
+                    .or(dsl::work_id.eq_any(abstract_work_ids)),
             );
         }
 
