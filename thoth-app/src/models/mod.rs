@@ -18,7 +18,9 @@ macro_rules! graphql_query_builder {
 
         use $crate::THOTH_GRAPHQL_API;
 
+        #[allow(dead_code)]
         pub type $fetch = Fetch<$request, $response_body>;
+        #[allow(dead_code)]
         pub type $fetch_action = FetchAction<$response_body>;
 
         #[derive(Debug, Clone, Default)]
@@ -175,6 +177,7 @@ impl GraphqlFieldList {
     }
 }
 
+pub mod r#abstract;
 pub mod affiliation;
 pub mod book;
 pub mod chapter;
@@ -185,6 +188,7 @@ pub mod imprint;
 pub mod institution;
 pub mod issue;
 pub mod language;
+pub mod locale;
 pub mod location;
 pub mod price;
 pub mod publication;
@@ -193,5 +197,6 @@ pub mod reference;
 pub mod series;
 pub mod stats;
 pub mod subject;
+pub mod title;
 pub mod work;
 pub mod work_relation;
