@@ -5,6 +5,7 @@ use uuid::Uuid;
 #[derive(Deserialize, Debug, Serialize)]
 pub struct ClientPayload {
     work_id: Uuid,
+    platform: String,
 }
 
 #[derive(Deserialize, Debug, Serialize)]
@@ -17,6 +18,7 @@ pub async fn fire_webhook(
     url: String,
     token: Option<String>,
     work_id: Uuid,
+    platform: Option<String>,
 ) -> Result<String, Error> {
     let client = reqwest::Client::new();
 
@@ -30,7 +32,10 @@ pub async fn fire_webhook(
         // (it also seems to determine the name given to any ensuing workflow runs)
         .json(&Payload {
             event_type: "test".to_string(),
-            client_payload: ClientPayload { work_id: work_id },
+            client_payload: ClientPayload {
+                work_id: work_id,
+                platform: platform.unwrap_or_default(),
+            },
         })
         .send()
         .await?

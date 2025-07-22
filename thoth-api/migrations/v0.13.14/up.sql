@@ -11,6 +11,7 @@ CREATE TABLE webhook (
     token           TEXT CHECK (OCTET_LENGTH(token) >= 1),
     is_published    BOOLEAN NOT NULL,
     event_type      event_type NOT NULL,
+    platform        TEXT CHECK (OCTET_LENGTH(platform) >= 1),
     created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

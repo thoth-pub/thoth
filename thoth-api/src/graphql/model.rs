@@ -4371,6 +4371,11 @@ impl Webhook {
         self.is_published
     }
 
+    #[graphql(description = "Platform which is targeted by the webhook")]
+    pub fn platform(&self) -> Option<&String> {
+        self.platform.as_ref()
+    }
+
     #[graphql(description = "Date and time at which the webhook record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at
