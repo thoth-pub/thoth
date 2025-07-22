@@ -1,12 +1,23 @@
 use loco_rs::prelude::*;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+#[derive(Deserialize, Debug, Serialize)]
+pub struct ClientPayload {
+    work_id: Uuid,
+}
 
 #[derive(Deserialize, Debug, Serialize)]
 pub struct Payload {
     event_type: String,
+    client_payload: ClientPayload,
 }
 
-pub async fn fire_webhook(url: String, token: Option<String>) -> Result<String, Error> {
+pub async fn fire_webhook(
+    url: String,
+    token: Option<String>,
+    work_id: Uuid,
+) -> Result<String, Error> {
     let client = reqwest::Client::new();
 
     let response = client
@@ -19,6 +30,7 @@ pub async fn fire_webhook(url: String, token: Option<String>) -> Result<String, 
         // (it also seems to determine the name given to any ensuing workflow runs)
         .json(&Payload {
             event_type: "test".to_string(),
+            client_payload: ClientPayload { work_id: work_id },
         })
         .send()
         .await?

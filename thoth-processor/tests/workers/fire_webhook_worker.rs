@@ -15,6 +15,7 @@ async fn test_run_work_created_worker_worker() {
     assert!(FireWebhookWorker::perform_later(
         &boot.app_context,
         FireWebhookWorkerArgs {
+            work_id: Default::default(),
             webhook: Webhook {
                 endpoint: Default::default(),
                 token: Default::default(),
