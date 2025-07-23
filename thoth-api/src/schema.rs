@@ -529,7 +529,7 @@ table! {
         token -> Nullable<Text>,
         is_published -> Bool,
         event_type -> EventType,
-        platform -> Nullable<Text>,
+        payload -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }

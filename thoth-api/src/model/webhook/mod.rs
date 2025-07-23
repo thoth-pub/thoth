@@ -25,7 +25,7 @@ pub enum WebhookField {
     Token,
     IsPublished,
     EventType,
-    Platform,
+    Payload,
     CreatedAt,
     UpdatedAt,
 }
@@ -40,7 +40,7 @@ pub struct Webhook {
     pub token: Option<String>,
     pub is_published: bool,
     pub event_type: EventType,
-    pub platform: Option<String>,
+    pub payload: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
 }
@@ -57,7 +57,7 @@ pub struct NewWebhook {
     pub token: Option<String>,
     pub is_published: bool,
     pub event_type: EventType,
-    pub platform: Option<String>,
+    pub payload: Option<String>,
 }
 
 #[cfg_attr(
@@ -73,7 +73,7 @@ pub struct PatchWebhook {
     pub token: Option<String>,
     pub is_published: bool,
     pub event_type: EventType,
-    pub platform: Option<String>,
+    pub payload: Option<String>,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]

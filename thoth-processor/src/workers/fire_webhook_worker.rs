@@ -22,13 +22,13 @@ impl BackgroundWorker<FireWebhookWorkerArgs> for FireWebhookWorker {
 
     async fn perform(&self, args: FireWebhookWorkerArgs) -> Result<()> {
         tracing::info!("Webhook: {:?}", args.webhook);
-        let target_rsp =
-            fire_webhook(
-                args.webhook.endpoint,
-                args.webhook.token,
-                args.work_id,
-                args.webhook.platform,
-            ).await?;
+        let target_rsp = fire_webhook(
+            args.webhook.endpoint,
+            args.webhook.token,
+            args.work_id,
+            args.webhook.payload,
+        )
+        .await?;
         tracing::info!("Target response: {:?}", target_rsp);
 
         Ok(())

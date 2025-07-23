@@ -17,7 +17,7 @@ const WEBHOOKS_QUERY: &str = "
                         token
                         isPublished
                         eventType
-                        platform
+                        payload
                     }
                 }
             }
@@ -47,7 +47,7 @@ pub struct Webhook {
     pub token: Option<String>,
     pub is_published: bool,
     pub event_type: EventType,
-    pub platform: Option<String>,
+    pub payload: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Serialize)]

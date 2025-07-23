@@ -4371,9 +4371,9 @@ impl Webhook {
         self.is_published
     }
 
-    #[graphql(description = "Platform which is targeted by the webhook")]
-    pub fn platform(&self) -> Option<&String> {
-        self.platform.as_ref()
+    #[graphql(description = "Payload to be sent in the webhook request body (usually JSON)")]
+    pub fn payload(&self) -> Option<&String> {
+        self.payload.as_ref()
     }
 
     #[graphql(description = "Date and time at which the webhook record was created")]

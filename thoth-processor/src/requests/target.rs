@@ -1,42 +1,32 @@
 use loco_rs::prelude::*;
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-#[derive(Deserialize, Debug, Serialize)]
-pub struct ClientPayload {
-    work_id: Uuid,
-    platform: String,
-}
-
-#[derive(Deserialize, Debug, Serialize)]
-pub struct Payload {
-    event_type: String,
-    client_payload: ClientPayload,
-}
 
 pub async fn fire_webhook(
     url: String,
     token: Option<String>,
     work_id: Uuid,
-    platform: Option<String>,
+    payload: Option<String>,
 ) -> Result<String, Error> {
     let client = reqwest::Client::new();
 
-    let response = client
+    let mut request = client
         .post(&url)
-        .bearer_auth(token.unwrap_or_default())
         // GitHub Actions repository dispatch events require a User-Agent header
-        .header("User-Agent", "Thoth")
-        // GitHub Actions repository dispatch events require a payload containing "event_type"
-        // (this can then be used to control which events trigger which Actions)
-        // (it also seems to determine the name given to any ensuing workflow runs)
-        .json(&Payload {
-            event_type: "test".to_string(),
-            client_payload: ClientPayload {
-                work_id: work_id,
-                platform: platform.unwrap_or_default(),
-            },
-        })
+        .header("User-Agent", "Thoth");
+
+    if let Some(token_value) = token {
+        request = request.bearer_auth(token_value);
+    }
+
+    // References for constructing payloads:
+    // GitHub Actions: https://docs.github.com/en/actions/reference/events-that-trigger-workflows#repository_dispatch
+    // Mattermost: https://developers.mattermost.com/integrate/webhooks/incoming/
+    if let Some(payload_value) = payload {
+        let interpolated_payload = payload_value.replace("${work_id}", &work_id.to_string());
+        request = request.body(interpolated_payload);
+    }
+
+    let response = request
         .send()
         .await?
         .error_for_status()?;

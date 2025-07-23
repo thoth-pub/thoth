@@ -65,9 +65,9 @@ impl Crud for Webhook {
                 Direction::Asc => query.order(event_type.asc()),
                 Direction::Desc => query.order(event_type.desc()),
             },
-            WebhookField::Platform => match order.direction {
-                Direction::Asc => query.order(platform.asc()),
-                Direction::Desc => query.order(platform.desc()),
+            WebhookField::Payload => match order.direction {
+                Direction::Asc => query.order(payload.asc()),
+                Direction::Desc => query.order(payload.desc()),
             },
             WebhookField::CreatedAt => match order.direction {
                 Direction::Asc => query.order(created_at.asc()),

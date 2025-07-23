@@ -21,7 +21,7 @@ async fn test_run_work_created_worker_worker() {
                 token: Default::default(),
                 is_published: Default::default(),
                 event_type: Default::default(),
-                platform: Default::default(),
+                payload: Default::default(),
             }
         }
     )
