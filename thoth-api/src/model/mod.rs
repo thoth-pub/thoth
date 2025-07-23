@@ -1095,5 +1095,6 @@ pub mod publisher;
 pub mod reference;
 pub mod series;
 pub mod subject;
+pub mod webhook;
 pub mod work;
 pub mod work_relation;

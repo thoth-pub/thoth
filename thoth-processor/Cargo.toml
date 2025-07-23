@@ -1,0 +1,31 @@
+[package]
+name = "thoth-processor"
+version = "0.13.13"
+authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>", "Brendan O'Connell <brendan@thoth.pub>"]
+edition = "2021"
+license = "Apache-2.0"
+description = "Event processor for Thoth"
+repository = "https://github.com/thoth-pub/thoth"
+readme = "README.md"
+
+[dependencies]
+loco-rs = { version = "0.14.0", default-features = false, features = ["cli", "bg_redis"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }
+tokio = { version = "1.33.0", default-features = false, features = [
+  "rt-multi-thread",
+] }
+async-trait = { version = "0.1.74" }
+axum = { version = "0.8.1" }
+tracing = { version = "0.1.40" }
+tracing-subscriber = { version = "0.3.17", features = ["env-filter", "json"] }
+regex = { version = "1.11.1" }
+reqwest = { version = "0.12", features = ["json"] }
+uuid = { version = "1.16.0", features = ["serde"] }
+thoth-api = { version = "=0.13.13", path = "../thoth-api"  }
+
+[dev-dependencies]
+loco-rs = { version = "0.14.0", default-features = false, features = ["testing"] }
+serial_test = { version = "3.1.1" }
+rstest = { version = "0.21.0" }
+insta = { version = "1.34.0", features = ["redactions", "yaml", "filters"] }

@@ -46,6 +46,10 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "relation_type"))]
     pub struct RelationType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "event_type"))]
+    pub struct EventType;
 }
 
 table! {
@@ -516,6 +520,35 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::EventType;
+
+    webhook (webhook_id) {
+        webhook_id -> Uuid,
+        publisher_id -> Uuid,
+        endpoint -> Text,
+        token -> Nullable<Text>,
+        is_published -> Bool,
+        event_type -> EventType,
+        payload -> Nullable<Text>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    webhook_history (webhook_history_id) {
+        webhook_history_id -> Uuid,
+        webhook_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use super::sql_types::WorkType;
     use super::sql_types::WorkStatus;
 
@@ -647,6 +680,9 @@ joinable!(series_history -> series (series_id));
 joinable!(subject -> work (work_id));
 joinable!(subject_history -> account (account_id));
 joinable!(subject_history -> subject (subject_id));
+joinable!(webhook -> publisher (publisher_id));
+joinable!(webhook_history -> account (account_id));
+joinable!(webhook_history -> webhook (webhook_id));
 joinable!(work -> imprint (imprint_id));
 joinable!(work_history -> account (account_id));
 joinable!(work_history -> work (work_id));
@@ -687,6 +723,8 @@ allow_tables_to_appear_in_same_query!(
     series_history,
     subject,
     subject_history,
+    webhook,
+    webhook_history,
     work,
     work_history,
     work_relation,

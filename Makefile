@@ -2,9 +2,11 @@
 	build-graphql-api \
 	build-export-api \
 	build-app \
+	build-processor
 	run-app \
 	run-graphql-api \
 	run-export-api \
+	run-processor
 	watch-app \
 	docker-dev \
 	docker-dev-build \
@@ -19,8 +21,11 @@
 	check \
 	check-all \
 
-all: build-graphql-api build-export-api build-app
+all: build-graphql-api build-export-api build-app build-processor
 check-all: test check clippy check-format
+
+run-processor: build-processor
+	RUST_BACKTRACE=1 cargo run start processor
 
 run-app: build-app
 	RUST_BACKTRACE=1 cargo run start app
@@ -56,6 +61,8 @@ build-graphql-api: build
 build-export-api: build
 
 build-app: build
+
+build-processor: build
 
 test:
 	cargo test --workspace

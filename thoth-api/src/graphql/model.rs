@@ -7,6 +7,10 @@ use uuid::Uuid;
 use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
 use crate::db::PgPool;
+use crate::event::handler::send_event;
+use crate::event::model::{EventType, EventWrapper};
+use crate::job::handler::get_jobs;
+use crate::job::model::Job;
 use crate::model::affiliation::*;
 use crate::model::contribution::*;
 use crate::model::contributor::*;
@@ -22,6 +26,7 @@ use crate::model::publisher::*;
 use crate::model::reference::*;
 use crate::model::series::*;
 use crate::model::subject::*;
+use crate::model::webhook::*;
 use crate::model::work::*;
 use crate::model::work_relation::*;
 use crate::model::Convert;
@@ -33,6 +38,7 @@ use crate::model::Orcid;
 use crate::model::Ror;
 use crate::model::Timestamp;
 use crate::model::WeightUnit;
+use crate::redis::RedisPool;
 use thoth_errors::{ThothError, ThothResult};
 
 use super::utils::{Direction, Expression};
@@ -42,14 +48,16 @@ impl juniper::Context for Context {}
 #[derive(Clone)]
 pub struct Context {
     pub db: Arc<PgPool>,
+    pub redis: Arc<RedisPool>,
     pub account_access: AccountAccess,
     pub token: DecodedToken,
 }
 
 impl Context {
-    pub fn new(pool: Arc<PgPool>, token: DecodedToken) -> Self {
+    pub fn new(pool: Arc<PgPool>, redis_pool: Arc<RedisPool>, token: DecodedToken) -> Self {
         Self {
             db: pool,
+            redis: redis_pool,
             account_access: token.get_user_permissions(),
             token,
         }
@@ -1461,6 +1469,56 @@ impl QueryRoot {
     fn reference_count(context: &Context) -> FieldResult<i32> {
         Reference::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
     }
+
+    #[graphql(description = "Query the full list of webhooks")]
+    fn webhooks(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = WebhookOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<WebhookOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
+        publishers: Option<Vec<Uuid>>,
+    ) -> FieldResult<Vec<Webhook>> {
+        Webhook::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Query a single webhook using its ID")]
+    fn webhook(
+        context: &Context,
+        #[graphql(description = "Thoth webhook ID to search on")] webhook_id: Uuid,
+    ) -> FieldResult<Webhook> {
+        Webhook::from_id(&context.db, &webhook_id).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get the total number of webhooks")]
+    fn webhook_count(context: &Context) -> FieldResult<i32> {
+        Webhook::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get information about retried jobs")]
+    async fn retried_jobs(context: &Context) -> FieldResult<Vec<Job>> {
+        get_jobs(&context.redis).await.map_err(|e| e.into())
+    }
 }
 
 pub struct MutationRoot;
@@ -1468,7 +1526,7 @@ pub struct MutationRoot;
 #[juniper::graphql_object(Context = Context)]
 impl MutationRoot {
     #[graphql(description = "Create a new work with the specified values")]
-    fn create_work(
+    async fn create_work(
         context: &Context,
         #[graphql(description = "Values for work to be created")] data: NewWork,
     ) -> FieldResult<Work> {
@@ -1479,7 +1537,17 @@ impl MutationRoot {
 
         data.validate()?;
 
-        Work::create(&context.db, &data).map_err(|e| e.into())
+        let result = Work::create(&context.db, &data).map_err(|e| e.into());
+
+        if let Ok(ref created_work) = result {
+            // TODO handle results throughout
+            let _ = send_event(&context.redis, EventType::WorkCreated, created_work).await;
+            if created_work.work_status == WorkStatus::Active {
+                let _ = send_event(&context.redis, EventType::WorkPublished, created_work).await;
+            }
+        }
+
+        result
     }
 
     #[graphql(description = "Create a new publisher with the specified values")]
@@ -1719,8 +1787,19 @@ impl MutationRoot {
         Reference::create(&context.db, &data).map_err(|e| e.into())
     }
 
+    #[graphql(description = "Create a new webhook with the specified values")]
+    fn create_webhook(
+        context: &Context,
+        #[graphql(description = "Values for webhook to be created")] data: NewWebhook,
+    ) -> FieldResult<Webhook> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context.account_access.can_edit(data.publisher_id)?;
+
+        Webhook::create(&context.db, &data).map_err(|e| e.into())
+    }
+
     #[graphql(description = "Update an existing work with the specified values")]
-    fn update_work(
+    async fn update_work(
         context: &Context,
         #[graphql(description = "Values to apply to existing work")] data: PatchWork,
     ) -> FieldResult<Work> {
@@ -1751,6 +1830,11 @@ impl MutationRoot {
         // update the work and, if it succeeds, synchronise its children statuses and pub. date
         match work.update(&context.db, &data, &account_id) {
             Ok(w) => {
+                if w.work_status == WorkStatus::Active && work.work_status != WorkStatus::Active {
+                    let _ = send_event(&context.redis, EventType::WorkPublished, &w).await;
+                } else {
+                    let _ = send_event(&context.redis, EventType::WorkUpdated, &w).await;
+                }
                 // update chapters if their pub. data, withdrawn_date or work_status doesn't match the parent's
                 for child in work.children(&context.db)? {
                     if child.publication_date != w.publication_date
@@ -2166,6 +2250,25 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
+    #[graphql(description = "Update an existing webhook with the specified values")]
+    fn update_webhook(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing webhook")] data: PatchWebhook,
+    ) -> FieldResult<Webhook> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let webhook = Webhook::from_id(&context.db, &data.webhook_id).unwrap();
+        context.account_access.can_edit(webhook.publisher_id())?;
+
+        if data.publisher_id != webhook.publisher_id {
+            context.account_access.can_edit(data.publisher_id)?;
+        }
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        webhook
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
     #[graphql(description = "Delete a single work using its ID")]
     fn delete_work(
         context: &Context,
@@ -2415,6 +2518,18 @@ impl MutationRoot {
             .can_edit(reference.publisher_id(&context.db)?)?;
 
         reference.delete(&context.db).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Delete a single webhook using its ID")]
+    fn delete_webhook(
+        context: &Context,
+        #[graphql(description = "Thoth ID of webhook to be deleted")] webhook_id: Uuid,
+    ) -> FieldResult<Webhook> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let webhook = Webhook::from_id(&context.db, &webhook_id).unwrap();
+        context.account_access.can_edit(webhook.publisher_id())?;
+
+        webhook.delete(&context.db).map_err(|e| e.into())
     }
 }
 
@@ -3162,6 +3277,41 @@ impl Publisher {
             vec![],
             vec![],
             None,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get webhooks linked to this publisher")]
+    pub fn webhooks(
+        &self,
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = WebhookOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<WebhookOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
+        event_types: Option<Vec<EventType>>,
+        #[graphql(description = "Only show results where IsPublished is True")]
+        is_published: Option<bool>,
+    ) -> FieldResult<Vec<Webhook>> {
+        Webhook::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            order.unwrap_or_default(),
+            vec![],
+            Some(self.publisher_id),
+            None,
+            event_types.unwrap_or_default(),
+            vec![],
+            is_published,
         )
         .map_err(|e| e.into())
     }
@@ -4186,6 +4336,126 @@ impl Reference {
     #[graphql(description = "The citing work.")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "A web request to be made when a specified data event occurs")]
+impl Webhook {
+    #[graphql(description = "Thoth ID of the webhook")]
+    pub fn webhook_id(&self) -> Uuid {
+        self.webhook_id
+    }
+
+    #[graphql(description = "Thoth ID of the publisher to which this webhook belongs")]
+    pub fn publisher_id(&self) -> Uuid {
+        self.publisher_id
+    }
+
+    #[graphql(description = "URL which is called by the webhook")]
+    pub fn endpoint(&self) -> &String {
+        &self.endpoint
+    }
+
+    #[graphql(description = "Authentication token required for the webhook")]
+    pub fn token(&self) -> Option<&String> {
+        self.token.as_ref()
+    }
+
+    #[graphql(description = "Type of event which triggers the webhook")]
+    pub fn event_type(&self) -> &EventType {
+        &self.event_type
+    }
+
+    #[graphql(description = "Whether the activation of the webhook depends on publication status")]
+    pub fn is_published(&self) -> bool {
+        self.is_published
+    }
+
+    #[graphql(description = "Payload to be sent in the webhook request body (usually JSON)")]
+    pub fn payload(&self) -> Option<&String> {
+        self.payload.as_ref()
+    }
+
+    #[graphql(description = "Date and time at which the webhook record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the webhook record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+
+    #[graphql(description = "Get the publisher to which this webhook belongs")]
+    pub fn publisher(&self, context: &Context) -> FieldResult<Publisher> {
+        Publisher::from_id(&context.db, &self.publisher_id).map_err(|e| e.into())
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "A task generated when a webhook is triggered")]
+impl Job {
+    #[graphql(description = "Name of the processing queue where this job was initially created")]
+    pub fn queue(&self) -> &String {
+        &self.queue
+    }
+
+    #[graphql(description = "Arguments which were supplied when generating the job")]
+    pub fn args(&self) -> &Vec<EventWrapper> {
+        &self.args
+    }
+
+    #[graphql(description = "Whether or not the job should be retried on failure")]
+    pub fn retry(&self) -> bool {
+        self.retry
+    }
+
+    #[graphql(description = "Type of the job (defined by the name of the worker processing it)")]
+    pub fn class(&self) -> &String {
+        &self.class
+    }
+
+    #[graphql(description = "Unique identifier of the job")]
+    pub fn jid(&self) -> &String {
+        &self.jid
+    }
+
+    #[graphql(description = "Date and time at which the job was created (in unix epoch format)")]
+    pub fn created_at(&self) -> f64 {
+        self.created_at
+    }
+
+    #[graphql(
+        description = "Date and time at which the job was added to the queue (in unix epoch format)"
+    )]
+    pub fn enqueued_at(&self) -> f64 {
+        self.enqueued_at
+    }
+
+    #[graphql(description = "Date and time at which the job failed (in unix epoch format)")]
+    pub fn failed_at(&self) -> f64 {
+        self.failed_at
+    }
+
+    #[graphql(description = "Error message returned on failure of the job")]
+    pub fn error_message(&self) -> &String {
+        &self.error_message
+    }
+
+    #[graphql(description = "Type of error with which the job failed")]
+    pub fn error_class(&self) -> Option<&String> {
+        self.error_class.as_ref()
+    }
+
+    #[graphql(description = "Number of times the job has been retried")]
+    pub fn retry_count(&self) -> i32 {
+        self.retry_count
+    }
+
+    #[graphql(
+        description = "Date and time at which the job was last retried (in unix epoch format)"
+    )]
+    pub fn retried_at(&self) -> f64 {
+        self.retried_at
     }
 }
 

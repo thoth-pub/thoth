@@ -12,7 +12,7 @@ readme = "README.md"
 maintenance = { status = "actively-developed" }
 
 [workspace]
-members = ["thoth-api", "thoth-api-server", "thoth-app", "thoth-app-server", "thoth-client", "thoth-errors", "thoth-export-server"]
+members = ["thoth-api", "thoth-api-server", "thoth-app", "thoth-app-server", "thoth-client", "thoth-errors", "thoth-export-server", "thoth-processor"]
 
 [dependencies]
 thoth-api = { version = "=0.13.13", path = "thoth-api", features = ["backend"] }
@@ -20,6 +20,7 @@ thoth-api-server = { version = "=0.13.13", path = "thoth-api-server" }
 thoth-app-server = { version = "=0.13.13", path = "thoth-app-server" }
 thoth-errors = { version = "=0.13.13", path = "thoth-errors" }
 thoth-export-server = { version = "=0.13.13", path = "thoth-export-server" }
+thoth-processor = { version = "=0.13.13", path = "thoth-processor" }
 clap = { version = "4.5.32", features = ["cargo", "env"] }
 dialoguer = { version = "0.11.0", features = ["password"] }
 dotenv = "0.15.0"

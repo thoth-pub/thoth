@@ -179,7 +179,7 @@ impl From<diesel::result::Error> for ThothError {
                 ThothError::DatabaseError(info.message().to_string())
             }
             Error::NotFound => ThothError::EntityNotFound,
-            _ => ThothError::InternalError("".into()),
+            _ => ThothError::InternalError(error.to_string()),
         }
     }
 }

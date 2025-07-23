@@ -38,6 +38,27 @@ pub async fn scan_match(pool: &RedisPool, pattern: &str) -> ThothResult<Vec<Stri
     Ok(keys)
 }
 
+pub async fn rpush(pool: &RedisPool, key: &str, value: &str) -> ThothResult<String> {
+    let mut con = create_connection(pool).await?;
+    con.rpush(key, value).await.map_err(Into::into)
+}
+
+pub async fn blpop(pool: &RedisPool, key: &str) -> ThothResult<String> {
+    let mut con = create_connection(pool).await?;
+    let (_, value): (_, String) = con.blpop::<_, (String, String)>(key, 0.0).await?;
+    Ok(value)
+}
+
+pub async fn zrange(
+    pool: &RedisPool,
+    key: &str,
+    start: isize,
+    stop: isize,
+) -> ThothResult<Vec<String>> {
+    let mut con = create_connection(pool).await?;
+    con.zrange(key, start, stop).await.map_err(Into::into)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,6 +91,29 @@ mod tests {
         let get_result = get(&pool, test_key).await;
         assert!(get_result.is_ok());
         assert_eq!(get_result.unwrap(), test_value);
+    }
+
+    #[tokio::test]
+    async fn test_rpush_and_blpop() {
+        let pool = get_pool().await;
+
+        let test_key = "test_queue";
+        let test_value_1 = "test_value_1";
+        let test_value_2 = "test_value_2";
+
+        let rpush_result_1 = rpush(&pool, test_key, test_value_1).await;
+        assert!(rpush_result_1.is_ok());
+
+        let rpush_result_2 = rpush(&pool, test_key, test_value_2).await;
+        assert!(rpush_result_2.is_ok());
+
+        let blpop_result_1 = blpop(&pool, test_key).await;
+        assert!(blpop_result_1.is_ok());
+        assert_eq!(blpop_result_1.unwrap(), test_value_1);
+
+        let blpop_result_2 = blpop(&pool, test_key).await;
+        assert!(blpop_result_2.is_ok());
+        assert_eq!(blpop_result_2.unwrap(), test_value_2);
     }
 
     #[tokio::test]
