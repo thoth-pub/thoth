@@ -8,9 +8,10 @@ use crate::app::App;
 use loco_rs::{
     app::Hooks,
     boot::{start, ServeParams, StartMode},
-    environment::resolve_from_env,
+    environment::{resolve_from_env, Environment},
     logger, Result,
 };
+use std::path::Path;
 
 #[tokio::main]
 #[allow(clippy::result_large_err)]
@@ -19,8 +20,8 @@ pub async fn start_server() -> Result<()> {
 }
 
 pub async fn start_app<H: Hooks>() -> Result<()> {
-    let environment = resolve_from_env().into();
-    let config = H::load_config(&environment).await?;
+    let environment: Environment = resolve_from_env().into();
+    let config = environment.load_from_folder(Path::new("thoth-processor/config/"))?;
 
     if !H::init_logger(&config, &environment)? {
         logger::init::<H>(&config.logger)?;
