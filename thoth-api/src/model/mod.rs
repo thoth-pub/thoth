@@ -609,23 +609,12 @@ pub enum MarkupFormat {
     JatsXml,
 }
 
-// impl MarkupFormat {
-// pub fn parse(input: &str) -> ThothResult<Self> {
-//     // Extract format from input extension
-//     let format = input
-//         .split('.')
-//         .last()
-//         .ok_or_else(|| ThothError::UnsuportedFileFormatError)?;
-
-//     match format.to_lowercase().as_str() {
-//         "html" | "htm" => Ok(MarkupFormat::Html),
-//         "md" | "markdown" => Ok(MarkupFormat::Markdown),
-//         "txt" | "text" => Ok(MarkupFormat::PlainText),
-//         "xml" => Ok(MarkupFormat::JatsXml),
-//         _ => Err(ThothError::UnsuportedFileFormatError),
-//     }
-// }
-// }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConversionLimit {
+    Abstract,
+    Biography,
+    Title,
+}
 
 /// Enum to represent abstract types
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -660,118 +649,497 @@ pub fn validate_format(content: &str, format: &MarkupFormat) -> ThothResult<()> 
     Ok(())
 }
 
-/// Extract content based on format
-pub fn extract_content(content: &str, format: &MarkupFormat) -> ThothResult<String> {
-    validate_format(content, format)?;
+/// Convert content to JATS XML format with specified tag
+pub fn convert_to_jats(
+    content: String,
+    format: MarkupFormat,
+    conversion_limit: Option<ConversionLimit>,
+) -> ThothResult<String> {
+    validate_format(&content, &format)?;
+    let mut output = content;
+    let allow_structure = matches!(
+        conversion_limit,
+        Some(ConversionLimit::Abstract | ConversionLimit::Biography)
+    );
 
     match format {
-        MarkupFormat::Html | MarkupFormat::JatsXml => {
-            let tag_regex = Regex::new(r"<([^>/\s]+)>(.*?)</([^>/\s]+)>")
-                .map_err(|_| ThothError::UnsuportedFileFormatError)?;
+        MarkupFormat::Html => {
+            output = output
+                .replace("<em>", "<italic>")
+                .replace("</em>", "</italic>");
+            output = output
+                .replace("<i>", "<italic>")
+                .replace("</i>", "</italic>");
+            output = output
+                .replace("<strong>", "<bold>")
+                .replace("</strong>", "</bold>");
+            output = output.replace("<b>", "<bold>").replace("</b>", "</bold>");
+            output = output
+                .replace("<code>", "<monospace>")
+                .replace("</code>", "</monospace>");
+            output = output.replace("<sup>", "<sup>").replace("</sup>", "</sup>");
+            output = output.replace("<sub>", "<sub>").replace("</sub>", "</sub>");
 
-            let extracted = tag_regex
-                .captures(content)
-                .and_then(|caps| {
-                    let open_tag = caps.get(1).map(|m| m.as_str())?;
-                    let inner = caps.get(2).map(|m| m.as_str().trim())?;
-                    let close_tag = caps.get(3).map(|m| m.as_str())?;
-                    if open_tag == close_tag {
-                        Some(inner.to_string())
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or_default();
+            let link_re = Regex::new(r#"<a\s+href="([^"]+)">(.*?)</a>"#).unwrap();
+            output = link_re
+                .replace_all(&output, r#"<ext-link xlink:href="$1">$2</ext-link>"#)
+                .to_string();
 
-            Ok(extracted)
+            if allow_structure {
+                output = output.replace("<br/>", "<break/>");
+                output = output.replace("<p>", "<p>").replace("</p>", "</p>");
+                output = output.replace("<ul>", "<list>").replace("</ul>", "</list>");
+                output = output.replace("<ol>", "<list>").replace("</ol>", "</list>");
+                output = output
+                    .replace("<li>", "<list-item>")
+                    .replace("</li>", "</list-item>");
+            } else {
+                // Remove disallowed structure
+                output = Regex::new(r"<(/?)(p|ul|ol|li|br|list|list-item)>")
+                    .unwrap()
+                    .replace_all(&output, "")
+                    .to_string();
+            }
         }
-        
+
         MarkupFormat::Markdown => {
-            let heading_regex =
-                Regex::new(r"^(#+)\s+(.*)$").map_err(|_| ThothError::UnsuportedFileFormatError)?; 
-
-            let extracted = content
-                .lines()
-                .find_map(|line| {
-                    heading_regex
-                        .captures(line)
-                        .and_then(|caps| caps.get(2)) 
-                        .map(|m| m.as_str().trim().to_string())
+            let bold_re = Regex::new(r"\*\*(.*?)\*\*|__(.*?)__").unwrap();
+            output = bold_re
+                .replace_all(&output, |caps: &regex::Captures| {
+                    format!(
+                        "<bold>{}</bold>",
+                        caps.get(1).or_else(|| caps.get(2)).unwrap().as_str()
+                    )
                 })
-                .unwrap_or_default();
+                .to_string();
 
-            Ok(extracted)
+            let italic_re = Regex::new(r"\*(.*?)\*|_(.*?)_").unwrap();
+            output = italic_re
+                .replace_all(&output, |caps: &regex::Captures| {
+                    format!(
+                        "<italic>{}</italic>",
+                        caps.get(1).or_else(|| caps.get(2)).unwrap().as_str()
+                    )
+                })
+                .to_string();
+
+            let code_re = Regex::new(r"`(.*?)`").unwrap();
+            output = code_re
+                .replace_all(&output, r"<monospace>$1</monospace>")
+                .to_string();
+
+            let link_re = Regex::new(r"\[(.*?)\]\((.*?)\)").unwrap();
+            output = link_re
+                .replace_all(&output, r#"<ext-link xlink:href="$2">$1</ext-link>"#)
+                .to_string();
+
+            if allow_structure {
+                let mut fragments = Vec::new();
+                for block in output.split("\n\n") {
+                    let trimmed = block.trim();
+                    if trimmed.lines().all(|l| l.trim().starts_with("- ")) {
+                        let list_items: Vec<String> = trimmed
+                            .lines()
+                            .map(|line| {
+                                let content = line.trim_start_matches("- ").trim();
+                                format!("<list-item>{}</list-item>", content)
+                            })
+                            .collect();
+                        fragments.push(format!("<list>{}</list>", list_items.join("")));
+                    } else {
+                        fragments.push(format!("<p>{}</p>", trimmed));
+                    }
+                }
+                output = fragments.join("");
+            }
         }
 
-        MarkupFormat::PlainText => Ok(content.to_string()),
+        MarkupFormat::PlainText => {
+            // Simple URL regex
+            let url_re = Regex::new(r"https?://\S+").unwrap();
+
+            let mut to_output = String::new();
+            let mut last_index = 0;
+
+            for mat in url_re.find_iter(&output) {
+                // Append preceding plain text wrapped in <sc>
+                if mat.start() > last_index {
+                    let plain = &output[last_index..mat.start()];
+                    if !plain.trim().is_empty() {
+                        to_output.push_str(&format!("<sc>{}</sc>", plain));
+                    }
+                }
+                // Append URL as <ext-link>
+                let url = mat.as_str();
+                to_output.push_str(&format!(r#"<ext-link xlink:href="{url}">{url}</ext-link>"#));
+                last_index = mat.end();
+            }
+
+            // Append remaining plain text wrapped in <sc>
+            if last_index < output.len() {
+                let plain = &output[last_index..];
+                if !plain.trim().is_empty() {
+                    to_output.push_str(&format!("<sc>{}</sc>", plain));
+                }
+            }
+
+            output = to_output
+        }
+
+        MarkupFormat::JatsXml => {}
     }
+
+    Ok(output)
 }
 
-pub enum ContentEntity {
-    Title,
-    Subtitle,
-    FullTitle,
-    Abstract,
-}
+// pub fn convert_to_jats(content: String, content_entity: ContentEntity) -> ThothResult<String> {
+//     if content.is_empty() {
+//         return Ok(String::new());
+//     }
 
-impl fmt::Display for ContentEntity {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            ContentEntity::Title => "title",
-            ContentEntity::Subtitle => "subtitle",
-            ContentEntity::FullTitle => "full_title",
-            ContentEntity::Abstract => "abstract",
-        };
-        write!(f, "{s}")
+//     // Escape XML special characters
+//     let escaped_content = content
+//         .replace("&", "&amp;")
+//         .replace("<", "&lt;")
+//         .replace(">", "&gt;")
+//         .replace("\"", "&quot;")
+//         .replace("'", "&apos;");
+
+//     Ok(format!(
+//         "<{content_entity}>{escaped_content}</{content_entity}>"
+//     ))
+// }
+
+fn remove_structural_tags(input: &str) -> String {
+    let structural_tags = &[
+        r"</?p>",
+        r"<break\s*/?>",
+        r"</?list>",
+        r"</?list-item>",
+        r"</?(ul|ol|li)>",
+    ];
+    let mut output = input.to_string();
+    for tag in structural_tags {
+        let re = Regex::new(tag).unwrap();
+        output = re.replace_all(&output, "").to_string();
     }
-}
-
-/// Convert content to JATS XML format with specified tag
-pub fn convert_to_jats(content: String, content_entity: ContentEntity) -> ThothResult<String> {
-    if content.is_empty() {
-        return Ok(String::new());
-    }
-
-    // Escape XML special characters
-    let escaped_content = content
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace("\"", "&quot;")
-        .replace("'", "&apos;");
-
-    Ok(format!(
-        "<{content_entity}>{escaped_content}</{content_entity}>"
-    ))
+    output
 }
 
 /// Convert from JATS XML to specified format using a specific tag name
-pub fn convert_from_jats(jats_xml: &str, format: MarkupFormat, content_entity: ContentEntity) -> ThothResult<String> {
-    // Всегда валидируем как JATS
+pub fn convert_from_jats(
+    jats_xml: &str,
+    format: MarkupFormat,
+    conversion_limit: Option<ConversionLimit>,
+) -> ThothResult<String> {
     validate_format(jats_xml, &MarkupFormat::JatsXml)?;
+    let mut output = jats_xml.to_string();
 
-    // println!("JATS XML: {jats_xml}");
-
-    let tag_regex = Regex::new(&format!(r"(?s)<{0}>(.*?)</{0}>", content_entity))
-        .map_err(|_| ThothError::UnsuportedFileFormatError)?;
-
-    let content = tag_regex
-        .captures(jats_xml)
-        .and_then(|caps| caps.get(1))
-        .map(|m| m.as_str().trim().to_string())
-        .ok_or(ThothError::TagNotFoundError)?;
+    let allow_structure = matches!(
+        conversion_limit,
+        Some(ConversionLimit::Abstract | ConversionLimit::Biography)
+    );
 
     match format {
-        MarkupFormat::Html => Ok(format!("<text>{content}</text>")),
-        MarkupFormat::Markdown => Ok(format!("# {content}")),
-        MarkupFormat::PlainText => Ok(content.to_uppercase()),
-        MarkupFormat::JatsXml => Ok(jats_xml.to_string()),
+        MarkupFormat::Html => {
+            output = output
+                .replace("<italic>", "<em>")
+                .replace("</italic>", "</em>");
+            output = output
+                .replace("<bold>", "<strong>")
+                .replace("</bold>", "</strong>");
+            output = output
+                .replace("<monospace>", "<code>")
+                .replace("</monospace>", "</code>");
+            output = output.replace("<sup>", "<sup>").replace("</sup>", "</sup>");
+            output = output.replace("<sub>", "<sub>").replace("</sub>", "</sub>");
+            output = output.replace("<sc>", "").replace("</sc>", "");
+
+            let ext_link_re =
+                Regex::new(r#"<ext-link\s+[^>]*xlink:href="([^"]+)"[^>]*>(.*?)</ext-link>"#)
+                    .unwrap();
+            output = ext_link_re
+                .replace_all(&output, r#"<a href="$1">$2</a>"#)
+                .to_string();
+
+            if allow_structure {
+                output = output.replace("<break/>", "<br/>");
+                output = output.replace("<p>", "<p>").replace("</p>", "</p>");
+                output = output.replace("<list>", "<ul>").replace("</list>", "</ul>");
+                output = output
+                    .replace("<list-item>", "<li>")
+                    .replace("</list-item>", "</li>");
+            } else {
+                output = remove_structural_tags(&output);
+            }
+        }
+
+        MarkupFormat::Markdown => {
+            output = output.replace("<italic>", "*").replace("</italic>", "*");
+            output = output.replace("<bold>", "**").replace("</bold>", "**");
+            output = output
+                .replace("<monospace>", "")
+                .replace("</monospace>", "");
+            output = output.replace("<sc>", "").replace("</sc>", "");
+            output = output.replace("<sup>", "<sup>").replace("</sup>", "</sup>");
+            output = output.replace("<sub>", "<sub>").replace("</sub>", "</sub>");
+
+            let ext_link_re =
+                Regex::new(r#"<ext-link\s+[^>]*xlink:href="([^"]+)"[^>]*>(.*?)</ext-link>"#)
+                    .unwrap();
+            output = ext_link_re.replace_all(&output, r#"[$2]($1)"#).to_string();
+
+            if allow_structure {
+                output = output.replace("<break/>", "  \n");
+                output = output.replace("<p>", "").replace("</p>", "\n\n");
+                output = output.replace("<list>", "").replace("</list>", "");
+                output = output
+                    .replace("<list-item>", "- ")
+                    .replace("</list-item>", "\n");
+            } else {
+                output = remove_structural_tags(&output);
+            }
+        }
+
+        MarkupFormat::PlainText => {
+            // Replace ext-link with text (url)
+            let ext_link_re =
+                Regex::new(r#"<ext-link\s+[^>]*xlink:href="([^"]+)"[^>]*>(.*?)</ext-link>"#)
+                    .unwrap();
+            output = ext_link_re
+                .replace_all(&output, |caps: &regex::Captures| {
+                    let url = &caps[1];
+                    let text = &caps[2];
+                    format!("{text} ({url})")
+                })
+                .to_string();
+
+            // Replace <sc>text</sc> with text
+            let sc_re = Regex::new(r"</?sc>").unwrap();
+            output = sc_re.replace_all(&output, "").to_string();
+
+            // Remove any other tags
+            let tag_re = Regex::new(r"<[^>]+>").unwrap();
+            output = tag_re.replace_all(&output, "").to_string();
+
+            output = output.trim().to_string()
+        }
+
+        MarkupFormat::JatsXml => {}
     }
+
+    // Enforce title limit: strip structure
+    if conversion_limit == Some(ConversionLimit::Title) {
+        output = remove_structural_tags(&output);
+    }
+
+    Ok(output)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // --- convert_to_jats tests start ---
+    #[test]
+    fn test_html_basic_formatting() {
+        let input = "<em>Italic</em> and <strong>Bold</strong>";
+        let output = convert_to_jats(input.to_string(), MarkupFormat::Html, None).unwrap();
+        assert_eq!(output, "<italic>Italic</italic> and <bold>Bold</bold>");
+    }
+
+    #[test]
+    fn test_html_link_conversion() {
+        let input = r#"<a href="https://example.com">Link</a>"#;
+        let output = convert_to_jats(input.to_string(), MarkupFormat::Html, None).unwrap();
+        assert_eq!(
+            output,
+            r#"<ext-link xlink:href="https://example.com">Link</ext-link>"#
+        );
+    }
+
+    #[test]
+    fn test_html_with_structure_allowed() {
+        let input = "<ul><li>One</li><li>Two</li></ul>";
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::Html,
+            Some(ConversionLimit::Abstract),
+        )
+        .unwrap();
+        assert_eq!(
+            output,
+            "<list><list-item>One</list-item><list-item>Two</list-item></list>"
+        );
+    }
+
+    #[test]
+    fn test_html_with_structure_stripped() {
+        let input = "<ul><li>One</li></ul>";
+        let output = convert_to_jats(input.to_string(), MarkupFormat::Html, None).unwrap();
+        assert_eq!(output, "One");
+    }
+
+    #[test]
+    fn test_markdown_basic_formatting() {
+        let input = "**Bold** and *Italic* and `code`";
+        let output = convert_to_jats(input.to_string(), MarkupFormat::Markdown, None).unwrap();
+        assert_eq!(
+            output,
+            "<bold>Bold</bold> and <italic>Italic</italic> and <monospace>code</monospace>"
+        );
+    }
+
+    #[test]
+    fn test_markdown_link_conversion() {
+        let input = "[text](https://example.com)";
+        let output = convert_to_jats(input.to_string(), MarkupFormat::Markdown, None).unwrap();
+        assert_eq!(
+            output,
+            r#"<ext-link xlink:href="https://example.com">text</ext-link>"#
+        );
+    }
+
+    #[test]
+    fn test_markdown_with_structure() {
+        let input = "- Item 1\n- Item 2\n\nParagraph text";
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::Markdown,
+            Some(ConversionLimit::Abstract),
+        )
+        .unwrap();
+
+        assert!(
+            output.contains(
+                "<list><list-item>Item 1</list-item><list-item>Item 2</list-item></list>"
+            ) && output.contains("<p>Paragraph text</p>")
+        );
+    }
+
+    #[test]
+    fn test_plain_text_with_url() {
+        let input = "Hello https://example.com world";
+        let output = convert_to_jats(input.to_string(), MarkupFormat::PlainText, None).unwrap();
+        assert_eq!(
+        output,
+        "<sc>Hello </sc><ext-link xlink:href=\"https://example.com\">https://example.com</ext-link><sc> world</sc>"
+    );
+    }
+
+    #[test]
+    fn test_plain_text_no_url() {
+        let input = "Just plain text.";
+        let output = convert_to_jats(input.to_string(), MarkupFormat::PlainText, None).unwrap();
+        assert_eq!(output, "<sc>Just plain text.</sc>");
+    }
+    // --- convert_to_jats tests end   ---
+
+    // --- convert_from_jats tests start   ---
+    #[test]
+    fn test_convert_from_jats_html_with_structure() {
+        let input = r#"
+            <p>Paragraph text</p>
+            <list><list-item>Item 1</list-item><list-item>Item 2</list-item></list>
+            <italic>Italic</italic> and <bold>Bold</bold>
+            <ext-link xlink:href="https://example.com">Link</ext-link>
+        "#;
+        let output = convert_from_jats(input, MarkupFormat::Html, Some(ConversionLimit::Abstract)).unwrap();
+
+        assert!(output.contains("<p>Paragraph text</p>"));
+        assert!(output.contains("<ul><li>Item 1</li><li>Item 2</li></ul>"));
+        assert!(output.contains("<em>Italic</em>"));
+        assert!(output.contains("<strong>Bold</strong>"));
+        assert!(output.contains(r#"<a href="https://example.com">Link</a>"#));
+    }
+
+    #[test]
+    fn test_convert_from_jats_html_no_structure() {
+        let input = r#"
+            <p>Text</p><list><list-item>Item</list-item></list><bold>Bold</bold>
+        "#;
+        let output = convert_from_jats(input, MarkupFormat::Html, None).unwrap();
+
+        assert!(!output.contains("<p>"));
+        assert!(!output.contains("<ul>"));
+        assert!(output.contains("<strong>Bold</strong>"));
+    }
+
+    #[test]
+    fn test_convert_from_jats_html_title_limit() {
+        let input = r#"<p>Title</p><bold>Bold</bold>"#;
+        let output = convert_from_jats(input, MarkupFormat::Html, Some(ConversionLimit::Title)).unwrap();
+
+        assert!(!output.contains("<p>"));
+        assert!(output.contains("<strong>Bold</strong>"));
+    }
+
+    #[test]
+    fn test_convert_from_jats_markdown_with_structure() {
+        let input = r#"
+            <p>Text</p><list><list-item>Item 1</list-item><list-item>Item 2</list-item></list>
+            <italic>It</italic> and <bold>Bold</bold>
+            <ext-link xlink:href="https://link.com">Here</ext-link>
+        "#;
+        let output = convert_from_jats(input, MarkupFormat::Markdown, Some(ConversionLimit::Biography)).unwrap();
+
+        assert!(output.contains("Text"));
+        assert!(output.contains("- Item 1"));
+        assert!(output.contains("*It*"));
+        assert!(output.contains("**Bold**"));
+        assert!(output.contains("[Here](https://link.com)"));
+    }
+
+    #[test]
+    fn test_convert_from_jats_markdown_title_limit() {
+        let input = r#"<p>Title</p><italic>It</italic>"#;
+        let output = convert_from_jats(input, MarkupFormat::Markdown, Some(ConversionLimit::Title)).unwrap();
+
+        assert!(!output.contains("<p>"));
+        assert!(output.contains("*It*"));
+    }
+
+    #[test]
+    fn test_convert_from_jats_plain_text_basic() {
+        let input = r#"
+            <p>Text</p> and <ext-link xlink:href="https://ex.com">Link</ext-link> and <sc>SC</sc>
+        "#;
+        let output = convert_from_jats(input, MarkupFormat::PlainText, None).unwrap();
+
+        assert!(output.contains("Text"));
+        assert!(output.contains("Link (https://ex.com)"));
+        assert!(!output.contains("<sc>"));
+        assert!(!output.contains("<"));
+    }
+
+    #[test]
+    fn test_convert_from_jats_preserves_inline_html() {
+        let input = r#"<italic>i</italic> <bold>b</bold> <monospace>code</monospace>"#;
+        let output = convert_from_jats(input, MarkupFormat::Html, None).unwrap();
+
+        assert!(output.contains("<em>i</em>"));
+        assert!(output.contains("<strong>b</strong>"));
+        assert!(output.contains("<code>code</code>"));
+    }
+
+    #[test]
+    fn test_convert_from_jats_jatsxml_noop() {
+        let input = r#"<p>Do nothing</p>"#;
+        let output = convert_from_jats(input, MarkupFormat::JatsXml, None).unwrap();
+        assert_eq!(input, output);
+    }
+
+    #[test]
+    fn test_convert_from_jats_html_allow_structure_false() {
+        let input = r#"<p>Para</p><list><list-item>Item</list-item></list>"#;
+        let output = convert_from_jats(input, MarkupFormat::Html, Some(ConversionLimit::Title)).unwrap();
+
+        assert!(!output.contains("<p>"));
+        assert!(!output.contains("<ul>"));
+        assert!(output.contains("Para"));
+        assert!(output.contains("Item"));
+    }
+    // --- convert_from_jats tests end   ---
 
     #[test]
     fn test_doi_default() {
@@ -1263,89 +1631,6 @@ mod tests {
         let round_trip_timestamp = Timestamp::parse_from_rfc3339(&converted_string).unwrap();
         assert_eq!(timestamp, round_trip_timestamp);
     }
-
-    // #[test]
-    // fn test_convert_from_jats_html() {
-    //     let title_jats = r#"<title>Main Title</title>"#;
-    //     let subtitle_jats = r#"<subtitle>Subtitle Here</subtitle>"#;
-    //     let title_html = convert_from_jats(title_jats, MarkupFormat::Html, "title").unwrap();
-    //     let subtitle_html = convert_from_jats(subtitle_jats, MarkupFormat::Html, "subtitle").unwrap();
-    //     println!("Title HTML: {}", title_html);
-    //     println!("Subtitle HTML: {}", subtitle_html);
-    //     assert!(title_html.contains("<text>Main Title</text>"));
-    //     assert!(subtitle_html.contains("<text>Subtitle Here</text>"));
-    // }
-
-    // #[test]
-    // fn test_convert_from_jats_markdown() {
-    //     let jats = r#"<title>Main Title</title>\n<subtitle>Subtitle Here</subtitle>"#;
-    //     let md = convert_fconvert_title_from_jatsrom_jats(jats, MarkupFormat::Markdown).unwrap();
-    //     assert!(md.contains("# Main Title"));
-    //     assert!(md.contains("## Subtitle Here"));
-    // }
-
-    // #[test]
-    // fn test_convert_from_jats_plaintext() {
-    //     let jats = r#"<title>Main Title</title>\n<subtitle>Subtitle Here</subtitle>"#;
-    //     let txt = convert_title_from_jats(jats, MarkupFormat::PlainText).unwrap();
-    //     assert!(txt.contains("MAIN TITLE"));
-    //     assert!(txt.contains("Subtitle Here"));
-    // }
-
-    // #[test]
-    // fn test_convert_from_jats_jatsxml() {
-    //     let jats = r#"<title>Main Title</title>\n<subtitle>Subtitle Here</subtitle>"#;
-    //     let xml = convert_title_from_jats(jats, MarkupFormat::JatsXml).unwrap();
-    //     assert_eq!(xml, jats);
-    // }
-
-    // #[test]
-    // fn test_validate_format_html_valid() {
-    //     let html = "<h1>Title</h1><h2>Subtitle</h2>";
-    //     assert!(validate_format(html, &MarkupFormat::Html).is_ok());
-    // }
-
-    // #[test]
-    // fn test_validate_format_html_invalid() {
-    //     let invalid_html = "Just plain text without tags";
-    //     assert!(validate_format(invalid_html, &MarkupFormat::Html).is_err());
-    // }
-
-    // #[test]
-    // fn test_validate_format_markdown_valid() {
-    //     let md = "# Title\n## Subtitle\n*Some content*";
-    //     assert!(validate_format(md, &MarkupFormat::Markdown).is_ok());
-    // }
-
-    // #[test]
-    // fn test_validate_format_markdown_invalid() {
-    //     let invalid_md = "Just plain text without markdown";
-    //     assert!(validate_format(invalid_md, &MarkupFormat::Markdown).is_err());
-    // }
-
-    // #[test]
-    // fn test_validate_format_jatsxml_valid() {
-    //     let xml = "<?xml version=\"1.0\"?><article><title>Title</title></article>";
-    //     assert!(validate_format(xml, &MarkupFormat::JatsXml).is_ok());
-    // }
-
-    // #[test]
-    // fn test_validate_format_jatsxml_invalid() {
-    //     let invalid_xml = "Just plain text without XML";
-    //     assert!(validate_format(invalid_xml, &MarkupFormat::JatsXml).is_err());
-    // }
-
-    // #[test]
-    // fn test_validate_format_plaintext_valid() {
-    //     let text = "Plain text content without markup";
-    //     assert!(validate_format(text, &MarkupFormat::PlainText).is_ok());
-    // }
-
-    // #[test]
-    // fn test_validate_format_plaintext_invalid() {
-    //     let invalid_text = "Text with <html> tags";
-    //     assert!(validate_format(invalid_text, &MarkupFormat::PlainText).is_err());
-    // }
 }
 
 pub mod r#abstract;

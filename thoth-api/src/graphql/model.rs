@@ -27,7 +27,7 @@ use crate::model::series::*;
 use crate::model::subject::*;
 use crate::model::work::*;
 use crate::model::work_relation::*;
-use crate::model::ContentEntity;
+use crate::model::ConversionLimit;
 use crate::model::Convert;
 use crate::model::Crud;
 use crate::model::Doi;
@@ -37,7 +37,7 @@ use crate::model::Orcid;
 use crate::model::Ror;
 use crate::model::Timestamp;
 use crate::model::WeightUnit;
-use crate::model::{affiliation::*, convert_to_jats, extract_content, TitleOrderBy};
+use crate::model::{affiliation::*, convert_to_jats, TitleOrderBy};
 use crate::model::{contribution::*, NewTitle};
 use thoth_errors::{ThothError, ThothResult};
 
@@ -1474,11 +1474,19 @@ impl QueryRoot {
     #[graphql(description = "Query a title by its ID")]
     fn title(context: &Context, title_id: Uuid, markup_format: MarkupFormat) -> FieldResult<Title> {
         let mut title = Title::from_id(&context.db, &title_id).map_err(FieldError::from)?;
-        title.title = convert_from_jats(&title.title, markup_format, ContentEntity::Title)?;
+        title.title = convert_from_jats(&title.title, markup_format, Some(ConversionLimit::Title))?;
         if let Some(subtitle) = &title.subtitle {
-            title.subtitle = Some(convert_from_jats(subtitle, markup_format, ContentEntity::Subtitle)?);
+            title.subtitle = Some(convert_from_jats(
+                subtitle,
+                markup_format,
+                Some(ConversionLimit::Title),
+            )?);
         }
-        title.full_title = convert_from_jats(&title.full_title, markup_format, ContentEntity::FullTitle)?;
+        title.full_title = convert_from_jats(
+            &title.full_title,
+            markup_format,
+            Some(ConversionLimit::Title),
+        )?;
         Ok(title)
     }
 
@@ -1520,11 +1528,20 @@ impl QueryRoot {
         .map_err(FieldError::from)?;
 
         for title in &mut titles {
-            title.title = convert_from_jats(&title.title, markup_format, ContentEntity::Title)?;
+            title.title =
+                convert_from_jats(&title.title, markup_format, Some(ConversionLimit::Title))?;
             if let Some(subtitle) = &title.subtitle {
-                title.subtitle = Some(convert_from_jats(subtitle, markup_format, ContentEntity::Subtitle)?);
+                title.subtitle = Some(convert_from_jats(
+                    subtitle,
+                    markup_format,
+                    Some(ConversionLimit::Title),
+                )?);
             }
-            title.full_title = convert_from_jats(&title.full_title, markup_format, ContentEntity::FullTitle)?;
+            title.full_title = convert_from_jats(
+                &title.full_title,
+                markup_format,
+                Some(ConversionLimit::Title),
+            )?;
         }
         Ok(titles)
     }
@@ -1537,7 +1554,11 @@ impl QueryRoot {
     ) -> FieldResult<Abstract> {
         let mut r#abstract =
             Abstract::from_id(&context.db, &abstgract_id).map_err(FieldError::from)?;
-        r#abstract.content = convert_from_jats(&r#abstract.content, markup_format, ContentEntity::Abstract)?;
+        r#abstract.content = convert_from_jats(
+            &r#abstract.content,
+            markup_format,
+            Some(ConversionLimit::Abstract),
+        )?;
         Ok(r#abstract)
     }
 
@@ -1580,7 +1601,11 @@ impl QueryRoot {
         .map_err(FieldError::from)?;
 
         for r#abstract in &mut abstracts {
-            r#abstract.content = convert_from_jats(&r#abstract.content, markup_format, ContentEntity::Abstract)?;
+            r#abstract.content = convert_from_jats(
+                &r#abstract.content,
+                markup_format,
+                Some(ConversionLimit::Abstract),
+            )?;
         }
 
         Ok(abstracts)
@@ -1731,20 +1756,20 @@ impl MutationRoot {
 
         let mut data = data.clone();
 
-        data.title = convert_to_jats(
-            extract_content(&data.title, &markup_format)?,
-            ContentEntity::Title,
-        )?;
+        data.title = convert_to_jats(data.title, markup_format, Some(ConversionLimit::Title))?;
         data.subtitle = data
             .subtitle
-            .map(|subtitle| extract_content(&subtitle, &markup_format))
-            .transpose()?
-            .map(|subtitle_content| convert_to_jats(subtitle_content, ContentEntity::Subtitle))
+            .map(|subtitle| subtitle)
+            .map(|subtitle_content| {
+                convert_to_jats(
+                    subtitle_content,
+                    markup_format,
+                    Some(ConversionLimit::Title),
+                )
+            })
             .transpose()?;
-        data.full_title = convert_to_jats(
-            extract_content(&data.full_title, &markup_format)?,
-            ContentEntity::FullTitle,
-        )?;
+        data.full_title =
+            convert_to_jats(data.full_title, markup_format, Some(ConversionLimit::Title))?;
 
         Title::create(&context.db, &data).map_err(|e| e.into())
     }
@@ -1781,13 +1806,9 @@ impl MutationRoot {
             return Err(ThothError::CanonicalAbstractExistsError.into());
         }
 
-        // Extract abstract content
-        let abstract_content = extract_content(&data.content, &markup_format)?;
-
-        let abstract_content_jats_xml = convert_to_jats(abstract_content, ContentEntity::Abstract)?;
-
         let mut data = data.clone();
-        data.content = abstract_content_jats_xml;
+        data.content =
+            convert_to_jats(data.content, markup_format, Some(ConversionLimit::Abstract))?;
 
         Abstract::create(&context.db, &data).map_err(|e| e.into())
     }
@@ -1831,13 +1852,8 @@ impl MutationRoot {
             return Err(ThothError::CanonicalAbstractExistsError.into());
         }
 
-        // Extract abstract content
-        let abstract_content = extract_content(&data.content, &markup_format)?;
-
-        let abstract_content_jats_xml = convert_to_jats(abstract_content, ContentEntity::Abstract)?;
-
         let mut data = data.clone();
-        data.content = abstract_content_jats_xml;
+        data.content = convert_to_jats(data.content, markup_format, Some(ConversionLimit::Title))?;
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         r#abstract
@@ -2238,20 +2254,20 @@ impl MutationRoot {
         }
 
         let mut data = data.clone();
-        data.title = convert_to_jats(
-            extract_content(&data.title, &markup_format)?,
-            ContentEntity::Title,
-        )?;
+        data.title = convert_to_jats(data.title, markup_format, Some(ConversionLimit::Title))?;
         data.subtitle = data
             .subtitle
-            .map(|subtitle| extract_content(&subtitle, &markup_format))
-            .transpose()?
-            .map(|subtitle_content| convert_to_jats(subtitle_content, ContentEntity::Subtitle))
+            .map(|subtitle| subtitle)
+            .map(|subtitle_content| {
+                convert_to_jats(
+                    subtitle_content,
+                    markup_format,
+                    Some(ConversionLimit::Title),
+                )
+            })
             .transpose()?;
-        data.full_title = convert_to_jats(
-            extract_content(&data.full_title, &markup_format)?,
-            ContentEntity::FullTitle,
-        )?;
+        data.full_title =
+            convert_to_jats(data.full_title, markup_format, Some(ConversionLimit::Title))?;
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         title
@@ -2856,7 +2872,7 @@ impl Work {
         )]
         locale_codes: Option<Vec<LocaleCode>>,
     ) -> FieldResult<Vec<Title>> {
-        Title::all(
+        let mut titles = Title::all(
             &context.db,
             limit.unwrap_or_default(),
             offset.unwrap_or_default(),
@@ -2869,7 +2885,29 @@ impl Work {
             vec![],
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(FieldError::from)?;
+
+        for title in titles.iter_mut() {
+            title.title = convert_from_jats(
+                &title.title,
+                MarkupFormat::Html,
+                Some(ConversionLimit::Title),
+            )?;
+            title.subtitle = title
+                .subtitle
+                .as_ref()
+                .map(|subtitle| {
+                    convert_from_jats(subtitle, MarkupFormat::Html, Some(ConversionLimit::Title))
+                })
+                .transpose()?;
+            title.full_title = convert_from_jats(
+                &title.full_title,
+                MarkupFormat::Html,
+                Some(ConversionLimit::Title),
+            )?;
+        }
+
+        Ok(titles)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2912,7 +2950,11 @@ impl Work {
         .map_err(FieldError::from)?;
 
         for r#abstract in &mut abstracts {
-            r#abstract.content = convert_from_jats(&r#abstract.content, markup_format, ContentEntity::Abstract)?;
+            r#abstract.content = convert_from_jats(
+                &r#abstract.content,
+                markup_format,
+                Some(ConversionLimit::Abstract),
+            )?;
         }
 
         Ok(abstracts)
