@@ -677,8 +677,8 @@ pub fn convert_to_jats(
             output = output
                 .replace("<code>", "<monospace>")
                 .replace("</code>", "</monospace>");
-            output = output.replace("<sup>", "<sup>").replace("</sup>", "</sup>");
-            output = output.replace("<sub>", "<sub>").replace("</sub>", "</sub>");
+            // output = output.replace("<sup>", "<sup>").replace("</sup>", "</sup>");
+            // output = output.replace("<sub>", "<sub>").replace("</sub>", "</sub>");
 
             let link_re = Regex::new(r#"<a\s+href="([^"]+)">(.*?)</a>"#).unwrap();
             output = link_re
@@ -687,7 +687,7 @@ pub fn convert_to_jats(
 
             if allow_structure {
                 output = output.replace("<br/>", "<break/>");
-                output = output.replace("<p>", "<p>").replace("</p>", "</p>");
+                // output = output.replace("<p>", "<p>").replace("</p>", "</p>");
                 output = output.replace("<ul>", "<list>").replace("</ul>", "</list>");
                 output = output.replace("<ol>", "<list>").replace("</ol>", "</list>");
                 output = output
@@ -742,12 +742,12 @@ pub fn convert_to_jats(
                             .lines()
                             .map(|line| {
                                 let content = line.trim_start_matches("- ").trim();
-                                format!("<list-item>{}</list-item>", content)
+                                format!("<list-item>{content}</list-item>")
                             })
                             .collect();
                         fragments.push(format!("<list>{}</list>", list_items.join("")));
                     } else {
-                        fragments.push(format!("<p>{}</p>", trimmed));
+                        fragments.push(format!("<p>{trimmed}</p>"));
                     }
                 }
                 output = fragments.join("");
@@ -766,7 +766,7 @@ pub fn convert_to_jats(
                 if mat.start() > last_index {
                     let plain = &output[last_index..mat.start()];
                     if !plain.trim().is_empty() {
-                        to_output.push_str(&format!("<sc>{}</sc>", plain));
+                        to_output.push_str(&format!("<sc>{plain}</sc>"));
                     }
                 }
                 // Append URL as <ext-link>
@@ -779,7 +779,7 @@ pub fn convert_to_jats(
             if last_index < output.len() {
                 let plain = &output[last_index..];
                 if !plain.trim().is_empty() {
-                    to_output.push_str(&format!("<sc>{}</sc>", plain));
+                    to_output.push_str(&format!("<sc>{plain}</sc>"));
                 }
             }
 
@@ -851,8 +851,8 @@ pub fn convert_from_jats(
             output = output
                 .replace("<monospace>", "<code>")
                 .replace("</monospace>", "</code>");
-            output = output.replace("<sup>", "<sup>").replace("</sup>", "</sup>");
-            output = output.replace("<sub>", "<sub>").replace("</sub>", "</sub>");
+            // output = output.replace("<sup>", "<sup>").replace("</sup>", "</sup>");
+            // output = output.replace("<sub>", "<sub>").replace("</sub>", "</sub>");
             output = output.replace("<sc>", "").replace("</sc>", "");
 
             let ext_link_re =
@@ -864,7 +864,7 @@ pub fn convert_from_jats(
 
             if allow_structure {
                 output = output.replace("<break/>", "<br/>");
-                output = output.replace("<p>", "<p>").replace("</p>", "</p>");
+                // output = output.replace("<p>", "<p>").replace("</p>", "</p>");
                 output = output.replace("<list>", "<ul>").replace("</list>", "</ul>");
                 output = output
                     .replace("<list-item>", "<li>")
@@ -881,8 +881,8 @@ pub fn convert_from_jats(
                 .replace("<monospace>", "")
                 .replace("</monospace>", "");
             output = output.replace("<sc>", "").replace("</sc>", "");
-            output = output.replace("<sup>", "<sup>").replace("</sup>", "</sup>");
-            output = output.replace("<sub>", "<sub>").replace("</sub>", "</sub>");
+            // output = output.replace("<sup>", "<sup>").replace("</sup>", "</sup>");
+            // output = output.replace("<sub>", "<sub>").replace("</sub>", "</sub>");
 
             let ext_link_re =
                 Regex::new(r#"<ext-link\s+[^>]*xlink:href="([^"]+)"[^>]*>(.*?)</ext-link>"#)

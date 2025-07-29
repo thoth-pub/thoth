@@ -291,7 +291,7 @@ impl Component for WorkComponent {
                     }
                     FetchState::Failed(_, err) => {
                         web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(
-                            format!("Failed: {:?}", err).as_str(),
+                            format!("Failed: {err:?}").as_str(),
                         ));
 
                         false

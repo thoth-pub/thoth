@@ -1759,7 +1759,6 @@ impl MutationRoot {
         data.title = convert_to_jats(data.title, markup_format, Some(ConversionLimit::Title))?;
         data.subtitle = data
             .subtitle
-            .map(|subtitle| subtitle)
             .map(|subtitle_content| {
                 convert_to_jats(
                     subtitle_content,
@@ -2257,7 +2256,6 @@ impl MutationRoot {
         data.title = convert_to_jats(data.title, markup_format, Some(ConversionLimit::Title))?;
         data.subtitle = data
             .subtitle
-            .map(|subtitle| subtitle)
             .map(|subtitle_content| {
                 convert_to_jats(
                     subtitle_content,

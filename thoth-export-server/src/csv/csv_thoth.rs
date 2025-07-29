@@ -140,12 +140,12 @@ impl From<Work> for CsvThothRow {
             short_abstract: work
                 .abstracts
                 .iter()
-                .find(|a| a.abstract_type == AbstractType::SHORT && a.canonical == true)
+                .find(|a| a.abstract_type == AbstractType::SHORT && a.canonical)
                 .map(|x| x.content.clone()),
             long_abstract: work
                 .abstracts
                 .iter()
-                .find(|a| a.abstract_type == AbstractType::LONG && a.canonical == true)
+                .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
                 .map(|x| x.content.clone()),
             general_note: work.general_note,
             bibliography_note: work.bibliography_note,
