@@ -1282,7 +1282,8 @@ mod tests {
                 }],
                 abstracts: vec![
                     thoth_client::WorkRelationsRelatedWorkAbstracts {
-                        abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                        abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001")
+                            .unwrap(),
                         work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                         content: "First paragraph.\n\nSecond paragraph.".to_string(),
                         locale_code: thoth_client::LocaleCode::EN,
@@ -1290,7 +1291,8 @@ mod tests {
                         canonical: true,
                     },
                     thoth_client::WorkRelationsRelatedWorkAbstracts {
-                        abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                        abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002")
+                            .unwrap(),
                         work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                         content: "A shorter abstract".to_string(),
                         locale_code: thoth_client::LocaleCode::EN,

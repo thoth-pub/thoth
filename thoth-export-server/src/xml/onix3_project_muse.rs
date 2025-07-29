@@ -272,7 +272,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                             .find(|a| a.abstract_type == AbstractType::LONG)
                         {
                             let abstract_content = abstract_data.content.clone();
-                            
+
                             write_element_block("TextContent", w, |w| {
                                 // 03 Description ("30 Abstract" not implemented in OAPEN)
                                 write_element_block("TextType", w, |w| {
@@ -315,7 +315,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                                     }
                                 }
                             };
-                            
+
                             write_element_block("TextContent", w, |w| {
                                 // 03 Description ("30 Abstract" not implemented in OAPEN)
                                 write_element_block("TextType", w, |w| {

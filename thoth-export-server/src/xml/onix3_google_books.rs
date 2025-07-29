@@ -1064,7 +1064,9 @@ mod tests {
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit"#));
+        assert!(output.contains(
+            r#"      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit"#
+        ));
         assert!(output.contains(r#"      <TextType>04</TextType>"#));
         assert!(output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
         assert!(output.contains(r#"  <PublishingDetail>"#));
@@ -1125,7 +1127,9 @@ mod tests {
         assert!(output.contains(r#"      <TextType>04</TextType>"#));
         assert!(output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
         assert!(!output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit"#));
+        assert!(!output.contains(
+            r#"      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit"#
+        ));
         // No GBP price supplied
         assert!(!output.contains(r#"      <Price>"#));
         assert!(!output.contains(r#"        <PriceType>02</PriceType>"#));
@@ -1153,7 +1157,9 @@ mod tests {
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit"#));
+        assert!(output.contains(
+            r#"      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit"#
+        ));
         assert!(!output.contains(r#"      <TextType>04</TextType>"#));
         assert!(!output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
 
@@ -1165,7 +1171,9 @@ mod tests {
         assert!(!output.contains(r#"    <TextContent>"#));
         assert!(!output.contains(r#"      <TextType>03</TextType>"#));
         assert!(!output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit"#));
+        assert!(!output.contains(
+            r#"      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit"#
+        ));
         assert!(!output.contains(r#"      <TextType>04</TextType>"#));
         assert!(!output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
 

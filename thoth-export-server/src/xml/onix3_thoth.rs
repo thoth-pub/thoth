@@ -2767,30 +2767,30 @@ mod tests {
   </DescriptiveDetail>
   <CollateralDetail>"#
         ));
-    //     assert!(output.contains(
-    //         r#"
-    // <TextContent>
-    //   <TextType>02</TextType>
-    //   <ContentAudience>00</ContentAudience>
-    //   <Text>Lorem ipsum dolor sit amet.</Text>
-    // </TextContent>"#
-    //     ));
-    //     assert!(output.contains(
-    //         r#"
-    // <TextContent>
-    //   <TextType>03</TextType>
-    //   <ContentAudience>00</ContentAudience>
-    //   <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
-    // </TextContent>"#
-    //     ));
-    //     assert!(output.contains(
-    //         r#"
-    // <TextContent>
-    //   <TextType>30</TextType>
-    //   <ContentAudience>00</ContentAudience>
-    //   <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
-    // </TextContent>"#
-    //     ));
+        //     assert!(output.contains(
+        //         r#"
+        // <TextContent>
+        //   <TextType>02</TextType>
+        //   <ContentAudience>00</ContentAudience>
+        //   <Text>Lorem ipsum dolor sit amet.</Text>
+        // </TextContent>"#
+        //     ));
+        //     assert!(output.contains(
+        //         r#"
+        // <TextContent>
+        //   <TextType>03</TextType>
+        //   <ContentAudience>00</ContentAudience>
+        //   <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
+        // </TextContent>"#
+        //     ));
+        //     assert!(output.contains(
+        //         r#"
+        // <TextContent>
+        //   <TextType>30</TextType>
+        //   <ContentAudience>00</ContentAudience>
+        //   <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
+        // </TextContent>"#
+        //     ));
         assert!(output.contains(
             r#"
     <TextContent>
@@ -3478,7 +3478,9 @@ mod tests {
         // Remove remaining related work DOI: can't output RelatedMaterial block
         test_work.relations[1].related_work.doi = None;
         // Remove short abstract: can't output CollateralDetail block
-        test_work.abstracts.retain(|a| a.abstract_type != AbstractType::SHORT);
+        test_work
+            .abstracts
+            .retain(|a| a.abstract_type != AbstractType::SHORT);
         // Reinstate landing page: supplier block for publisher now contains it
         test_work.landing_page = Some("https://www.book.com".to_string());
         let output = generate_test_output(true, &test_work);

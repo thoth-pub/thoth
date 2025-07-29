@@ -1044,7 +1044,8 @@ mod tests {
             <italic>Italic</italic> and <bold>Bold</bold>
             <ext-link xlink:href="https://example.com">Link</ext-link>
         "#;
-        let output = convert_from_jats(input, MarkupFormat::Html, Some(ConversionLimit::Abstract)).unwrap();
+        let output =
+            convert_from_jats(input, MarkupFormat::Html, Some(ConversionLimit::Abstract)).unwrap();
 
         assert!(output.contains("<p>Paragraph text</p>"));
         assert!(output.contains("<ul><li>Item 1</li><li>Item 2</li></ul>"));
@@ -1068,7 +1069,8 @@ mod tests {
     #[test]
     fn test_convert_from_jats_html_title_limit() {
         let input = r#"<p>Title</p><bold>Bold</bold>"#;
-        let output = convert_from_jats(input, MarkupFormat::Html, Some(ConversionLimit::Title)).unwrap();
+        let output =
+            convert_from_jats(input, MarkupFormat::Html, Some(ConversionLimit::Title)).unwrap();
 
         assert!(!output.contains("<p>"));
         assert!(output.contains("<strong>Bold</strong>"));
@@ -1081,7 +1083,12 @@ mod tests {
             <italic>It</italic> and <bold>Bold</bold>
             <ext-link xlink:href="https://link.com">Here</ext-link>
         "#;
-        let output = convert_from_jats(input, MarkupFormat::Markdown, Some(ConversionLimit::Biography)).unwrap();
+        let output = convert_from_jats(
+            input,
+            MarkupFormat::Markdown,
+            Some(ConversionLimit::Biography),
+        )
+        .unwrap();
 
         assert!(output.contains("Text"));
         assert!(output.contains("- Item 1"));
@@ -1093,7 +1100,8 @@ mod tests {
     #[test]
     fn test_convert_from_jats_markdown_title_limit() {
         let input = r#"<p>Title</p><italic>It</italic>"#;
-        let output = convert_from_jats(input, MarkupFormat::Markdown, Some(ConversionLimit::Title)).unwrap();
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, Some(ConversionLimit::Title)).unwrap();
 
         assert!(!output.contains("<p>"));
         assert!(output.contains("*It*"));
@@ -1132,7 +1140,8 @@ mod tests {
     #[test]
     fn test_convert_from_jats_html_allow_structure_false() {
         let input = r#"<p>Para</p><list><list-item>Item</list-item></list>"#;
-        let output = convert_from_jats(input, MarkupFormat::Html, Some(ConversionLimit::Title)).unwrap();
+        let output =
+            convert_from_jats(input, MarkupFormat::Html, Some(ConversionLimit::Title)).unwrap();
 
         assert!(!output.contains("<p>"));
         assert!(!output.contains("<ul>"));
