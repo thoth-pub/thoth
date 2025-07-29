@@ -76,10 +76,10 @@ mod tests {
     // listed within TEST_WORK in correct ordinal order.
     lazy_static! {
         static ref TEST_WORK: Work = Work {
-            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            work_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
             titles: vec![thoth_client::WorkTitles {
-              title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+              title_id: Uuid::from_str("00000000-0000-0000-cccc-000000000001").unwrap(),
               locale_code: thoth_client::LocaleCode::EN,
               full_title: "Book Title: Book Subtitle".to_string(),
               title: "Book Title".to_string(),
@@ -88,7 +88,7 @@ mod tests {
             }],
             abstracts: vec![
                 thoth_client::WorkAbstracts {
-                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    abstract_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
                     work_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
                     content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
                     locale_code: thoth_client::LocaleCode::EN,
@@ -413,7 +413,7 @@ mod tests {
                     page_interval: None,
                     landing_page: None,
                     titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
-                      title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                      title_id: Uuid::from_str("00000000-0000-0000-cccc-000000000001").unwrap(),
                       locale_code: thoth_client::LocaleCode::EN,
                       full_title: "Related work title".to_string(),
                       title: "N/A".to_string(),
@@ -422,8 +422,8 @@ mod tests {
                     }],
                     abstracts: vec![
                         thoth_client::WorkRelationsRelatedWorkAbstracts {
-                            abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            abstract_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
+                            work_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
                             content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
                             locale_code: thoth_client::LocaleCode::EN,
                             abstract_type: thoth_client::AbstractType::SHORT,
@@ -499,7 +499,7 @@ mod tests {
   "coverCaption": "This is a cover caption",
   "titles": [
     {
-      "titleId": "00000000-0000-0000-CCCC-000000000001",
+      "titleId": "00000000-0000-0000-cccc-000000000001",
       "localeCode": "EN",
       "fullTitle": "Book Title: Book Subtitle",
       "title": "Book Title",
@@ -507,10 +507,10 @@ mod tests {
       "canonical": true
     }
   ],
-  abstracts": [
+  "abstracts": [
     {
-      "abstractId": "00000000-0000-0000-AAAA-000000000001",
-      "workId": "00000000-0000-0000-AAAA-000000000001",
+      "abstractId": "00000000-0000-0000-aaaa-000000000001",
+      "workId": "00000000-0000-0000-aaaa-000000000001",
       "content": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.",
       "localeCode": "EN",
       "abstractType": "SHORT",
@@ -818,7 +818,7 @@ mod tests {
         "landingPage": null,
         "titles": [
           {
-            "titleId": "00000000-0000-0000-CCCC-000000000001",
+            "titleId": "00000000-0000-0000-cccc-000000000001",
             "localeCode": "EN",
             "fullTitle": "Related work title",
             "title": "N/A",
@@ -828,7 +828,7 @@ mod tests {
         ],
         "abstracts": [
           {
-            "abstractId": "00000000-0000-0000-AAAA-000000000001",
+            "abstractId": "00000000-0000-0000-aaaa-000000000001",
             "workId": "00000000-0000-0000-aaaa-000000000001",
             "content": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.",
             "localeCode": "EN",
