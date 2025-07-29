@@ -3478,7 +3478,7 @@ mod tests {
         // Remove remaining related work DOI: can't output RelatedMaterial block
         test_work.relations[1].related_work.doi = None;
         // Remove short abstract: can't output CollateralDetail block
-        // test_work.short_abstract = None;
+        test_work.abstracts.retain(|a| a.abstract_type != AbstractType::SHORT);
         // Reinstate landing page: supplier block for publisher now contains it
         test_work.landing_page = Some("https://www.book.com".to_string());
         let output = generate_test_output(true, &test_work);
@@ -3486,7 +3486,7 @@ mod tests {
         assert!(!output.contains(r#"  <ContentDetail>"#));
         assert!(!output.contains(r#"  <RelatedMaterial>"#));
         assert!(!output.contains(r#"    <RelatedProduct>"#));
-        // assert!(!output.contains(r#"  <CollateralDetail>"#));
+        assert!(!output.contains(r#"  <CollateralDetail>"#));
         assert!(output.contains(
             r#"
       <Supplier>

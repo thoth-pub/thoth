@@ -1005,7 +1005,7 @@ mod tests {
                     work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                     content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
                     locale_code: thoth_client::LocaleCode::EN,
-                    abstract_type: thoth_client::AbstractType::SHORT,
+                    abstract_type: thoth_client::AbstractType::LONG,
                     canonical: true,
                 },
             ],
@@ -1123,10 +1123,10 @@ mod tests {
         assert!(output.contains(r#"      <AudienceCodeType>01</AudienceCodeType>"#));
         assert!(output.contains(r#"      <AudienceCodeValue>06</AudienceCodeValue>"#));
         assert!(output.contains(r#"  <CollateralDetail>"#));
-        // assert!(output.contains(r#"    <TextContent>"#));
-        // assert!(output.contains(r#"      <TextType>03</TextType>"#));
+        assert!(output.contains(r#"    <TextContent>"#));
+        assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        // assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</Text>"#));
         assert!(output.contains(r#"    <SupportingResource>"#));
         assert!(output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
         assert!(output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
@@ -1175,7 +1175,7 @@ mod tests {
         test_work.doi = None;
         test_work.titles[0].subtitle = None;
         test_work.page_count = None;
-        // test_work.long_abstract = None;
+        test_work.abstracts.clear();
         test_work.place = None;
         test_work.publication_date = None;
         test_work.landing_page = None;
@@ -1231,14 +1231,21 @@ mod tests {
 
         // Replace long abstract but remove cover URL
         // Result: CollateralDetail block still present, but now only contains long abstract
-        // test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
+        test_work.abstracts.push(thoth_client::WorkAbstracts {
+            abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+            locale_code: thoth_client::LocaleCode::EN,
+            abstract_type: thoth_client::AbstractType::LONG,
+            canonical: true,
+        });
         test_work.cover_url = None;
         let output = generate_test_output(true, &test_work);
-        // assert!(output.contains(r#"  <CollateralDetail>"#));
-        // assert!(output.contains(r#"    <TextContent>"#));
-        // assert!(output.contains(r#"      <TextType>03</TextType>"#));
-        // assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        // assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(output.contains(r#"  <CollateralDetail>"#));
+        assert!(output.contains(r#"    <TextContent>"#));
+        assert!(output.contains(r#"      <TextType>03</TextType>"#));
+        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
+        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</Text>"#));
         assert!(!output.contains(r#"    <SupportingResource>"#));
         assert!(!output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
         assert!(!output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
@@ -1249,7 +1256,7 @@ mod tests {
 
         // Remove both cover URL and long abstract
         // Result: No CollateralDetail block present at all
-        // test_work.long_abstract = None;
+        test_work.abstracts.clear();
         let output = generate_test_output(true, &test_work);
         assert!(!output.contains(r#"  <CollateralDetail>"#));
         assert!(!output.contains(r#"    <TextContent>"#));
