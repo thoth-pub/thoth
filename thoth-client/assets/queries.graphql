@@ -72,7 +72,7 @@ fragment Work on Work {
         subtitle
         canonical
     }
-    abstracts(limit: 1) {
+    abstracts(limit: 1, markupFormat: JATS_XML) {
         abstractId
         workId
         content
@@ -191,7 +191,7 @@ fragment Work on Work {
                 subtitle
                 canonical
             }
-            abstracts(limit: 1) {
+            abstracts(limit: 2, markupFormat: JATS_XML) {
                 abstractId
                 workId
                 content

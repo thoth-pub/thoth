@@ -105,3 +105,132 @@ ALTER TABLE work
     DROP COLUMN full_title,
     DROP COLUMN title,
     DROP COLUMN subtitle;
+
+-- Create AbstractType enum
+CREATE TYPE abstract_type AS ENUM (
+    'short',
+    'long'
+);
+
+-- Create the abstract table
+CREATE TABLE IF NOT EXISTS abstract (
+    abstract_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    work_id UUID NOT NULL REFERENCES work (work_id) ON DELETE CASCADE,
+    content TEXT NOT NULL CHECK (octet_length(content) >= 1),
+    locale_code locale_code NOT NULL,
+    abstract_type abstract_type NOT NULL DEFAULT 'short',
+    canonical BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+-- -----------------------------------------------------------------------------
+-- Conversion Function
+-- -----------------------------------------------------------------------------
+-- This function attempts to detect the format of the input text (HTML, Markdown,
+-- or Plaintext) and converts it into a basic JATS XML structure.
+-- NOTE: This function uses heuristics and regular expressions for conversion. It
+-- covers common cases but is not a full-fledged parser. It is designed to be
+-- sufficient for this one-time data migration.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION convert_to_jats(content_in TEXT)
+RETURNS TEXT AS $$
+DECLARE
+    processed_content TEXT := content_in;
+BEGIN
+    -- Return NULL immediately if input is NULL or empty.
+    IF processed_content IS NULL OR processed_content = '' THEN
+        RETURN NULL;
+    END IF;
+
+    -- The CASE statement detects the format and applies conversion rules.
+    CASE
+        -- A) HTML Detection: Looks for common HTML tags. Now includes <sc>.
+        WHEN processed_content ~* '<(p|em|i|strong|b|sup|sub|sc|code|a|br)\b' THEN
+            -- Convert HTML tags to their JATS equivalents.
+            processed_content := regexp_replace(processed_content, '<a\s+href="([^"]+)"[^>]*>(.*?)</a>', '<ext-link xlink:href="\1">\2</ext-link>', 'gi');
+            processed_content := regexp_replace(processed_content, '<(strong|b)>(.*?)</\1>', '<bold>\2</bold>', 'gi');
+            processed_content := regexp_replace(processed_content, '<(em|i)>(.*?)</\1>', '<italic>\2</italic>', 'gi');
+            processed_content := regexp_replace(processed_content, '<code>(.*?)</code>', '<monospace>\1</monospace>', 'gi');
+            processed_content := regexp_replace(processed_content, '<br\s*/?>', '<break/>', 'gi');
+            -- <sup>, <sub>, and <sc> are valid in JATS, so they are left as is.
+
+        -- B) Markdown Detection: Looks for Markdown syntax like **, *, ``, etc.
+        WHEN processed_content ~ '(\*\*|__).+?\1' OR
+             processed_content ~ '(?<![a-zA-Z0-9])(\*|_).+?\1(?![a-zA-Z0-9])' OR
+             processed_content ~ '`[^`]+`' OR
+             processed_content ~ '\[[^\]]+\]\([^)]+\)' THEN
+            -- Convert Markdown to JATS. Order of replacement is important.
+            processed_content := regexp_replace(processed_content, '\[([^\]]+)\]\(([^)]+)\)', '<ext-link xlink:href="\2">\1</ext-link>', 'g');
+            processed_content := regexp_replace(processed_content, '\*\*(.+?)\*\*', '<bold>\1</bold>', 'g');
+            processed_content := regexp_replace(processed_content, '__(.+?)__', '<bold>\1</bold>', 'g');
+            processed_content := regexp_replace(processed_content, '\*(.+?)\*', '<italic>\1</italic>', 'g');
+            processed_content := regexp_replace(processed_content, '_(.+?)_', '<italic>\1</italic>', 'g');
+            processed_content := regexp_replace(processed_content, '`([^`]+)`', '<monospace>\1</monospace>', 'g');
+            processed_content := regexp_replace(processed_content, '  \n', '<break/>\n', 'g');
+
+            -- Wrap the result in <p> tags as Markdown is just a fragment.
+            processed_content := '<p>' || processed_content || '</p>';
+            -- Convert double newlines to paragraph breaks.
+            processed_content := regexp_replace(processed_content, '\n\n', '</p><p>', 'g');
+
+        -- C) Plaintext (Default Case)
+        ELSE
+            -- For plaintext, convert all-caps words to <sc> tags, then wrap in <p> tags and handle newlines.
+            -- This rule assumes that words in all caps (e.g., "NASA") should be rendered in small-caps.
+            processed_content := regexp_replace(processed_content, '\b([A-Z]{2,})\b', '<sc>\1</sc>', 'g');
+
+            -- Wrap the content in <p> tags and convert newlines.
+            processed_content := '<p>' || processed_content || '</p>';
+            processed_content := regexp_replace(processed_content, E'\n\n', '</p><p>', 'g');
+            processed_content := regexp_replace(processed_content, E'\n', '<break/>', 'g');
+    END CASE;
+
+    -- Return the processed content without the <abstract> wrapper.
+    RETURN processed_content;
+
+END;
+$$ LANGUAGE plpgsql;
+
+-- Insert short abstracts into the abstract table using the conversion function
+INSERT INTO abstract (abstract_id, work_id, content, locale_code, abstract_type, canonical)
+SELECT
+    uuid_generate_v4() AS abstract_id,
+    work_id,
+    convert_to_jats(short_abstract) AS content,
+    'en'::locale_code, -- Assuming 'en' as the default locale code
+    'short'::abstract_type,
+    TRUE
+FROM
+    work
+WHERE
+    short_abstract IS NOT NULL AND short_abstract != '';
+
+-- Insert long abstracts into the abstract table using the conversion function
+INSERT INTO abstract (abstract_id, work_id, content, locale_code, abstract_type, canonical)
+SELECT
+    uuid_generate_v4() AS abstract_id,
+    work_id,
+    convert_to_jats(long_abstract) AS content,
+    'en'::locale_code, -- Assuming 'en' as the default locale code
+    'long'::abstract_type,
+    TRUE
+FROM
+    work
+WHERE
+    long_abstract IS NOT NULL AND long_abstract != '';
+
+-- Clean up the conversion function after the migration is complete
+DROP FUNCTION convert_to_jats(TEXT);
+
+-- Only allow one canonical abstract per work
+CREATE UNIQUE INDEX IF NOT EXISTS abstract_unique_canonical_true_idx
+ON abstract(work_id, abstract_type)
+WHERE canonical;
+
+-- Only allow one instance of each locale per work
+CREATE UNIQUE INDEX IF NOT EXISTS abstract_uniq_locale_idx
+ON abstract(work_id, locale_code, abstract_type);
+
+-- Drop title-related columns from the work table
+ALTER TABLE work
+    DROP COLUMN short_abstract,
+    DROP COLUMN long_abstract;

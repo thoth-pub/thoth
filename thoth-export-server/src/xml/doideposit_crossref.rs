@@ -1,4 +1,5 @@
 use chrono::Utc;
+use regex::Regex;
 use std::io::Write;
 use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
@@ -292,6 +293,15 @@ fn write_chapter_abstract<W: Write>(
     Ok(())
 }
 
+pub fn rename_tags_with_jats_prefix(text: &str) -> String {
+    // This regular expression captures the parts of an opening or closing tag:
+    // 1. `(<)`: Captures the opening bracket '<'.
+    // 2. `(/?): Captures the optional forward slash '/' for closing tags.
+    // 3. `([a-zA-Z0-9]+)`: Captures the tag name itself (e.g., "p", "div").
+    let re = Regex::new(r"(<)(/?)([a-zA-Z0-9]+)").unwrap();
+    re.replace_all(text, "$1$2jats:$3").to_string()
+}
+
 fn write_abstract_content<W: Write>(
     abstract_content: &str,
     abstract_type: &str,
@@ -301,15 +311,21 @@ fn write_abstract_content<W: Write>(
         "jats:abstract",
         Some(vec![("abstract-type", abstract_type)]),
         w,
+        // replace this with jats from db
         |w| {
-            for paragraph in abstract_content.lines() {
-                if !paragraph.is_empty() {
-                    write_element_block("jats:p", w, |w| {
-                        w.write(XmlEvent::Characters(paragraph))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-            }
+            // for paragraph in abstract_content.lines() {
+            //     if !paragraph.is_empty() {
+            //         write_element_block("jats:p", w, |w| {
+            //             w.write(XmlEvent::Characters(paragraph))
+            //                 .map_err(|e| e.into())
+            //         })?;
+            //     }
+            // }
+
+            w.write(XmlEvent::Characters(&rename_tags_with_jats_prefix(
+                abstract_content,
+            )))
+            .map_err(ThothError::from)?;
             Ok(())
         },
     )
