@@ -1081,6 +1081,7 @@ mod tests {
 }
 
 pub mod affiliation;
+pub mod contact;
 pub mod contribution;
 pub mod contributor;
 pub mod funding;

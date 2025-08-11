@@ -46,6 +46,10 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "relation_type"))]
     pub struct RelationType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "contact_type"))]
+    pub struct ContactType;
 }
 
 table! {
@@ -87,6 +91,32 @@ table! {
     affiliation_history (affiliation_history_id) {
         affiliation_history_id -> Uuid,
         affiliation_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::ContactType;
+
+    contact (contact_id) {
+        contact_id -> Uuid,
+        publisher_id -> Uuid,
+        contact_type -> ContactType,
+        email -> Text,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    contact_history (contact_history_id) {
+        contact_history_id -> Uuid,
+        contact_id -> Uuid,
         account_id -> Uuid,
         data -> Jsonb,
         timestamp -> Timestamptz,
@@ -603,6 +633,9 @@ joinable!(affiliation -> contribution (contribution_id));
 joinable!(affiliation -> institution (institution_id));
 joinable!(affiliation_history -> account (account_id));
 joinable!(affiliation_history -> affiliation (affiliation_id));
+joinable!(contact -> publisher (publisher_id));
+joinable!(contact_history -> account (account_id));
+joinable!(contact_history -> contact (contact_id));
 joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
 joinable!(contribution_history -> account (account_id));
@@ -658,6 +691,8 @@ allow_tables_to_appear_in_same_query!(
     account,
     affiliation,
     affiliation_history,
+    contact,
+    contact_history,
     contribution,
     contribution_history,
     contributor,
