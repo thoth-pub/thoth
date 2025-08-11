@@ -1,3 +1,4 @@
+use crate::model::biography::{self, Biography, BiographyOrderBy, NewBiography, PatchBiography};
 use crate::model::r#abstract::{Abstract, AbstractOrderBy, NewAbstract, PatchAbstract};
 use crate::model::title::{PatchTitle, Title};
 use crate::schema::{work_abstract, work_title};
@@ -1610,6 +1611,71 @@ impl QueryRoot {
 
         Ok(abstracts)
     }
+
+    #[graphql(description = "Query an biography by it's ID")]
+    fn biography(
+        context: &Context,
+        biography_id: Uuid,
+        markup_format: MarkupFormat,
+    ) -> FieldResult<Biography> {
+        let mut biography =
+            Biography::from_id(&context.db, &biography_id).map_err(FieldError::from)?;
+        biography.content = convert_from_jats(
+            &biography.content,
+            markup_format,
+            Some(ConversionLimit::Biography),
+        )?;
+        Ok(biography)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[graphql(description = "Query biographies by work ID")]
+    fn biographies(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on content fields"
+        )]
+        filter: Option<String>,
+        #[graphql(
+            default = BiographyOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<BiographyOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results with these locale codes"
+        )]
+        locale_codes: Option<Vec<LocaleCode>>,
+        markup_format: MarkupFormat,
+    ) -> FieldResult<Vec<Biography>> {
+        let mut biographies = Biography::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            filter,
+            order.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+            locale_codes.unwrap_or_default(),
+            vec![],
+            None,
+        )
+        .map_err(FieldError::from)?;
+
+        for biography in &mut biographies {
+            biography.content = convert_from_jats(
+                &biography.content,
+                markup_format,
+                Some(ConversionLimit::Biography),
+            )?;
+        }
+
+        Ok(biographies)
+    }
 }
 
 pub struct MutationRoot;
@@ -1812,6 +1878,48 @@ impl MutationRoot {
         Abstract::create(&context.db, &data).map_err(|e| e.into())
     }
 
+    #[graphql(description = "Create a new biography with the specified values")]
+    fn create_biography(
+        context: &Context,
+        #[graphql(description = "The markup format of the biography")] markup_format: MarkupFormat,
+        #[graphql(description = "Values for biography to be created")] data: NewBiography,
+    ) -> FieldResult<Biography> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+
+        let has_canonical_biography = Biography::all(
+            &context.db,
+            0,
+            100,
+            None,
+            BiographyOrderBy::default(),
+            vec![],
+            Some(data.work_id),
+            Some(data.contribution_id),
+            vec![],
+            vec![],
+            None,
+        )?
+        .iter()
+        .any(|biography_item| biography_item.canonical);
+
+        // Only superusers can create the canonical biography when a Thoth canonical biography already exists
+        if has_canonical_biography && data.canonical && !context.account_access.is_superuser {
+            return Err(ThothError::CanonicalBiographyExistsError.into());
+        }
+
+        let mut data = data.clone();
+        data.content = convert_to_jats(
+            data.content,
+            markup_format,
+            Some(ConversionLimit::Biography),
+        )?;
+
+        Biography::create(&context.db, &data).map_err(|e| e.into())
+    }
+
     #[graphql(description = "Update an existing abstract with the specified values")]
     fn update_abstract(
         context: &Context,
@@ -1860,8 +1968,56 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
+    #[graphql(description = "Update an existing biography with the specified values")]
+    fn update_biography(
+        context: &Context,
+        #[graphql(description = "The markup format of the biography")] markup_format: MarkupFormat,
+        #[graphql(description = "Values to apply to existing biography")] data: PatchBiography,
+    ) -> FieldResult<Biography> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let biography = Biography::from_id(&context.db, &data.biography_id).unwrap();
+        context
+            .account_access
+            .can_edit(biography.publisher_id(&context.db)?)?;
+
+        if data.work_id != biography.work_id {
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+        }
+
+        let has_canonical_biography = Biography::all(
+            &context.db,
+            0,
+            100,
+            None,
+            BiographyOrderBy::default(),
+            vec![],
+            Some(data.work_id),
+            Some(data.contribution_id),
+            vec![],
+            vec![],
+            None,
+        )?
+        .iter()
+        .any(|biography_item| biography_item.canonical);
+
+        // Only superusers can update the canonical biography when a Thoth biography already exists
+        if has_canonical_biography && data.canonical && !context.account_access.is_superuser {
+            return Err(ThothError::CanonicalBiographyExistsError.into());
+        }
+
+        let mut data = data.clone();
+        data.content = convert_to_jats(data.content, markup_format, Some(ConversionLimit::Title))?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        biography
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
     #[graphql(description = "Delete a single abstract using its ID")]
-    fn delete_abstracts(
+    fn delete_abstract(
         context: &Context,
         #[graphql(description = "Thoth ID of abstract to be deleted")] abstract_id: Uuid,
     ) -> FieldResult<Abstract> {
@@ -1872,6 +2028,20 @@ impl MutationRoot {
             .can_edit(r#abstract.publisher_id(&context.db)?)?;
 
         r#abstract.delete(&context.db).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Delete a single biography using its ID")]
+    fn delete_biography(
+        context: &Context,
+        #[graphql(description = "Thoth ID of biography to be deleted")] biography_id: Uuid,
+    ) -> FieldResult<Biography> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let biography = Biography::from_id(&context.db, &biography_id).unwrap();
+        context
+            .account_access
+            .can_edit(biography.publisher_id(&context.db)?)?;
+
+        biography.delete(&context.db).map_err(|e| e.into())
     }
 
     #[graphql(description = "Create a new institution with the specified values")]
@@ -3885,9 +4055,76 @@ impl Contribution {
         self.main_contribution
     }
 
-    #[graphql(description = "Biography of the contributor at the time of contribution")]
-    pub fn biography(&self) -> Option<&String> {
-        self.biography.as_ref()
+    #[allow(clippy::too_many_arguments)]
+    #[graphql(description = "Query biographies by contribution ID")]
+    fn biographies(
+        &self,
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on title_, subtitle, full_title fields"
+        )]
+        filter: Option<String>,
+        #[graphql(
+            default = AbstractOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<AbstractOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results with these locale codes"
+        )]
+        locale_codes: Option<Vec<LocaleCode>>,
+        markup_format: MarkupFormat,
+    ) -> FieldResult<Vec<Abstract>> {
+        let mut biographies = Biography::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            filter,
+            order.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+            locale_codes.unwrap_or_default(),
+            vec![],
+            None,
+        )
+        .map_err(FieldError::from)?;
+
+        for biography in &mut biographies {
+            biography.content = convert_from_jats(
+                biography.content,
+                markup_format,
+                Some(ConversionLimit::Biography),
+            )?;
+        }
+
+        Ok(biographies)
+    }
+
+    // #[graphql(description = "Biography of the contributor at the time of contribution")]
+    // pub fn biography(&self) -> Option<&String> {
+    //     self.biography.as_ref()
+    // }
+
+    #[graphql(description = "Main biography of the work")]
+    #[graphql(
+        deprecated = "Please use Contribution `biographies` field instead to get the correct biography in a multilingual manner"
+    )]
+    pub fn biography(&self, ctx: &Context) -> FieldResult<Option<String>> {
+        let mut connection = ctx.db.get()?;
+        let biography = crate::schema::biography::table
+            .filter(crate::schema::biography::contribution_id.eq(&self.contribution_id))
+            .filter(crate::schema::biography::canonical.eq(true))
+            .first::<Biography>(&mut connection);
+
+        match biography {
+            Ok(b) => Ok(Some(b.content)),
+            Err(_) => Ok(None),
+        }
     }
 
     #[graphql(description = "Date and time at which the contribution record was created")]

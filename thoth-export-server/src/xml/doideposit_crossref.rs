@@ -294,12 +294,14 @@ fn write_chapter_abstract<W: Write>(
 }
 
 pub fn rename_tags_with_jats_prefix(text: &str) -> String {
-    // This regular expression captures the parts of an opening or closing tag:
-    // 1. `(<)`: Captures the opening bracket '<'.
-    // 2. `(/?): Captures the optional forward slash '/' for closing tags.
-    // 3. `([a-zA-Z0-9]+)`: Captures the tag name itself (e.g., "p", "div").
-    let re = Regex::new(r"(<)(/?)([a-zA-Z0-9]+)").unwrap();
-    re.replace_all(text, "$1$2jats:$3").to_string()
+    // This regex matches an opening or closing HTML/XML tag:
+    // 1. (<) - captures '<'
+    // 2. (/?) - optional closing slash
+    // 3. (?!jats:) - negative lookahead to skip if already prefixed
+    // 4. ([a-zA-Z0-9]+) - tag name
+    // 5. ([^>]*) - everything else until '>'
+    let re = Regex::new(r"(<)(/?)(?!jats:)([a-zA-Z0-9]+)([^>]*)>").unwrap();
+    re.replace_all(text, "$1$2jats:$3$4>").to_string()
 }
 
 fn write_abstract_content<W: Write>(

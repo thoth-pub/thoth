@@ -110,6 +110,20 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::LocaleCode;
+
+    biography (biography_id) {
+        biography_id -> Uuid,
+        contribution_id -> Uuid,
+        work_id -> Uuid,
+        content -> Text,
+        canonical -> Bool,
+        locale_code -> LocaleCode,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
 
     affiliation_history (affiliation_history_id) {
         affiliation_history_id -> Uuid,
@@ -130,7 +144,7 @@ table! {
         contributor_id -> Uuid,
         contribution_type -> ContributionType,
         main_contribution -> Bool,
-        biography -> Nullable<Text>,
+        // biography -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
         first_name -> Nullable<Text>,
@@ -664,6 +678,18 @@ table! {
     }
 }
 
+table! {
+    use diesel::sql_types::*;
+
+    biography_history (biography_history_id) {
+        biography_history_id -> Uuid,
+        biography_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
 joinable!(affiliation -> contribution (contribution_id));
 joinable!(affiliation -> institution (institution_id));
 joinable!(affiliation_history -> account (account_id));
@@ -724,6 +750,9 @@ joinable!(title_history -> account (account_id));
 joinable!(work_abstract -> work (work_id));
 joinable!(abstract_history -> work_abstract (abstract_id));
 joinable!(abstract_history -> account (account_id));
+joinable!(biography -> work (work_id));
+joinable!(biography_history -> biography (biography_id));
+joinable!(biography_history -> account (account_id));
 
 allow_tables_to_appear_in_same_query!(
     account,
@@ -766,4 +795,6 @@ allow_tables_to_appear_in_same_query!(
     work_title,
     title_history,
     abstract_history,
+    biography,
+    biography_history,
 );

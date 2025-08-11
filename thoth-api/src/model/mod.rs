@@ -1644,6 +1644,7 @@ mod tests {
 
 pub mod r#abstract;
 pub mod affiliation;
+pub mod biography;
 pub mod contribution;
 pub mod contributor;
 pub mod funding;
@@ -1677,6 +1678,7 @@ pub use location::{Location, NewLocation};
 pub use price::{NewPrice, Price};
 pub use publication::{NewPublication, Publication};
 pub use publisher::{NewPublisher, Publisher};
+pub use r#abstract::{Abstract, NewAbstract};
 pub use reference::{NewReference, Reference};
 pub use series::{NewSeries, Series};
 pub use subject::{NewSubject, Subject};

@@ -113,6 +113,10 @@ pub enum ThothError {
     ThothDeleteWorkError,
     #[error("If canonical abstract already exists, other abstract can't be setted as canonical.")]
     CanonicalAbstractExistsError,
+    #[error(
+        "If canonical biography already exists, other biography can't be setted as canonical."
+    )]
+    CanonicalBiographyExistsError,
     #[error("If canonical title already exists, other title can't be setted as canonical.")]
     CanonicalTitleExistsError,
     #[error("If file extension is not found, the file format is not supported.")]
