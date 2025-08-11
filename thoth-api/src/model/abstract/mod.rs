@@ -136,57 +136,5 @@ pub struct AbstractHistory {
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
-// pub trait TitleProperties {
-//     fn title(&self) -> &str;
-//     fn subtitle(&self) -> Option<&str>;
-//     fn locale_code(&self) -> &LocaleCode;
-//     fn canonical(&self) -> bool;
-//     fn compile_fulltitle(&self) -> String {
-//         self.subtitle().map_or_else(
-//             || self.title().to_string(),
-//             |_subtitle| {
-//                 let _title = self.title();
-//                 let _title = if _title.is_empty() {
-//                     "Untitled"
-//                 } else {
-//                     _title
-//                 };
-//                 if _title.ends_with('?')
-//                     || _title.ends_with('!')
-//                     || _title.ends_with(':')
-//                     || _title.ends_with('.')
-//                 {
-//                     format!("{} {}", _title, _subtitle)
-//                 } else {
-//                     format!("{}: {}", _title, _subtitle)
-//                 }
-//             },
-//         )
-//     }
-// }
-
-// macro_rules! title_properties {
-//     ($t:ty) => {
-//         impl TitleProperties for $t {
-//             fn title(&self) -> &str {
-//                 &self.title
-//             }
-//             fn subtitle(&self) -> Option<&str> {
-//                 self.subtitle.as_deref()
-//             }
-//             fn locale_code(&self) -> &LocaleCode {
-//                 &self.locale_code
-//             }
-//             fn canonical(&self) -> bool {
-//                 self.canonical
-//             }
-//         }
-//     };
-// }
-
-// title_properties!(Title);
-// title_properties!(NewTitle);
-// title_properties!(PatchTitle);
-
 #[cfg(feature = "backend")]
 pub mod crud;
