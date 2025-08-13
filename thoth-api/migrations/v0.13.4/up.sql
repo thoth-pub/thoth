@@ -21,3 +21,6 @@ CREATE TABLE contact_history (
     data                JSONB NOT NULL,
     timestamp           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE publisher
+    ADD COLUMN accessibility TEXT CHECK (octet_length(accessibility) >=1);
