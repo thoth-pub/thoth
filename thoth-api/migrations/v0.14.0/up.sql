@@ -122,6 +122,15 @@ CREATE TABLE IF NOT EXISTS abstract (
     canonical BOOLEAN NOT NULL DEFAULT FALSE
 );
 
+-- Create the abstract_history table
+CREATE TABLE IF NOT EXISTS abstract_history (
+    abstract_history_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    abstract_id UUID NOT NULL REFERENCES abstract (abstract_id) ON DELETE CASCADE,
+    account_id UUID NOT NULL REFERENCES account (account_id) ON DELETE CASCADE,
+    data JSONB NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- -----------------------------------------------------------------------------
 -- Conversion Function
 -- -----------------------------------------------------------------------------
@@ -218,9 +227,6 @@ FROM
 WHERE
     long_abstract IS NOT NULL AND long_abstract != '';
 
--- Clean up the conversion function after the migration is complete
-DROP FUNCTION convert_to_jats(TEXT);
-
 -- Only allow one canonical abstract per work
 CREATE UNIQUE INDEX IF NOT EXISTS abstract_unique_canonical_true_idx
 ON abstract(work_id, abstract_type)
@@ -234,3 +240,49 @@ ON abstract(work_id, locale_code, abstract_type);
 ALTER TABLE work
     DROP COLUMN short_abstract,
     DROP COLUMN long_abstract;
+
+-- Create the abstract table
+CREATE TABLE IF NOT EXISTS biography (
+    biography_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    contribution_id UUID NOT NULL REFERENCES contribution (contribution_id) ON DELETE CASCADE,
+    work_id UUID NOT NULL REFERENCES work (work_id) ON DELETE CASCADE,
+    content TEXT NOT NULL CHECK (octet_length(content) >= 1),
+    canonical BOOLEAN NOT NULL DEFAULT FALSE,
+    locale_code locale_code NOT NULL
+);
+
+-- Create the biography_history table
+CREATE TABLE IF NOT EXISTS biography_history (
+    biography_history_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    biography_id UUID NOT NULL REFERENCES biography (biography_id) ON DELETE CASCADE,
+    account_id UUID NOT NULL REFERENCES account (account_id) ON DELETE CASCADE,
+    data JSONB NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Migrate existing contribution biographies to the biography table with English locale
+INSERT INTO biography (biography_id, contribution_id, work_id, content, canonical, locale_code)
+SELECT
+    uuid_generate_v4(),
+    contribution_id,
+    work_id,
+    convert_to_jats(biography) AS content,
+    TRUE,
+    'en'::locale_code,
+FROM contribution
+WHERE biography IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS biography_unique_canonical_true_idx
+ON biography(contribution_id, work_id)
+WHERE canonical;
+
+-- Only allow one instance of each locale per contribution and work
+CREATE UNIQUE INDEX IF NOT EXISTS biography_uniq_locale_idx
+ON biography(contribution_id, work_id, locale_code);
+
+-- Drop title-related columns from the work table
+ALTER TABLE contribution
+    DROP COLUMN biography;
+
+-- Clean up the conversion function after the migration is complete
+DROP FUNCTION convert_to_jats(TEXT);

@@ -87,7 +87,7 @@ pub struct PatchBiography {
 #[cfg_attr(
     feature = "backend",
     derive(Insertable),
-    diesel(table_name = biography)
+    diesel(table_name = biography_history)
 )]
 pub struct NewBiographyHistory {
     pub biography_id: Uuid,

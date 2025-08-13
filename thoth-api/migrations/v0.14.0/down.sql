@@ -19,14 +19,11 @@ DROP INDEX IF EXISTS title_uniq_locale_idx;
 -- Drop the unique index for locale codes
 DROP INDEX IF EXISTS title_unique_canonical_true_idx;
 
--- Drop the title table
+-- Drop the title_history table
 DROP TABLE title_history;
 
 -- Drop the title table
 DROP TABLE title;
-
--- Drop the locale_code enum type
-DROP TYPE locale_code;
 
 -- Recreate short_abstract and long_abstract columns in the work table
 ALTER TABLE work
@@ -103,15 +100,42 @@ WHERE
     AND abstract.abstract_type = 'long'
     AND abstract.canonical = TRUE;
 
+-- Drop unique indexes created for the abstract table
+DROP INDEX IF EXISTS abstract_unique_canonical_true_idx;
+DROP INDEX IF EXISTS abstract_uniq_locale_idx;
+
+-- Drop the abstract_history table
+DROP TABLE abstract_history;
 -- Drop the abstract table and its related objects
 DROP TABLE IF EXISTS abstract;
 
 -- Drop the AbstractType enum
 DROP TYPE IF EXISTS abstract_type;
 
--- Drop unique indexes created for the abstract table
-DROP INDEX IF EXISTS abstract_unique_canonical_true_idx;
-DROP INDEX IF EXISTS abstract_uniq_locale_idx;
+ALTER TABLE contribution
+    ADD COLUMN biography TEXT CHECK (octet_length(short_abstract) >= 1);
+
+-- Migrate data back from the abstract table to the work table using the reverse conversion
+UPDATE contribution
+SET
+    biography = convert_from_jats(biography.content)
+FROM
+    biography
+WHERE
+    biography.contribution_id = contribution.contribution_id
+    AND biography.canonical = TRUE;
+
+-- Drop unique indexes created for the biography table
+DROP INDEX IF EXISTS biography_unique_canonical_true_idx;
+DROP INDEX IF EXISTS biography_uniq_locale_idx;
+
+-- Drop the biography_history table
+DROP TABLE biography_history;
+-- Drop the biography table and its related objects
+DROP TABLE IF EXISTS biography;
+
+-- Drop the locale_code enum type
+DROP TYPE locale_code;
 
 -- Clean up the reverse conversion function
 DROP FUNCTION convert_from_jats(TEXT);

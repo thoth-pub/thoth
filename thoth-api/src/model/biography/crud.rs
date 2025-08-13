@@ -78,19 +78,19 @@ impl Crud for Biography {
         };
 
         if let Some(filter) = filter {
-            query = query.filter(dsl::content.ilike(format!("%{filter}%")));
+            query = query.filter(content.ilike(format!("%{filter}%")));
         }
 
         if let Some(pid) = parent_id_1 {
-            query = query.filter(dsl::work_id.eq(pid));
+            query = query.filter(work_id.eq(pid));
         }
 
         if let Some(pid) = parent_id_2 {
-            query = query.filter(dsl::contribution_id.eq(pid));
+            query = query.filter(contribution_id.eq(pid));
         }
 
         if !locale_codes.is_empty() {
-            query = query.filter(dsl::locale_code.eq_any(&locale_codes));
+            query = query.filter(locale_code.eq_any(&locale_codes));
         }
 
         query
@@ -109,10 +109,10 @@ impl Crud for Biography {
         _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         let mut connection = db.get()?;
-        let mut query = dsl::biography.into_boxed();
+        let mut query = biography.into_boxed();
 
         if let Some(filter) = filter {
-            query = query.filter(dsl::biography::content.ilike(format!("%{filter}%")));
+            query = query.filter(biography::content.ilike(format!("%{filter}%")));
         }
 
         query
@@ -128,8 +128,8 @@ impl Crud for Biography {
 impl HistoryEntry for Biography {
     type NewHistoryEntity = NewBiographyHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewBiographyEntity {
-        Self::NewBiographyEntity {
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+        Self::NewHistoryEntity {
             biography_id: self.biography_id,
             account_id: *account_id,
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
