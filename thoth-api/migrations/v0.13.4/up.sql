@@ -23,4 +23,4 @@ CREATE TABLE contact_history (
 );
 
 ALTER TABLE publisher
-    ADD COLUMN accessibility TEXT CHECK (octet_length(accessibility) >=1);
+    ADD COLUMN accessibility TEXT CHECK (octet_length(accessibility) >= 1);

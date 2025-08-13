@@ -927,6 +927,7 @@ mod tests {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: Some(("OAE").to_string()),
                     publisher_url: Some("https://www.publisher.com".to_string()),
+                    accessibility: None,
                     contacts: vec![],
                 },
             },

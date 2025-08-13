@@ -2180,6 +2180,7 @@ mod tests {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: None,
                     publisher_url: Some("https://publisher.oa".to_string()),
+                    accessibility: None,
                     contacts: vec![],
                 },
             },

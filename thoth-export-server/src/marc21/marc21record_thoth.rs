@@ -842,6 +842,7 @@ pub(crate) mod tests {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: None,
                     publisher_url: None,
+                    accessibility: None,
                     contacts: vec![],
                 },
             },

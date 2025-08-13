@@ -203,6 +203,22 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                             w.write(XmlEvent::Characters(code)).map_err(Into::into)
                         })?;
                     }
+                    if let Some(accessibility) = &self.imprint.publisher.accessibility {
+                        write_element_block("ProductFormFeature", w, |w| {
+                            // 09 E-publication accessibility detail
+                            write_element_block("ProductFormFeatureType", w, |w| {
+                                w.write(XmlEvent::Characters("09")).map_err(Into::into)
+                            })?;
+                            // 00 Accessibility summary
+                            write_element_block("ProductFormFeatureValue", w, |w| {
+                                w.write(XmlEvent::Characters("00")).map_err(Into::into)
+                            })?;
+                            write_element_block("ProductFormFeatureDescription", w, |w| {
+                                w.write(XmlEvent::Characters(&accessibility.to_string()))
+                                    .map_err(Into::into)
+                            })
+                        })?;
+                    }
                     for contact in &self.imprint.publisher.contacts {
                         if contact.contact_type == ContactType::ACCESSIBILITY {
                             write_element_block("ProductFormFeature", w, |w| {
@@ -2454,6 +2470,7 @@ mod tests {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: None,
                     publisher_url: Some("https://publisher.oa".to_string()),
+                    accessibility: Some("This is an accessibility statement".to_string()),
                     contacts: vec![WorkImprintPublisherContacts {
                         contact_type: ContactType::ACCESSIBILITY,
                         email: "contact@accessibility.com".to_string(),
@@ -2805,12 +2822,26 @@ mod tests {
             r#"
   <DescriptiveDetail>
     <ProductComposition>00</ProductComposition>
-    <ProductForm>BC</ProductForm>
+    <ProductForm>BC</ProductForm>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>00</ProductFormFeatureValue>
+      <ProductFormFeatureDescription>This is an accessibility statement</ProductFormFeatureDescription>
+    </ProductFormFeature>"#
+        ));
+        assert!(output.contains(
+            r#"
     <ProductFormFeature>
       <ProductFormFeatureType>09</ProductFormFeatureType>
       <ProductFormFeatureValue>99</ProductFormFeatureValue>
       <ProductFormFeatureDescription>contact@accessibility.com</ProductFormFeatureDescription>
-    </ProductFormFeature>
+    </ProductFormFeature>"#
+        ));
+        assert!(output.contains(
+            r#"
     <PrimaryContentType>10</PrimaryContentType>"#
         ));
         assert!(output.contains(
@@ -3501,6 +3532,7 @@ mod tests {
         test_work.imprint.imprint_url = None;
         test_work.imprint.publisher.publisher_url = None;
         test_work.imprint.publisher.contacts.clear();
+        test_work.imprint.publisher.accessibility = None;
         test_work.subjects.pop();
         let output = generate_test_output(true, &test_work);
         println!("{output}");
@@ -3539,6 +3571,14 @@ mod tests {
     <IDTypeName>internal-reference</IDTypeName>
     <IDValue>IntRef1</IDValue>
   </ProductIdentifier>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>00</ProductFormFeatureValue>
+      <ProductFormFeatureDescription>This is an accessibility statement</ProductFormFeatureDescription>
+    </ProductFormFeature>"#
         ));
         assert!(!output.contains(
             r#"
