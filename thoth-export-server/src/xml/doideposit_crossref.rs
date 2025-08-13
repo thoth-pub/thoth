@@ -1497,6 +1497,7 @@ mod tests {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: Some("OAE".to_string()),
                     publisher_url: None,
+                    contacts: vec![],
                 },
             },
             issues: vec![
@@ -2182,6 +2183,7 @@ mod tests {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: Some("OAE".to_string()),
                     publisher_url: None,
+                    contacts: vec![],
                 },
             },
             issues: vec![],

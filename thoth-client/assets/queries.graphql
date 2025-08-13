@@ -77,6 +77,10 @@ fragment Work on Work {
             publisherName
             publisherShortname
             publisherUrl
+            contacts {
+                contactType
+                email
+            }
         }
     }
     issues(limit: $issuesLimit, order: {field: ISSUE_ORDINAL, direction: ASC}) {
