@@ -140,6 +140,10 @@ fragment Work on Work {
         depthMm: depth(units: MM)
         depthCm: depth(units: CM)
         depthIn: depth(units: IN)
+        accessibilityStandard
+        accessibilityAdditionalStandard
+        accessibilityException
+        accessibilityReportUrl
         prices {
             currencyCode
             unitPrice

@@ -2,10 +2,11 @@ use cc_license::License;
 use chrono::Utc;
 use std::io::Write;
 use thoth_client::{
-    ContactType, ContributionType, LanguageRelation, LocationPlatform, PublicationType,
-    RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages,
-    WorkPublicationsLocations, WorkReferences, WorkRelations, WorkRelationsRelatedWork,
-    WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkLanguages, WorkStatus, WorkType,
+    AccessibilityException, AccessibilityStandard, ContactType, ContributionType, LanguageRelation,
+    LocationPlatform, PublicationType, RelationType, SubjectType, Work, WorkContributions,
+    WorkFundings, WorkIssues, WorkLanguages, WorkPublicationsLocations, WorkReferences,
+    WorkRelations, WorkRelationsRelatedWork, WorkRelationsRelatedWorkContributions,
+    WorkRelationsRelatedWorkLanguages, WorkStatus, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -215,6 +216,67 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                             })?;
                             write_element_block("ProductFormFeatureDescription", w, |w| {
                                 w.write(XmlEvent::Characters(&accessibility.to_string()))
+                                    .map_err(Into::into)
+                            })
+                        })?;
+                    }
+                    let mut accessibility_codes = vec![];
+                    if let Some(standard) = &publication.accessibility_standard {
+                        let standard_codes = match standard {
+                            AccessibilityStandard::WCAG21AA => vec!["81", "85"],
+                            AccessibilityStandard::WCAG21AAA => vec!["81", "86"],
+                            AccessibilityStandard::WCAG22AA => vec!["82", "85"],
+                            AccessibilityStandard::WCAG22AAA => vec!["82", "86"],
+                            _ => unreachable!(),
+                        };
+                        accessibility_codes.extend(standard_codes);
+                    }
+                    if let Some(additional_standard) =
+                        &publication.accessibility_additional_standard
+                    {
+                        let additional_standard_codes = match additional_standard {
+                            AccessibilityStandard::EPUB_A11Y10AA => vec!["03"],
+                            AccessibilityStandard::EPUB_A11Y10AAA => vec!["03", "86"],
+                            AccessibilityStandard::EPUB_A11Y11AA => vec!["04", "85"],
+                            AccessibilityStandard::EPUB_A11Y11AAA => vec!["04", "86"],
+                            AccessibilityStandard::PDF_UA1 => vec!["05"],
+                            AccessibilityStandard::PDF_UA2 => vec!["06"],
+                            _ => unreachable!(),
+                        };
+                        accessibility_codes.extend(additional_standard_codes);
+                    }
+                    if let Some(exception) = &publication.accessibility_exception {
+                        let exception_code = match exception {
+                            AccessibilityException::MICRO_ENTERPRISES => "75",
+                            AccessibilityException::DISPROPORTIONATE_BURDEN => "76",
+                            AccessibilityException::FUNDAMENTAL_ALTERATION => "77",
+                            AccessibilityException::Other(_) => unreachable!(),
+                        };
+                        accessibility_codes.push(exception_code);
+                    }
+                    for code in accessibility_codes {
+                        write_element_block("ProductFormFeature", w, |w| {
+                            // 09 E-publication accessibility detail
+                            write_element_block("ProductFormFeatureType", w, |w| {
+                                w.write(XmlEvent::Characters("09")).map_err(Into::into)
+                            })?;
+                            write_element_block("ProductFormFeatureValue", w, |w| {
+                                w.write(XmlEvent::Characters(code)).map_err(Into::into)
+                            })
+                        })?;
+                    }
+                    if let Some(report_url) = &publication.accessibility_report_url {
+                        write_element_block("ProductFormFeature", w, |w| {
+                            // 09 E-publication accessibility detail
+                            write_element_block("ProductFormFeatureType", w, |w| {
+                                w.write(XmlEvent::Characters("09")).map_err(Into::into)
+                            })?;
+                            // 96 Publisher’s web page for detailed accessibility information
+                            write_element_block("ProductFormFeatureValue", w, |w| {
+                                w.write(XmlEvent::Characters("96")).map_err(Into::into)
+                            })?;
+                            write_element_block("ProductFormFeatureDescription", w, |w| {
+                                w.write(XmlEvent::Characters(&report_url.to_string()))
                                     .map_err(Into::into)
                             })
                         })?;
@@ -2495,6 +2557,10 @@ mod tests {
                 depth_in: Some(1.0),
                 weight_g: Some(152.0),
                 weight_oz: Some(5.3616),
+                accessibility_standard: None,
+                accessibility_additional_standard: None,
+                accessibility_exception: None,
+                accessibility_report_url: None,
                 prices: vec![
                     WorkPublicationsPrices {
                         currency_code: CurrencyCode::EUR,
@@ -3500,6 +3566,101 @@ mod tests {
     <ProductForm>AN</ProductForm>
     <ProductFormDetail>A104</ProductFormDetail>"#
         ));
+
+        // Test e-publication accessibility details output
+        test_work.publications[0].publication_type = PublicationType::PDF;
+        test_work.publications[0].accessibility_standard = Some(AccessibilityStandard::WCAG21AA);
+        test_work.publications[0].accessibility_additional_standard =
+            Some(AccessibilityStandard::PDF_UA1);
+        test_work.publications[0].accessibility_report_url = Some("https://report.url".to_string());
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>81</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>85</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>05</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>96</ProductFormFeatureValue>
+      <ProductFormFeatureDescription>https://report.url</ProductFormFeatureDescription>
+    </ProductFormFeature>"#
+        ));
+        test_work.publications[0].accessibility_additional_standard = None;
+        test_work.publications[0].accessibility_report_url = None;
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>81</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>85</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>05</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>96</ProductFormFeatureValue>
+      <ProductFormFeatureDescription>https://report.url</ProductFormFeatureDescription>
+    </ProductFormFeature>"#
+        ));
+        test_work.publications[0].accessibility_standard = None;
+        test_work.publications[0].accessibility_exception =
+            Some(AccessibilityException::FUNDAMENTAL_ALTERATION);
+        let output = generate_test_output(true, &test_work);
+        assert!(!output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>81</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>85</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>77</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        test_work.publications[0].accessibility_exception = None;
         test_work.publications[0].publication_type = PublicationType::PAPERBACK;
 
         // Remove/change some values to test (non-)output of optional blocks
@@ -3937,6 +4098,10 @@ mod tests {
             depth_in: None,
             weight_g: None,
             weight_oz: None,
+            accessibility_standard: None,
+            accessibility_additional_standard: None,
+            accessibility_exception: None,
+            accessibility_report_url: None,
             prices: vec![],
             locations: vec![],
         });

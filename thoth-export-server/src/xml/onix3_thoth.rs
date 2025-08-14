@@ -2202,6 +2202,10 @@ mod tests {
                 depth_in: Some(1.0),
                 weight_g: Some(152.0),
                 weight_oz: Some(5.3616),
+                accessibility_standard: None,
+                accessibility_additional_standard: None,
+                accessibility_exception: None,
+                accessibility_report_url: None,
                 prices: vec![
                     WorkPublicationsPrices {
                         currency_code: CurrencyCode::EUR,
@@ -3428,6 +3432,10 @@ mod tests {
             depth_in: None,
             weight_g: None,
             weight_oz: None,
+            accessibility_standard: None,
+            accessibility_additional_standard: None,
+            accessibility_exception: None,
+            accessibility_report_url: None,
             prices: vec![],
             locations: vec![],
         });

@@ -972,6 +972,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![WorkPublicationsLocations {
                         landing_page: Some("https://www.book.com/epub_landing".to_string()),
@@ -995,6 +999,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![
                         WorkPublicationsPrices {
                             currency_code: CurrencyCode::GBP,
@@ -1027,6 +1035,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![
                         WorkPublicationsPrices {
                             currency_code: CurrencyCode::EUR,

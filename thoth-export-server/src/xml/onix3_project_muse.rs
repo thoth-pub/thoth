@@ -943,6 +943,10 @@ mod tests {
                 depth_in: None,
                 weight_g: None,
                 weight_oz: None,
+                accessibility_standard: None,
+                accessibility_additional_standard: None,
+                accessibility_exception: None,
+                accessibility_report_url: None,
                 prices: vec![
                     WorkPublicationsPrices {
                         currency_code: CurrencyCode::EUR,
