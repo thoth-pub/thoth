@@ -1,5 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::model::publication::AccessibilityException;
+use thoth_api::model::publication::AccessibilityStandard;
 use thoth_api::model::publication::Publication;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::Isbn;
@@ -19,6 +21,10 @@ const UPDATE_PUBLICATION_MUTATION: &str = "
         $heightIn: Float,
         $depthMm: Float,
         $depthIn: Float,
+        $accessibilityStandard: AccessibilityStandard,
+        $accessibilityAdditionalStandard: AccessibilityStandard,
+        $accessibilityException: AccessibilityException,
+        $accessibilityReportUrl: String,
     ) {
         updatePublication(
             data: {
@@ -34,6 +40,10 @@ const UPDATE_PUBLICATION_MUTATION: &str = "
             heightIn: $heightIn
             depthMm: $depthMm
             depthIn: $depthIn
+            accessibilityStandard: $accessibilityStandard
+            accessibilityAdditionalStandard: $accessibilityAdditionalStandard
+            accessibilityException: $accessibilityException
+            accessibilityReportUrl: $accessibilityReportUrl
         }){
             publicationId
             publicationType
@@ -49,6 +59,10 @@ const UPDATE_PUBLICATION_MUTATION: &str = "
             heightIn: height(units: IN)
             depthMm: depth(units: MM)
             depthIn: depth(units: IN)
+            accessibilityStandard
+            accessibilityAdditionalStandard
+            accessibilityException
+            accessibilityReportUrl
         }
     }
 ";
@@ -79,6 +93,10 @@ pub struct Variables {
     pub depth_in: Option<f64>,
     pub weight_g: Option<f64>,
     pub weight_oz: Option<f64>,
+    pub accessibility_standard: Option<AccessibilityStandard>,
+    pub accessibility_additional_standard: Option<AccessibilityStandard>,
+    pub accessibility_exception: Option<AccessibilityException>,
+    pub accessibility_report_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

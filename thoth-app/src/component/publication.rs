@@ -115,6 +115,13 @@ impl Component for PublicationComponent {
                         depth_in: self.publication.depth_in,
                         weight_g: self.publication.weight_g,
                         weight_oz: self.publication.weight_oz,
+                        accessibility_standard: self.publication.accessibility_standard.clone(),
+                        accessibility_additional_standard: self
+                            .publication
+                            .accessibility_additional_standard
+                            .clone(),
+                        accessibility_exception: self.publication.accessibility_exception.clone(),
+                        accessibility_report_url: self.publication.accessibility_report_url.clone(),
                     }),
                     false => None,
                 };
@@ -152,6 +159,11 @@ impl Component for PublicationComponent {
                     self.publication.depth_in = p.depth_in;
                     self.publication.weight_g = p.weight_g;
                     self.publication.weight_oz = p.weight_oz;
+                    self.publication.accessibility_standard = p.accessibility_standard;
+                    self.publication.accessibility_additional_standard =
+                        p.accessibility_additional_standard;
+                    self.publication.accessibility_exception = p.accessibility_exception;
+                    self.publication.accessibility_report_url = p.accessibility_report_url;
                 } else {
                     // This should not be possible: the updated publication returned from the
                     // database does not match the locally-stored publication data.

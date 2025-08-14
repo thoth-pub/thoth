@@ -19,6 +19,10 @@ pub const PUBLICATION_QUERY: &str = "
             heightIn: height(units: IN)
             depthMm: depth(units: MM)
             depthIn: depth(units: IN)
+            accessibilityStandard
+            accessibilityAdditionalStandard
+            accessibilityException
+            accessibilityReportUrl
             prices {
                 priceId
                 publicationId

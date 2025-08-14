@@ -290,6 +290,13 @@ impl Component for PublicationModalComponent {
                         depth_in: self.publication.depth_in,
                         weight_g: self.publication.weight_g,
                         weight_oz: self.publication.weight_oz,
+                        accessibility_standard: self.publication.accessibility_standard.clone(),
+                        accessibility_additional_standard: self
+                            .publication
+                            .accessibility_additional_standard
+                            .clone(),
+                        accessibility_exception: self.publication.accessibility_exception.clone(),
+                        accessibility_report_url: self.publication.accessibility_report_url.clone(),
                     },
                     ..Default::default()
                 };
