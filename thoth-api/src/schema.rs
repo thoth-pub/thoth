@@ -50,6 +50,14 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "contact_type"))]
     pub struct ContactType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "accessibility_standard"))]
+    pub struct AccessibilityStandard;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "accessibility_exception"))]
+    pub struct AccessibilityException;
 }
 
 table! {
@@ -374,6 +382,8 @@ table! {
 table! {
     use diesel::sql_types::*;
     use super::sql_types::PublicationType;
+    use super::sql_types::AccessibilityStandard;
+    use super::sql_types::AccessibilityException;
 
     publication (publication_id) {
         publication_id -> Uuid,
@@ -390,6 +400,10 @@ table! {
         depth_in -> Nullable<Float8>,
         weight_g -> Nullable<Float8>,
         weight_oz -> Nullable<Float8>,
+        accessibility_standard -> Nullable<AccessibilityStandard>,
+        accessibility_additional_standard -> Nullable<AccessibilityStandard>,
+        accessibility_exception -> Nullable<AccessibilityException>,
+        accessibility_report_url -> Nullable<Text>,
     }
 }
 

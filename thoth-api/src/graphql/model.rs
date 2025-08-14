@@ -3131,6 +3131,32 @@ impl Publication {
         }
     }
 
+    #[graphql(description = "WCAG standard accessibility level met by this publication (if any)")]
+    pub fn accessibility_standard(&self) -> Option<&AccessibilityStandard> {
+        self.accessibility_standard.as_ref()
+    }
+
+    #[graphql(
+        description = "EPUB- or PDF-specific standard accessibility level met by this publication, if applicable"
+    )]
+    pub fn accessibility_additional_standard(&self) -> Option<&AccessibilityStandard> {
+        self.accessibility_additional_standard.as_ref()
+    }
+
+    #[graphql(
+        description = "Reason for this publication not being required to comply with accessibility standards (if any)"
+    )]
+    pub fn accessibility_exception(&self) -> Option<&AccessibilityException> {
+        self.accessibility_exception.as_ref()
+    }
+
+    #[graphql(
+        description = "Link to a web page showing detailed accessibility information for this publication"
+    )]
+    pub fn accessibility_report_url(&self) -> Option<&String> {
+        self.accessibility_report_url.as_ref()
+    }
+
     #[graphql(description = "Get prices linked to this publication")]
     pub fn prices(
         &self,

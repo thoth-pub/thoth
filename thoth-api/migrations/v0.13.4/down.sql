@@ -1,6 +1,18 @@
 DROP TABLE contact_history;
 DROP TABLE contact;
-DROP TYPE contact_type;
 
 ALTER TABLE publisher
     DROP COLUMN accessibility;
+
+ALTER TABLE publication
+    DROP CONSTRAINT check_accessibility_standard_rules,
+    DROP CONSTRAINT check_additional_standard_pdf_epub,
+    DROP CONSTRAINT check_standard_or_exception,
+    DROP COLUMN accessibility_standard,
+    DROP COLUMN accessibility_additional_standard,
+    DROP COLUMN accessibility_exception,
+    DROP COLUMN accessibility_report_url;
+
+DROP TYPE contact_type;
+DROP TYPE accessibility_exception;
+DROP TYPE accessibility_standard;

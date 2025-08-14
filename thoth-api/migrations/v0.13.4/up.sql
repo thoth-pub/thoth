@@ -24,3 +24,92 @@ CREATE TABLE contact_history (
 
 ALTER TABLE publisher
     ADD COLUMN accessibility TEXT CHECK (octet_length(accessibility) >= 1);
+
+CREATE TYPE accessibility_standard AS ENUM (
+    'wcag-21-aa',
+    'wcag-21-aaa',
+    'wcag-22-aa',
+    'wcag-22-aaa',
+    'epub-a11y-10-aa',
+    'epub-a11y-10-aaa',
+    'epub-a11y-11-aa',
+    'epub-a11y-11-aaa',
+    'pdf-ua-1',
+    'pdf-ua-2'
+);
+
+CREATE TYPE accessibility_exception AS ENUM (
+    'micro-enterprises',
+    'disproportionate-burden',
+    'fundamental-alteration'
+);
+
+ALTER TABLE publication
+    ADD COLUMN accessibility_standard accessibility_standard, -- WCAG only
+    ADD COLUMN accessibility_additional_standard accessibility_standard, -- EPUB or PDF only
+    ADD COLUMN accessibility_exception accessibility_exception,
+    ADD COLUMN accessibility_report_url TEXT,
+
+    -- Either standards or exception (or none, for excluded types)
+    ADD CONSTRAINT check_standard_or_exception
+        CHECK (
+            (
+                accessibility_exception IS NULL
+                AND accessibility_standard IS NOT NULL
+            )
+            OR (
+                accessibility_exception IS NOT NULL
+                AND accessibility_standard IS NULL
+                AND accessibility_additional_standard IS NULL
+            )
+            OR (
+                accessibility_exception IS NULL
+                AND accessibility_standard IS NULL
+                AND accessibility_additional_standard IS NULL
+            )
+        ),
+
+    -- Ensure additional_standard is only used for PDFs or EPUBs
+    ADD CONSTRAINT check_additional_standard_pdf_epub
+        CHECK (
+            accessibility_additional_standard IS NULL
+            OR publication_type IN ('PDF', 'Epub')
+        ),
+
+    -- Ensure standards are valid per publication type
+    ADD CONSTRAINT check_accessibility_standard_rules
+        CHECK (
+            CASE publication_type
+                WHEN 'Paperback' THEN accessibility_standard IS NULL AND accessibility_additional_standard IS NULL AND accessibility_exception IS NULL
+                WHEN 'Hardback'  THEN accessibility_standard IS NULL AND accessibility_additional_standard IS NULL AND accessibility_exception IS NULL
+                WHEN 'MP3'       THEN accessibility_standard IS NULL AND accessibility_additional_standard IS NULL AND accessibility_exception IS NULL
+                WHEN 'WAV'       THEN accessibility_standard IS NULL AND accessibility_additional_standard IS NULL AND accessibility_exception IS NULL
+                WHEN 'PDF'       THEN (
+                    (accessibility_standard IS NULL OR accessibility_standard IN (
+                        'wcag-21-aa','wcag-21-aaa',
+                        'wcag-22-aa','wcag-22-aaa'
+                    ))
+                    AND
+                    (accessibility_additional_standard IS NULL OR accessibility_additional_standard IN ('pdf-ua-1','pdf-ua-2'))
+                )
+                WHEN 'Epub'      THEN (
+                    (accessibility_standard IS NULL OR accessibility_standard IN (
+                        'wcag-21-aa','wcag-21-aaa',
+                        'wcag-22-aa','wcag-22-aaa'
+                    ))
+                    AND
+                    (accessibility_additional_standard IS NULL OR accessibility_additional_standard IN (
+                        'epub-a11y-10-aa','epub-a11y-10-aaa',
+                        'epub-a11y-11-aa','epub-a11y-11-aaa'
+                    ))
+                )
+                ELSE (
+                    (accessibility_standard IS NULL OR accessibility_standard IN (
+                        'wcag-21-aa','wcag-21-aaa',
+                        'wcag-22-aa','wcag-22-aaa'
+                    ))
+                    AND
+                    accessibility_additional_standard IS NULL
+                )
+            END
+        );

@@ -99,6 +99,22 @@ impl Crud for Publication {
                 Direction::Asc => query.order(weight_oz.asc()),
                 Direction::Desc => query.order(weight_oz.desc()),
             },
+            PublicationField::AccessibilityStandard => match order.direction {
+                Direction::Asc => query.order(accessibility_standard.asc()),
+                Direction::Desc => query.order(accessibility_standard.desc()),
+            },
+            PublicationField::AccessibilityAdditionalStandard => match order.direction {
+                Direction::Asc => query.order(accessibility_additional_standard.asc()),
+                Direction::Desc => query.order(accessibility_additional_standard.desc()),
+            },
+            PublicationField::AccessibilityException => match order.direction {
+                Direction::Asc => query.order(accessibility_exception.asc()),
+                Direction::Desc => query.order(accessibility_exception.desc()),
+            },
+            PublicationField::AccessibilityReportUrl => match order.direction {
+                Direction::Asc => query.order(accessibility_report_url.asc()),
+                Direction::Desc => query.order(accessibility_report_url.desc()),
+            },
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
