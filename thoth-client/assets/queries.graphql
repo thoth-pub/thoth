@@ -77,7 +77,7 @@ fragment Work on Work {
             publisherName
             publisherShortname
             publisherUrl
-            accessibility
+            accessibilityStatement
             contacts {
                 contactType
                 email

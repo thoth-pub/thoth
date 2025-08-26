@@ -23,7 +23,8 @@ CREATE TABLE contact_history (
 );
 
 ALTER TABLE publisher
-    ADD COLUMN accessibility TEXT CHECK (octet_length(accessibility) >= 1);
+    ADD COLUMN accessibility_statement TEXT CHECK (octet_length(accessibility_statement) >= 1),
+    ADD COLUMN accessibility_report_url TEXT CHECK (octet_length(accessibility_report_url) >= 1);
 
 CREATE TYPE accessibility_standard AS ENUM (
     'wcag-21-aa',

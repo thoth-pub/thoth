@@ -3254,8 +3254,15 @@ impl Publisher {
     #[graphql(
         description = "Statement from the publisher on the accessibility of its texts for readers with impairments"
     )]
-    pub fn accessibility(&self) -> Option<&String> {
-        self.accessibility.as_ref()
+    pub fn accessibility_statement(&self) -> Option<&String> {
+        self.accessibility_statement.as_ref()
+    }
+
+    #[graphql(
+        description = "URL of the publisher's report on the accessibility of its texts for readers with impairments"
+    )]
+    pub fn accessibility_report_url(&self) -> Option<&String> {
+        self.accessibility_report_url.as_ref()
     }
 
     #[graphql(description = "Date and time at which the publisher record was created")]

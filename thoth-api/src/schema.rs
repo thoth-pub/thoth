@@ -427,7 +427,8 @@ table! {
         publisher_name -> Text,
         publisher_shortname -> Nullable<Text>,
         publisher_url -> Nullable<Text>,
-        accessibility -> Nullable<Text>,
+        accessibility_statement -> Nullable<Text>,
+        accessibility_report_url -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }

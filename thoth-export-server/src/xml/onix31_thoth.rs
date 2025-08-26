@@ -204,7 +204,9 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                             w.write(XmlEvent::Characters(code)).map_err(Into::into)
                         })?;
                     }
-                    if let Some(accessibility) = &self.imprint.publisher.accessibility {
+                    if let Some(accessibility_statement) =
+                        &self.imprint.publisher.accessibility_statement
+                    {
                         write_element_block("ProductFormFeature", w, |w| {
                             // 09 E-publication accessibility detail
                             write_element_block("ProductFormFeatureType", w, |w| {
@@ -215,7 +217,7 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                                 w.write(XmlEvent::Characters("00")).map_err(Into::into)
                             })?;
                             write_element_block("ProductFormFeatureDescription", w, |w| {
-                                w.write(XmlEvent::Characters(&accessibility.to_string()))
+                                w.write(XmlEvent::Characters(&accessibility_statement.to_string()))
                                     .map_err(Into::into)
                             })
                         })?;
@@ -2532,7 +2534,7 @@ mod tests {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: None,
                     publisher_url: Some("https://publisher.oa".to_string()),
-                    accessibility: Some("This is an accessibility statement".to_string()),
+                    accessibility_statement: Some("This is an accessibility statement".to_string()),
                     contacts: vec![WorkImprintPublisherContacts {
                         contact_type: ContactType::ACCESSIBILITY,
                         email: "contact@accessibility.com".to_string(),
@@ -3693,7 +3695,7 @@ mod tests {
         test_work.imprint.imprint_url = None;
         test_work.imprint.publisher.publisher_url = None;
         test_work.imprint.publisher.contacts.clear();
-        test_work.imprint.publisher.accessibility = None;
+        test_work.imprint.publisher.accessibility_statement = None;
         test_work.subjects.pop();
         let output = generate_test_output(true, &test_work);
         println!("{output}");

@@ -2,7 +2,8 @@ DROP TABLE contact_history;
 DROP TABLE contact;
 
 ALTER TABLE publisher
-    DROP COLUMN accessibility;
+    DROP COLUMN accessibility_statement,
+    DROP COLUMN accessibility_report_url;
 
 ALTER TABLE publication
     DROP CONSTRAINT check_accessibility_standard_rules,

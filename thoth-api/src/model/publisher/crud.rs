@@ -58,9 +58,13 @@ impl Crud for Publisher {
                 Direction::Asc => query.order(publisher_url.asc()),
                 Direction::Desc => query.order(publisher_url.desc()),
             },
-            PublisherField::Accessibility => match order.direction {
-                Direction::Asc => query.order(accessibility.asc()),
-                Direction::Desc => query.order(accessibility.desc()),
+            PublisherField::AccessibilityStatement => match order.direction {
+                Direction::Asc => query.order(accessibility_statement.asc()),
+                Direction::Desc => query.order(accessibility_statement.desc()),
+            },
+            PublisherField::AccessibilityReportUrl => match order.direction {
+                Direction::Asc => query.order(accessibility_report_url.asc()),
+                Direction::Desc => query.order(accessibility_report_url.desc()),
             },
             PublisherField::CreatedAt => match order.direction {
                 Direction::Asc => query.order(created_at.asc()),
