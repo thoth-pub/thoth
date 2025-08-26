@@ -152,7 +152,7 @@ mod tests {
                     last_name: "1".to_string(),
                     full_name: "Author 1".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -177,7 +177,7 @@ mod tests {
                     last_name: "2".to_string(),
                     full_name: "Author 2".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -549,7 +549,7 @@ mod tests {
       "lastName": "1",
       "fullName": "Author 1",
       "mainContribution": true,
-      "biography": null,
+      "biographies": [],
       "contributionOrdinal": 1,
       "contributor": {
         "orcid": "https://orcid.org/0000-0002-0000-0001",
@@ -574,7 +574,7 @@ mod tests {
       "lastName": "2",
       "fullName": "Author 2",
       "mainContribution": true,
-      "biography": null,
+      "biographies": [],
       "contributionOrdinal": 2,
       "contributor": {
         "orcid": null,

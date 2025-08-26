@@ -109,7 +109,14 @@ fragment Work on Work {
         lastName
         fullName
         mainContribution
-        biography
+        biographies(limit: 1) {
+            biographyId
+            contributionId
+            workId
+            content
+            canonical
+            localeCode
+        }
         contributionOrdinal
         contributor {
             orcid
@@ -210,7 +217,14 @@ fragment Work on Work {
                 firstName
                 lastName
                 fullName
-                biography
+                biographies(limit: 1) {
+                    biographyId
+                    contributionId
+                    workId
+                    content
+                    canonical
+                    localeCode
+                }
                 contributionOrdinal
                 contributor {
                     orcid

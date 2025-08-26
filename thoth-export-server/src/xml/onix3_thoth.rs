@@ -1156,7 +1156,8 @@ impl XmlElementBlock<Onix3Thoth> for WorkContributions {
                     })
                 })?;
             }
-            if let Some(biography) = &self.biography {
+            if !&self.biographies.is_empty() {
+                let biography = &self.biographies[0].content.clone();
                 write_element_block("BiographicalNote", w, |w| {
                     w.write(XmlEvent::Characters(biography))
                         .map_err(|e| e.into())
@@ -1544,7 +1545,14 @@ mod tests {
             last_name: "1".to_string(),
             full_name: "Author N. 1".to_string(),
             main_contribution: true,
-            biography: Some("Author N. 1 is a made-up author".to_string()),
+            biographies: vec![thoth_client::WorkContributionsBiographies {
+                biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                content: "Author N. 1 is a made-up author".to_string(),
+                locale_code: thoth_client::LocaleCode::EN,
+                canonical: true,
+            }],
             contribution_ordinal: 1,
             contributor: WorkContributionsContributor {
                 orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -1597,7 +1605,7 @@ mod tests {
         test_contribution.contributor.orcid = None;
         test_contribution.contributor.website = None;
         test_contribution.first_name = None;
-        test_contribution.biography = None;
+        test_contribution.biographies = vec![];
         test_contribution.affiliations[0].position = None;
         let output = generate_test_output(true, &test_contribution);
         println!("{output}");

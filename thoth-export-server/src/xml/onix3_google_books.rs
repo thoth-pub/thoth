@@ -590,7 +590,8 @@ impl XmlElementBlock<Onix3GoogleBooks> for WorkContributions {
                 w.write(XmlEvent::Characters(&self.full_name))
                     .map_err(|e| e.into())
             })?;
-            if let Some(biography) = &self.biography {
+            if !&self.biographies.is_empty() {
+                let biography = &self.biographies[0].content.clone();
                 write_element_block("BiographicalNote", w, |w| {
                     w.write(XmlEvent::Characters(biography))
                         .map_err(|e| e.into())
@@ -671,6 +672,7 @@ mod tests {
     use thoth_api::model::Doi;
     use thoth_api::model::Isbn;
     use thoth_api::model::Orcid;
+    use thoth_client::WorkContributionsBiographies;
     use thoth_client::{
         ContributionType, LanguageCode, LanguageRelation, LocationPlatform, PublicationType,
         WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssuesSeries,
@@ -710,7 +712,14 @@ mod tests {
             last_name: "1".to_string(),
             full_name: "Author 1".to_string(),
             main_contribution: true,
-            biography: Some("Author 1 is an author of books".to_string()),
+            biographies: vec![WorkContributionsBiographies {
+                biography_id: Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                contribution_id: Uuid::parse_str("00000000-0000-0000-CCCC-000000000003").unwrap(),
+                work_id: Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                content: "Author 1 is an author of books".to_string(),
+                canonical: true,
+                locale_code: thoth_client::LocaleCode::EN,
+            }],
             contribution_ordinal: 1,
             contributor: WorkContributionsContributor {
                 orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -730,7 +739,7 @@ mod tests {
         // Change all possible values to test that output is updated
         test_contribution.contribution_type = ContributionType::EDITOR;
         test_contribution.contribution_ordinal = 2;
-        test_contribution.biography = None;
+        test_contribution.biographies = vec![];
         test_contribution.first_name = None;
         let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <SequenceNumber>2</SequenceNumber>"#));
@@ -912,7 +921,7 @@ mod tests {
                     last_name: "Editor".to_string(),
                     full_name: "Music Editor".to_string(),
                     main_contribution: false,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -926,7 +935,7 @@ mod tests {
                     last_name: "Editor".to_string(),
                     full_name: "Volume Editor".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
                         orcid: None,

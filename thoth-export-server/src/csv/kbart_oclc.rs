@@ -329,7 +329,7 @@ mod tests {
                     last_name: "First".to_string(),
                     full_name: "Author First".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(
@@ -345,7 +345,7 @@ mod tests {
                     last_name: "Second".to_string(),
                     full_name: "Author Second".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -359,7 +359,7 @@ mod tests {
                     last_name: "FirstEd".to_string(),
                     full_name: "Editor FirstEd".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 3,
                     contributor: WorkContributionsContributor {
                         orcid: None,

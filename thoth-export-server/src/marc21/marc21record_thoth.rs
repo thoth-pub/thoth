@@ -884,7 +884,7 @@ pub(crate) mod tests {
                     last_name: "Author".to_string(),
                     full_name: "Sole Author".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(
@@ -909,7 +909,7 @@ pub(crate) mod tests {
                     last_name: "Editor".to_string(),
                     full_name: "Only Editor".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
                         orcid: Some(
@@ -925,7 +925,7 @@ pub(crate) mod tests {
                     last_name: "Translator".to_string(),
                     full_name: "Translator".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 3,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -1073,7 +1073,7 @@ pub(crate) mod tests {
             last_name: "".to_string(),
             full_name: "".to_string(),
             main_contribution: true,
-            biography: None,
+            biographies: vec![],
             contribution_ordinal: 1,
             contributor: WorkContributionsContributor {
                 orcid: None,
@@ -1124,7 +1124,7 @@ pub(crate) mod tests {
                     first_name: Some("Chapter-One".to_string()),
                     last_name: "Author".to_string(),
                     full_name: "Chapter-One Author".to_string(),
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 1,
                     contributor: WorkRelationsRelatedWorkContributionsContributor {
                         orcid: None,

@@ -1,6 +1,7 @@
 use cc_license::License;
 use chrono::Utc;
 use std::io::Write;
+use thoth_api::model::biography;
 use thoth_client::{
     AbstractType, ContributionType, LanguageRelation, LocationPlatform, PublicationType,
     RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages,
@@ -1331,7 +1332,8 @@ impl XmlElementBlock<Onix31Thoth> for WorkContributions {
                     })
                 })?;
             }
-            if let Some(biography) = &self.biography {
+            if !&self.biographies.is_empty() {
+                let biography = &self.biographies[0].content.clone();
                 write_element_block("BiographicalNote", w, |w| {
                     w.write(XmlEvent::Characters(biography)).map_err(Into::into)
                 })?;
@@ -1415,7 +1417,8 @@ impl XmlElementBlock<Onix31Thoth> for WorkRelationsRelatedWorkContributions {
                     })
                 })?;
             }
-            if let Some(biography) = &self.biography {
+            if !&self.biographies.is_empty() {
+                let biography = &self.biographies[0].content.clone();
                 write_element_block("BiographicalNote", w, |w| {
                     w.write(XmlEvent::Characters(biography)).map_err(Into::into)
                 })?;
@@ -1817,7 +1820,14 @@ mod tests {
             last_name: "1".to_string(),
             full_name: "Author N. 1".to_string(),
             main_contribution: true,
-            biography: Some("Author N. 1 is a made-up author".to_string()),
+            biographies: vec![thoth_client::WorkContributionsBiographies {
+                biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                content: "Author N. 1 is a made-up author".to_string(),
+                locale_code: thoth_client::LocaleCode::EN,
+                canonical: true,
+            }],
             contribution_ordinal: 1,
             contributor: WorkContributionsContributor {
                 orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -1874,7 +1884,7 @@ mod tests {
         test_contribution.contributor.orcid = None;
         test_contribution.contributor.website = None;
         test_contribution.first_name = None;
-        test_contribution.biography = None;
+        test_contribution.biographies = vec![];
         test_contribution.affiliations[0].position = None;
         test_contribution.affiliations[0].institution.ror = None;
         let output = generate_test_output(true, &test_contribution);
@@ -2652,7 +2662,14 @@ mod tests {
                             first_name: Some("Chapter Author".to_string()),
                             last_name: "2".to_string(),
                             full_name: "Chapter Author N. 2".to_string(),
-                            biography: Some("Chapter Author N. 2 is a made-up author".to_string()),
+                            biographies: vec![thoth_client::WorkRelationsRelatedWorkContributionsBiographies {
+                                biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                                contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                                content: "Chapter Author N. 2 is a made-up author".to_string(),
+                                locale_code: thoth_client::LocaleCode::EN,
+                                canonical: true,
+                            }],
                             contribution_ordinal: 1,
                             contributor: WorkRelationsRelatedWorkContributionsContributor {
                                 orcid: Some(

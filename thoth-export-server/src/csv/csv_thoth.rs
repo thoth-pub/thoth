@@ -337,7 +337,10 @@ impl CsvCell<CsvThoth> for WorkContributions {
             self.last_name,
             self.full_name,
             self.main_contribution,
-            self.biography.clone().unwrap_or_default(),
+            self.biographies
+                .first()
+                .map(|b| b.content.clone())
+                .unwrap_or_default(),
             self.contributor
                 .orcid
                 .as_ref()
@@ -606,7 +609,16 @@ mod tests {
                     last_name: "1".to_string(),
                     full_name: "Author 1".to_string(),
                     main_contribution: true,
-                    biography: Some("Author 1 is an author".to_string()),
+                    biographies: vec![
+                        thoth_client::WorkContributionsBiographies {
+                            biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                            contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            content: "Author 1 is an author".to_string(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            canonical: true,
+                        }
+                    ],
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -631,7 +643,7 @@ mod tests {
                     last_name: "2".to_string(),
                     full_name: "Author 2".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -1007,7 +1019,14 @@ mod tests {
             last_name: "1".to_string(),
             full_name: "Author 1".to_string(),
             main_contribution: true,
-            biography: Some("Author 1 was born".to_string()),
+            biographies: vec![thoth_client::WorkContributionsBiographies {
+                biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                content: "Author 1 was born".to_string(),
+                locale_code: thoth_client::LocaleCode::EN,
+                canonical: true,
+            }],
             contribution_ordinal: 1,
             contributor: WorkContributionsContributor {
                 orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -1022,7 +1041,7 @@ mod tests {
         contribution.contribution_type = ContributionType::TRANSLATOR;
         contribution.first_name = None;
         contribution.main_contribution = false;
-        contribution.biography = None;
+        contribution.biographies = vec![];
         contribution.contributor.orcid = None;
         contribution.contributor.website = None;
         assert_eq!(

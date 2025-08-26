@@ -357,7 +357,7 @@ mod tests {
                     last_name: "1".to_string(),
                     full_name: "Author 1".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -371,7 +371,7 @@ mod tests {
                     last_name: "2".to_string(),
                     full_name: "Author 2".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -385,7 +385,7 @@ mod tests {
                     last_name: "3".to_string(),
                     full_name: "Author 3".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 3,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -399,7 +399,7 @@ mod tests {
                     last_name: "1".to_string(),
                     full_name: "Editor 1".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 4,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -413,7 +413,7 @@ mod tests {
                     last_name: "2".to_string(),
                     full_name: "Editor 2".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 5,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -427,7 +427,7 @@ mod tests {
                     last_name: "3".to_string(),
                     full_name: "Editor 3".to_string(),
                     main_contribution: false,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 6,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -441,7 +441,7 @@ mod tests {
                     last_name: "1".to_string(),
                     full_name: "Translator 1".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 7,
                     contributor: WorkContributionsContributor {
                         orcid: None,
