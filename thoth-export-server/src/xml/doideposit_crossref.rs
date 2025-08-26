@@ -305,14 +305,15 @@ pub fn rename_tags_with_jats_prefix(text: &str) -> String {
         let slash = &caps[2];
         let tag_name = &caps[3];
         let rest = &caps[4];
-        
+
         // Only add jats: prefix if it's not already there
         if !tag_name.starts_with("jats:") {
-            format!("{}{}jats:{}{}>", open_bracket, slash, tag_name, rest)
+            format!("{open_bracket}{slash}jats:{tag_name}{rest}>")
         } else {
-            format!("{}{}{}{}>", open_bracket, slash, tag_name, rest)
+            format!("{open_bracket}{slash}{tag_name}{rest}>")
         }
-    }).to_string()
+    })
+    .to_string()
 }
 
 fn write_abstract_content<W: Write>(
@@ -326,14 +327,19 @@ fn write_abstract_content<W: Write>(
         w,
         // replace this with jats from db
         |w| {
-            for paragraph in abstract_content.lines() {
-                if !paragraph.is_empty() {
-                    write_element_block("jats:p", w, |w| {
-                        w.write(XmlEvent::Characters(paragraph))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-            }
+            // for paragraph in abstract_content.lines() {
+            //     if !paragraph.is_empty() {
+            //         write_element_block("jats:p", w, |w| {
+            //             w.write(XmlEvent::Characters(paragraph))
+            //                 .map_err(|e| e.into())
+            //         })?;
+            //     }
+            // }
+
+            w.write(XmlEvent::Characters(&rename_tags_with_jats_prefix(
+                abstract_content,
+            )))
+            .map_err(ThothError::from)?;
             Ok(())
         },
     )

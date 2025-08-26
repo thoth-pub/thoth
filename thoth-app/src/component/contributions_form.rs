@@ -273,8 +273,8 @@ impl Component for ContributionsFormComponent {
             Msg::SetContributionCreateState(fetch_state) => {
                 self.create_contribution.apply(fetch_state);
                 match self.create_contribution.clone().state() {
-                    FetchState::NotFetching(_) => return false,
-                    FetchState::Fetching(_) => return false,
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.create_contribution {
                         Some(i) => {
                             let contribution = i.clone();
@@ -309,7 +309,7 @@ impl Component for ContributionsFormComponent {
                             }
                             ctx.link()
                                 .send_message(Msg::ToggleModalFormDisplay(false, None));
-                            return true;
+                            true
                         }
                         None => {
                             ctx.link()
@@ -318,7 +318,7 @@ impl Component for ContributionsFormComponent {
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
                             )));
-                            return false;
+                            false
                         }
                     },
                     FetchState::Failed(_, err) => {
@@ -328,11 +328,11 @@ impl Component for ContributionsFormComponent {
                             ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
-                        return false;
+                        false
                     }
                 }
             }
-            Msg::CreateContribution(fetch_state) => {
+            Msg::CreateContribution(_fetch_state) => {
                 // Create contribution
                 let create_contribution_request_body = CreateContributionRequestBody {
                     variables: CreateVariables {
@@ -413,35 +413,44 @@ impl Component for ContributionsFormComponent {
                 match self.fetch_biographies.as_ref().state() {
                     FetchState::NotFetching(_) => return false,
                     FetchState::Fetching(_) => return false,
-                    FetchState::Fetched(body) => match &body.data.biographies {
-                        Some(biographies) => {
-                            // Update biography
-                            let biography = biographies[0].clone();
-                            let update_biography_request_body = UpdateBiographyRequestBody {
-                                variables: UpdateBiographyVariables {
-                                    biography_id: biography.biography_id,
-                                    contribution_id: self.contribution.contribution_id,
-                                    work_id: ctx.props().work_id,
-                                    content: biography.content.clone(),
-                                    canonical: biography.canonical,
-                                    locale_code: biography.locale_code,
-                                },
-                                ..Default::default()
-                            };
-                            let update_biography_request = UpdateBiographyRequest {
-                                body: update_biography_request_body,
-                            };
+                    FetchState::Fetched(body) => {
+                        match &body.data.biographies {
+                            Some(biographies) => {
+                                // Update biography
+                                let biography = biographies[0].clone();
+                                let update_biography_request_body = UpdateBiographyRequestBody {
+                                    variables: UpdateBiographyVariables {
+                                        biography_id: biography.biography_id,
+                                        contribution_id: self.contribution.contribution_id,
+                                        work_id: ctx.props().work_id,
+                                        content: biography.content.clone(),
+                                        canonical: biography.canonical,
+                                        locale_code: biography.locale_code,
+                                    },
+                                    ..Default::default()
+                                };
+                                let update_biography_request = UpdateBiographyRequest {
+                                    body: update_biography_request_body,
+                                };
 
-                            self.update_biography = Fetch::new(update_biography_request);
+                                self.update_biography = Fetch::new(update_biography_request);
 
-                            ctx.link().send_future(
-                                self.update_biography.fetch(Msg::SetBiographyUpdateState),
-                            );
-                            ctx.link()
-                                .send_message(Msg::SetBiographyUpdateState(FetchAction::Fetching));
+                                ctx.link().send_future(
+                                    self.update_biography.fetch(Msg::SetBiographyUpdateState),
+                                );
+                                ctx.link().send_message(Msg::SetBiographyUpdateState(
+                                    FetchAction::Fetching,
+                                ));
+                            }
+                            None => {
+                                self.notification_bus.send(Request::NotificationBusMsg((
+                                    "Failed to save".to_string(),
+                                    NotificationStatus::Danger,
+                                )));
+                                return false;
+                            }
                         }
-                        None => return false,
-                    },
+                    }
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
                             ThothError::from(err).to_string(),
@@ -518,30 +527,39 @@ impl Component for ContributionsFormComponent {
                 match self.fetch_biographies.as_ref().state() {
                     FetchState::NotFetching(_) => return false,
                     FetchState::Fetching(_) => return false,
-                    FetchState::Fetched(body) => match &body.data.biographies {
-                        Some(biographies) => {
-                            // Delete biography
-                            let biography = biographies[0].clone();
-                            let delete_biography_request_body = DeleteBiographyRequestBody {
-                                variables: DeleteBiographyVariables {
-                                    biography_id: biography.biography_id,
-                                },
-                                ..Default::default()
-                            };
-                            let delete_biography_request = DeleteBiographyRequest {
-                                body: delete_biography_request_body,
-                            };
+                    FetchState::Fetched(body) => {
+                        match &body.data.biographies {
+                            Some(biographies) => {
+                                // Delete biography
+                                let biography = biographies[0].clone();
+                                let delete_biography_request_body = DeleteBiographyRequestBody {
+                                    variables: DeleteBiographyVariables {
+                                        biography_id: biography.biography_id,
+                                    },
+                                    ..Default::default()
+                                };
+                                let delete_biography_request = DeleteBiographyRequest {
+                                    body: delete_biography_request_body,
+                                };
 
-                            self.delete_biography = Fetch::new(delete_biography_request);
+                                self.delete_biography = Fetch::new(delete_biography_request);
 
-                            ctx.link().send_future(
-                                self.delete_biography.fetch(Msg::SetBiographyDeleteState),
-                            );
-                            ctx.link()
-                                .send_message(Msg::SetBiographyDeleteState(FetchAction::Fetching));
+                                ctx.link().send_future(
+                                    self.delete_biography.fetch(Msg::SetBiographyDeleteState),
+                                );
+                                ctx.link().send_message(Msg::SetBiographyDeleteState(
+                                    FetchAction::Fetching,
+                                ));
+                            }
+                            None => {
+                                self.notification_bus.send(Request::NotificationBusMsg((
+                                    "Failed to save".to_string(),
+                                    NotificationStatus::Danger,
+                                )));
+                                return false;
+                            }
                         }
-                        None => return false,
-                    },
+                    }
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
                             ThothError::from(err).to_string(),

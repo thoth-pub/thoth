@@ -1,7 +1,6 @@
 use cc_license::License;
 use chrono::Utc;
 use std::io::Write;
-use thoth_api::model::biography;
 use thoth_client::{
     AbstractType, ContributionType, LanguageRelation, LocationPlatform, PublicationType,
     RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages,
