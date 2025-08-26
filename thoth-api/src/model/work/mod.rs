@@ -217,8 +217,6 @@ pub struct Work {
     pub landing_page: Option<String>,
     pub lccn: Option<String>,
     pub oclc: Option<String>,
-    // pub short_abstract: Option<String>,
-    // pub long_abstract: Option<String>,
     pub general_note: Option<String>,
     pub bibliography_note: Option<String>,
     pub toc: Option<String>,
@@ -291,9 +289,6 @@ pub struct WorkWithRelations {
 pub struct NewWork {
     pub work_type: WorkType,
     pub work_status: WorkStatus,
-    // pub full_title: String,
-    // pub title: String,
-    // pub subtitle: Option<String>,
     pub reference: Option<String>,
     pub edition: Option<i32>,
     pub imprint_id: Uuid,
@@ -312,8 +307,6 @@ pub struct NewWork {
     pub landing_page: Option<String>,
     pub lccn: Option<String>,
     pub oclc: Option<String>,
-    // pub short_abstract: Option<String>,
-    // pub long_abstract: Option<String>,
     pub general_note: Option<String>,
     pub bibliography_note: Option<String>,
     pub toc: Option<String>,
@@ -395,8 +388,6 @@ pub struct WorkOrderBy {
 }
 
 pub trait WorkProperties {
-    // fn title(&self) -> &str;
-    // fn subtitle(&self) -> Option<&str>;
     fn work_status(&self) -> &WorkStatus;
     fn publication_date(&self) -> &Option<NaiveDate>;
     fn withdrawn_date(&self) -> &Option<NaiveDate>;
@@ -534,8 +525,6 @@ impl From<Work> for PatchWork {
             landing_page: w.landing_page,
             lccn: w.lccn,
             oclc: w.oclc,
-            // short_abstract: w.short_abstract,
-            // long_abstract: w.long_abstract,
             general_note: w.general_note,
             bibliography_note: w.bibliography_note,
             toc: w.toc,

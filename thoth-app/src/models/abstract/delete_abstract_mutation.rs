@@ -7,7 +7,7 @@ const DELETE_ABSTRACT_MUTATION: &str = "
     mutation DeleteAbstract(
         $abstractId: Uuid!
     ) {
-        deleteAbstracts(
+        deleteAbstract(
             abstractId: $abstractId
         ){
             abstractId

@@ -6,12 +6,9 @@ use super::{
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::biography::dsl::*;
-use crate::schema::work::dsl;
 use crate::schema::{biography, biography_history};
 use crate::{crud_methods, db_insert};
-use diesel::{
-    BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
-};
+use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
 
@@ -140,5 +137,5 @@ impl HistoryEntry for Biography {
 impl DbInsert for NewBiographyHistory {
     type MainEntity = BiographyHistory;
 
-    db_insert!(biography::table);
+    db_insert!(biography_history::table);
 }

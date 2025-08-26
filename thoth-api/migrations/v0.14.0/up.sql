@@ -268,7 +268,7 @@ SELECT
     work_id,
     convert_to_jats(biography) AS content,
     TRUE,
-    'en'::locale_code,
+    'en'::locale_code
 FROM contribution
 WHERE biography IS NOT NULL;
 

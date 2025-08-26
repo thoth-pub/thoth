@@ -510,8 +510,6 @@ impl Component for WorkComponent {
                         landing_page: self.work.landing_page.clone(),
                         lccn: self.work.lccn.clone(),
                         oclc: self.work.oclc.clone(),
-                        // short_abstract: self.work.short_abstract.clone(),
-                        // long_abstract: self.work.long_abstract.clone(),
                         general_note: self.work.general_note.clone(),
                         bibliography_note: self.work.bibliography_note.clone(),
                         toc: self.work.toc.clone(),

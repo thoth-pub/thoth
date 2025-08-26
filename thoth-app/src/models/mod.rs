@@ -179,6 +179,7 @@ impl GraphqlFieldList {
 
 pub mod r#abstract;
 pub mod affiliation;
+pub mod biography;
 pub mod book;
 pub mod chapter;
 pub mod contribution;

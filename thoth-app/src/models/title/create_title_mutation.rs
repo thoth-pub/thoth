@@ -12,7 +12,7 @@ const CREATE_TITLE_MUTATION: &str = "
         $title: String!,
         $subtitle: String!,
         $canonical: Boolean!,
-        $markupFormat: MarkupFormat!
+        $markupFormat: MarkupFormat
     ) {
         createTitle(data: {
             workId: $workId,

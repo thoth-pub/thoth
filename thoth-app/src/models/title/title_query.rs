@@ -4,8 +4,8 @@ use thoth_api::model::Title;
 use uuid::Uuid;
 
 pub const TITLE_QUERY: &str = "
-    query TitleQuery($titleId: Uuid!) {
-        title(titleId: $titleId) {
+    query TitleQuery($titleId: Uuid!, $markupFormat: MarkupFormat) {
+        title(titleId: $titleId, markupFormat: $markupFormat) {
             titleId
             workId
             localeCode
@@ -13,7 +13,6 @@ pub const TITLE_QUERY: &str = "
             title
             subtitle
             canonical
-            markupFormat
         }
     }
 ";

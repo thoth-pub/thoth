@@ -297,11 +297,22 @@ pub fn rename_tags_with_jats_prefix(text: &str) -> String {
     // This regex matches an opening or closing HTML/XML tag:
     // 1. (<) - captures '<'
     // 2. (/?) - optional closing slash
-    // 3. (?!jats:) - negative lookahead to skip if already prefixed
-    // 4. ([a-zA-Z0-9]+) - tag name
-    // 5. ([^>]*) - everything else until '>'
-    let re = Regex::new(r"(<)(/?)(?!jats:)([a-zA-Z0-9]+)([^>]*)>").unwrap();
-    re.replace_all(text, "$1$2jats:$3$4>").to_string()
+    // 3. ([a-zA-Z0-9]+) - tag name
+    // 4. ([^>]*) - everything else until '>'
+    let re = Regex::new(r"(<)(/?)([a-zA-Z0-9]+)([^>]*)>").unwrap();
+    re.replace_all(text, |caps: &regex::Captures| {
+        let open_bracket = &caps[1];
+        let slash = &caps[2];
+        let tag_name = &caps[3];
+        let rest = &caps[4];
+        
+        // Only add jats: prefix if it's not already there
+        if !tag_name.starts_with("jats:") {
+            format!("{}{}jats:{}{}>", open_bracket, slash, tag_name, rest)
+        } else {
+            format!("{}{}{}{}>", open_bracket, slash, tag_name, rest)
+        }
+    }).to_string()
 }
 
 fn write_abstract_content<W: Write>(
@@ -315,19 +326,14 @@ fn write_abstract_content<W: Write>(
         w,
         // replace this with jats from db
         |w| {
-            // for paragraph in abstract_content.lines() {
-            //     if !paragraph.is_empty() {
-            //         write_element_block("jats:p", w, |w| {
-            //             w.write(XmlEvent::Characters(paragraph))
-            //                 .map_err(|e| e.into())
-            //         })?;
-            //     }
-            // }
-
-            w.write(XmlEvent::Characters(&rename_tags_with_jats_prefix(
-                abstract_content,
-            )))
-            .map_err(ThothError::from)?;
+            for paragraph in abstract_content.lines() {
+                if !paragraph.is_empty() {
+                    write_element_block("jats:p", w, |w| {
+                        w.write(XmlEvent::Characters(paragraph))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+            }
             Ok(())
         },
     )

@@ -1,4 +1,4 @@
-use crate::model::biography::{self, Biography, BiographyOrderBy, NewBiography, PatchBiography};
+use crate::model::biography::{Biography, BiographyOrderBy, NewBiography, PatchBiography};
 use crate::model::r#abstract::{Abstract, AbstractOrderBy, NewAbstract, PatchAbstract};
 use crate::model::title::{PatchTitle, Title};
 use crate::schema::{work_abstract, work_title};
@@ -4057,7 +4057,7 @@ impl Contribution {
 
     #[allow(clippy::too_many_arguments)]
     #[graphql(description = "Query biographies by contribution ID")]
-    fn biographies(
+    pub fn biographies(
         &self,
         context: &Context,
         #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
@@ -4068,17 +4068,17 @@ impl Contribution {
         )]
         filter: Option<String>,
         #[graphql(
-            default = AbstractOrderBy::default(),
+            default = BiographyOrderBy::default(),
             description = "The order in which to sort the results"
         )]
-        order: Option<AbstractOrderBy>,
+        order: Option<BiographyOrderBy>,
         #[graphql(
             default = vec![],
             description = "If set, only shows results with these locale codes"
         )]
         locale_codes: Option<Vec<LocaleCode>>,
         markup_format: MarkupFormat,
-    ) -> FieldResult<Vec<Abstract>> {
+    ) -> FieldResult<Vec<Biography>> {
         let mut biographies = Biography::all(
             &context.db,
             limit.unwrap_or_default(),
@@ -4096,7 +4096,7 @@ impl Contribution {
 
         for biography in &mut biographies {
             biography.content = convert_from_jats(
-                biography.content,
+                &biography.content,
                 markup_format,
                 Some(ConversionLimit::Biography),
             )?;
@@ -5006,6 +5006,49 @@ impl Abstract {
     #[graphql(description = "Get the work to which the abstract is linked")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "A biography associated with a work and contribution.")]
+impl Biography {
+    #[graphql(description = "Thoth ID of the biography")]
+    pub fn biography_id(&self) -> Uuid {
+        self.biography_id
+    }
+
+    #[graphql(description = "Thoth ID of the work to which the biography is linked")]
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
+    }
+
+    #[graphql(description = "Thoth ID of the contribution to which the biography is linked")]
+    pub fn contribution_id(&self) -> Uuid {
+        self.contribution_id
+    }
+
+    #[graphql(description = "Locale code of the biography")]
+    pub fn locale_code(&self) -> &LocaleCode {
+        &self.locale_code
+    }
+
+    #[graphql(description = "Content of the biography")]
+    pub fn content(&self) -> &String {
+        &self.content
+    }
+
+    #[graphql(description = "Whether this is the canonical biography for the contribution/work")]
+    pub fn canonical(&self) -> bool {
+        self.canonical
+    }
+
+    #[graphql(description = "Get the work to which the biography is linked")]
+    pub fn work(&self, context: &Context) -> FieldResult<Work> {
+        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get the contribution to which the biography is linked")]
+    pub fn contribution(&self, context: &Context) -> FieldResult<Contribution> {
+        Contribution::from_id(&context.db, &self.contribution_id).map_err(|e| e.into())
     }
 }
 
