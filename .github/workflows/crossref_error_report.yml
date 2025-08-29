@@ -1,0 +1,16 @@
+name: crossref-error-report
+
+on:
+#   schedule:
+#     # 'at 00:15 on day-of-month 1'
+#     # (scheduling is not guaranteed; runs at the start of the hour
+#     # are more likely to be delayed)
+#     - cron: '15 0 1 * *'
+  workflow_dispatch:
+
+jobs:
+  hello_world:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print Hello World
+        run: echo "Hello World"
