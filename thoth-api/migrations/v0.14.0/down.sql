@@ -113,7 +113,7 @@ DROP TABLE IF EXISTS abstract;
 DROP TYPE IF EXISTS abstract_type;
 
 ALTER TABLE contribution
-    ADD COLUMN biography TEXT CHECK (octet_length(short_abstract) >= 1);
+    ADD COLUMN biography TEXT CHECK (octet_length(biography) >= 1);
 
 -- Migrate data back from the abstract table to the work table using the reverse conversion
 UPDATE contribution
