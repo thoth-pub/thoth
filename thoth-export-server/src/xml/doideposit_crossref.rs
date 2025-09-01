@@ -330,8 +330,10 @@ fn write_abstract_content<W: Write>(
             for paragraph in abstract_content.lines() {
                 if !paragraph.is_empty() {
                     write_element_block("jats:p", w, |w| {
-                        w.write(XmlEvent::Characters(&rename_tags_with_jats_prefix(paragraph)))
-                            .map_err(|e| e.into())
+                        w.write(XmlEvent::Characters(&rename_tags_with_jats_prefix(
+                            paragraph,
+                        )))
+                        .map_err(|e| e.into())
                     })?;
                 }
             }
