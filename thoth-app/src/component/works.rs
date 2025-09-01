@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use crate::models::work::works_query::FetchActionWorks;
 use crate::models::work::works_query::FetchWorks;
 use crate::models::work::works_query::Variables;

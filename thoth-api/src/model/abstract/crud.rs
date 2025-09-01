@@ -84,14 +84,16 @@ impl Crud for Abstract {
             query = query.filter(dsl::work_id.eq(pid));
         }
 
-        if !locale_codes.is_empty() && abstract_type.is_some() {
-            query = query.filter(
-                dsl::locale_code
-                    .eq_any(&locale_codes)
-                    .and(dsl::abstract_type.eq(abstract_type.unwrap())),
-            );
-        } else if !locale_codes.is_empty() {
-            query = query.filter(dsl::locale_code.eq_any(locale_codes));
+        if !locale_codes.is_empty() {
+            if let Some(at) = abstract_type {
+                query = query.filter(
+                    dsl::locale_code
+                        .eq_any(&locale_codes)
+                        .and(dsl::abstract_type.eq(at)),
+                );
+            } else {
+                query = query.filter(dsl::locale_code.eq_any(locale_codes));
+            }
         } else if let Some(at) = abstract_type {
             query = query.filter(dsl::abstract_type.eq(at));
         }

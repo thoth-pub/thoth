@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use crate::models::publication::publications_query::FetchActionPublications;
 use crate::models::publication::publications_query::FetchPublications;
 use crate::models::publication::publications_query::PublicationsRequest;

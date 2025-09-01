@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use crate::models::chapter::chapters_query::ChaptersRequest;
 use crate::models::chapter::chapters_query::ChaptersRequestBody;
 use crate::models::chapter::chapters_query::FetchActionChapters;

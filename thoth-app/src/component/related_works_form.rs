@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use gloo_timers::callback::Timeout;
 use std::str::FromStr;
 use thoth_api::account::model::AccountAccess;

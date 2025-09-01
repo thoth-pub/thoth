@@ -36,7 +36,7 @@ impl Marc21Specification for Marc21RecordThoth {
 }
 
 impl Marc21Entry<Marc21RecordThoth> for Work {
-    fn to_record(&self) -> ThothResult<Record> {
+    fn to_record(&self) -> ThothResult<Record<'_>> {
         if self.work_type == WorkType::BOOK_CHAPTER {
             return Err(ThothError::IncompleteMetadataRecord(
                 MARC_ERROR.to_string(),

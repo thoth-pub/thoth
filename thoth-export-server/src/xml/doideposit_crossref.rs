@@ -327,19 +327,14 @@ fn write_abstract_content<W: Write>(
         w,
         // replace this with jats from db
         |w| {
-            // for paragraph in abstract_content.lines() {
-            //     if !paragraph.is_empty() {
-            //         write_element_block("jats:p", w, |w| {
-            //             w.write(XmlEvent::Characters(paragraph))
-            //                 .map_err(|e| e.into())
-            //         })?;
-            //     }
-            // }
-
-            w.write(XmlEvent::Characters(&rename_tags_with_jats_prefix(
-                abstract_content,
-            )))
-            .map_err(ThothError::from)?;
+            for paragraph in abstract_content.lines() {
+                if !paragraph.is_empty() {
+                    write_element_block("jats:p", w, |w| {
+                        w.write(XmlEvent::Characters(&rename_tags_with_jats_prefix(paragraph)))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+            }
             Ok(())
         },
     )

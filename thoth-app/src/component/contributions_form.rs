@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use std::str::FromStr;
 use thoth_api::model::biography::Biography;
 use thoth_api::model::contribution::Contribution;

@@ -942,7 +942,11 @@ mod tests {
 
     #[test]
     fn test_csv_thoth() {
-        let to_test = CsvThoth.generate(&[TEST_WORK.clone()], QuoteStyle::Always, DELIMITER_COMMA);
+        let to_test = CsvThoth.generate(
+            std::slice::from_ref(&TEST_WORK),
+            QuoteStyle::Always,
+            DELIMITER_COMMA,
+        );
 
         assert_eq!(to_test, Ok(TEST_RESULT.to_string()))
     }

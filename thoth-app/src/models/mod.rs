@@ -54,7 +54,7 @@ macro_rules! graphql_query_builder {
                 format!("{}/graphql", THOTH_GRAPHQL_API)
             }
 
-            fn method(&self) -> MethodBody<Self::RequestBody> {
+            fn method(&self) -> MethodBody<'_, Self::RequestBody> {
                 MethodBody::Post(&self.body)
             }
 
