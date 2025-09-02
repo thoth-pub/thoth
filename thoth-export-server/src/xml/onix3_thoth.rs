@@ -683,47 +683,49 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                         &relation.relation_ordinal.to_string(),
                                     ))
                                     .map_err(|e| e.into())
-                                })
-                            })?;
-                            write_element_block("TextItem", w, |w| {
-                                // 03 Body matter
-                                write_element_block("TextItemType", w, |w| {
-                                    w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
                                 })?;
-                                write_element_block("TextItemIdentifier", w, |w| {
-                                    // 06 DOI
-                                    write_element_block("TextItemIDType", w, |w| {
-                                        w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                                write_element_block("TextItem", w, |w| {
+                                    // 03 Body matter
+                                    write_element_block("TextItemType", w, |w| {
+                                        w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
                                     })?;
-                                    write_element_block("IDValue", w, |w| {
-                                        w.write(XmlEvent::Characters(
-                                            &chapter.doi.as_ref().unwrap().to_string(),
-                                        ))
-                                        .map_err(|e| e.into())
-                                    })
-                                })
-                            })?;
-                            if let Some(first_page) = &chapter.first_page {
-                                write_element_block("PageRun", w, |w| {
-                                    write_element_block("FirstPageNumber", w, |w| {
-                                        w.write(XmlEvent::Characters(first_page))
-                                            .map_err(|e| e.into())
-                                    })?;
-                                    if let Some(last_page) = &chapter.last_page {
-                                        write_element_block("LastPageNumber", w, |w| {
-                                            w.write(XmlEvent::Characters(last_page))
+                                    write_element_block("TextItemIdentifier", w, |w| {
+                                        // 06 DOI
+                                        write_element_block("TextItemIDType", w, |w| {
+                                            w.write(XmlEvent::Characters("06"))
                                                 .map_err(|e| e.into())
                                         })?;
-                                    }
-                                    Ok(())
+                                        write_element_block("IDValue", w, |w| {
+                                            w.write(XmlEvent::Characters(
+                                                &chapter.doi.as_ref().unwrap().to_string(),
+                                            ))
+                                            .map_err(|e| e.into())
+                                        })
+                                    })
                                 })?;
-                            }
-                            if let Some(page_count) = &chapter.page_count {
-                                write_element_block("NumberOfPages", w, |w| {
-                                    w.write(XmlEvent::Characters(&page_count.to_string()))
-                                        .map_err(|e| e.into())
-                                })?;
-                            }
+                                if let Some(first_page) = &chapter.first_page {
+                                    write_element_block("PageRun", w, |w| {
+                                        write_element_block("FirstPageNumber", w, |w| {
+                                            w.write(XmlEvent::Characters(first_page))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        if let Some(last_page) = &chapter.last_page {
+                                            write_element_block("LastPageNumber", w, |w| {
+                                                w.write(XmlEvent::Characters(last_page))
+                                                    .map_err(|e| e.into())
+                                            })?;
+                                        }
+                                        Ok(())
+                                    })?;
+                                }
+                                if let Some(page_count) = &chapter.page_count {
+                                    write_element_block("NumberOfPages", w, |w| {
+                                        w.write(XmlEvent::Characters(&page_count.to_string()))
+                                            .map_err(|e| e.into())
+                                    })?;
+                                }
+                                Ok(())
+                            })?;
                         }
                         Ok(())
                     })?;
@@ -2869,19 +2871,19 @@ mod tests {
   <ContentDetail>
     <ContentItem>
       <LevelSequenceNumber>1</LevelSequenceNumber>
+      <TextItem>
+        <TextItemType>03</TextItemType>
+        <TextItemIdentifier>
+          <TextItemIDType>06</TextItemIDType>
+          <IDValue>10.00001/RELATION.0001</IDValue>
+        </TextItemIdentifier>
+      </TextItem>
+      <PageRun>
+        <FirstPageNumber>10</FirstPageNumber>
+        <LastPageNumber>20</LastPageNumber>
+      </PageRun>
+      <NumberOfPages>11</NumberOfPages>
     </ContentItem>
-    <TextItem>
-      <TextItemType>03</TextItemType>
-      <TextItemIdentifier>
-        <TextItemIDType>06</TextItemIDType>
-        <IDValue>10.00001/RELATION.0001</IDValue>
-      </TextItemIdentifier>
-    </TextItem>
-    <PageRun>
-      <FirstPageNumber>10</FirstPageNumber>
-      <LastPageNumber>20</LastPageNumber>
-    </PageRun>
-    <NumberOfPages>11</NumberOfPages>
   </ContentDetail>
   <PublishingDetail>
     <Imprint>
@@ -3438,12 +3440,12 @@ mod tests {
         // PageRun block still present but LastPageNumber absent
         assert!(output.contains(
             r#"
-    <PageRun>
-      <FirstPageNumber>10</FirstPageNumber>
-    </PageRun>"#
+      <PageRun>
+        <FirstPageNumber>10</FirstPageNumber>
+      </PageRun>"#
         ));
-        assert!(!output.contains(r#"      <LastPageNumber>20</LastPageNumber>"#));
-        assert!(!output.contains(r#"    <NumberOfPages>11</NumberOfPages>"#));
+        assert!(!output.contains(r#"        <LastPageNumber>20</LastPageNumber>"#));
+        assert!(!output.contains(r#"      <NumberOfPages>11</NumberOfPages>"#));
         // Imprint block still present but ImprintIdentifier absent
         assert!(output.contains(
             r#"
