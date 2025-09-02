@@ -732,10 +732,6 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                 }
                 write_element_block("PublishingDetail", w, |w| {
                     write_element_block("Imprint", w, |w| {
-                        write_element_block("ImprintName", w, |w| {
-                            w.write(XmlEvent::Characters(&self.imprint.imprint_name))
-                                .map_err(|e| e.into())
-                        })?;
                         if let Some(url) = &self.imprint.imprint_url {
                             write_element_block("ImprintIdentifier", w, |w| {
                                 // 01 Proprietary
@@ -750,7 +746,10 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                 })
                             })?;
                         }
-                        Ok(())
+                        write_element_block("ImprintName", w, |w| {
+                            w.write(XmlEvent::Characters(&self.imprint.imprint_name))
+                                .map_err(|e| e.into())
+                        })
                     })?;
                     write_element_block("Publisher", w, |w| {
                         // 01 Publisher
@@ -2887,12 +2886,12 @@ mod tests {
   </ContentDetail>
   <PublishingDetail>
     <Imprint>
-      <ImprintName>OA Editions Imprint</ImprintName>
       <ImprintIdentifier>
         <ImprintIDType>01</ImprintIDType>
         <IDTypeName>URL</IDTypeName>
         <IDValue>https://imprint.oa</IDValue>
       </ImprintIdentifier>
+      <ImprintName>OA Editions Imprint</ImprintName>
     </Imprint>
     <Publisher>
       <PublishingRole>01</PublishingRole>
