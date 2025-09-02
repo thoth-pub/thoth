@@ -347,11 +347,9 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                     if let Some(edition) = &self.edition {
                         // "Normally sent only for the second and subsequent editions"
                         if edition > &1 {
-                            write_element_block("Edition", w, |w| {
-                                write_element_block("EditionNumber", w, |w| {
-                                    w.write(XmlEvent::Characters(&edition.to_string()))
-                                        .map_err(Into::into)
-                                })
+                            write_element_block("EditionNumber", w, |w| {
+                                w.write(XmlEvent::Characters(&edition.to_string()))
+                                    .map_err(Into::into)
                             })?;
                         }
                     }
@@ -3015,9 +3013,7 @@ mod tests {
         <Subtitle>Book Subtitle</Subtitle>
       </TitleElement>
     </TitleDetail>
-    <Edition>
-      <EditionNumber>2</EditionNumber>
-    </Edition>
+    <EditionNumber>2</EditionNumber>
     <Extent>
       <ExtentType>00</ExtentType>
       <ExtentValue>334</ExtentValue>
@@ -3779,7 +3775,8 @@ mod tests {
     </TitleDetail>"#
         ));
         assert!(!output.contains(r#"        <Subtitle>Book Subtitle</Subtitle>"#));
-        assert!(!output.contains(r#"    <Edition>"#));
+        assert!(!output.contains(r#"    <EditionNumber>1</EditionNumber>"#));
+        assert!(!output.contains(r#"    <EditionNumber>"#));
         assert!(!output.contains(r#"    <Extent>"#));
         assert!(!output
             .contains(r#"    <IllustrationsNote>This is a bibliography note</IllustrationsNote>"#));
@@ -3994,8 +3991,10 @@ mod tests {
         test_work.publications[0].locations.clear();
         let output = generate_test_output(true, &test_work);
         println!("{output}");
-        // Still no Edition, same as when value was 1
+        // Still no EditionNumber, same as when value was 1
         assert!(!output.contains(r#"    <Edition>"#));
+        assert!(!output.contains(r#"    <EditionNumber>0</EditionNumber>"#));
+        assert!(!output.contains(r#"    <EditionNumber>"#));
         // No AncillaryContent or Subject blocks at all - skip from TitleDetail straight to Audience
         assert!(output.contains(
             r#"
