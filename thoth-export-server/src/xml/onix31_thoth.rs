@@ -141,6 +141,15 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                             w.write(XmlEvent::Characters(isbn)).map_err(Into::into)
                         })
                     })?;
+                    write_element_block("ProductIdentifier", w, |w| {
+                        // 03 GTIN-13
+                        write_element_block("ProductIDType", w, |w| {
+                            w.write(XmlEvent::Characters("03")).map_err(Into::into)
+                        })?;
+                        write_element_block("IDValue", w, |w| {
+                            w.write(XmlEvent::Characters(isbn)).map_err(Into::into)
+                        })
+                    })?;
                 }
                 if let Some(doi) = &self.doi {
                     write_element_block("ProductIdentifier", w, |w| {
@@ -805,6 +814,15 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                                         // 15 ISBN-13
                                         write_element_block("ProductIDType", w, |w| {
                                             w.write(XmlEvent::Characters("15")).map_err(Into::into)
+                                        })?;
+                                        write_element_block("IDValue", w, |w| {
+                                            w.write(XmlEvent::Characters(isbn)).map_err(Into::into)
+                                        })
+                                    })?;
+                                    write_element_block("ProductIdentifier", w, |w| {
+                                        // 03 GTIN-13
+                                        write_element_block("ProductIDType", w, |w| {
+                                            w.write(XmlEvent::Characters("03")).map_err(Into::into)
                                         })?;
                                         write_element_block("IDValue", w, |w| {
                                             w.write(XmlEvent::Characters(isbn)).map_err(Into::into)
@@ -2856,6 +2874,13 @@ mod tests {
         assert!(output.contains(
             r#"
   <ProductIdentifier>
+    <ProductIDType>03</ProductIDType>
+    <IDValue>9783161484100</IDValue>
+  </ProductIdentifier>"#
+        ));
+        assert!(output.contains(
+            r#"
+  <ProductIdentifier>
     <ProductIDType>06</ProductIDType>
     <IDValue>10.00001/BOOK.0001</IDValue>
   </ProductIdentifier>"#
@@ -3703,6 +3728,13 @@ mod tests {
         assert!(!output.contains(
             r#"
   <ProductIdentifier>
+    <ProductIDType>03</ProductIDType>
+    <IDValue>9783161484100</IDValue>
+  </ProductIdentifier>"#
+        ));
+        assert!(!output.contains(
+            r#"
+  <ProductIdentifier>
     <ProductIDType>06</ProductIDType>
     <IDValue>10.00001/BOOK.0001</IDValue>
   </ProductIdentifier>"#
@@ -4122,11 +4154,24 @@ mod tests {
   </PublishingDetail>
   <RelatedMaterial>
     <RelatedProduct>
-      <ProductRelationCode>06</ProductRelationCode>
+      <ProductRelationCode>06</ProductRelationCode>"#
+        ));
+        assert!(output.contains(
+            r#"
       <ProductIdentifier>
         <ProductIDType>15</ProductIDType>
         <IDValue>9781402894626</IDValue>
-      </ProductIdentifier>
+      </ProductIdentifier>"#
+        ));
+        assert!(output.contains(
+            r#"
+      <ProductIdentifier>
+        <ProductIDType>03</ProductIDType>
+        <IDValue>9781402894626</IDValue>
+      </ProductIdentifier>"#
+        ));
+        assert!(output.contains(
+            r#"
     </RelatedProduct>
   </RelatedMaterial>
   <ProductSupply>"#
