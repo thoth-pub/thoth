@@ -505,7 +505,9 @@ mod tests {
     "publisher": {
       "publisherName": "OA Editions",
       "publisherShortname": "OAE",
-      "publisherUrl": null
+      "publisherUrl": null,
+      "accessibilityStatement": null,
+      "contacts": []
     }
   },
   "issues": [
@@ -587,6 +589,10 @@ mod tests {
       "depthMm": 25.0,
       "depthCm": 2.5,
       "depthIn": 1.0,
+      "accessibilityStandard": null,
+      "accessibilityAdditionalStandard": null,
+      "accessibilityException": null,
+      "accessibilityReportUrl": null,
       "prices": [
         {
           "currencyCode": "EUR",
@@ -631,6 +637,10 @@ mod tests {
       "depthMm": null,
       "depthCm": null,
       "depthIn": null,
+      "accessibilityStandard": null,
+      "accessibilityAdditionalStandard": null,
+      "accessibilityException": null,
+      "accessibilityReportUrl": null,
       "prices": [
         {
           "currencyCode": "EUR",
@@ -662,6 +672,10 @@ mod tests {
       "depthMm": null,
       "depthCm": null,
       "depthIn": null,
+      "accessibilityStandard": null,
+      "accessibilityAdditionalStandard": null,
+      "accessibilityException": null,
+      "accessibilityReportUrl": null,
       "prices": [],
       "locations": [
         {
@@ -687,6 +701,10 @@ mod tests {
       "depthMm": null,
       "depthCm": null,
       "depthIn": null,
+      "accessibilityStandard": null,
+      "accessibilityAdditionalStandard": null,
+      "accessibilityException": null,
+      "accessibilityReportUrl": null,
       "prices": [],
       "locations": [
         {
@@ -712,6 +730,10 @@ mod tests {
       "depthMm": null,
       "depthCm": null,
       "depthIn": null,
+      "accessibilityStandard": null,
+      "accessibilityAdditionalStandard": null,
+      "accessibilityException": null,
+      "accessibilityReportUrl": null,
       "prices": [],
       "locations": []
     }
