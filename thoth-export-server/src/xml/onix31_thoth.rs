@@ -1357,7 +1357,7 @@ impl XmlElementBlock<Onix31Thoth> for WorkContributions {
                         w.write(XmlEvent::Characters("21")).map_err(Into::into)
                     })?;
                     write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(&orcid.to_string()))
+                        w.write(XmlEvent::Characters(&orcid.to_hyphenless_string()))
                             .map_err(Into::into)
                     })
                 })?;
@@ -1442,7 +1442,7 @@ impl XmlElementBlock<Onix31Thoth> for WorkRelationsRelatedWorkContributions {
                         w.write(XmlEvent::Characters("21")).map_err(Into::into)
                     })?;
                     write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(&orcid.to_string()))
+                        w.write(XmlEvent::Characters(&orcid.to_hyphenless_string()))
                             .map_err(Into::into)
                     })
                 })?;
@@ -1918,7 +1918,7 @@ mod tests {
   <ContributorRole>A01</ContributorRole>
   <NameIdentifier>
     <NameIDType>21</NameIDType>
-    <IDValue>0000-0002-0000-0001</IDValue>
+    <IDValue>0000000200000001</IDValue>
   </NameIdentifier>
   <PersonName>Author N. 1</PersonName>
   <NamesBeforeKey>Author</NamesBeforeKey>
@@ -3246,7 +3246,7 @@ mod tests {
         <ContributorRole>A01</ContributorRole>
         <NameIdentifier>
           <NameIDType>21</NameIDType>
-          <IDValue>0000-0003-0000-0002</IDValue>
+          <IDValue>0000000300000002</IDValue>
         </NameIdentifier>
         <PersonName>Chapter Author N. 2</PersonName>
         <NamesBeforeKey>Chapter Author</NamesBeforeKey>

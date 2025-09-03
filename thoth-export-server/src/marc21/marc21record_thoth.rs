@@ -477,10 +477,8 @@ fn contributor_fields(contributions: &[WorkContributions]) -> ThothResult<Vec<Fi
         }
         if let Some(orcid) = &contributions.first().unwrap().contributor.orcid {
             // $0 Authority Record Control Number (ORCID is a permitted source)
-            contributor_field = contributor_field.add_subfield(
-                b"0",
-                format!("(orcid){}", orcid.to_string().replace('-', "")),
-            )?;
+            contributor_field = contributor_field
+                .add_subfield(b"0", format!("(orcid){}", orcid.to_hyphenless_string()))?;
             // $1 Real World Object URI
             contributor_field =
                 contributor_field.add_subfield(b"1", orcid.with_domain().as_bytes())?;

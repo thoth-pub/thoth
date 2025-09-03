@@ -286,6 +286,12 @@ impl Isbn {
     }
 }
 
+impl Orcid {
+    pub fn to_hyphenless_string(&self) -> String {
+        self.to_string().replace('-', "")
+    }
+}
+
 #[cfg(feature = "backend")]
 #[allow(clippy::too_many_arguments)]
 /// Common functionality to perform basic CRUD actions on Thoth entities
@@ -852,6 +858,13 @@ mod tests {
     fn test_isbn_to_hyphenless_string() {
         let hyphenless_isbn = Isbn("978-3-16-148410-0".to_string()).to_hyphenless_string();
         assert_eq!(hyphenless_isbn, "9783161484100");
+    }
+
+    #[test]
+    fn test_orcid_to_hyphenless_string() {
+        let hyphenless_orcid =
+            Orcid("https://orcid.org/0000-0002-1234-5678".to_string()).to_hyphenless_string();
+        assert_eq!(hyphenless_orcid, "0000000212345678");
     }
 
     #[test]
