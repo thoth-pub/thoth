@@ -487,7 +487,14 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         })?;
                     }
                     let mut main_subject_found = vec![];
+                    let mut keywords = vec![];
                     for subject in &self.subjects {
+                        // Best practice is to include only a single subject tag
+                        // for keywords, listing all of them separated by semicolons
+                        if subject.subject_type == SubjectType::KEYWORD {
+                            keywords.push(subject.subject_code.clone());
+                            continue;
+                        }
                         // One subject within every subject type can/should be marked as Main
                         // Use first one found with ordinal 1 (there may be multiple)
                         let is_main_subject = subject.subject_ordinal == 1
@@ -499,12 +506,13 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             }
                             XmlElement::<Onix3Thoth>::xml_element(&subject.subject_type, w)?;
                             match subject.subject_type {
-                                SubjectType::KEYWORD | SubjectType::CUSTOM => {
+                                SubjectType::CUSTOM => {
                                     write_element_block("SubjectHeadingText", w, |w| {
                                         w.write(XmlEvent::Characters(&subject.subject_code))
                                             .map_err(|e| e.into())
                                     })
                                 }
+                                SubjectType::KEYWORD => unreachable!(),
                                 _ => write_element_block("SubjectCode", w, |w| {
                                     w.write(XmlEvent::Characters(&subject.subject_code))
                                         .map_err(|e| e.into())
@@ -514,6 +522,15 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         if is_main_subject {
                             main_subject_found.push(subject.subject_type.clone());
                         }
+                    }
+                    if !keywords.is_empty() {
+                        write_element_block("Subject", w, |w| {
+                            XmlElement::<Onix3Thoth>::xml_element(&SubjectType::KEYWORD, w)?;
+                            write_element_block("SubjectHeadingText", w, |w| {
+                                w.write(XmlEvent::Characters(&keywords.join("; ")))
+                                    .map_err(Into::into)
+                            })
+                        })?;
                     }
                     write_element_block("Audience", w, |w| {
                         // 01 ONIX audience codes
@@ -3287,7 +3304,7 @@ mod tests {
         test_work.imprint.publisher.publisher_url = None;
         test_work.imprint.publisher.contacts.clear();
         test_work.imprint.publisher.accessibility_statement = None;
-        test_work.subjects.pop();
+        test_work.subjects[6].subject_type = SubjectType::KEYWORD;
         let output = generate_test_output(true, &test_work);
         println!("{output}");
         assert!(!output.contains(
@@ -3396,6 +3413,20 @@ mod tests {
     <Subject>
       <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>
       <SubjectHeadingText>custom2</SubjectHeadingText>
+    </Subject>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <Subject>
+      <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>
+      <SubjectHeadingText>keyword1</SubjectHeadingText>
+    </Subject>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <Subject>
+      <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>
+      <SubjectHeadingText>keyword1; custom2</SubjectHeadingText>
     </Subject>"#
         ));
         assert!(!output.contains(
