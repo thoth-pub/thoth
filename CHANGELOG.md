@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
   - [701](https://github.com/thoth-pub/thoth/issues/701) - Add accessibility-related metadata to Thoth data model and outputs
+  - [682](https://github.com/thoth-pub/thoth/issues/682) - Improve ONIX 3.0 and 3.1 outputs based on feedback from EDItEUR
 
 ## [[0.13.13]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.13) - 2025-06-05
 ### Changed
