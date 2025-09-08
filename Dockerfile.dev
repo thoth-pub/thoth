@@ -1,4 +1,4 @@
-FROM rust
+FROM rust:1.88
 
 ENV TRUNK_VERSION=0.21.9
 
