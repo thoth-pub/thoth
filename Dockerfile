@@ -11,7 +11,6 @@ RUN apk add --no-cache \
     openssl-dev \
     pkgconfig \
     gcc \
-    musl-gcc \
     && rustup target add x86_64-unknown-linux-musl
 
 # Get source
