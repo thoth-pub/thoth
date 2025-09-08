@@ -5,6 +5,9 @@ ARG THOTH_EXPORT_API=https://export.thoth.pub
 ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
 ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
 
+# Install OpenSSL development packages for musl
+RUN apk add --no-cache openssl-dev musl-dev
+
 # Get source
 COPY . .
 
