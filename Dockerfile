@@ -5,15 +5,21 @@ ARG THOTH_EXPORT_API=https://export.thoth.pub
 ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
 ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
 
-# Install OpenSSL development packages and pkg-config
-RUN apt-get update && apt-get install -y libssl-dev pkg-config
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    libssl-dev \
+    pkg-config \
+    musl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Get source
 COPY . .
 
-# Set environment variables for OpenSSL
+# Set environment variables for musl OpenSSL build
 ENV OPENSSL_STATIC=1
 ENV OPENSSL_DIR=/usr
+ENV PKG_CONFIG_ALLOW_CROSS=1
+ENV CC=musl-gcc
 
 # Build Thoth for release from source
 RUN cargo build --release
