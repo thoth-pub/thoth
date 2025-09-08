@@ -10,6 +10,8 @@ RUN apk add --no-cache \
     musl-dev \
     openssl-dev \
     pkgconfig \
+    gcc \
+    musl-gcc \
     && rustup target add x86_64-unknown-linux-musl
 
 # Get source
@@ -17,7 +19,6 @@ COPY . .
 
 # Set environment variables for musl build
 ENV OPENSSL_STATIC=1
-ENV CC=musl-gcc
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 
 # Build Thoth for release from source targeting musl
