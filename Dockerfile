@@ -1,30 +1,24 @@
-FROM rust:1.88.0-alpine
+FROM rust:1.88.0
 
 ARG THOTH_GRAPHQL_API=https://api.thoth.pub
 ARG THOTH_EXPORT_API=https://export.thoth.pub
 ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
 ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
 
-# Install musl build dependencies
-RUN apk add --no-cache \
-    musl-dev \
-    openssl-dev \
-    pkgconfig \
-    gcc \
-    && rustup target add x86_64-unknown-linux-musl
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    libssl-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
 # Get source
 COPY . .
 
-# Set environment variables for musl build
-ENV OPENSSL_STATIC=1
-ENV RUSTFLAGS="-C target-feature=-crt-static"
-
-# Build Thoth for release from source targeting musl
-RUN cargo build --release --target x86_64-unknown-linux-musl
+# Build Thoth for release from source
+RUN cargo build --release
 
 # Move the binary to root for easier access
-RUN mv target/x86_64-unknown-linux-musl/release/thoth /thoth
+RUN mv target/release/thoth /thoth
 
 # Expose thoth's default ports
 EXPOSE 8080
