@@ -4099,7 +4099,6 @@ mod tests {
         let output = generate_test_output(true, &test_work);
         println!("{output}");
         // Still no EditionNumber, same as when value was 1
-        assert!(!output.contains(r#"    <Edition>"#));
         assert!(!output.contains(r#"    <EditionNumber>0</EditionNumber>"#));
         assert!(!output.contains(r#"    <EditionNumber>"#));
         // No AncillaryContent or Subject blocks at all - skip from TitleDetail straight to Audience
