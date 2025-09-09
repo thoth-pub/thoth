@@ -867,16 +867,20 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             )
                         })?;
                     }
-                    if let Some(copyright_holder) = &self.copyright_holder {
-                        write_element_block("CopyrightStatement", w, |w| {
-                            write_element_block("CopyrightOwner", w, |w| {
-                                // This might be a CorporateName rather than PersonName, but we can't tell
-                                write_element_block("PersonName", w, |w| {
-                                    w.write(XmlEvent::Characters(copyright_holder))
-                                        .map_err(|e| e.into())
+                    if let Some(copyright_string) = &self.copyright_holder {
+                        // Format of field isn't controlled, but many records
+                        // use semicolon-separated lists
+                        for copyright_holder in copyright_string.split("; ") {
+                            write_element_block("CopyrightStatement", w, |w| {
+                                write_element_block("CopyrightOwner", w, |w| {
+                                    // This might be a CorporateName rather than PersonName, but we can't tell
+                                    write_element_block("PersonName", w, |w| {
+                                        w.write(XmlEvent::Characters(copyright_holder))
+                                            .map_err(Into::into)
+                                    })
                                 })
-                            })
-                        })?;
+                            })?;
+                        }
                     }
                     write_element_block("SalesRights", w, |w| {
                         // 02 For sale with non-exclusive rights in the specified countries or territories
@@ -2961,12 +2965,26 @@ mod tests {
     <PublishingDate>
       <PublishingDateRole>01</PublishingDateRole>
       <Date dateformat="00">19991231</Date>
-    </PublishingDate>
+    </PublishingDate>"#
+        ));
+        assert!(output.contains(
+            r#"
     <CopyrightStatement>
       <CopyrightOwner>
-        <PersonName>Author 1; Author 2</PersonName>
+        <PersonName>Author 1</PersonName>
       </CopyrightOwner>
-    </CopyrightStatement>
+    </CopyrightStatement>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <CopyrightStatement>
+      <CopyrightOwner>
+        <PersonName>Author 2</PersonName>
+      </CopyrightOwner>
+    </CopyrightStatement>"#
+        ));
+        assert!(output.contains(
+            r#"
     <SalesRights>
       <SalesRightsType>02</SalesRightsType>
       <Territory>
@@ -3292,7 +3310,8 @@ mod tests {
         test_work.landing_page = None;
         test_work.place = None;
         test_work.publication_date = None;
-        test_work.copyright_holder = None;
+        // Replace semicolons with commas
+        test_work.copyright_holder = Some("Author 1, Author 2".to_string());
         test_work.publications[0].isbn = None;
         test_work.publications[0].height_mm = None;
         test_work.publications[0].locations.pop();
@@ -3550,7 +3569,23 @@ mod tests {
             r#"
     <CopyrightStatement>
       <CopyrightOwner>
-        <PersonName>Author 1; Author 2</PersonName>
+        <PersonName>Author 1</PersonName>
+      </CopyrightOwner>
+    </CopyrightStatement>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <CopyrightStatement>
+      <CopyrightOwner>
+        <PersonName>Author 2</PersonName>
+      </CopyrightOwner>
+    </CopyrightStatement>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <CopyrightStatement>
+      <CopyrightOwner>
+        <PersonName>Author 1, Author 2</PersonName>
       </CopyrightOwner>
     </CopyrightStatement>"#
         ));
@@ -3607,6 +3642,7 @@ mod tests {
         test_work.audio_count = None;
         test_work.video_count = None;
         test_work.cover_url = None;
+        test_work.copyright_holder = None;
         test_work.relations[0].related_work.first_page = None;
         // If first page is missing, last page isn't included even if present
         test_work.relations[0].related_work.last_page = Some("20".to_string());
@@ -3681,6 +3717,30 @@ mod tests {
           <WebsiteDescription>Publisher's website: webpage for this product</WebsiteDescription>
           <WebsiteLink>https://www.book.com/pb_landing</WebsiteLink>
         </Website>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <CopyrightStatement>
+      <CopyrightOwner>
+        <PersonName>Author 1</PersonName>
+      </CopyrightOwner>
+    </CopyrightStatement>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <CopyrightStatement>
+      <CopyrightOwner>
+        <PersonName>Author 2</PersonName>
+      </CopyrightOwner>
+    </CopyrightStatement>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <CopyrightStatement>
+      <CopyrightOwner>
+        <PersonName>Author 1, Author 2</PersonName>
+      </CopyrightOwner>
+    </CopyrightStatement>"#
         ));
         // UnpricedItemType block instead of any Prices
         assert!(output.contains(r#"      <UnpricedItemType>01</UnpricedItemType>"#));
