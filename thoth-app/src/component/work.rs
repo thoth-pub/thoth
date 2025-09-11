@@ -455,7 +455,7 @@ impl Component for WorkComponent {
                 ctx.link()
                     .send_message(Msg::SetTitlePushState(FetchAction::Fetching));
 
-                // --abstract--
+                //  update abstract
                 let r#abstract = self
                     .work
                     .abstracts
@@ -486,8 +486,6 @@ impl Component for WorkComponent {
                     .send_future(self.push_abstract.fetch(Msg::SetAbstractPushState));
                 ctx.link()
                     .send_message(Msg::SetAbstractPushState(FetchAction::Fetching));
-
-                // --abstract--
 
                 let update_work_request_body = UpdateWorkRequestBody {
                     variables: UpdateWorkVariables {
@@ -631,7 +629,7 @@ impl Component for WorkComponent {
                 ctx.link()
                     .send_message(Msg::SetTitleDeleteState(FetchAction::Fetching));
 
-                // --abstract--
+                // delete abstract
                 let r#abstract = self
                     .work
                     .abstracts
@@ -655,7 +653,6 @@ impl Component for WorkComponent {
                     .send_future(self.delete_abstract.fetch(Msg::SetAbstractDeleteState));
                 ctx.link()
                     .send_message(Msg::SetAbstractDeleteState(FetchAction::Fetching));
-                // --abstract--
 
                 let delete_work_request_body = DeleteWorkRequestBody {
                     variables: DeleteWorkVariables {

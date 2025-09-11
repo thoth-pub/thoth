@@ -1104,8 +1104,6 @@ pub(crate) mod tests {
                 withdrawn_date: None,
                 license: None,
                 copyright_holder: None,
-                // short_abstract: None,
-                // long_abstract: None,
                 general_note: None,
                 place: None,
                 first_page: None,

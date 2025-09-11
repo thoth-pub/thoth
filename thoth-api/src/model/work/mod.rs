@@ -327,9 +327,6 @@ pub struct PatchWork {
     pub work_id: Uuid,
     pub work_type: WorkType,
     pub work_status: WorkStatus,
-    // pub full_title: String,
-    // pub title: String,
-    // pub subtitle: Option<String>,
     pub reference: Option<String>,
     pub edition: Option<i32>,
     pub imprint_id: Uuid,
@@ -348,8 +345,6 @@ pub struct PatchWork {
     pub landing_page: Option<String>,
     pub lccn: Option<String>,
     pub oclc: Option<String>,
-    // pub short_abstract: Option<String>,
-    // pub long_abstract: Option<String>,
     pub general_note: Option<String>,
     pub bibliography_note: Option<String>,
     pub toc: Option<String>,
@@ -583,8 +578,6 @@ mod tests {
             landing_page: Some("https://book.page".to_string()),
             lccn: None,
             oclc: None,
-            // short_abstract: Some("Short abstract".to_string()),
-            // long_abstract: Some("Long abstract".to_string()),
             general_note: None,
             bibliography_note: None,
             toc: None,
@@ -645,9 +638,6 @@ mod tests {
         assert_eq!(format!("{}", WorkField::WorkId), "ID");
         assert_eq!(format!("{}", WorkField::WorkType), "Type");
         assert_eq!(format!("{}", WorkField::WorkStatus), "WorkStatus");
-        // assert_eq!(format!("{}", WorkField::FullTitle), "Title");
-        // assert_eq!(format!("{}", WorkField::Title), "ShortTitle");
-        // assert_eq!(format!("{}", WorkField::Subtitle), "Subtitle");
         assert_eq!(format!("{}", WorkField::Reference), "Reference");
         assert_eq!(format!("{}", WorkField::Edition), "Edition");
         assert_eq!(format!("{}", WorkField::Doi), "DOI");
@@ -894,8 +884,6 @@ mod tests {
             landing_page,
             lccn,
             oclc,
-            // short_abstract,
-            // long_abstract,
             general_note,
             bibliography_note,
             toc,

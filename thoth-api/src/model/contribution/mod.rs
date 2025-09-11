@@ -4,7 +4,6 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::model::affiliation::AffiliationWithInstitution;
-// use crate::model::biography::Biography;
 use crate::model::work::WorkWithRelations;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -130,7 +129,6 @@ pub struct Contribution {
     pub contributor_id: Uuid,
     pub contribution_type: ContributionType,
     pub main_contribution: bool,
-    // pub biography: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
     pub first_name: Option<String>,
@@ -214,7 +212,6 @@ impl Default for Contribution {
             contributor_id: Default::default(),
             contribution_type: Default::default(),
             main_contribution: true,
-            // biography: Default::default(),
             created_at: Default::default(),
             updated_at: Default::default(),
             first_name: Default::default(),

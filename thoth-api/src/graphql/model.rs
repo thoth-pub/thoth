@@ -1815,7 +1815,7 @@ impl MutationRoot {
             .title(context)
             .is_ok();
 
-        // Only superusers can update the canonical location when a Thoth Location Platform canonical location already exists
+        // Only superusers can update the canonical title
         if has_canonical_title && data.canonical && !context.account_access.is_superuser {
             return Err(ThothError::CanonicalTitleExistsError.into());
         }
@@ -1866,7 +1866,7 @@ impl MutationRoot {
         .iter()
         .any(|abstract_item| abstract_item.canonical);
 
-        // Only superusers can update the canonical location when a Thoth Location Platform canonical location already exists
+        // Only superusers can update the canonical abstract
         if has_canonical_abstract && data.canonical && !context.account_access.is_superuser {
             return Err(ThothError::CanonicalAbstractExistsError.into());
         }

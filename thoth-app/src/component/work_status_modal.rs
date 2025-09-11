@@ -2,7 +2,6 @@
 
 use crate::string::CANCEL_BUTTON;
 use crate::string::SAVE_BUTTON;
-// use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 
