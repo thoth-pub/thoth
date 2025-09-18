@@ -636,20 +636,20 @@ pub fn validate_format(content: &str, format: &MarkupFormat) -> ThothResult<()> 
         MarkupFormat::Html | MarkupFormat::JatsXml => {
             // Basic HTML validation - check for opening and closing tags
             if !content.contains('<') || !content.contains('>') || !content.contains("</") {
-                return Err(ThothError::UnsuportedFileFormatError);
+                return Err(ThothError::UnsupportedFileFormatError);
             }
         }
         MarkupFormat::Markdown => {
             // Basic Markdown validation - check for markdown syntax
             if content.contains('<') && content.contains('>') {
                 // At least one markdown element should be present
-                return Err(ThothError::UnsuportedFileFormatError);
+                return Err(ThothError::UnsupportedFileFormatError);
             }
         }
         MarkupFormat::PlainText => {
             // Plain text validation - should not contain markup
             if content.contains('<') && content.contains('>') {
-                return Err(ThothError::UnsuportedFileFormatError);
+                return Err(ThothError::UnsupportedFileFormatError);
             }
         }
     }
