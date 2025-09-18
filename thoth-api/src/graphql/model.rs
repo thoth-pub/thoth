@@ -1488,7 +1488,7 @@ impl QueryRoot {
         Ok(title)
     }
 
-    #[graphql(description = "Query titles by work ID")]
+    #[graphql(description = "Query the full list of titles")]
     fn titles(
         context: &Context,
         #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
@@ -1557,7 +1557,7 @@ impl QueryRoot {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[graphql(description = "Query abstracts by work ID")]
+    #[graphql(description = "Query the full list of abstracts")]
     fn abstracts(
         context: &Context,
         #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
@@ -4045,7 +4045,7 @@ impl Contribution {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[graphql(description = "Query biographies by contribution ID")]
+    #[graphql(description = "Query the full list of biographies")]
     pub fn biographies(
         &self,
         context: &Context,
