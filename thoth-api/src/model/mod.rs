@@ -1042,8 +1042,7 @@ mod tests {
         let input = r#"
             <p>Text</p><list><list-item>Item</list-item></list><bold>Bold</bold>
         "#;
-        let output =
-            convert_from_jats(input, MarkupFormat::Html, ConversionLimit::Title).unwrap();
+        let output = convert_from_jats(input, MarkupFormat::Html, ConversionLimit::Title).unwrap();
 
         assert!(!output.contains("<p>"));
         assert!(!output.contains("<ul>"));

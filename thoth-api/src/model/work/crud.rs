@@ -1,6 +1,6 @@
 use super::{
     NewWork, NewWorkHistory, PatchWork, Work, WorkField, WorkHistory, WorkOrderBy, WorkStatus,
-    WorkType,
+    WorkType, WorkWithRelations,
 };
 use crate::diesel::JoinOnDsl;
 use crate::graphql::model::TimeExpression;
@@ -133,7 +133,7 @@ impl Work {
             .select((imprint::all_columns, publisher::all_columns))
             .first::<(Imprint, Publisher)>(&mut connection)?;
 
-        Ok(super::WorkWithRelations {
+        Ok(WorkWithRelations {
             work_id: work.work_id,
             work_type: work.work_type,
             work_status: work.work_status,
