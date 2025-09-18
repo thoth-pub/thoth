@@ -8,7 +8,6 @@ use uuid::Uuid;
 const CREATE_BIOGRAPHY_MUTATION: &str = "
     mutation CreateBiography(
         $contributionId: Uuid!,
-        $workId: Uuid!,
         $content: String!,
         $canonical: Boolean!,
         $localeCode: LocaleCode!,
@@ -18,7 +17,6 @@ const CREATE_BIOGRAPHY_MUTATION: &str = "
             markupFormat: $markupFormat,
             data: {
                 contributionId: $contributionId,
-                workId: $workId,
                 localeCode: $localeCode,
                 canonical: $canonical,
                 content: $content,
@@ -26,7 +24,6 @@ const CREATE_BIOGRAPHY_MUTATION: &str = "
         ){
             biographyId
             contributionId
-            workId
             content
             canonical
             localeCode
@@ -49,7 +46,6 @@ graphql_query_builder! {
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub contribution_id: Uuid,
-    pub work_id: Uuid,
     pub content: String,
     pub canonical: bool,
     pub locale_code: LocaleCode,

@@ -245,7 +245,6 @@ ALTER TABLE work
 CREATE TABLE IF NOT EXISTS biography (
     biography_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     contribution_id UUID NOT NULL REFERENCES contribution (contribution_id) ON DELETE CASCADE,
-    work_id UUID NOT NULL REFERENCES work (work_id) ON DELETE CASCADE,
     content TEXT NOT NULL CHECK (octet_length(content) >= 1),
     canonical BOOLEAN NOT NULL DEFAULT FALSE,
     locale_code locale_code NOT NULL
@@ -261,24 +260,24 @@ CREATE TABLE IF NOT EXISTS biography_history (
 );
 
 -- Migrate existing contribution biographies to the biography table with English locale
-INSERT INTO biography (biography_id, contribution_id, work_id, content, canonical, locale_code)
+INSERT INTO biography (biography_id, contribution_id, content, canonical, locale_code)
 SELECT
     uuid_generate_v4(),
     contribution_id,
-    work_id,
     convert_to_jats(biography) AS content,
     TRUE,
     'en'::locale_code
 FROM contribution
 WHERE biography IS NOT NULL;
 
+-- Only allow one canonical biography per contribution
 CREATE UNIQUE INDEX IF NOT EXISTS biography_unique_canonical_true_idx
-ON biography(contribution_id, work_id)
+ON biography(contribution_id)
 WHERE canonical;
 
--- Only allow one instance of each locale per contribution and work
+-- Only allow one instance of each locale per contribution
 CREATE UNIQUE INDEX IF NOT EXISTS biography_uniq_locale_idx
-ON biography(contribution_id, work_id, locale_code);
+ON biography(contribution_id, locale_code);
 
 -- Drop title-related columns from the work table
 ALTER TABLE contribution

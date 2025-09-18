@@ -1822,7 +1822,6 @@ mod tests {
             biographies: vec![thoth_client::WorkContributionsBiographies {
                 biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
                 contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                 content: "Author N. 1 is a made-up author".to_string(),
                 locale_code: thoth_client::LocaleCode::EN,
                 canonical: true,
@@ -2651,7 +2650,6 @@ mod tests {
                             biographies: vec![thoth_client::WorkRelationsRelatedWorkContributionsBiographies {
                                 biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
                                 contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                                 content: "Chapter Author N. 2 is a made-up author".to_string(),
                                 locale_code: thoth_client::LocaleCode::EN,
                                 canonical: true,

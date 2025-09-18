@@ -1548,7 +1548,6 @@ mod tests {
             biographies: vec![thoth_client::WorkContributionsBiographies {
                 biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
                 contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                 content: "Author N. 1 is a made-up author".to_string(),
                 locale_code: thoth_client::LocaleCode::EN,
                 canonical: true,
@@ -2777,7 +2776,7 @@ mod tests {
         assert!(output.contains("<TextType>03</TextType>"));
         assert!(output.contains("<ContentAudience>00</ContentAudience>"));
         assert!(output.contains("<Text>Lorem ipsum"));
-        
+
         // Check TextType 30 structure and content prefix
         assert!(output.contains("<TextType>30</TextType>"));
         assert!(output.contains("<ContentAudience>00</ContentAudience>"));

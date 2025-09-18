@@ -1887,7 +1887,10 @@ impl MutationRoot {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
-            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+            .can_edit(publisher_id_from_contribution_id(
+                &context.db,
+                data.contribution_id,
+            )?)?;
 
         let has_canonical_biography = Biography::all(
             &context.db,
@@ -1896,7 +1899,7 @@ impl MutationRoot {
             None,
             BiographyOrderBy::default(),
             vec![],
-            Some(data.work_id),
+            None,
             Some(data.contribution_id),
             vec![],
             vec![],
@@ -1980,10 +1983,14 @@ impl MutationRoot {
             .account_access
             .can_edit(biography.publisher_id(&context.db)?)?;
 
-        if data.work_id != biography.work_id {
+        // If contribution changes, ensure permission on the new work via contribution
+        if data.contribution_id != biography.contribution_id {
             context
                 .account_access
-                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+                .can_edit(publisher_id_from_contribution_id(
+                    &context.db,
+                    data.contribution_id,
+                )?)?;
         }
 
         let has_canonical_biography = Biography::all(
@@ -1993,7 +2000,7 @@ impl MutationRoot {
             None,
             BiographyOrderBy::default(),
             vec![],
-            Some(data.work_id),
+            None,
             Some(data.contribution_id),
             vec![],
             vec![],
@@ -5016,11 +5023,6 @@ impl Biography {
         self.biography_id
     }
 
-    #[graphql(description = "Thoth ID of the work to which the biography is linked")]
-    pub fn work_id(&self) -> Uuid {
-        self.work_id
-    }
-
     #[graphql(description = "Thoth ID of the contribution to which the biography is linked")]
     pub fn contribution_id(&self) -> Uuid {
         self.contribution_id
@@ -5041,9 +5043,10 @@ impl Biography {
         self.canonical
     }
 
-    #[graphql(description = "Get the work to which the biography is linked")]
+    #[graphql(description = "Get the work to which the biography is linked via contribution")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+        let contribution = Contribution::from_id(&context.db, &self.contribution_id)?;
+        Work::from_id(&context.db, &contribution.work_id).map_err(|e| e.into())
     }
 
     #[graphql(description = "Get the contribution to which the biography is linked")]

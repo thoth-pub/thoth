@@ -8,7 +8,6 @@ const UPDATE_BIOGRAPHY_MUTATION: &str = "
     mutation UpdateBiography(
         $biographyId: Uuid!,
         $contributionId: Uuid!,
-        $workId: Uuid!,
         $content: String!,
         $canonical: Boolean!,
         $localeCode: LocaleCode!,
@@ -19,7 +18,6 @@ const UPDATE_BIOGRAPHY_MUTATION: &str = "
             data: {
                 biographyId: $biographyId,
                 contributionId: $contributionId,
-                workId: $workId,
                 content: $content,
                 canonical: $canonical,
                 localeCode: $localeCode
@@ -27,7 +25,6 @@ const UPDATE_BIOGRAPHY_MUTATION: &str = "
         ){
             biographyId
             contributionId
-            workId
             content
             canonical
             localeCode
@@ -51,7 +48,6 @@ graphql_query_builder! {
 pub struct Variables {
     pub biography_id: Uuid,
     pub contribution_id: Uuid,
-    pub work_id: Uuid,
     pub content: String,
     pub canonical: bool,
     pub locale_code: LocaleCode,

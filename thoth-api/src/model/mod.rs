@@ -590,7 +590,9 @@ impl IdentifierWithDomain for Ror {}
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
-    graphql(description = "Allowed markup formats for multilingual paradigm"),
+    graphql(
+        description = "Allowed markup formats for text fields that support structured content"
+    ),
     ExistingTypePath = "crate::schema::sql_types::MarkupFormat"
 )]
 #[derive(
@@ -610,6 +612,10 @@ pub enum MarkupFormat {
     JatsXml,
 }
 
+/// Limits how much structure is preserved/allowed when converting to/from JATS.
+///
+/// - `Abstract`/`Biography`: allow basic structural elements (paragraphs, lists, emphasis, links).
+/// - `Title`: disallow structure; structural tags are stripped to plain inline text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConversionLimit {
     Abstract,

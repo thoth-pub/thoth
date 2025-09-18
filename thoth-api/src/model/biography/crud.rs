@@ -25,7 +25,9 @@ impl Crud for Biography {
     }
 
     fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        let work = crate::model::work::Work::from_id(db, &self.work_id)?;
+        let contribution =
+            crate::model::contribution::Contribution::from_id(db, &self.contribution_id)?;
+        let work = crate::model::work::Work::from_id(db, &contribution.work_id)?;
         <crate::model::work::Work as Crud>::publisher_id(&work, db)
     }
 
@@ -36,7 +38,7 @@ impl Crud for Biography {
         filter: Option<String>,
         order: Self::OrderByEntity,
         _: Vec<Uuid>,
-        parent_id_1: Option<Uuid>,
+        _parent_id_1: Option<Uuid>,
         parent_id_2: Option<Uuid>,
         locale_codes: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
@@ -44,7 +46,13 @@ impl Crud for Biography {
     ) -> ThothResult<Vec<Biography>> {
         let mut connection = db.get()?;
         let mut query = biography
-            .select(crate::schema::biography::all_columns)
+            .select((
+                biography_id,
+                contribution_id,
+                content,
+                canonical,
+                locale_code,
+            ))
             .into_boxed();
 
         query = match order.field {
@@ -55,10 +63,6 @@ impl Crud for Biography {
             BiographyField::ContributionId => match order.direction {
                 Direction::Asc => query.order(contribution_id.asc()),
                 Direction::Desc => query.order(contribution_id.desc()),
-            },
-            BiographyField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
             },
             BiographyField::Content => match order.direction {
                 Direction::Asc => query.order(content.asc()),
@@ -76,10 +80,6 @@ impl Crud for Biography {
 
         if let Some(filter) = filter {
             query = query.filter(content.ilike(format!("%{filter}%")));
-        }
-
-        if let Some(pid) = parent_id_1 {
-            query = query.filter(work_id.eq(pid));
         }
 
         if let Some(pid) = parent_id_2 {

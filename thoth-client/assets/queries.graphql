@@ -112,7 +112,6 @@ fragment Work on Work {
         biographies(limit: 1) {
             biographyId
             contributionId
-            workId
             content
             canonical
             localeCode
@@ -220,7 +219,6 @@ fragment Work on Work {
                 biographies(limit: 1) {
                     biographyId
                     contributionId
-                    workId
                     content
                     canonical
                     localeCode

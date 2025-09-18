@@ -115,7 +115,6 @@ table! {
     biography (biography_id) {
         biography_id -> Uuid,
         contribution_id -> Uuid,
-        work_id -> Uuid,
         content -> Text,
         canonical -> Bool,
         locale_code -> LocaleCode,
@@ -747,7 +746,6 @@ joinable!(title_history -> account (account_id));
 joinable!(work_abstract -> work (work_id));
 joinable!(abstract_history -> work_abstract (abstract_id));
 joinable!(abstract_history -> account (account_id));
-joinable!(biography -> work (work_id));
 joinable!(biography_history -> biography (biography_id));
 joinable!(biography_history -> account (account_id));
 

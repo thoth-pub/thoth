@@ -715,7 +715,6 @@ mod tests {
             biographies: vec![WorkContributionsBiographies {
                 biography_id: Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                 contribution_id: Uuid::parse_str("00000000-0000-0000-CCCC-000000000003").unwrap(),
-                work_id: Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                 content: "Author 1 is an author of books".to_string(),
                 canonical: true,
                 locale_code: thoth_client::LocaleCode::EN,

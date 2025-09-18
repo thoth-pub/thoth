@@ -613,7 +613,6 @@ mod tests {
                         thoth_client::WorkContributionsBiographies {
                             biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
                             contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                             content: "Author 1 is an author".to_string(),
                             locale_code: thoth_client::LocaleCode::EN,
                             canonical: true,
@@ -1024,7 +1023,6 @@ mod tests {
             biographies: vec![thoth_client::WorkContributionsBiographies {
                 biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
                 contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                 content: "Author 1 was born".to_string(),
                 locale_code: thoth_client::LocaleCode::EN,
                 canonical: true,

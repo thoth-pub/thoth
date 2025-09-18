@@ -17,7 +17,6 @@ use crate::schema::biography_history;
 pub enum BiographyField {
     BiographyId,
     ContributionId,
-    WorkId,
     Content,
     Canonical,
     LocaleCode,
@@ -48,7 +47,6 @@ impl Default for BiographyOrderBy {
 pub struct Biography {
     pub biography_id: Uuid,
     pub contribution_id: Uuid,
-    pub work_id: Uuid,
     pub content: String,
     pub canonical: bool,
     pub locale_code: LocaleCode,
@@ -63,7 +61,6 @@ pub struct Biography {
 #[derive(Default)]
 pub struct NewBiography {
     pub contribution_id: Uuid,
-    pub work_id: Uuid,
     pub content: String,
     pub canonical: bool,
     pub locale_code: LocaleCode,
@@ -78,7 +75,6 @@ pub struct NewBiography {
 pub struct PatchBiography {
     pub biography_id: Uuid,
     pub contribution_id: Uuid,
-    pub work_id: Uuid,
     pub content: String,
     pub canonical: bool,
     pub locale_code: LocaleCode,

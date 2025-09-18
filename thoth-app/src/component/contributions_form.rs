@@ -285,7 +285,6 @@ impl Component for ContributionsFormComponent {
                                 let create_biography_request_body = CreateBiographyRequestBody {
                                     variables: CreateBiographyVariables {
                                         contribution_id: i.contribution_id,
-                                        work_id: ctx.props().work_id,
                                         content: self.biography.content.clone(),
                                         canonical: self.biography.canonical,
                                         locale_code: self.biography.locale_code,
@@ -421,7 +420,6 @@ impl Component for ContributionsFormComponent {
                                     variables: UpdateBiographyVariables {
                                         biography_id: biography.biography_id,
                                         contribution_id: self.contribution.contribution_id,
-                                        work_id: ctx.props().work_id,
                                         content: biography.content.clone(),
                                         canonical: biography.canonical,
                                         locale_code: biography.locale_code,
