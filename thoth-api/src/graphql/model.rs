@@ -3144,8 +3144,7 @@ impl Work {
         let title = work_title::table
             .filter(work_title::work_id.eq(&self.work_id))
             .filter(work_title::canonical.eq(true))
-            .first::<Title>(&mut connection)
-            .map_err(|e| FieldError::new(e.to_string(), Value::null()))?;
+            .first::<Title>(&mut connection)?;
         Ok(title.subtitle)
     }
 

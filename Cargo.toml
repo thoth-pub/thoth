@@ -12,7 +12,7 @@ readme = "README.md"
 maintenance = { status = "actively-developed" }
 
 [workspace]
-members = ["ast", "thoth-api", "thoth-api-server", "thoth-app", "thoth-app-server", "thoth-client", "thoth-errors", "thoth-export-server"]
+members = ["thoth-api", "thoth-api-server", "thoth-app", "thoth-app-server", "thoth-client", "thoth-errors", "thoth-export-server"]
 
 [dependencies]
 thoth-api = { version = "=0.13.13", path = "thoth-api", features = ["backend"] }

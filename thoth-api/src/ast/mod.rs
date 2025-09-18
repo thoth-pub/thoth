@@ -36,18 +36,18 @@ pub fn markdown_to_ast(markdown: &str) -> Node {
                 _ => {}
             },
             Event::End(_tag) => {
-                if let Some(node) = stack.pop()
-                    && let Some(top) = stack.last_mut()
-                {
-                    match top {
-                        Node::Document(children)
-                        | Node::Paragraph(children)
-                        | Node::Bold(children)
-                        | Node::Italic(children)
-                        | Node::List(children)
-                        | Node::ListItem(children) => children.push(node),
-                        Node::Text(_) => {}
-                        Node::Link { text, .. } => text.push(node),
+                if let Some(node) = stack.pop() {
+                    if let Some(top) = stack.last_mut() {
+                        match top {
+                            Node::Document(children)
+                            | Node::Paragraph(children)
+                            | Node::Bold(children)
+                            | Node::Italic(children)
+                            | Node::List(children)
+                            | Node::ListItem(children) => children.push(node),
+                            Node::Text(_) => {}
+                            Node::Link { text, .. } => text.push(node),
+                        }
                     }
                 }
             }
@@ -216,7 +216,7 @@ mod tests {
                 match &children[0] {
                     Node::Paragraph(para_children) => {
                         assert_eq!(para_children.len(), 4); // Bold, text " and ", italic, text
-                        // Check for bold, text, and italic nodes
+                                                            // Check for bold, text, and italic nodes
                         let has_bold = para_children
                             .iter()
                             .any(|child| matches!(child, Node::Bold(_)));
@@ -273,7 +273,7 @@ mod tests {
                 match &children[0] {
                     Node::Paragraph(para_children) => {
                         assert_eq!(para_children.len(), 4); // Bold, text " and ", italic, text
-                        // Check for bold, text, and italic nodes
+                                                            // Check for bold, text, and italic nodes
                         let has_bold = para_children
                             .iter()
                             .any(|child| matches!(child, Node::Bold(_)));

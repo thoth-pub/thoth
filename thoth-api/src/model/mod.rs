@@ -1,4 +1,4 @@
-use ast::{ast_to_jats, html_to_ast, markdown_to_ast, plain_text_to_ast};
+use crate::ast::{ast_to_jats, html_to_ast, markdown_to_ast, plain_text_to_ast};
 use chrono::{DateTime, TimeZone, Utc};
 use isbn2::Isbn13;
 use regex::Regex;

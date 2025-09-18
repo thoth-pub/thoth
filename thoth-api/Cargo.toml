@@ -25,7 +25,8 @@ backend = [
 ]
 
 [dependencies]
-ast = { version = "0.1.0", path = "../ast" }
+pulldown-cmark = "0.13.0"
+scraper = "0.20.0"
 thoth-errors = { version = "=0.13.13", path = "../thoth-errors" }
 actix-web = { version = "4.10", optional = true }
 argon2rs = { version = "0.2.5", optional = true }
