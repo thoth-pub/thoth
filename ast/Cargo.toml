@@ -1,0 +1,12 @@
+[package]
+name = "ast"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "ast"
+path = "src/main.rs"
+
+[dependencies]
+pulldown-cmark = "0.13.0"
+scraper = "0.20.0"
