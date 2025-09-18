@@ -1906,134 +1906,6 @@ impl MutationRoot {
         Biography::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    #[graphql(description = "Update an existing abstract with the specified values")]
-    fn update_abstract(
-        context: &Context,
-        #[graphql(description = "The markup format of the abstract")] markup_format: MarkupFormat,
-        #[graphql(description = "Values to apply to existing abstract")] data: PatchAbstract,
-    ) -> FieldResult<Abstract> {
-        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let r#abstract = Abstract::from_id(&context.db, &data.abstract_id).unwrap();
-        context
-            .account_access
-            .can_edit(r#abstract.publisher_id(&context.db)?)?;
-
-        if data.work_id != r#abstract.work_id {
-            context
-                .account_access
-                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
-        }
-
-        let has_canonical_abstract = Abstract::all(
-            &context.db,
-            0,
-            100,
-            None,
-            AbstractOrderBy::default(),
-            vec![],
-            Some(data.work_id),
-            None,
-            vec![],
-            vec![],
-            None,
-        )?
-        .iter()
-        .any(|abstract_item| abstract_item.canonical);
-
-        // Only superusers can update the canonical abstract when a Thoth abstract already exists
-        if has_canonical_abstract && data.canonical && !context.account_access.is_superuser {
-            return Err(ThothError::CanonicalAbstractExistsError.into());
-        }
-
-        let mut data = data.clone();
-        data.content = convert_to_jats(data.content, markup_format, ConversionLimit::Title)?;
-
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        r#abstract
-            .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
-    }
-
-    #[graphql(description = "Update an existing biography with the specified values")]
-    fn update_biography(
-        context: &Context,
-        #[graphql(description = "The markup format of the biography")] markup_format: MarkupFormat,
-        #[graphql(description = "Values to apply to existing biography")] data: PatchBiography,
-    ) -> FieldResult<Biography> {
-        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let biography = Biography::from_id(&context.db, &data.biography_id).unwrap();
-        context
-            .account_access
-            .can_edit(biography.publisher_id(&context.db)?)?;
-
-        // If contribution changes, ensure permission on the new work via contribution
-        if data.contribution_id != biography.contribution_id {
-            context
-                .account_access
-                .can_edit(publisher_id_from_contribution_id(
-                    &context.db,
-                    data.contribution_id,
-                )?)?;
-        }
-
-        let has_canonical_biography = Biography::all(
-            &context.db,
-            0,
-            100,
-            None,
-            BiographyOrderBy::default(),
-            vec![],
-            None,
-            Some(data.contribution_id),
-            vec![],
-            vec![],
-            None,
-        )?
-        .iter()
-        .any(|biography_item| biography_item.canonical);
-
-        // Only superusers can update the canonical biography when a Thoth biography already exists
-        if has_canonical_biography && data.canonical && !context.account_access.is_superuser {
-            return Err(ThothError::CanonicalBiographyExistsError.into());
-        }
-
-        let mut data = data.clone();
-        data.content = convert_to_jats(data.content, markup_format, ConversionLimit::Title)?;
-
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        biography
-            .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
-    }
-
-    #[graphql(description = "Delete a single abstract using its ID")]
-    fn delete_abstract(
-        context: &Context,
-        #[graphql(description = "Thoth ID of abstract to be deleted")] abstract_id: Uuid,
-    ) -> FieldResult<Abstract> {
-        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let r#abstract = Abstract::from_id(&context.db, &abstract_id).unwrap();
-        context
-            .account_access
-            .can_edit(r#abstract.publisher_id(&context.db)?)?;
-
-        r#abstract.delete(&context.db).map_err(|e| e.into())
-    }
-
-    #[graphql(description = "Delete a single biography using its ID")]
-    fn delete_biography(
-        context: &Context,
-        #[graphql(description = "Thoth ID of biography to be deleted")] biography_id: Uuid,
-    ) -> FieldResult<Biography> {
-        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let biography = Biography::from_id(&context.db, &biography_id).unwrap();
-        context
-            .account_access
-            .can_edit(biography.publisher_id(&context.db)?)?;
-
-        biography.delete(&context.db).map_err(|e| e.into())
-    }
-
     #[graphql(description = "Create a new institution with the specified values")]
     fn create_institution(
         context: &Context,
@@ -2385,49 +2257,6 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Update an existing title with the specified values")]
-    fn update_title(
-        context: &Context,
-        #[graphql(description = "The markup format of the title")] markup_format: MarkupFormat,
-        #[graphql(description = "Values to apply to existing title")] data: PatchTitle,
-    ) -> FieldResult<Title> {
-        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let title = Title::from_id(&context.db, &data.title_id).unwrap();
-        context
-            .account_access
-            .can_edit(title.publisher_id(&context.db)?)?;
-
-        if data.work_id != title.work_id {
-            context
-                .account_access
-                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
-        }
-
-        let has_canonical_title = Work::from_id(&context.db, &data.work_id)?
-            .title(context)
-            .is_ok();
-
-        // Only superusers can update the canonical title when a Thoth title canonical already exists
-        if has_canonical_title && data.canonical && !context.account_access.is_superuser {
-            return Err(ThothError::CanonicalTitleExistsError.into());
-        }
-
-        let mut data = data.clone();
-        data.title = convert_to_jats(data.title, markup_format, ConversionLimit::Title)?;
-        data.subtitle = data
-            .subtitle
-            .map(|subtitle_content| {
-                convert_to_jats(subtitle_content, markup_format, ConversionLimit::Title)
-            })
-            .transpose()?;
-        data.full_title = convert_to_jats(data.full_title, markup_format, ConversionLimit::Title)?;
-
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        title
-            .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
-    }
-
     #[graphql(description = "Update an existing institution with the specified values")]
     fn update_institution(
         context: &Context,
@@ -2654,6 +2483,149 @@ impl MutationRoot {
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         reference
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Update an existing title with the specified values")]
+    fn update_title(
+        context: &Context,
+        #[graphql(description = "The markup format of the title")] markup_format: MarkupFormat,
+        #[graphql(description = "Values to apply to existing title")] data: PatchTitle,
+    ) -> FieldResult<Title> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let title = Title::from_id(&context.db, &data.title_id).unwrap();
+        context
+            .account_access
+            .can_edit(title.publisher_id(&context.db)?)?;
+
+        if data.work_id != title.work_id {
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+        }
+
+        let has_canonical_title = Work::from_id(&context.db, &data.work_id)?
+            .title(context)
+            .is_ok();
+
+        // Only superusers can update the canonical title when a Thoth title canonical already exists
+        if has_canonical_title && data.canonical && !context.account_access.is_superuser {
+            return Err(ThothError::CanonicalTitleExistsError.into());
+        }
+
+        let mut data = data.clone();
+        data.title = convert_to_jats(data.title, markup_format, ConversionLimit::Title)?;
+        data.subtitle = data
+            .subtitle
+            .map(|subtitle_content| {
+                convert_to_jats(subtitle_content, markup_format, ConversionLimit::Title)
+            })
+            .transpose()?;
+        data.full_title = convert_to_jats(data.full_title, markup_format, ConversionLimit::Title)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        title
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Update an existing abstract with the specified values")]
+    fn update_abstract(
+        context: &Context,
+        #[graphql(description = "The markup format of the abstract")] markup_format: MarkupFormat,
+        #[graphql(description = "Values to apply to existing abstract")] data: PatchAbstract,
+    ) -> FieldResult<Abstract> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let r#abstract = Abstract::from_id(&context.db, &data.abstract_id).unwrap();
+        context
+            .account_access
+            .can_edit(r#abstract.publisher_id(&context.db)?)?;
+
+        if data.work_id != r#abstract.work_id {
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+        }
+
+        let has_canonical_abstract = Abstract::all(
+            &context.db,
+            0,
+            100,
+            None,
+            AbstractOrderBy::default(),
+            vec![],
+            Some(data.work_id),
+            None,
+            vec![],
+            vec![],
+            None,
+        )?
+        .iter()
+        .any(|abstract_item| abstract_item.canonical);
+
+        // Only superusers can update the canonical abstract when a Thoth abstract already exists
+        if has_canonical_abstract && data.canonical && !context.account_access.is_superuser {
+            return Err(ThothError::CanonicalAbstractExistsError.into());
+        }
+
+        let mut data = data.clone();
+        data.content = convert_to_jats(data.content, markup_format, ConversionLimit::Title)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        r#abstract
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Update an existing biography with the specified values")]
+    fn update_biography(
+        context: &Context,
+        #[graphql(description = "The markup format of the biography")] markup_format: MarkupFormat,
+        #[graphql(description = "Values to apply to existing biography")] data: PatchBiography,
+    ) -> FieldResult<Biography> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let biography = Biography::from_id(&context.db, &data.biography_id).unwrap();
+        context
+            .account_access
+            .can_edit(biography.publisher_id(&context.db)?)?;
+
+        // If contribution changes, ensure permission on the new work via contribution
+        if data.contribution_id != biography.contribution_id {
+            context
+                .account_access
+                .can_edit(publisher_id_from_contribution_id(
+                    &context.db,
+                    data.contribution_id,
+                )?)?;
+        }
+
+        let has_canonical_biography = Biography::all(
+            &context.db,
+            0,
+            100,
+            None,
+            BiographyOrderBy::default(),
+            vec![],
+            None,
+            Some(data.contribution_id),
+            vec![],
+            vec![],
+            None,
+        )?
+        .iter()
+        .any(|biography_item| biography_item.canonical);
+
+        // Only superusers can update the canonical biography when a Thoth biography already exists
+        if has_canonical_biography && data.canonical && !context.account_access.is_superuser {
+            return Err(ThothError::CanonicalBiographyExistsError.into());
+        }
+
+        let mut data = data.clone();
+        data.content = convert_to_jats(data.content, markup_format, ConversionLimit::Title)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        biography
             .update(&context.db, &data, &account_id)
             .map_err(|e| e.into())
     }
@@ -2921,6 +2893,34 @@ impl MutationRoot {
             .can_edit(reference.publisher_id(&context.db)?)?;
 
         reference.delete(&context.db).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Delete a single abstract using its ID")]
+    fn delete_abstract(
+        context: &Context,
+        #[graphql(description = "Thoth ID of abstract to be deleted")] abstract_id: Uuid,
+    ) -> FieldResult<Abstract> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let r#abstract = Abstract::from_id(&context.db, &abstract_id).unwrap();
+        context
+            .account_access
+            .can_edit(r#abstract.publisher_id(&context.db)?)?;
+
+        r#abstract.delete(&context.db).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Delete a single biography using its ID")]
+    fn delete_biography(
+        context: &Context,
+        #[graphql(description = "Thoth ID of biography to be deleted")] biography_id: Uuid,
+    ) -> FieldResult<Biography> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let biography = Biography::from_id(&context.db, &biography_id).unwrap();
+        context
+            .account_access
+            .can_edit(biography.publisher_id(&context.db)?)?;
+
+        biography.delete(&context.db).map_err(|e| e.into())
     }
 }
 
