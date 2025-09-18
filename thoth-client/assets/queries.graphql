@@ -64,7 +64,7 @@ fragment Work on Work {
     oclc
     coverUrl
     coverCaption
-    titles(limit: 1) {
+    titles(limit: 1, markupFormat: JATS_XML) {
         titleId
         localeCode
         fullTitle
@@ -109,7 +109,7 @@ fragment Work on Work {
         lastName
         fullName
         mainContribution
-        biographies(limit: 1) {
+        biographies(limit: 1, markupFormat: JATS_XML) {
             biographyId
             contributionId
             content

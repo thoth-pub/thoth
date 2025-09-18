@@ -2967,7 +2967,9 @@ impl Work {
         Ok(title.title)
     }
 
-    #[graphql(description = "Main abstract of the work")]
+    #[graphql(
+        description = "Short abstract of the work. Where a work has two different versions of the abstract, the truncated version should be entered here. Otherwise, it can be left blank. This field is not output in metadata formats; where relevant, Long Abstract is used instead."
+    )]
     #[graphql(
         deprecated = "Please use Work `abstracts` field instead to get the correct short abstract in a multilingual manner"
     )]
@@ -2985,7 +2987,9 @@ impl Work {
         }
     }
 
-    #[graphql(description = "Main abstract of the work")]
+    #[graphql(
+        description = "Abstract of the work. Where a work has only one abstract, it should be entered here, and Short Abstract can be left blank. Long Abstract is output in metadata formats, and Short Abstract is not."
+    )]
     #[graphql(
         deprecated = "Please use Work `abstracts` field instead to get the correct long abstract in a multilingual manner"
     )]
@@ -3003,6 +3007,7 @@ impl Work {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[graphql(description = "Query titles by work ID")]
     fn titles(
         &self,
@@ -3021,9 +3026,14 @@ impl Work {
         order: Option<TitleOrderBy>,
         #[graphql(
             default = vec![],
-            description = "If set, only shows results with these locale codes"
+            description = "If set, only shows results with this locale codes"
         )]
         locale_codes: Option<Vec<LocaleCode>>,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set, only shows results with this markup format"
+        )]
+        markup_format: MarkupFormat,
     ) -> FieldResult<Vec<Title>> {
         let mut titles = Title::all(
             &context.db,
@@ -3041,20 +3051,14 @@ impl Work {
         .map_err(FieldError::from)?;
 
         for title in titles.iter_mut() {
-            title.title =
-                convert_from_jats(&title.title, MarkupFormat::Html, ConversionLimit::Title)?;
+            title.title = convert_from_jats(&title.title, markup_format, ConversionLimit::Title)?;
             title.subtitle = title
                 .subtitle
                 .as_ref()
-                .map(|subtitle| {
-                    convert_from_jats(subtitle, MarkupFormat::Html, ConversionLimit::Title)
-                })
+                .map(|subtitle| convert_from_jats(subtitle, markup_format, ConversionLimit::Title))
                 .transpose()?;
-            title.full_title = convert_from_jats(
-                &title.full_title,
-                MarkupFormat::Html,
-                ConversionLimit::Title,
-            )?;
+            title.full_title =
+                convert_from_jats(&title.full_title, markup_format, ConversionLimit::Title)?;
         }
 
         Ok(titles)
@@ -3082,6 +3086,10 @@ impl Work {
             description = "If set, only shows results with these locale codes"
         )]
         locale_codes: Option<Vec<LocaleCode>>,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set, only shows results with this markup format"
+        )]
         markup_format: MarkupFormat,
     ) -> FieldResult<Vec<Abstract>> {
         let mut abstracts = Abstract::all(
@@ -4055,9 +4063,13 @@ impl Contribution {
         order: Option<BiographyOrderBy>,
         #[graphql(
             default = vec![],
-            description = "If set, only shows results with these locale codes"
+            description = "If set, only shows results with this locale codes"
         )]
         locale_codes: Option<Vec<LocaleCode>>,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set, only shows results with this markup format"
+        )]
         markup_format: MarkupFormat,
     ) -> FieldResult<Vec<Biography>> {
         let mut biographies = Biography::all(
