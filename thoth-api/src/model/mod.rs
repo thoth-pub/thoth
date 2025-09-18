@@ -621,6 +621,7 @@ pub enum ConversionLimit {
     Abstract,
     Biography,
     Title,
+    NoStructure, // Equivalent to the old None behavior
 }
 
 /// Enum to represent abstract types
@@ -660,13 +661,13 @@ pub fn validate_format(content: &str, format: &MarkupFormat) -> ThothResult<()> 
 pub fn convert_to_jats(
     content: String,
     format: MarkupFormat,
-    conversion_limit: Option<ConversionLimit>,
+    conversion_limit: ConversionLimit,
 ) -> ThothResult<String> {
     validate_format(&content, &format)?;
     let mut output = content.clone();
     let allow_structure = matches!(
         conversion_limit,
-        Some(ConversionLimit::Abstract | ConversionLimit::Biography)
+        ConversionLimit::Abstract | ConversionLimit::Biography
     );
 
     match format {
@@ -781,14 +782,14 @@ fn remove_structural_tags(input: &str) -> String {
 pub fn convert_from_jats(
     jats_xml: &str,
     format: MarkupFormat,
-    conversion_limit: Option<ConversionLimit>,
+    conversion_limit: ConversionLimit,
 ) -> ThothResult<String> {
     validate_format(jats_xml, &MarkupFormat::JatsXml)?;
     let mut output = jats_xml.to_string();
 
     let allow_structure = matches!(
         conversion_limit,
-        Some(ConversionLimit::Abstract | ConversionLimit::Biography)
+        ConversionLimit::Abstract | ConversionLimit::Biography
     );
 
     match format {
@@ -895,14 +896,14 @@ mod tests {
     #[test]
     fn test_html_basic_formatting() {
         let input = "<em>Italic</em> and <strong>Bold</strong>";
-        let output = convert_to_jats(input.to_string(), MarkupFormat::Html, None).unwrap();
+        let output = convert_to_jats(input.to_string(), MarkupFormat::Html, ConversionLimit::NoStructure).unwrap();
         assert_eq!(output, "<italic>Italic</italic> and <bold>Bold</bold>");
     }
 
     #[test]
     fn test_html_link_conversion() {
         let input = r#"<a href="https://example.com">Link</a>"#;
-        let output = convert_to_jats(input.to_string(), MarkupFormat::Html, None).unwrap();
+        let output = convert_to_jats(input.to_string(), MarkupFormat::Html, ConversionLimit::NoStructure).unwrap();
         assert_eq!(
             output,
             r#"<ext-link xlink:href="https://example.com">Link</ext-link>"#
@@ -927,21 +928,21 @@ mod tests {
     #[test]
     fn test_html_with_structure_stripped() {
         let input = "<ul><li>One</li></ul>";
-        let output = convert_to_jats(input.to_string(), MarkupFormat::Html, None).unwrap();
+        let output = convert_to_jats(input.to_string(), MarkupFormat::Html, ConversionLimit::NoStructure).unwrap();
         assert_eq!(output, "One");
     }
 
     #[test]
     fn test_markdown_basic_formatting() {
         let input = "**Bold** and *Italic* and `code`";
-        let output = convert_to_jats(input.to_string(), MarkupFormat::Markdown, None).unwrap();
+        let output = convert_to_jats(input.to_string(), MarkupFormat::Markdown, ConversionLimit::NoStructure).unwrap();
         assert_eq!(output, "<bold>Bold</bold> and <italic>Italic</italic> and ");
     }
 
     #[test]
     fn test_markdown_link_conversion() {
         let input = "[text](https://example.com)";
-        let output = convert_to_jats(input.to_string(), MarkupFormat::Markdown, None).unwrap();
+        let output = convert_to_jats(input.to_string(), MarkupFormat::Markdown, ConversionLimit::NoStructure).unwrap();
         assert_eq!(
             output,
             r#"<ext-link xlink:href="https://example.com">text</ext-link>"#
@@ -968,7 +969,7 @@ mod tests {
     #[test]
     fn test_plain_text_with_url() {
         let input = "Hello https://example.com world";
-        let output = convert_to_jats(input.to_string(), MarkupFormat::PlainText, None).unwrap();
+        let output = convert_to_jats(input.to_string(), MarkupFormat::PlainText, ConversionLimit::NoStructure).unwrap();
         assert_eq!(
         output,
         "<sc><p>Hello </sc><ext-link xlink:href=\"https://example.com\">https://example.com</ext-link><sc> world</p></sc>"
@@ -978,7 +979,7 @@ mod tests {
     #[test]
     fn test_plain_text_no_url() {
         let input = "Just plain text.";
-        let output = convert_to_jats(input.to_string(), MarkupFormat::PlainText, None).unwrap();
+        let output = convert_to_jats(input.to_string(), MarkupFormat::PlainText, ConversionLimit::NoStructure).unwrap();
         assert_eq!(output, "<sc><p>Just plain text.</p></sc>");
     }
     // --- convert_to_jats tests end   ---
