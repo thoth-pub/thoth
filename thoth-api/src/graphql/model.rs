@@ -1508,6 +1508,10 @@ impl QueryRoot {
             description = "If set, only shows results with these locale codes"
         )]
         locale_codes: Option<Vec<LocaleCode>>,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set shows result with this markup format"
+        )]
         markup_format: MarkupFormat,
     ) -> FieldResult<Vec<Title>> {
         let mut titles = Title::all(
@@ -1544,6 +1548,10 @@ impl QueryRoot {
     fn r#abstract(
         context: &Context,
         abstgract_id: Uuid,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set shows results with this markup format"
+        )]
         markup_format: MarkupFormat,
     ) -> FieldResult<Abstract> {
         let mut r#abstract =
@@ -1574,9 +1582,13 @@ impl QueryRoot {
         order: Option<AbstractOrderBy>,
         #[graphql(
             default = vec![],
-            description = "If set, only shows results with these locale codes"
+            description = "If set only shows results with these locale codes"
         )]
         locale_codes: Option<Vec<LocaleCode>>,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set shows result with this markup format"
+        )]
         markup_format: MarkupFormat,
     ) -> FieldResult<Vec<Abstract>> {
         let mut abstracts = Abstract::all(
@@ -1609,6 +1621,10 @@ impl QueryRoot {
     fn biography(
         context: &Context,
         biography_id: Uuid,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set shows result with this markup format"
+        )]
         markup_format: MarkupFormat,
     ) -> FieldResult<Biography> {
         let mut biography =
@@ -1642,6 +1658,10 @@ impl QueryRoot {
             description = "If set, only shows results with these locale codes"
         )]
         locale_codes: Option<Vec<LocaleCode>>,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set shows result with this markup format"
+        )]
         markup_format: MarkupFormat,
     ) -> FieldResult<Vec<Biography>> {
         let mut biographies = Biography::all(
