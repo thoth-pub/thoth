@@ -851,6 +851,38 @@ mod tests {
     }
 
     #[test]
+    fn test_compile_full_title() {
+        let mut work = WorkWithRelations::default();
+        work.title = "Some title".to_string();
+        work.subtitle = None;
+        assert_eq!(work.compile_fulltitle(), "Some title".to_string());
+
+        work.subtitle = Some("With a subtitle".to_string());
+        assert_eq!(
+            work.compile_fulltitle(),
+            "Some title: With a subtitle".to_string()
+        );
+
+        work.title = "Some title?".to_string();
+        assert_eq!(
+            work.compile_fulltitle(),
+            "Some title? With a subtitle".to_string()
+        );
+
+        work.title = "Some title.".to_string();
+        assert_eq!(
+            work.compile_fulltitle(),
+            "Some title. With a subtitle".to_string()
+        );
+
+        work.title = "Some title!".to_string();
+        assert_eq!(
+            work.compile_fulltitle(),
+            "Some title! With a subtitle".to_string()
+        );
+    }
+
+    #[test]
     fn test_work_into_patchwork() {
         let work = test_work();
         let patch_work: PatchWork = work.clone().into();

@@ -75,6 +75,7 @@ pub const WORK_QUERY: &str = "
                     workStatus
                     fullTitle
                     title
+                    imprintId
                     subtitle
                     createdAt
                     updatedAt
