@@ -686,10 +686,14 @@ table! {
     }
 }
 
+joinable!(abstract_history -> work_abstract (abstract_id));
+joinable!(abstract_history -> account (account_id));
 joinable!(affiliation -> contribution (contribution_id));
 joinable!(affiliation -> institution (institution_id));
 joinable!(affiliation_history -> account (account_id));
 joinable!(affiliation_history -> affiliation (affiliation_id));
+joinable!(biography_history -> biography (biography_id));
+joinable!(biography_history -> account (account_id));
 joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
 joinable!(contribution_history -> account (account_id));
@@ -734,25 +738,24 @@ joinable!(series_history -> series (series_id));
 joinable!(subject -> work (work_id));
 joinable!(subject_history -> account (account_id));
 joinable!(subject_history -> subject (subject_id));
+joinable!(title_history -> work_title (title_id));
+joinable!(title_history -> account (account_id));
 joinable!(work -> imprint (imprint_id));
+joinable!(work_abstract -> work (work_id));
 joinable!(work_history -> account (account_id));
 joinable!(work_history -> work (work_id));
 joinable!(work_relation -> work (relator_work_id));
 joinable!(work_relation_history -> account (account_id));
 joinable!(work_relation_history -> work_relation (work_relation_id));
 joinable!(work_title -> work (work_id));
-joinable!(title_history -> work_title (title_id));
-joinable!(title_history -> account (account_id));
-joinable!(work_abstract -> work (work_id));
-joinable!(abstract_history -> work_abstract (abstract_id));
-joinable!(abstract_history -> account (account_id));
-joinable!(biography_history -> biography (biography_id));
-joinable!(biography_history -> account (account_id));
 
 allow_tables_to_appear_in_same_query!(
+    abstract_history,
     account,
     affiliation,
     affiliation_history,
+    biography,
+    biography_history,
     contribution,
     contribution_history,
     contributor,
@@ -782,14 +785,11 @@ allow_tables_to_appear_in_same_query!(
     series_history,
     subject,
     subject_history,
+    title_history,
     work,
     work_abstract,
     work_history,
     work_relation,
     work_relation_history,
     work_title,
-    title_history,
-    abstract_history,
-    biography,
-    biography_history,
 );
