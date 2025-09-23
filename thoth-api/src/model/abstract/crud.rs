@@ -8,10 +8,7 @@ use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::work_abstract::dsl;
 use crate::schema::{abstract_history, work_abstract};
 use crate::{crud_methods, db_insert};
-use actix_web::http::header::IF_MATCH;
-use diesel::{
-    BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
-};
+use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
 
