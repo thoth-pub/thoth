@@ -8,6 +8,7 @@ use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::work_abstract::dsl;
 use crate::schema::{abstract_history, work_abstract};
 use crate::{crud_methods, db_insert};
+use actix_web::http::header::IF_MATCH;
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -85,16 +86,10 @@ impl Crud for Abstract {
         }
 
         if !locale_codes.is_empty() {
-            if let Some(at) = abstract_type {
-                query = query.filter(
-                    dsl::locale_code
-                        .eq_any(&locale_codes)
-                        .and(dsl::abstract_type.eq(at)),
-                );
-            } else {
-                query = query.filter(dsl::locale_code.eq_any(locale_codes));
-            }
-        } else if let Some(at) = abstract_type {
+            query = query.filter(dsl::locale_code.eq_any(locale_codes));
+        }
+
+        if let Some(at) = abstract_type {
             query = query.filter(dsl::abstract_type.eq(at));
         }
 
