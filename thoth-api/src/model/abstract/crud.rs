@@ -1,7 +1,7 @@
 use super::LocaleCode;
 use super::{
-    Abstract, AbstractField, AbstractHistory, AbstractOrderBy, NewAbstract, NewAbstractHistory,
-    PatchAbstract,
+    Abstract, AbstractField, AbstractHistory, AbstractOrderBy, AbstractType, NewAbstract,
+    NewAbstractHistory, PatchAbstract,
 };
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
@@ -20,7 +20,7 @@ impl Crud for Abstract {
     type OrderByEntity = AbstractOrderBy;
     type FilterParameter1 = LocaleCode;
     type FilterParameter2 = ();
-    type FilterParameter3 = super::AbstractType;
+    type FilterParameter3 = AbstractType;
 
     fn pk(&self) -> Uuid {
         self.abstract_id
