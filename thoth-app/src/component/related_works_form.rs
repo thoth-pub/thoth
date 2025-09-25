@@ -4,7 +4,6 @@ use gloo_timers::callback::Timeout;
 use std::str::FromStr;
 use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
-use thoth_api::model::work::Work;
 use thoth_api::model::work_relation::RelationType;
 use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
 use thoth_errors::ThothError;
@@ -25,11 +24,12 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormRelationTypeSelect;
-use crate::models::work::slim_works_query::FetchActionSlimWorks;
-use crate::models::work::slim_works_query::FetchSlimWorks;
-use crate::models::work::slim_works_query::SlimWorksRequest;
-use crate::models::work::slim_works_query::SlimWorksRequestBody;
-use crate::models::work::slim_works_query::Variables;
+use crate::models::work::slim_works_with_relations_query::FetchActionSlimWorksWithRelations;
+use crate::models::work::slim_works_with_relations_query::FetchSlimWorksWithRelations;
+use crate::models::work::slim_works_with_relations_query::SlimWorkWithRelations;
+use crate::models::work::slim_works_with_relations_query::SlimWorksWithRelationsRequest;
+use crate::models::work::slim_works_with_relations_query::SlimWorksWithRelationsRequestBody;
+use crate::models::work::slim_works_with_relations_query::Variables;
 use crate::models::work_relation::create_work_relation_mutation::CreateWorkRelationRequest;
 use crate::models::work_relation::create_work_relation_mutation::CreateWorkRelationRequestBody;
 use crate::models::work_relation::create_work_relation_mutation::PushActionCreateWorkRelation;
@@ -66,7 +66,7 @@ pub struct RelatedWorksFormComponent {
     show_modal_form: bool,
     in_edit_mode: bool,
     show_results: bool,
-    fetch_works: FetchSlimWorks,
+    fetch_works: FetchSlimWorksWithRelations,
     fetch_relation_types: FetchRelationTypes,
     create_relation: PushCreateWorkRelation,
     delete_relation: PushDeleteWorkRelation,
@@ -81,14 +81,14 @@ pub struct RelatedWorksFormComponent {
 
 #[derive(Default)]
 struct RelatedWorksFormData {
-    works: Vec<Work>,
+    works: Vec<SlimWorkWithRelations>,
     relation_types: Vec<RelationTypeValues>,
 }
 
 #[allow(clippy::large_enum_variant)]
 pub enum Msg {
     ToggleModalFormDisplay(bool, Option<WorkRelationWithRelatedWork>),
-    SetWorksFetchState(FetchActionSlimWorks),
+    SetWorksFetchState(FetchActionSlimWorksWithRelations),
     GetWorks,
     SetRelationTypesFetchState(FetchActionRelationTypes),
     GetRelationTypes,
@@ -101,7 +101,7 @@ pub enum Msg {
     UpdateWorkRelation,
     SetRelationDeleteState(PushActionDeleteWorkRelation),
     DeleteWorkRelation(Uuid),
-    AddRelation(Work),
+    AddRelation(SlimWorkWithRelations),
     ChangeRelationtype(RelationType),
     ChangeOrdinal(String),
     ChangeRoute(AdminRoute),
@@ -125,7 +125,7 @@ impl Component for RelatedWorksFormComponent {
         let show_modal_form = false;
         let in_edit_mode = false;
         let show_results = false;
-        let body = SlimWorksRequestBody {
+        let body = SlimWorksWithRelationsRequestBody {
             variables: Variables {
                 limit: Some(100),
                 publishers: ctx.props().current_user.resource_access.restricted_to(),
@@ -133,7 +133,7 @@ impl Component for RelatedWorksFormComponent {
             },
             ..Default::default()
         };
-        let request = SlimWorksRequest { body };
+        let request = SlimWorksWithRelationsRequest { body };
         let fetch_works = Fetch::new(request);
         let fetch_relation_types = Default::default();
         let create_relation = Default::default();
@@ -388,7 +388,7 @@ impl Component for RelatedWorksFormComponent {
             }
             Msg::AddRelation(work) => {
                 self.relation.related_work_id = work.work_id;
-                self.relation.related_work = work;
+                self.relation.related_work = work.into();
                 ctx.link()
                     .send_message(Msg::ToggleModalFormDisplay(true, None));
                 true
@@ -413,7 +413,7 @@ impl Component for RelatedWorksFormComponent {
                 false
             }
             Msg::SearchWork => {
-                let body = SlimWorksRequestBody {
+                let body = SlimWorksWithRelationsRequestBody {
                     variables: Variables {
                         filter: Some(self.search_query.clone()),
                         limit: Some(25),
@@ -422,7 +422,7 @@ impl Component for RelatedWorksFormComponent {
                     },
                     ..Default::default()
                 };
-                let request = SlimWorksRequest { body };
+                let request = SlimWorksWithRelationsRequest { body };
                 self.fetch_works = Fetch::new(request);
                 ctx.link().send_message(Msg::GetWorks);
                 false
@@ -447,7 +447,7 @@ impl Component for RelatedWorksFormComponent {
         if updated_permissions {
             // Reload works list to reflect the user's access rights.
             // This will override any search box filtering, but should only occur rarely.
-            let body = SlimWorksRequestBody {
+            let body = SlimWorksWithRelationsRequestBody {
                 variables: Variables {
                     limit: Some(100),
                     publishers: ctx.props().current_user.resource_access.restricted_to(),
@@ -455,7 +455,7 @@ impl Component for RelatedWorksFormComponent {
                 },
                 ..Default::default()
             };
-            let request = SlimWorksRequest { body };
+            let request = SlimWorksWithRelationsRequest { body };
             self.fetch_works = Fetch::new(request);
             ctx.link().send_message(Msg::GetWorks);
             false
@@ -548,7 +548,7 @@ impl Component for RelatedWorksFormComponent {
                                 <div class="field">
                                     <label class="label">{ "Work" }</label>
                                     <div class="control is-expanded">
-                                        {self.relation.related_work.work_id}
+                                        {self.relation.related_work.full_title.clone()}
                                     </div>
                                 </div>
                                 <FormNumberInput
@@ -654,7 +654,7 @@ impl RelatedWorksFormComponent {
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "Work" }</label>
                         <div class="control is-expanded">
-                            {self.relation.related_work.work_id}
+                            {self.relation.related_work.full_title.clone()}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">

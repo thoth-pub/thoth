@@ -4,7 +4,7 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
-use crate::model::work::Work;
+use crate::model::work::WorkWithRelations;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::work_relation;
@@ -120,7 +120,7 @@ pub struct WorkRelation {
     pub updated_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkRelationWithRelatedWork {
     pub work_relation_id: Uuid,
@@ -128,7 +128,7 @@ pub struct WorkRelationWithRelatedWork {
     pub related_work_id: Uuid,
     pub relation_type: RelationType,
     pub relation_ordinal: i32,
-    pub related_work: Work,
+    pub related_work: WorkWithRelations,
 }
 
 #[cfg_attr(

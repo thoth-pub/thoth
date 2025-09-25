@@ -59,7 +59,7 @@ pub struct Variables {
     pub relation_ordinal: i32,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateWorkRelationResponseData {
     pub create_work_relation: Option<WorkRelationWithRelatedWork>,

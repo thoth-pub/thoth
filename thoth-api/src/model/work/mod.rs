@@ -532,15 +532,6 @@ impl From<Work> for PatchWork {
     }
 }
 
-impl fmt::Display for Work {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match &self.doi {
-            Some(doi) => write!(f, "{} - {}", self.work_id, doi),
-            None => write!(f, "{}", self.work_id),
-        }
-    }
-}
-
 impl fmt::Display for WorkWithRelations {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.doi {
