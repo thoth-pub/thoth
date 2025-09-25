@@ -4,7 +4,6 @@ use serde::Serialize;
 use std::fmt;
 use thoth_api::model::imprint::ImprintWithPublisher;
 use thoth_api::model::publisher::Publisher;
-use thoth_api::model::title::Title;
 use thoth_api::model::work::Work;
 use thoth_api::model::work::WorkWithRelations;
 
@@ -21,14 +20,9 @@ pub const SLIM_WORKS_WITH_RELATIONS_QUERY_BODY: &str = "
             createdAt
             updatedAt
             updatedAtWithRelations
-            titles {
-                titleId
-                localeCode
-                fullTitle
-                title
-                subtitle
-                canonical
-            }
+            title,
+            subtitle,
+            fullTitle,
         }";
 
 graphql_query_builder! {
@@ -54,7 +48,9 @@ pub struct SlimWorkWithRelations {
     pub created_at: thoth_api::model::Timestamp,
     pub updated_at: thoth_api::model::Timestamp,
     pub updated_at_with_relations: thoth_api::model::Timestamp,
-    pub titles: Option<Vec<Title>>,
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub full_title: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -66,12 +62,13 @@ pub struct SlimWorksWithRelationsResponseData {
 
 impl fmt::Display for SlimWorkWithRelations {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // Get the title from the first title entry, or fall back to work_id
-        let title = if let Some(titles) = &self.titles {
-            if let Some(first_title) = titles.first() {
-                first_title.title.clone()
-            } else {
-                self.work_id.to_string()
+        // Prefer full_title; fall back to title; finally to work_id
+        let title = if !self.full_title.is_empty() {
+            self.full_title.clone()
+        } else if !self.title.is_empty() {
+            match &self.subtitle {
+                Some(sub) if !sub.is_empty() => format!("{}: {}", self.title, sub),
+                _ => self.title.clone(),
             }
         } else {
             self.work_id.to_string()
@@ -127,20 +124,10 @@ impl From<SlimWorkWithRelations> for Work {
 
 impl From<SlimWorkWithRelations> for WorkWithRelations {
     fn from(work: SlimWorkWithRelations) -> Self {
-        // Extract title information from the titles field
-        let (full_title, title, subtitle) = if let Some(titles) = &work.titles {
-            if let Some(first_title) = titles.first() {
-                (
-                    first_title.full_title.clone(),
-                    first_title.title.clone(),
-                    first_title.subtitle.clone(),
-                )
-            } else {
-                (work.work_id.to_string(), work.work_id.to_string(), None)
-            }
-        } else {
-            (work.work_id.to_string(), work.work_id.to_string(), None)
-        };
+        // Use the flattened title fields directly
+        let full_title = work.full_title.clone();
+        let title = work.title.clone();
+        let subtitle = work.subtitle.clone();
 
         Self {
             work_id: work.work_id,
@@ -200,7 +187,7 @@ impl From<SlimWorkWithRelations> for WorkWithRelations {
             },
             relations: None,
             references: None,
-            titles: work.titles,
+            titles: None,
             abstracts: None,
         }
     }

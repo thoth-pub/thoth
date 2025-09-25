@@ -90,9 +90,17 @@ mod tests {
                 thoth_client::WorkAbstracts {
                     abstract_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
                     work_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
-                    content: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>".to_string(),
+                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.".to_string(),
                     locale_code: thoth_client::LocaleCode::EN,
                     abstract_type: thoth_client::AbstractType::SHORT,
+                    canonical: true,
+                },
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000002").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
+                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::LONG,
                     canonical: true,
                 },
             ],
@@ -152,7 +160,22 @@ mod tests {
                     last_name: "1".to_string(),
                     full_name: "Author 1".to_string(),
                     main_contribution: true,
-                    biographies: vec![],
+                    biographies: vec![
+                        thoth_client::WorkContributionsBiographies {
+                            biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                            contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            content: "Author 1 was born".to_string(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            canonical: true,
+                        },
+                        thoth_client::WorkContributionsBiographies {
+                            biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000003").unwrap(),
+                            contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            content: "Author 1 studied at University".to_string(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            canonical: true,
+                        },
+                    ],
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -424,7 +447,7 @@ mod tests {
                         thoth_client::WorkRelationsRelatedWorkAbstracts {
                             abstract_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
                             work_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
-                            content: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>".to_string(),
+                            content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
                             locale_code: thoth_client::LocaleCode::EN,
                             abstract_type: thoth_client::AbstractType::SHORT,
                             canonical: true,
@@ -511,9 +534,17 @@ mod tests {
     {
       "abstractId": "00000000-0000-0000-aaaa-000000000001",
       "workId": "00000000-0000-0000-aaaa-000000000001",
-      "content": "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>",
+      "content": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.",
       "localeCode": "EN",
       "abstractType": "SHORT",
+      "canonical": true
+    },
+    {
+      "abstractId": "00000000-0000-0000-aaaa-000000000002",
+      "workId": "00000000-0000-0000-aaaa-000000000001",
+      "content": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.",
+      "localeCode": "EN",
+      "abstractType": "LONG",
       "canonical": true
     }
   ],
@@ -549,7 +580,22 @@ mod tests {
       "lastName": "1",
       "fullName": "Author 1",
       "mainContribution": true,
-      "biographies": [],
+      "biographies": [
+        {
+          "biographyId": "00000000-0000-0000-aaaa-000000000002",
+          "contributionId": "00000000-0000-0000-aaaa-000000000001",
+          "content": "Author 1 was born",
+          "canonical": true,
+          "localeCode": "EN"
+        },
+        {
+          "biographyId": "00000000-0000-0000-aaaa-000000000003",
+          "contributionId": "00000000-0000-0000-aaaa-000000000001",
+          "content": "Author 1 studied at University",
+          "canonical": true,
+          "localeCode": "EN"
+        }
+      ],
       "contributionOrdinal": 1,
       "contributor": {
         "orcid": "https://orcid.org/0000-0002-0000-0001",
@@ -830,7 +876,7 @@ mod tests {
           {
             "abstractId": "00000000-0000-0000-aaaa-000000000001",
             "workId": "00000000-0000-0000-aaaa-000000000001",
-            "content": "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>",
+            "content": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.",
             "localeCode": "EN",
             "abstractType": "SHORT",
             "canonical": true

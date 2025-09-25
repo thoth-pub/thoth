@@ -500,6 +500,9 @@ impl Component for RelatedWorksFormComponent {
                             <div class="dropdown-content">
                                 {
                                     for self.data.works.iter().map(|w| {
+
+
+                                        web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(format!("w: {:?}", w).as_str()));
                                         let work = w.clone();
                                         // avoid listing works where a relation already exists
                                         if ctx.props().relations
