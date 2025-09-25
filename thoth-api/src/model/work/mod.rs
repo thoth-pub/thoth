@@ -843,9 +843,12 @@ mod tests {
 
     #[test]
     fn test_compile_full_title() {
-        let mut work = WorkWithRelations::default();
-        work.title = "Some title".to_string();
-        work.subtitle = None;
+        let mut work = WorkWithRelations {
+            title: "Some title".to_string(),
+            subtitle: None,
+            ..Default::default()
+        };
+
         assert_eq!(work.compile_fulltitle(), "Some title".to_string());
 
         work.subtitle = Some("With a subtitle".to_string());

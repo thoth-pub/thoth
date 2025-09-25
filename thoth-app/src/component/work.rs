@@ -373,7 +373,7 @@ impl Component for WorkComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.update_work {
-                        Some(w) => {
+                        Some(_) => {
                             // Save was successful: update user-entered DOI variable to match DOI in database
                             self.doi = self.work.doi.clone().unwrap_or_default().to_string();
                             self.doi_warning.clear();
