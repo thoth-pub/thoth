@@ -59,6 +59,74 @@ CREATE TYPE locale_code AS ENUM (
     'zu', 'zu_za'
 );
 
+-- -----------------------------------------------------------------------------
+-- Conversion Function
+-- -----------------------------------------------------------------------------
+-- This function attempts to detect the format of the input text (HTML, Markdown,
+-- or Plaintext) and converts it into a basic JATS XML structure.
+-- NOTE: This function uses heuristics and regular expressions for conversion. It
+-- covers common cases but is not a full-fledged parser. It is designed to be
+-- sufficient for this one-time data migration.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION convert_to_jats(content_in TEXT)
+RETURNS TEXT AS $$
+DECLARE
+    processed_content TEXT := content_in;
+BEGIN
+    -- Return NULL immediately if input is NULL or empty.
+    IF processed_content IS NULL OR processed_content = '' THEN
+        RETURN NULL;
+    END IF;
+
+    -- The CASE statement detects the format and applies conversion rules.
+    CASE
+        -- A) HTML Detection: Looks for common HTML tags. Now includes <sc>.
+        WHEN processed_content ~* '<(p|em|i|strong|b|sup|sub|sc|code|a|br)\b' THEN
+            -- Convert HTML tags to their JATS equivalents.
+            processed_content := regexp_replace(processed_content, '<a\s+href="([^"]+)"[^>]*>(.*?)</a>', '<ext-link xlink:href="\1">\2</ext-link>', 'gi');
+            processed_content := regexp_replace(processed_content, '<(strong|b)>(.*?)</\1>', '<bold>\2</bold>', 'gi');
+            processed_content := regexp_replace(processed_content, '<(em|i)>(.*?)</\1>', '<italic>\2</italic>', 'gi');
+            processed_content := regexp_replace(processed_content, '<code>(.*?)</code>', '<monospace>\1</monospace>', 'gi');
+            processed_content := regexp_replace(processed_content, '<br\s*/?>', '<break/>', 'gi');
+            -- <sup>, <sub>, and <sc> are valid in JATS, so they are left as is.
+
+        -- B) Markdown Detection: Looks for Markdown syntax like **, *, ``, etc.
+        WHEN processed_content ~ '(\*\*|__).+?\1' OR
+             processed_content ~ '(?<![a-zA-Z0-9])(\*|_).+?\1(?![a-zA-Z0-9])' OR
+             processed_content ~ '`[^`]+`' OR
+             processed_content ~ '\[[^\]]+\]\([^)]+\)' THEN
+            -- Convert Markdown to JATS. Order of replacement is important.
+            processed_content := regexp_replace(processed_content, '\[([^\]]+)\]\(([^)]+)\)', '<ext-link xlink:href="\2">\1</ext-link>', 'g');
+            processed_content := regexp_replace(processed_content, '\*\*(.+?)\*\*', '<bold>\1</bold>', 'g');
+            processed_content := regexp_replace(processed_content, '__(.+?)__', '<bold>\1</bold>', 'g');
+            processed_content := regexp_replace(processed_content, '\*(.+?)\*', '<italic>\1</italic>', 'g');
+            processed_content := regexp_replace(processed_content, '_(.+?)_', '<italic>\1</italic>', 'g');
+            processed_content := regexp_replace(processed_content, '`([^`]+)`', '<monospace>\1</monospace>', 'g');
+            processed_content := regexp_replace(processed_content, '  \n', '<break/>\n', 'g');
+
+            -- Wrap the result in <p> tags as Markdown is just a fragment.
+            processed_content := '<p>' || processed_content || '</p>';
+            -- Convert double newlines to paragraph breaks.
+            processed_content := regexp_replace(processed_content, '\n\n', '</p><p>', 'g');
+
+        -- C) Plaintext (Default Case)
+        ELSE
+            -- For plaintext, convert all-caps words to <sc> tags, then wrap in <p> tags and handle newlines.
+            -- This rule assumes that words in all caps (e.g., "NASA") should be rendered in small-caps.
+            processed_content := regexp_replace(processed_content, '\b([A-Z]{2,})\b', '<sc>\1</sc>', 'g');
+
+            -- Wrap the content in <p> tags and convert newlines.
+            processed_content := '<p>' || processed_content || '</p>';
+            processed_content := regexp_replace(processed_content, E'\n\n', '</p><p>', 'g');
+            processed_content := regexp_replace(processed_content, E'\n', '<break/>', 'g');
+    END CASE;
+
+    -- Return the processed content without the <abstract> wrapper.
+    RETURN processed_content;
+
+END;
+$$ LANGUAGE plpgsql;
+
 -- Create the title table
 CREATE TABLE IF NOT EXISTS title (
     title_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -130,74 +198,6 @@ CREATE TABLE IF NOT EXISTS abstract_history (
     data JSONB NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
--- -----------------------------------------------------------------------------
--- Conversion Function
--- -----------------------------------------------------------------------------
--- This function attempts to detect the format of the input text (HTML, Markdown,
--- or Plaintext) and converts it into a basic JATS XML structure.
--- NOTE: This function uses heuristics and regular expressions for conversion. It
--- covers common cases but is not a full-fledged parser. It is designed to be
--- sufficient for this one-time data migration.
--- -----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION convert_to_jats(content_in TEXT)
-RETURNS TEXT AS $$
-DECLARE
-    processed_content TEXT := content_in;
-BEGIN
-    -- Return NULL immediately if input is NULL or empty.
-    IF processed_content IS NULL OR processed_content = '' THEN
-        RETURN NULL;
-    END IF;
-
-    -- The CASE statement detects the format and applies conversion rules.
-    CASE
-        -- A) HTML Detection: Looks for common HTML tags. Now includes <sc>.
-        WHEN processed_content ~* '<(p|em|i|strong|b|sup|sub|sc|code|a|br)\b' THEN
-            -- Convert HTML tags to their JATS equivalents.
-            processed_content := regexp_replace(processed_content, '<a\s+href="([^"]+)"[^>]*>(.*?)</a>', '<ext-link xlink:href="\1">\2</ext-link>', 'gi');
-            processed_content := regexp_replace(processed_content, '<(strong|b)>(.*?)</\1>', '<bold>\2</bold>', 'gi');
-            processed_content := regexp_replace(processed_content, '<(em|i)>(.*?)</\1>', '<italic>\2</italic>', 'gi');
-            processed_content := regexp_replace(processed_content, '<code>(.*?)</code>', '<monospace>\1</monospace>', 'gi');
-            processed_content := regexp_replace(processed_content, '<br\s*/?>', '<break/>', 'gi');
-            -- <sup>, <sub>, and <sc> are valid in JATS, so they are left as is.
-
-        -- B) Markdown Detection: Looks for Markdown syntax like **, *, ``, etc.
-        WHEN processed_content ~ '(\*\*|__).+?\1' OR
-             processed_content ~ '(?<![a-zA-Z0-9])(\*|_).+?\1(?![a-zA-Z0-9])' OR
-             processed_content ~ '`[^`]+`' OR
-             processed_content ~ '\[[^\]]+\]\([^)]+\)' THEN
-            -- Convert Markdown to JATS. Order of replacement is important.
-            processed_content := regexp_replace(processed_content, '\[([^\]]+)\]\(([^)]+)\)', '<ext-link xlink:href="\2">\1</ext-link>', 'g');
-            processed_content := regexp_replace(processed_content, '\*\*(.+?)\*\*', '<bold>\1</bold>', 'g');
-            processed_content := regexp_replace(processed_content, '__(.+?)__', '<bold>\1</bold>', 'g');
-            processed_content := regexp_replace(processed_content, '\*(.+?)\*', '<italic>\1</italic>', 'g');
-            processed_content := regexp_replace(processed_content, '_(.+?)_', '<italic>\1</italic>', 'g');
-            processed_content := regexp_replace(processed_content, '`([^`]+)`', '<monospace>\1</monospace>', 'g');
-            processed_content := regexp_replace(processed_content, '  \n', '<break/>\n', 'g');
-
-            -- Wrap the result in <p> tags as Markdown is just a fragment.
-            processed_content := '<p>' || processed_content || '</p>';
-            -- Convert double newlines to paragraph breaks.
-            processed_content := regexp_replace(processed_content, '\n\n', '</p><p>', 'g');
-
-        -- C) Plaintext (Default Case)
-        ELSE
-            -- For plaintext, convert all-caps words to <sc> tags, then wrap in <p> tags and handle newlines.
-            -- This rule assumes that words in all caps (e.g., "NASA") should be rendered in small-caps.
-            processed_content := regexp_replace(processed_content, '\b([A-Z]{2,})\b', '<sc>\1</sc>', 'g');
-
-            -- Wrap the content in <p> tags and convert newlines.
-            processed_content := '<p>' || processed_content || '</p>';
-            processed_content := regexp_replace(processed_content, E'\n\n', '</p><p>', 'g');
-            processed_content := regexp_replace(processed_content, E'\n', '<break/>', 'g');
-    END CASE;
-
-    -- Return the processed content without the <abstract> wrapper.
-    RETURN processed_content;
-
-END;
-$$ LANGUAGE plpgsql;
 
 -- Insert short abstracts into the abstract table using the conversion function
 INSERT INTO abstract (abstract_id, work_id, content, locale_code, abstract_type, canonical)
