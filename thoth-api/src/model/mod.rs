@@ -759,7 +759,7 @@ pub fn convert_from_jats(
 
         MarkupFormat::JatsXml => {
             // Return the AST converted back to JATS (should be identical)
-            ast_to_jats(&processed_ast)
+            jats_xml.to_string()
         }
     };
 
@@ -823,6 +823,18 @@ mod tests {
         )
         .unwrap();
         assert_eq!(output, "One");
+    }
+
+    #[test]
+    fn test_html_small_caps_conversion() {
+        let input = "<text>Small caps text</text>";
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::Html,
+            ConversionLimit::Title,
+        )
+        .unwrap();
+        assert_eq!(output, "<sc>Small caps text</sc>");
     }
 
     #[test]

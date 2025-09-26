@@ -872,16 +872,7 @@ mod tests {
                         subtitle: None,
                         canonical: true,
                     }],
-                    abstracts: vec![
-                        thoth_client::WorkRelationsRelatedWorkAbstracts {
-                            abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                            content: "Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.".to_string(),
-                            locale_code: thoth_client::LocaleCode::EN,
-                            abstract_type: thoth_client::AbstractType::SHORT,
-                            canonical: true,
-                        },
-                    ],
+                    abstracts: vec![],
                     edition: None,
                     doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
                     publication_date: None,

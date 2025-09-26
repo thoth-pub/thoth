@@ -13,6 +13,7 @@ pub enum Node {
     Code(Vec<Node>),
     Superscript(Vec<Node>),
     Subscript(Vec<Node>),
+    SmallCaps(Vec<Node>),
     List(Vec<Node>),
     ListItem(Vec<Node>),
     Link { url: String, text: Vec<Node> },
@@ -51,6 +52,7 @@ pub fn markdown_to_ast(markdown: &str) -> Node {
                             | Node::Code(children)
                             | Node::Superscript(children)
                             | Node::Subscript(children)
+                            | Node::SmallCaps(children)
                             | Node::List(children)
                             | Node::ListItem(children) => children.push(node),
                             Node::Text(_) => {}
@@ -68,6 +70,7 @@ pub fn markdown_to_ast(markdown: &str) -> Node {
                     | Node::Code(children)
                     | Node::Superscript(children)
                     | Node::Subscript(children)
+                    | Node::SmallCaps(children)
                     | Node::List(children)
                     | Node::ListItem(children),
                 ) = stack.last_mut()
@@ -89,6 +92,7 @@ pub fn markdown_to_ast(markdown: &str) -> Node {
                     | Node::Code(children)
                     | Node::Superscript(children)
                     | Node::Subscript(children)
+                    | Node::SmallCaps(children)
                     | Node::List(children)
                     | Node::ListItem(children),
                 ) = stack.last_mut()
@@ -119,6 +123,7 @@ pub fn markdown_to_ast(markdown: &str) -> Node {
                             | Node::Code(_)
                             | Node::Superscript(_)
                             | Node::Subscript(_)
+                            | Node::SmallCaps(_)
                             | Node::Text(_)
                             | Node::Link { .. }
                     )
@@ -152,7 +157,6 @@ pub fn html_to_ast(html: &str) -> Node {
         let tag_name = element.value().name();
         let mut children = Vec::new();
 
-        // Process child elements and text nodes
         for child in element.children() {
             match child.value() {
                 scraper::node::Node::Element(_) => {
@@ -167,7 +171,6 @@ pub fn html_to_ast(html: &str) -> Node {
             }
         }
 
-        // Map HTML tags to AST nodes
         match tag_name {
             "html" | "body" | "div" => Node::Document(children),
             "p" => Node::Paragraph(children),
@@ -176,6 +179,7 @@ pub fn html_to_ast(html: &str) -> Node {
             "code" => Node::Code(children),
             "sup" => Node::Superscript(children),
             "sub" => Node::Subscript(children),
+            "text" => Node::SmallCaps(children),
             "ul" | "ol" => Node::List(children),
             "li" => Node::ListItem(children),
             "a" => {
@@ -211,7 +215,45 @@ pub fn html_to_ast(html: &str) -> Node {
                 children.push(parse_element_to_node(element));
             }
         }
-        Node::Document(children)
+        let result = Node::Document(children);
+        
+        // Post-process to wrap standalone inline elements in paragraphs
+        match result {
+            Node::Document(children) => {
+                if children.len() > 1 {
+                    let all_inline = children.iter().all(|child| {
+                        matches!(
+                            child,
+                            Node::Bold(_)
+                                | Node::Italic(_)
+                                | Node::Code(_)
+                                | Node::Superscript(_)
+                                | Node::Subscript(_)
+                                | Node::SmallCaps(_)
+                                | Node::Text(_)
+                                | Node::Link { .. }
+                        )
+                    });
+                    if all_inline {
+                        Node::Document(vec![Node::Paragraph(children)])
+                    } else {
+                        Node::Document(children)
+                    }
+                } else if children.len() == 1 {
+                    // If we have only one child, check if it should be wrapped in a paragraph
+                    match &children[0] {
+                        Node::Link { .. } | Node::Text(_) | Node::Bold(_) | Node::Italic(_) | Node::Code(_) | Node::Superscript(_) | Node::Subscript(_) | Node::SmallCaps(_) => {
+                            // Wrap standalone inline elements in paragraphs
+                            Node::Document(vec![Node::Paragraph(children)])
+                        }
+                        _ => Node::Document(children),
+                    }
+                } else {
+                    Node::Document(children)
+                }
+            }
+            _ => result,
+        }
     }
 }
 
@@ -224,7 +266,6 @@ fn parse_text_with_urls(text: &str) -> Vec<Node> {
     let url_pattern = regex::Regex::new(r"(https?://[^\s]+)").unwrap();
 
     for mat in url_pattern.find_iter(text) {
-        // Add text before the URL
         if mat.start() > current_pos {
             let before_text = &text[current_pos..mat.start()];
             if !before_text.is_empty() {
@@ -232,7 +273,6 @@ fn parse_text_with_urls(text: &str) -> Vec<Node> {
             }
         }
 
-        // Add the URL as a link
         let url = mat.as_str();
         result.push(Node::Link {
             url: url.to_string(),
@@ -242,7 +282,6 @@ fn parse_text_with_urls(text: &str) -> Vec<Node> {
         current_pos = mat.end();
     }
 
-    // Add remaining text after the last URL
     if current_pos < text.len() {
         let remaining_text = &text[current_pos..];
         if !remaining_text.is_empty() {
@@ -250,7 +289,6 @@ fn parse_text_with_urls(text: &str) -> Vec<Node> {
         }
     }
 
-    // If no URLs were found, return the original text as a single Text node
     if result.is_empty() {
         result.push(Node::Text(text.to_string()));
     }
@@ -260,14 +298,11 @@ fn parse_text_with_urls(text: &str) -> Vec<Node> {
 
 // Convert plain text string to AST
 pub fn plain_text_to_ast(text: &str) -> Node {
-    // Parse text to detect URLs and convert them to links
     let parsed_nodes = parse_text_with_urls(text.trim());
 
     if parsed_nodes.len() == 1 {
-        // Single text node - return as-is for plain text
         parsed_nodes[0].clone()
     } else {
-        // Multiple nodes (text + links), wrap in a document
         Node::Document(parsed_nodes)
     }
 }
@@ -326,6 +361,10 @@ pub fn ast_to_jats(node: &Node) -> String {
             let inner: String = children.iter().map(ast_to_jats).collect();
             format!("<sub>{}</sub>", inner)
         }
+        Node::SmallCaps(children) => {
+            let inner: String = children.iter().map(ast_to_jats).collect();
+            format!("<sc>{}</sc>", inner)
+        }
         Node::List(items) => {
             let inner: String = items.iter().map(ast_to_jats).collect();
             format!("<list>{}</list>", inner)
@@ -349,7 +388,6 @@ pub fn jats_to_ast(jats: &str) -> Node {
         let tag_name = element.value().name();
         let mut children = Vec::new();
 
-        // Process child elements and text nodes
         for child in element.children() {
             match child.value() {
                 scraper::node::Node::Element(_) => {
@@ -364,7 +402,6 @@ pub fn jats_to_ast(jats: &str) -> Node {
             }
         }
 
-        // Map JATS tags to AST nodes
         match tag_name {
             "article" | "body" | "sec" | "div" => Node::Document(children),
             "p" => Node::Paragraph(children),
@@ -373,6 +410,7 @@ pub fn jats_to_ast(jats: &str) -> Node {
             "monospace" => Node::Code(children),
             "sup" => Node::Superscript(children),
             "sub" => Node::Subscript(children),
+            "sc" => Node::SmallCaps(children),
             "list" => Node::List(children),
             "list-item" => Node::ListItem(children),
             "ext-link" => {
@@ -382,23 +420,6 @@ pub fn jats_to_ast(jats: &str) -> Node {
                     url,
                     text: children,
                 }
-            }
-            "sc" => {
-                // Small caps - return as text node for now
-                if children.len() == 1 {
-                    if let Node::Text(text) = &children[0] {
-                        return Node::Text(text.clone());
-                    }
-                }
-                // If multiple children, join them as text
-                let text_content: String = children
-                    .iter()
-                    .filter_map(|child| match child {
-                        Node::Text(text) => Some(text.as_str()),
-                        _ => None,
-                    })
-                    .collect();
-                Node::Text(text_content)
             }
             _ => {
                 // For unknown tags, create a document node with the children
@@ -486,6 +507,10 @@ pub fn ast_to_html(node: &Node) -> String {
             let inner: String = children.iter().map(ast_to_html).collect();
             format!("<sub>{}</sub>", inner)
         }
+        Node::SmallCaps(children) => {
+            let inner: String = children.iter().map(ast_to_html).collect();
+            format!("<text>{}</text>", inner)
+        }
         Node::List(items) => {
             let inner: String = items.iter().map(ast_to_html).collect();
             format!("<ul>{}</ul>", inner)
@@ -539,6 +564,10 @@ pub fn ast_to_markdown(node: &Node) -> String {
             let inner: String = children.iter().map(ast_to_markdown).collect();
             format!("<sub>{}</sub>", inner)
         }
+        Node::SmallCaps(children) => {
+            let inner: String = children.iter().map(ast_to_markdown).collect();
+            format!("<sc>{}</sc>", inner)
+        }
         Node::List(items) => {
             let mut result = String::new();
             for item in items {
@@ -580,6 +609,10 @@ pub fn ast_to_plain_text(node: &Node) -> String {
         | Node::Code(children)
         | Node::Superscript(children)
         | Node::Subscript(children) => {
+            // For plain text, we just extract the text content without formatting
+            children.iter().map(ast_to_plain_text).collect()
+        }
+        Node::SmallCaps(children) => {
             // For plain text, we just extract the text content without formatting
             children.iter().map(ast_to_plain_text).collect()
         }
@@ -722,6 +755,13 @@ pub fn strip_structural_elements_from_ast(node: &Node) -> Node {
                 .collect();
             Node::Subscript(processed_children)
         }
+        Node::SmallCaps(children) => {
+            let processed_children: Vec<Node> = children
+                .iter()
+                .map(strip_structural_elements_from_ast)
+                .collect();
+            Node::SmallCaps(processed_children)
+        }
         Node::Link { url, text } => {
             let processed_text: Vec<Node> = text
                 .iter()
@@ -833,6 +873,13 @@ pub fn strip_structural_elements_from_ast_for_conversion(node: &Node) -> Node {
                 .collect();
             Node::Subscript(processed_children)
         }
+        Node::SmallCaps(children) => {
+            let processed_children: Vec<Node> = children
+                .iter()
+                .map(strip_structural_elements_from_ast_for_conversion)
+                .collect();
+            Node::SmallCaps(processed_children)
+        }
         Node::Link { url, text } => {
             let processed_text: Vec<Node> = text
                 .iter()
@@ -870,6 +917,7 @@ fn validate_title_content(node: &Node) -> ThothResult<()> {
                             | Node::Code(_)
                             | Node::Superscript(_)
                             | Node::Subscript(_)
+                            | Node::SmallCaps(_)
                             | Node::Text(_)
                             | Node::Link { .. }
                     )
@@ -892,7 +940,8 @@ fn validate_title_content(node: &Node) -> ThothResult<()> {
         | Node::Italic(children)
         | Node::Code(children)
         | Node::Superscript(children)
-        | Node::Subscript(children) => {
+        | Node::Subscript(children)
+        | Node::SmallCaps(children) => {
             // Inline formatting elements are allowed
             for child in children {
                 validate_title_content(child)?;
@@ -930,7 +979,8 @@ fn validate_abstract_content(node: &Node) -> ThothResult<()> {
         | Node::Italic(children)
         | Node::Code(children)
         | Node::Superscript(children)
-        | Node::Subscript(children) => {
+        | Node::Subscript(children)
+        | Node::SmallCaps(children) => {
             for child in children {
                 validate_abstract_content(child)?;
             }
@@ -1106,6 +1156,34 @@ mod tests {
             }
             _ => panic!("Expected document node"),
         }
+    }
+
+    #[test]
+    fn test_html_to_ast_small_caps() {
+        let html = "<text>Small caps text</text>";
+        let ast = html_to_ast(html);
+
+        // Check that we have a SmallCaps node somewhere in the AST
+        fn find_small_caps(node: &Node) -> bool {
+            match node {
+                Node::SmallCaps(children) => {
+                    if children.len() == 1 {
+                        match &children[0] {
+                            Node::Text(content) => content == "Small caps text",
+                            _ => false,
+                        }
+                    } else {
+                        false
+                    }
+                }
+                Node::Document(children) | Node::Paragraph(children) => {
+                    children.iter().any(find_small_caps)
+                }
+                _ => false,
+            }
+        }
+
+        assert!(find_small_caps(&ast), "Expected to find SmallCaps node with 'Small caps text'");
     }
 
     #[test]
@@ -1815,17 +1893,29 @@ mod tests {
 
         // Debug: let's see what we actually get
         match ast {
-            Node::Text(content) => {
-                assert_eq!(content, "Small caps text");
+            Node::SmallCaps(children) => {
+                assert_eq!(children.len(), 1);
+                match &children[0] {
+                    Node::Text(content) => {
+                        assert_eq!(content, "Small caps text");
+                    }
+                    _ => panic!("Expected text node as child of SmallCaps"),
+                }
             }
             Node::Document(children) => {
-                // If it's a document, check if it has one child that's a text node
+                // If it's a document, check if it has one child that's a SmallCaps node
                 if children.len() == 1 {
                     match &children[0] {
-                        Node::Text(content) => {
-                            assert_eq!(content, "Small caps text");
+                        Node::SmallCaps(sc_children) => {
+                            assert_eq!(sc_children.len(), 1);
+                            match &sc_children[0] {
+                                Node::Text(content) => {
+                                    assert_eq!(content, "Small caps text");
+                                }
+                                _ => panic!("Expected text node as child of SmallCaps"),
+                            }
                         }
-                        _ => panic!("Expected text node as single child, got: {:?}", children[0]),
+                        _ => panic!("Expected SmallCaps node as single child, got: {:?}", children[0]),
                     }
                 } else {
                     panic!(
@@ -1836,7 +1926,7 @@ mod tests {
                 }
             }
             _ => panic!(
-                "Expected text node or document with text child, got: {:?}",
+                "Expected SmallCaps node or document with SmallCaps child, got: {:?}",
                 ast
             ),
         }
@@ -1865,6 +1955,13 @@ mod tests {
         ])]);
         let html = ast_to_html(&ast);
         assert_eq!(html, "<p><strong>Bold</strong> and <em>italic</em></p>");
+    }
+
+    #[test]
+    fn test_ast_to_html_small_caps() {
+        let ast = Node::SmallCaps(vec![Node::Text("Small caps text".to_string())]);
+        let html = ast_to_html(&ast);
+        assert_eq!(html, "<text>Small caps text</text>");
     }
 
     #[test]
