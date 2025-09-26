@@ -325,7 +325,6 @@ fn write_abstract_content<W: Write>(
         "jats:abstract",
         Some(vec![("abstract-type", abstract_type)]),
         w,
-        // replace this with jats from db
         |w| {
             for paragraph in abstract_content.lines() {
                 if !paragraph.is_empty() {

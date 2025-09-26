@@ -1,7 +1,10 @@
-use crate::ast::{ast_to_jats, html_to_ast, markdown_to_ast, plain_text_to_ast};
+use crate::ast::{
+    ast_to_html, ast_to_jats, ast_to_markdown, ast_to_plain_text, html_to_ast, jats_to_ast,
+    markdown_to_ast, plain_text_ast_to_jats, plain_text_to_ast, strip_structural_elements_from_ast,
+    strip_structural_elements_from_ast_for_conversion, validate_ast_content,
+};
 use chrono::{DateTime, TimeZone, Utc};
 use isbn2::Isbn13;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -664,117 +667,57 @@ pub fn convert_to_jats(
 ) -> ThothResult<String> {
     validate_format(&content, &format)?;
     let mut output = content.clone();
-    let allow_structure = matches!(
-        conversion_limit,
-        ConversionLimit::Abstract | ConversionLimit::Biography
-    );
 
     match format {
         MarkupFormat::Html => {
             // Use ast library to parse HTML and convert to JATS
             let ast = html_to_ast(&content);
-            let mut jats_output = ast_to_jats(&ast);
 
-            // Handle code tags
-            jats_output = jats_output
-                .replace("<code>", "<monospace>")
-                .replace("</code>", "</monospace>");
-
-            if allow_structure {
-                jats_output = jats_output.replace("<br/>", "<break/>");
+            // For title conversion, strip structural elements before validation
+            let processed_ast = if conversion_limit == ConversionLimit::Title {
+                strip_structural_elements_from_ast(&ast)
             } else {
-                // Remove disallowed structure
-                jats_output = Regex::new(r"<(/?)(p|ul|ol|li|br|list|list-item)>")
-                    .unwrap()
-                    .replace_all(&jats_output, "")
-                    .to_string();
-            }
+                ast
+            };
 
-            output = jats_output;
+            validate_ast_content(&processed_ast, conversion_limit)?;
+            output = ast_to_jats(&processed_ast);
         }
 
         MarkupFormat::Markdown => {
             // Use ast library to parse Markdown and convert to JATS
             let ast = markdown_to_ast(&content);
-            let mut jats_output = ast_to_jats(&ast);
 
-            // Handle code tags and links separately as they're not in the basic AST
-            let code_re = Regex::new(r"`(.*?)`").unwrap();
-            jats_output = code_re
-                .replace_all(&jats_output, r"<monospace>$1</monospace>")
-                .to_string();
+            // For title conversion, strip structural elements before validation
+            let processed_ast = if conversion_limit == ConversionLimit::Title {
+                strip_structural_elements_from_ast(&ast)
+            } else {
+                ast
+            };
 
-            let link_re = Regex::new(r"\[(.*?)\]\((.*?)\)").unwrap();
-            jats_output = link_re
-                .replace_all(&jats_output, r#"<ext-link xlink:href="$2">$1</ext-link>"#)
-                .to_string();
-
-            if !allow_structure {
-                // Remove disallowed structure
-                jats_output = Regex::new(r"<(/?)(p|ul|ol|li|br|list|list-item)>")
-                    .unwrap()
-                    .replace_all(&jats_output, "")
-                    .to_string();
-            }
-
-            output = jats_output;
+            validate_ast_content(&processed_ast, conversion_limit)?;
+            output = ast_to_jats(&processed_ast);
         }
 
         MarkupFormat::PlainText => {
             // Use ast library to parse plain text and convert to JATS
             let ast = plain_text_to_ast(&content);
-            let jats_output = ast_to_jats(&ast);
 
-            // Handle URLs separately
-            let url_re = Regex::new(r"https?://\S+").unwrap();
-            let mut to_output = String::new();
-            let mut last_index = 0;
+            // For title conversion, strip structural elements before validation
+            let processed_ast = if conversion_limit == ConversionLimit::Title {
+                strip_structural_elements_from_ast(&ast)
+            } else {
+                ast
+            };
 
-            for mat in url_re.find_iter(&jats_output) {
-                // Append preceding plain text wrapped in <sc>
-                if mat.start() > last_index {
-                    let plain = &jats_output[last_index..mat.start()];
-                    if !plain.trim().is_empty() {
-                        to_output.push_str(&format!("<sc>{plain}</sc>"));
-                    }
-                }
-                // Append URL as <ext-link>
-                let url = mat.as_str();
-                to_output.push_str(&format!(r#"<ext-link xlink:href="{url}">{url}</ext-link>"#));
-                last_index = mat.end();
-            }
-
-            // Append remaining plain text wrapped in <sc>
-            if last_index < jats_output.len() {
-                let plain = &jats_output[last_index..];
-                if !plain.trim().is_empty() {
-                    to_output.push_str(&format!("<sc>{plain}</sc>"));
-                }
-            }
-
-            output = to_output;
+            validate_ast_content(&processed_ast, conversion_limit)?;
+            output = plain_text_ast_to_jats(&processed_ast);
         }
 
         MarkupFormat::JatsXml => {}
     }
 
     Ok(output)
-}
-
-fn remove_structural_tags(input: &str) -> String {
-    let structural_tags = &[
-        r"</?p>",
-        r"<break\s*/?>",
-        r"</?list>",
-        r"</?list-item>",
-        r"</?(ul|ol|li)>",
-    ];
-    let mut output = input.to_string();
-    for tag in structural_tags {
-        let re = Regex::new(tag).unwrap();
-        output = re.replace_all(&output, "").to_string();
-    }
-    output
 }
 
 /// Convert from JATS XML to specified format using a specific tag name
@@ -784,105 +727,41 @@ pub fn convert_from_jats(
     conversion_limit: ConversionLimit,
 ) -> ThothResult<String> {
     validate_format(jats_xml, &MarkupFormat::JatsXml)?;
-    let mut output = jats_xml.to_string();
 
-    let allow_structure = matches!(
-        conversion_limit,
-        ConversionLimit::Abstract | ConversionLimit::Biography
-    );
+    // Parse JATS to AST first for better handling
+    let ast = jats_to_ast(jats_xml);
 
-    match format {
+    // For title conversion, strip structural elements before validation
+    let processed_ast = if conversion_limit == ConversionLimit::Title {
+        strip_structural_elements_from_ast_for_conversion(&ast)
+    } else {
+        ast
+    };
+
+    // Validate the AST content based on conversion limit
+    validate_ast_content(&processed_ast, conversion_limit)?;
+
+    let output = match format {
         MarkupFormat::Html => {
-            output = output
-                .replace("<italic>", "<em>")
-                .replace("</italic>", "</em>");
-            output = output
-                .replace("<bold>", "<strong>")
-                .replace("</bold>", "</strong>");
-            output = output
-                .replace("<monospace>", "<code>")
-                .replace("</monospace>", "</code>");
-            // output = output.replace("<sup>", "<sup>").replace("</sup>", "</sup>");
-            // output = output.replace("<sub>", "<sub>").replace("</sub>", "</sub>");
-            output = output.replace("<sc>", "").replace("</sc>", "");
-
-            let ext_link_re =
-                Regex::new(r#"<ext-link\s+[^>]*xlink:href="([^"]+)"[^>]*>(.*?)</ext-link>"#)
-                    .unwrap();
-            output = ext_link_re
-                .replace_all(&output, r#"<a href="$1">$2</a>"#)
-                .to_string();
-
-            if allow_structure {
-                output = output.replace("<break/>", "<br/>");
-                // output = output.replace("<p>", "<p>").replace("</p>", "</p>");
-                output = output.replace("<list>", "<ul>").replace("</list>", "</ul>");
-                output = output
-                    .replace("<list-item>", "<li>")
-                    .replace("</list-item>", "</li>");
-            } else {
-                output = remove_structural_tags(&output);
-            }
+            // Use the dedicated AST to HTML converter
+            ast_to_html(&processed_ast)
         }
 
         MarkupFormat::Markdown => {
-            output = output.replace("<italic>", "*").replace("</italic>", "*");
-            output = output.replace("<bold>", "**").replace("</bold>", "**");
-            output = output
-                .replace("<monospace>", "")
-                .replace("</monospace>", "");
-            output = output.replace("<sc>", "").replace("</sc>", "");
-            // output = output.replace("<sup>", "<sup>").replace("</sup>", "</sup>");
-            // output = output.replace("<sub>", "<sub>").replace("</sub>", "</sub>");
-
-            let ext_link_re =
-                Regex::new(r#"<ext-link\s+[^>]*xlink:href="([^"]+)"[^>]*>(.*?)</ext-link>"#)
-                    .unwrap();
-            output = ext_link_re.replace_all(&output, r#"[$2]($1)"#).to_string();
-
-            if allow_structure {
-                output = output.replace("<break/>", "  \n");
-                output = output.replace("<p>", "").replace("</p>", "\n\n");
-                output = output.replace("<list>", "").replace("</list>", "");
-                output = output
-                    .replace("<list-item>", "- ")
-                    .replace("</list-item>", "\n");
-            } else {
-                output = remove_structural_tags(&output);
-            }
+            // Use the dedicated AST to Markdown converter
+            ast_to_markdown(&processed_ast)
         }
 
         MarkupFormat::PlainText => {
-            // Replace ext-link with text (url)
-            let ext_link_re =
-                Regex::new(r#"<ext-link\s+[^>]*xlink:href="([^"]+)"[^>]*>(.*?)</ext-link>"#)
-                    .unwrap();
-            output = ext_link_re
-                .replace_all(&output, |caps: &regex::Captures| {
-                    let url = &caps[1];
-                    let text = &caps[2];
-                    format!("{text} ({url})")
-                })
-                .to_string();
-
-            // Replace <sc>text</sc> with text
-            let sc_re = Regex::new(r"</?sc>").unwrap();
-            output = sc_re.replace_all(&output, "").to_string();
-
-            // Remove any other tags
-            let tag_re = Regex::new(r"<[^>]+>").unwrap();
-            output = tag_re.replace_all(&output, "").to_string();
-
-            output = output.trim().to_string()
+            // Use the dedicated AST to plain text converter
+            ast_to_plain_text(&processed_ast)
         }
 
-        MarkupFormat::JatsXml => {}
-    }
-
-    // Enforce title limit: strip structure
-    if conversion_limit == ConversionLimit::Title {
-        output = remove_structural_tags(&output);
-    }
+        MarkupFormat::JatsXml => {
+            // Return the AST converted back to JATS (should be identical)
+            ast_to_jats(&processed_ast)
+        }
+    };
 
     Ok(output)
 }
@@ -955,7 +834,10 @@ mod tests {
             ConversionLimit::Title,
         )
         .unwrap();
-        assert_eq!(output, "<bold>Bold</bold> and <italic>Italic</italic> and ");
+        assert_eq!(
+            output,
+            "<p><bold>Bold</bold> and <italic>Italic</italic> and <monospace>code</monospace></p>"
+        );
     }
 
     #[test]
@@ -969,7 +851,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             output,
-            r#"<ext-link xlink:href="https://example.com">text</ext-link>"#
+            r#"<p><ext-link xlink:href="https://example.com">text</ext-link></p>"#
         );
     }
 
@@ -1001,7 +883,7 @@ mod tests {
         .unwrap();
         assert_eq!(
         output,
-        "<sc><p>Hello </sc><ext-link xlink:href=\"https://example.com\">https://example.com</ext-link><sc> world</p></sc>"
+        "<p>Hello </p><ext-link xlink:href=\"https://example.com\"><p>https://example.com</p></ext-link><p> world</p>"
     );
     }
 
@@ -1014,7 +896,7 @@ mod tests {
             ConversionLimit::Title,
         )
         .unwrap();
-        assert_eq!(output, "<sc><p>Just plain text.</p></sc>");
+        assert_eq!(output, "<p>Just plain text.</p>");
     }
     // --- convert_to_jats tests end   ---
 

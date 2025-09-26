@@ -21,7 +21,7 @@ yewtil = { version = "0.4.0", features = ["fetch"] }
 actix-web = "4.9"
 deadpool-redis = "0.20.0"
 dialoguer = { version = "0.11.0", features = ["password"] }
-diesel = "2.2.8"
+diesel = { version = "2.2.8", features = ["r2d2"] }
 csv = "1.3.1"
 juniper = "0.16.1"
 marc = { version = "3.1.1", features = ["xml"] }

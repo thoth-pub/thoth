@@ -1861,7 +1861,7 @@ impl MutationRoot {
         let has_canonical_abstract = Abstract::all(
             &context.db,
             0,
-            100,
+            0,
             None,
             AbstractOrderBy::default(),
             vec![],
@@ -1902,7 +1902,7 @@ impl MutationRoot {
         let has_canonical_biography = Biography::all(
             &context.db,
             0,
-            100,
+            0,
             None,
             BiographyOrderBy::default(),
             vec![],
@@ -2571,7 +2571,7 @@ impl MutationRoot {
         let has_canonical_abstract = Abstract::all(
             &context.db,
             0,
-            100,
+            0,
             None,
             AbstractOrderBy::default(),
             vec![],
@@ -2623,7 +2623,7 @@ impl MutationRoot {
         let has_canonical_biography = Biography::all(
             &context.db,
             0,
-            100,
+            0,
             None,
             BiographyOrderBy::default(),
             vec![],
@@ -4123,7 +4123,7 @@ impl Contribution {
     //     self.biography.as_ref()
     // }
 
-    #[graphql(description = "Main biography of the work")]
+    #[graphql(description = "Biography of the contributor at the time of contribution")]
     #[graphql(
         deprecated = "Please use Contribution `biographies` field instead to get the correct biography in a multilingual manner"
     )]

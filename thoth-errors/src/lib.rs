@@ -125,6 +125,10 @@ pub enum ThothError {
     UnsupportedFileFormatError,
     #[error("Content tag not found")]
     TagNotFoundError,
+    #[error("Title content cannot contain multiple top-level elements.")]
+    TitleMultipleTopLevelElementsError,
+    #[error("Title content cannot contain list item elements.")]
+    TitleListItemError,
 }
 
 impl ThothError {

@@ -70,7 +70,7 @@ use crate::models::title::delete_title_mutation::DeleteTitleRequest;
 use crate::models::title::delete_title_mutation::DeleteTitleRequestBody;
 use crate::models::title::delete_title_mutation::PushActionDeleteTitle;
 use crate::models::title::delete_title_mutation::PushDeleteTitle;
-use crate::models::title::delete_title_mutation::Variables as DeleteTitlekVariables;
+use crate::models::title::delete_title_mutation::Variables as DeleteTitleVariables;
 use crate::models::title::update_title_mutation::PushActionUpdateTitle;
 use crate::models::title::update_title_mutation::PushUpdateTitle;
 use crate::models::title::update_title_mutation::UpdateTitleRequest;
@@ -250,14 +250,8 @@ impl Component for WorkComponent {
             Msg::SetWorkFetchState(fetch_state) => {
                 self.fetch_work.apply(fetch_state);
                 match self.fetch_work.as_ref().state() {
-                    FetchState::NotFetching(_) => {
-                        web_sys::console::log_1(&wasm_bindgen::JsValue::from_str("NotFetching"));
-                        false
-                    }
-                    FetchState::Fetching(_) => {
-                        web_sys::console::log_1(&wasm_bindgen::JsValue::from_str("Fetching"));
-                        false
-                    }
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => {
                         self.work = match &body.data.work {
                             Some(w) => w.to_owned(),
@@ -291,13 +285,7 @@ impl Component for WorkComponent {
                         }
                         true
                     }
-                    FetchState::Failed(_, err) => {
-                        web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(
-                            format!("Failed: {err:?}").as_str(),
-                        ));
-
-                        false
-                    }
+                    FetchState::Failed(_, _) => false,
                 }
             }
             Msg::GetWork => {
@@ -615,7 +603,7 @@ impl Component for WorkComponent {
             }
             Msg::DeleteWork => {
                 let delete_title_request_body = DeleteTitleRequestBody {
-                    variables: DeleteTitlekVariables {
+                    variables: DeleteTitleVariables {
                         title_id: self.work.titles.as_ref().unwrap()[0].title_id,
                     },
                     ..Default::default()
