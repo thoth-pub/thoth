@@ -216,7 +216,7 @@ pub fn html_to_ast(html: &str) -> Node {
             }
         }
         let result = Node::Document(children);
-        
+
         // Post-process to wrap standalone inline elements in paragraphs
         match result {
             Node::Document(children) => {
@@ -242,7 +242,14 @@ pub fn html_to_ast(html: &str) -> Node {
                 } else if children.len() == 1 {
                     // If we have only one child, check if it should be wrapped in a paragraph
                     match &children[0] {
-                        Node::Link { .. } | Node::Text(_) | Node::Bold(_) | Node::Italic(_) | Node::Code(_) | Node::Superscript(_) | Node::Subscript(_) | Node::SmallCaps(_) => {
+                        Node::Link { .. }
+                        | Node::Text(_)
+                        | Node::Bold(_)
+                        | Node::Italic(_)
+                        | Node::Code(_)
+                        | Node::Superscript(_)
+                        | Node::Subscript(_)
+                        | Node::SmallCaps(_) => {
                             // Wrap standalone inline elements in paragraphs
                             Node::Document(vec![Node::Paragraph(children)])
                         }
@@ -1183,7 +1190,10 @@ mod tests {
             }
         }
 
-        assert!(find_small_caps(&ast), "Expected to find SmallCaps node with 'Small caps text'");
+        assert!(
+            find_small_caps(&ast),
+            "Expected to find SmallCaps node with 'Small caps text'"
+        );
     }
 
     #[test]
@@ -1915,7 +1925,10 @@ mod tests {
                                 _ => panic!("Expected text node as child of SmallCaps"),
                             }
                         }
-                        _ => panic!("Expected SmallCaps node as single child, got: {:?}", children[0]),
+                        _ => panic!(
+                            "Expected SmallCaps node as single child, got: {:?}",
+                            children[0]
+                        ),
                     }
                 } else {
                     panic!(
