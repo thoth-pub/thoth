@@ -495,16 +495,7 @@ mod tests {
                 relation_type: RelationType::IS_CHILD_OF,
                 relation_ordinal: 7,
                 related_work: WorkRelationsRelatedWork {
-                    abstracts: vec![
-                        thoth_client::WorkRelationsRelatedWorkAbstracts {
-                            abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                            content: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>".to_string(),
-                            locale_code: thoth_client::LocaleCode::EN,
-                            abstract_type: thoth_client::AbstractType::LONG,
-                            canonical: true,
-                        },
-                    ],
+                    abstracts: vec![],
                     work_status: WorkStatus::ACTIVE,
                     titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
                         title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
