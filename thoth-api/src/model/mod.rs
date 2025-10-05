@@ -649,12 +649,7 @@ pub fn validate_format(content: &str, format: &MarkupFormat) -> ThothResult<()> 
                 return Err(ThothError::UnsupportedFileFormatError);
             }
         }
-        MarkupFormat::PlainText => {
-            // Plain text validation - should not contain markup
-            if content.contains('<') && content.contains('>') {
-                return Err(ThothError::UnsupportedFileFormatError);
-            }
-        }
+        MarkupFormat::PlainText => {}
     }
     Ok(())
 }
