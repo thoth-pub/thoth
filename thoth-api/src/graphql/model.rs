@@ -1544,7 +1544,7 @@ impl QueryRoot {
         Ok(titles)
     }
 
-    #[graphql(description = "Query an abstract by it's ID")]
+    #[graphql(description = "Query an abstract by its ID")]
     fn r#abstract(
         context: &Context,
         abstgract_id: Uuid,
