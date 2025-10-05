@@ -3046,7 +3046,7 @@ impl Work {
         order: Option<TitleOrderBy>,
         #[graphql(
             default = vec![],
-            description = "If set, only shows results with this locale codes"
+            description = "If set, only shows results with these locale codes"
         )]
         locale_codes: Option<Vec<LocaleCode>>,
         #[graphql(
@@ -4083,7 +4083,7 @@ impl Contribution {
         order: Option<BiographyOrderBy>,
         #[graphql(
             default = vec![],
-            description = "If set, only shows results with this locale codes"
+            description = "If set, only shows results with these locale codes"
         )]
         locale_codes: Option<Vec<LocaleCode>>,
         #[graphql(
