@@ -38,8 +38,8 @@ impl Crud for Biography {
         filter: Option<String>,
         order: Self::OrderByEntity,
         _: Vec<Uuid>,
-        _parent_id_1: Option<Uuid>,
-        parent_id_2: Option<Uuid>,
+        parent_id_1: Option<Uuid>,
+        _: Option<Uuid>,
         locale_codes: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
@@ -82,7 +82,7 @@ impl Crud for Biography {
             query = query.filter(content.ilike(format!("%{filter}%")));
         }
 
-        if let Some(pid) = parent_id_2 {
+        if let Some(pid) = parent_id_1 {
             query = query.filter(contribution_id.eq(pid));
         }
 
