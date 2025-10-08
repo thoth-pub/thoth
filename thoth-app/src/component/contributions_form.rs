@@ -415,7 +415,7 @@ impl Component for ContributionsFormComponent {
                         match &body.data.biographies {
                             Some(biographies) => {
                                 // Update biography
-                                let biography =
+                                let _biography =
                                     biographies.iter().find(|b| b.canonical).unwrap().clone();
                                 let update_biography_request_body = UpdateBiographyRequestBody {
                                     variables: UpdateBiographyVariables {
