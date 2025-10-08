@@ -671,6 +671,7 @@ mod tests {
         test_work.doi = None;
         test_work.landing_page = None;
         test_work.license = None;
+        test_work.abstracts.clear();
         test_work.issues.clear();
         // Change work type to Chapter and add chapter-specific details (page range):
         // entry type becomes "inbook", booktitle/chapter/pages fields will be added
@@ -689,8 +690,7 @@ mod tests {
 \tpublisher = {OA Editions},
 \tbooktitle = {Related work title},
 \tchapter = 7,
-\tpages = {10--20},
-\tabstract = {<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>}
+\tpages = {10--20}
 }
 "
         .to_string();
