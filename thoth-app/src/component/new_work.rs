@@ -250,7 +250,7 @@ impl Component for NewWorkComponent {
                     FetchState::Fetched(body) => match &body.data.create_work {
                         Some(w) => {
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                "Saved {}".to_string(),
+                                "Saved".to_string(),
                                 NotificationStatus::Success,
                             )));
                             ctx.link().history().unwrap().push(w.edit_route());

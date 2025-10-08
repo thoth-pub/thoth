@@ -370,7 +370,7 @@ impl Component for WorkComponent {
                             // After save, update work_status_in_db to match database
                             self.work_status_in_db = self.work.work_status;
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                "Saved {}".to_string(),
+                                "Saved".to_string(),
                                 NotificationStatus::Success,
                             )));
                             // Set publish_confirmation_required to false after save, closing the modal
