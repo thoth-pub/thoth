@@ -2468,10 +2468,18 @@ mod tests {
                 thoth_client::WorkAbstracts {
                     abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                     work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                    content: "Lorem ipsum dolor sit amet.".to_string(),
                     locale_code: thoth_client::LocaleCode::EN,
                     abstract_type: thoth_client::AbstractType::SHORT,
                     canonical: true,
+                },
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::LONG,
+                    canonical: false,
                 },
             ],
             work_type: WorkType::MONOGRAPH,
@@ -3104,30 +3112,30 @@ mod tests {
   </DescriptiveDetail>
   <CollateralDetail>"#
         ));
-        //     assert!(output.contains(
-        //         r#"
-        // <TextContent>
-        //   <TextType>02</TextType>
-        //   <ContentAudience>00</ContentAudience>
-        //   <Text>Lorem ipsum dolor sit amet.</Text>
-        // </TextContent>"#
-        //     ));
-        //     assert!(output.contains(
-        //         r#"
-        // <TextContent>
-        //   <TextType>03</TextType>
-        //   <ContentAudience>00</ContentAudience>
-        //   <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
-        // </TextContent>"#
-        //     ));
-        //     assert!(output.contains(
-        //         r#"
-        // <TextContent>
-        //   <TextType>30</TextType>
-        //   <ContentAudience>00</ContentAudience>
-        //   <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
-        // </TextContent>"#
-        // ));
+        assert!(output.contains(
+            r#"
+    <TextContent>
+      <TextType>02</TextType>
+      <ContentAudience>00</ContentAudience>
+      <Text>Lorem ipsum dolor sit amet.</Text>
+    </TextContent>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <TextContent>
+      <TextType>03</TextType>
+      <ContentAudience>00</ContentAudience>
+      <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
+    </TextContent>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <TextContent>
+      <TextType>30</TextType>
+      <ContentAudience>00</ContentAudience>
+      <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
+    </TextContent>"#
+        ));
         assert!(output.contains(
             r#"
     <TextContent>
@@ -3570,8 +3578,7 @@ mod tests {
         test_work.page_count = None;
         test_work.bibliography_note = None;
         test_work.image_count = None;
-        // test_work.short_abstract = None;
-        // test_work.long_abstract = None;
+        test_work.abstracts.clear();
         test_work.toc = None;
         test_work.general_note = None;
         test_work.cover_caption = None;
@@ -3846,7 +3853,14 @@ mod tests {
         ));
 
         // Test truncation of short abstract
-        // test_work.short_abstract = Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string());
+        test_work.abstracts.push(thoth_client::WorkAbstracts {
+            abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000003").unwrap(),
+            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+            locale_code: thoth_client::LocaleCode::EN,
+            abstract_type: thoth_client::AbstractType::SHORT,
+            canonical: true,
+        });
         // Remove even more values
         test_work.edition = None;
         test_work.table_count = None;
@@ -3937,7 +3951,6 @@ mod tests {
         test_work.relations[1].related_work.doi = None;
         // Remove short abstract: can't output CollateralDetail block
         test_work.abstracts.clear();
-        // test_work.short_abstract = None;
         // Reinstate landing page: supplier block for publisher now contains it
         test_work.landing_page = Some("https://www.book.com".to_string());
         let output = generate_test_output(true, &test_work);
