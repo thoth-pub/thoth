@@ -42,7 +42,7 @@ use crate::model::{affiliation::*, convert_to_jats, TitleOrderBy};
 use crate::model::{contribution::*, NewTitle};
 use thoth_errors::{ThothError, ThothResult};
 
-use super::utils::{Direction, Expression};
+use super::utils::{Direction, Expression, ONIX_MAX_CHAR_LIMIT};
 use crate::model::convert_from_jats;
 use crate::model::LocaleCode;
 use crate::model::MarkupFormat;
@@ -1882,6 +1882,12 @@ impl MutationRoot {
         let mut data = data.clone();
         data.content = convert_to_jats(data.content, markup_format, ConversionLimit::Abstract)?;
 
+        if data.abstract_type == AbstractType::Short
+            && data.content.len() > ONIX_MAX_CHAR_LIMIT as usize
+        {
+            return Err(ThothError::ShortAbstractLimitExceedError.into());
+        };
+
         Abstract::create(&context.db, &data).map_err(|e| e.into())
     }
 
@@ -2591,6 +2597,12 @@ impl MutationRoot {
 
         let mut data = data.clone();
         data.content = convert_to_jats(data.content, markup_format, ConversionLimit::Title)?;
+
+        if data.abstract_type == AbstractType::Short
+            && data.content.len() > ONIX_MAX_CHAR_LIMIT as usize
+        {
+            return Err(ThothError::ShortAbstractLimitExceedError.into());
+        }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         r#abstract
