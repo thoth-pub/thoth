@@ -245,21 +245,19 @@ fn write_work_abstract<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothRe
     // which can be set to any value. In our case we use "long" or "short".
     // Abstracts must be output in JATS, we simply convert them into JATS by extracting its
     // paragraphs and tagging them with <jats:p>
-    if let Some(long_abstract) = &work
-        .abstracts
-        .iter()
-        .find(|a| a.abstract_type == AbstractType::LONG)
-        .map(|a| a.content.clone())
-    {
-        write_abstract_content(long_abstract, "long", w)?;
-    }
-    if let Some(short_abstract) = &work
-        .abstracts
-        .iter()
-        .find(|a| a.abstract_type == AbstractType::SHORT)
-        .map(|a| a.content.clone())
-    {
-        write_abstract_content(short_abstract, "short", w)?;
+    // Output all abstracts with their locale codes
+    for abstract_item in &work.abstracts {
+        let abstract_type = match abstract_item.abstract_type {
+            AbstractType::LONG => "long",
+            AbstractType::SHORT => "short",
+            AbstractType::Other(_) => "other",
+        };
+        write_abstract_content_with_locale_code(
+            &abstract_item.content,
+            abstract_type,
+            &abstract_item.locale_code.to_string(),
+            w,
+        )?;
     }
     Ok(())
 }
@@ -324,6 +322,35 @@ fn write_abstract_content<W: Write>(
     write_full_element_block(
         "jats:abstract",
         Some(vec![("abstract-type", abstract_type)]),
+        w,
+        |w| {
+            for paragraph in abstract_content.lines() {
+                if !paragraph.is_empty() {
+                    write_element_block("jats:p", w, |w| {
+                        w.write(XmlEvent::Characters(&rename_tags_with_jats_prefix(
+                            paragraph,
+                        )))
+                        .map_err(|e| e.into())
+                    })?;
+                }
+            }
+            Ok(())
+        },
+    )
+}
+
+fn write_abstract_content_with_locale_code<W: Write>(
+    abstract_content: &str,
+    abstract_type: &str,
+    locale_code: &str,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    write_full_element_block(
+        "jats:abstract",
+        Some(vec![
+            ("abstract-type", abstract_type),
+            ("xml:lang", locale_code),
+        ]),
         w,
         |w| {
             for paragraph in abstract_content.lines() {
@@ -1928,7 +1955,7 @@ mod tests {
         assert!(output.contains(r#"      <titles>"#));
         assert!(output.contains(r#"        <title>Book Title</title>"#));
         assert!(output.contains(r#"        <subtitle>Book Subtitle</subtitle>"#));
-        assert!(output.contains(r#"      <jats:abstract abstract-type="long">"#));
+        assert!(output.contains(r#"      <jats:abstract abstract-type="long" xml:lang="EN">"#));
         assert!(output.contains(r#"        <jats:p>Lorem ipsum dolor sit amet</jats:p>"#));
         assert!(!output.contains(r#"      <jats:abstract abstract-type="short">"#));
         assert!(output.contains(r#"      <volume>11</volume>"#));
@@ -2243,6 +2270,102 @@ mod tests {
             "Could not generate doideposit::crossref: This work does not have any ISBNs"
                 .to_string()
         );
+    }
+
+    #[test]
+    fn test_write_abstract_content_with_locale_code() {
+        // Test basic functionality with single paragraph
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            "This is a test abstract.",
+            "long",
+            "EN",
+            &mut writer,
+        );
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains(r#"<jats:abstract abstract-type="long" xml:lang="EN">"#));
+        assert!(output.contains(r#"<jats:p>This is a test abstract.</jats:p>"#));
+        assert!(output.contains(r#"</jats:abstract>"#));
+
+        // Test with multiple paragraphs
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            "First paragraph.\n\nSecond paragraph.\n\n\nThird paragraph.",
+            "short",
+            "FR",
+            &mut writer,
+        );
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains(r#"<jats:abstract abstract-type="short" xml:lang="FR">"#));
+        assert!(output.contains(r#"<jats:p>First paragraph.</jats:p>"#));
+        assert!(output.contains(r#"<jats:p>Second paragraph.</jats:p>"#));
+        assert!(output.contains(r#"<jats:p>Third paragraph.</jats:p>"#));
+        assert!(output.contains(r#"</jats:abstract>"#));
+
+        // Test with empty lines (should be skipped)
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            "\n\nOnly this line.\n\n",
+            "other",
+            "DE",
+            &mut writer,
+        );
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains(r#"<jats:abstract abstract-type="other" xml:lang="DE">"#));
+        assert!(output.contains(r#"<jats:p>Only this line.</jats:p>"#));
+        assert!(!output.contains(r#"<jats:p></jats:p>"#));
+        assert!(output.contains(r#"</jats:abstract>"#));
+
+        // Test with HTML tags (should be converted to JATS)
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            "<p>This has <strong>HTML</strong> tags.</p>",
+            "long",
+            "ES",
+            &mut writer,
+        );
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains(r#"<jats:abstract abstract-type="long" xml:lang="ES">"#));
+        assert!(output.contains(r#"<jats:p>&lt;jats:p&gt;This has &lt;jats:strong&gt;HTML&lt;/jats:strong&gt; tags.&lt;/jats:p&gt;</jats:p>"#));
+        assert!(output.contains(r#"</jats:abstract>"#));
+
+        // Test with empty content
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code("", "short", "IT", &mut writer);
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains(r#"<jats:abstract abstract-type="short" xml:lang="IT" />"#));
+        // Should not contain any paragraph elements
+        assert!(!output.contains(r#"<jats:p>"#));
     }
 
     #[test]

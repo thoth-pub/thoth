@@ -55,6 +55,12 @@ impl fmt::Display for work_query::LocationPlatform {
     }
 }
 
+impl fmt::Display for work_query::LocaleCode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
 #[derive(GraphQLQuery)]
 #[graphql(
     schema_path = "assets/schema.graphql",
