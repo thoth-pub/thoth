@@ -415,14 +415,15 @@ impl Component for ContributionsFormComponent {
                         match &body.data.biographies {
                             Some(biographies) => {
                                 // Update biography
-                                let biography = biographies[0].clone();
+                                let biography =
+                                    biographies.iter().find(|b| b.canonical).unwrap().clone();
                                 let update_biography_request_body = UpdateBiographyRequestBody {
                                     variables: UpdateBiographyVariables {
-                                        biography_id: biography.biography_id,
+                                        biography_id: self.biography.biography_id,
                                         contribution_id: self.contribution.contribution_id,
-                                        content: biography.content.clone(),
-                                        canonical: biography.canonical,
-                                        locale_code: biography.locale_code,
+                                        content: self.biography.content.clone(),
+                                        canonical: self.biography.canonical,
+                                        locale_code: self.biography.locale_code,
                                     },
                                     ..Default::default()
                                 };

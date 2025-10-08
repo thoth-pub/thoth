@@ -419,15 +419,23 @@ impl Component for WorkComponent {
                     self.work.withdrawn_date = None;
                 }
 
-                let title = self.work.titles.as_ref().unwrap()[0].clone();
+                let title = self
+                    .work
+                    .titles
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .find(|t| t.canonical)
+                    .unwrap()
+                    .clone();
                 let update_title_request_body = UpdateTitleRequestBody {
                     variables: UpdateTitleVariables {
                         title_id: title.title_id,
-                        work_id: title.work_id,
+                        work_id: self.work.work_id,
                         locale_code: title.locale_code,
-                        full_title: title.full_title.clone(),
-                        title: title.title.clone(),
-                        subtitle: title.subtitle.clone(),
+                        full_title: self.work.full_title.clone(),
+                        title: self.work.title.clone(),
+                        subtitle: self.work.subtitle.clone(),
                         canonical: title.canonical,
                     },
                     ..Default::default()
@@ -456,8 +464,15 @@ impl Component for WorkComponent {
                 let update_abstract_request_body = UpdateAbstractRequestBody {
                     variables: UpdateAbstractVariables {
                         abstract_id: r#abstract.abstract_id,
-                        work_id: r#abstract.work_id,
-                        content: r#abstract.content.clone(),
+                        work_id: self.work.work_id,
+                        content: match r#abstract.abstract_type {
+                            AbstractType::Short => {
+                                self.work.short_abstract.clone().unwrap_or_default()
+                            }
+                            AbstractType::Long => {
+                                self.work.long_abstract.clone().unwrap_or_default()
+                            }
+                        },
                         locale_code: r#abstract.locale_code,
                         abstract_type: r#abstract.abstract_type,
                         canonical: r#abstract.canonical,

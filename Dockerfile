@@ -1,4 +1,4 @@
-FROM rust:1.89.0
+FROM rust:1.90.0
 
 ARG THOTH_GRAPHQL_API=https://api.thoth.pub
 ARG THOTH_EXPORT_API=https://export.thoth.pub
