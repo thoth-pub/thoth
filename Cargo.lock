@@ -417,9 +417,9 @@ dependencies = [
 
 [[package]]
 name = "arrayvec"
-version = "0.5.2"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
+checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
 name = "async-trait"
@@ -2004,12 +2004,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
 
 [[package]]
-name = "isbn2"
-version = "0.4.0"
+name = "isbn"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32ec02acd9e12bee98c320d8ff9fe1c8882174067ac7932866f7ad7bf5309cd8"
+checksum = "9453fa60f42de77ba9bf54e3628a20390cba0fbf0932799dad81e7ce4e12ed20"
 dependencies = [
- "arrayvec 0.5.2",
+ "arrayvec 0.7.6",
  "codegen",
  "roxmltree",
 ]
@@ -2979,9 +2979,9 @@ checksum = "afab94fb28594581f62d981211a9a4d53cc8130bbcbbb89a0440d9b8e81a7746"
 
 [[package]]
 name = "roxmltree"
-version = "0.13.1"
+version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbf7d7b1ea646d380d0e8153158063a6da7efe30ddbf3184042848e3f8a6f671"
+checksum = "921904a62e410e37e215c40381b7117f830d9d89ba60ab5236170541dd25646b"
 dependencies = [
  "xmlparser",
 ]
@@ -3507,7 +3507,7 @@ dependencies = [
  "diesel_migrations",
  "dotenv",
  "futures",
- "isbn2",
+ "isbn",
  "jsonwebtoken",
  "juniper",
  "lazy_static",
