@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use thoth_api::model::affiliation::AffiliationWithInstitution;
 use thoth_api::model::institution::Institution;
 use thoth_errors::ThothError;

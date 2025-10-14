@@ -1,4 +1,5 @@
 #![allow(clippy::let_unit_value)]
+#![allow(clippy::unnecessary_operation)]
 
 #[macro_export]
 macro_rules! pagination_helpers {

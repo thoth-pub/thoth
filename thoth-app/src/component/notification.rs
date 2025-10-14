@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use yew::html;
 use yew::prelude::Context;
 use yew::Component;
