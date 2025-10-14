@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use thoth_api::account::model::AccountDetails;
 use thoth_api::account::model::LoginCredentials;
 use yew::html;

@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use crate::models::book::books_query::BooksRequest;
 use crate::models::book::books_query::BooksRequestBody;
 use crate::models::book::books_query::FetchActionBooks;

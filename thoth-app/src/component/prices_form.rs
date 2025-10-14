@@ -1,3 +1,4 @@
+#![allow(clippy::unnecessary_operation)]
 use std::str::FromStr;
 use thoth_api::model::price::CurrencyCode;
 use thoth_api::model::price::Price;

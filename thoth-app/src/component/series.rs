@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use std::str::FromStr;
 use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;

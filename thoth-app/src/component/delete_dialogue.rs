@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use crate::string::CANCEL_BUTTON;
 use crate::string::DELETE_BUTTON;
 use yew::html;

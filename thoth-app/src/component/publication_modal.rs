@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use std::str::FromStr;
 use thoth_api::model::publication::Publication;
 use thoth_api::model::publication::PublicationProperties;

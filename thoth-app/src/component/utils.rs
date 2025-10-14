@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::contributor::Contributor;
 use thoth_api::model::imprint::ImprintWithPublisher;
@@ -994,6 +996,7 @@ impl FormPublisherSelectProps {
 }
 
 impl FormContributorSelectProps {
+    #[allow(dead_code)]
     fn render_contributor(&self, c: &Contributor) -> VNode {
         html! {
             <option value={c.contributor_id.to_string()} selected={c.contributor_id == self.value}>
