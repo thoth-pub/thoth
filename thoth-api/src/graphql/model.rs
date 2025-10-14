@@ -1860,7 +1860,7 @@ impl MutationRoot {
 
         let has_canonical_abstract = Abstract::all(
             &context.db,
-            0,
+            1,
             0,
             None,
             AbstractOrderBy::default(),
