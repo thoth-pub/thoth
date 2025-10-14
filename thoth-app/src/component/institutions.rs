@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use crate::models::institution::institutions_query::FetchActionInstitutions;
 use crate::models::institution::institutions_query::FetchInstitutions;
 use crate::models::institution::institutions_query::InstitutionsRequest;

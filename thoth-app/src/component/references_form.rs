@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use thoth_api::model::reference::Reference;
 use thoth_errors::ThothError;
 use uuid::Uuid;

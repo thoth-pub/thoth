@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use gloo_timers::callback::Timeout;
 use thoth_api::model::institution::Institution;
 use yew::html;

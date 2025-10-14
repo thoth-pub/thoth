@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use crate::string::CANCEL_BUTTON;
 use crate::string::SAVE_BUTTON;
 // use thoth_api::account::model::AccountDetails;

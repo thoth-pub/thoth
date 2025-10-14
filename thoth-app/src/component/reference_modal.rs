@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use thoth_api::model::reference::Reference;
 use thoth_api::model::{Doi, Isbn, DOI_DOMAIN};
 use thoth_errors::ThothError;

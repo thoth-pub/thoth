@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::work_relation::RelationType;

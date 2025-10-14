@@ -13,6 +13,7 @@ use yew::MouseEvent;
 use super::{CreateRoute, Dropdown, EditRoute, ListString, MetadataTable};
 use crate::route::AdminRoute;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LengthUnitDefinition {
@@ -31,6 +32,7 @@ pub struct WorkStatusDefinition {
     pub enum_values: Vec<WorkStatusValues>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LengthUnitValues {

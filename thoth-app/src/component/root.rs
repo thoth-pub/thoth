@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use semver::Version;
 use thoth_api::account::model::AccountDetails;
 use thoth_errors::ThothError;

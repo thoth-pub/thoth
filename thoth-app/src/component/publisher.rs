@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::publisher::Publisher;
 use thoth_errors::ThothError;

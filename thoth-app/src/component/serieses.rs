@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_operation)]
+
 use crate::models::series::serieses_query::FetchActionSerieses;
 use crate::models::series::serieses_query::FetchSerieses;
 use crate::models::series::serieses_query::SeriesesRequest;
