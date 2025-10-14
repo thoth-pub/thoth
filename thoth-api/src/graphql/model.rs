@@ -1547,7 +1547,7 @@ impl QueryRoot {
     #[graphql(description = "Query an abstract by its ID")]
     fn r#abstract(
         context: &Context,
-        abstgract_id: Uuid,
+        abstract_id: Uuid,
         #[graphql(
             default = MarkupFormat::JatsXml,
             description = "If set shows results with this markup format"
@@ -1555,7 +1555,7 @@ impl QueryRoot {
         markup_format: MarkupFormat,
     ) -> FieldResult<Abstract> {
         let mut r#abstract =
-            Abstract::from_id(&context.db, &abstgract_id).map_err(FieldError::from)?;
+            Abstract::from_id(&context.db, &abstract_id).map_err(FieldError::from)?;
         r#abstract.content = convert_from_jats(
             &r#abstract.content,
             markup_format,
