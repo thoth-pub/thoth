@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-  - Replace ISBN parsing library with [`isbn`](https://crates.io/crates/isbn)
+  - [708](https://github.com/thoth-pub/thoth/pull/708) - Replace ISBN parsing library with [`isbn`](https://crates.io/crates/isbn)
 
 ## [[0.13.13]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.13) - 2025-06-05
 ### Changed
