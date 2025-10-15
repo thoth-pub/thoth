@@ -28,6 +28,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 uuid = { version = "1.16.0", features = ["serde"] }
 xml-rs = "0.8.25"
+quick-xml = "0.36"
 regex = "1.11.1"
 
 [dev-dependencies]

@@ -314,6 +314,82 @@ pub fn rename_tags_with_jats_prefix(text: &str) -> String {
     .to_string()
 }
 
+/// Write JATS content as actual XML elements (not escaped characters)
+fn write_jats_content<W: Write>(content: &str, w: &mut EventWriter<W>) -> ThothResult<()> {
+    use quick_xml::events::Event;
+    use quick_xml::Reader;
+
+    let prefixed_content = rename_tags_with_jats_prefix(content);
+    let mut reader = Reader::from_str(&prefixed_content);
+    let mut buf = Vec::new();
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(e)) => {
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let mut event_builder = XmlEvent::start_element(&*name);
+                
+                // Add attributes
+                let attrs: Vec<(String, String)> = e.attributes()
+                    .flatten()
+                    .map(|attr| {
+                        (
+                            String::from_utf8_lossy(attr.key.as_ref()).to_string(),
+                            String::from_utf8_lossy(&attr.value).to_string(),
+                        )
+                    })
+                    .collect();
+                
+                for (key, value) in &attrs {
+                    event_builder = event_builder.attr(key.as_str(), value.as_str());
+                }
+                
+                w.write(event_builder)?;
+            }
+            Ok(Event::End(_)) => {
+                w.write(XmlEvent::end_element())?;
+            }
+            Ok(Event::Text(e)) => {
+                let text = e.unescape().unwrap_or_default();
+                if !text.trim().is_empty() || text.chars().all(char::is_whitespace) {
+                    w.write(XmlEvent::Characters(&text))?;
+                }
+            }
+            Ok(Event::Eof) => break,
+            Ok(Event::Empty(e)) => {
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let mut event_builder = XmlEvent::start_element(&*name);
+                
+                // Add attributes
+                let attrs: Vec<(String, String)> = e.attributes()
+                    .flatten()
+                    .map(|attr| {
+                        (
+                            String::from_utf8_lossy(attr.key.as_ref()).to_string(),
+                            String::from_utf8_lossy(&attr.value).to_string(),
+                        )
+                    })
+                    .collect();
+                
+                for (key, value) in &attrs {
+                    event_builder = event_builder.attr(key.as_str(), value.as_str());
+                }
+                
+                w.write(event_builder)?;
+                w.write(XmlEvent::end_element())?;
+            }
+            Err(e) => {
+                return Err(ThothError::InternalError(format!(
+                    "Error parsing JATS content: {}",
+                    e
+                )))
+            }
+            _ => {}
+        }
+        buf.clear();
+    }
+    Ok(())
+}
+
 fn write_abstract_content<W: Write>(
     abstract_content: &str,
     abstract_type: &str,
@@ -327,10 +403,7 @@ fn write_abstract_content<W: Write>(
             for paragraph in abstract_content.lines() {
                 if !paragraph.is_empty() {
                     write_element_block("jats:p", w, |w| {
-                        w.write(XmlEvent::Characters(&rename_tags_with_jats_prefix(
-                            paragraph,
-                        )))
-                        .map_err(|e| e.into())
+                        write_jats_content(paragraph, w)
                     })?;
                 }
             }
@@ -356,10 +429,7 @@ fn write_abstract_content_with_locale_code<W: Write>(
             for paragraph in abstract_content.lines() {
                 if !paragraph.is_empty() {
                     write_element_block("jats:p", w, |w| {
-                        w.write(XmlEvent::Characters(&rename_tags_with_jats_prefix(
-                            paragraph,
-                        )))
-                        .map_err(|e| e.into())
+                        write_jats_content(paragraph, w)
                     })?;
                 }
             }
@@ -1338,7 +1408,9 @@ mod tests {
                         abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001")
                             .unwrap(),
                         work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                        content: "First paragraph.\n\nSecond paragraph.".to_string(),
+                        // Test JATS markup as returned from DB (converted by convert_to_jats() in migration)
+                        // Tests newlines (multiple paragraphs) and full range of rename_tags_with_jats_prefix()
+                        content: "First paragraph with <bold>bold text</bold> and <italic>italic text</italic>.\n\nSecond paragraph with H<sub>2</sub>O and x<sup>2</sup> plus <monospace>code</monospace> and <sc>small caps</sc> and <ext-link xlink:href=\"https://example.com\">a link</ext-link>.".to_string(),
                         locale_code: thoth_client::LocaleCode::EN,
                         abstract_type: thoth_client::AbstractType::LONG,
                         canonical: true,
@@ -1347,7 +1419,8 @@ mod tests {
                         abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002")
                             .unwrap(),
                         work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                        content: "A shorter abstract".to_string(),
+                        // Shorter abstract with nested markup to test tag renaming with nesting
+                        content: "A shorter abstract with <italic>nested <bold>markup</bold> inside</italic>.".to_string(),
                         locale_code: thoth_client::LocaleCode::EN,
                         abstract_type: thoth_client::AbstractType::SHORT,
                         canonical: true,
@@ -1435,10 +1508,17 @@ mod tests {
         assert!(output.contains(r#"  </titles>"#));
         assert!(output.contains(r#"  <component_number>1</component_number>"#));
         assert!(output.contains(r#"  <jats:abstract abstract-type="long">"#));
-        assert!(output.contains(r#"    <jats:p>First paragraph.</jats:p>"#));
-        assert!(output.contains(r#"    <jats:p>Second paragraph.</jats:p>"#));
+        // Test that JATS tags are properly prefixed with jats: namespace and rendered as XML elements
+        assert!(output.contains(r#"<jats:bold>bold text</jats:bold>"#));
+        assert!(output.contains(r#"<jats:italic>italic text</jats:italic>"#));
+        assert!(output.contains(r#"H<jats:sub>2</jats:sub>O"#));
+        assert!(output.contains(r#"x<jats:sup>2</jats:sup>"#));
+        assert!(output.contains(r#"<jats:monospace>code</jats:monospace>"#));
+        assert!(output.contains(r#"<jats:sc>small caps</jats:sc>"#));
+        assert!(output.contains(r#"<jats:ext-link xlink:href="https://example.com">a link</jats:ext-link>"#));
         assert!(output.contains(r#"  <jats:abstract abstract-type="short">"#));
-        assert!(output.contains(r#"    <jats:p>A shorter abstract</jats:p>"#));
+        // Test nested markup tag renaming
+        assert!(output.contains(r#"<jats:italic>nested <jats:bold>markup</jats:bold> inside</jats:italic>"#));
         assert!(!output.contains(r#"    <jats:p></jats:p>"#));
         assert!(output.contains(r#"  <publication_date>"#));
         assert!(output.contains(r#"    <month>02</month>"#));
@@ -2334,14 +2414,14 @@ mod tests {
         assert!(!output.contains(r#"<jats:p></jats:p>"#));
         assert!(output.contains(r#"</jats:abstract>"#));
 
-        // Test with HTML tags (should be converted to JATS)
+        // Test with JATS markup (should be properly rendered as XML elements)
         let mut buffer = Vec::new();
         let mut writer = xml::writer::EmitterConfig::new()
             .perform_indent(true)
             .create_writer(&mut buffer);
 
         let result = write_abstract_content_with_locale_code(
-            "<p>This has <strong>HTML</strong> tags.</p>",
+            "This has <bold>bold</bold> and <italic>italic</italic> markup.",
             "long",
             "ES",
             &mut writer,
@@ -2350,7 +2430,9 @@ mod tests {
         assert!(result.is_ok());
         let output = String::from_utf8(buffer).unwrap();
         assert!(output.contains(r#"<jats:abstract abstract-type="long" xml:lang="ES">"#));
-        assert!(output.contains(r#"<jats:p>&lt;jats:p&gt;This has &lt;jats:strong&gt;HTML&lt;/jats:strong&gt; tags.&lt;/jats:p&gt;</jats:p>"#));
+        // JATS tags should be properly rendered with jats: prefix, not escaped
+        assert!(output.contains(r#"<jats:bold>bold</jats:bold>"#));
+        assert!(output.contains(r#"<jats:italic>italic</jats:italic>"#));
         assert!(output.contains(r#"</jats:abstract>"#));
 
         // Test with empty content
