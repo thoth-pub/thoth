@@ -4,7 +4,7 @@ use crate::ast::{
     strip_structural_elements_from_ast_for_conversion, validate_ast_content,
 };
 use chrono::{DateTime, TimeZone, Utc};
-use isbn2::Isbn13;
+use isbn::Isbn13;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
