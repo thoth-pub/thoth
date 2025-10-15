@@ -401,12 +401,8 @@ fn write_abstract_content<W: Write>(
         "jats:abstract",
         Some(vec![("abstract-type", abstract_type)]),
         w,
-        |w| {
-            for paragraph in abstract_content.lines() {
-                if !paragraph.is_empty() {
-                    write_element_block("jats:p", w, |w| write_jats_content(paragraph, w))?;
-                }
-            }
+        |w| { 
+            write_jats_content(abstract_content, w)?;
             Ok(())
         },
     )
