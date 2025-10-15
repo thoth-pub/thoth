@@ -327,9 +327,10 @@ fn write_jats_content<W: Write>(content: &str, w: &mut EventWriter<W>) -> ThothR
             Ok(Event::Start(e)) => {
                 let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
                 let mut event_builder = XmlEvent::start_element(&*name);
-                
+
                 // Add attributes
-                let attrs: Vec<(String, String)> = e.attributes()
+                let attrs: Vec<(String, String)> = e
+                    .attributes()
                     .flatten()
                     .map(|attr| {
                         (
@@ -338,11 +339,11 @@ fn write_jats_content<W: Write>(content: &str, w: &mut EventWriter<W>) -> ThothR
                         )
                     })
                     .collect();
-                
+
                 for (key, value) in &attrs {
                     event_builder = event_builder.attr(key.as_str(), value.as_str());
                 }
-                
+
                 w.write(event_builder)?;
             }
             Ok(Event::End(_)) => {
@@ -358,9 +359,10 @@ fn write_jats_content<W: Write>(content: &str, w: &mut EventWriter<W>) -> ThothR
             Ok(Event::Empty(e)) => {
                 let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
                 let mut event_builder = XmlEvent::start_element(&*name);
-                
+
                 // Add attributes
-                let attrs: Vec<(String, String)> = e.attributes()
+                let attrs: Vec<(String, String)> = e
+                    .attributes()
                     .flatten()
                     .map(|attr| {
                         (
@@ -369,11 +371,11 @@ fn write_jats_content<W: Write>(content: &str, w: &mut EventWriter<W>) -> ThothR
                         )
                     })
                     .collect();
-                
+
                 for (key, value) in &attrs {
                     event_builder = event_builder.attr(key.as_str(), value.as_str());
                 }
-                
+
                 w.write(event_builder)?;
                 w.write(XmlEvent::end_element())?;
             }
@@ -402,9 +404,7 @@ fn write_abstract_content<W: Write>(
         |w| {
             for paragraph in abstract_content.lines() {
                 if !paragraph.is_empty() {
-                    write_element_block("jats:p", w, |w| {
-                        write_jats_content(paragraph, w)
-                    })?;
+                    write_element_block("jats:p", w, |w| write_jats_content(paragraph, w))?;
                 }
             }
             Ok(())
@@ -428,9 +428,7 @@ fn write_abstract_content_with_locale_code<W: Write>(
         |w| {
             for paragraph in abstract_content.lines() {
                 if !paragraph.is_empty() {
-                    write_element_block("jats:p", w, |w| {
-                        write_jats_content(paragraph, w)
-                    })?;
+                    write_element_block("jats:p", w, |w| write_jats_content(paragraph, w))?;
                 }
             }
             Ok(())
@@ -1515,10 +1513,12 @@ mod tests {
         assert!(output.contains(r#"x<jats:sup>2</jats:sup>"#));
         assert!(output.contains(r#"<jats:monospace>code</jats:monospace>"#));
         assert!(output.contains(r#"<jats:sc>small caps</jats:sc>"#));
-        assert!(output.contains(r#"<jats:ext-link xlink:href="https://example.com">a link</jats:ext-link>"#));
+        assert!(output
+            .contains(r#"<jats:ext-link xlink:href="https://example.com">a link</jats:ext-link>"#));
         assert!(output.contains(r#"  <jats:abstract abstract-type="short">"#));
         // Test nested markup tag renaming
-        assert!(output.contains(r#"<jats:italic>nested <jats:bold>markup</jats:bold> inside</jats:italic>"#));
+        assert!(output
+            .contains(r#"<jats:italic>nested <jats:bold>markup</jats:bold> inside</jats:italic>"#));
         assert!(!output.contains(r#"    <jats:p></jats:p>"#));
         assert!(output.contains(r#"  <publication_date>"#));
         assert!(output.contains(r#"    <month>02</month>"#));
