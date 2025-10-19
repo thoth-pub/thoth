@@ -401,7 +401,7 @@ fn write_abstract_content<W: Write>(
         "jats:abstract",
         Some(vec![("abstract-type", abstract_type)]),
         w,
-        |w| { 
+        |w| {
             write_jats_content(abstract_content, w)?;
             Ok(())
         },
@@ -2686,7 +2686,10 @@ mod tests {
         // Test various JATS inline elements
         let input = "H<sub>2</sub>O and x<sup>2</sup>";
         let output = rename_tags_with_jats_prefix(input);
-        assert_eq!(output, "H<jats:sub>2</jats:sub>O and x<jats:sup>2</jats:sup>");
+        assert_eq!(
+            output,
+            "H<jats:sub>2</jats:sub>O and x<jats:sup>2</jats:sup>"
+        );
 
         // Test monospace and small caps
         let input = "<monospace>code</monospace> and <sc>small caps</sc>";
@@ -2713,7 +2716,8 @@ mod tests {
         );
 
         // Test deeply nested tags
-        let input = "<p>Outer <italic>italic with <bold>nested bold</bold> inside</italic> text</p>";
+        let input =
+            "<p>Outer <italic>italic with <bold>nested bold</bold> inside</italic> text</p>";
         let output = rename_tags_with_jats_prefix(input);
         assert_eq!(
             output,

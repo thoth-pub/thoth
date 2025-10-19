@@ -1,12 +1,12 @@
 use std::convert::TryFrom;
 use std::fmt;
 use std::io::Write;
+use thoth_api::model::{convert_from_jats, ConversionLimit, MarkupFormat};
 use thoth_client::{
     AbstractType, ContributionType, PublicationType, RelationType, Work, WorkContributions,
     WorkType,
 };
 use thoth_errors::{ThothError, ThothResult};
-use thoth_api::model::{convert_from_jats, MarkupFormat, ConversionLimit};
 
 use super::{BibtexEntry, BibtexSpecification};
 
@@ -206,7 +206,8 @@ impl TryFrom<Work> for BibtexThothEntry {
                         &x.content,
                         MarkupFormat::PlainText,
                         ConversionLimit::Abstract,
-                    )?
+                    )
+                    .unwrap_or_default()
                 }),
         })
     }

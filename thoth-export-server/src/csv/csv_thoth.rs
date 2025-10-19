@@ -148,9 +148,9 @@ impl From<Work> for CsvThothRow {
                         &x.content,
                         MarkupFormat::PlainText,
                         ConversionLimit::Abstract,
-                    )?
-                })
-                .unwrap_or_default(),
+                    )
+                    .unwrap_or_default()
+                }),
             long_abstract: work
                 .abstracts
                 .iter()
@@ -160,9 +160,9 @@ impl From<Work> for CsvThothRow {
                         &x.content,
                         MarkupFormat::PlainText,
                         ConversionLimit::Abstract,
-                    )?
-                })
-                .unwrap_or_default(),
+                    )
+                    .unwrap_or_default()
+                }),
             general_note: work.general_note,
             bibliography_note: work.bibliography_note,
             toc: work.toc,
