@@ -1,6 +1,7 @@
 use csv::Writer;
 use serde::Serialize;
 use std::io::Write;
+use thoth_api::model::{convert_from_jats, ConversionLimit, MarkupFormat};
 use thoth_client::{
     AbstractType, SubjectType, Work, WorkContributions, WorkContributionsAffiliations,
     WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkPublicationsLocations,
@@ -106,6 +107,7 @@ impl CsvRow<CsvThoth> for Work {
 }
 
 impl From<Work> for CsvThothRow {
+    // use thoth_api::ast::
     fn from(work: Work) -> Self {
         let mut subjects = work.subjects;
         // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
@@ -141,12 +143,26 @@ impl From<Work> for CsvThothRow {
                 .abstracts
                 .iter()
                 .find(|a| a.abstract_type == AbstractType::SHORT && a.canonical)
-                .map(|x| x.content.clone()),
+                .map(|x| {
+                    convert_from_jats(
+                        &x.content,
+                        MarkupFormat::PlainText,
+                        ConversionLimit::Abstract,
+                    )?
+                })
+                .unwrap_or_default(),
             long_abstract: work
                 .abstracts
                 .iter()
                 .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
-                .map(|x| x.content.clone()),
+                .map(|x| {
+                    convert_from_jats(
+                        &x.content,
+                        MarkupFormat::PlainText,
+                        ConversionLimit::Abstract,
+                    )?
+                })
+                .unwrap_or_default(),
             general_note: work.general_note,
             bibliography_note: work.bibliography_note,
             toc: work.toc,

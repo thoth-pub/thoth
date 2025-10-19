@@ -219,14 +219,14 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                 if self
                     .abstracts
                     .iter()
-                    .any(|a| a.abstract_type == AbstractType::LONG)
+                    .any(|a| a.abstract_type == AbstractType::LONG && a.canonical)
                     || self.cover_url.is_some()
                 {
                     write_element_block("CollateralDetail", w, |w| {
                         if let Some(labstract) = &self
                             .abstracts
                             .iter()
-                            .find(|a| a.abstract_type == AbstractType::LONG)
+                            .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
                             .map(|a| a.content.clone())
                         {
                             write_element_block("TextContent", w, |w| {

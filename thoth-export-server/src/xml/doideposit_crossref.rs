@@ -274,7 +274,7 @@ fn write_chapter_abstract<W: Write>(
         .related_work
         .abstracts
         .iter()
-        .find(|a| a.abstract_type == AbstractType::LONG)
+        .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
         .map(|a| a.content.clone())
     {
         write_abstract_content(long_abstract, "long", w)?;
@@ -283,7 +283,7 @@ fn write_chapter_abstract<W: Write>(
         .related_work
         .abstracts
         .iter()
-        .find(|a| a.abstract_type == AbstractType::SHORT)
+        .find(|a| a.abstract_type == AbstractType::SHORT && a.canonical)
         .map(|a| a.content.clone())
     {
         write_abstract_content(short_abstract, "short", w)?;
@@ -295,9 +295,9 @@ pub fn rename_tags_with_jats_prefix(text: &str) -> String {
     // This regex matches an opening or closing HTML/XML tag:
     // 1. (<) - captures '<'
     // 2. (/?) - optional closing slash
-    // 3. ([a-zA-Z0-9]+) - tag name
+    // 3. ([a-zA-Z0-9]+(?::[a-zA-Z0-9-]+)?) - tag name with optional namespace prefix
     // 4. ([^>]*) - everything else until '>'
-    let re = Regex::new(r"(<)(/?)([a-zA-Z0-9]+)([^>]*)>").unwrap();
+    let re = Regex::new(r"(<)(/?)([a-zA-Z0-9]+(?::[a-zA-Z0-9-]+)?)([^>]*)>").unwrap();
     re.replace_all(text, |caps: &regex::Captures| {
         let open_bracket = &caps[1];
         let slash = &caps[2];
@@ -2666,5 +2666,84 @@ mod tests {
         assert!(output.contains(r#"      <isbn media_type="electronic">978-1-56619-909-4</isbn>"#));
         assert!(output.contains(r#"      <isbn media_type="electronic">978-92-95055-02-5</isbn>"#));
         assert!(!output.contains(r#"      <isbn media_type="electronic">978-1-4028-9462-6</isbn>"#));
+    }
+
+    #[test]
+    fn test_rename_tags_with_jats_prefix() {
+        // Test basic paragraph tags
+        let input = "<p>Simple paragraph</p>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(output, "<jats:p>Simple paragraph</jats:p>");
+
+        // Test nested tags
+        let input = "<p>Text with <bold>bold</bold> and <italic>italic</italic></p>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(
+            output,
+            "<jats:p>Text with <jats:bold>bold</jats:bold> and <jats:italic>italic</jats:italic></jats:p>"
+        );
+
+        // Test various JATS inline elements
+        let input = "H<sub>2</sub>O and x<sup>2</sup>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(output, "H<jats:sub>2</jats:sub>O and x<jats:sup>2</jats:sup>");
+
+        // Test monospace and small caps
+        let input = "<monospace>code</monospace> and <sc>small caps</sc>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(
+            output,
+            "<jats:monospace>code</jats:monospace> and <jats:sc>small caps</jats:sc>"
+        );
+
+        // Test external links with attributes
+        let input = r#"<ext-link xlink:href="https://example.com">link text</ext-link>"#;
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(
+            output,
+            r#"<jats:ext-link xlink:href="https://example.com">link text</jats:ext-link>"#
+        );
+
+        // Test multiple paragraphs
+        let input = "<p>First paragraph</p><p>Second paragraph</p>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(
+            output,
+            "<jats:p>First paragraph</jats:p><jats:p>Second paragraph</jats:p>"
+        );
+
+        // Test deeply nested tags
+        let input = "<p>Outer <italic>italic with <bold>nested bold</bold> inside</italic> text</p>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(
+            output,
+            "<jats:p>Outer <jats:italic>italic with <jats:bold>nested bold</jats:bold> inside</jats:italic> text</jats:p>"
+        );
+
+        // Test that already-prefixed tags are not double-prefixed
+        let input = "<jats:p>Already prefixed</jats:p>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(output, "<jats:p>Already prefixed</jats:p>");
+
+        // Test mixed prefixed and non-prefixed tags
+        let input = "<p>Text with <jats:bold>already prefixed</jats:bold> and <italic>not prefixed</italic></p>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(
+            output,
+            "<jats:p>Text with <jats:bold>already prefixed</jats:bold> and <jats:italic>not prefixed</jats:italic></jats:p>"
+        );
+
+        // Test self-closing tags with attributes
+        let input = r#"<graphic xlink:href="image.jpg" />"#;
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(output, r#"<jats:graphic xlink:href="image.jpg" />"#);
+
+        // Test list elements
+        let input = "<list><list-item>Item 1</list-item><list-item>Item 2</list-item></list>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(
+            output,
+            "<jats:list><jats:list-item>Item 1</jats:list-item><jats:list-item>Item 2</jats:list-item></jats:list>"
+        );
     }
 }

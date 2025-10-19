@@ -296,7 +296,7 @@ impl XmlElementBlock<Onix21ProquestEbrary> for Work {
             if let Some(labstract) = &self
                 .abstracts
                 .iter()
-                .find(|a| a.abstract_type == AbstractType::LONG)
+                .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
                 .map(|a| a.content.clone())
             {
                 write_element_block("OtherText", w, |w| {

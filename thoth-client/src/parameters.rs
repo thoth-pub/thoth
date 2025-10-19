@@ -12,6 +12,8 @@ pub struct QueryParameters {
     with_fundings: bool,
     with_relations: bool,
     with_references: bool,
+    with_jats_xml_abstracts: bool,
+    with_plain_text_abstracts: bool,
 }
 
 /// An intermediate struct to parse QueryParameters into work_query::Variables
@@ -257,6 +259,8 @@ mod tests {
             with_fundings: false,
             with_relations: false,
             with_references: false,
+            with_jats_xml_abstracts: false,
+            with_plain_text_abstracts: false,
         };
         assert_eq!(to_test, QueryParameters::default());
         assert_eq!(to_test, QueryParameters::new())
@@ -274,6 +278,8 @@ mod tests {
                 with_fundings: true,
                 with_relations: true,
                 with_references: true,
+                with_jats_xml_abstracts: true,
+                with_plain_text_abstracts: true,
             },
         );
         assert_eq!(
@@ -294,6 +300,8 @@ mod tests {
                 with_fundings: false,
                 with_relations: false,
                 with_references: false,
+                with_jats_xml_abstracts: false,
+                with_plain_text_abstracts: false,
             },
         );
         assert_eq!(
@@ -313,6 +321,8 @@ mod tests {
                 with_fundings: true,
                 with_relations: true,
                 with_references: true,
+                with_jats_xml_abstracts: true,
+                with_plain_text_abstracts: true,
             },
         );
     }

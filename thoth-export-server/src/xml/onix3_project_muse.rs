@@ -261,7 +261,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                 if self
                     .abstracts
                     .iter()
-                    .any(|a| a.abstract_type == AbstractType::LONG)
+                    .any(|a| a.abstract_type == AbstractType::LONG && a.canonical)
                     || self.toc.is_some()
                     || is_open_access
                 {
@@ -269,7 +269,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                         if let Some(abstract_data) = &self
                             .abstracts
                             .iter()
-                            .find(|a| a.abstract_type == AbstractType::LONG)
+                            .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
                         {
                             let abstract_content = abstract_data.content.clone();
 

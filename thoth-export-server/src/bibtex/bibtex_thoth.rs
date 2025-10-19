@@ -6,6 +6,7 @@ use thoth_client::{
     WorkType,
 };
 use thoth_errors::{ThothError, ThothResult};
+use thoth_api::model::{convert_from_jats, MarkupFormat, ConversionLimit};
 
 use super::{BibtexEntry, BibtexSpecification};
 
@@ -200,7 +201,13 @@ impl TryFrom<Work> for BibtexThothEntry {
                 .abstracts
                 .iter()
                 .find(|a| a.abstract_type == AbstractType::LONG)
-                .map(|a| a.content.clone()),
+                .map(|x| {
+                    convert_from_jats(
+                        &x.content,
+                        MarkupFormat::PlainText,
+                        ConversionLimit::Abstract,
+                    )?
+                }),
         })
     }
 }
@@ -275,7 +282,7 @@ mod tests {
 \tissn = {8765-4321},
 \turl = {https://www.book.com},
 \tcopyright = {http://creativecommons.org/licenses/by/4.0/},
-\tabstract = {<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>}
+\tabstract = {Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.}
 }
 ";
 
@@ -285,7 +292,7 @@ mod tests {
                 thoth_client::WorkAbstracts {
                     abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                     work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                    content: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>".to_string(),
+                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
                     locale_code: thoth_client::LocaleCode::EN,
                     abstract_type: thoth_client::AbstractType::LONG,
                     canonical: true,
@@ -293,7 +300,7 @@ mod tests {
                 thoth_client::WorkAbstracts {
                     abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
                     work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                    content: "<p>Short abstract content.</p>".to_string(),
+                    content: "Short abstract content.".to_string(),
                     locale_code: thoth_client::LocaleCode::EN,
                     abstract_type: thoth_client::AbstractType::SHORT,
                     canonical: true,
@@ -556,7 +563,7 @@ mod tests {
                         thoth_client::WorkRelationsRelatedWorkAbstracts {
                             abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                            content: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>".to_string(),
+                            content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
                             locale_code: thoth_client::LocaleCode::EN,
                             abstract_type: thoth_client::AbstractType::LONG,
                             canonical: true,

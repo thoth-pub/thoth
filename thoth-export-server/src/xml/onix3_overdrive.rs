@@ -71,7 +71,7 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
         } else if !self
             .abstracts
             .iter()
-            .any(|a| a.abstract_type == AbstractType::LONG)
+            .any(|a| a.abstract_type == AbstractType::LONG && a.canonical)
         {
             Err(ThothError::IncompleteMetadataRecord(
                 ONIX_ERROR.to_string(),
@@ -276,7 +276,7 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                                 &self
                                     .abstracts
                                     .iter()
-                                    .find(|a| a.abstract_type == AbstractType::LONG)
+                                    .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
                                     .map(|a| a.content.clone())
                                     .unwrap(),
                             ))

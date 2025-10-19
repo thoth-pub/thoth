@@ -219,7 +219,7 @@ impl XmlElementBlock<Onix3Jstor> for Work {
                 if self
                     .abstracts
                     .iter()
-                    .any(|a| a.abstract_type == AbstractType::LONG)
+                    .any(|a| a.abstract_type == AbstractType::LONG && a.canonical)
                     || self.toc.is_some()
                     || is_open_access
                 {
@@ -227,7 +227,7 @@ impl XmlElementBlock<Onix3Jstor> for Work {
                         if let Some(labstract) = &self
                             .abstracts
                             .iter()
-                            .find(|a| a.abstract_type == AbstractType::LONG)
+                            .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
                             .map(|a| a.content.clone())
                         {
                             write_element_block("TextContent", w, |w| {
