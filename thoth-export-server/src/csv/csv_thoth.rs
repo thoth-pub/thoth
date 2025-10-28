@@ -107,7 +107,6 @@ impl CsvRow<CsvThoth> for Work {
 }
 
 impl From<Work> for CsvThothRow {
-    // use thoth_api::ast::
     fn from(work: Work) -> Self {
         let mut subjects = work.subjects;
         // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
