@@ -5,7 +5,6 @@ use marc::{DescriptiveCatalogingForm, EncodingLevel, FieldRepr, Record, RecordBu
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::IdentifierWithDomain;
-use thoth_api::model::{convert_from_jats, ConversionLimit, MarkupFormat};
 use thoth_client::{
     AbstractType, LanguageRelation, RelationType, SubjectType, Work, WorkContributions,
     WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkRelations, WorkSubjects,
@@ -336,17 +335,14 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
                 .and_then(|f| builder.add_field(f))?;
         }
 
-        // 520 - abstract
+        // 520 - abstract (plaintext canonical only)
         if let Some(r#abstract) = self
             .abstracts
             .iter()
             .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
         {
-            let mut long_abstract = convert_from_jats(
-                &r#abstract.content,
-                MarkupFormat::PlainText,
-                ConversionLimit::Abstract,
-            )?;
+            // Content is already in plaintext format from the query
+            let mut long_abstract = r#abstract.content.clone();
             // Strip out formatting marks as these may stop records loading successfully
             long_abstract.retain(|c| c != '\n' && c != '\r' && c != '\t');
             FieldRepr::from((b"520", "\\\\"))

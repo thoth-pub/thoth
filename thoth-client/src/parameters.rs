@@ -309,7 +309,8 @@ mod tests {
                 .without_subjects()
                 .without_fundings()
                 .without_relations()
-                .without_references(),
+                .without_references()
+                .without_abstracts(),
             QueryParameters {
                 with_issues: false,
                 with_languages: false,
@@ -338,7 +339,7 @@ mod tests {
                 with_fundings: true,
                 with_relations: true,
                 with_references: true,
-                with_abstracts: true,
+                with_abstracts: false,
             },
         );
     }
