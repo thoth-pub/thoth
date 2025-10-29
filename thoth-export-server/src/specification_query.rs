@@ -129,37 +129,85 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
             MetadataSpecification::Onix31Thoth(_) => Ok(QueryParameters::new().with_all()),
             MetadataSpecification::Onix3Thoth(_) => Ok(QueryParameters::new().with_all()),
             MetadataSpecification::Onix3ProjectMuse(_) => Ok(QueryParameters::new()
-                .with_all()
+                .with_canonical_abstracts_only()
+                .with_issues()
+                .with_languages()
+                .with_publications()
+                .with_subjects()
+                .with_fundings()
                 .without_relations()
                 .without_references()),
             MetadataSpecification::Onix3Oapen(_) => Ok(QueryParameters::new()
-                .with_all()
+                .with_canonical_abstracts_only()
+                .with_issues()
+                .with_languages()
+                .with_publications()
+                .with_subjects()
+                .with_fundings()
                 .without_relations()
                 .without_references()),
             MetadataSpecification::Onix3Jstor(_) => Ok(QueryParameters::new()
-                .with_all()
+                .with_canonical_abstracts_only()
+                .with_issues()
+                .with_languages()
+                .with_publications()
+                .with_subjects()
+                .with_fundings()
                 .without_relations()
                 .without_references()),
             MetadataSpecification::Onix3GoogleBooks(_) => Ok(QueryParameters::new()
-                .with_all()
+                .with_canonical_abstracts_only()
+                .with_issues()
+                .with_languages()
+                .with_publications()
+                .with_subjects()
+                .with_fundings()
                 .without_relations()
                 .without_references()),
             MetadataSpecification::Onix3Overdrive(_) => Ok(QueryParameters::new()
-                .with_all()
+                .with_canonical_abstracts_only()
+                .with_issues()
+                .with_languages()
+                .with_publications()
+                .with_subjects()
+                .with_fundings()
                 .without_relations()
                 .without_references()),
             MetadataSpecification::Onix21EbscoHost(_) => Ok(QueryParameters::new()
-                .with_all()
+                .with_canonical_abstracts_only()
+                .with_issues()
+                .with_languages()
+                .with_publications()
+                .with_subjects()
+                .with_fundings()
                 .without_relations()
                 .without_references()),
             MetadataSpecification::Onix21ProquestEbrary(_) => Ok(QueryParameters::new()
-                .with_all()
+                .with_canonical_abstracts_only()
+                .with_issues()
+                .with_languages()
+                .with_publications()
+                .with_subjects()
+                .with_fundings()
                 .without_relations()
                 .without_references()),
             MetadataSpecification::CsvThoth(_) => match q.request {
-                SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
+                SpecificationRequest::ByWork => Ok(QueryParameters::new()
+                    .with_canonical_abstracts_only()
+                    .with_issues()
+                    .with_languages()
+                    .with_publications()
+                    .with_subjects()
+                    .with_fundings()
+                    .with_relations()
+                    .with_references()),
                 SpecificationRequest::ByPublisher => Ok(QueryParameters::new()
-                    .with_all()
+                    .with_canonical_abstracts_only()
+                    .with_issues()
+                    .with_languages()
+                    .with_publications()
+                    .with_subjects()
+                    .with_fundings()
                     .without_relations()
                     .without_references()),
             },
@@ -170,20 +218,24 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                     "Output can only be generated for one work at a time".to_string(),
                 )),
             },
-            MetadataSpecification::KbartOclc(_) => {
-                Ok(QueryParameters::new().with_issues().with_publications())
-            }
+            MetadataSpecification::KbartOclc(_) => Ok(QueryParameters::new()
+                .with_canonical_abstracts_only()
+                .with_issues()
+                .with_publications()),
             MetadataSpecification::BibtexThoth(_) => match q.request {
                 SpecificationRequest::ByWork => Ok(QueryParameters::new()
+                    .with_canonical_abstracts_only()
                     .with_issues()
                     .with_publications()
                     .with_relations()),
-                SpecificationRequest::ByPublisher => {
-                    Ok(QueryParameters::new().with_issues().with_publications())
-                }
+                SpecificationRequest::ByPublisher => Ok(QueryParameters::new()
+                    .with_canonical_abstracts_only()
+                    .with_issues()
+                    .with_publications()),
             },
             MetadataSpecification::DoiDepositCrossref(_) => match q.request {
                 SpecificationRequest::ByWork => Ok(QueryParameters::new()
+                    .with_canonical_abstracts_only()
                     .with_issues()
                     .with_publications()
                     .with_fundings()
@@ -197,6 +249,7 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
             MetadataSpecification::Marc21RecordThoth(_)
             | MetadataSpecification::Marc21MarkupThoth(_)
             | MetadataSpecification::Marc21XmlThoth(_) => Ok(QueryParameters::new()
+                .with_canonical_abstracts_only()
                 .with_issues()
                 .with_publications()
                 .with_subjects()

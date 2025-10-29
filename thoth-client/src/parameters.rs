@@ -72,7 +72,7 @@ impl QueryParameters {
     }
 
     pub fn with_all(self) -> Self {
-        self.with_abstracts()
+        self.with_all_abstracts()
             .with_issues()
             .with_languages()
             .with_publications()
@@ -117,7 +117,7 @@ impl QueryParameters {
         self
     }
 
-    pub fn with_abstracts(mut self) -> Self {
+    pub fn with_all_abstracts(mut self) -> Self {
         self.with_abstracts = true;
         self
     }
@@ -157,7 +157,7 @@ impl QueryParameters {
         self
     }
 
-    pub fn without_abstracts(mut self) -> Self {
+    pub fn with_canonical_abstracts_only(mut self) -> Self {
         self.with_abstracts = false;
         self
     }
@@ -165,6 +165,8 @@ impl QueryParameters {
 
 const FILTER_INCLUDE_ALL: i64 = 99999;
 const FILTER_INCLUDE_NONE: i64 = 0;
+/// For abstracts: fetch only canonical ones (typically 1 LONG and 1 SHORT)
+const FILTER_INCLUDE_CANONICAL: i64 = 2;
 
 impl From<WorkQueryVariables> for work_query::Variables {
     fn from(v: WorkQueryVariables) -> Self {
@@ -173,7 +175,7 @@ impl From<WorkQueryVariables> for work_query::Variables {
             abstracts_limit: if v.parameters.with_abstracts {
                 FILTER_INCLUDE_ALL
             } else {
-                FILTER_INCLUDE_NONE
+                FILTER_INCLUDE_CANONICAL
             },
             issues_limit: if v.parameters.with_issues {
                 FILTER_INCLUDE_ALL
@@ -223,7 +225,7 @@ impl From<WorksQueryVariables> for works_query::Variables {
             abstracts_limit: if v.parameters.with_abstracts {
                 FILTER_INCLUDE_ALL
             } else {
-                FILTER_INCLUDE_NONE
+                FILTER_INCLUDE_CANONICAL
             },
             issues_limit: if v.parameters.with_issues {
                 FILTER_INCLUDE_ALL
@@ -310,7 +312,7 @@ mod tests {
                 .without_fundings()
                 .without_relations()
                 .without_references()
-                .without_abstracts(),
+                .with_canonical_abstracts_only(),
             QueryParameters {
                 with_issues: false,
                 with_languages: false,
@@ -370,7 +372,7 @@ mod tests {
             variables,
             work_query::Variables {
                 work_id,
-                abstracts_limit: FILTER_INCLUDE_NONE,
+                abstracts_limit: FILTER_INCLUDE_CANONICAL,
                 issues_limit: FILTER_INCLUDE_NONE,
                 languages_limit: FILTER_INCLUDE_NONE,
                 publications_limit: FILTER_INCLUDE_NONE,
@@ -429,7 +431,7 @@ mod tests {
                 publishers: publishers.clone(),
                 limit: 100,
                 offset: 0,
-                abstracts_limit: FILTER_INCLUDE_NONE,
+                abstracts_limit: FILTER_INCLUDE_CANONICAL,
                 issues_limit: FILTER_INCLUDE_NONE,
                 languages_limit: FILTER_INCLUDE_NONE,
                 publications_limit: FILTER_INCLUDE_NONE,
