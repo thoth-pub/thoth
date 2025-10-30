@@ -33,16 +33,5 @@ services:
     depends_on:
       - graphql-api
 
-  app:
-    image: ghcr.io/thoth-pub/thoth
-    container_name: "thoth_app"
-    restart: unless-stopped
-    command: ["start", "app"]
-    env_file:
-      - .env
-    depends_on:
-      - graphql-api
-      - export-api
-
 volumes:
   db:

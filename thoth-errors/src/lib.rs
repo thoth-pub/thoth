@@ -203,26 +203,6 @@ impl fmt::Display for GraqphqlErrorMessage {
     }
 }
 
-impl From<yewtil::fetch::FetchError> for ThothError {
-    fn from(error: yewtil::fetch::FetchError) -> Self {
-        use serde_json::error::Result;
-        use yewtil::fetch::FetchError;
-        match error {
-            FetchError::DeserializeError { error: _, content } => {
-                let message: Result<GraqphqlErrorMessage> = serde_json::from_str(&content);
-                match message {
-                    Ok(m) => ThothError::GraphqlError(m.to_string()),
-                    Err(_) => ThothError::RequestError(content),
-                }
-            }
-            FetchError::CouldNotCreateFetchFuture => {
-                ThothError::RequestError("Could not connect to the API.".to_string())
-            }
-            _ => ThothError::RequestError(error.to_string()),
-        }
-    }
-}
-
 #[cfg(not(target_arch = "wasm32"))]
 impl From<csv::Error> for ThothError {
     fn from(e: csv::Error) -> Self {
