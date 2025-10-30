@@ -14,7 +14,7 @@ EXPOSE 8181
 
 # Use dummy file to force cargo to install dependencies without compiling code.
 # We need to get dummy lib files for all members of the workspace, and their cargo files,
-# then we run wasm-pack and cargo build to download and compile all project dependencies.
+# then we run cargo build to download and compile all project dependencies.
 RUN mkdir src
 RUN echo "fn main() {}" > src/main.rs
 COPY Cargo.lock .
