@@ -25,7 +25,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  THOTH_GRAPHQL_API: https://api.thoth.pub
   THOTH_EXPORT_API: https://export.thoth.pub
   TEST_REDIS_URL: redis://localhost:6379
 

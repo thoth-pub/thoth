@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
   - [697](https://github.com/thoth-pub/thoth/pull/697) – Migrated GraphQL API authentication to OIDC via Zitadel. Internal JWT handling has been replaced with introspection of Zitadel-issued tokens. Authorisation is now based entirely on token claims, removing the need for the internal `account` and `publisher_account` tables.
   - [697](https://github.com/thoth-pub/thoth/pull/697) – Replaced legacy password-based login in the Thoth APP with Zitadel OIDC authentication using PKCE. The app now redirects to Zitadel for login, exchanges authorisation codes for tokens, and introspects tokens client-side to determine roles and permissions.
+### Removed
+  - Deprecated thoth-app
+
+## [[0.13.14]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.14) - 2025-10-14
+### Changed
+  - [708](https://github.com/thoth-pub/thoth/pull/708) - Replace ISBN parsing library with [`isbn`](https://crates.io/crates/isbn)
 
 ## [[0.13.13]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.13) - 2025-06-05
 ### Changed

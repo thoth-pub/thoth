@@ -1,5 +1,5 @@
 use chrono::{DateTime, TimeZone, Utc};
-use isbn2::Isbn13;
+use isbn::Isbn13;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;

@@ -1,11 +1,8 @@
 .PHONY: \
 	build-graphql-api \
 	build-export-api \
-	build-app \
-	run-app \
 	run-graphql-api \
 	run-export-api \
-	watch-app \
 	docker-dev \
 	docker-dev-build \
 	docker-dev-run \
@@ -21,20 +18,14 @@
 	check \
 	check-all \
 
-all: build-graphql-api build-export-api build-app
+all: build-graphql-api build-export-api
 check-all: test check clippy check-format
-
-run-app: build-app
-	RUST_BACKTRACE=1 cargo run start app
 
 run-graphql-api: build-graphql-api
 	RUST_BACKTRACE=1 cargo run init
 
 run-export-api: build-export-api
 	RUST_BACKTRACE=1 cargo run start export-api
-
-watch-app:
-	trunk serve thoth-app/index.html
 
 docker-dev: docker-dev-build docker-dev-run
 
@@ -62,8 +53,6 @@ build:
 build-graphql-api: build
 
 build-export-api: build
-
-build-app: build
 
 test:
 	cargo test --workspace
