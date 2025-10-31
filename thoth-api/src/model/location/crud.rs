@@ -148,7 +148,7 @@ impl Crud for Location {
         &self,
         db: &crate::db::PgPool,
         data: &PatchLocation,
-        account_id: &Uuid,
+        user_id: &str,
     ) -> ThothResult<Self> {
         let mut connection = db.get()?;
         connection
@@ -177,7 +177,7 @@ impl Crud for Location {
                 }
             })
             .and_then(|location| {
-                self.new_history_entry(account_id)
+                self.new_history_entry(user_id)
                     .insert(&mut connection)
                     .map(|_| location)
             })
@@ -196,10 +196,10 @@ impl Crud for Location {
 impl HistoryEntry for Location {
     type NewHistoryEntity = NewLocationHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             location_id: self.location_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -313,10 +313,10 @@ mod tests {
     #[test]
     fn test_new_location_history_from_location() {
         let location: Location = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_location_history = location.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_location_history = location.new_history_entry(&user_id);
         assert_eq!(new_location_history.location_id, location.location_id);
-        assert_eq!(new_location_history.account_id, account_id);
+        assert_eq!(new_location_history.user_id, user_id);
         assert_eq!(
             new_location_history.data,
             serde_json::Value::String(serde_json::to_string(&location).unwrap())

@@ -216,7 +216,7 @@ pub struct PatchLocation {
 pub struct LocationHistory {
     pub location_history_id: Uuid,
     pub location_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -228,7 +228,7 @@ pub struct LocationHistory {
 )]
 pub struct NewLocationHistory {
     pub location_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 

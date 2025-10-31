@@ -51,25 +51,6 @@ pub mod sql_types {
 table! {
     use diesel::sql_types::*;
 
-    account (account_id) {
-        account_id -> Uuid,
-        name -> Text,
-        surname -> Text,
-        email -> Text,
-        hash -> Bytea,
-        salt -> Text,
-        is_superuser -> Bool,
-        is_bot -> Bool,
-        is_active -> Bool,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
-        token -> Nullable<Text>,
-    }
-}
-
-table! {
-    use diesel::sql_types::*;
-
     affiliation (affiliation_id) {
         affiliation_id -> Uuid,
         contribution_id -> Uuid,
@@ -87,7 +68,7 @@ table! {
     affiliation_history (affiliation_history_id) {
         affiliation_history_id -> Uuid,
         affiliation_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -119,7 +100,7 @@ table! {
     contribution_history (contribution_history_id) {
         contribution_history_id -> Uuid,
         contribution_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -146,7 +127,7 @@ table! {
     contributor_history (contributor_history_id) {
         contributor_history_id -> Uuid,
         contributor_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -175,7 +156,7 @@ table! {
     funding_history (funding_history_id) {
         funding_history_id -> Uuid,
         funding_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -201,7 +182,7 @@ table! {
     imprint_history (imprint_history_id) {
         imprint_history_id -> Uuid,
         imprint_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -228,7 +209,7 @@ table! {
     institution_history (institution_history_id) {
         institution_history_id -> Uuid,
         institution_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -253,7 +234,7 @@ table! {
     issue_history (issue_history_id) {
         issue_history_id -> Uuid,
         issue_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -281,7 +262,7 @@ table! {
     language_history (language_history_id) {
         language_history_id -> Uuid,
         language_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -309,7 +290,7 @@ table! {
     location_history (location_history_id) {
         location_history_id -> Uuid,
         location_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -335,7 +316,7 @@ table! {
     price_history (price_history_id) {
         price_history_id -> Uuid,
         price_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -369,7 +350,7 @@ table! {
     publication_history (publication_history_id) {
         publication_history_id -> Uuid,
         publication_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -391,22 +372,10 @@ table! {
 table! {
     use diesel::sql_types::*;
 
-    publisher_account (account_id, publisher_id) {
-        account_id -> Uuid,
-        publisher_id -> Uuid,
-        is_admin -> Bool,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
-    }
-}
-
-table! {
-    use diesel::sql_types::*;
-
     publisher_history (publisher_history_id) {
         publisher_history_id -> Uuid,
         publisher_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -450,7 +419,7 @@ table! {
     reference_history (reference_history_id) {
         reference_history_id -> Uuid,
         reference_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -481,7 +450,7 @@ table! {
     series_history (series_history_id) {
         series_history_id -> Uuid,
         series_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -508,7 +477,7 @@ table! {
     subject_history (subject_history_id) {
         subject_history_id -> Uuid,
         subject_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -566,7 +535,7 @@ table! {
     work_history (work_history_id) {
         work_history_id -> Uuid,
         work_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -593,7 +562,7 @@ table! {
     work_relation_history (work_relation_history_id) {
         work_relation_history_id -> Uuid,
         work_relation_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -601,61 +570,41 @@ table! {
 
 joinable!(affiliation -> contribution (contribution_id));
 joinable!(affiliation -> institution (institution_id));
-joinable!(affiliation_history -> account (account_id));
 joinable!(affiliation_history -> affiliation (affiliation_id));
 joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
-joinable!(contribution_history -> account (account_id));
 joinable!(contribution_history -> contribution (contribution_id));
-joinable!(contributor_history -> account (account_id));
 joinable!(contributor_history -> contributor (contributor_id));
 joinable!(funding -> institution (institution_id));
 joinable!(funding -> work (work_id));
-joinable!(funding_history -> account (account_id));
 joinable!(funding_history -> funding (funding_id));
 joinable!(imprint -> publisher (publisher_id));
-joinable!(imprint_history -> account (account_id));
 joinable!(imprint_history -> imprint (imprint_id));
-joinable!(institution_history -> account (account_id));
 joinable!(institution_history -> institution (institution_id));
 joinable!(issue -> series (series_id));
 joinable!(issue -> work (work_id));
-joinable!(issue_history -> account (account_id));
 joinable!(issue_history -> issue (issue_id));
 joinable!(language -> work (work_id));
-joinable!(language_history -> account (account_id));
 joinable!(language_history -> language (language_id));
 joinable!(location -> publication (publication_id));
-joinable!(location_history -> account (account_id));
 joinable!(location_history -> location (location_id));
 joinable!(price -> publication (publication_id));
-joinable!(price_history -> account (account_id));
 joinable!(price_history -> price (price_id));
 joinable!(publication -> work (work_id));
-joinable!(publication_history -> account (account_id));
 joinable!(publication_history -> publication (publication_id));
-joinable!(publisher_account -> account (account_id));
-joinable!(publisher_account -> publisher (publisher_id));
-joinable!(publisher_history -> account (account_id));
 joinable!(publisher_history -> publisher (publisher_id));
 joinable!(reference -> work (work_id));
-joinable!(reference_history -> account (account_id));
 joinable!(reference_history -> reference (reference_id));
 joinable!(series -> imprint (imprint_id));
-joinable!(series_history -> account (account_id));
 joinable!(series_history -> series (series_id));
 joinable!(subject -> work (work_id));
-joinable!(subject_history -> account (account_id));
 joinable!(subject_history -> subject (subject_id));
 joinable!(work -> imprint (imprint_id));
-joinable!(work_history -> account (account_id));
 joinable!(work_history -> work (work_id));
 joinable!(work_relation -> work (relator_work_id));
-joinable!(work_relation_history -> account (account_id));
 joinable!(work_relation_history -> work_relation (work_relation_id));
 
 allow_tables_to_appear_in_same_query!(
-    account,
     affiliation,
     affiliation_history,
     contribution,
@@ -679,7 +628,6 @@ allow_tables_to_appear_in_same_query!(
     publication,
     publication_history,
     publisher,
-    publisher_account,
     publisher_history,
     reference,
     reference_history,

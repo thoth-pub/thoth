@@ -86,7 +86,7 @@ pub struct PatchAffiliation {
 pub struct AffiliationHistory {
     pub affiliation_history_id: Uuid,
     pub affiliation_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -98,7 +98,7 @@ pub struct AffiliationHistory {
 )]
 pub struct NewAffiliationHistory {
     pub affiliation_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 

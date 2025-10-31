@@ -827,7 +827,7 @@ pub enum CurrencyCode {
 pub struct PriceHistory {
     pub price_history_id: Uuid,
     pub price_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -835,7 +835,7 @@ pub struct PriceHistory {
 #[cfg_attr(feature = "backend", derive(Insertable), diesel(table_name = price_history))]
 pub struct NewPriceHistory {
     pub price_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 

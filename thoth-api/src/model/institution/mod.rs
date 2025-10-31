@@ -869,7 +869,7 @@ pub enum CountryCode {
 pub struct InstitutionHistory {
     pub institution_history_id: Uuid,
     pub institution_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -881,7 +881,7 @@ pub struct InstitutionHistory {
 )]
 pub struct NewInstitutionHistory {
     pub institution_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 

@@ -129,10 +129,10 @@ impl Crud for Institution {
 impl HistoryEntry for Institution {
     type NewHistoryEntity = NewInstitutionHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             institution_id: self.institution_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -192,13 +192,13 @@ mod tests {
     #[test]
     fn test_new_institution_history_from_institution() {
         let institution: Institution = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_institution_history = institution.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_institution_history = institution.new_history_entry(&user_id);
         assert_eq!(
             new_institution_history.institution_id,
             institution.institution_id
         );
-        assert_eq!(new_institution_history.account_id, account_id);
+        assert_eq!(new_institution_history.user_id, user_id);
         assert_eq!(
             new_institution_history.data,
             serde_json::Value::String(serde_json::to_string(&institution).unwrap())

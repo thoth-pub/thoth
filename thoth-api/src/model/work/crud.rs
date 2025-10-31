@@ -388,10 +388,10 @@ impl Crud for Work {
 impl HistoryEntry for Work {
     type NewHistoryEntity = NewWorkHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             work_id: self.work_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -416,10 +416,10 @@ mod tests {
     #[test]
     fn test_new_work_history_from_work() {
         let work: Work = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_work_history = work.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_work_history = work.new_history_entry(&user_id);
         assert_eq!(new_work_history.work_id, work.work_id);
-        assert_eq!(new_work_history.account_id, account_id);
+        assert_eq!(new_work_history.user_id, user_id);
         assert_eq!(
             new_work_history.data,
             serde_json::Value::String(serde_json::to_string(&work).unwrap())

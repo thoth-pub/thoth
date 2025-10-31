@@ -73,7 +73,7 @@ pub struct PatchIssue {
 pub struct IssueHistory {
     pub issue_history_id: Uuid,
     pub issue_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -81,7 +81,7 @@ pub struct IssueHistory {
 #[cfg_attr(feature = "backend", derive(Insertable), diesel(table_name = issue_history))]
 pub struct NewIssueHistory {
     pub issue_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
