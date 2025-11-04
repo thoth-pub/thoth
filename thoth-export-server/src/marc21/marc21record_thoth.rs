@@ -824,7 +824,7 @@ pub(crate) mod tests {
             abstracts: vec![thoth_client::WorkAbstracts {
                 abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                 work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                content: "Lorem\tipsum\r\ndolor sit amet".to_string(),
+                content: "<p>Lorem\tipsum\r\ndolor sit amet</p>".to_string(),
                 locale_code: thoth_client::LocaleCode::EN,
                 abstract_type: thoth_client::AbstractType::LONG,
                 canonical: true,

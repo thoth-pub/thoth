@@ -13,6 +13,7 @@ pub struct QueryParameters {
     with_relations: bool,
     with_references: bool,
     with_abstracts: bool,
+    with_titles: bool,
 }
 
 /// An intermediate struct to parse QueryParameters into work_query::Variables
@@ -73,6 +74,7 @@ impl QueryParameters {
 
     pub fn with_all(self) -> Self {
         self.with_all_abstracts()
+            .with_all_titles()
             .with_issues()
             .with_languages()
             .with_publications()
@@ -122,6 +124,11 @@ impl QueryParameters {
         self
     }
 
+    pub fn with_all_titles(mut self) -> Self {
+        self.with_titles = true;
+        self
+    }
+
     pub fn without_issues(mut self) -> Self {
         self.with_issues = false;
         self
@@ -159,6 +166,11 @@ impl QueryParameters {
 
     pub fn with_canonical_abstracts_only(mut self) -> Self {
         self.with_abstracts = false;
+        self
+    }
+
+    pub fn with_canonical_title_only(mut self) -> Self {
+        self.with_titles = false;
         self
     }
 }
@@ -212,6 +224,11 @@ impl From<WorkQueryVariables> for work_query::Variables {
             } else {
                 FILTER_INCLUDE_NONE
             },
+            titles_limit: if v.parameters.with_titles {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_CANONICAL
+            },
         }
     }
 }
@@ -262,6 +279,11 @@ impl From<WorksQueryVariables> for works_query::Variables {
             } else {
                 FILTER_INCLUDE_NONE
             },
+            titles_limit: if v.parameters.with_titles {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_CANONICAL
+            },
         }
     }
 }
@@ -282,6 +304,7 @@ mod tests {
             with_relations: false,
             with_references: false,
             with_abstracts: false,
+            with_titles: false,
         };
         assert_eq!(to_test, QueryParameters::default());
         assert_eq!(to_test, QueryParameters::new())
@@ -300,6 +323,7 @@ mod tests {
                 with_relations: true,
                 with_references: true,
                 with_abstracts: true,
+                with_titles: true,
             },
         );
         assert_eq!(
@@ -312,7 +336,8 @@ mod tests {
                 .without_fundings()
                 .without_relations()
                 .without_references()
-                .with_canonical_abstracts_only(),
+                .with_canonical_abstracts_only()
+                .with_canonical_title_only(),
             QueryParameters {
                 with_issues: false,
                 with_languages: false,
@@ -322,6 +347,7 @@ mod tests {
                 with_relations: false,
                 with_references: false,
                 with_abstracts: false,
+                with_titles: false,
             },
         );
         assert_eq!(
@@ -342,6 +368,7 @@ mod tests {
                 with_relations: true,
                 with_references: true,
                 with_abstracts: false,
+                with_titles: false,
             },
         );
     }
@@ -364,6 +391,7 @@ mod tests {
                 fundings_limit: FILTER_INCLUDE_ALL,
                 relations_limit: FILTER_INCLUDE_ALL,
                 references_limit: FILTER_INCLUDE_ALL,
+                titles_limit: FILTER_INCLUDE_ALL,
             }
         );
         parameters = QueryParameters::new();
@@ -380,6 +408,7 @@ mod tests {
                 fundings_limit: FILTER_INCLUDE_NONE,
                 relations_limit: FILTER_INCLUDE_NONE,
                 references_limit: FILTER_INCLUDE_NONE,
+                titles_limit: FILTER_INCLUDE_CANONICAL,
             }
         );
         parameters = QueryParameters::new().with_all().without_relations();
@@ -396,6 +425,7 @@ mod tests {
                 fundings_limit: FILTER_INCLUDE_ALL,
                 relations_limit: FILTER_INCLUDE_NONE,
                 references_limit: FILTER_INCLUDE_ALL,
+                titles_limit: FILTER_INCLUDE_ALL,
             }
         );
     }
@@ -421,6 +451,7 @@ mod tests {
                 fundings_limit: FILTER_INCLUDE_ALL,
                 relations_limit: FILTER_INCLUDE_ALL,
                 references_limit: FILTER_INCLUDE_ALL,
+                titles_limit: FILTER_INCLUDE_ALL,
             }
         );
         parameters = QueryParameters::new();
@@ -439,6 +470,7 @@ mod tests {
                 fundings_limit: FILTER_INCLUDE_NONE,
                 relations_limit: FILTER_INCLUDE_NONE,
                 references_limit: FILTER_INCLUDE_NONE,
+                titles_limit: FILTER_INCLUDE_CANONICAL,
             }
         );
         parameters = QueryParameters::new()
@@ -460,6 +492,7 @@ mod tests {
                 fundings_limit: FILTER_INCLUDE_ALL,
                 relations_limit: FILTER_INCLUDE_NONE,
                 references_limit: FILTER_INCLUDE_NONE,
+                titles_limit: FILTER_INCLUDE_ALL,
             }
         );
     }

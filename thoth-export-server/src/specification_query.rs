@@ -130,6 +130,7 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
             MetadataSpecification::Onix3Thoth(_) => Ok(QueryParameters::new().with_all()),
             MetadataSpecification::Onix3ProjectMuse(_) => Ok(QueryParameters::new()
                 .with_canonical_abstracts_only()
+                .with_canonical_title_only()
                 .with_issues()
                 .with_languages()
                 .with_publications()
@@ -139,6 +140,7 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                 .without_references()),
             MetadataSpecification::Onix3Oapen(_) => Ok(QueryParameters::new()
                 .with_canonical_abstracts_only()
+                .with_canonical_title_only()
                 .with_issues()
                 .with_languages()
                 .with_publications()
@@ -148,6 +150,7 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                 .without_references()),
             MetadataSpecification::Onix3Jstor(_) => Ok(QueryParameters::new()
                 .with_canonical_abstracts_only()
+                .with_canonical_title_only()
                 .with_issues()
                 .with_languages()
                 .with_publications()
@@ -157,6 +160,7 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                 .without_references()),
             MetadataSpecification::Onix3GoogleBooks(_) => Ok(QueryParameters::new()
                 .with_canonical_abstracts_only()
+                .with_canonical_title_only()
                 .with_issues()
                 .with_languages()
                 .with_publications()
@@ -166,6 +170,7 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                 .without_references()),
             MetadataSpecification::Onix3Overdrive(_) => Ok(QueryParameters::new()
                 .with_canonical_abstracts_only()
+                .with_canonical_title_only()
                 .with_issues()
                 .with_languages()
                 .with_publications()
@@ -175,6 +180,7 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                 .without_references()),
             MetadataSpecification::Onix21EbscoHost(_) => Ok(QueryParameters::new()
                 .with_canonical_abstracts_only()
+                .with_canonical_title_only()
                 .with_issues()
                 .with_languages()
                 .with_publications()
@@ -184,6 +190,7 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                 .without_references()),
             MetadataSpecification::Onix21ProquestEbrary(_) => Ok(QueryParameters::new()
                 .with_canonical_abstracts_only()
+                .with_canonical_title_only()
                 .with_issues()
                 .with_languages()
                 .with_publications()
@@ -194,6 +201,7 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
             MetadataSpecification::CsvThoth(_) => match q.request {
                 SpecificationRequest::ByWork => Ok(QueryParameters::new()
                     .with_canonical_abstracts_only()
+                    .with_canonical_title_only()
                     .with_issues()
                     .with_languages()
                     .with_publications()
@@ -203,6 +211,7 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                     .with_references()),
                 SpecificationRequest::ByPublisher => Ok(QueryParameters::new()
                     .with_canonical_abstracts_only()
+                    .with_canonical_title_only()
                     .with_issues()
                     .with_languages()
                     .with_publications()
@@ -220,22 +229,26 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
             },
             MetadataSpecification::KbartOclc(_) => Ok(QueryParameters::new()
                 .with_canonical_abstracts_only()
+                .with_canonical_title_only()
                 .with_issues()
                 .with_publications()),
             MetadataSpecification::BibtexThoth(_) => match q.request {
                 SpecificationRequest::ByWork => Ok(QueryParameters::new()
                     .with_canonical_abstracts_only()
+                    .with_canonical_title_only()
                     .with_issues()
                     .with_publications()
                     .with_relations()),
                 SpecificationRequest::ByPublisher => Ok(QueryParameters::new()
                     .with_canonical_abstracts_only()
+                    .with_canonical_title_only()
                     .with_issues()
                     .with_publications()),
             },
             MetadataSpecification::DoiDepositCrossref(_) => match q.request {
                 SpecificationRequest::ByWork => Ok(QueryParameters::new()
                     .with_canonical_abstracts_only()
+                    .with_canonical_title_only()
                     .with_issues()
                     .with_publications()
                     .with_fundings()
@@ -250,6 +263,7 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
             | MetadataSpecification::Marc21MarkupThoth(_)
             | MetadataSpecification::Marc21XmlThoth(_) => Ok(QueryParameters::new()
                 .with_canonical_abstracts_only()
+                .with_canonical_title_only()
                 .with_issues()
                 .with_publications()
                 .with_subjects()

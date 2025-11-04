@@ -64,7 +64,7 @@ fragment Work on Work {
     oclc
     coverUrl
     coverCaption
-    titles(limit: 1, markupFormat: JATS_XML) {
+    titles(limit: $titlesLimit, markupFormat: PLAIN_TEXT) {
         titleId
         localeCode
         fullTitle
@@ -189,7 +189,7 @@ fragment Work on Work {
             pageCount
             pageInterval
             landingPage
-            titles(limit: 1) {
+            titles(limit: $titlesLimit) {
                 titleId
                 localeCode
                 fullTitle
@@ -270,6 +270,7 @@ query WorkQuery(
     $languagesLimit: Int!,
     $publicationsLimit: Int!,
     $subjectsLimit: Int!,
+    $titlesLimit: Int!,
     $fundingsLimit: Int!,
     $relationsLimit: Int!,
     $referencesLimit: Int!
@@ -287,6 +288,7 @@ query WorksQuery(
     $languagesLimit: Int!,
     $publicationsLimit: Int!,
     $subjectsLimit: Int!,
+    $titlesLimit: Int!,
     $fundingsLimit: Int!,
     $relationsLimit: Int!,
     $referencesLimit: Int!
