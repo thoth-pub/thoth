@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [689](https://github.com/thoth-pub/thoth/issues/689) - Store all rich text fields internally as JATS XML, supporting conversion to/from HTML, Markdown, and plain text
 - [689](https://github.com/thoth-pub/thoth/issues/689) - Mark existing GraphQL fields as deprecated and return only the canonical version
 
+### Removed
+  - Deprecated thoth-app
+
 ## [[0.13.14]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.14) - 2025-10-14
 ### Changed
   - [708](https://github.com/thoth-pub/thoth/pull/708) - Replace ISBN parsing library with [`isbn`](https://crates.io/crates/isbn)

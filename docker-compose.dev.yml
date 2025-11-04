@@ -40,17 +40,3 @@ services:
       - .env
     depends_on:
       - graphql-api
-
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    container_name: "thoth_app"
-    ports:
-      - "8080:8080"
-    command: ["cargo", "run", "start", "app"]
-    env_file:
-      - .env
-    depends_on:
-      - graphql-api
-      - export-api
