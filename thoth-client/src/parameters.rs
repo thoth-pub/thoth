@@ -163,10 +163,10 @@ impl QueryParameters {
     }
 }
 
-const FILTER_INCLUDE_ALL: i64 = 99999;
-const FILTER_INCLUDE_NONE: i64 = 0;
+pub const FILTER_INCLUDE_ALL: i64 = 99999;
+pub const FILTER_INCLUDE_NONE: i64 = 0;
 /// For abstracts: fetch only canonical ones (typically 1 LONG and 1 SHORT)
-const FILTER_INCLUDE_CANONICAL: i64 = 2;
+pub const FILTER_INCLUDE_CANONICAL: i64 = 2;
 
 impl From<WorkQueryVariables> for work_query::Variables {
     fn from(v: WorkQueryVariables) -> Self {

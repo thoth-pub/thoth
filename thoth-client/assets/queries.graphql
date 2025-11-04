@@ -197,7 +197,7 @@ fragment Work on Work {
                 subtitle
                 canonical
             }
-            abstracts(limit: 2, markupFormat: JATS_XML) {
+            abstracts(limit: $abstractsLimit, markupFormat: JATS_XML) {
                 abstractId
                 workId
                 content

@@ -31,6 +31,7 @@ serde_json = "1.0"
 uuid = { version = "1.16.0", features = ["serde", "v4", "js"] }
 getrandom = { version = "0.2", features = ["js"] }
 thoth-api = { version = "=0.13.14", path = "../thoth-api"  }
+thoth-client = { version = "=0.13.14", path = "../thoth-client"  }
 thoth-errors = { version = "=0.13.14", path = "../thoth-errors" }
 
 [build-dependencies]

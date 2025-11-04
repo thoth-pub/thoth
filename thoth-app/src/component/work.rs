@@ -30,6 +30,7 @@ use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::NeqAssign;
+use thoth_client::parameters::FILTER_INCLUDE_CANONICAL;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
@@ -293,6 +294,7 @@ impl Component for WorkComponent {
                     variables: WorkQueryVariables {
                         work_id: Some(ctx.props().work_id),
                         publishers: ctx.props().current_user.resource_access.restricted_to(),
+                        abstracts_limit: FILTER_INCLUDE_CANONICAL, // Fetch all abstracts for admin interface
                     },
                     ..Default::default()
                 };

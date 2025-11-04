@@ -8,7 +8,7 @@ use super::WorkStatusDefinition;
 use super::WorkTypeDefinition;
 
 pub const WORK_QUERY: &str = "
-    query WorkQuery($workId: Uuid!, $publishers: [Uuid!]) {
+    query WorkQuery($workId: Uuid!, $publishers: [Uuid!], $abstractsLimit: Int!) {
         work(workId: $workId) {
             workId
             workType
@@ -53,7 +53,7 @@ pub const WORK_QUERY: &str = "
                 subtitle
                 canonical
             }
-            abstracts(limit: 2, markupFormat: JATS_XML) {
+            abstracts(limit: $abstractsLimit, markupFormat: JATS_XML) {
                 abstractId
                 workId
                 content
@@ -89,7 +89,7 @@ pub const WORK_QUERY: &str = "
                         subtitle
                         canonical
                     }
-                    abstracts(limit: 1, markupFormat: JATS_XML) {
+                    abstracts(limit: $abstractsLimit, markupFormat: JATS_XML) {
                         abstractId
                         workId
                         content
@@ -274,6 +274,7 @@ graphql_query_builder! {
 pub struct Variables {
     pub work_id: Option<Uuid>,
     pub publishers: Option<Vec<String>>,
+    pub abstracts_limit: i64,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
