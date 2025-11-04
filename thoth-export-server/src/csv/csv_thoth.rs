@@ -1,6 +1,7 @@
 use csv::Writer;
 use serde::Serialize;
 use std::io::Write;
+use thoth_api::ast::{ast_to_plain_text, jats_to_ast};
 use thoth_client::{
     AbstractType, SubjectType, Work, WorkContributions, WorkContributionsAffiliations,
     WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkPublicationsLocations,
@@ -141,12 +142,20 @@ impl From<Work> for CsvThothRow {
                 .abstracts
                 .iter()
                 .find(|a| a.abstract_type == AbstractType::SHORT && a.canonical)
-                .map(|x| x.content.clone()),
+                .map(|x| {
+                    // Convert JATS to plaintext
+                    let ast = jats_to_ast(&x.content);
+                    ast_to_plain_text(&ast)
+                }),
             long_abstract: work
                 .abstracts
                 .iter()
                 .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
-                .map(|x| x.content.clone()),
+                .map(|x| {
+                    // Convert JATS to plaintext
+                    let ast = jats_to_ast(&x.content);
+                    ast_to_plain_text(&ast)
+                }),
             general_note: work.general_note,
             bibliography_note: work.bibliography_note,
             toc: work.toc,

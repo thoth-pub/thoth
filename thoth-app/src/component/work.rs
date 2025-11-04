@@ -19,6 +19,7 @@ use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
 use thoth_api::model::{Doi, DOI_DOMAIN};
+use thoth_client::parameters::FILTER_INCLUDE_CANONICAL;
 use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
@@ -30,7 +31,6 @@ use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::NeqAssign;
-use thoth_client::parameters::FILTER_INCLUDE_CANONICAL;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;

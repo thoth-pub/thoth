@@ -2,6 +2,7 @@ use crate::marc21::{Marc21Field, MARC_ORGANIZATION_CODE};
 use cc_license::License;
 use chrono::{Datelike, Utc};
 use marc::{DescriptiveCatalogingForm, EncodingLevel, FieldRepr, Record, RecordBuilder};
+use thoth_api::ast::{ast_to_plain_text, jats_to_ast};
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::IdentifierWithDomain;
@@ -335,14 +336,16 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
                 .and_then(|f| builder.add_field(f))?;
         }
 
-        // 520 - abstract (plaintext canonical only)
+        // 520 - abstract (canonical only, converted from JATS to plaintext)
         if let Some(r#abstract) = self
             .abstracts
             .iter()
             .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
         {
-            // Content is already in plaintext format from the query
-            let mut long_abstract = r#abstract.content.clone();
+            // Convert JATS XML to plaintext: JATS → AST → Plain text
+            let ast = jats_to_ast(&r#abstract.content);
+            let plaintext = ast_to_plain_text(&ast);
+            let mut long_abstract = plaintext;
             // Strip out formatting marks as these may stop records loading successfully
             long_abstract.retain(|c| c != '\n' && c != '\r' && c != '\t');
             FieldRepr::from((b"520", "\\\\"))

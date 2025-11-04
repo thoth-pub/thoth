@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 use std::fmt;
 use std::io::Write;
+use thoth_api::ast::{ast_to_plain_text, jats_to_ast};
 use thoth_client::{
     AbstractType, ContributionType, PublicationType, RelationType, Work, WorkContributions,
     WorkType,
@@ -199,8 +200,12 @@ impl TryFrom<Work> for BibtexThothEntry {
             long_abstract: work
                 .abstracts
                 .iter()
-                .find(|a| a.abstract_type == AbstractType::LONG)
-                .map(|x| x.content.clone()),
+                .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
+                .map(|x| {
+                    // Convert JATS to plaintext
+                    let ast = jats_to_ast(&x.content);
+                    ast_to_plain_text(&ast)
+                }),
         })
     }
 }
