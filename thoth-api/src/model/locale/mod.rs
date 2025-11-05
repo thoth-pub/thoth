@@ -2007,3 +2007,453 @@ pub enum LocaleCode {
     )]
     ZuZa,
 }
+
+impl LocaleCode {
+    /// Converts a LocaleCode (BCP-47) to its ISO 639-2/B language code
+    pub fn to_iso(&self) -> &'static str {
+        // Extract the base language code by converting to lowercase string
+        // This handles most locale variants that differ only by region/script
+        let locale_str = format!("{:?}", self).to_lowercase();
+
+        // Match based on the start of the locale string to extract base language
+        // English and English-related creoles
+        if locale_str.starts_with("en")
+            || locale_str == "aig"
+            || locale_str == "bah"
+            || locale_str == "lir"
+            || locale_str == "svc"
+            || locale_str == "vic"
+            || locale_str == "tch"
+        {
+            "eng"
+        }
+        // Major world languages sorted alphabetically by ISO code
+        else if locale_str.starts_with("af") {
+            "afr"
+        } else if locale_str.starts_with("agq") {
+            "agq"
+        } else if locale_str.starts_with("ak") {
+            "aka"
+        } else if locale_str.starts_with("sq") {
+            "alb"
+        } else if locale_str.starts_with("am") {
+            "amh"
+        } else if locale_str.starts_with("ar") {
+            "ara"
+        } else if locale_str.starts_with("hy") {
+            "arm"
+        } else if locale_str.starts_with("asa") {
+            "asa"
+        } else if locale_str.starts_with("as_") {
+            "asm"
+        }
+        // Assamese - avoid matching "asa"
+        else if locale_str.starts_with("ast") {
+            "ast"
+        } else if locale_str.starts_with("az") {
+            "aze"
+        } else if locale_str.starts_with("bm") {
+            "bam"
+        } else if locale_str.starts_with("bas") {
+            "bas"
+        } else if locale_str.starts_with("eu") {
+            "baq"
+        } else if locale_str.starts_with("be_") {
+            "bel"
+        }
+        // Belarusian - avoid matching "bem"/"bez"
+        else if locale_str.starts_with("bem") {
+            "bem"
+        } else if locale_str.starts_with("bez") {
+            "bez"
+        } else if locale_str.starts_with("bn") {
+            "ben"
+        } else if locale_str.starts_with("brx") {
+            "brx"
+        } else if locale_str.starts_with("bs") {
+            "bos"
+        } else if locale_str.starts_with("br_") {
+            "bre"
+        }
+        // Breton
+        else if locale_str.starts_with("bg") {
+            "bul"
+        } else if locale_str.starts_with("my") {
+            "bur"
+        } else if locale_str.starts_with("ca") || locale_str.starts_with("val") {
+            "cat"
+        } else if locale_str.starts_with("cgg") {
+            "cgg"
+        } else if locale_str.starts_with("chr") {
+            "chr"
+        } else if locale_str.starts_with("zh") {
+            "chi"
+        } else if locale_str.starts_with("swc") {
+            "swc"
+        } else if locale_str.starts_with("kw") {
+            "cor"
+        } else if locale_str.starts_with("hr") {
+            "hrv"
+        } else if locale_str.starts_with("cs") {
+            "cze"
+        } else if locale_str.starts_with("da") {
+            "dan"
+        } else if locale_str.starts_with("dav") {
+            "dav"
+        } else if locale_str.starts_with("dv") {
+            "div"
+        } else if locale_str.starts_with("dje") {
+            "dje"
+        } else if locale_str.starts_with("dua") {
+            "dua"
+        } else if locale_str.starts_with("nl") {
+            "dut"
+        } else if locale_str.starts_with("dyo") {
+            "dyo"
+        } else if locale_str.starts_with("ebu") {
+            "ebu"
+        } else if locale_str.starts_with("ee") {
+            "ewe"
+        } else if locale_str.starts_with("eo") {
+            "epo"
+        } else if locale_str.starts_with("et") {
+            "est"
+        } else if locale_str.starts_with("ewo") {
+            "ewo"
+        } else if locale_str.starts_with("fo") {
+            "fao"
+        } else if locale_str.starts_with("fil") {
+            "fil"
+        } else if locale_str.starts_with("fi") {
+            "fin"
+        } else if locale_str.starts_with("fr") {
+            "fre"
+        } else if locale_str.starts_with("ff") {
+            "ful"
+        } else if locale_str.starts_with("gl") {
+            "glg"
+        } else if locale_str.starts_with("lg") {
+            "lug"
+        } else if locale_str.starts_with("ka") {
+            "geo"
+        } else if locale_str.starts_with("de") {
+            "ger"
+        } else if locale_str.starts_with("el") {
+            "gre"
+        } else if locale_str.starts_with("gsw") {
+            "gsw"
+        } else if locale_str.starts_with("gu") {
+            "guj"
+        } else if locale_str.starts_with("guz") {
+            "guz"
+        } else if locale_str.starts_with("gv") {
+            "glv"
+        } else if locale_str.starts_with("ha") {
+            "hau"
+        } else if locale_str.starts_with("haw") {
+            "haw"
+        } else if locale_str.starts_with("he") {
+            "heb"
+        } else if locale_str.starts_with("hi") {
+            "hin"
+        } else if locale_str.starts_with("hu") {
+            "hun"
+        } else if locale_str.starts_with("is") {
+            "ice"
+        } else if locale_str.starts_with("ig") {
+            "ibo"
+        } else if locale_str.starts_with("smn") {
+            "smn"
+        } else if locale_str.starts_with("id") {
+            "ind"
+        } else if locale_str.starts_with("ga") {
+            "gle"
+        } else if locale_str.starts_with("it") {
+            "ita"
+        } else if locale_str.starts_with("ja") {
+            "jpn"
+        } else if locale_str.starts_with("jmc") {
+            "jmc"
+        } else if locale_str.starts_with("kaa") {
+            "kaa"
+        } else if locale_str.starts_with("kab") {
+            "kab"
+        } else if locale_str.starts_with("kl") {
+            "kal"
+        } else if locale_str.starts_with("kln") {
+            "kln"
+        } else if locale_str.starts_with("kam") {
+            "kam"
+        } else if locale_str.starts_with("kn") {
+            "kan"
+        } else if locale_str.starts_with("kk") {
+            "kaz"
+        } else if locale_str.starts_with("kde") {
+            "kde"
+        } else if locale_str.starts_with("kea") {
+            "kea"
+        } else if locale_str.starts_with("khq") {
+            "khq"
+        } else if locale_str.starts_with("km") {
+            "khm"
+        } else if locale_str.starts_with("ki") {
+            "kik"
+        } else if locale_str.starts_with("rw") {
+            "kin"
+        } else if locale_str.starts_with("kok") {
+            "kok"
+        } else if locale_str.starts_with("ko") {
+            "kor"
+        } else if locale_str.starts_with("ksb") {
+            "ksb"
+        } else if locale_str.starts_with("ksf") {
+            "ksf"
+        } else if locale_str.starts_with("ckb")
+            || locale_str.starts_with("kmr")
+            || locale_str.starts_with("sdh")
+        {
+            "kur"
+        } else if locale_str.starts_with("ky") {
+            "kir"
+        } else if locale_str.starts_with("lag") {
+            "lag"
+        } else if locale_str.starts_with("lao") {
+            "lao"
+        } else if locale_str.starts_with("lv") {
+            "lav"
+        } else if locale_str.starts_with("ln") {
+            "lin"
+        } else if locale_str.starts_with("lt") {
+            "lit"
+        } else if locale_str.starts_with("lu_") {
+            "lub"
+        }
+        // Luba-Katanga
+        else if locale_str.starts_with("luo") {
+            "luo"
+        } else if locale_str.starts_with("luy") {
+            "luy"
+        } else if locale_str.starts_with("mk") {
+            "mac"
+        } else if locale_str.starts_with("mg") {
+            "mlg"
+        } else if locale_str.starts_with("ms") {
+            "may"
+        } else if locale_str.starts_with("ml") {
+            "mal"
+        } else if locale_str.starts_with("mt") {
+            "mlt"
+        } else if locale_str.starts_with("mas") {
+            "mas"
+        } else if locale_str.starts_with("mer") {
+            "mer"
+        } else if locale_str.starts_with("mfe") {
+            "mfe"
+        } else if locale_str.starts_with("mgh") {
+            "mgh"
+        } else if locale_str.starts_with("mi") {
+            "mao"
+        } else if locale_str.starts_with("mr") {
+            "mar"
+        } else if locale_str.starts_with("mn") {
+            "mon"
+        } else if locale_str.starts_with("mua") {
+            "mua"
+        } else if locale_str.starts_with("naq") {
+            "naq"
+        } else if locale_str.starts_with("ne") {
+            "nep"
+        } else if locale_str.starts_with("se") || locale_str.starts_with("smn") {
+            "sme"
+        } else if locale_str.starts_with("nd") {
+            "nde"
+        } else if locale_str.starts_with("nmg") {
+            "nmg"
+        } else if locale_str.starts_with("no") || locale_str.starts_with("nb") {
+            "nob"
+        } else if locale_str.starts_with("nn") {
+            "nno"
+        } else if locale_str.starts_with("nus") {
+            "nus"
+        } else if locale_str.starts_with("nyn") {
+            "nyn"
+        } else if locale_str.starts_with("or") {
+            "ori"
+        } else if locale_str.starts_with("om") {
+            "orm"
+        } else if locale_str.starts_with("ps") {
+            "pus"
+        } else if locale_str.starts_with("fa") {
+            "per"
+        } else if locale_str.starts_with("pl") {
+            "pol"
+        } else if locale_str.starts_with("pt") {
+            "por"
+        } else if locale_str.starts_with("pa") {
+            "pan"
+        } else if locale_str.starts_with("ro") {
+            "rum"
+        } else if locale_str.starts_with("rm") {
+            "roh"
+        } else if locale_str.starts_with("rof") {
+            "rof"
+        } else if locale_str.starts_with("rn") {
+            "run"
+        } else if locale_str.starts_with("ru") {
+            "rus"
+        } else if locale_str.starts_with("rwk") {
+            "rwk"
+        } else if locale_str.starts_with("saq") {
+            "saq"
+        } else if locale_str.starts_with("sg") {
+            "sag"
+        } else if locale_str.starts_with("sbp") {
+            "sbp"
+        } else if locale_str.starts_with("sa") {
+            "san"
+        } else if locale_str.starts_with("gd") {
+            "gla"
+        } else if locale_str.starts_with("seh") {
+            "seh"
+        } else if locale_str.starts_with("sr") {
+            "srp"
+        } else if locale_str.starts_with("ses") {
+            "ses"
+        } else if locale_str.starts_with("shi") {
+            "shi"
+        } else if locale_str.starts_with("sn") {
+            "sna"
+        } else if locale_str.starts_with("ii") {
+            "iii"
+        } else if locale_str.starts_with("si") {
+            "sin"
+        } else if locale_str.starts_with("sk") {
+            "slo"
+        } else if locale_str.starts_with("sl") {
+            "slv"
+        } else if locale_str.starts_with("so") {
+            "som"
+        } else if locale_str.starts_with("es") {
+            "spa"
+        } else if locale_str.starts_with("sw") {
+            "swa"
+        } else if locale_str.starts_with("sv") {
+            "swe"
+        } else if locale_str.starts_with("tg") {
+            "tgk"
+        } else if locale_str.starts_with("ta") {
+            "tam"
+        } else if locale_str.starts_with("te") {
+            "tel"
+        } else if locale_str.starts_with("teo") {
+            "teo"
+        } else if locale_str.starts_with("th") {
+            "tha"
+        } else if locale_str.starts_with("bo") {
+            "tib"
+        } else if locale_str.starts_with("ti") {
+            "tir"
+        } else if locale_str.starts_with("to") {
+            "ton"
+        } else if locale_str.starts_with("tr") {
+            "tur"
+        } else if locale_str.starts_with("tk") {
+            "tuk"
+        } else if locale_str.starts_with("twq") {
+            "twq"
+        } else if locale_str.starts_with("tzm") {
+            "tzm"
+        } else if locale_str.starts_with("uk") {
+            "ukr"
+        } else if locale_str.starts_with("ur") {
+            "urd"
+        } else if locale_str.starts_with("ug") {
+            "uig"
+        } else if locale_str.starts_with("uz") {
+            "uzb"
+        } else if locale_str.starts_with("vai") {
+            "vai"
+        } else if locale_str.starts_with("vi") {
+            "vie"
+        } else if locale_str.starts_with("vun") {
+            "vun"
+        } else if locale_str.starts_with("cy") {
+            "wel"
+        } else if locale_str.starts_with("wo") {
+            "wol"
+        } else if locale_str.starts_with("xh") {
+            "xho"
+        } else if locale_str.starts_with("xog") {
+            "xog"
+        } else if locale_str.starts_with("yav") {
+            "yav"
+        } else if locale_str.starts_with("yo") {
+            "yor"
+        } else if locale_str.starts_with("zu") {
+            "zul"
+        } else {
+            "und" // undetermined for unmapped codes
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_to_iso_basic_english() {
+        assert_eq!(LocaleCode::En.to_iso(), "eng");
+    }
+
+    #[test]
+    fn test_to_iso_regional_variants() {
+        // English variants should all map to "eng"
+        assert_eq!(LocaleCode::EnUs.to_iso(), "eng");
+        assert_eq!(LocaleCode::EnGb.to_iso(), "eng");
+        assert_eq!(LocaleCode::EnCa.to_iso(), "eng");
+        assert_eq!(LocaleCode::EnAu.to_iso(), "eng");
+
+        // French variants should all map to "fre" (ISO 639-2/B)
+        assert_eq!(LocaleCode::Fr.to_iso(), "fre");
+        assert_eq!(LocaleCode::FrFr.to_iso(), "fre");
+        assert_eq!(LocaleCode::FrCa.to_iso(), "fre");
+        assert_eq!(LocaleCode::FrBe.to_iso(), "fre");
+
+        // Spanish variants should all map to "spa"
+        assert_eq!(LocaleCode::Es.to_iso(), "spa");
+        assert_eq!(LocaleCode::EsEs.to_iso(), "spa");
+        assert_eq!(LocaleCode::EsMx.to_iso(), "spa");
+        assert_eq!(LocaleCode::EsAr.to_iso(), "spa");
+    }
+
+    #[test]
+    fn test_to_iso_major_languages() {
+        // Test a variety of major world languages (ISO 639-2/B codes)
+        assert_eq!(LocaleCode::De.to_iso(), "ger"); // German
+        assert_eq!(LocaleCode::It.to_iso(), "ita"); // Italian
+        assert_eq!(LocaleCode::Pt.to_iso(), "por"); // Portuguese
+        assert_eq!(LocaleCode::Ru.to_iso(), "rus"); // Russian
+        assert_eq!(LocaleCode::Zh.to_iso(), "chi"); // Chinese
+        assert_eq!(LocaleCode::Ja.to_iso(), "jpn"); // Japanese
+        assert_eq!(LocaleCode::Ko.to_iso(), "kor"); // Korean
+        assert_eq!(LocaleCode::Ar.to_iso(), "ara"); // Arabic
+        assert_eq!(LocaleCode::Hi.to_iso(), "hin"); // Hindi
+        assert_eq!(LocaleCode::Nl.to_iso(), "dut"); // Dutch
+        assert_eq!(LocaleCode::Sv.to_iso(), "swe"); // Swedish
+        assert_eq!(LocaleCode::Pl.to_iso(), "pol"); // Polish
+    }
+
+    #[test]
+    fn test_to_iso_less_common_languages() {
+        // Test some less common languages (ISO 639-2/B codes)
+        assert_eq!(LocaleCode::Cy.to_iso(), "wel"); // Welsh
+        assert_eq!(LocaleCode::Ga.to_iso(), "gle"); // Irish
+        assert_eq!(LocaleCode::Eu.to_iso(), "baq"); // Basque
+        assert_eq!(LocaleCode::Is.to_iso(), "ice"); // Icelandic
+        assert_eq!(LocaleCode::Ka.to_iso(), "geo"); // Georgian
+        assert_eq!(LocaleCode::Hy.to_iso(), "arm"); // Armenian
+        assert_eq!(LocaleCode::Bo.to_iso(), "tib"); // Tibetan
+        assert_eq!(LocaleCode::Si.to_iso(), "sin"); // Sinhala
+    }
+}

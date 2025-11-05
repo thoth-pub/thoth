@@ -1,14 +1,15 @@
+use super::{write_element_block, XmlElement, XmlSpecification};
+use crate::xml::{write_full_element_block, XmlElementBlock, ONIX3_NS};
 use chrono::Utc;
 use std::io::Write;
+use std::str::FromStr;
+use thoth_api::model::locale::LocaleCode as ApiLocaleCode;
 use thoth_client::{
     AbstractType, ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType,
     Work, WorkContributions, WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkType,
 };
-use xml::writer::{EventWriter, XmlEvent};
-
-use super::{write_element_block, XmlElement, XmlSpecification};
-use crate::xml::{write_full_element_block, XmlElementBlock, ONIX3_NS};
 use thoth_errors::{ThothError, ThothResult};
+use xml::writer::{EventWriter, XmlEvent};
 
 #[derive(Copy, Clone)]
 pub struct Onix3GoogleBooks {}
@@ -268,11 +269,10 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                     || self.toc.is_some()
                 {
                     write_element_block("CollateralDetail", w, |w| {
-                        if let Some(labstract) = &self
+                        if let Some(r#abstract) = &self
                             .abstracts
                             .iter()
                             .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
-                            .map(|a| a.content.clone())
                         {
                             write_element_block("TextContent", w, |w| {
                                 // 03 Description ("30 Abstract" not implemented in Google Books)
@@ -285,10 +285,20 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                                 })?;
                                 write_full_element_block(
                                     "Text",
-                                    Some(vec![("language", "eng")]),
+                                    Some(vec![
+                                        (
+                                            "language",
+                                            ApiLocaleCode::from_str(
+                                                &r#abstract.locale_code.to_string(),
+                                            )
+                                            .unwrap_or_default()
+                                            .to_iso(),
+                                        ),
+                                        ("textformat", "03"),
+                                    ]),
                                     w,
                                     |w| {
-                                        w.write(XmlEvent::Characters(labstract))
+                                        w.write(XmlEvent::Characters(&r#abstract.content))
                                             .map_err(|e| e.into())
                                     },
                                 )
@@ -1069,7 +1079,7 @@ mod tests {
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
         assert!(output.contains(
-            r#"      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit</Text>"#
+            r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet, consectetur adipiscing elit</Text>"#
         ));
         assert!(output.contains(r#"      <TextType>04</TextType>"#));
         assert!(output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
@@ -1132,7 +1142,7 @@ mod tests {
         assert!(output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
         assert!(!output.contains(r#"      <TextType>03</TextType>"#));
         assert!(!output.contains(
-            r#"      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit</Text>"#
+            r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet, consectetur adipiscing elit</Text>"#
         ));
         // No GBP price supplied
         assert!(!output.contains(r#"      <Price>"#));
@@ -1160,7 +1170,7 @@ mod tests {
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
         assert!(output.contains(
-            r#"      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit</Text>"#
+            r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet, consectetur adipiscing elit</Text>"#
         ));
         assert!(!output.contains(r#"      <TextType>04</TextType>"#));
         assert!(!output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
@@ -1174,7 +1184,7 @@ mod tests {
         assert!(!output.contains(r#"      <TextType>03</TextType>"#));
         assert!(!output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
         assert!(!output.contains(
-            r#"      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit</Text>"#
+            r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet, consectetur adipiscing elit</Text>"#
         ));
         assert!(!output.contains(r#"      <TextType>04</TextType>"#));
         assert!(!output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));

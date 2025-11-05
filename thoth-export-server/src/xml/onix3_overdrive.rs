@@ -1,6 +1,8 @@
 use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
+use std::str::FromStr;
+use thoth_api::model::locale::LocaleCode as ApiLocaleCode;
 use thoth_client::{
     AbstractType, ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType,
     Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkStatus,
@@ -271,17 +273,32 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                         write_element_block("ContentAudience", w, |w| {
                             w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                         })?;
-                        write_full_element_block("Text", Some(vec![("language", "eng")]), w, |w| {
-                            w.write(XmlEvent::Characters(
-                                &self
-                                    .abstracts
-                                    .iter()
-                                    .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
-                                    .map(|a| a.content.clone())
-                                    .unwrap(),
-                            ))
-                            .map_err(|e| e.into())
-                        })
+                        if let Some(long_abstract) = self
+                            .abstracts
+                            .iter()
+                            .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
+                        {
+                            write_full_element_block(
+                                "Text",
+                                Some(vec![
+                                    (
+                                        "language",
+                                        ApiLocaleCode::from_str(
+                                            &long_abstract.locale_code.to_string(),
+                                        )
+                                        .unwrap_or_default()
+                                        .to_iso(),
+                                    ),
+                                    ("textformat", "03"),
+                                ]),
+                                w,
+                                |w| {
+                                    w.write(XmlEvent::Characters(&long_abstract.content))
+                                        .map_err(|e| e.into())
+                                },
+                            )?;
+                        }
+                        Ok(())
                     })?;
                     if let Some(toc) = &self.toc {
                         write_element_block("TextContent", w, |w| {
@@ -1289,7 +1306,9 @@ mod tests {
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(output.contains(
+            r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet</Text>"#
+        ));
         assert!(output.contains(r#"      <TextType>04</TextType>"#));
         assert!(output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
         assert!(output.contains(r#"    <SupportingResource>"#));
@@ -1388,7 +1407,9 @@ mod tests {
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(output.contains(
+            r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet</Text>"#
+        ));
         assert!(!output.contains(r#"      <TextType>04</TextType>"#));
         assert!(!output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
         assert!(!output.contains(r#"    <SupportingResource>"#));

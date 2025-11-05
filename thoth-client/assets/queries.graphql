@@ -189,7 +189,7 @@ fragment Work on Work {
             pageCount
             pageInterval
             landingPage
-            titles(limit: $titlesLimit) {
+            titles(limit: $titlesLimit, markupFormat: PLAIN_TEXT) {
                 titleId
                 localeCode
                 fullTitle
