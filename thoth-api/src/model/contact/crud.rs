@@ -17,6 +17,7 @@ impl Crud for Contact {
     type FilterParameter1 = ContactType;
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.contact_id
@@ -34,6 +35,7 @@ impl Crud for Contact {
         contact_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Contact>> {
         use crate::schema::contact::dsl::*;
         let mut connection = db.get()?;
@@ -88,6 +90,7 @@ impl Crud for Contact {
         contact_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::contact::dsl::*;
         let mut connection = db.get()?;
