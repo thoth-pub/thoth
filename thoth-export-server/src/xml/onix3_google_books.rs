@@ -2,7 +2,7 @@ use super::{write_element_block, XmlElement, XmlSpecification};
 use crate::xml::{write_full_element_block, XmlElementBlock, ONIX3_NS};
 use chrono::Utc;
 use std::io::Write;
-use std::str::FromStr;
+use thoth_api::model::language::LanguageCode as ApiLanguageCode;
 use thoth_api::model::locale::LocaleCode as ApiLocaleCode;
 use thoth_client::{
     AbstractType, ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType,
@@ -283,25 +283,22 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                                 write_element_block("ContentAudience", w, |w| {
                                     w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                                 })?;
-                                write_full_element_block(
-                                    "Text",
-                                    Some(vec![
-                                        (
-                                            "language",
-                                            ApiLocaleCode::from_str(
-                                                &r#abstract.locale_code.to_string(),
-                                            )
-                                            .unwrap_or_default()
-                                            .to_iso(),
-                                        ),
-                                        ("textformat", "03"),
-                                    ]),
-                                    w,
-                                    |w| {
-                                        w.write(XmlEvent::Characters(&r#abstract.content))
-                                            .map_err(|e| e.into())
-                                    },
-                                )
+                                {
+                                    let api_locale: ApiLocaleCode =
+                                        r#abstract.locale_code.clone().into();
+                                    let lang_code: ApiLanguageCode = api_locale.into();
+                                    let iso_code = lang_code.to_string().to_lowercase();
+
+                                    write_full_element_block(
+                                        "Text",
+                                        Some(vec![("language", &iso_code), ("textformat", "03")]),
+                                        w,
+                                        |w| {
+                                            w.write(XmlEvent::Characters(&r#abstract.content))
+                                                .map_err(|e| e.into())
+                                        },
+                                    )
+                                }
                             })?;
                         }
                         if let Some(toc) = &self.toc {

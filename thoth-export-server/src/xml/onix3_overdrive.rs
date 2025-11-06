@@ -1,7 +1,7 @@
 use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
-use std::str::FromStr;
+use thoth_api::model::language::LanguageCode as ApiLanguageCode;
 use thoth_api::model::locale::LocaleCode as ApiLocaleCode;
 use thoth_client::{
     AbstractType, ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType,
@@ -278,19 +278,13 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                             .iter()
                             .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
                         {
+                            let api_locale: ApiLocaleCode =
+                                long_abstract.locale_code.clone().into();
+                            let lang_code: ApiLanguageCode = api_locale.into();
+                            let iso_code = lang_code.to_string().to_lowercase();
                             write_full_element_block(
                                 "Text",
-                                Some(vec![
-                                    (
-                                        "language",
-                                        ApiLocaleCode::from_str(
-                                            &long_abstract.locale_code.to_string(),
-                                        )
-                                        .unwrap_or_default()
-                                        .to_iso(),
-                                    ),
-                                    ("textformat", "03"),
-                                ]),
+                                Some(vec![("language", &iso_code), ("textformat", "03")]),
                                 w,
                                 |w| {
                                     w.write(XmlEvent::Characters(&long_abstract.content))

@@ -1,6 +1,7 @@
 use cc_license::License;
 use chrono::Utc;
 use std::io::Write;
+use thoth_api::model::language::LanguageCode as ApiLanguageCode;
 use thoth_client::{
     AbstractType, ContributionType, LanguageRelation, LocationPlatform, PublicationType,
     RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages,
@@ -10,7 +11,6 @@ use xml::writer::{EventWriter, XmlEvent};
 
 use super::{write_element_block, XmlElement, XmlSpecification};
 use crate::xml::{write_full_element_block, XmlElementBlock, ONIX3_NS};
-use std::str::FromStr;
 use thoth_api::model::locale::LocaleCode as ApiLocaleCode;
 use thoth_errors::{ThothError, ThothResult};
 
@@ -317,14 +317,12 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                 write_element_block("TitleElementLevel", w, |w| {
                                     w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                                 })?;
+                                let api_locale: ApiLocaleCode = title.locale_code.clone().into();
+                                let lang_code: ApiLanguageCode = api_locale.into();
+                                let iso_code = lang_code.to_string().to_lowercase();
                                 write_full_element_block(
                                     "TitleText",
-                                    Some(vec![(
-                                        "language",
-                                        ApiLocaleCode::from_str(&title.locale_code.to_string())
-                                            .unwrap_or_default()
-                                            .to_iso(),
-                                    )]),
+                                    Some(vec![("language", &iso_code)]),
                                     w,
                                     |w| {
                                         w.write(XmlEvent::Characters(&title.title))
@@ -334,12 +332,7 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                 if let Some(subtitle) = &title.subtitle {
                                     write_full_element_block(
                                         "Subtitle",
-                                        Some(vec![(
-                                            "language",
-                                            ApiLocaleCode::from_str(&title.locale_code.to_string())
-                                                .unwrap_or_default()
-                                                .to_iso(),
-                                        )]),
+                                        Some(vec![("language", &iso_code)]),
                                         w,
                                         |w| {
                                             w.write(XmlEvent::Characters(subtitle))

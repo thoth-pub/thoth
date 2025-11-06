@@ -1,10 +1,12 @@
 use std::fmt;
+use std::str::FromStr;
 
 use chrono::naive::NaiveDate;
 use graphql_client::GraphQLQuery;
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::language::LanguageRelation;
 use thoth_api::model::publication::PublicationType;
+use thoth_api::model::locale::LocaleCode;
 use thoth_api::model::Doi;
 use thoth_api::model::Isbn;
 use thoth_api::model::Orcid;
@@ -137,6 +139,8 @@ impl From<work_query::ContributionType> for ContributionType {
     }
 }
 
+// TODO: make the same for LocaleCode
+
 impl From<work_query::PublicationType> for PublicationType {
     fn from(value: crate::PublicationType) -> Self {
         match value {
@@ -165,5 +169,14 @@ impl From<work_query::LanguageRelation> for LanguageRelation {
             work_query::LanguageRelation::TRANSLATED_INTO => LanguageRelation::TranslatedInto,
             work_query::LanguageRelation::Other(_) => unreachable!(),
         }
+    }
+}
+
+// Convert generated GraphQL LocaleCode into API LocaleCode
+impl From<work_query::LocaleCode> for LocaleCode {
+    fn from(value: work_query::LocaleCode) -> Self {
+        // work_query::LocaleCode Debug prints the enum variant (e.g. "EN_US")
+        // LocaleCode derives EnumString with UPPERCASE, so this parses reliably
+        LocaleCode::from_str(&format!("{value:?}")).unwrap_or_default()
     }
 }

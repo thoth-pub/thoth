@@ -1,7 +1,7 @@
 use cc_license::License;
 use chrono::Utc;
 use std::io::Write;
-use std::str::FromStr;
+use thoth_api::model::language::LanguageCode as ApiLanguageCode;
 use thoth_api::model::locale::LocaleCode as ApiLocaleCode;
 use thoth_client::{
     AbstractType, ContributionType, LanguageRelation, LocationPlatform, PublicationType,
@@ -948,14 +948,12 @@ fn write_title<W: Write, T: TitleData>(titles: &[T], w: &mut EventWriter<W>) -> 
                 write_element_block("TitleElementLevel", w, |w| {
                     w.write(XmlEvent::Characters("01")).map_err(Into::into)
                 })?;
+                let api_locale: ApiLocaleCode = canonical_title.locale_code().clone().into();
+                let lang_code: ApiLanguageCode = api_locale.into();
+                let iso_code = lang_code.to_string().to_lowercase();
                 write_full_element_block(
                     "TitleText",
-                    Some(vec![(
-                        "language",
-                        ApiLocaleCode::from_str(&canonical_title.locale_code().to_string())
-                            .unwrap_or_default()
-                            .to_iso(),
-                    )]),
+                    Some(vec![("language", &iso_code)]),
                     w,
                     |w| {
                         w.write(XmlEvent::Characters(canonical_title.title()))
@@ -965,12 +963,7 @@ fn write_title<W: Write, T: TitleData>(titles: &[T], w: &mut EventWriter<W>) -> 
                 if let Some(subtitle) = canonical_title.subtitle() {
                     write_full_element_block(
                         "Subtitle",
-                        Some(vec![(
-                            "language",
-                            ApiLocaleCode::from_str(&canonical_title.locale_code().to_string())
-                                .unwrap_or_default()
-                                .to_iso(),
-                        )]),
+                        Some(vec![("language", &iso_code)]),
                         w,
                         |w| w.write(XmlEvent::Characters(subtitle)).map_err(Into::into),
                     )?;
@@ -986,6 +979,9 @@ fn write_title<W: Write, T: TitleData>(titles: &[T], w: &mut EventWriter<W>) -> 
             write_element_block("TitleType", w, |w| {
                 w.write(XmlEvent::Characters("06")).map_err(Into::into)
             })?;
+            let api_locale: ApiLocaleCode = title.locale_code().clone().into();
+            let lang_code: ApiLanguageCode = api_locale.into();
+            let iso_code = lang_code.to_string().to_lowercase();
             write_element_block("TitleElement", w, |w| {
                 // 01 Product
                 write_element_block("TitleElementLevel", w, |w| {
@@ -993,12 +989,7 @@ fn write_title<W: Write, T: TitleData>(titles: &[T], w: &mut EventWriter<W>) -> 
                 })?;
                 write_full_element_block(
                     "TitleText",
-                    Some(vec![(
-                        "language",
-                        ApiLocaleCode::from_str(&title.locale_code().to_string())
-                            .unwrap_or_default()
-                            .to_iso(),
-                    )]),
+                    Some(vec![("language", &iso_code)]),
                     w,
                     |w| {
                         w.write(XmlEvent::Characters(title.title()))
@@ -1008,12 +999,7 @@ fn write_title<W: Write, T: TitleData>(titles: &[T], w: &mut EventWriter<W>) -> 
                 if let Some(subtitle) = title.subtitle() {
                     write_full_element_block(
                         "Subtitle",
-                        Some(vec![(
-                            "language",
-                            ApiLocaleCode::from_str(&title.locale_code().to_string())
-                                .unwrap_or_default()
-                                .to_iso(),
-                        )]),
+                        Some(vec![("language", &iso_code)]),
                         w,
                         |w| w.write(XmlEvent::Characters(subtitle)).map_err(Into::into),
                     )?;
