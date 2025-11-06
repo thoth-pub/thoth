@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-  - Allow filtering work queries by publication date
+  - [711](https://github.com/thoth-pub/thoth/pull/711) - Allow filtering work queries by publication date
 
 ### Removed
   - Deprecated thoth-app
