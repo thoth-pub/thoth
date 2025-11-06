@@ -401,7 +401,7 @@ fn write_abstract_content<W: Write>(
         "jats:abstract",
         Some(vec![("abstract-type", abstract_type)]),
         w,
-        |w| { 
+        |w| {
             write_jats_content(abstract_content, w)?;
             Ok(())
         },

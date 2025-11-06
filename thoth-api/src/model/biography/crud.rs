@@ -19,6 +19,7 @@ impl Crud for Biography {
     type FilterParameter1 = LocaleCode;
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.biography_id
@@ -43,6 +44,7 @@ impl Crud for Biography {
         locale_codes: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Biography>> {
         let mut connection = db.get()?;
         let mut query = biography
@@ -104,6 +106,7 @@ impl Crud for Biography {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         let mut connection = db.get()?;
         let mut query = biography.into_boxed();

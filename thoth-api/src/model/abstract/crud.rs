@@ -19,6 +19,7 @@ impl Crud for Abstract {
     type FilterParameter1 = LocaleCode;
     type FilterParameter2 = ();
     type FilterParameter3 = AbstractType;
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.abstract_id
@@ -41,6 +42,7 @@ impl Crud for Abstract {
         locale_codes: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         abstract_type: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Abstract>> {
         let mut connection = db.get()?;
         let mut query = dsl::work_abstract
@@ -104,6 +106,7 @@ impl Crud for Abstract {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         let mut connection = db.get()?;
         let mut query = dsl::work_abstract.into_boxed();

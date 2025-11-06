@@ -1585,6 +1585,7 @@ impl QueryRoot {
             locale_codes.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(FieldError::from)?;
 
@@ -1662,6 +1663,7 @@ impl QueryRoot {
             locale_codes.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(FieldError::from)?;
 
@@ -1734,6 +1736,7 @@ impl QueryRoot {
             None,
             locale_codes.unwrap_or_default(),
             vec![],
+            None,
             None,
         )
         .map_err(FieldError::from)?;
@@ -1929,6 +1932,7 @@ impl MutationRoot {
             vec![],
             vec![],
             None,
+            None,
         )?
         .iter()
         .any(|abstract_item| abstract_item.canonical);
@@ -1975,6 +1979,7 @@ impl MutationRoot {
             Some(data.contribution_id),
             vec![],
             vec![],
+            None,
             None,
         )?
         .iter()
@@ -2645,6 +2650,7 @@ impl MutationRoot {
             vec![],
             vec![],
             None,
+            None,
         )?
         .iter()
         .any(|abstract_item| abstract_item.canonical);
@@ -2702,6 +2708,7 @@ impl MutationRoot {
             Some(data.contribution_id),
             vec![],
             vec![],
+            None,
             None,
         )?
         .iter()
@@ -3138,6 +3145,7 @@ impl Work {
             locale_codes.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(FieldError::from)?;
 
@@ -3194,6 +3202,7 @@ impl Work {
             None,
             locale_codes.unwrap_or_default(),
             vec![],
+            None,
             None,
         )
         .map_err(FieldError::from)?;
@@ -4191,6 +4200,7 @@ impl Contribution {
             None,
             locale_codes.unwrap_or_default(),
             vec![],
+            None,
             None,
         )
         .map_err(FieldError::from)?;
