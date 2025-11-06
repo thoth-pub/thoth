@@ -1,8 +1,7 @@
 use super::{
     NewWork, NewWorkHistory, PatchWork, Work, WorkField, WorkHistory, WorkOrderBy, WorkStatus,
-    WorkType, WorkWithRelations,
+    WorkType,
 };
-use crate::diesel::JoinOnDsl;
 use crate::graphql::model::TimeExpression;
 use crate::graphql::utils::{Direction, Expression};
 use crate::model::imprint::{Imprint, ImprintWithPublisher};
@@ -15,6 +14,7 @@ use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
 use crate::schema::{imprint, publisher, work, work_abstract, work_history, work_title};
 use crate::{apply_time_filter, crud_methods, db_insert};
 use diesel::{
+    JoinOnDsl,
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
 use thoth_errors::{ThothError, ThothResult};
@@ -257,18 +257,6 @@ impl Crud for Work {
                 Direction::Asc => query.order(dsl::work_id.asc()),
                 Direction::Desc => query.order(dsl::work_id.desc()),
             },
-            WorkField::FullTitle => match order.direction {
-                Direction::Asc => query.order(work_title::full_title.asc()),
-                Direction::Desc => query.order(work_title::full_title.desc()),
-            },
-            WorkField::Title => match order.direction {
-                Direction::Asc => query.order(work_title::title.asc()),
-                Direction::Desc => query.order(work_title::title.desc()),
-            },
-            WorkField::Subtitle => match order.direction {
-                Direction::Asc => query.order(work_title::subtitle.asc()),
-                Direction::Desc => query.order(work_title::subtitle.desc()),
-            },
             WorkField::WorkType => match order.direction {
                 Direction::Asc => query.order(dsl::work_type.asc()),
                 Direction::Desc => query.order(dsl::work_type.desc()),
@@ -357,14 +345,6 @@ impl Crud for Work {
                 Direction::Asc => query.order(dsl::oclc.asc()),
                 Direction::Desc => query.order(dsl::oclc.desc()),
             },
-            WorkField::ShortAbstract => match order.direction {
-                Direction::Asc => query.order(work_abstract::content.asc()),
-                Direction::Desc => query.order(work_abstract::content.desc()),
-            },
-            WorkField::LongAbstract => match order.direction {
-                Direction::Asc => query.order(work_abstract::content.asc()),
-                Direction::Desc => query.order(work_abstract::content.desc()),
-            },
             WorkField::GeneralNote => match order.direction {
                 Direction::Asc => query.order(dsl::general_note.asc()),
                 Direction::Desc => query.order(dsl::general_note.desc()),
@@ -438,6 +418,7 @@ impl Crud for Work {
             query = query.filter(
                 dsl::doi
                     .ilike(format!("%{filter}%"))
+                    .or(dsl::doi.ilike(format!("%{filter}%")))
                     .or(dsl::reference.ilike(format!("%{filter}%")))
                     .or(dsl::landing_page.ilike(format!("%{filter}%")))
                     .or(dsl::work_id
