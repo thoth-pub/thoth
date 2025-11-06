@@ -9,7 +9,7 @@ use xml::writer::{EventWriter, XmlEvent};
 
 use super::{write_element_block, XmlElement, XmlSpecification};
 use crate::xml::{write_full_element_block, XmlElementBlock, ONIX3_NS};
- 
+
 use thoth_api::model::language::LanguageCode as ApiLanguageCode;
 use thoth_api::model::locale::LocaleCode as ApiLocaleCode;
 use thoth_errors::{ThothError, ThothResult};
@@ -249,13 +249,7 @@ impl XmlElementBlock<Onix3Jstor> for Work {
 
                                 write_full_element_block(
                                     "Text",
-                                    Some(vec![
-                                        (
-                                            "language",
-                                            &iso_code,
-                                        ),
-                                        ("textformat", "03"),
-                                    ]),
+                                    Some(vec![("language", &iso_code), ("textformat", "03")]),
                                     w,
                                     |w| {
                                         w.write(XmlEvent::Characters(&r#abstract.content))

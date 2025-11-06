@@ -1,8 +1,6 @@
 use chrono::Utc;
 use regex::Regex;
 use std::io::Write;
-use std::str::FromStr;
-use thoth_api::model::locale::LocaleCode as ApiLocaleCode;
 use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
     AbstractType, ContributionType, Funding, PublicationType, Reference, RelationType, Work,

@@ -2016,14 +2016,27 @@ impl From<LocaleCode> for LanguageCode {
         // Direct mapping via enum pattern matching where feasible
         match locale {
             // English and related creoles/variants
-            LocaleCode::En | LocaleCode::EnUs | LocaleCode::EnGb | LocaleCode::EnCa | LocaleCode::EnAu
-            | LocaleCode::Aig | LocaleCode::Bah | LocaleCode::Lir | LocaleCode::Svc | LocaleCode::Vic | LocaleCode::Tch => LanguageCode::Eng,
+            LocaleCode::En
+            | LocaleCode::EnUs
+            | LocaleCode::EnGb
+            | LocaleCode::EnCa
+            | LocaleCode::EnAu
+            | LocaleCode::Aig
+            | LocaleCode::Bah
+            | LocaleCode::Lir
+            | LocaleCode::Svc
+            | LocaleCode::Vic
+            | LocaleCode::Tch => LanguageCode::Eng,
 
             // French variants
-            LocaleCode::Fr | LocaleCode::FrFr | LocaleCode::FrCa | LocaleCode::FrBe => LanguageCode::Fre,
+            LocaleCode::Fr | LocaleCode::FrFr | LocaleCode::FrCa | LocaleCode::FrBe => {
+                LanguageCode::Fre
+            }
 
             // Spanish variants
-            LocaleCode::Es | LocaleCode::EsEs | LocaleCode::EsMx | LocaleCode::EsAr => LanguageCode::Spa,
+            LocaleCode::Es | LocaleCode::EsEs | LocaleCode::EsMx | LocaleCode::EsAr => {
+                LanguageCode::Spa
+            }
 
             // Major single locales
             LocaleCode::De => LanguageCode::Ger,
@@ -2057,25 +2070,45 @@ impl From<LocaleCode> for LanguageCode {
             // Fallbacks: group by base language prefix using Debug name
             _ => {
                 let s = format!("{:?}", locale).to_lowercase();
-                if s.starts_with("fa") { LanguageCode::Per }
-                else if s.starts_with("ro") { LanguageCode::Rum }
-                else if s.starts_with("sk") { LanguageCode::Slo }
-                else if s.starts_with("mk") { LanguageCode::Mac }
-                else if s.starts_with("ms") { LanguageCode::May }
-                else if s.starts_with("mi") { LanguageCode::Mao }
-                else if s.starts_with("cy") { LanguageCode::Wel }
-                else if s.starts_with("fr") { LanguageCode::Fre }
-                else if s.starts_with("es") { LanguageCode::Spa }
-                else if s.starts_with("de") { LanguageCode::Ger }
-                else if s.starts_with("zh") { LanguageCode::Chi }
-                else if s.starts_with("ja") { LanguageCode::Jpn }
-                else if s.starts_with("ko") { LanguageCode::Kor }
-                else if s.starts_with("ar") { LanguageCode::Ara }
-                else if s.starts_with("hi") { LanguageCode::Hin }
-                else if s.starts_with("nl") { LanguageCode::Dut }
-                else if s.starts_with("sv") { LanguageCode::Swe }
-                else if s.starts_with("pl") { LanguageCode::Pol }
-                else { LanguageCode::Und }
+                if s.starts_with("fa") {
+                    LanguageCode::Per
+                } else if s.starts_with("ro") {
+                    LanguageCode::Rum
+                } else if s.starts_with("sk") {
+                    LanguageCode::Slo
+                } else if s.starts_with("mk") {
+                    LanguageCode::Mac
+                } else if s.starts_with("ms") {
+                    LanguageCode::May
+                } else if s.starts_with("mi") {
+                    LanguageCode::Mao
+                } else if s.starts_with("cy") {
+                    LanguageCode::Wel
+                } else if s.starts_with("fr") {
+                    LanguageCode::Fre
+                } else if s.starts_with("es") {
+                    LanguageCode::Spa
+                } else if s.starts_with("de") {
+                    LanguageCode::Ger
+                } else if s.starts_with("zh") {
+                    LanguageCode::Chi
+                } else if s.starts_with("ja") {
+                    LanguageCode::Jpn
+                } else if s.starts_with("ko") {
+                    LanguageCode::Kor
+                } else if s.starts_with("ar") {
+                    LanguageCode::Ara
+                } else if s.starts_with("hi") {
+                    LanguageCode::Hin
+                } else if s.starts_with("nl") {
+                    LanguageCode::Dut
+                } else if s.starts_with("sv") {
+                    LanguageCode::Swe
+                } else if s.starts_with("pl") {
+                    LanguageCode::Pol
+                } else {
+                    LanguageCode::Und
+                }
             }
         }
     }

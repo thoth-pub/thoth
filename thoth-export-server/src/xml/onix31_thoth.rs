@@ -3088,8 +3088,8 @@ mod tests {
       <TitleType>01</TitleType>
       <TitleElement>
         <TitleElementLevel>01</TitleElementLevel>
-        <TitleText language="EN">Book Title</TitleText>
-        <Subtitle language="EN">Book Subtitle</Subtitle>
+        <TitleText language="eng">Book Title</TitleText>
+        <Subtitle language="eng">Book Subtitle</Subtitle>
       </TitleElement>
     </TitleDetail>
     <Edition>
@@ -3290,8 +3290,8 @@ mod tests {
         <TitleType>01</TitleType>
         <TitleElement>
           <TitleElementLevel>01</TitleElementLevel>
-          <TitleText language="EN">The first chapter:</TitleText>
-          <Subtitle language="EN">An introduction</Subtitle>
+          <TitleText language="eng">The first chapter:</TitleText>
+          <Subtitle language="eng">An introduction</Subtitle>
         </TitleElement>
       </TitleDetail>"#
         ));
@@ -3737,11 +3737,11 @@ mod tests {
       <TitleType>01</TitleType>
       <TitleElement>
         <TitleElementLevel>01</TitleElementLevel>
-        <TitleText language="EN">Book Title</TitleText>
+        <TitleText language="eng">Book Title</TitleText>
       </TitleElement>
     </TitleDetail>"#
         ));
-        assert!(!output.contains(r#"        <Subtitle language="EN">Book Subtitle</Subtitle>"#));
+        assert!(!output.contains(r#"        <Subtitle language="eng">Book Subtitle</Subtitle>"#));
         assert!(!output.contains(r#"    <Edition>"#));
         assert!(!output.contains(r#"    <Extent>"#));
         assert!(!output
