@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [689](https://github.com/thoth-pub/thoth/issues/689) - Store all rich text fields internally as JATS XML, supporting conversion to/from HTML, Markdown, and plain text
 - [689](https://github.com/thoth-pub/thoth/issues/689) - Mark existing GraphQL fields as deprecated and return only the canonical version
 
+### Added
+  - [711](https://github.com/thoth-pub/thoth/pull/711) - Allow filtering work queries by publication date
+
 ### Removed
   - Deprecated thoth-app
 

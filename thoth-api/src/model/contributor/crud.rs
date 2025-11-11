@@ -19,6 +19,7 @@ impl Crud for Contributor {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.contributor_id
@@ -36,6 +37,7 @@ impl Crud for Contributor {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Contributor>> {
         use crate::schema::contributor::dsl::*;
         let mut connection = db.get()?;
@@ -97,6 +99,7 @@ impl Crud for Contributor {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::contributor::dsl::*;
         let mut connection = db.get()?;
