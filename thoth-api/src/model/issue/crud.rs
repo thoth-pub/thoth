@@ -15,6 +15,7 @@ impl Crud for Issue {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.issue_id
@@ -32,6 +33,7 @@ impl Crud for Issue {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Issue>> {
         use crate::schema::issue::dsl::*;
         let mut connection = db.get()?;
@@ -89,6 +91,7 @@ impl Crud for Issue {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::issue::dsl::*;
         let mut connection = db.get()?;

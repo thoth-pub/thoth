@@ -1,8 +1,6 @@
 FROM rust:1.90.0
 
-ARG THOTH_GRAPHQL_API=https://api.thoth.pub
 ARG THOTH_EXPORT_API=https://export.thoth.pub
-ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
 ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
 
 # Install build dependencies

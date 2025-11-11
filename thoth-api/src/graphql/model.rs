@@ -210,6 +210,10 @@ impl QueryRoot {
         )]
         work_statuses: Option<Vec<WorkStatus>>,
         #[graphql(
+            description = "Only show results with a publication date either before (less than) or after (greater than) the specified timestamp"
+        )]
+        publication_date: Option<TimeExpression>,
+        #[graphql(
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         )]
         updated_at_with_relations: Option<TimeExpression>,
@@ -229,6 +233,7 @@ impl QueryRoot {
             None,
             work_types.unwrap_or_default(),
             statuses,
+            publication_date,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -250,6 +255,7 @@ impl QueryRoot {
         Work::from_doi(&context.db, doi, vec![]).map_err(|e| e.into())
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[graphql(description = "Get the total number of works")]
     fn work_count(
         context: &Context,
@@ -277,6 +283,10 @@ impl QueryRoot {
         )]
         work_statuses: Option<Vec<WorkStatus>>,
         #[graphql(
+            description = "Only show results with a publication date either before (less than) or after (greater than) the specified timestamp"
+        )]
+        publication_date: Option<TimeExpression>,
+        #[graphql(
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         )]
         updated_at_with_relations: Option<TimeExpression>,
@@ -291,6 +301,7 @@ impl QueryRoot {
             publishers.unwrap_or_default(),
             work_types.unwrap_or_default(),
             statuses,
+            publication_date,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -326,6 +337,10 @@ impl QueryRoot {
         )]
         work_statuses: Option<Vec<WorkStatus>>,
         #[graphql(
+            description = "Only show results with a publication date either before (less than) or after (greater than) the specified timestamp"
+        )]
+        publication_date: Option<TimeExpression>,
+        #[graphql(
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         )]
         updated_at_with_relations: Option<TimeExpression>,
@@ -350,6 +365,7 @@ impl QueryRoot {
                 WorkType::JournalIssue,
             ],
             statuses,
+            publication_date,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -397,6 +413,10 @@ impl QueryRoot {
         )]
         work_statuses: Option<Vec<WorkStatus>>,
         #[graphql(
+            description = "Only show results with a publication date either before (less than) or after (greater than) the specified timestamp"
+        )]
+        publication_date: Option<TimeExpression>,
+        #[graphql(
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         )]
         updated_at_with_relations: Option<TimeExpression>,
@@ -416,6 +436,7 @@ impl QueryRoot {
                 WorkType::JournalIssue,
             ],
             statuses,
+            publication_date,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -451,6 +472,10 @@ impl QueryRoot {
         )]
         work_statuses: Option<Vec<WorkStatus>>,
         #[graphql(
+            description = "Only show results with a publication date either before (less than) or after (greater than) the specified timestamp"
+        )]
+        publication_date: Option<TimeExpression>,
+        #[graphql(
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         )]
         updated_at_with_relations: Option<TimeExpression>,
@@ -470,6 +495,7 @@ impl QueryRoot {
             None,
             vec![WorkType::BookChapter],
             statuses,
+            publication_date,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -507,6 +533,10 @@ impl QueryRoot {
         )]
         work_statuses: Option<Vec<WorkStatus>>,
         #[graphql(
+            description = "Only show results with a publication date either before (less than) or after (greater than) the specified timestamp"
+        )]
+        publication_date: Option<TimeExpression>,
+        #[graphql(
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         )]
         updated_at_with_relations: Option<TimeExpression>,
@@ -521,6 +551,7 @@ impl QueryRoot {
             publishers.unwrap_or_default(),
             vec![WorkType::BookChapter],
             statuses,
+            publication_date,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -564,6 +595,7 @@ impl QueryRoot {
             publication_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -602,6 +634,7 @@ impl QueryRoot {
             publication_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -639,6 +672,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -671,6 +705,7 @@ impl QueryRoot {
             publishers.unwrap_or_default(),
             vec![],
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -709,6 +744,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -742,6 +778,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -774,6 +811,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -795,7 +833,8 @@ impl QueryRoot {
         )]
         filter: Option<String>,
     ) -> FieldResult<i32> {
-        Contributor::count(&context.db, filter, vec![], vec![], vec![], None).map_err(|e| e.into())
+        Contributor::count(&context.db, filter, vec![], vec![], vec![], None, None)
+            .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query the full list of contributions")]
@@ -831,6 +870,7 @@ impl QueryRoot {
             contribution_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -858,6 +898,7 @@ impl QueryRoot {
             vec![],
             contribution_types.unwrap_or_default(),
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -901,6 +942,7 @@ impl QueryRoot {
             series_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -939,6 +981,7 @@ impl QueryRoot {
             series_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -971,6 +1014,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -985,7 +1029,7 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of issues")]
     fn issue_count(context: &Context) -> FieldResult<i32> {
-        Issue::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
+        Issue::count(&context.db, None, vec![], vec![], vec![], None, None).map_err(|e| e.into())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1035,6 +1079,7 @@ impl QueryRoot {
             language_codes.unwrap_or_default(),
             relations,
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1076,6 +1121,7 @@ impl QueryRoot {
             language_codes.unwrap_or_default(),
             relations,
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1113,6 +1159,7 @@ impl QueryRoot {
             location_platforms.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1140,6 +1187,7 @@ impl QueryRoot {
             vec![],
             location_platforms.unwrap_or_default(),
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -1178,6 +1226,7 @@ impl QueryRoot {
             currency_codes.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1205,6 +1254,7 @@ impl QueryRoot {
             vec![],
             currency_codes.unwrap_or_default(),
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -1248,6 +1298,7 @@ impl QueryRoot {
             subject_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1281,6 +1332,7 @@ impl QueryRoot {
             subject_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1313,6 +1365,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1334,7 +1387,8 @@ impl QueryRoot {
         )]
         filter: Option<String>,
     ) -> FieldResult<i32> {
-        Institution::count(&context.db, filter, vec![], vec![], vec![], None).map_err(|e| e.into())
+        Institution::count(&context.db, filter, vec![], vec![], vec![], None, None)
+            .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query the full list of fundings")]
@@ -1365,6 +1419,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1379,7 +1434,7 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of funding instances associated to works")]
     fn funding_count(context: &Context) -> FieldResult<i32> {
-        Funding::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
+        Funding::count(&context.db, None, vec![], vec![], vec![], None, None).map_err(|e| e.into())
     }
 
     #[graphql(description = "Query the full list of affiliations")]
@@ -1410,6 +1465,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1424,7 +1480,8 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of affiliations")]
     fn affiliation_count(context: &Context) -> FieldResult<i32> {
-        Affiliation::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
+        Affiliation::count(&context.db, None, vec![], vec![], vec![], None, None)
+            .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query the full list of references")]
@@ -1455,6 +1512,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1469,7 +1527,8 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of references")]
     fn reference_count(context: &Context) -> FieldResult<i32> {
-        Reference::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
+        Reference::count(&context.db, None, vec![], vec![], vec![], None, None)
+            .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a title by its ID")]
@@ -3364,6 +3423,7 @@ impl Work {
             contribution_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -3411,6 +3471,7 @@ impl Work {
             language_codes.unwrap_or_default(),
             relations,
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -3448,6 +3509,7 @@ impl Work {
             None,
             publication_types.unwrap_or_default(),
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -3487,6 +3549,7 @@ impl Work {
             subject_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -3515,6 +3578,7 @@ impl Work {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -3542,6 +3606,7 @@ impl Work {
             None,
             vec![],
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -3575,6 +3640,7 @@ impl Work {
             relation_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -3606,6 +3672,7 @@ impl Work {
             None,
             vec![],
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -3752,6 +3819,7 @@ impl Publication {
             currency_codes.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -3784,6 +3852,7 @@ impl Publication {
             None,
             location_platforms.unwrap_or_default(),
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -3860,6 +3929,7 @@ impl Publisher {
             None,
             vec![],
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -3944,6 +4014,10 @@ impl Imprint {
         #[graphql(
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         )]
+        publication_date: Option<TimeExpression>,
+        #[graphql(
+            description = "Only show results with a publication date either before (less than) or after (greater than) the specified timestamp"
+        )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
         let mut statuses = work_statuses.unwrap_or_default();
@@ -3961,6 +4035,7 @@ impl Imprint {
             None,
             work_types.unwrap_or_default(),
             statuses,
+            publication_date,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -4041,6 +4116,7 @@ impl Contributor {
             Some(self.contributor_id),
             contribution_types.unwrap_or_default(),
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -4224,6 +4300,7 @@ impl Contribution {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -4318,6 +4395,7 @@ impl Series {
             Some(self.series_id),
             vec![],
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -4616,6 +4694,7 @@ impl Institution {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -4643,6 +4722,7 @@ impl Institution {
             None,
             vec![],
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
