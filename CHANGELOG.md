@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [711](https://github.com/thoth-pub/thoth/pull/711) - Allow filtering work queries by publication date
 
+### Fixed
+  - Make `updated_at_with_realtions` propagation less deadlock-prone
+
 ### Removed
   - Deprecated thoth-app
 
