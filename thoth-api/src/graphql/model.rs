@@ -1,9 +1,7 @@
 use crate::model::biography::{Biography, BiographyOrderBy, NewBiography, PatchBiography};
 use crate::model::r#abstract::{Abstract, AbstractOrderBy, NewAbstract, PatchAbstract};
 use crate::model::title::{PatchTitle, Title};
-use crate::schema::{work_abstract, work_title};
 use chrono::naive::NaiveDate;
-use diesel::prelude::*;
 use juniper::RootNode;
 use juniper::{EmptySubscription, FieldError, FieldResult};
 use std::sync::Arc;
@@ -3055,6 +3053,14 @@ impl Work {
         Ok(Title::canonical_from_work_id(&ctx.db, &self.work_id)?.title)
     }
 
+    #[graphql(description = "Secondary title of the work (excluding main title)")]
+    #[graphql(
+        deprecated = "Please use Work `titles` field instead to get the correct sub_title in a multilingual manner"
+    )]
+    pub fn subtitle(&self, ctx: &Context) -> FieldResult<Option<String>> {
+        Ok(Title::canonical_from_work_id(&ctx.db, &self.work_id)?.subtitle)
+    }
+
     #[graphql(
         description = "Short abstract of the work. Where a work has two different versions of the abstract, the truncated version should be entered here. Otherwise, it can be left blank. This field is not output in metadata formats; where relevant, Long Abstract is used instead."
     )]
@@ -3062,17 +3068,11 @@ impl Work {
         deprecated = "Please use Work `abstracts` field instead to get the correct short abstract in a multilingual manner"
     )]
     pub fn short_abstract(&self, ctx: &Context) -> FieldResult<Option<String>> {
-        let mut connection = ctx.db.get()?;
-        let r#abstract = work_abstract::table
-            .filter(work_abstract::work_id.eq(&self.work_id))
-            .filter(work_abstract::canonical.eq(true))
-            .filter(work_abstract::abstract_type.eq(AbstractType::Short))
-            .first::<Abstract>(&mut connection);
-
-        match r#abstract {
-            Ok(a) => Ok(Some(a.content)),
-            Err(_) => Ok(None),
-        }
+        Ok(
+            Abstract::short_canonical_from_work_id(&ctx.db, &self.work_id)
+                .map(|a| a.content)
+                .ok(),
+        )
     }
 
     #[graphql(
@@ -3082,17 +3082,11 @@ impl Work {
         deprecated = "Please use Work `abstracts` field instead to get the correct long abstract in a multilingual manner"
     )]
     pub fn long_abstract(&self, ctx: &Context) -> FieldResult<Option<String>> {
-        let mut connection = ctx.db.get()?;
-        let r#abstract = work_abstract::table
-            .filter(work_abstract::work_id.eq(&self.work_id))
-            .filter(work_abstract::canonical.eq(true))
-            .filter(work_abstract::abstract_type.eq(AbstractType::Long))
-            .first::<Abstract>(&mut connection);
-
-        match r#abstract {
-            Ok(a) => Ok(Some(a.content)),
-            Err(_) => Ok(None),
-        }
+        Ok(
+            Abstract::long_canonical_from_work_id(&ctx.db, &self.work_id)
+                .map(|a| a.content)
+                .ok(),
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -3206,19 +3200,6 @@ impl Work {
         }
 
         Ok(abstracts)
-    }
-
-    #[graphql(description = "Secondary title of the work (excluding main title)")]
-    #[graphql(
-        deprecated = "Please use Work `titles` field instead to get the correct sub_title in a multilingual manner"
-    )]
-    pub fn subtitle(&self, ctx: &Context) -> FieldResult<Option<String>> {
-        let mut connection = ctx.db.get()?;
-        let title = work_title::table
-            .filter(work_title::work_id.eq(&self.work_id))
-            .filter(work_title::canonical.eq(true))
-            .first::<Title>(&mut connection)?;
-        Ok(title.subtitle)
     }
 
     #[graphql(description = "Internal reference code")]
@@ -4206,26 +4187,16 @@ impl Contribution {
         Ok(biographies)
     }
 
-    // #[graphql(description = "Biography of the contributor at the time of contribution")]
-    // pub fn biography(&self) -> Option<&String> {
-    //     self.biography.as_ref()
-    // }
-
     #[graphql(description = "Biography of the contributor at the time of contribution")]
     #[graphql(
         deprecated = "Please use Contribution `biographies` field instead to get the correct biography in a multilingual manner"
     )]
     pub fn biography(&self, ctx: &Context) -> FieldResult<Option<String>> {
-        let mut connection = ctx.db.get()?;
-        let biography = crate::schema::biography::table
-            .filter(crate::schema::biography::contribution_id.eq(&self.contribution_id))
-            .filter(crate::schema::biography::canonical.eq(true))
-            .first::<Biography>(&mut connection);
-
-        match biography {
-            Ok(b) => Ok(Some(b.content)),
-            Err(_) => Ok(None),
-        }
+        Ok(
+            Biography::canonical_from_contribution_id(&ctx.db, &self.contribution_id)
+                .map(|a| a.content)
+                .ok(),
+        )
     }
 
     #[graphql(description = "Date and time at which the contribution record was created")]

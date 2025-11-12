@@ -13,7 +13,10 @@ use thoth_errors::ThothResult;
 use uuid::Uuid;
 
 impl Title {
-    pub fn canonical_from_work_id(db: &crate::db::PgPool, work_id: &Uuid) -> ThothResult<Self> {
+    pub(crate) fn canonical_from_work_id(
+        db: &crate::db::PgPool,
+        work_id: &Uuid,
+    ) -> ThothResult<Self> {
         let mut connection = db.get()?;
         work_title::table
             .filter(work_title::work_id.eq(work_id))
