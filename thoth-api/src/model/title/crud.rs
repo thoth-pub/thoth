@@ -1,8 +1,9 @@
-use super::LocaleCode;
-use super::{NewTitle, NewTitleHistory, PatchTitle, Title, TitleField, TitleHistory, TitleOrderBy};
+use super::{
+    LocaleCode, NewTitle, NewTitleHistory, PatchTitle, Title, TitleField, TitleHistory,
+    TitleOrderBy,
+};
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
-use crate::schema::work_title::dsl::*;
 use crate::schema::{title_history, work_title};
 use crate::{crud_methods, db_insert};
 use diesel::{
@@ -10,6 +11,17 @@ use diesel::{
 };
 use thoth_errors::ThothResult;
 use uuid::Uuid;
+
+impl Title {
+    pub fn canonical_from_work_id(db: &crate::db::PgPool, work_id: &Uuid) -> ThothResult<Self> {
+        let mut connection = db.get()?;
+        work_title::table
+            .filter(work_title::work_id.eq(work_id))
+            .filter(work_title::canonical.eq(true))
+            .first::<Title>(&mut connection)
+            .map_err(Into::into)
+    }
+}
 
 impl Crud for Title {
     type NewEntity = NewTitle;
@@ -22,11 +34,6 @@ impl Crud for Title {
 
     fn pk(&self) -> Uuid {
         self.title_id
-    }
-
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        let work = crate::model::work::Work::from_id(db, &self.work_id)?;
-        <crate::model::work::Work as Crud>::publisher_id(&work, db)
     }
 
     fn all(
@@ -43,6 +50,8 @@ impl Crud for Title {
         _: Option<Self::FilterParameter3>,
         _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Title>> {
+        use crate::schema::work_title::dsl::*;
+
         let mut connection = db.get()?;
         let mut query = work_title
             .select(crate::schema::work_title::all_columns)
@@ -112,6 +121,8 @@ impl Crud for Title {
         _: Option<Self::FilterParameter3>,
         _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
+        use crate::schema::work_title::dsl::{full_title, subtitle, title, work_title};
+
         let mut connection = db.get()?;
         let mut query = work_title.into_boxed();
 
@@ -129,6 +140,11 @@ impl Crud for Title {
             .get_result::<i64>(&mut connection)
             .map(|t| t.to_string().parse::<i32>().unwrap())
             .map_err(Into::into)
+    }
+
+    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        let work = crate::model::work::Work::from_id(db, &self.work_id)?;
+        <crate::model::work::Work as Crud>::publisher_id(&work, db)
     }
 
     crud_methods!(work_title::table, work_title::dsl::work_title);

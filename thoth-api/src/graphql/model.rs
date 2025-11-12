@@ -3044,12 +3044,7 @@ impl Work {
         deprecated = "Please use Work `titles` field instead to get the correct full title in a multilingual manner"
     )]
     pub fn full_title(&self, ctx: &Context) -> FieldResult<String> {
-        let mut connection = ctx.db.get()?;
-        let title = work_title::table
-            .filter(work_title::work_id.eq(&self.work_id))
-            .filter(work_title::canonical.eq(true))
-            .first::<Title>(&mut connection)?;
-        Ok(title.full_title)
+        Ok(Title::canonical_from_work_id(&ctx.db, &self.work_id)?.full_title)
     }
 
     #[graphql(description = "Main title of the work (excluding subtitle)")]
@@ -3057,12 +3052,7 @@ impl Work {
         deprecated = "Please use Work `titles` field instead to get the correct title in a multilingual manner"
     )]
     pub fn title(&self, ctx: &Context) -> FieldResult<String> {
-        let mut connection = ctx.db.get()?;
-        let title = work_title::table
-            .filter(work_title::work_id.eq(&self.work_id))
-            .filter(work_title::canonical.eq(true))
-            .first::<Title>(&mut connection)?;
-        Ok(title.title)
+        Ok(Title::canonical_from_work_id(&ctx.db, &self.work_id)?.title)
     }
 
     #[graphql(
