@@ -10,10 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [711](https://github.com/thoth-pub/thoth/pull/711) - Allow filtering work queries by publication date
 
 ### Fixed
-  - Make `updated_at_with_realtions` propagation less deadlock-prone
+  - [712](https://github.com/thoth-pub/thoth/pull/712) - Make `updated_at_with_realtions` propagation less deadlock-prone
 
 ### Removed
-  - Deprecated thoth-app
+  - [710](https://github.com/thoth-pub/thoth/pull/710) - Deprecated thoth-app
 
 ## [[0.13.14]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.14) - 2025-10-14
 ### Changed
