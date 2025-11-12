@@ -1,13 +1,4 @@
 use crate::graphql::utils::Direction;
-use crate::model::contribution::Contribution;
-use crate::model::funding::FundingWithInstitution;
-use crate::model::imprint::ImprintWithPublisher;
-use crate::model::issue::IssueWithSeries;
-use crate::model::language::Language;
-use crate::model::publication::Publication;
-use crate::model::reference::Reference;
-use crate::model::subject::Subject;
-use crate::model::work_relation::WorkRelationWithRelatedWork;
 use crate::model::Doi;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -16,14 +7,10 @@ use crate::schema::work;
 use crate::schema::work_history;
 use chrono::naive::NaiveDate;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use strum::Display;
 use strum::EnumString;
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
-
-use super::r#abstract::Abstract;
-use super::title::Title;
 
 #[cfg_attr(
     feature = "backend",
@@ -229,57 +216,6 @@ pub struct Work {
     pub page_interval: Option<String>,
     pub updated_at_with_relations: Timestamp,
 }
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkWithRelations {
-    pub work_id: Uuid,
-    pub work_type: WorkType,
-    pub work_status: WorkStatus,
-    pub full_title: String,
-    pub title: String,
-    pub subtitle: Option<String>,
-    pub reference: Option<String>,
-    pub edition: Option<i32>,
-    pub doi: Option<Doi>,
-    pub publication_date: Option<NaiveDate>,
-    pub withdrawn_date: Option<NaiveDate>,
-    pub place: Option<String>,
-    pub page_count: Option<i32>,
-    pub page_breakdown: Option<String>,
-    pub image_count: Option<i32>,
-    pub table_count: Option<i32>,
-    pub audio_count: Option<i32>,
-    pub video_count: Option<i32>,
-    pub license: Option<String>,
-    pub copyright_holder: Option<String>,
-    pub landing_page: Option<String>,
-    pub lccn: Option<String>,
-    pub oclc: Option<String>,
-    pub short_abstract: Option<String>,
-    pub long_abstract: Option<String>,
-    pub general_note: Option<String>,
-    pub bibliography_note: Option<String>,
-    pub toc: Option<String>,
-    pub cover_url: Option<String>,
-    pub cover_caption: Option<String>,
-    pub updated_at: Timestamp,
-    pub first_page: Option<String>,
-    pub last_page: Option<String>,
-    pub page_interval: Option<String>,
-    pub contributions: Option<Vec<Contribution>>,
-    pub publications: Option<Vec<Publication>>,
-    pub languages: Option<Vec<Language>>,
-    pub fundings: Option<Vec<FundingWithInstitution>>,
-    pub subjects: Option<Vec<Subject>>,
-    pub issues: Option<Vec<IssueWithSeries>>,
-    pub imprint: ImprintWithPublisher,
-    pub relations: Option<Vec<WorkRelationWithRelatedWork>>,
-    pub references: Option<Vec<Reference>>,
-    pub titles: Option<Vec<Title>>,
-    pub abstracts: Option<Vec<Abstract>>,
-}
-
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
@@ -456,46 +392,6 @@ macro_rules! work_properties {
 work_properties!(Work);
 work_properties!(NewWork);
 work_properties!(PatchWork);
-work_properties!(WorkWithRelations);
-
-impl WorkWithRelations {
-    pub fn publisher(&self) -> String {
-        self.imprint
-            .publisher
-            .publisher_shortname
-            .as_ref()
-            .map_or_else(
-                || self.imprint.publisher.publisher_name.to_string(),
-                |short_name| short_name.to_string(),
-            )
-    }
-
-    pub fn title(&self) -> &str {
-        &self.title
-    }
-    pub fn subtitle(&self) -> Option<&str> {
-        self.subtitle.as_deref()
-    }
-
-    pub fn compile_fulltitle(&self) -> String {
-        self.subtitle().map_or_else(
-            || self.title().to_string(),
-            |subtitle| {
-                let title = self.title();
-                if title.ends_with('?')
-                    || title.ends_with('!')
-                    || title.ends_with(':')
-                    || title.ends_with('.')
-                {
-                    format!("{title} {subtitle}")
-                } else {
-                    format!("{title}: {subtitle}")
-                }
-            },
-        )
-    }
-}
-
 impl From<Work> for PatchWork {
     fn from(w: Work) -> Self {
         Self {
@@ -528,15 +424,6 @@ impl From<Work> for PatchWork {
             first_page: w.first_page,
             last_page: w.last_page,
             page_interval: w.page_interval,
-        }
-    }
-}
-
-impl fmt::Display for WorkWithRelations {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match &self.doi {
-            Some(doi) => write!(f, "{} - {}", self.full_title, doi),
-            None => write!(f, "{}", self.full_title),
         }
     }
 }
@@ -839,41 +726,6 @@ mod tests {
         assert!(WorkField::from_str("WorkID").is_err());
         assert!(WorkField::from_str("Contributors").is_err());
         assert!(WorkField::from_str("Publisher").is_err());
-    }
-
-    #[test]
-    fn test_compile_full_title() {
-        let mut work = WorkWithRelations {
-            title: "Some title".to_string(),
-            subtitle: None,
-            ..Default::default()
-        };
-
-        assert_eq!(work.compile_fulltitle(), "Some title".to_string());
-
-        work.subtitle = Some("With a subtitle".to_string());
-        assert_eq!(
-            work.compile_fulltitle(),
-            "Some title: With a subtitle".to_string()
-        );
-
-        work.title = "Some title?".to_string();
-        assert_eq!(
-            work.compile_fulltitle(),
-            "Some title? With a subtitle".to_string()
-        );
-
-        work.title = "Some title.".to_string();
-        assert_eq!(
-            work.compile_fulltitle(),
-            "Some title. With a subtitle".to_string()
-        );
-
-        work.title = "Some title!".to_string();
-        assert_eq!(
-            work.compile_fulltitle(),
-            "Some title! With a subtitle".to_string()
-        );
     }
 
     #[test]
