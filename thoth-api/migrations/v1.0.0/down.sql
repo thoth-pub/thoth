@@ -1,5 +1,3 @@
-BEGIN;
-
 -------------------------------------------------------------------------------
 -- 1. Drop the current deterministic work_relation_work_updated_at_with_relations
 --    and its trigger
@@ -56,5 +54,3 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER set_work_work_updated_at_with_relations
     AFTER UPDATE ON work
     FOR EACH ROW EXECUTE PROCEDURE work_work_updated_at_with_relations();
-
-COMMIT;

@@ -1,5 +1,3 @@
-BEGIN;
-
 -------------------------------------------------------------------------------
 -- 1. Remove the helper function, and associated triggers, that propagates
 -- from work -> related works
@@ -52,5 +50,3 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER set_work_relation_updated_at_with_relations
     AFTER INSERT OR UPDATE OR DELETE ON work_relation
     FOR EACH ROW EXECUTE PROCEDURE work_relation_work_updated_at_with_relations();
-
-COMMIT;
