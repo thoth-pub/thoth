@@ -18,6 +18,7 @@ impl Crud for Title {
     type FilterParameter1 = LocaleCode;
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.title_id
@@ -40,6 +41,7 @@ impl Crud for Title {
         locale_codes: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Title>> {
         let mut connection = db.get()?;
         let mut query = work_title
@@ -108,6 +110,7 @@ impl Crud for Title {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         let mut connection = db.get()?;
         let mut query = work_title.into_boxed();

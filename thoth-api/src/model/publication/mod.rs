@@ -5,9 +5,6 @@ use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
-use crate::model::location::Location;
-use crate::model::price::Price;
-use crate::model::work::WorkWithRelations;
 use crate::model::Isbn;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -155,27 +152,6 @@ pub struct Publication {
     pub depth_in: Option<f64>,
     pub weight_g: Option<f64>,
     pub weight_oz: Option<f64>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct PublicationWithRelations {
-    pub publication_id: Uuid,
-    pub publication_type: PublicationType,
-    pub work_id: Uuid,
-    pub isbn: Option<Isbn>,
-    pub updated_at: Timestamp,
-    pub width_mm: Option<f64>,
-    pub width_in: Option<f64>,
-    pub height_mm: Option<f64>,
-    pub height_in: Option<f64>,
-    pub depth_mm: Option<f64>,
-    pub depth_in: Option<f64>,
-    pub weight_g: Option<f64>,
-    pub weight_oz: Option<f64>,
-    pub prices: Option<Vec<Price>>,
-    pub locations: Option<Vec<Location>>,
-    pub work: WorkWithRelations,
 }
 
 #[cfg_attr(
@@ -380,7 +356,6 @@ macro_rules! publication_properties {
     };
 }
 publication_properties!(Publication);
-publication_properties!(PublicationWithRelations);
 publication_properties!(NewPublication);
 publication_properties!(PatchPublication);
 
