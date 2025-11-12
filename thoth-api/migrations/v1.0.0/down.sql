@@ -48,8 +48,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS set_work_work_updated_at_with_relations ON work;
+DROP TRIGGER IF EXISTS set_work_updated_at_with_relations ON work;
 
-CREATE TRIGGER set_work_work_updated_at_with_relations
+CREATE TRIGGER set_work_updated_at_with_relations
     AFTER UPDATE ON work
     FOR EACH ROW EXECUTE PROCEDURE work_work_updated_at_with_relations();
