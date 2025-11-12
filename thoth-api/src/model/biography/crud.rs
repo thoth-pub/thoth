@@ -5,12 +5,25 @@ use super::{
 };
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
-use crate::schema::biography::dsl::*;
 use crate::schema::{biography, biography_history};
 use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
+
+impl Biography {
+    pub(crate) fn canonical_from_contribution_id(
+        db: &crate::db::PgPool,
+        contribution_id: &Uuid,
+    ) -> ThothResult<Self> {
+        let mut connection = db.get()?;
+        biography::table
+            .filter(biography::contribution_id.eq(contribution_id))
+            .filter(biography::canonical.eq(true))
+            .first::<Biography>(&mut connection)
+            .map_err(Into::into)
+    }
+}
 
 impl Crud for Biography {
     type NewEntity = NewBiography;
@@ -23,13 +36,6 @@ impl Crud for Biography {
 
     fn pk(&self) -> Uuid {
         self.biography_id
-    }
-
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        let contribution =
-            crate::model::contribution::Contribution::from_id(db, &self.contribution_id)?;
-        let work = crate::model::work::Work::from_id(db, &contribution.work_id)?;
-        <crate::model::work::Work as Crud>::publisher_id(&work, db)
     }
 
     fn all(
@@ -46,6 +52,8 @@ impl Crud for Biography {
         _: Option<Self::FilterParameter3>,
         _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Biography>> {
+        use crate::schema::biography::dsl::*;
+
         let mut connection = db.get()?;
         let mut query = biography
             .select((
@@ -108,11 +116,12 @@ impl Crud for Biography {
         _: Option<Self::FilterParameter3>,
         _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
+        use crate::schema::biography::dsl::*;
         let mut connection = db.get()?;
         let mut query = biography.into_boxed();
 
         if let Some(filter) = filter {
-            query = query.filter(biography::content.ilike(format!("%{filter}%")));
+            query = query.filter(content.ilike(format!("%{filter}%")));
         }
 
         query
@@ -120,6 +129,13 @@ impl Crud for Biography {
             .get_result::<i64>(&mut connection)
             .map(|t| t.to_string().parse::<i32>().unwrap())
             .map_err(Into::into)
+    }
+
+    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        let contribution =
+            crate::model::contribution::Contribution::from_id(db, &self.contribution_id)?;
+        let work = crate::model::work::Work::from_id(db, &contribution.work_id)?;
+        <crate::model::work::Work as Crud>::publisher_id(&work, db)
     }
 
     crud_methods!(biography::table, biography::dsl::biography);

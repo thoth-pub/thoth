@@ -12,6 +12,36 @@ use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
 
+impl Abstract {
+    fn canonical_from_work_id_and_type(
+        db: &crate::db::PgPool,
+        work_id: &Uuid,
+        abstract_type: AbstractType,
+    ) -> ThothResult<Self> {
+        let mut connection = db.get()?;
+        work_abstract::table
+            .filter(work_abstract::work_id.eq(work_id))
+            .filter(work_abstract::canonical.eq(true))
+            .filter(work_abstract::abstract_type.eq(abstract_type))
+            .first::<Abstract>(&mut connection)
+            .map_err(Into::into)
+    }
+
+    pub(crate) fn short_canonical_from_work_id(
+        db: &crate::db::PgPool,
+        work_id: &Uuid,
+    ) -> ThothResult<Self> {
+        Self::canonical_from_work_id_and_type(db, work_id, AbstractType::Short)
+    }
+
+    pub(crate) fn long_canonical_from_work_id(
+        db: &crate::db::PgPool,
+        work_id: &Uuid,
+    ) -> ThothResult<Self> {
+        Self::canonical_from_work_id_and_type(db, work_id, AbstractType::Long)
+    }
+}
+
 impl Crud for Abstract {
     type NewEntity = NewAbstract;
     type PatchEntity = PatchAbstract;
@@ -23,11 +53,6 @@ impl Crud for Abstract {
 
     fn pk(&self) -> Uuid {
         self.abstract_id
-    }
-
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        let work = crate::model::work::Work::from_id(db, &self.work_id)?;
-        <crate::model::work::Work as Crud>::publisher_id(&work, db)
     }
 
     fn all(
@@ -120,6 +145,11 @@ impl Crud for Abstract {
             .get_result::<i64>(&mut connection)
             .map(|t| t.to_string().parse::<i32>().unwrap())
             .map_err(Into::into)
+    }
+
+    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        let work = crate::model::work::Work::from_id(db, &self.work_id)?;
+        <crate::model::work::Work as Crud>::publisher_id(&work, db)
     }
 
     crud_methods!(work_abstract::table, work_abstract::dsl::work_abstract);

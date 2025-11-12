@@ -1,51 +1,47 @@
-use crate::model::biography::{Biography, BiographyOrderBy, NewBiography, PatchBiography};
-use crate::model::r#abstract::{Abstract, AbstractOrderBy, NewAbstract, PatchAbstract};
-use crate::model::title::{PatchTitle, Title};
-use crate::schema::{work_abstract, work_title};
-use chrono::naive::NaiveDate;
-use diesel::prelude::*;
-use juniper::RootNode;
-use juniper::{EmptySubscription, FieldError, FieldResult};
 use std::sync::Arc;
+
+use chrono::naive::NaiveDate;
+use juniper::{EmptySubscription, FieldError, FieldResult, RootNode};
 use uuid::Uuid;
 
-use crate::account::model::AccountAccess;
-use crate::account::model::DecodedToken;
-use crate::db::PgPool;
-use crate::model::contributor::*;
-use crate::model::funding::*;
-use crate::model::imprint::*;
-use crate::model::institution::*;
-use crate::model::issue::*;
-use crate::model::language::*;
-use crate::model::location::*;
-use crate::model::price::*;
-use crate::model::publication::*;
-use crate::model::publisher::*;
-use crate::model::r#abstract::AbstractType;
-use crate::model::reference::*;
-use crate::model::series::*;
-use crate::model::subject::*;
-use crate::model::work::*;
-use crate::model::work_relation::*;
-use crate::model::ConversionLimit;
-use crate::model::Convert;
-use crate::model::Crud;
-use crate::model::Doi;
-use crate::model::Isbn;
-use crate::model::LengthUnit;
-use crate::model::Orcid;
-use crate::model::Ror;
-use crate::model::Timestamp;
-use crate::model::WeightUnit;
-use crate::model::{affiliation::*, convert_to_jats, TitleOrderBy};
-use crate::model::{contribution::*, NewTitle};
-use thoth_errors::{ThothError, ThothResult};
-
 use super::utils::{Direction, Expression, ONIX_MAX_CHAR_LIMIT};
-use crate::model::convert_from_jats;
-use crate::model::LocaleCode;
-use crate::model::MarkupFormat;
+use crate::account::model::{AccountAccess, DecodedToken};
+use crate::db::PgPool;
+use crate::model::{
+    affiliation::{Affiliation, AffiliationOrderBy, NewAffiliation, PatchAffiliation},
+    biography::{Biography, BiographyOrderBy, NewBiography, PatchBiography},
+    contribution::{
+        Contribution, ContributionField, ContributionType, NewContribution, PatchContribution,
+    },
+    contributor::{Contributor, ContributorOrderBy, NewContributor, PatchContributor},
+    convert_from_jats, convert_to_jats,
+    funding::{Funding, FundingField, NewFunding, PatchFunding},
+    imprint::{Imprint, ImprintField, ImprintOrderBy, NewImprint, PatchImprint},
+    institution::{CountryCode, Institution, InstitutionOrderBy, NewInstitution, PatchInstitution},
+    issue::{Issue, IssueField, NewIssue, PatchIssue},
+    language::{
+        Language, LanguageCode, LanguageField, LanguageRelation, NewLanguage, PatchLanguage,
+    },
+    location::{Location, LocationOrderBy, LocationPlatform, NewLocation, PatchLocation},
+    price::{CurrencyCode, NewPrice, PatchPrice, Price, PriceField},
+    publication::{
+        NewPublication, PatchPublication, Publication, PublicationOrderBy, PublicationProperties,
+        PublicationType,
+    },
+    publisher::{NewPublisher, PatchPublisher, Publisher, PublisherOrderBy},
+    r#abstract::{Abstract, AbstractOrderBy, AbstractType, NewAbstract, PatchAbstract},
+    reference::{NewReference, PatchReference, Reference, ReferenceOrderBy},
+    series::{NewSeries, PatchSeries, Series, SeriesOrderBy, SeriesType},
+    subject::{check_subject, NewSubject, PatchSubject, Subject, SubjectField, SubjectType},
+    title::{NewTitle, PatchTitle, Title, TitleOrderBy},
+    work::{NewWork, PatchWork, Work, WorkOrderBy, WorkProperties, WorkStatus, WorkType},
+    work_relation::{
+        NewWorkRelation, PatchWorkRelation, RelationType, WorkRelation, WorkRelationOrderBy,
+    },
+    ConversionLimit, Convert, Crud, Doi, Isbn, LengthUnit, LocaleCode, MarkupFormat, Orcid, Ror,
+    Timestamp, WeightUnit,
+};
+use thoth_errors::{ThothError, ThothResult};
 
 impl juniper::Context for Context {}
 
@@ -3044,12 +3040,7 @@ impl Work {
         deprecated = "Please use Work `titles` field instead to get the correct full title in a multilingual manner"
     )]
     pub fn full_title(&self, ctx: &Context) -> FieldResult<String> {
-        let mut connection = ctx.db.get()?;
-        let title = work_title::table
-            .filter(work_title::work_id.eq(&self.work_id))
-            .filter(work_title::canonical.eq(true))
-            .first::<Title>(&mut connection)?;
-        Ok(title.full_title)
+        Ok(Title::canonical_from_work_id(&ctx.db, &self.work_id)?.full_title)
     }
 
     #[graphql(description = "Main title of the work (excluding subtitle)")]
@@ -3057,12 +3048,15 @@ impl Work {
         deprecated = "Please use Work `titles` field instead to get the correct title in a multilingual manner"
     )]
     pub fn title(&self, ctx: &Context) -> FieldResult<String> {
-        let mut connection = ctx.db.get()?;
-        let title = work_title::table
-            .filter(work_title::work_id.eq(&self.work_id))
-            .filter(work_title::canonical.eq(true))
-            .first::<Title>(&mut connection)?;
-        Ok(title.title)
+        Ok(Title::canonical_from_work_id(&ctx.db, &self.work_id)?.title)
+    }
+
+    #[graphql(description = "Secondary title of the work (excluding main title)")]
+    #[graphql(
+        deprecated = "Please use Work `titles` field instead to get the correct sub_title in a multilingual manner"
+    )]
+    pub fn subtitle(&self, ctx: &Context) -> FieldResult<Option<String>> {
+        Ok(Title::canonical_from_work_id(&ctx.db, &self.work_id)?.subtitle)
     }
 
     #[graphql(
@@ -3072,17 +3066,11 @@ impl Work {
         deprecated = "Please use Work `abstracts` field instead to get the correct short abstract in a multilingual manner"
     )]
     pub fn short_abstract(&self, ctx: &Context) -> FieldResult<Option<String>> {
-        let mut connection = ctx.db.get()?;
-        let r#abstract = work_abstract::table
-            .filter(work_abstract::work_id.eq(&self.work_id))
-            .filter(work_abstract::canonical.eq(true))
-            .filter(work_abstract::abstract_type.eq(AbstractType::Short))
-            .first::<Abstract>(&mut connection);
-
-        match r#abstract {
-            Ok(a) => Ok(Some(a.content)),
-            Err(_) => Ok(None),
-        }
+        Ok(
+            Abstract::short_canonical_from_work_id(&ctx.db, &self.work_id)
+                .map(|a| a.content)
+                .ok(),
+        )
     }
 
     #[graphql(
@@ -3092,17 +3080,11 @@ impl Work {
         deprecated = "Please use Work `abstracts` field instead to get the correct long abstract in a multilingual manner"
     )]
     pub fn long_abstract(&self, ctx: &Context) -> FieldResult<Option<String>> {
-        let mut connection = ctx.db.get()?;
-        let r#abstract = work_abstract::table
-            .filter(work_abstract::work_id.eq(&self.work_id))
-            .filter(work_abstract::canonical.eq(true))
-            .filter(work_abstract::abstract_type.eq(AbstractType::Long))
-            .first::<Abstract>(&mut connection);
-
-        match r#abstract {
-            Ok(a) => Ok(Some(a.content)),
-            Err(_) => Ok(None),
-        }
+        Ok(
+            Abstract::long_canonical_from_work_id(&ctx.db, &self.work_id)
+                .map(|a| a.content)
+                .ok(),
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -3216,19 +3198,6 @@ impl Work {
         }
 
         Ok(abstracts)
-    }
-
-    #[graphql(description = "Secondary title of the work (excluding main title)")]
-    #[graphql(
-        deprecated = "Please use Work `titles` field instead to get the correct sub_title in a multilingual manner"
-    )]
-    pub fn subtitle(&self, ctx: &Context) -> FieldResult<Option<String>> {
-        let mut connection = ctx.db.get()?;
-        let title = work_title::table
-            .filter(work_title::work_id.eq(&self.work_id))
-            .filter(work_title::canonical.eq(true))
-            .first::<Title>(&mut connection)?;
-        Ok(title.subtitle)
     }
 
     #[graphql(description = "Internal reference code")]
@@ -4216,26 +4185,16 @@ impl Contribution {
         Ok(biographies)
     }
 
-    // #[graphql(description = "Biography of the contributor at the time of contribution")]
-    // pub fn biography(&self) -> Option<&String> {
-    //     self.biography.as_ref()
-    // }
-
     #[graphql(description = "Biography of the contributor at the time of contribution")]
     #[graphql(
         deprecated = "Please use Contribution `biographies` field instead to get the correct biography in a multilingual manner"
     )]
     pub fn biography(&self, ctx: &Context) -> FieldResult<Option<String>> {
-        let mut connection = ctx.db.get()?;
-        let biography = crate::schema::biography::table
-            .filter(crate::schema::biography::contribution_id.eq(&self.contribution_id))
-            .filter(crate::schema::biography::canonical.eq(true))
-            .first::<Biography>(&mut connection);
-
-        match biography {
-            Ok(b) => Ok(Some(b.content)),
-            Err(_) => Ok(None),
-        }
+        Ok(
+            Biography::canonical_from_contribution_id(&ctx.db, &self.contribution_id)
+                .map(|a| a.content)
+                .ok(),
+        )
     }
 
     #[graphql(description = "Date and time at which the contribution record was created")]
