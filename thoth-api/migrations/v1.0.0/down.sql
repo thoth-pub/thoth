@@ -32,9 +32,6 @@ CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR UPDATE OR DELE
 -- 3. Restore work_work_updated_at_with_relations() and its trigger on work
 -------------------------------------------------------------------------------
 
-DROP TRIGGER IF EXISTS set_work_work_updated_at_with_relations ON work;
-DROP FUNCTION IF EXISTS work_work_updated_at_with_relations() CASCADE;
-
 CREATE OR REPLACE FUNCTION work_work_updated_at_with_relations() RETURNS trigger AS $$
 BEGIN
     IF (
@@ -50,6 +47,8 @@ BEGIN
     RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS set_work_work_updated_at_with_relations ON work;
 
 CREATE TRIGGER set_work_work_updated_at_with_relations
     AFTER UPDATE ON work
