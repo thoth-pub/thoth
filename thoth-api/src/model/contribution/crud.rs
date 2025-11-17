@@ -26,6 +26,7 @@ impl Contribution {
         // because if one fails, the others need to be reverted.
         let mut connection = db.get()?;
         connection.transaction(|connection| {
+            diesel::sql_query("SET CONSTRAINTS contribution_contribution_ordinal_work_id_uniq DEFERRED").execute(connection)?;
             for (id, ordinal) in other_contributions {
                 if new_ordinal > current_ordinal {
                     if ordinal > current_ordinal && ordinal <= new_ordinal {
@@ -35,7 +36,7 @@ impl Contribution {
                             .execute(connection)?;
                     }
                 } else {
-                    if ordinal >= new_ordinal {
+                    if ordinal >= new_ordinal && ordinal < current_ordinal {
                         let updated_ordinal = ordinal + 1;
                         diesel::update(crate::schema::contribution::table.find(id))
                             .set(contribution_ordinal.eq(&updated_ordinal))
