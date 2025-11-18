@@ -2425,6 +2425,12 @@ impl MutationRoot {
     ) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let contribution = Contribution::from_id(&context.db, &contribution_id).unwrap();
+
+        if new_ordinal == contribution.contribution_ordinal {
+            // No action required
+            return Ok(contribution)
+        }
+
         context
             .account_access
             .can_edit(contribution.publisher_id(&context.db)?)?;

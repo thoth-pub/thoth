@@ -26,6 +26,10 @@ impl Contribution {
         // because if one fails, the others need to be reverted.
         let mut connection = db.get()?;
         connection.transaction(|connection| {
+            if current_ordinal == new_ordinal {
+                // No change required. Caller should have checked this.
+                unreachable!()
+            }
             diesel::sql_query("SET CONSTRAINTS contribution_contribution_ordinal_work_id_uniq DEFERRED").execute(connection)?;
             for (id, ordinal) in other_contributions {
                 if new_ordinal > current_ordinal {
