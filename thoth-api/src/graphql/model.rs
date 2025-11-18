@@ -30,6 +30,7 @@ use crate::model::Doi;
 use crate::model::Isbn;
 use crate::model::LengthUnit;
 use crate::model::Orcid;
+use crate::model::Reorder;
 use crate::model::Ror;
 use crate::model::Timestamp;
 use crate::model::WeightUnit;

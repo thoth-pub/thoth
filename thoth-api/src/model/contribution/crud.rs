@@ -4,65 +4,17 @@ use super::{
 };
 use crate::graphql::model::ContributionOrderBy;
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{contribution, contribution_history};
-use crate::{crud_methods, db_insert};
+use crate::{crud_methods, db_change_ordinal, db_insert};
 use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
 
-impl Contribution {
-    pub fn change_ordinal(
-        &self,
-        db: &crate::db::PgPool,
-        current_ordinal: i32,
-        new_ordinal: i32,
-        account_id: &Uuid,
-    ) -> ThothResult<Self> {
-        use crate::schema::contribution::dsl::*;
+impl Reorder for Contribution {
+    db_change_ordinal!(contribution::table, contribution::contribution_ordinal, "contribution_contribution_ordinal_work_id_uniq");
 
-        let other_contributions = self.get_other_contributions(db)?;
-        // Execute all updates within the same transaction,
-        // because if one fails, the others need to be reverted.
-        let mut connection = db.get()?;
-        connection.transaction(|connection| {
-            if current_ordinal == new_ordinal {
-                // No change required. Caller should have checked this.
-                unreachable!()
-            }
-            diesel::sql_query("SET CONSTRAINTS contribution_contribution_ordinal_work_id_uniq DEFERRED").execute(connection)?;
-            for (id, ordinal) in other_contributions {
-                if new_ordinal > current_ordinal {
-                    if ordinal > current_ordinal && ordinal <= new_ordinal {
-                        let updated_ordinal = ordinal - 1;
-                        diesel::update(crate::schema::contribution::table.find(id))
-                            .set(contribution_ordinal.eq(&updated_ordinal))
-                            .execute(connection)?;
-                    }
-                } else {
-                    if ordinal >= new_ordinal && ordinal < current_ordinal {
-                        let updated_ordinal = ordinal + 1;
-                        diesel::update(crate::schema::contribution::table.find(id))
-                            .set(contribution_ordinal.eq(&updated_ordinal))
-                            .execute(connection)?;
-                    }
-                }
-            }
-            diesel::update(crate::schema::contribution::table.find(&self.pk()))
-                .set(contribution_ordinal.eq(&new_ordinal))
-                .get_result::<Self>(connection)
-                .map_err(Into::into)
-                .and_then(|t| {
-                    // On success, create a new history table entry.
-                    // Only record the original update, not the automatic reorderings.
-                    self.new_history_entry(account_id)
-                        .insert(connection)
-                        .map(|_| t)
-                })
-        })
-    }
-
-    pub fn get_other_contributions(&self, db: &crate::db::PgPool) -> ThothResult<Vec<(Uuid, i32)>> {
+    fn get_other_objects(&self, db: &crate::db::PgPool) -> ThothResult<Vec<(Uuid, i32)>> {
         contribution::table
             .select((contribution::contribution_id, contribution::contribution_ordinal))
             .filter(
