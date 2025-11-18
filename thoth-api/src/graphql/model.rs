@@ -2439,6 +2439,28 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         contribution.change_ordinal(&context.db, contribution.contribution_ordinal, new_ordinal, &account_id).map_err(|e| e.into())
     }
+
+    #[graphql(description = "Change the ordering of a reference within a work")]
+    fn move_reference(
+        context: &Context,
+        #[graphql(description = "Thoth ID of reference to be moved")] reference_id: Uuid,
+        #[graphql(description = "Ordinal representing position to which reference should be moved")] new_ordinal: i32,
+    ) -> FieldResult<Reference> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let reference = Reference::from_id(&context.db, &reference_id).unwrap();
+
+        if new_ordinal == reference.reference_ordinal {
+            // No action required
+            return Ok(reference)
+        }
+
+        context
+            .account_access
+            .can_edit(reference.publisher_id(&context.db)?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        reference.change_ordinal(&context.db, reference.reference_ordinal, new_ordinal, &account_id).map_err(|e| e.into())
+    }
 }
 
 #[juniper::graphql_object(Context = Context, description = "A written text that can be published")]
