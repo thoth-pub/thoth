@@ -2461,6 +2461,34 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         reference.change_ordinal(&context.db, reference.reference_ordinal, new_ordinal, &account_id).map_err(|e| e.into())
     }
+
+    #[graphql(description = "Change the ordering of a work relation within a work")]
+    fn move_work_relation(
+        context: &Context,
+        #[graphql(description = "Thoth ID of work relation to be moved")] work_relation_id: Uuid,
+        #[graphql(description = "Ordinal representing position to which work relation should be moved")] new_ordinal: i32,
+    ) -> FieldResult<WorkRelation> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let work_relation = WorkRelation::from_id(&context.db, &work_relation_id).unwrap();
+        if new_ordinal == work_relation.relation_ordinal {
+            // No action required
+            return Ok(work_relation)
+        }
+
+        // Work relations may link works from different publishers.
+        // User must have permissions for all relevant publishers.
+        context.account_access.can_edit(publisher_id_from_work_id(
+            &context.db,
+            work_relation.relator_work_id,
+        )?)?;
+        context.account_access.can_edit(publisher_id_from_work_id(
+            &context.db,
+            work_relation.related_work_id,
+        )?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        work_relation.change_ordinal(&context.db, work_relation.relation_ordinal, new_ordinal, &account_id).map_err(|e| e.into())
+    }
 }
 
 #[juniper::graphql_object(Context = Context, description = "A written text that can be published")]

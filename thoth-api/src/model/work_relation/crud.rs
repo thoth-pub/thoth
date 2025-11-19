@@ -2,9 +2,9 @@ use super::{
     NewWorkRelation, NewWorkRelationHistory, PatchWorkRelation, RelationType, WorkRelation,
     WorkRelationField, WorkRelationHistory, WorkRelationOrderBy,
 };
-use crate::db_insert;
+use crate::{db_change_ordinal, db_insert};
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{work_relation, work_relation_history};
 use diesel::dsl::max;
 use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
@@ -237,6 +237,22 @@ impl DbInsert for NewWorkRelationHistory {
     type MainEntity = WorkRelationHistory;
 
     db_insert!(work_relation_history::table);
+}
+
+impl Reorder for WorkRelation {
+    db_change_ordinal!(work_relation::table, work_relation::relation_ordinal, "work_relation_ordinal_type_uniq");
+
+    fn get_other_objects(&self, db: &crate::db::PgPool) -> ThothResult<Vec<(Uuid, i32)>> {
+        work_relation::table
+            .select((work_relation::work_relation_id, work_relation::relation_ordinal))
+            .filter(
+                work_relation::relator_work_id.eq(self.relator_work_id)
+                    .and(work_relation::relation_type.eq(self.relation_type))
+                    .and(work_relation::work_relation_id.ne(self.work_relation_id))
+            )
+            .load::<(Uuid, i32)>(&mut db.get()?)
+            .map_err(Into::into)
+    }
 }
 
 impl WorkRelation {
