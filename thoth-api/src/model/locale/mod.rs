@@ -2395,9 +2395,102 @@ impl From<LocaleCode> for LanguageCode {
             LocaleCode::Kaa => LanguageCode::Kaa,
             LocaleCode::Kam | LocaleCode::KamKe => LanguageCode::Kam,
             LocaleCode::Kn | LocaleCode::KnIn => LanguageCode::Kan,
-
-            // Deterministic fallback for unmapped locales
-            _ => LanguageCode::Und,
+            // Specific codes for languages where we have a dedicated or macro ISO 639-2/B mapping
+            LocaleCode::Ak | LocaleCode::AkGh => LanguageCode::Aka,
+            LocaleCode::As | LocaleCode::AsIn => LanguageCode::Asm,
+            LocaleCode::Ast | LocaleCode::AstEs => LanguageCode::Ast,
+            LocaleCode::Az
+            | LocaleCode::AzCyrl
+            | LocaleCode::AzCyrlAz
+            | LocaleCode::AzLatn
+            | LocaleCode::AzLatnAz => LanguageCode::Aze,
+            LocaleCode::Bm | LocaleCode::BmMl => LanguageCode::Bam,
+            LocaleCode::Bas | LocaleCode::BasCm => LanguageCode::Bas,
+            LocaleCode::Be | LocaleCode::BeBy => LanguageCode::Bel,
+            LocaleCode::Bem | LocaleCode::BemZm => LanguageCode::Bem,
+            LocaleCode::Bn | LocaleCode::BnBd | LocaleCode::BnIn => LanguageCode::Ben,
+            LocaleCode::Brx | LocaleCode::BrxIn => LanguageCode::Sit,
+            LocaleCode::Bs | LocaleCode::BsBa => LanguageCode::Bos,
+            LocaleCode::Br | LocaleCode::BrFr => LanguageCode::Bre,
+            LocaleCode::Bg | LocaleCode::BgBg => LanguageCode::Bul,
+            LocaleCode::My | LocaleCode::MyMm => LanguageCode::Bur,
+            LocaleCode::Ckb | LocaleCode::Kmr | LocaleCode::Sdh => LanguageCode::Kur,
+            LocaleCode::Tzm | LocaleCode::TzmLatn | LocaleCode::TzmLatnMa => LanguageCode::Ber,
+            LocaleCode::Chr | LocaleCode::ChrUs => LanguageCode::Chr,
+            LocaleCode::Dv => LanguageCode::Div,
+            LocaleCode::Lao => LanguageCode::Lao,
+            LocaleCode::Dyo | LocaleCode::DyoSn => LanguageCode::Nic,
+            LocaleCode::Kea | LocaleCode::KeaCv => LanguageCode::Cpp,
+            LocaleCode::Kln | LocaleCode::KlnKe => LanguageCode::Ssa,
+            LocaleCode::Khq | LocaleCode::KhqMl => LanguageCode::Son,
+            LocaleCode::Ses | LocaleCode::SesMl => LanguageCode::Son,
+            LocaleCode::Mfe | LocaleCode::MfeMu => LanguageCode::Cpf,
+            LocaleCode::Mua | LocaleCode::MuaCm => LanguageCode::Nic,
+            LocaleCode::Naq | LocaleCode::NaqNa => LanguageCode::Khi,
+            LocaleCode::Nus | LocaleCode::NusSd => LanguageCode::Ssa,
+            LocaleCode::Twq | LocaleCode::TwqNe => LanguageCode::Son,
+            LocaleCode::Teo | LocaleCode::TeoKe | LocaleCode::TeoUg => LanguageCode::Ssa,
+            LocaleCode::Dje | LocaleCode::DjeNe => LanguageCode::Son,
+            LocaleCode::Gsw | LocaleCode::GswCh => LanguageCode::Gsw,
+            LocaleCode::Shi
+            | LocaleCode::ShiLatn
+            | LocaleCode::ShiLatnMa
+            | LocaleCode::ShiTfng
+            | LocaleCode::ShiTfngMa => LanguageCode::Ber,
+            // Bantu cluster: languages without specific ISO 639-2/B codes in our enum.
+            // We map these to the macro-language Bnt (Bantu languages).
+            LocaleCode::Agq
+            | LocaleCode::AgqCm
+            | LocaleCode::Asa
+            | LocaleCode::AsaTz
+            | LocaleCode::Ksf
+            | LocaleCode::KsfCm
+            | LocaleCode::Bez
+            | LocaleCode::BezTz
+            | LocaleCode::Cgg
+            | LocaleCode::CggUg
+            | LocaleCode::Dua
+            | LocaleCode::DuaCm
+            | LocaleCode::Ebu
+            | LocaleCode::EbuKe
+            | LocaleCode::Guz
+            | LocaleCode::GuzKe
+            | LocaleCode::Nmg
+            | LocaleCode::NmgCm
+            | LocaleCode::Lag
+            | LocaleCode::LagTz
+            | LocaleCode::Luy
+            | LocaleCode::LuyKe
+            | LocaleCode::Jmc
+            | LocaleCode::JmcTz
+            | LocaleCode::Mgh
+            | LocaleCode::MghMz
+            | LocaleCode::Kde
+            | LocaleCode::KdeTz
+            | LocaleCode::Mer
+            | LocaleCode::MerKe
+            | LocaleCode::Nyn
+            | LocaleCode::NynUg
+            | LocaleCode::Rof
+            | LocaleCode::RofTz
+            | LocaleCode::Rwk
+            | LocaleCode::RwkTz
+            | LocaleCode::Saq
+            | LocaleCode::SaqKe
+            | LocaleCode::Sbp
+            | LocaleCode::SbpTz
+            | LocaleCode::Seh
+            | LocaleCode::SehMz
+            | LocaleCode::Ksb
+            | LocaleCode::KsbTz
+            | LocaleCode::Xog
+            | LocaleCode::XogUg
+            | LocaleCode::Dav
+            | LocaleCode::DavKe
+            | LocaleCode::Vun
+            | LocaleCode::VunTz
+            | LocaleCode::Yav
+            | LocaleCode::YavCm => LanguageCode::Bnt,
         }
     }
 }
