@@ -7,7 +7,7 @@ use crate::graphql::utils::{Direction, Expression};
 use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderBy};
 use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
 use crate::schema::{work, work_history};
-use crate::{crud_methods, db_insert};
+use crate::{apply_time_filter, crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -95,6 +95,7 @@ impl Work {
             vec![RelationType::HasChild],
             vec![],
             None,
+            None,
         )
         .unwrap_or_default()
         .into_iter()
@@ -110,6 +111,7 @@ impl Crud for Work {
     type FilterParameter1 = WorkType;
     type FilterParameter2 = WorkStatus;
     type FilterParameter3 = TimeExpression;
+    type FilterParameter4 = TimeExpression;
 
     fn pk(&self) -> Uuid {
         self.work_id
@@ -126,7 +128,8 @@ impl Crud for Work {
         _: Option<Uuid>,
         work_types: Vec<Self::FilterParameter1>,
         work_statuses: Vec<Self::FilterParameter2>,
-        updated_at_with_relations: Option<Self::FilterParameter3>,
+        publication_date: Option<Self::FilterParameter3>,
+        updated_at_with_relations: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Work>> {
         use crate::schema::work::dsl;
         let mut connection = db.get()?;
@@ -293,16 +296,20 @@ impl Crud for Work {
         if !work_statuses.is_empty() {
             query = query.filter(dsl::work_status.eq_any(work_statuses));
         }
-        if let Some(updated) = updated_at_with_relations {
-            match updated.expression {
-                Expression::GreaterThan => {
-                    query = query.filter(dsl::updated_at_with_relations.gt(updated.timestamp))
-                }
-                Expression::LessThan => {
-                    query = query.filter(dsl::updated_at_with_relations.lt(updated.timestamp))
-                }
-            }
-        }
+
+        apply_time_filter!(
+            query,
+            dsl::publication_date,
+            publication_date,
+            |ts: crate::model::Timestamp| ts.0.date_naive()
+        );
+        apply_time_filter!(
+            query,
+            dsl::updated_at_with_relations,
+            updated_at_with_relations,
+            |ts: crate::model::Timestamp| ts.0
+        );
+
         if let Some(filter) = filter {
             query = query.filter(
                 dsl::full_title
@@ -328,7 +335,8 @@ impl Crud for Work {
         publishers: Vec<Uuid>,
         work_types: Vec<Self::FilterParameter1>,
         work_statuses: Vec<Self::FilterParameter2>,
-        updated_at_with_relations: Option<Self::FilterParameter3>,
+        publication_date: Option<Self::FilterParameter3>,
+        updated_at_with_relations: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::work::dsl;
         let mut connection = db.get()?;
@@ -344,16 +352,20 @@ impl Crud for Work {
         if !work_statuses.is_empty() {
             query = query.filter(dsl::work_status.eq_any(work_statuses));
         }
-        if let Some(updated) = updated_at_with_relations {
-            match updated.expression {
-                Expression::GreaterThan => {
-                    query = query.filter(dsl::updated_at_with_relations.gt(updated.timestamp))
-                }
-                Expression::LessThan => {
-                    query = query.filter(dsl::updated_at_with_relations.lt(updated.timestamp))
-                }
-            }
-        }
+
+        apply_time_filter!(
+            query,
+            dsl::publication_date,
+            publication_date,
+            |ts: crate::model::Timestamp| ts.0.date_naive()
+        );
+        apply_time_filter!(
+            query,
+            dsl::updated_at_with_relations,
+            updated_at_with_relations,
+            |ts: crate::model::Timestamp| ts.0
+        );
+
         if let Some(filter) = filter {
             query = query.filter(
                 dsl::full_title

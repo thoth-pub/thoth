@@ -20,7 +20,6 @@
 
 * A [GraphQL API](https://api.thoth.pub), implementing a data model specifically designed for OA books
 * A [REST API](https://export.thoth.pub) to export metadata in formats like ONIX, MARC, etc.
-* A [WebAssembly GUI](https://thoth.pub) to manage metadata records.
 
 For more information about Thoth, its data and metadata formats, and more, see the repo's [wiki](https://github.com/thoth-pub/thoth/wiki). You can also use GraphiQL to [explore the GraphQL API](https://api.thoth.pub/graphiql) (click on "Docs" at the top right), or RapiDoc to [inspect the REST API](https://export.thoth.pub).
 
@@ -30,8 +29,6 @@ For more information about Thoth, its data and metadata formats, and more, see t
 
 - [Rustup](https://rustup.rs/)
 - Stable Toolchain: `rustup default stable`
-- [wasm-pack](https://rustwasm.github.io/docs/wasm-pack/introduction.html)
-- [rollup](https://www.npmjs.com/package/rollup)
 - A PostgreSQL database (included in docker-compose.yml if ran using docker)
 - `libssl-dev`
 
@@ -111,12 +108,6 @@ cargo run init
 
 ```sh
 cargo run start export-api
-```
-
-#### GUI
-
-```sh
-cargo run start app
 ```
 
 ### Building with docker

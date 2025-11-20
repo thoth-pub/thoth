@@ -866,7 +866,7 @@ mod tests {
 
     #[test]
     fn test_json_thoth() {
-        let to_test = JsonThoth.generate(&[TEST_WORK.clone()]);
+        let to_test = JsonThoth.generate(std::slice::from_ref(&TEST_WORK));
         assert!(to_test.is_ok());
         let to_test_string = to_test.unwrap();
         let to_test_split = to_test_string.split_once(',');

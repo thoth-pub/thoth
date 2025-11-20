@@ -1,5 +1,5 @@
 use chrono::{DateTime, TimeZone, Utc};
-use isbn2::Isbn13;
+use isbn::Isbn13;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -312,6 +312,9 @@ where
     /// A third such structure, e.g. `TimeExpression`
     type FilterParameter3;
 
+    /// A fourth such structure, e.g. `TimeExpression`
+    type FilterParameter4;
+
     /// Specify the entity's primary key
     fn pk(&self) -> Uuid;
 
@@ -333,6 +336,7 @@ where
         filter_param_1: Vec<Self::FilterParameter1>,
         filter_param_2: Vec<Self::FilterParameter2>,
         filter_param_3: Option<Self::FilterParameter3>,
+        filter_param_4: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Self>>;
 
     /// Query the database to obtain the total number of entities satisfying the search criteria
@@ -343,6 +347,7 @@ where
         filter_param_1: Vec<Self::FilterParameter1>,
         filter_param_2: Vec<Self::FilterParameter2>,
         filter_param_3: Option<Self::FilterParameter3>,
+        filter_param_4: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32>;
 
     /// Query the database to obtain an instance of the entity given its ID
@@ -468,6 +473,43 @@ macro_rules! crud_methods {
                 .execute(&mut connection)
                 .map(|_| self)
                 .map_err(Into::into)
+        }
+    };
+}
+
+/// Helper macro to apply an optional `TimeExpression` filter to a Diesel query.
+///
+/// This variant accepts a **converter** so you can adapt your internal timestamp
+/// type to the database column's Rust type (e.g. `NaiveDate` for `DATE` columns,
+/// or `DateTime<Utc>`/`Timestamp` for `TIMESTAMPTZ`).
+///
+/// # Parameters
+/// - `$query`: identifier bound to a mutable Diesel query builder (e.g. `query`)
+/// - `$col`:   Diesel column expression (e.g. `dsl::publication_date`)
+/// - `$opt`:   `Option<TimeExpression>`
+/// - `$conv`:  an expression that converts the internal timestamp into the correct
+///   Rust type for `$col`. It will be invoked like `$conv(te.timestamp)`.
+///
+/// # Examples
+/// For a `TIMESTAMPTZ` column:
+/// ```ignore
+/// apply_time_filter!(query, dsl::updated_at_with_relations, updated_at_with_relations, |ts: Timestamp| ts.0);
+/// ```
+///
+/// For a `DATE` column:
+/// ```ignore
+/// apply_time_filter!(query, dsl::publication_date, publication_date, |ts: Timestamp| ts.0.date_naive());
+/// ```
+#[cfg(feature = "backend")]
+#[macro_export]
+macro_rules! apply_time_filter {
+    ($query:ident, $col:expr, $opt:expr, $conv:expr) => {
+        if let Some(te) = $opt {
+            let __val = $conv(te.timestamp);
+            $query = match te.expression {
+                Expression::GreaterThan => $query.filter($col.gt(__val)),
+                Expression::LessThan => $query.filter($col.lt(__val)),
+            };
         }
     };
 }

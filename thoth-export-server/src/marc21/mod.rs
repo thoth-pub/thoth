@@ -34,7 +34,7 @@ pub(crate) trait Marc21Entry<T: Marc21Specification> {
             .map_err(ThothError::from)
     }
 
-    fn to_record(&self) -> ThothResult<Record>;
+    fn to_record(&self) -> ThothResult<Record<'_>>;
 }
 
 pub(crate) trait Marc21Field<T: Marc21Specification> {

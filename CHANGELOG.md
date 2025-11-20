@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [701](https://github.com/thoth-pub/thoth/issues/701) - Add accessibility-related metadata to Thoth data model and outputs
   - [682](https://github.com/thoth-pub/thoth/issues/682) - Improve ONIX 3.0 and 3.1 outputs based on feedback from EDItEUR
 
+### Added
+  - [711](https://github.com/thoth-pub/thoth/pull/711) - Allow filtering work queries by publication date
+
+### Fixed
+  - [712](https://github.com/thoth-pub/thoth/pull/712) - Make `updated_at_with_relations` propagation less deadlock-prone
+
+### Removed
+  - [710](https://github.com/thoth-pub/thoth/pull/710) - Deprecated thoth-app
+
+## [[0.13.14]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.14) - 2025-10-14
+### Changed
+  - [708](https://github.com/thoth-pub/thoth/pull/708) - Replace ISBN parsing library with [`isbn`](https://crates.io/crates/isbn)
+
 ## [[0.13.13]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.13) - 2025-06-05
 ### Changed
   - [691](https://github.com/thoth-pub/thoth/issues/691) - Require a license for full KBART output, fall back to work\_id for KBART title ID if no DOI available
