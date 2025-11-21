@@ -139,8 +139,6 @@ impl From<work_query::ContributionType> for ContributionType {
     }
 }
 
-// TODO: make the same for LocaleCode
-
 impl From<work_query::PublicationType> for PublicationType {
     fn from(value: crate::PublicationType) -> Self {
         match value {
