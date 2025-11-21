@@ -80,11 +80,7 @@ impl ThothClient {
     pub async fn get_work(&self, work_id: Uuid, parameters: QueryParameters) -> ThothResult<Work> {
         let variables: work_query::Variables = WorkQueryVariables::new(work_id, parameters).into();
         let request_body = WorkQuery::build_query(variables);
-        let res = self
-            .post_request(&request_body)
-            .await
-            .await
-            .map_err(|e| ThothError::InternalError(e.to_string()))?;
+        let res = self.post_request(&request_body).await.await?;
         let response_body: Response<work_query::ResponseData> = res.json().await?;
         match response_body.data {
             Some(data) => Ok(data.work),
@@ -122,11 +118,7 @@ impl ThothClient {
         let variables: works_query::Variables =
             WorksQueryVariables::new(publishers, limit, offset, parameters).into();
         let request_body = WorksQuery::build_query(variables);
-        let res = self
-            .post_request(&request_body)
-            .await
-            .await
-            .map_err(|e| ThothError::InternalError(e.to_string()))?;
+        let res = self.post_request(&request_body).await.await?;
         let response_body: Response<works_query::ResponseData> = res.json().await?;
         match response_body.data {
             Some(data) => Ok(data.works.iter().map(|w| w.clone().into()).collect()), // convert works_query::Work into work_query::Work
@@ -157,11 +149,7 @@ impl ThothClient {
     pub async fn get_work_count(&self, publishers: Option<Vec<Uuid>>) -> ThothResult<i64> {
         let variables = work_count_query::Variables { publishers };
         let request_body = WorkCountQuery::build_query(variables);
-        let res = self
-            .post_request(&request_body)
-            .await
-            .await
-            .map_err(|e| ThothError::InternalError(e.to_string()))?;
+        let res = self.post_request(&request_body).await.await?;
         let response_body: Response<work_count_query::ResponseData> = res.json().await?;
         match response_body.data {
             Some(data) => Ok(data.work_count),
@@ -193,11 +181,7 @@ impl ThothClient {
     pub async fn get_work_last_updated(&self, work_id: Uuid) -> ThothResult<Timestamp> {
         let variables = work_last_updated_query::Variables { work_id };
         let request_body = WorkLastUpdatedQuery::build_query(variables);
-        let res = self
-            .post_request(&request_body)
-            .await
-            .await
-            .map_err(|e| ThothError::InternalError(e.to_string()))?;
+        let res = self.post_request(&request_body).await.await?;
         let response_body: Response<work_last_updated_query::ResponseData> = res.json().await?;
         match response_body.data {
             Some(data) => Ok(data.work.updated_at_with_relations),
@@ -232,11 +216,7 @@ impl ThothClient {
     ) -> ThothResult<Timestamp> {
         let variables = works_last_updated_query::Variables { publishers };
         let request_body = WorksLastUpdatedQuery::build_query(variables);
-        let res = self
-            .post_request(&request_body)
-            .await
-            .await
-            .map_err(|e| ThothError::InternalError(e.to_string()))?;
+        let res = self.post_request(&request_body).await.await?;
         let response_body: Response<works_last_updated_query::ResponseData> = res.json().await?;
         match response_body.data {
             Some(data) => {
