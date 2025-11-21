@@ -11,7 +11,7 @@ use thoth_client::{
 };
 use xml::writer::{EventWriter, XmlEvent};
 
-use super::{write_element_block, XmlElement, XmlSpecification};
+use super::{write_element_block, TitleData, XmlElement, XmlSpecification};
 use crate::xml::{write_full_element_block, XmlElementBlock, ONIX31_NS};
 use thoth_errors::{ThothError, ThothResult};
 
@@ -1009,43 +1009,6 @@ fn write_title<W: Write, T: TitleData>(titles: &[T], w: &mut EventWriter<W>) -> 
         })?;
     }
     Ok(())
-}
-
-trait TitleData {
-    fn title(&self) -> &str;
-    fn subtitle(&self) -> Option<&str>;
-    fn canonical(&self) -> bool;
-    fn locale_code(&self) -> &thoth_client::LocaleCode;
-}
-
-impl TitleData for thoth_client::WorkTitles {
-    fn title(&self) -> &str {
-        &self.title
-    }
-    fn subtitle(&self) -> Option<&str> {
-        self.subtitle.as_deref()
-    }
-    fn canonical(&self) -> bool {
-        self.canonical
-    }
-    fn locale_code(&self) -> &thoth_client::LocaleCode {
-        &self.locale_code
-    }
-}
-
-impl TitleData for thoth_client::WorkRelationsRelatedWorkTitles {
-    fn title(&self) -> &str {
-        &self.title
-    }
-    fn subtitle(&self) -> Option<&str> {
-        self.subtitle.as_deref()
-    }
-    fn canonical(&self) -> bool {
-        self.canonical
-    }
-    fn locale_code(&self) -> &thoth_client::LocaleCode {
-        &self.locale_code
-    }
 }
 
 fn write_work_copyright<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
