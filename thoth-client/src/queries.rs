@@ -1,5 +1,4 @@
 use std::fmt;
-use std::str::FromStr;
 
 use chrono::naive::NaiveDate;
 use graphql_client::GraphQLQuery;

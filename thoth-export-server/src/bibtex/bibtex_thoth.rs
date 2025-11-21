@@ -298,7 +298,7 @@ mod tests {
                 thoth_client::WorkAbstracts {
                     abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
                     work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                    content: "Short abstract content.".to_string(),
+                    content: "<p>Short abstract content.</p>".to_string(),
                     locale_code: thoth_client::LocaleCode::EN,
                     abstract_type: thoth_client::AbstractType::SHORT,
                     canonical: true,
