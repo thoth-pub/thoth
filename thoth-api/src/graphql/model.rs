@@ -8,6 +8,7 @@ use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
 use crate::db::PgPool;
 use crate::model::affiliation::*;
+use crate::model::contact::*;
 use crate::model::contribution::*;
 use crate::model::contributor::*;
 use crate::model::funding::*;
@@ -1520,6 +1521,73 @@ impl QueryRoot {
         Reference::count(&context.db, None, vec![], vec![], vec![], None, None)
             .map_err(|e| e.into())
     }
+
+    #[graphql(description = "Query the full list of contacts")]
+    fn contacts(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = ContactOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<ContactOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
+        publishers: Option<Vec<Uuid>>,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
+        contact_types: Option<Vec<ContactType>>,
+    ) -> FieldResult<Vec<Contact>> {
+        Contact::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
+            None,
+            None,
+            contact_types.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Query a single contact using its ID")]
+    fn contact(
+        context: &Context,
+        #[graphql(description = "Thoth contact ID to search on")] contact_id: Uuid,
+    ) -> FieldResult<Contact> {
+        Contact::from_id(&context.db, &contact_id).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get the total number of contacts")]
+    fn contact_count(
+        context: &Context,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by"
+        )]
+        contact_types: Option<Vec<ContactType>>,
+    ) -> FieldResult<i32> {
+        Contact::count(
+            &context.db,
+            None,
+            vec![],
+            contact_types.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+        )
+        .map_err(|e| e.into())
+    }
 }
 
 pub struct MutationRoot;
@@ -1776,6 +1844,17 @@ impl MutationRoot {
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
         Reference::create(&context.db, &data).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Create a new contact with the specified values")]
+    fn create_contact(
+        context: &Context,
+        #[graphql(description = "Values for contact to be created")] data: NewContact,
+    ) -> FieldResult<Contact> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context.account_access.can_edit(data.publisher_id)?;
+
+        Contact::create(&context.db, &data).map_err(|e| e.into())
     }
 
     #[graphql(description = "Update an existing work with the specified values")]
@@ -2225,6 +2304,24 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
+    #[graphql(description = "Update an existing contact with the specified values")]
+    fn update_contact(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing contact")] data: PatchContact,
+    ) -> FieldResult<Contact> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let contact = Contact::from_id(&context.db, &data.contact_id).unwrap();
+        context.account_access.can_edit(contact.publisher_id())?;
+
+        if data.publisher_id != contact.publisher_id {
+            context.account_access.can_edit(data.publisher_id)?;
+        }
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        contact
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
     #[graphql(description = "Delete a single work using its ID")]
     fn delete_work(
         context: &Context,
@@ -2474,6 +2571,18 @@ impl MutationRoot {
             .can_edit(reference.publisher_id(&context.db)?)?;
 
         reference.delete(&context.db).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Delete a single contact using its ID")]
+    fn delete_contact(
+        context: &Context,
+        #[graphql(description = "Thoth ID of contact to be deleted")] contact_id: Uuid,
+    ) -> FieldResult<Contact> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let contact = Contact::from_id(&context.db, &contact_id).unwrap();
+        context.account_access.can_edit(contact.publisher_id())?;
+
+        contact.delete(&context.db).map_err(|e| e.into())
     }
 }
 
@@ -3091,6 +3200,32 @@ impl Publication {
         }
     }
 
+    #[graphql(description = "WCAG standard accessibility level met by this publication (if any)")]
+    pub fn accessibility_standard(&self) -> Option<&AccessibilityStandard> {
+        self.accessibility_standard.as_ref()
+    }
+
+    #[graphql(
+        description = "EPUB- or PDF-specific standard accessibility level met by this publication, if applicable"
+    )]
+    pub fn accessibility_additional_standard(&self) -> Option<&AccessibilityStandard> {
+        self.accessibility_additional_standard.as_ref()
+    }
+
+    #[graphql(
+        description = "Reason for this publication not being required to comply with accessibility standards (if any)"
+    )]
+    pub fn accessibility_exception(&self) -> Option<&AccessibilityException> {
+        self.accessibility_exception.as_ref()
+    }
+
+    #[graphql(
+        description = "Link to a web page showing detailed accessibility information for this publication"
+    )]
+    pub fn accessibility_report_url(&self) -> Option<&String> {
+        self.accessibility_report_url.as_ref()
+    }
+
     #[graphql(description = "Get prices linked to this publication")]
     pub fn prices(
         &self,
@@ -3187,6 +3322,20 @@ impl Publisher {
         self.publisher_url.as_ref()
     }
 
+    #[graphql(
+        description = "Statement from the publisher on the accessibility of its texts for readers with impairments"
+    )]
+    pub fn accessibility_statement(&self) -> Option<&String> {
+        self.accessibility_statement.as_ref()
+    }
+
+    #[graphql(
+        description = "URL of the publisher's report on the accessibility of its texts for readers with impairments"
+    )]
+    pub fn accessibility_report_url(&self) -> Option<&String> {
+        self.accessibility_report_url.as_ref()
+    }
+
     #[graphql(description = "Date and time at which the publisher record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at
@@ -3209,13 +3358,13 @@ impl Publisher {
         )]
         filter: Option<String>,
         #[graphql(
-           default = {
-                ImprintOrderBy {
-                    field: ImprintField::ImprintName,
-                    direction: Direction::Asc,
-                }
-            },
-            description = "The order in which to sort the results"
+            default = {
+                 ImprintOrderBy {
+                     field: ImprintField::ImprintName,
+                     direction: Direction::Asc,
+                 }
+             },
+             description = "The order in which to sort the results"
         )]
         order: Option<ImprintOrderBy>,
     ) -> FieldResult<Vec<Imprint>> {
@@ -3235,9 +3384,44 @@ impl Publisher {
         )
         .map_err(|e| e.into())
     }
+
+    #[graphql(description = "Get contacts linked to this publisher")]
+    pub fn contacts(
+        &self,
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = ContactOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<ContactOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
+        contact_types: Option<Vec<ContactType>>,
+    ) -> FieldResult<Vec<Contact>> {
+        Contact::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            order.unwrap_or_default(),
+            vec![],
+            Some(self.publisher_id),
+            None,
+            contact_types.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+        )
+        .map_err(Into::into)
+    }
 }
 
-#[juniper::graphql_object(Context = Context, description = "The brand under which a publisher issues works.")]
+#[juniper::graphql_object(Context = Context, description = "The brand under which a publisher issues works."
+    )]
 impl Imprint {
     #[graphql(description = "Thoth ID of the imprint")]
     pub fn imprint_id(&self) -> Uuid {
@@ -3290,27 +3474,27 @@ impl Imprint {
         #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
         #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
-            default = "".to_string(),
-            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
-        )]
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
+            )]
         filter: Option<String>,
         #[graphql(
-            default = WorkOrderBy::default(),
-            description = "The order in which to sort the results"
-        )]
+                default = WorkOrderBy::default(),
+                description = "The order in which to sort the results"
+            )]
         order: Option<WorkOrderBy>,
         #[graphql(
-            default = vec![],
-            description = "Specific types to filter by",
-        )]
+                default = vec![],
+                description = "Specific types to filter by",
+            )]
         work_types: Option<Vec<WorkType>>,
         #[graphql(description = "(deprecated) A specific status to filter by")] work_status: Option<
             WorkStatus,
         >,
         #[graphql(
-            default = vec![],
-            description = "Specific statuses to filter by"
-        )]
+                default = vec![],
+                description = "Specific statuses to filter by"
+            )]
         work_statuses: Option<Vec<WorkStatus>>,
         #[graphql(
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
@@ -3343,7 +3527,8 @@ impl Imprint {
     }
 }
 
-#[juniper::graphql_object(Context = Context, description = "A person who has been involved in the production of a written text.")]
+#[juniper::graphql_object(Context = Context, description = "A person who has been involved in the production of a written text."
+    )]
 impl Contributor {
     #[graphql(description = "Thoth ID of the contributor")]
     pub fn contributor_id(&self) -> Uuid {
@@ -3396,14 +3581,14 @@ impl Contributor {
         #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
         #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
-            default = ContributionOrderBy::default(),
-            description = "The order in which to sort the results"
-        )]
+                default = ContributionOrderBy::default(),
+                description = "The order in which to sort the results"
+            )]
         order: Option<ContributionOrderBy>,
         #[graphql(
-            default = vec![],
-            description = "Specific types to filter by",
-        )]
+                default = vec![],
+                description = "Specific types to filter by",
+            )]
         contribution_types: Option<Vec<ContributionType>>,
     ) -> FieldResult<Vec<Contribution>> {
         Contribution::all(
@@ -3424,7 +3609,8 @@ impl Contributor {
     }
 }
 
-#[juniper::graphql_object(Context = Context, description = "A person's involvement in the production of a written text.")]
+#[juniper::graphql_object(Context = Context, description = "A person's involvement in the production of a written text."
+    )]
 impl Contribution {
     #[graphql(description = "Thoth ID of the contribution")]
     pub fn contribution_id(&self) -> Uuid {
@@ -3513,9 +3699,9 @@ impl Contribution {
         #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
         #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
-            default = AffiliationOrderBy::default(),
-            description = "The order in which to sort the results"
-        )]
+                default = AffiliationOrderBy::default(),
+                description = "The order in which to sort the results"
+            )]
         order: Option<AffiliationOrderBy>,
     ) -> FieldResult<Vec<Affiliation>> {
         Affiliation::all(
@@ -3536,7 +3722,8 @@ impl Contribution {
     }
 }
 
-#[juniper::graphql_object(Context = Context, description = "A periodical of publications about a particular subject.")]
+#[juniper::graphql_object(Context = Context, description = "A periodical of publications about a particular subject."
+    )]
 impl Series {
     #[graphql(description = "Thoth ID of the series")]
     pub fn series_id(&self) -> Uuid {
@@ -3609,9 +3796,9 @@ impl Series {
         #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
         #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
-            default = IssueOrderBy::default(),
-            description = "The order in which to sort the results"
-        )]
+                default = IssueOrderBy::default(),
+                description = "The order in which to sort the results"
+            )]
         order: Option<IssueOrderBy>,
     ) -> FieldResult<Vec<Issue>> {
         Issue::all(
@@ -3632,7 +3819,8 @@ impl Series {
     }
 }
 
-#[juniper::graphql_object(Context = Context, description = "A work published as a number in a periodical.")]
+#[juniper::graphql_object(Context = Context, description = "A work published as a number in a periodical."
+    )]
 impl Issue {
     #[graphql(description = "Thoth ID of the issue")]
     pub fn issue_id(&self) -> Uuid {
@@ -3722,7 +3910,8 @@ impl Language {
     }
 }
 
-#[juniper::graphql_object(Context = Context, description = "A location, such as a web shop or distribution platform, where a publication can be acquired or viewed.")]
+#[juniper::graphql_object(Context = Context, description = "A location, such as a web shop or distribution platform, where a publication can be acquired or viewed."
+    )]
 impl Location {
     #[graphql(description = "Thoth ID of the location")]
     pub fn location_id(&self) -> Uuid {
@@ -3772,7 +3961,8 @@ impl Location {
     }
 }
 
-#[juniper::graphql_object(Context = Context, description = "The amount of money, in any currency, that a publication costs.")]
+#[juniper::graphql_object(Context = Context, description = "The amount of money, in any currency, that a publication costs."
+    )]
 impl Price {
     #[graphql(description = "Thoth ID of the price")]
     pub fn price_id(&self) -> Uuid {
@@ -3812,7 +4002,8 @@ impl Price {
     }
 }
 
-#[juniper::graphql_object(Context = Context, description = "A significant discipline or term related to a work.")]
+#[juniper::graphql_object(Context = Context, description = "A significant discipline or term related to a work."
+    )]
 impl Subject {
     #[graphql(description = "Thoth ID of the subject")]
     pub fn subject_id(&self) -> &Uuid {
@@ -3857,7 +4048,8 @@ impl Subject {
     }
 }
 
-#[juniper::graphql_object(Context = Context, description = "An organisation with which contributors may be affiliated or by which works may be funded.")]
+#[juniper::graphql_object(Context = Context, description = "An organisation with which contributors may be affiliated or by which works may be funded."
+    )]
 impl Institution {
     #[graphql(description = "Thoth ID of the institution")]
     pub fn institution_id(&self) -> &Uuid {
@@ -3907,9 +4099,9 @@ impl Institution {
         #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
         #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
-            default = FundingOrderBy::default(),
-            description = "The order in which to sort the results"
-        )]
+                default = FundingOrderBy::default(),
+                description = "The order in which to sort the results"
+            )]
         order: Option<FundingOrderBy>,
     ) -> FieldResult<Vec<Funding>> {
         Funding::all(
@@ -3936,9 +4128,9 @@ impl Institution {
         #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
         #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
-            default = AffiliationOrderBy::default(),
-            description = "The order in which to sort the results"
-        )]
+                default = AffiliationOrderBy::default(),
+                description = "The order in which to sort the results"
+            )]
         order: Option<AffiliationOrderBy>,
     ) -> FieldResult<Vec<Affiliation>> {
         Affiliation::all(
@@ -3959,7 +4151,8 @@ impl Institution {
     }
 }
 
-#[juniper::graphql_object(Context = Context, description = "A grant awarded for the publication of a work by an institution.")]
+#[juniper::graphql_object(Context = Context, description = "A grant awarded for the publication of a work by an institution."
+    )]
 impl Funding {
     #[graphql(description = "Thoth ID of the funding")]
     pub fn funding_id(&self) -> &Uuid {
@@ -4022,7 +4215,8 @@ impl Funding {
     }
 }
 
-#[juniper::graphql_object(Context = Context, description = "An association between a person and an institution for a specific contribution.")]
+#[juniper::graphql_object(Context = Context, description = "An association between a person and an institution for a specific contribution."
+    )]
 impl Affiliation {
     #[graphql(description = "Thoth ID of the affiliation")]
     pub fn affiliation_id(&self) -> Uuid {
@@ -4074,7 +4268,8 @@ impl Affiliation {
     }
 }
 
-#[juniper::graphql_object(Context = Context, description = "A relationship between two works, e.g. a book and one of its chapters, or an original and its translation.")]
+#[juniper::graphql_object(Context = Context, description = "A relationship between two works, e.g. a book and one of its chapters, or an original and its translation."
+    )]
 impl WorkRelation {
     #[graphql(description = "Thoth ID of the work relation")]
     pub fn work_relation_id(&self) -> &Uuid {
@@ -4120,9 +4315,9 @@ impl WorkRelation {
 }
 
 #[juniper::graphql_object(
-    Context = Context,
-    description = "A citation to a written text. References must always include the DOI of the cited work, the unstructured citation, or both.",
-)]
+        Context = Context,
+        description = "A citation to a written text. References must always include the DOI of the cited work, the unstructured citation, or both.",
+    )]
 impl Reference {
     #[graphql(description = "UUID of the reference.")]
     pub fn reference_id(&self) -> Uuid {
@@ -4266,6 +4461,44 @@ impl Reference {
     #[graphql(description = "The citing work.")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "A way to get in touch with a publisher.")]
+impl Contact {
+    #[graphql(description = "Thoth ID of the contact")]
+    pub fn contact_id(&self) -> Uuid {
+        self.contact_id
+    }
+
+    #[graphql(description = "Thoth ID of the publisher to which this contact belongs")]
+    pub fn publisher_id(&self) -> Uuid {
+        self.publisher_id
+    }
+
+    #[graphql(description = "Type of the contact")]
+    pub fn contact_type(&self) -> &ContactType {
+        &self.contact_type
+    }
+
+    #[graphql(description = "Email address of the contact")]
+    pub fn email(&self) -> &String {
+        &self.email
+    }
+
+    #[graphql(description = "Date and time at which the contact record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the contact record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+
+    #[graphql(description = "Get the publisher to which this contact belongs")]
+    pub fn publisher(&self, context: &Context) -> FieldResult<Publisher> {
+        Publisher::from_id(&context.db, &self.publisher_id).map_err(|e| e.into())
     }
 }
 

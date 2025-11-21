@@ -556,6 +556,8 @@ mod tests {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: Some("OAE".to_string()),
                     publisher_url: None,
+                    accessibility_statement: None,
+                    contacts: vec![],
                 },
             },
             issues: vec![WorkIssues {
@@ -635,6 +637,10 @@ mod tests {
                     weight_g: Some(152.0),
                     weight_oz: Some(5.3616),
                     isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![
                         WorkPublicationsPrices {
                             currency_code: CurrencyCode::EUR,
@@ -679,6 +685,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![
                         WorkPublicationsPrices {
                             currency_code: CurrencyCode::EUR,
@@ -710,6 +720,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![WorkPublicationsLocations {
                         landing_page: Some("https://www.book.com/pdf_landing".to_string()),
@@ -733,6 +747,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![WorkPublicationsLocations {
                         landing_page: Some("https://www.book.com/html_landing".to_string()),
@@ -756,6 +774,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -926,6 +948,10 @@ mod tests {
             depth_in: Some(1.0),
             weight_g: Some(152.0),
             weight_oz: Some(5.3616),
+            accessibility_standard: None,
+            accessibility_additional_standard: None,
+            accessibility_exception: None,
+            accessibility_report_url: None,
             prices: vec![WorkPublicationsPrices {
                 currency_code: CurrencyCode::EUR,
                 unit_price: 25.95,
