@@ -25,7 +25,7 @@ use crate::ThothError;
 static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "affiliation_affiliation_ordinal_check" => "An affiliation ordinal number must be greater than 0.",
     "affiliation_position_check" => "Position must not be an empty string.",
-    "affiliation_uniq_ord_in_contribution_idx" => "An affiliation with this ordinal number already exists.",
+    "affiliation_affiliation_ordinal_contribution_id_uniq" => "An affiliation with this ordinal number already exists.",
     "contribution_biography_check" => "Biography must not be an empty string.",
     "contribution_contribution_ordinal_check" => "A contribution ordinal number must be greater than 0.",
     "contribution_contribution_ordinal_work_id_uniq" => "A contribution with this ordinal number already exists.",

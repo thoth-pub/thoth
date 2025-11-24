@@ -1,3 +1,8 @@
+ALTER TABLE affiliation
+    ADD CONSTRAINT affiliation_affiliation_ordinal_contribution_id_uniq UNIQUE (affiliation_ordinal, contribution_id) DEFERRABLE INITIALLY IMMEDIATE;
+
+DROP INDEX IF EXISTS affiliation_uniq_ord_in_contribution_idx;
+
 ALTER TABLE contribution
     DROP CONSTRAINT contribution_contribution_ordinal_work_id_uniq,
     ADD CONSTRAINT contribution_contribution_ordinal_work_id_uniq UNIQUE (contribution_ordinal, work_id) DEFERRABLE INITIALLY IMMEDIATE;

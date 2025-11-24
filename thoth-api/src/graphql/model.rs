@@ -2418,6 +2418,28 @@ impl MutationRoot {
         reference.delete(&context.db).map_err(|e| e.into())
     }
 
+    #[graphql(description = "Change the ordering of an affiliation within a contribution")]
+    fn move_affiliation(
+        context: &Context,
+        #[graphql(description = "Thoth ID of affiliation to be moved")] affiliation_id: Uuid,
+        #[graphql(description = "Ordinal representing position to which affiliation should be moved")] new_ordinal: i32,
+    ) -> FieldResult<Affiliation> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let affiliation = Affiliation::from_id(&context.db, &affiliation_id).unwrap();
+
+        if new_ordinal == affiliation.affiliation_ordinal {
+            // No action required
+            return Ok(affiliation)
+        }
+
+        context
+            .account_access
+            .can_edit(affiliation.publisher_id(&context.db)?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        affiliation.change_ordinal(&context.db, affiliation.affiliation_ordinal, new_ordinal, &account_id).map_err(|e| e.into())
+    }
+
     #[graphql(description = "Change the ordering of a contribution within a work")]
     fn move_contribution(
         context: &Context,
