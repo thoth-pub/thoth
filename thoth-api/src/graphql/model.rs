@@ -2462,6 +2462,28 @@ impl MutationRoot {
         contribution.change_ordinal(&context.db, contribution.contribution_ordinal, new_ordinal, &account_id).map_err(|e| e.into())
     }
 
+    #[graphql(description = "Change the ordering of an issue within a series")]
+    fn move_issue(
+        context: &Context,
+        #[graphql(description = "Thoth ID of issue to be moved")] issue_id: Uuid,
+        #[graphql(description = "Ordinal representing position to which issue should be moved")] new_ordinal: i32,
+    ) -> FieldResult<Issue> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let issue = Issue::from_id(&context.db, &issue_id).unwrap();
+
+        if new_ordinal == issue.issue_ordinal {
+            // No action required
+            return Ok(issue)
+        }
+
+        context
+            .account_access
+            .can_edit(issue.publisher_id(&context.db)?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        issue.change_ordinal(&context.db, issue.issue_ordinal, new_ordinal, &account_id).map_err(|e| e.into())
+    }
+
     #[graphql(description = "Change the ordering of a reference within a work")]
     fn move_reference(
         context: &Context,

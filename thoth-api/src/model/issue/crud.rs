@@ -1,10 +1,10 @@
 use super::{Issue, IssueField, IssueHistory, NewIssue, NewIssueHistory, PatchIssue};
 use crate::graphql::model::IssueOrderBy;
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{issue, issue_history};
-use crate::{crud_methods, db_insert};
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use crate::{crud_methods, db_change_ordinal, db_insert};
+use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
@@ -127,6 +127,21 @@ impl DbInsert for NewIssueHistory {
     type MainEntity = IssueHistory;
 
     db_insert!(issue_history::table);
+}
+
+impl Reorder for Issue {
+    db_change_ordinal!(issue::table, issue::issue_ordinal, "issue_issue_ordinal_series_id_uniq");
+
+    fn get_other_objects(&self, db: &crate::db::PgPool) -> ThothResult<Vec<(Uuid, i32)>> {
+        issue::table
+            .select((issue::issue_id, issue::issue_ordinal))
+            .filter(
+                issue::series_id.eq(self.series_id)
+                    .and(issue::issue_id.ne(self.issue_id))
+            )
+            .load::<(Uuid, i32)>(&mut db.get()?)
+            .map_err(Into::into)
+    }
 }
 
 impl NewIssue {
