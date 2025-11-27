@@ -60,6 +60,10 @@ pub mod sql_types {
     pub struct MarkupFormat;
 
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "file_type"))]
+    pub struct FileType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "contact_type"))]
     pub struct ContactType;
 
@@ -250,6 +254,10 @@ table! {
         imprint_name -> Text,
         imprint_url -> Nullable<Text>,
         crossmark_doi -> Nullable<Text>,
+        s3_bucket -> Nullable<Text>,
+        s3_region -> Nullable<Text>,
+        cdn_domain -> Nullable<Text>,
+        cloudfront_dist_id -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
@@ -682,6 +690,42 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::FileType;
+
+    file (file_id) {
+        file_id -> Uuid,
+        file_type -> FileType,
+        work_id -> Nullable<Uuid>,
+        publication_id -> Nullable<Uuid>,
+        object_key -> Text,
+        cdn_url -> Text,
+        mime_type -> Text,
+        bytes -> Int8,
+        sha256 -> Text,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::FileType;
+
+    file_upload (file_upload_id) {
+        file_upload_id -> Uuid,
+        file_type -> FileType,
+        work_id -> Nullable<Uuid>,
+        publication_id -> Nullable<Uuid>,
+        declared_mime_type -> Text,
+        declared_extension -> Text,
+        declared_sha256 -> Text,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
 
     abstract_history (abstract_history_id) {
         abstract_history_id -> Uuid,
@@ -715,6 +759,10 @@ joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
 joinable!(contribution_history -> contribution (contribution_id));
 joinable!(contributor_history -> contributor (contributor_id));
+joinable!(file -> work (work_id));
+joinable!(file -> publication (publication_id));
+joinable!(file_upload -> work (work_id));
+joinable!(file_upload -> publication (publication_id));
 joinable!(funding -> institution (institution_id));
 joinable!(funding -> work (work_id));
 joinable!(funding_history -> funding (funding_id));
@@ -759,6 +807,8 @@ allow_tables_to_appear_in_same_query!(
     contribution_history,
     contributor,
     contributor_history,
+    file,
+    file_upload,
     funding,
     funding_history,
     imprint,
