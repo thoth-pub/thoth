@@ -2506,6 +2506,28 @@ impl MutationRoot {
         reference.change_ordinal(&context.db, reference.reference_ordinal, new_ordinal, &account_id).map_err(|e| e.into())
     }
 
+    #[graphql(description = "Change the ordering of a subject within a work")]
+    fn move_subject(
+        context: &Context,
+        #[graphql(description = "Thoth ID of subject to be moved")] subject_id: Uuid,
+        #[graphql(description = "Ordinal representing position to which subject should be moved")] new_ordinal: i32,
+    ) -> FieldResult<Subject> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let subject = Subject::from_id(&context.db, &subject_id).unwrap();
+
+        if new_ordinal == subject.subject_ordinal {
+            // No action required
+            return Ok(subject)
+        }
+
+        context
+            .account_access
+            .can_edit(subject.publisher_id(&context.db)?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        subject.change_ordinal(&context.db, subject.subject_ordinal, new_ordinal, &account_id).map_err(|e| e.into())
+    }
+
     #[graphql(description = "Change the ordering of a work relation within a work")]
     fn move_work_relation(
         context: &Context,
@@ -3874,7 +3896,7 @@ impl Subject {
     }
 
     #[graphql(
-        description = "Number representing this subject's position in an ordered list of subjects of the same type within the work (subjects of equal prominence can have the same number)"
+        description = "Number representing this subject's position in an ordered list of subjects of the same type within the work"
     )]
     pub fn subject_ordinal(&self) -> &i32 {
         &self.subject_ordinal
