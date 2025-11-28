@@ -411,6 +411,7 @@ static THEMA_CODES: Map<&'static str, &'static str> = phf_map! {
     "CFL" => "Palaeography",
     "CFLA" => "Writing systems, alphabets",
     "CFM" => "Lexicography",
+    "CFN" => "Philology",
     "CFP" => "Translation and interpretation",
     "CFX" => "Computational and corpus linguistics",
     "CFZ" => "Sign languages, Braille and other linguistic communication",
