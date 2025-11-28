@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use strum::Display;
 use strum::EnumString;
 
+use crate::model::language::LanguageCode;
+
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
@@ -896,7 +898,7 @@ pub enum LocaleCode {
     FrCd,
     #[cfg_attr(
         feature = "backend",
-        graphql(description = "French (Côte d’Ivoire) (fr-CI)")
+        graphql(description = "French (Côte d'Ivoire) (fr-CI)")
     )]
     FrCi,
     #[cfg_attr(
@@ -2006,4 +2008,584 @@ pub enum LocaleCode {
         graphql(description = "Zulu (South Africa) (zu-ZA)")
     )]
     ZuZa,
+}
+
+impl From<LocaleCode> for LanguageCode {
+    /// Converts a LocaleCode (BCP-47) to its corresponding LanguageCode (ISO 639-2/B)
+    fn from(locale: LocaleCode) -> Self {
+        // Direct mapping via enum pattern matching where feasible
+        match locale {
+            // English and related creoles/variants
+            LocaleCode::En
+            | LocaleCode::EnAi
+            | LocaleCode::EnAs
+            | LocaleCode::EnAu
+            | LocaleCode::EnAt
+            | LocaleCode::EnBb
+            | LocaleCode::EnBe
+            | LocaleCode::EnBz
+            | LocaleCode::EnBm
+            | LocaleCode::EnBw
+            | LocaleCode::EnIo
+            | LocaleCode::EnBi
+            | LocaleCode::EnCm
+            | LocaleCode::EnCa
+            | LocaleCode::EnKy
+            | LocaleCode::EnCx
+            | LocaleCode::EnCc
+            | LocaleCode::EnCk
+            | LocaleCode::EnCy
+            | LocaleCode::EnDk
+            | LocaleCode::EnDg
+            | LocaleCode::EnDm
+            | LocaleCode::EnEg
+            | LocaleCode::EnEr
+            | LocaleCode::EnEu
+            | LocaleCode::EnFk
+            | LocaleCode::EnFj
+            | LocaleCode::EnFi
+            | LocaleCode::EnGm
+            | LocaleCode::EnDe
+            | LocaleCode::EnGh
+            | LocaleCode::EnGi
+            | LocaleCode::EnGd
+            | LocaleCode::EnGu
+            | LocaleCode::EnGg
+            | LocaleCode::EnGy
+            | LocaleCode::EnHk
+            | LocaleCode::EnIn
+            | LocaleCode::EnIe
+            | LocaleCode::EnIm
+            | LocaleCode::EnIl
+            | LocaleCode::EnJm
+            | LocaleCode::EnJe
+            | LocaleCode::EnKe
+            | LocaleCode::EnKi
+            | LocaleCode::EnKw
+            | LocaleCode::EnLs
+            | LocaleCode::EnMo
+            | LocaleCode::EnMg
+            | LocaleCode::EnMw
+            | LocaleCode::EnMy
+            | LocaleCode::EnMt
+            | LocaleCode::EnMh
+            | LocaleCode::EnMu
+            | LocaleCode::EnFm
+            | LocaleCode::EnMs
+            | LocaleCode::EnNa
+            | LocaleCode::EnNr
+            | LocaleCode::EnNl
+            | LocaleCode::EnNz
+            | LocaleCode::EnNg
+            | LocaleCode::EnNu
+            | LocaleCode::EnNf
+            | LocaleCode::EnMp
+            | LocaleCode::EnNo
+            | LocaleCode::EnPa
+            | LocaleCode::EnPk
+            | LocaleCode::EnPw
+            | LocaleCode::EnPg
+            | LocaleCode::EnPh
+            | LocaleCode::EnPn
+            | LocaleCode::EnPr
+            | LocaleCode::EnRw
+            | LocaleCode::EnWs
+            | LocaleCode::EnSa
+            | LocaleCode::EnSc
+            | LocaleCode::EnSl
+            | LocaleCode::EnSg
+            | LocaleCode::EnSx
+            | LocaleCode::EnSi
+            | LocaleCode::EnSb
+            | LocaleCode::EnSs
+            | LocaleCode::EnSh
+            | LocaleCode::EnKn
+            | LocaleCode::EnLc
+            | LocaleCode::Svc
+            | LocaleCode::Vic
+            | LocaleCode::EnSd
+            | LocaleCode::EnSz
+            | LocaleCode::EnSe
+            | LocaleCode::EnCh
+            | LocaleCode::EnTz
+            | LocaleCode::EnTk
+            | LocaleCode::EnTo
+            | LocaleCode::EnTt
+            | LocaleCode::EnTv
+            | LocaleCode::EnZa
+            | LocaleCode::EnAe
+            | LocaleCode::EnUm
+            | LocaleCode::EnVi
+            | LocaleCode::EnUsPosix
+            | LocaleCode::EnUg
+            | LocaleCode::EnGb
+            | LocaleCode::EnUs
+            | LocaleCode::EnVu
+            | LocaleCode::EnZm
+            | LocaleCode::EnZw
+            | LocaleCode::Aig
+            | LocaleCode::Bah
+            | LocaleCode::Lir
+            | LocaleCode::Tch => LanguageCode::Eng,
+
+            // French variants
+            LocaleCode::Fr
+            | LocaleCode::FrBe
+            | LocaleCode::FrBj
+            | LocaleCode::FrBf
+            | LocaleCode::FrBi
+            | LocaleCode::FrCm
+            | LocaleCode::FrCa
+            | LocaleCode::FrCf
+            | LocaleCode::FrTd
+            | LocaleCode::FrKm
+            | LocaleCode::FrCg
+            | LocaleCode::FrCd
+            | LocaleCode::FrCi
+            | LocaleCode::FrDj
+            | LocaleCode::FrGq
+            | LocaleCode::FrFr
+            | LocaleCode::FrGf
+            | LocaleCode::FrGa
+            | LocaleCode::FrGp
+            | LocaleCode::FrGn
+            | LocaleCode::FrLu
+            | LocaleCode::FrMg
+            | LocaleCode::FrMl
+            | LocaleCode::FrMq
+            | LocaleCode::FrYt
+            | LocaleCode::FrMc
+            | LocaleCode::FrNe
+            | LocaleCode::FrRw
+            | LocaleCode::FrRe
+            | LocaleCode::FrBl
+            | LocaleCode::FrMf
+            | LocaleCode::FrMu
+            | LocaleCode::FrSn
+            | LocaleCode::FrCh
+            | LocaleCode::FrTg => LanguageCode::Fre,
+
+            // Spanish variants
+            LocaleCode::Es
+            | LocaleCode::EsAr
+            | LocaleCode::EsBo
+            | LocaleCode::EsCl
+            | LocaleCode::EsCo
+            | LocaleCode::EsCr
+            | LocaleCode::EsDo
+            | LocaleCode::EsEc
+            | LocaleCode::EsSv
+            | LocaleCode::EsGq
+            | LocaleCode::EsGt
+            | LocaleCode::EsHn
+            | LocaleCode::Es419
+            | LocaleCode::EsMx
+            | LocaleCode::EsNi
+            | LocaleCode::EsPa
+            | LocaleCode::EsPy
+            | LocaleCode::EsPe
+            | LocaleCode::EsPr
+            | LocaleCode::EsEs
+            | LocaleCode::EsUs
+            | LocaleCode::EsUy
+            | LocaleCode::EsVe => LanguageCode::Spa,
+
+            // Major single locales
+            LocaleCode::De
+            | LocaleCode::DeAt
+            | LocaleCode::DeBe
+            | LocaleCode::DeDe
+            | LocaleCode::DeLi
+            | LocaleCode::DeLu
+            | LocaleCode::DeCh => LanguageCode::Ger,
+            LocaleCode::It | LocaleCode::ItIt | LocaleCode::ItCh => LanguageCode::Ita,
+            LocaleCode::Pt
+            | LocaleCode::PtAo
+            | LocaleCode::PtBr
+            | LocaleCode::PtGw
+            | LocaleCode::PtMz
+            | LocaleCode::PtPt
+            | LocaleCode::PtSt => LanguageCode::Por,
+            LocaleCode::Ru | LocaleCode::RuMd | LocaleCode::RuRu | LocaleCode::RuUa => {
+                LanguageCode::Rus
+            }
+            LocaleCode::Zh
+            | LocaleCode::ZhHans
+            | LocaleCode::ZhCn
+            | LocaleCode::ZhHansCn
+            | LocaleCode::ZhHansHk
+            | LocaleCode::ZhHansMo
+            | LocaleCode::ZhHansSg
+            | LocaleCode::ZhHant
+            | LocaleCode::ZhHantHk
+            | LocaleCode::ZhHantMo
+            | LocaleCode::ZhHantTw => LanguageCode::Chi,
+            LocaleCode::Ja | LocaleCode::JaJp => LanguageCode::Jpn,
+            LocaleCode::Ko | LocaleCode::KoKr => LanguageCode::Kor,
+            LocaleCode::Ar
+            | LocaleCode::ArDz
+            | LocaleCode::ArBh
+            | LocaleCode::ArEg
+            | LocaleCode::ArIq
+            | LocaleCode::ArJo
+            | LocaleCode::ArKw
+            | LocaleCode::ArLb
+            | LocaleCode::ArLy
+            | LocaleCode::ArMa
+            | LocaleCode::ArOm
+            | LocaleCode::ArQa
+            | LocaleCode::ArSa
+            | LocaleCode::ArSd
+            | LocaleCode::ArSy
+            | LocaleCode::ArTn
+            | LocaleCode::ArAe
+            | LocaleCode::Ar001
+            | LocaleCode::ArYe => LanguageCode::Ara,
+            LocaleCode::Hi | LocaleCode::HiIn => LanguageCode::Hin,
+            LocaleCode::Nl
+            | LocaleCode::NlAw
+            | LocaleCode::NlBe
+            | LocaleCode::NlCw
+            | LocaleCode::NlNl
+            | LocaleCode::NlSx => LanguageCode::Dut,
+            LocaleCode::Sv | LocaleCode::SvFi | LocaleCode::SvSe => LanguageCode::Swe,
+            LocaleCode::Pl | LocaleCode::PlPl => LanguageCode::Pol,
+
+            // A few additional straightforward mappings
+            LocaleCode::Af | LocaleCode::AfNa | LocaleCode::AfZa => LanguageCode::Afr,
+            LocaleCode::Sq | LocaleCode::SqAl => LanguageCode::Alb,
+            LocaleCode::Am | LocaleCode::AmEt => LanguageCode::Amh,
+            // Extended straightforward mappings by language families
+            LocaleCode::Cy | LocaleCode::CyGb => LanguageCode::Wel,
+            LocaleCode::Ga | LocaleCode::GaIe => LanguageCode::Gle,
+            LocaleCode::Eu | LocaleCode::EuEs => LanguageCode::Baq,
+            LocaleCode::Is | LocaleCode::IsIs => LanguageCode::Ice,
+            LocaleCode::Ka | LocaleCode::KaGe => LanguageCode::Geo,
+            LocaleCode::Hy | LocaleCode::HyAm => LanguageCode::Arm,
+            LocaleCode::Bo | LocaleCode::BoCn | LocaleCode::BoIn => LanguageCode::Tib,
+            LocaleCode::Si | LocaleCode::SiLk => LanguageCode::Sin,
+            LocaleCode::Fa | LocaleCode::FaAf | LocaleCode::FaIr => LanguageCode::Per,
+            LocaleCode::Ro | LocaleCode::RoMd | LocaleCode::RoRo => LanguageCode::Rum,
+            LocaleCode::Sk | LocaleCode::SkSk => LanguageCode::Slo,
+            LocaleCode::Mk | LocaleCode::MkMk => LanguageCode::Mac,
+            LocaleCode::Ms | LocaleCode::MsBn | LocaleCode::MsMy => LanguageCode::May,
+            LocaleCode::Mi => LanguageCode::Mao,
+            LocaleCode::Ca
+            | LocaleCode::CaEs
+            | LocaleCode::Val
+            | LocaleCode::ValEs
+            | LocaleCode::CaEsValencia => LanguageCode::Cat,
+            LocaleCode::Et | LocaleCode::EtEe => LanguageCode::Est,
+            LocaleCode::Lg | LocaleCode::LgUg => LanguageCode::Lug,
+            LocaleCode::Ee | LocaleCode::EeGh | LocaleCode::EeTg => LanguageCode::Ewe,
+            LocaleCode::Fo | LocaleCode::FoFo => LanguageCode::Fao,
+            LocaleCode::Fil | LocaleCode::FilPh => LanguageCode::Fil,
+            LocaleCode::Fi | LocaleCode::FiFi => LanguageCode::Fin,
+            LocaleCode::Gd | LocaleCode::GdGb => LanguageCode::Gla,
+            LocaleCode::Ha
+            | LocaleCode::HaLatn
+            | LocaleCode::HaLatnGh
+            | LocaleCode::HaLatnNe
+            | LocaleCode::HaLatnNg => LanguageCode::Hau,
+            LocaleCode::He | LocaleCode::HeIl => LanguageCode::Heb,
+            LocaleCode::Hu | LocaleCode::HuHu => LanguageCode::Hun,
+            LocaleCode::Ig | LocaleCode::IgNg => LanguageCode::Ibo,
+            LocaleCode::Id | LocaleCode::IdId => LanguageCode::Ind,
+            LocaleCode::Kk | LocaleCode::KkCyrl | LocaleCode::KkCyrlKz => LanguageCode::Kaz,
+            LocaleCode::Km | LocaleCode::KmKh => LanguageCode::Khm,
+            LocaleCode::Ki | LocaleCode::KiKe => LanguageCode::Kik,
+            LocaleCode::Rw | LocaleCode::RwRw => LanguageCode::Kin,
+            LocaleCode::Kok | LocaleCode::KokIn => LanguageCode::Kok,
+            LocaleCode::Ky => LanguageCode::Kir,
+            LocaleCode::Lv | LocaleCode::LvLv => LanguageCode::Lav,
+            LocaleCode::Ln | LocaleCode::LnCg | LocaleCode::LnCd => LanguageCode::Lin,
+            LocaleCode::Lt | LocaleCode::LtLt => LanguageCode::Lit,
+            LocaleCode::Lu | LocaleCode::LuCd => LanguageCode::Lub,
+            LocaleCode::Luo | LocaleCode::LuoKe => LanguageCode::Luo,
+            LocaleCode::Mg | LocaleCode::MgMg => LanguageCode::Mlg,
+            LocaleCode::Ml | LocaleCode::MlIn => LanguageCode::Mal,
+            LocaleCode::Mt | LocaleCode::MtMt => LanguageCode::Mlt,
+            LocaleCode::Gv | LocaleCode::GvGb => LanguageCode::Glv,
+            LocaleCode::Mr | LocaleCode::MrIn => LanguageCode::Mar,
+            LocaleCode::Mas | LocaleCode::MasKe | LocaleCode::MasTz => LanguageCode::Mas,
+            LocaleCode::Mn => LanguageCode::Mon,
+            LocaleCode::Ne | LocaleCode::NeIn | LocaleCode::NeNp => LanguageCode::Nep,
+            LocaleCode::Se | LocaleCode::SeFi | LocaleCode::SeNo | LocaleCode::SeSe => {
+                LanguageCode::Sme
+            }
+            LocaleCode::Nd | LocaleCode::NdZw => LanguageCode::Nde,
+            LocaleCode::Nb | LocaleCode::NbNo => LanguageCode::Nob,
+            LocaleCode::Nn | LocaleCode::NnNo => LanguageCode::Nno,
+            LocaleCode::Or | LocaleCode::OrIn => LanguageCode::Ori,
+            LocaleCode::Om | LocaleCode::OmEt | LocaleCode::OmKe => LanguageCode::Orm,
+            LocaleCode::Ps | LocaleCode::PsAf => LanguageCode::Pus,
+            LocaleCode::Pa
+            | LocaleCode::PaArab
+            | LocaleCode::PaArabPk
+            | LocaleCode::PaGuru
+            | LocaleCode::PaGuruIn => LanguageCode::Pan,
+            LocaleCode::Rm | LocaleCode::RmCh => LanguageCode::Roh,
+            LocaleCode::Rn | LocaleCode::RnBi => LanguageCode::Run,
+            LocaleCode::Sg | LocaleCode::SgCf => LanguageCode::Sag,
+            LocaleCode::Sa => LanguageCode::San,
+            LocaleCode::Sr
+            | LocaleCode::SrCyrl
+            | LocaleCode::SrCyrlBa
+            | LocaleCode::SrCyrlMe
+            | LocaleCode::SrCyrlRs
+            | LocaleCode::SrLatn
+            | LocaleCode::SrLatnBa
+            | LocaleCode::SrLatnMe
+            | LocaleCode::SrLatnRs => LanguageCode::Srp,
+            LocaleCode::Sn | LocaleCode::SnZw => LanguageCode::Sna,
+            LocaleCode::Ii | LocaleCode::IiCn => LanguageCode::Iii,
+            LocaleCode::Sl | LocaleCode::SlSi => LanguageCode::Slv,
+            LocaleCode::So
+            | LocaleCode::SoDj
+            | LocaleCode::SoEt
+            | LocaleCode::SoKe
+            | LocaleCode::SoSo => LanguageCode::Som,
+            LocaleCode::Sw
+            | LocaleCode::SwKe
+            | LocaleCode::SwTz
+            | LocaleCode::Swc
+            | LocaleCode::SwcCd => LanguageCode::Swa,
+            LocaleCode::Ta | LocaleCode::TaIn | LocaleCode::TaLk => LanguageCode::Tam,
+            LocaleCode::Tg => LanguageCode::Tgk,
+            LocaleCode::Te | LocaleCode::TeIn => LanguageCode::Tel,
+            LocaleCode::Th | LocaleCode::ThTh => LanguageCode::Tha,
+            LocaleCode::Ti | LocaleCode::TiEr | LocaleCode::TiEt => LanguageCode::Tir,
+            LocaleCode::To | LocaleCode::ToTo => LanguageCode::Ton,
+            LocaleCode::Tr | LocaleCode::TrTr => LanguageCode::Tur,
+            LocaleCode::Tk => LanguageCode::Tuk,
+            LocaleCode::Uk | LocaleCode::UkUa => LanguageCode::Ukr,
+            LocaleCode::Ur | LocaleCode::UrIn | LocaleCode::UrPk => LanguageCode::Urd,
+            LocaleCode::Ug | LocaleCode::UgCn => LanguageCode::Uig,
+            LocaleCode::Uz
+            | LocaleCode::UzArab
+            | LocaleCode::UzArabAf
+            | LocaleCode::UzCyrl
+            | LocaleCode::UzCyrlUz
+            | LocaleCode::UzLatn
+            | LocaleCode::UzLatnUz => LanguageCode::Uzb,
+            LocaleCode::Vai
+            | LocaleCode::VaiLatn
+            | LocaleCode::VaiLatnLr
+            | LocaleCode::VaiVaii
+            | LocaleCode::VaiVaiiLr => LanguageCode::Vai,
+            LocaleCode::Vi | LocaleCode::ViVn => LanguageCode::Vie,
+            LocaleCode::Wo => LanguageCode::Wol,
+            LocaleCode::Xh => LanguageCode::Xho,
+            LocaleCode::Yo | LocaleCode::YoNg => LanguageCode::Yor,
+            LocaleCode::Zu | LocaleCode::ZuZa => LanguageCode::Zul,
+            LocaleCode::Kw | LocaleCode::KwGb => LanguageCode::Cor,
+            LocaleCode::Hr | LocaleCode::HrHr => LanguageCode::Hrv,
+            LocaleCode::Cs | LocaleCode::CsCz => LanguageCode::Cze,
+            LocaleCode::Da | LocaleCode::DaDk => LanguageCode::Dan,
+            LocaleCode::El | LocaleCode::ElCy | LocaleCode::ElGr => LanguageCode::Gre,
+            LocaleCode::Gu | LocaleCode::GuIn => LanguageCode::Guj,
+            LocaleCode::Haw | LocaleCode::HawUs => LanguageCode::Haw,
+            LocaleCode::Smn | LocaleCode::SmnFi => LanguageCode::Smn,
+            LocaleCode::Gl | LocaleCode::GlEs => LanguageCode::Glg,
+            LocaleCode::Eo => LanguageCode::Epo,
+            LocaleCode::Ewo | LocaleCode::EwoCm => LanguageCode::Ewo,
+            LocaleCode::Ff | LocaleCode::FfSn => LanguageCode::Ful,
+            LocaleCode::Kab | LocaleCode::KabDz => LanguageCode::Kab,
+            LocaleCode::Kl | LocaleCode::KlGl => LanguageCode::Kal,
+            LocaleCode::Kaa => LanguageCode::Kaa,
+            LocaleCode::Kam | LocaleCode::KamKe => LanguageCode::Kam,
+            LocaleCode::Kn | LocaleCode::KnIn => LanguageCode::Kan,
+            // Specific codes for languages where we have a dedicated or macro ISO 639-2/B mapping
+            LocaleCode::Ak | LocaleCode::AkGh => LanguageCode::Aka,
+            LocaleCode::As | LocaleCode::AsIn => LanguageCode::Asm,
+            LocaleCode::Ast | LocaleCode::AstEs => LanguageCode::Ast,
+            LocaleCode::Az
+            | LocaleCode::AzCyrl
+            | LocaleCode::AzCyrlAz
+            | LocaleCode::AzLatn
+            | LocaleCode::AzLatnAz => LanguageCode::Aze,
+            LocaleCode::Bm | LocaleCode::BmMl => LanguageCode::Bam,
+            LocaleCode::Bas | LocaleCode::BasCm => LanguageCode::Bas,
+            LocaleCode::Be | LocaleCode::BeBy => LanguageCode::Bel,
+            LocaleCode::Bem | LocaleCode::BemZm => LanguageCode::Bem,
+            LocaleCode::Bn | LocaleCode::BnBd | LocaleCode::BnIn => LanguageCode::Ben,
+            LocaleCode::Brx | LocaleCode::BrxIn => LanguageCode::Sit,
+            LocaleCode::Bs | LocaleCode::BsBa => LanguageCode::Bos,
+            LocaleCode::Br | LocaleCode::BrFr => LanguageCode::Bre,
+            LocaleCode::Bg | LocaleCode::BgBg => LanguageCode::Bul,
+            LocaleCode::My | LocaleCode::MyMm => LanguageCode::Bur,
+            LocaleCode::Ckb | LocaleCode::Kmr | LocaleCode::Sdh => LanguageCode::Kur,
+            LocaleCode::Tzm | LocaleCode::TzmLatn | LocaleCode::TzmLatnMa => LanguageCode::Ber,
+            LocaleCode::Chr | LocaleCode::ChrUs => LanguageCode::Chr,
+            LocaleCode::Dv => LanguageCode::Div,
+            LocaleCode::Lao => LanguageCode::Lao,
+            LocaleCode::Dyo | LocaleCode::DyoSn => LanguageCode::Nic,
+            LocaleCode::Kea | LocaleCode::KeaCv => LanguageCode::Cpp,
+            LocaleCode::Kln | LocaleCode::KlnKe => LanguageCode::Ssa,
+            LocaleCode::Khq | LocaleCode::KhqMl => LanguageCode::Son,
+            LocaleCode::Ses | LocaleCode::SesMl => LanguageCode::Son,
+            LocaleCode::Mfe | LocaleCode::MfeMu => LanguageCode::Cpf,
+            LocaleCode::Mua | LocaleCode::MuaCm => LanguageCode::Nic,
+            LocaleCode::Naq | LocaleCode::NaqNa => LanguageCode::Khi,
+            LocaleCode::Nus | LocaleCode::NusSd => LanguageCode::Ssa,
+            LocaleCode::Twq | LocaleCode::TwqNe => LanguageCode::Son,
+            LocaleCode::Teo | LocaleCode::TeoKe | LocaleCode::TeoUg => LanguageCode::Ssa,
+            LocaleCode::Dje | LocaleCode::DjeNe => LanguageCode::Son,
+            LocaleCode::Gsw | LocaleCode::GswCh => LanguageCode::Gsw,
+            LocaleCode::Shi
+            | LocaleCode::ShiLatn
+            | LocaleCode::ShiLatnMa
+            | LocaleCode::ShiTfng
+            | LocaleCode::ShiTfngMa => LanguageCode::Ber,
+            // Bantu cluster: languages without specific ISO 639-2/B codes in our enum.
+            // We map these to the macro-language Bnt (Bantu languages).
+            LocaleCode::Agq
+            | LocaleCode::AgqCm
+            | LocaleCode::Asa
+            | LocaleCode::AsaTz
+            | LocaleCode::Ksf
+            | LocaleCode::KsfCm
+            | LocaleCode::Bez
+            | LocaleCode::BezTz
+            | LocaleCode::Cgg
+            | LocaleCode::CggUg
+            | LocaleCode::Dua
+            | LocaleCode::DuaCm
+            | LocaleCode::Ebu
+            | LocaleCode::EbuKe
+            | LocaleCode::Guz
+            | LocaleCode::GuzKe
+            | LocaleCode::Nmg
+            | LocaleCode::NmgCm
+            | LocaleCode::Lag
+            | LocaleCode::LagTz
+            | LocaleCode::Luy
+            | LocaleCode::LuyKe
+            | LocaleCode::Jmc
+            | LocaleCode::JmcTz
+            | LocaleCode::Mgh
+            | LocaleCode::MghMz
+            | LocaleCode::Kde
+            | LocaleCode::KdeTz
+            | LocaleCode::Mer
+            | LocaleCode::MerKe
+            | LocaleCode::Nyn
+            | LocaleCode::NynUg
+            | LocaleCode::Rof
+            | LocaleCode::RofTz
+            | LocaleCode::Rwk
+            | LocaleCode::RwkTz
+            | LocaleCode::Saq
+            | LocaleCode::SaqKe
+            | LocaleCode::Sbp
+            | LocaleCode::SbpTz
+            | LocaleCode::Seh
+            | LocaleCode::SehMz
+            | LocaleCode::Ksb
+            | LocaleCode::KsbTz
+            | LocaleCode::Xog
+            | LocaleCode::XogUg
+            | LocaleCode::Dav
+            | LocaleCode::DavKe
+            | LocaleCode::Vun
+            | LocaleCode::VunTz
+            | LocaleCode::Yav
+            | LocaleCode::YavCm => LanguageCode::Bnt,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_locale_to_language_code_basic_english() {
+        let lang: LanguageCode = LocaleCode::En.into();
+        assert_eq!(lang, LanguageCode::Eng);
+        assert_eq!(lang.to_string().to_lowercase(), "eng");
+    }
+
+    #[test]
+    fn test_locale_to_language_code_regional_variants() {
+        // English variants should all map to Eng (eng)
+        let lang: LanguageCode = LocaleCode::EnUs.into();
+        assert_eq!(lang, LanguageCode::Eng);
+        let lang: LanguageCode = LocaleCode::EnGb.into();
+        assert_eq!(lang, LanguageCode::Eng);
+        let lang: LanguageCode = LocaleCode::EnCa.into();
+        assert_eq!(lang, LanguageCode::Eng);
+        let lang: LanguageCode = LocaleCode::EnAu.into();
+        assert_eq!(lang, LanguageCode::Eng);
+
+        // French variants should all map to Fre (fre) - ISO 639-2/B
+        let lang: LanguageCode = LocaleCode::Fr.into();
+        assert_eq!(lang, LanguageCode::Fre);
+        let lang: LanguageCode = LocaleCode::FrFr.into();
+        assert_eq!(lang, LanguageCode::Fre);
+        let lang: LanguageCode = LocaleCode::FrCa.into();
+        assert_eq!(lang, LanguageCode::Fre);
+        let lang: LanguageCode = LocaleCode::FrBe.into();
+        assert_eq!(lang, LanguageCode::Fre);
+
+        // Spanish variants should all map to Spa (spa)
+        let lang: LanguageCode = LocaleCode::Es.into();
+        assert_eq!(lang, LanguageCode::Spa);
+        let lang: LanguageCode = LocaleCode::EsEs.into();
+        assert_eq!(lang, LanguageCode::Spa);
+        let lang: LanguageCode = LocaleCode::EsMx.into();
+        assert_eq!(lang, LanguageCode::Spa);
+        let lang: LanguageCode = LocaleCode::EsAr.into();
+        assert_eq!(lang, LanguageCode::Spa);
+    }
+
+    #[test]
+    fn test_locale_to_language_code_major_languages() {
+        // Test a variety of major world languages (ISO 639-2/B codes)
+        let lang: LanguageCode = LocaleCode::De.into();
+        assert_eq!(lang, LanguageCode::Ger); // German
+        let lang: LanguageCode = LocaleCode::It.into();
+        assert_eq!(lang, LanguageCode::Ita); // Italian
+        let lang: LanguageCode = LocaleCode::Pt.into();
+        assert_eq!(lang, LanguageCode::Por); // Portuguese
+        let lang: LanguageCode = LocaleCode::Ru.into();
+        assert_eq!(lang, LanguageCode::Rus); // Russian
+        let lang: LanguageCode = LocaleCode::Zh.into();
+        assert_eq!(lang, LanguageCode::Chi); // Chinese
+        let lang: LanguageCode = LocaleCode::Ja.into();
+        assert_eq!(lang, LanguageCode::Jpn); // Japanese
+        let lang: LanguageCode = LocaleCode::Ko.into();
+        assert_eq!(lang, LanguageCode::Kor); // Korean
+        let lang: LanguageCode = LocaleCode::Ar.into();
+        assert_eq!(lang, LanguageCode::Ara); // Arabic
+        let lang: LanguageCode = LocaleCode::Hi.into();
+        assert_eq!(lang, LanguageCode::Hin); // Hindi
+        let lang: LanguageCode = LocaleCode::Nl.into();
+        assert_eq!(lang, LanguageCode::Dut); // Dutch
+        let lang: LanguageCode = LocaleCode::Sv.into();
+        assert_eq!(lang, LanguageCode::Swe); // Swedish
+        let lang: LanguageCode = LocaleCode::Pl.into();
+        assert_eq!(lang, LanguageCode::Pol); // Polish
+    }
+
+    #[test]
+    fn test_locale_to_language_code_less_common_languages() {
+        // Test some less common languages (ISO 639-2/B codes)
+        let lang: LanguageCode = LocaleCode::Cy.into();
+        assert_eq!(lang, LanguageCode::Wel); // Welsh
+        let lang: LanguageCode = LocaleCode::Ga.into();
+        assert_eq!(lang, LanguageCode::Gle); // Irish
+        let lang: LanguageCode = LocaleCode::Eu.into();
+        assert_eq!(lang, LanguageCode::Baq); // Basque
+        let lang: LanguageCode = LocaleCode::Is.into();
+        assert_eq!(lang, LanguageCode::Ice); // Icelandic
+        let lang: LanguageCode = LocaleCode::Ka.into();
+        assert_eq!(lang, LanguageCode::Geo); // Georgian
+        let lang: LanguageCode = LocaleCode::Hy.into();
+        assert_eq!(lang, LanguageCode::Arm); // Armenian
+        let lang: LanguageCode = LocaleCode::Bo.into();
+        assert_eq!(lang, LanguageCode::Tib); // Tibetan
+        let lang: LanguageCode = LocaleCode::Si.into();
+        assert_eq!(lang, LanguageCode::Sin); // Sinhala
+    }
 }

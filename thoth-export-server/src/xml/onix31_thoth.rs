@@ -1,6 +1,8 @@
 use cc_license::License;
 use chrono::Utc;
 use std::io::Write;
+use thoth_api::model::language::LanguageCode as ApiLanguageCode;
+use thoth_api::model::locale::LocaleCode as ApiLocaleCode;
 use thoth_client::{
     AbstractType, ContributionType, LanguageRelation, LocationPlatform, PublicationType,
     RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages,
@@ -9,7 +11,7 @@ use thoth_client::{
 };
 use xml::writer::{EventWriter, XmlEvent};
 
-use super::{write_element_block, XmlElement, XmlSpecification};
+use super::{write_element_block, TitleData, XmlElement, XmlSpecification};
 use crate::xml::{write_full_element_block, XmlElementBlock, ONIX31_NS};
 use thoth_errors::{ThothError, ThothResult};
 
@@ -242,11 +244,7 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                     for issue in &self.issues {
                         XmlElementBlock::<Onix31Thoth>::xml_element(issue, w).ok();
                     }
-                    write_title(
-                        self.titles[0].title.clone(),
-                        self.titles[0].subtitle.clone(),
-                        w,
-                    )?;
+                    write_title(&self.titles, w)?;
                     for contribution in &self.contributions {
                         XmlElementBlock::<Onix31Thoth>::xml_element(contribution, w).ok();
                     }
@@ -521,11 +519,7 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                                 write_element_block("ComponentTypeName", w, |w| {
                                     w.write(XmlEvent::Characters("Chapter")).map_err(Into::into)
                                 })?;
-                                write_title(
-                                    chapter.titles[0].title.clone(),
-                                    chapter.titles[0].subtitle.clone(),
-                                    w,
-                                )?;
+                                write_title(&chapter.titles, w)?;
                                 for contribution in &chapter.contributions {
                                     XmlElementBlock::<Onix31Thoth>::xml_element(contribution, w)
                                         .ok();
@@ -941,32 +935,79 @@ fn write_license<W: Write>(license: String, w: &mut EventWriter<W>) -> ThothResu
     Ok(())
 }
 
-fn write_title<W: Write>(
-    title: String,
-    subtitle: Option<String>,
-    w: &mut EventWriter<W>,
-) -> ThothResult<()> {
-    write_element_block("TitleDetail", w, |w| {
-        // 01 Distinctive title (book)
-        write_element_block("TitleType", w, |w| {
-            w.write(XmlEvent::Characters("01")).map_err(Into::into)
-        })?;
-        write_element_block("TitleElement", w, |w| {
-            // 01 Product
-            write_element_block("TitleElementLevel", w, |w| {
+fn write_title<W: Write, T: TitleData>(titles: &[T], w: &mut EventWriter<W>) -> ThothResult<()> {
+    // Output canonical title with TitleType 01 (Distinctive title)
+    if let Some(canonical_title) = titles.iter().find(|t| t.canonical()) {
+        write_element_block("TitleDetail", w, |w| {
+            // 01 Distinctive title (book)
+            write_element_block("TitleType", w, |w| {
                 w.write(XmlEvent::Characters("01")).map_err(Into::into)
             })?;
-            write_element_block("TitleText", w, |w| {
-                w.write(XmlEvent::Characters(&title)).map_err(Into::into)
-            })?;
-            if let Some(subtitle) = &subtitle {
-                write_element_block("Subtitle", w, |w| {
-                    w.write(XmlEvent::Characters(subtitle)).map_err(Into::into)
+            write_element_block("TitleElement", w, |w| {
+                // 01 Product
+                write_element_block("TitleElementLevel", w, |w| {
+                    w.write(XmlEvent::Characters("01")).map_err(Into::into)
                 })?;
-            }
-            Ok(())
-        })
-    })?;
+                let api_locale: ApiLocaleCode = canonical_title.locale_code().clone().into();
+                let lang_code: ApiLanguageCode = api_locale.into();
+                let iso_code = lang_code.to_string().to_lowercase();
+                write_full_element_block(
+                    "TitleText",
+                    Some(vec![("language", &iso_code)]),
+                    w,
+                    |w| {
+                        w.write(XmlEvent::Characters(canonical_title.title()))
+                            .map_err(Into::into)
+                    },
+                )?;
+                if let Some(subtitle) = canonical_title.subtitle() {
+                    write_full_element_block(
+                        "Subtitle",
+                        Some(vec![("language", &iso_code)]),
+                        w,
+                        |w| w.write(XmlEvent::Characters(subtitle)).map_err(Into::into),
+                    )?;
+                }
+                Ok(())
+            })
+        })?;
+    }
+    // Output non-canonical titles with TitleType 06 (Title in another language)
+    for title in titles.iter().filter(|t| !t.canonical()) {
+        write_element_block("TitleDetail", w, |w| {
+            // 06 Title in another language
+            write_element_block("TitleType", w, |w| {
+                w.write(XmlEvent::Characters("06")).map_err(Into::into)
+            })?;
+            let api_locale: ApiLocaleCode = title.locale_code().clone().into();
+            let lang_code: ApiLanguageCode = api_locale.into();
+            let iso_code = lang_code.to_string().to_lowercase();
+            write_element_block("TitleElement", w, |w| {
+                // 01 Product
+                write_element_block("TitleElementLevel", w, |w| {
+                    w.write(XmlEvent::Characters("01")).map_err(Into::into)
+                })?;
+                write_full_element_block(
+                    "TitleText",
+                    Some(vec![("language", &iso_code)]),
+                    w,
+                    |w| {
+                        w.write(XmlEvent::Characters(title.title()))
+                            .map_err(Into::into)
+                    },
+                )?;
+                if let Some(subtitle) = title.subtitle() {
+                    write_full_element_block(
+                        "Subtitle",
+                        Some(vec![("language", &iso_code)]),
+                        w,
+                        |w| w.write(XmlEvent::Characters(subtitle)).map_err(Into::into),
+                    )?;
+                }
+                Ok(())
+            })
+        })?;
+    }
     Ok(())
 }
 
@@ -1044,7 +1085,7 @@ fn write_short_abstract_content<W: Write>(
         write_element_block("ContentAudience", w, |w| {
             w.write(XmlEvent::Characters("00")).map_err(Into::into)
         })?;
-        write_element_block("Text", w, |w| {
+        write_full_element_block("Text", Some(vec![("textformat", "03")]), w, |w| {
             w.write(XmlEvent::Characters(&short_abstract))
                 .map_err(Into::into)
         })
@@ -1093,7 +1134,7 @@ fn write_long_abstract_content<W: Write>(
             write_element_block("ContentAudience", w, |w| {
                 w.write(XmlEvent::Characters("00")).map_err(Into::into)
             })?;
-            write_element_block("Text", w, |w| {
+            write_full_element_block("Text", Some(vec![("textformat", "03")]), w, |w| {
                 w.write(XmlEvent::Characters(&long_abstract))
                     .map_err(Into::into)
             })
@@ -3010,8 +3051,8 @@ mod tests {
       <TitleType>01</TitleType>
       <TitleElement>
         <TitleElementLevel>01</TitleElementLevel>
-        <TitleText>Book Title</TitleText>
-        <Subtitle>Book Subtitle</Subtitle>
+        <TitleText language="eng">Book Title</TitleText>
+        <Subtitle language="eng">Book Subtitle</Subtitle>
       </TitleElement>
     </TitleDetail>
     <Edition>
@@ -3117,7 +3158,7 @@ mod tests {
     <TextContent>
       <TextType>02</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text>Lorem ipsum dolor sit amet.</Text>
+      <Text textformat="03">Lorem ipsum dolor sit amet.</Text>
     </TextContent>"#
         ));
         assert!(output.contains(
@@ -3125,7 +3166,7 @@ mod tests {
     <TextContent>
       <TextType>03</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
+      <Text textformat="03">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
     </TextContent>"#
         ));
         assert!(output.contains(
@@ -3133,7 +3174,7 @@ mod tests {
     <TextContent>
       <TextType>30</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
+      <Text textformat="03">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
     </TextContent>"#
         ));
         assert!(output.contains(
@@ -3212,8 +3253,8 @@ mod tests {
         <TitleType>01</TitleType>
         <TitleElement>
           <TitleElementLevel>01</TitleElementLevel>
-          <TitleText>The first chapter:</TitleText>
-          <Subtitle>An introduction</Subtitle>
+          <TitleText language="eng">The first chapter:</TitleText>
+          <Subtitle language="eng">An introduction</Subtitle>
         </TitleElement>
       </TitleDetail>"#
         ));
@@ -3659,11 +3700,11 @@ mod tests {
       <TitleType>01</TitleType>
       <TitleElement>
         <TitleElementLevel>01</TitleElementLevel>
-        <TitleText>Book Title</TitleText>
+        <TitleText language="eng">Book Title</TitleText>
       </TitleElement>
     </TitleDetail>"#
         ));
-        assert!(!output.contains(r#"        <Subtitle>Book Subtitle</Subtitle>"#));
+        assert!(!output.contains(r#"        <Subtitle language="eng">Book Subtitle</Subtitle>"#));
         assert!(!output.contains(r#"    <Edition>"#));
         assert!(!output.contains(r#"    <Extent>"#));
         assert!(!output
@@ -3687,7 +3728,7 @@ mod tests {
     <TextContent>
       <TextType>02</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text>Lorem ipsum dolor sit amet.</Text>
+      <Text textformat="03">Lorem ipsum dolor sit amet.</Text>
     </TextContent>"#
         ));
         assert!(!output.contains(
@@ -3695,7 +3736,7 @@ mod tests {
     <TextContent>
       <TextType>03</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
+      <Text textformat="03">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
     </TextContent>"#
         ));
         assert!(!output.contains(
@@ -3703,7 +3744,7 @@ mod tests {
     <TextContent>
       <TextType>30</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
+      <Text textformat="03">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
     </TextContent>"#
         ));
         assert!(!output.contains(
@@ -3903,7 +3944,7 @@ mod tests {
     <TextContent>
       <TextType>02</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementu</Text>
+      <Text textformat="03">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementu</Text>
     </TextContent>
   </CollateralDetail>"#
         ));

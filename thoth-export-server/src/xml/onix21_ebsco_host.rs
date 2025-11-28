@@ -297,7 +297,7 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
             if let Some(labstract) = &self
                 .abstracts
                 .iter()
-                .find(|a| a.abstract_type == AbstractType::LONG)
+                .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
                 .map(|a| a.content.clone())
             {
                 write_element_block("OtherText", w, |w| {
@@ -305,9 +305,9 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
                     write_element_block("TextTypeCode", w, |w| {
                         w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
                     })?;
-                    // 06 Default text format
+                    // 03 XHTML (for JATS XML content)
                     write_element_block("TextFormat", w, |w| {
-                        w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                        w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
                     })?;
                     write_element_block("Text", w, |w| {
                         w.write(XmlEvent::Characters(labstract))
@@ -1119,7 +1119,7 @@ mod tests {
         assert!(output.contains(r#"    <TextTypeCode>46</TextTypeCode>"#));
         assert!(output.contains(r#"    <Text>https://creativecommons.org/licenses/by/4.0/</Text>"#));
         assert!(output.contains(r#"    <TextTypeCode>03</TextTypeCode>"#));
-        assert!(output.contains(r#"    <TextFormat>06</TextFormat>"#));
+        assert!(output.contains(r#"    <TextFormat>03</TextFormat>"#));
         assert!(output.contains(r#"    <Text>Lorem ipsum dolor sit amet</Text>"#));
         assert!(output.contains(r#"  <MediaFile>"#));
         assert!(output.contains(r#"    <MediaFileTypeCode>04</MediaFileTypeCode>"#));

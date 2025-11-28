@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 use std::fmt;
 use std::io::Write;
+use thoth_api::ast::{ast_to_plain_text, jats_to_ast};
 use thoth_client::{
     AbstractType, ContributionType, PublicationType, RelationType, Work, WorkContributions,
     WorkType,
@@ -199,8 +200,12 @@ impl TryFrom<Work> for BibtexThothEntry {
             long_abstract: work
                 .abstracts
                 .iter()
-                .find(|a| a.abstract_type == AbstractType::LONG)
-                .map(|a| a.content.clone()),
+                .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
+                .map(|x| {
+                    // Convert JATS to plaintext
+                    let ast = jats_to_ast(&x.content);
+                    ast_to_plain_text(&ast)
+                }),
         })
     }
 }
@@ -275,7 +280,7 @@ mod tests {
 \tissn = {8765-4321},
 \turl = {https://www.book.com},
 \tcopyright = {http://creativecommons.org/licenses/by/4.0/},
-\tabstract = {<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>}
+\tabstract = {Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.}
 }
 ";
 

@@ -64,7 +64,7 @@ fragment Work on Work {
     oclc
     coverUrl
     coverCaption
-    titles(limit: 1, markupFormat: JATS_XML) {
+    titles(limit: $titlesLimit, markupFormat: PLAIN_TEXT) {
         titleId
         localeCode
         fullTitle
@@ -72,7 +72,7 @@ fragment Work on Work {
         subtitle
         canonical
     }
-    abstracts(limit: 2, markupFormat: JATS_XML) {
+    abstracts(limit: $abstractsLimit, markupFormat: JATS_XML) {
         abstractId
         workId
         content
@@ -189,7 +189,7 @@ fragment Work on Work {
             pageCount
             pageInterval
             landingPage
-            titles(limit: 1) {
+            titles(limit: $titlesLimit, markupFormat: PLAIN_TEXT) {
                 titleId
                 localeCode
                 fullTitle
@@ -197,7 +197,7 @@ fragment Work on Work {
                 subtitle
                 canonical
             }
-            abstracts(limit: 2, markupFormat: JATS_XML) {
+            abstracts(limit: $abstractsLimit, markupFormat: JATS_XML) {
                 abstractId
                 workId
                 content
@@ -265,10 +265,12 @@ fragment Work on Work {
 
 query WorkQuery(
     $workId: Uuid!,
+    $abstractsLimit: Int!,
     $issuesLimit: Int!,
     $languagesLimit: Int!,
     $publicationsLimit: Int!,
     $subjectsLimit: Int!,
+    $titlesLimit: Int!,
     $fundingsLimit: Int!,
     $relationsLimit: Int!,
     $referencesLimit: Int!
@@ -281,10 +283,12 @@ query WorksQuery(
     $limit: Int!,
     $offset: Int!,
     $publishers: [Uuid!],
+    $abstractsLimit: Int!,
     $issuesLimit: Int!,
     $languagesLimit: Int!,
     $publicationsLimit: Int!,
     $subjectsLimit: Int!,
+    $titlesLimit: Int!,
     $fundingsLimit: Int!,
     $relationsLimit: Int!,
     $referencesLimit: Int!

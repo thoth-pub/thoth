@@ -81,6 +81,43 @@ pub(crate) trait XmlElementBlock<T: XmlSpecification> {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()>;
 }
 
+pub(crate) trait TitleData {
+    fn title(&self) -> &str;
+    fn subtitle(&self) -> Option<&str>;
+    fn canonical(&self) -> bool;
+    fn locale_code(&self) -> &thoth_client::LocaleCode;
+}
+
+impl TitleData for thoth_client::WorkTitles {
+    fn title(&self) -> &str {
+        &self.title
+    }
+    fn subtitle(&self) -> Option<&str> {
+        self.subtitle.as_deref()
+    }
+    fn canonical(&self) -> bool {
+        self.canonical
+    }
+    fn locale_code(&self) -> &thoth_client::LocaleCode {
+        &self.locale_code
+    }
+}
+
+impl TitleData for thoth_client::WorkRelationsRelatedWorkTitles {
+    fn title(&self) -> &str {
+        &self.title
+    }
+    fn subtitle(&self) -> Option<&str> {
+        self.subtitle.as_deref()
+    }
+    fn canonical(&self) -> bool {
+        self.canonical
+    }
+    fn locale_code(&self) -> &thoth_client::LocaleCode {
+        &self.locale_code
+    }
+}
+
 mod onix31_thoth;
 pub(crate) use onix31_thoth::Onix31Thoth;
 mod onix3_thoth;

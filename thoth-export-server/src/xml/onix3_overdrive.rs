@@ -1,6 +1,8 @@
 use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
+use thoth_api::model::language::LanguageCode as ApiLanguageCode;
+use thoth_api::model::locale::LocaleCode as ApiLocaleCode;
 use thoth_client::{
     AbstractType, ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType,
     Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkStatus,
@@ -71,7 +73,7 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
         } else if !self
             .abstracts
             .iter()
-            .any(|a| a.abstract_type == AbstractType::LONG)
+            .any(|a| a.abstract_type == AbstractType::LONG && a.canonical)
         {
             Err(ThothError::IncompleteMetadataRecord(
                 ONIX_ERROR.to_string(),
@@ -271,17 +273,26 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                         write_element_block("ContentAudience", w, |w| {
                             w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                         })?;
-                        write_full_element_block("Text", Some(vec![("language", "eng")]), w, |w| {
-                            w.write(XmlEvent::Characters(
-                                &self
-                                    .abstracts
-                                    .iter()
-                                    .find(|a| a.abstract_type == AbstractType::LONG)
-                                    .map(|a| a.content.clone())
-                                    .unwrap(),
-                            ))
-                            .map_err(|e| e.into())
-                        })
+                        if let Some(long_abstract) = self
+                            .abstracts
+                            .iter()
+                            .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
+                        {
+                            let api_locale: ApiLocaleCode =
+                                long_abstract.locale_code.clone().into();
+                            let lang_code: ApiLanguageCode = api_locale.into();
+                            let iso_code = lang_code.to_string().to_lowercase();
+                            write_full_element_block(
+                                "Text",
+                                Some(vec![("language", &iso_code), ("textformat", "03")]),
+                                w,
+                                |w| {
+                                    w.write(XmlEvent::Characters(&long_abstract.content))
+                                        .map_err(|e| e.into())
+                                },
+                            )?;
+                        }
+                        Ok(())
                     })?;
                     if let Some(toc) = &self.toc {
                         write_element_block("TextContent", w, |w| {
@@ -1289,7 +1300,9 @@ mod tests {
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(output.contains(
+            r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet</Text>"#
+        ));
         assert!(output.contains(r#"      <TextType>04</TextType>"#));
         assert!(output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
         assert!(output.contains(r#"    <SupportingResource>"#));
@@ -1388,7 +1401,9 @@ mod tests {
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(output.contains(
+            r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet</Text>"#
+        ));
         assert!(!output.contains(r#"      <TextType>04</TextType>"#));
         assert!(!output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
         assert!(!output.contains(r#"    <SupportingResource>"#));
