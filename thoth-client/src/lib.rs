@@ -1,4 +1,4 @@
-pub mod parameters;
+mod parameters;
 // GraphQLQuery derive macro breaks this linting rule - ignore while awaiting fix
 #[allow(clippy::derive_partial_eq_without_eq)]
 mod queries;
