@@ -15,6 +15,7 @@ use crate::model::{
     },
     contributor::{Contributor, ContributorOrderBy, NewContributor, PatchContributor},
     convert_from_jats, convert_to_jats,
+    file::{File, FileType, FileUpload, NewFile, NewFileUpload},
     funding::{Funding, FundingField, NewFunding, PatchFunding},
     imprint::{Imprint, ImprintField, ImprintOrderBy, NewImprint, PatchImprint},
     institution::{CountryCode, Institution, InstitutionOrderBy, NewInstitution, PatchInstitution},
@@ -40,6 +41,12 @@ use crate::model::{
     },
     ConversionLimit, Convert, Crud, Doi, Isbn, LengthUnit, LocaleCode, MarkupFormat, Orcid, Ror,
     Timestamp, WeightUnit,
+};
+#[cfg(feature = "backend")]
+use crate::storage::{
+    build_cdn_url, canonical_frontcover_key, canonical_publication_key, copy_temp_object_to_final,
+    create_cloudfront_client, create_s3_client, delete_temp_object, head_object,
+    invalidate_cloudfront, presign_put_for_upload, temp_key, StorageConfig,
 };
 use thoth_errors::{ThothError, ThothResult};
 
@@ -165,6 +172,54 @@ impl Default for FundingOrderBy {
 pub struct TimeExpression {
     pub timestamp: Timestamp,
     pub expression: Expression,
+}
+
+#[cfg(feature = "backend")]
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Input for starting a publication file upload (PDF, EPUB, XML, etc.).")]
+pub struct NewPublicationFileUpload {
+    #[graphql(description = "Thoth ID of the publication linked to this file.")]
+    pub publication_id: Uuid,
+    #[graphql(description = "MIME type declared by the client (used for validation and in the presigned URL).")]
+    pub declared_mime_type: String,
+    #[graphql(description = "File extension to use in the final canonical key, e.g. 'pdf', 'epub', 'xml'.")]
+    pub declared_extension: String,
+    #[graphql(description = "SHA-256 checksum of the file, hex-encoded.")]
+    pub declared_sha256: String,
+}
+
+#[cfg(feature = "backend")]
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Input for starting a front cover upload for a work.")]
+pub struct NewFrontcoverFileUpload {
+    #[graphql(description = "Thoth ID of the work this front cover belongs to.")]
+    pub work_id: Uuid,
+    #[graphql(description = "MIME type declared by the client (e.g. 'image/jpeg').")]
+    pub declared_mime_type: String,
+    #[graphql(description = "File extension to use in the final canonical key, e.g. 'jpg', 'png', 'webp'.")]
+    pub declared_extension: String,
+    #[graphql(description = "SHA-256 checksum of the file, hex-encoded.")]
+    pub declared_sha256: String,
+}
+
+#[cfg(feature = "backend")]
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Input for completing a file upload and promoting it to its final DOI-based location.")]
+pub struct CompleteFileUpload {
+    #[graphql(description = "ID of the upload session to complete.")]
+    pub file_upload_id: Uuid,
+}
+
+#[cfg(feature = "backend")]
+#[derive(juniper::GraphQLObject)]
+#[graphql(description = "Response from initiating a file upload, containing the upload URL and expiration time.")]
+pub struct FileUploadResponse {
+    #[graphql(description = "ID of the upload session.")]
+    pub file_upload_id: Uuid,
+    #[graphql(description = "Presigned S3 PUT URL for uploading the file.")]
+    pub upload_url: String,
+    #[graphql(description = "Time when the upload URL expires.")]
+    pub expires_at: Timestamp,
 }
 
 pub struct QueryRoot;
@@ -602,6 +657,14 @@ impl QueryRoot {
         #[graphql(description = "Thoth publication ID to search on")] publication_id: Uuid,
     ) -> FieldResult<Publication> {
         Publication::from_id(&context.db, &publication_id).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Query a single file using its ID")]
+    fn file(
+        context: &Context,
+        #[graphql(description = "Thoth file ID to search on")] file_id: Uuid,
+    ) -> FieldResult<File> {
+        File::from_id(&context.db, &file_id).map_err(|e| e.into())
     }
 
     #[graphql(description = "Get the total number of publications")]
@@ -3016,6 +3079,294 @@ impl MutationRoot {
 
         biography.delete(&context.db).map_err(|e| e.into())
     }
+
+    #[cfg(feature = "backend")]
+    #[graphql(description = "Start uploading a publication file (e.g. PDF, EPUB, XML) for a given publication. Returns an upload session ID and a presigned S3 PUT URL.")]
+    async fn init_publication_file_upload(
+        context: &Context,
+        #[graphql(description = "Input for starting a publication file upload")] data: NewPublicationFileUpload,
+    ) -> FieldResult<FileUploadResponse> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        
+        // Get publication and check permissions
+        let publication = Publication::from_id(&context.db, &data.publication_id)?;
+        context.account_access.can_edit(publisher_id_from_publication_id(&context.db, data.publication_id)?)?;
+        
+        // Get work to check DOI and get imprint
+        let work = Work::from_id(&context.db, &publication.work_id)?;
+        work.doi.ok_or_else(|| ThothError::InternalError("Work must have a DOI to upload files".to_string()))?;
+        
+        // Get imprint and check storage config
+        let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
+        let storage_config = StorageConfig::from_imprint(&imprint)?;
+        
+        // Create file_upload record
+        let new_upload = NewFileUpload {
+            file_type: FileType::Publication,
+            work_id: None,
+            publication_id: Some(data.publication_id),
+            declared_mime_type: data.declared_mime_type.clone(),
+            declared_extension: data.declared_extension.to_lowercase(),
+            declared_sha256: data.declared_sha256.clone(),
+        };
+        
+        let file_upload = FileUpload::create(&context.db, &new_upload)?;
+        
+        // Generate presigned URL
+        let s3_client = create_s3_client(&storage_config.s3_region).await;
+        let temp_key = temp_key(&file_upload.file_upload_id);
+        let upload_url = presign_put_for_upload(
+            &s3_client,
+            &storage_config.s3_bucket,
+            &temp_key,
+            &data.declared_mime_type,
+            &data.declared_sha256,
+            30, // 30 minutes expiration
+        ).await?;
+        
+        // Calculate expiration time
+        let expires_at = Timestamp::parse_from_rfc3339(
+            &chrono::Utc::now()
+                .checked_add_signed(chrono::Duration::minutes(30))
+                .ok_or_else(|| ThothError::InternalError("Failed to calculate expiration time".to_string()))?
+                .to_rfc3339()
+        )?;
+        
+        Ok(FileUploadResponse {
+            file_upload_id: file_upload.file_upload_id,
+            upload_url,
+            expires_at,
+        })
+    }
+
+    #[cfg(feature = "backend")]
+    #[graphql(description = "Start uploading a front cover image for a given work. Returns an upload session ID and a presigned S3 PUT URL.")]
+    async fn init_frontcover_file_upload(
+        context: &Context,
+        #[graphql(description = "Input for starting a front cover upload")] data: NewFrontcoverFileUpload,
+    ) -> FieldResult<FileUploadResponse> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        
+        // Get work and check permissions
+        let work = Work::from_id(&context.db, &data.work_id)?;
+        context.account_access.can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+        
+        // Check DOI exists
+        work.doi.ok_or_else(|| ThothError::InternalError("Work must have a DOI to upload files".to_string()))?;
+        
+        // Get imprint and check storage config
+        let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
+        let storage_config = StorageConfig::from_imprint(&imprint)?;
+        
+        // Create file_upload record
+        let new_upload = NewFileUpload {
+            file_type: FileType::Frontcover,
+            work_id: Some(data.work_id),
+            publication_id: None,
+            declared_mime_type: data.declared_mime_type.clone(),
+            declared_extension: data.declared_extension.to_lowercase(),
+            declared_sha256: data.declared_sha256.clone(),
+        };
+        
+        let file_upload = FileUpload::create(&context.db, &new_upload)?;
+        
+        // Generate presigned URL
+        let s3_client = create_s3_client(&storage_config.s3_region).await;
+        let temp_key = temp_key(&file_upload.file_upload_id);
+        let upload_url = presign_put_for_upload(
+            &s3_client,
+            &storage_config.s3_bucket,
+            &temp_key,
+            &data.declared_mime_type,
+            &data.declared_sha256,
+            30, // 30 minutes expiration
+        ).await?;
+        
+        // Calculate expiration time
+        let expires_at = Timestamp::parse_from_rfc3339(
+            &chrono::Utc::now()
+                .checked_add_signed(chrono::Duration::minutes(30))
+                .ok_or_else(|| ThothError::InternalError("Failed to calculate expiration time".to_string()))?
+                .to_rfc3339()
+        )?;
+        
+        Ok(FileUploadResponse {
+            file_upload_id: file_upload.file_upload_id,
+            upload_url,
+            expires_at,
+        })
+    }
+
+    #[cfg(feature = "backend")]
+    #[graphql(description = "Complete a file upload by validating the uploaded object, moving it to its canonical DOI-based key, updating/creating the file record.")]
+    async fn complete_file_upload(
+        context: &Context,
+        #[graphql(description = "Input for completing a file upload")] data: CompleteFileUpload,
+    ) -> FieldResult<File> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        
+        // Load file_upload record
+        let file_upload = FileUpload::from_id(&context.db, &data.file_upload_id)
+            .map_err(|_| ThothError::EntityNotFound)?;
+        
+        // Check permissions based on file type
+        match file_upload.file_type {
+            FileType::Publication => {
+                let publication_id = file_upload.publication_id
+                    .ok_or_else(|| ThothError::InternalError("Publication file upload missing publication_id".to_string()))?;
+                context.account_access.can_edit(publisher_id_from_publication_id(&context.db, publication_id)?)?;
+            }
+            FileType::Frontcover => {
+                let work_id = file_upload.work_id
+                    .ok_or_else(|| ThothError::InternalError("Frontcover file upload missing work_id".to_string()))?;
+                context.account_access.can_edit(publisher_id_from_work_id(&context.db, work_id)?)?;
+            }
+        }
+        
+        // Get work and imprint for storage config
+        let (work, storage_config) = match file_upload.file_type {
+            FileType::Publication => {
+                let publication = Publication::from_id(&context.db, &file_upload.publication_id.unwrap())?;
+                let work = Work::from_id(&context.db, &publication.work_id)?;
+                let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
+                let storage_config = StorageConfig::from_imprint(&imprint)?;
+                (work, storage_config)
+            }
+            FileType::Frontcover => {
+                let work = Work::from_id(&context.db, &file_upload.work_id.unwrap())?;
+                let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
+                let storage_config = StorageConfig::from_imprint(&imprint)?;
+                (work, storage_config)
+            }
+        };
+        
+        let doi = work.doi.ok_or_else(|| ThothError::InternalError("Work must have a DOI".to_string()))?;
+        
+        // Parse DOI into prefix and suffix
+        let (doi_prefix, doi_suffix) = parse_doi(&doi)?;
+        
+        // HeadObject on temporary upload to validate it exists
+        let s3_client = create_s3_client(&storage_config.s3_region).await;
+        let temp_key = temp_key(&file_upload.file_upload_id);
+        let (bytes, mime_type) = head_object(&s3_client, &storage_config.s3_bucket, &temp_key).await?;
+        
+        // Validate file extension matches declared extension and file type
+        validate_file_extension(&file_upload.declared_extension, &file_upload.file_type, 
+            if file_upload.file_type == FileType::Publication {
+                Some(Publication::from_id(&context.db, &file_upload.publication_id.unwrap())?.publication_type)
+            } else {
+                None
+            })?;
+        
+        // Compute canonical key
+        let canonical_key = match file_upload.file_type {
+            FileType::Publication => canonical_publication_key(&doi_prefix, &doi_suffix, &file_upload.declared_extension),
+            FileType::Frontcover => canonical_frontcover_key(&doi_prefix, &doi_suffix, &file_upload.declared_extension),
+        };
+        
+        // Check if file already exists (for cache invalidation)
+        let existing_file = File::from_object_key(&context.db, &canonical_key).ok();
+        let should_invalidate = existing_file.is_some();
+        
+        // Copy object to final location
+        copy_temp_object_to_final(&s3_client, &storage_config.s3_bucket, &temp_key, &canonical_key).await?;
+        
+        // Build CDN URL
+        let cdn_url = build_cdn_url(&storage_config.cdn_domain, &canonical_key);
+        
+        // Create or update file record
+        let new_file = NewFile {
+            file_type: file_upload.file_type,
+            work_id: file_upload.work_id,
+            publication_id: file_upload.publication_id,
+            object_key: canonical_key.clone(),
+            cdn_url: cdn_url.clone(),
+            mime_type: mime_type.clone(),
+            bytes,
+            sha256: file_upload.declared_sha256.clone(),
+        };
+        
+        let file = if let Some(existing) = &existing_file {
+            // Update existing file
+            use diesel::prelude::*;
+            use crate::schema::file::dsl;
+            let mut connection = context.db.get()?;
+            diesel::update(dsl::file.find(&existing.file_id))
+                .set((
+                    dsl::cdn_url.eq(&new_file.cdn_url),
+                    dsl::mime_type.eq(&new_file.mime_type),
+                    dsl::bytes.eq(new_file.bytes),
+                    dsl::sha256.eq(&new_file.sha256),
+                ))
+                .get_result::<File>(&mut connection)
+                .map_err(|e: diesel::result::Error| ThothError::from(e))?
+        } else {
+            File::create(&context.db, &new_file)?
+        };
+        
+        // Update Work.cover_url for frontcovers
+        if file_upload.file_type == FileType::Frontcover {
+            let work_id = file_upload.work_id.unwrap();
+            use diesel::prelude::*;
+            use crate::schema::work::dsl;
+            let mut connection = context.db.get()?;
+            diesel::update(dsl::work.find(&work_id))
+                .set(dsl::cover_url.eq(Some(cdn_url.clone())))
+                .execute(&mut connection)
+                .map_err(|e: diesel::result::Error| ThothError::from(e))?;
+        }
+        
+        // Create/update canonical Location for publication files
+        if file_upload.file_type == FileType::Publication {
+            let publication_id = file_upload.publication_id.unwrap();
+            use diesel::prelude::*;
+            use crate::schema::location::dsl;
+            let mut connection = context.db.get()?;
+            
+            // Check if canonical location exists
+            let existing_location = dsl::location
+                .filter(dsl::publication_id.eq(publication_id))
+                .filter(dsl::canonical.eq(true))
+                .first::<Location>(&mut connection)
+                .optional()
+                .map_err(|e: diesel::result::Error| ThothError::from(e))?;
+            
+            if let Some(loc) = existing_location {
+                // Update existing canonical location
+                diesel::update(dsl::location.find(&loc.location_id))
+                    .set(dsl::full_text_url.eq(Some(cdn_url.clone())))
+                    .execute(&mut connection)
+                    .map_err(|e: diesel::result::Error| ThothError::from(e))?;
+            } else {
+                // Create new canonical location
+                let new_location = NewLocation {
+                    publication_id,
+                    landing_page: Some(work.landing_page.clone().unwrap_or_default()),
+                    full_text_url: Some(cdn_url.clone()),
+                    location_platform: LocationPlatform::Thoth,
+                    canonical: true,
+                };
+                Location::create(&context.db, &new_location)?;
+            }
+        }
+        
+        // Invalidate CloudFront cache if replacing existing file
+        if should_invalidate {
+            let cloudfront_client = create_cloudfront_client().await;
+            invalidate_cloudfront(&cloudfront_client, &storage_config.cloudfront_dist_id, &canonical_key).await?;
+        }
+        
+        // Cleanup: delete file_upload record and temp object
+        use diesel::prelude::*;
+        use crate::schema::file_upload::dsl;
+        let mut connection = context.db.get()?;
+        diesel::delete(dsl::file_upload.find(&file_upload.file_upload_id))
+            .execute(&mut connection)
+            .map_err(|e: diesel::result::Error| ThothError::from(e))?;
+        delete_temp_object(&s3_client, &storage_config.s3_bucket, &temp_key).await?;
+        
+        Ok(file)
+    }
 }
 
 #[juniper::graphql_object(Context = Context, description = "A written text that can be published")]
@@ -3622,6 +3973,12 @@ impl Work {
         )
         .map_err(|e| e.into())
     }
+
+    #[graphql(description = "Get the front cover file for this work")]
+    pub fn frontcover(&self, context: &Context) -> FieldResult<Option<File>> {
+        File::from_work_id(&context.db, &self.work_id).map_err(|e| e.into())
+    }
+
     #[graphql(description = "Get references cited by this work")]
     pub fn references(
         &self,
@@ -3834,6 +4191,11 @@ impl Publication {
             None,
         )
         .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get the publication file for this publication")]
+    pub fn file(&self, context: &Context) -> FieldResult<Option<File>> {
+        File::from_publication_id(&context.db, &self.publication_id).map_err(|e| e.into())
     }
 
     #[graphql(description = "Get the work to which this publication belongs")]
@@ -5148,4 +5510,125 @@ fn publisher_id_from_contribution_id(
     contribution_id: Uuid,
 ) -> ThothResult<Uuid> {
     Contribution::from_id(db, &contribution_id)?.publisher_id(db)
+}
+
+#[cfg(feature = "backend")]
+/// Parse a DOI into prefix and suffix
+fn parse_doi(doi: &Doi) -> ThothResult<(String, String)> {
+    // DOI format: https://doi.org/10.XXXX/SUFFIX
+    // We need to extract 10.XXXX (prefix) and SUFFIX
+    let doi_str = doi.to_lowercase_string();
+    let parts: Vec<&str> = doi_str.splitn(2, '/').collect();
+    if parts.len() != 2 {
+        return Err(ThothError::InternalError(format!("Invalid DOI format: {}", doi_str)));
+    }
+    let prefix = parts[0].to_string();
+    let suffix = parts[1].to_string();
+    Ok((prefix, suffix))
+}
+
+#[cfg(feature = "backend")]
+/// Validate file extension matches the file type and publication type (if applicable)
+fn validate_file_extension(
+    extension: &str,
+    file_type: &FileType,
+    publication_type: Option<PublicationType>,
+) -> ThothResult<()> {
+    match file_type {
+        FileType::Frontcover => {
+            let valid_extensions = ["jpg", "jpeg", "png", "webp"];
+            if !valid_extensions.contains(&extension.to_lowercase().as_str()) {
+                return Err(ThothError::InternalError(
+                    format!("Invalid extension for frontcover: {}. Allowed: jpg, jpeg, png, webp", extension)
+                ));
+            }
+        }
+        FileType::Publication => {
+            if let Some(pub_type) = publication_type {
+                let valid_extensions = match pub_type {
+                    PublicationType::Pdf => vec!["pdf"],
+                    PublicationType::Epub => vec!["epub"],
+                    PublicationType::Xml => vec!["xml", "zip"],
+                    PublicationType::Html => vec!["html"],
+                    PublicationType::Mobi => vec!["mobi"],
+                    PublicationType::Azw3 => vec!["azw3"],
+                    _ => return Err(ThothError::InternalError(
+                        format!("File uploads not supported for publication type: {:?}", pub_type)
+                    )),
+                };
+                if !valid_extensions.contains(&extension.to_lowercase().as_str()) {
+                    return Err(ThothError::InternalError(
+                        format!("Invalid extension for {}: {}. Allowed: {:?}", 
+                            format!("{:?}", pub_type), extension, valid_extensions)
+                    ));
+                }
+            } else {
+                return Err(ThothError::InternalError(
+                    "Publication type required for publication file validation".to_string()
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "backend")]
+#[juniper::graphql_object(Context = Context, description = "A file stored in the system (publication file or front cover).")]
+impl File {
+    #[graphql(description = "Thoth ID of the file")]
+    pub fn file_id(&self) -> &Uuid {
+        &self.file_id
+    }
+
+    #[graphql(description = "Type of file (publication or frontcover)")]
+    pub fn file_type(&self) -> &FileType {
+        &self.file_type
+    }
+
+    #[graphql(description = "Thoth ID of the work (for frontcovers)")]
+    pub fn work_id(&self) -> Option<&Uuid> {
+        self.work_id.as_ref()
+    }
+
+    #[graphql(description = "Thoth ID of the publication (for publication files)")]
+    pub fn publication_id(&self) -> Option<&Uuid> {
+        self.publication_id.as_ref()
+    }
+
+    #[graphql(description = "S3 object key (canonical DOI-based path)")]
+    pub fn object_key(&self) -> &String {
+        &self.object_key
+    }
+
+    #[graphql(description = "Public CDN URL")]
+    pub fn cdn_url(&self) -> &String {
+        &self.cdn_url
+    }
+
+    #[graphql(description = "MIME type used when serving the file")]
+    pub fn mime_type(&self) -> &String {
+        &self.mime_type
+    }
+
+    #[graphql(description = "Size of the file in bytes")]
+    pub fn bytes(&self) -> i32 {
+        // Note: GraphQL doesn't support i64, so we cast to i32
+        // Files larger than 2GB will show incorrect size
+        self.bytes as i32
+    }
+
+    #[graphql(description = "SHA-256 checksum of the stored file")]
+    pub fn sha256(&self) -> &String {
+        &self.sha256
+    }
+
+    #[graphql(description = "Date and time at which the file record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the file record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
 }

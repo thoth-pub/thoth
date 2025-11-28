@@ -24,6 +24,8 @@ pub mod model;
 #[cfg(feature = "backend")]
 pub mod redis;
 #[cfg(feature = "backend")]
+pub mod storage;
+#[cfg(feature = "backend")]
 mod schema;
 
 macro_rules! apis {

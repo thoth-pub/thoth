@@ -21,7 +21,12 @@ backend = [
     "jsonwebtoken",
     "deadpool-redis",
     "rand",
-    "argon2rs"
+    "argon2rs",
+    "aws-sdk-s3",
+    "aws-sdk-cloudfront",
+    "aws-config",
+    "base64",
+    "hex"
 ]
 
 [dependencies]
@@ -49,6 +54,11 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 strum = { version = "0.27.1", features = ["derive"] }
 uuid = { version = "1.16.0", features = ["serde", "v4"] }
+aws-sdk-s3 = { version = "1", optional = true }
+aws-sdk-cloudfront = { version = "1", optional = true }
+aws-config = { version = "1", optional = true }
+base64 = { version = "0.22", optional = true }
+hex = { version = "0.4", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.44", features = ["macros"] }

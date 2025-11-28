@@ -83,8 +83,7 @@ pub struct NewFileUpload {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
-    graphql(description = "Input for creating a file record"),
+    derive(Insertable),
     diesel(table_name = file)
 )]
 pub struct NewFile {
@@ -97,4 +96,7 @@ pub struct NewFile {
     pub bytes: i64,
     pub sha256: String,
 }
+
+#[cfg(feature = "backend")]
+pub mod crud;
 
