@@ -384,6 +384,8 @@ where
 }
 
 #[cfg(feature = "backend")]
+/// Common functionality to correctly renumber all relevant database objects
+/// on a request to change the ordinal of one of them
 pub trait Reorder
 where
     Self: Sized,
@@ -516,6 +518,27 @@ macro_rules! db_insert {
     };
 }
 
+/// Declares a change ordinal function implementation for any insertable which
+/// has an ordinal field. Useful together with the `Reorder` trait.
+///
+/// Example usage
+/// -------------
+///
+/// ```ignore
+/// use crate::db_change_ordinal;
+/// use crate::model::Reorder;
+/// use crate::schema::contribution;
+///
+/// impl Reorder for Contribution {
+///     db_change_ordinal!(
+///         contribution::table,
+///         contribution::contribution_ordinal,
+///         "contribution_contribution_ordinal_work_id_uniq",
+///     );
+/// }
+/// ```
+///
+///
 #[cfg(feature = "backend")]
 #[macro_export]
 macro_rules! db_change_ordinal {
