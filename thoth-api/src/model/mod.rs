@@ -395,7 +395,7 @@ where
         db: &crate::db::PgPool,
         current_ordinal: i32,
         new_ordinal: i32,
-        account_id: &Uuid
+        account_id: &Uuid,
     ) -> ThothResult<Self>;
 
     fn get_other_objects(&self, db: &crate::db::PgPool) -> ThothResult<Vec<(Uuid, i32)>>;
@@ -561,7 +561,8 @@ macro_rules! db_change_ordinal {
                     // No change required. Caller should have checked this.
                     unreachable!()
                 }
-                diesel::sql_query(format!("SET CONSTRAINTS {} DEFERRED", $constraint_name)).execute(connection)?;
+                diesel::sql_query(format!("SET CONSTRAINTS {} DEFERRED", $constraint_name))
+                    .execute(connection)?;
                 for (id, ordinal) in other_objects {
                     if new_ordinal > current_ordinal {
                         if ordinal > current_ordinal && ordinal <= new_ordinal {
@@ -592,7 +593,7 @@ macro_rules! db_change_ordinal {
                     })
             })
         }
-    }
+    };
 }
 
 pub trait Convert {

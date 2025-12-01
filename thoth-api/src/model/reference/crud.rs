@@ -7,7 +7,8 @@ use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{reference, reference_history};
 use crate::{crud_methods, db_change_ordinal, db_insert};
 use diesel::{
-    BoolExpressionMethods, Connection, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
+    BoolExpressionMethods, Connection, ExpressionMethods, PgTextExpressionMethods, QueryDsl,
+    RunQueryDsl,
 };
 use thoth_errors::ThothResult;
 use uuid::Uuid;
@@ -252,14 +253,19 @@ impl DbInsert for NewReferenceHistory {
 }
 
 impl Reorder for Reference {
-    db_change_ordinal!(reference::table, reference::reference_ordinal, "reference_reference_ordinal_work_id_uniq");
+    db_change_ordinal!(
+        reference::table,
+        reference::reference_ordinal,
+        "reference_reference_ordinal_work_id_uniq"
+    );
 
     fn get_other_objects(&self, db: &crate::db::PgPool) -> ThothResult<Vec<(Uuid, i32)>> {
         reference::table
             .select((reference::reference_id, reference::reference_ordinal))
             .filter(
-                reference::work_id.eq(self.work_id)
-                    .and(reference::reference_id.ne(self.reference_id))
+                reference::work_id
+                    .eq(self.work_id)
+                    .and(reference::reference_id.ne(self.reference_id)),
             )
             .load::<(Uuid, i32)>(&mut db.get()?)
             .map_err(Into::into)

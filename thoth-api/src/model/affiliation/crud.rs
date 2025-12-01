@@ -140,14 +140,22 @@ impl DbInsert for NewAffiliationHistory {
 }
 
 impl Reorder for Affiliation {
-    db_change_ordinal!(affiliation::table, affiliation::affiliation_ordinal, "affiliation_affiliation_ordinal_contribution_id_uniq");
+    db_change_ordinal!(
+        affiliation::table,
+        affiliation::affiliation_ordinal,
+        "affiliation_affiliation_ordinal_contribution_id_uniq"
+    );
 
     fn get_other_objects(&self, db: &crate::db::PgPool) -> ThothResult<Vec<(Uuid, i32)>> {
         affiliation::table
-            .select((affiliation::affiliation_id, affiliation::affiliation_ordinal))
+            .select((
+                affiliation::affiliation_id,
+                affiliation::affiliation_ordinal,
+            ))
             .filter(
-                affiliation::contribution_id.eq(self.contribution_id)
-                    .and(affiliation::affiliation_id.ne(self.affiliation_id))
+                affiliation::contribution_id
+                    .eq(self.contribution_id)
+                    .and(affiliation::affiliation_id.ne(self.affiliation_id)),
             )
             .load::<(Uuid, i32)>(&mut db.get()?)
             .map_err(Into::into)

@@ -164,14 +164,22 @@ impl DbInsert for NewContributionHistory {
 }
 
 impl Reorder for Contribution {
-    db_change_ordinal!(contribution::table, contribution::contribution_ordinal, "contribution_contribution_ordinal_work_id_uniq");
+    db_change_ordinal!(
+        contribution::table,
+        contribution::contribution_ordinal,
+        "contribution_contribution_ordinal_work_id_uniq"
+    );
 
     fn get_other_objects(&self, db: &crate::db::PgPool) -> ThothResult<Vec<(Uuid, i32)>> {
         contribution::table
-            .select((contribution::contribution_id, contribution::contribution_ordinal))
+            .select((
+                contribution::contribution_id,
+                contribution::contribution_ordinal,
+            ))
             .filter(
-                contribution::work_id.eq(self.work_id)
-                    .and(contribution::contribution_id.ne(self.contribution_id))
+                contribution::work_id
+                    .eq(self.work_id)
+                    .and(contribution::contribution_id.ne(self.contribution_id)),
             )
             .load::<(Uuid, i32)>(&mut db.get()?)
             .map_err(Into::into)
