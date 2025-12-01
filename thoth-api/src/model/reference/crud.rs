@@ -20,6 +20,7 @@ impl Crud for Reference {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.reference_id
@@ -37,6 +38,7 @@ impl Crud for Reference {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Reference>> {
         use crate::schema::reference::dsl::*;
         let mut connection = db.get()?;
@@ -187,6 +189,7 @@ impl Crud for Reference {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::reference::dsl::*;
         let mut connection = db.get()?;

@@ -18,6 +18,7 @@ impl Crud for WorkRelation {
     type FilterParameter1 = RelationType;
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.work_relation_id
@@ -35,6 +36,7 @@ impl Crud for WorkRelation {
         relation_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<WorkRelation>> {
         use crate::schema::work_relation::dsl::*;
         let mut connection = db.get()?;
@@ -92,6 +94,7 @@ impl Crud for WorkRelation {
         relation_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::work_relation::dsl::*;
         let mut connection = db.get()?;

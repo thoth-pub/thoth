@@ -15,6 +15,7 @@ impl Crud for Price {
     type FilterParameter1 = CurrencyCode;
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.price_id
@@ -32,6 +33,7 @@ impl Crud for Price {
         currency_codes: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Price>> {
         use crate::schema::price::dsl::*;
         let mut connection = db.get()?;
@@ -92,6 +94,7 @@ impl Crud for Price {
         currency_codes: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::price::dsl::*;
         let mut connection = db.get()?;
