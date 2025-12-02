@@ -249,7 +249,10 @@ impl Reorder for WorkRelation {
         "work_relation_ordinal_type_uniq"
     );
 
-    fn get_other_objects(&self, db: &crate::db::PgPool) -> ThothResult<Vec<(Uuid, i32)>> {
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>> {
         work_relation::table
             .select((
                 work_relation::work_relation_id,
@@ -261,7 +264,7 @@ impl Reorder for WorkRelation {
                     .and(work_relation::relation_type.eq(self.relation_type))
                     .and(work_relation::work_relation_id.ne(self.work_relation_id)),
             )
-            .load::<(Uuid, i32)>(&mut db.get()?)
+            .load::<(Uuid, i32)>(connection)
             .map_err(Into::into)
     }
 }

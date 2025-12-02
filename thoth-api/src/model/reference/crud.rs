@@ -262,7 +262,10 @@ impl Reorder for Reference {
         "reference_reference_ordinal_work_id_uniq"
     );
 
-    fn get_other_objects(&self, db: &crate::db::PgPool) -> ThothResult<Vec<(Uuid, i32)>> {
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>> {
         reference::table
             .select((reference::reference_id, reference::reference_ordinal))
             .filter(
@@ -270,7 +273,7 @@ impl Reorder for Reference {
                     .eq(self.work_id)
                     .and(reference::reference_id.ne(self.reference_id)),
             )
-            .load::<(Uuid, i32)>(&mut db.get()?)
+            .load::<(Uuid, i32)>(connection)
             .map_err(Into::into)
     }
 }

@@ -158,7 +158,10 @@ impl Reorder for Subject {
         "subject_ordinal_type_uniq"
     );
 
-    fn get_other_objects(&self, db: &crate::db::PgPool) -> ThothResult<Vec<(Uuid, i32)>> {
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>> {
         subject::table
             .select((subject::subject_id, subject::subject_ordinal))
             .filter(
@@ -167,7 +170,7 @@ impl Reorder for Subject {
                     .and(subject::subject_type.eq(self.subject_type))
                     .and(subject::subject_id.ne(self.subject_id)),
             )
-            .load::<(Uuid, i32)>(&mut db.get()?)
+            .load::<(Uuid, i32)>(connection)
             .map_err(Into::into)
     }
 }

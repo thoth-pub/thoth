@@ -393,7 +393,7 @@ where
 /// on a request to change the ordinal of one of them
 pub trait Reorder
 where
-    Self: Sized,
+    Self: Sized + Clone,
 {
     fn change_ordinal(
         &self,
@@ -403,7 +403,10 @@ where
         account_id: &Uuid,
     ) -> ThothResult<Self>;
 
-    fn get_other_objects(&self, db: &crate::db::PgPool) -> ThothResult<Vec<(Uuid, i32)>>;
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>>;
 }
 
 /// Declares function implementations for the `Crud` trait, reducing the boilerplate needed to define
@@ -594,14 +597,14 @@ macro_rules! db_change_ordinal {
             new_ordinal: i32,
             account_id: &Uuid,
         ) -> ThothResult<Self> {
-            let other_objects = self.get_other_objects(db)?;
+            let mut connection = db.get()?;
+            let other_objects = self.get_other_objects(&mut connection)?;
             // Execute all updates within the same transaction,
             // because if one fails, the others need to be reverted.
-            let mut connection = db.get()?;
             connection.transaction(|connection| {
                 if current_ordinal == new_ordinal {
                     // No change required. Caller should have checked this.
-                    unreachable!()
+                    return ThothResult::Ok(self.clone());
                 }
                 diesel::sql_query(format!("SET CONSTRAINTS {} DEFERRED", $constraint_name))
                     .execute(connection)?;

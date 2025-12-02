@@ -149,7 +149,10 @@ impl Reorder for Affiliation {
         "affiliation_affiliation_ordinal_contribution_id_uniq"
     );
 
-    fn get_other_objects(&self, db: &crate::db::PgPool) -> ThothResult<Vec<(Uuid, i32)>> {
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>> {
         affiliation::table
             .select((
                 affiliation::affiliation_id,
@@ -160,7 +163,7 @@ impl Reorder for Affiliation {
                     .eq(self.contribution_id)
                     .and(affiliation::affiliation_id.ne(self.affiliation_id)),
             )
-            .load::<(Uuid, i32)>(&mut db.get()?)
+            .load::<(Uuid, i32)>(connection)
             .map_err(Into::into)
     }
 }

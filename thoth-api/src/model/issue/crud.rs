@@ -139,7 +139,10 @@ impl Reorder for Issue {
         "issue_issue_ordinal_series_id_uniq"
     );
 
-    fn get_other_objects(&self, db: &crate::db::PgPool) -> ThothResult<Vec<(Uuid, i32)>> {
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>> {
         issue::table
             .select((issue::issue_id, issue::issue_ordinal))
             .filter(
@@ -147,7 +150,7 @@ impl Reorder for Issue {
                     .eq(self.series_id)
                     .and(issue::issue_id.ne(self.issue_id)),
             )
-            .load::<(Uuid, i32)>(&mut db.get()?)
+            .load::<(Uuid, i32)>(connection)
             .map_err(Into::into)
     }
 }

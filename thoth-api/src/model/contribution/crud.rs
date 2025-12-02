@@ -173,7 +173,10 @@ impl Reorder for Contribution {
         "contribution_contribution_ordinal_work_id_uniq"
     );
 
-    fn get_other_objects(&self, db: &crate::db::PgPool) -> ThothResult<Vec<(Uuid, i32)>> {
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>> {
         contribution::table
             .select((
                 contribution::contribution_id,
@@ -184,7 +187,7 @@ impl Reorder for Contribution {
                     .eq(self.work_id)
                     .and(contribution::contribution_id.ne(self.contribution_id)),
             )
-            .load::<(Uuid, i32)>(&mut db.get()?)
+            .load::<(Uuid, i32)>(connection)
             .map_err(Into::into)
     }
 }

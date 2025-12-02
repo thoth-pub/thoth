@@ -1,14 +1,14 @@
 ALTER TABLE affiliation
-    ADD CONSTRAINT affiliation_affiliation_ordinal_contribution_id_uniq UNIQUE (affiliation_ordinal, contribution_id) DEFERRABLE INITIALLY IMMEDIATE;
+    ADD CONSTRAINT affiliation_affiliation_ordinal_contribution_id_uniq UNIQUE (contribution_id, affiliation_ordinal) DEFERRABLE INITIALLY IMMEDIATE;
 
 DROP INDEX IF EXISTS affiliation_uniq_ord_in_contribution_idx;
 
 ALTER TABLE contribution
     DROP CONSTRAINT contribution_contribution_ordinal_work_id_uniq,
-    ADD CONSTRAINT contribution_contribution_ordinal_work_id_uniq UNIQUE (contribution_ordinal, work_id) DEFERRABLE INITIALLY IMMEDIATE;
+    ADD CONSTRAINT contribution_contribution_ordinal_work_id_uniq UNIQUE (work_id, contribution_ordinal) DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE issue
-    ADD CONSTRAINT issue_issue_ordinal_series_id_uniq UNIQUE (issue_ordinal, series_id) DEFERRABLE INITIALLY IMMEDIATE;
+    ADD CONSTRAINT issue_issue_ordinal_series_id_uniq UNIQUE (series_id, issue_ordinal) DEFERRABLE INITIALLY IMMEDIATE;
 
 DROP INDEX IF EXISTS issue_uniq_ord_in_series_idx;
 
@@ -36,8 +36,8 @@ UPDATE subject
     WHERE subject.subject_id = s.subject_id;
 
 ALTER TABLE subject
-    ADD CONSTRAINT subject_ordinal_type_uniq UNIQUE (subject_ordinal, work_id, subject_type) DEFERRABLE INITIALLY IMMEDIATE;
+    ADD CONSTRAINT subject_ordinal_type_uniq UNIQUE (work_id, subject_ordinal, subject_type) DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE work_relation
     DROP CONSTRAINT work_relation_ordinal_type_uniq,
-    ADD CONSTRAINT work_relation_ordinal_type_uniq UNIQUE (relation_ordinal, relator_work_id, relation_type) DEFERRABLE INITIALLY IMMEDIATE;
+    ADD CONSTRAINT work_relation_ordinal_type_uniq UNIQUE (relator_work_id, relation_ordinal, relation_type) DEFERRABLE INITIALLY IMMEDIATE;

@@ -2487,7 +2487,7 @@ impl MutationRoot {
         new_ordinal: i32,
     ) -> FieldResult<Affiliation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let affiliation = Affiliation::from_id(&context.db, &affiliation_id).unwrap();
+        let affiliation = Affiliation::from_id(&context.db, &affiliation_id)?;
 
         if new_ordinal == affiliation.affiliation_ordinal {
             // No action required
@@ -2519,7 +2519,7 @@ impl MutationRoot {
         new_ordinal: i32,
     ) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let contribution = Contribution::from_id(&context.db, &contribution_id).unwrap();
+        let contribution = Contribution::from_id(&context.db, &contribution_id)?;
 
         if new_ordinal == contribution.contribution_ordinal {
             // No action required
@@ -2549,7 +2549,7 @@ impl MutationRoot {
         new_ordinal: i32,
     ) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let issue = Issue::from_id(&context.db, &issue_id).unwrap();
+        let issue = Issue::from_id(&context.db, &issue_id)?;
 
         if new_ordinal == issue.issue_ordinal {
             // No action required
@@ -2576,7 +2576,7 @@ impl MutationRoot {
         new_ordinal: i32,
     ) -> FieldResult<Reference> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let reference = Reference::from_id(&context.db, &reference_id).unwrap();
+        let reference = Reference::from_id(&context.db, &reference_id)?;
 
         if new_ordinal == reference.reference_ordinal {
             // No action required
@@ -2606,7 +2606,7 @@ impl MutationRoot {
         new_ordinal: i32,
     ) -> FieldResult<Subject> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let subject = Subject::from_id(&context.db, &subject_id).unwrap();
+        let subject = Subject::from_id(&context.db, &subject_id)?;
 
         if new_ordinal == subject.subject_ordinal {
             // No action required
@@ -2638,7 +2638,7 @@ impl MutationRoot {
         new_ordinal: i32,
     ) -> FieldResult<WorkRelation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let work_relation = WorkRelation::from_id(&context.db, &work_relation_id).unwrap();
+        let work_relation = WorkRelation::from_id(&context.db, &work_relation_id)?;
         if new_ordinal == work_relation.relation_ordinal {
             // No action required
             return Ok(work_relation);
