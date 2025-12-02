@@ -30,6 +30,7 @@ use crate::model::Doi;
 use crate::model::Isbn;
 use crate::model::LengthUnit;
 use crate::model::Orcid;
+use crate::model::Reorder;
 use crate::model::Ror;
 use crate::model::Timestamp;
 use crate::model::WeightUnit;
@@ -2475,6 +2476,195 @@ impl MutationRoot {
 
         reference.delete(&context.db).map_err(|e| e.into())
     }
+
+    #[graphql(description = "Change the ordering of an affiliation within a contribution")]
+    fn move_affiliation(
+        context: &Context,
+        #[graphql(description = "Thoth ID of affiliation to be moved")] affiliation_id: Uuid,
+        #[graphql(
+            description = "Ordinal representing position to which affiliation should be moved"
+        )]
+        new_ordinal: i32,
+    ) -> FieldResult<Affiliation> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let affiliation = Affiliation::from_id(&context.db, &affiliation_id)?;
+
+        if new_ordinal == affiliation.affiliation_ordinal {
+            // No action required
+            return Ok(affiliation);
+        }
+
+        context
+            .account_access
+            .can_edit(affiliation.publisher_id(&context.db)?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        affiliation
+            .change_ordinal(
+                &context.db,
+                affiliation.affiliation_ordinal,
+                new_ordinal,
+                &account_id,
+            )
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Change the ordering of a contribution within a work")]
+    fn move_contribution(
+        context: &Context,
+        #[graphql(description = "Thoth ID of contribution to be moved")] contribution_id: Uuid,
+        #[graphql(
+            description = "Ordinal representing position to which contribution should be moved"
+        )]
+        new_ordinal: i32,
+    ) -> FieldResult<Contribution> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let contribution = Contribution::from_id(&context.db, &contribution_id)?;
+
+        if new_ordinal == contribution.contribution_ordinal {
+            // No action required
+            return Ok(contribution);
+        }
+
+        context
+            .account_access
+            .can_edit(contribution.publisher_id(&context.db)?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        contribution
+            .change_ordinal(
+                &context.db,
+                contribution.contribution_ordinal,
+                new_ordinal,
+                &account_id,
+            )
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Change the ordering of an issue within a series")]
+    fn move_issue(
+        context: &Context,
+        #[graphql(description = "Thoth ID of issue to be moved")] issue_id: Uuid,
+        #[graphql(description = "Ordinal representing position to which issue should be moved")]
+        new_ordinal: i32,
+    ) -> FieldResult<Issue> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let issue = Issue::from_id(&context.db, &issue_id)?;
+
+        if new_ordinal == issue.issue_ordinal {
+            // No action required
+            return Ok(issue);
+        }
+
+        context
+            .account_access
+            .can_edit(issue.publisher_id(&context.db)?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        issue
+            .change_ordinal(&context.db, issue.issue_ordinal, new_ordinal, &account_id)
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Change the ordering of a reference within a work")]
+    fn move_reference(
+        context: &Context,
+        #[graphql(description = "Thoth ID of reference to be moved")] reference_id: Uuid,
+        #[graphql(
+            description = "Ordinal representing position to which reference should be moved"
+        )]
+        new_ordinal: i32,
+    ) -> FieldResult<Reference> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let reference = Reference::from_id(&context.db, &reference_id)?;
+
+        if new_ordinal == reference.reference_ordinal {
+            // No action required
+            return Ok(reference);
+        }
+
+        context
+            .account_access
+            .can_edit(reference.publisher_id(&context.db)?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        reference
+            .change_ordinal(
+                &context.db,
+                reference.reference_ordinal,
+                new_ordinal,
+                &account_id,
+            )
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Change the ordering of a subject within a work")]
+    fn move_subject(
+        context: &Context,
+        #[graphql(description = "Thoth ID of subject to be moved")] subject_id: Uuid,
+        #[graphql(description = "Ordinal representing position to which subject should be moved")]
+        new_ordinal: i32,
+    ) -> FieldResult<Subject> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let subject = Subject::from_id(&context.db, &subject_id)?;
+
+        if new_ordinal == subject.subject_ordinal {
+            // No action required
+            return Ok(subject);
+        }
+
+        context
+            .account_access
+            .can_edit(subject.publisher_id(&context.db)?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        subject
+            .change_ordinal(
+                &context.db,
+                subject.subject_ordinal,
+                new_ordinal,
+                &account_id,
+            )
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Change the ordering of a work relation within a work")]
+    fn move_work_relation(
+        context: &Context,
+        #[graphql(description = "Thoth ID of work relation to be moved")] work_relation_id: Uuid,
+        #[graphql(
+            description = "Ordinal representing position to which work relation should be moved"
+        )]
+        new_ordinal: i32,
+    ) -> FieldResult<WorkRelation> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let work_relation = WorkRelation::from_id(&context.db, &work_relation_id)?;
+        if new_ordinal == work_relation.relation_ordinal {
+            // No action required
+            return Ok(work_relation);
+        }
+
+        // Work relations may link works from different publishers.
+        // User must have permissions for all relevant publishers.
+        context.account_access.can_edit(publisher_id_from_work_id(
+            &context.db,
+            work_relation.relator_work_id,
+        )?)?;
+        context.account_access.can_edit(publisher_id_from_work_id(
+            &context.db,
+            work_relation.related_work_id,
+        )?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        work_relation
+            .change_ordinal(
+                &context.db,
+                work_relation.relation_ordinal,
+                new_ordinal,
+                &account_id,
+            )
+            .map_err(|e| e.into())
+    }
 }
 
 #[juniper::graphql_object(Context = Context, description = "A written text that can be published")]
@@ -3835,7 +4025,7 @@ impl Subject {
     }
 
     #[graphql(
-        description = "Number representing this subject's position in an ordered list of subjects of the same type within the work (subjects of equal prominence can have the same number)"
+        description = "Number representing this subject's position in an ordered list of subjects of the same type within the work"
     )]
     pub fn subject_ordinal(&self) -> &i32 {
         &self.subject_ordinal
