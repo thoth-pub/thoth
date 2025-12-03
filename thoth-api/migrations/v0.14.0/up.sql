@@ -127,6 +127,68 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- -----------------------------------------------------------------------------
+-- Title Conversion Function
+-- -----------------------------------------------------------------------------
+-- Similar to convert_to_jats but does NOT wrap content in <p> tags.
+-- This is used specifically for titles which should not have paragraph wrappers.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION convert_to_jats_title(content_in TEXT)
+RETURNS TEXT AS $$
+DECLARE
+    processed_content TEXT := content_in;
+BEGIN
+    -- Return NULL immediately if input is NULL or empty.
+    IF processed_content IS NULL OR processed_content = '' THEN
+        RETURN NULL;
+    END IF;
+
+    -- The CASE statement detects the format and applies conversion rules.
+    CASE
+        -- A) HTML Detection: Looks for common HTML tags. Now includes <sc>.
+        WHEN processed_content ~* '<(p|em|i|strong|b|sup|sub|sc|code|a|br)\b' THEN
+            -- Convert HTML tags to their JATS equivalents.
+            processed_content := regexp_replace(processed_content, '<a\s+href="([^"]+)"[^>]*>(.*?)</a>', '<ext-link xlink:href="\1">\2</ext-link>', 'gi');
+            processed_content := regexp_replace(processed_content, '<(strong|b)>(.*?)</\1>', '<bold>\2</bold>', 'gi');
+            processed_content := regexp_replace(processed_content, '<(em|i)>(.*?)</\1>', '<italic>\2</italic>', 'gi');
+            processed_content := regexp_replace(processed_content, '<code>(.*?)</code>', '<monospace>\1</monospace>', 'gi');
+            processed_content := regexp_replace(processed_content, '<br\s*/?>', '<break/>', 'gi');
+            -- Remove any existing <p> tags that might wrap the content
+            processed_content := regexp_replace(processed_content, '^<p>(.*)</p>$', '\1', 'g');
+            -- <sup>, <sub>, and <sc> are valid in JATS, so they are left as is.
+
+        -- B) Markdown Detection: Looks for Markdown syntax like **, *, ``, etc.
+        WHEN processed_content ~ '(\*\*|__).+?\1' OR
+             processed_content ~ '(?<![a-zA-Z0-9])(\*|_).+?\1(?![a-zA-Z0-9])' OR
+             processed_content ~ '`[^`]+`' OR
+             processed_content ~ '\[[^\]]+\]\([^)]+\)' THEN
+            -- Convert Markdown to JATS. Order of replacement is important.
+            processed_content := regexp_replace(processed_content, '\[([^\]]+)\]\(([^)]+)\)', '<ext-link xlink:href="\2">\1</ext-link>', 'g');
+            processed_content := regexp_replace(processed_content, '\*\*(.+?)\*\*', '<bold>\1</bold>', 'g');
+            processed_content := regexp_replace(processed_content, '__(.+?)__', '<bold>\1</bold>', 'g');
+            processed_content := regexp_replace(processed_content, '\*(.+?)\*', '<italic>\1</italic>', 'g');
+            processed_content := regexp_replace(processed_content, '_(.+?)_', '<italic>\1</italic>', 'g');
+            processed_content := regexp_replace(processed_content, '`([^`]+)`', '<monospace>\1</monospace>', 'g');
+            processed_content := regexp_replace(processed_content, '  \n', '<break/>\n', 'g');
+            -- Convert newlines to breaks (no paragraph wrapping)
+            processed_content := regexp_replace(processed_content, E'\n', '<break/>', 'g');
+
+        -- C) Plaintext (Default Case)
+        ELSE
+            -- For plaintext, convert all-caps words to <sc> tags, then handle newlines.
+            -- This rule assumes that words in all caps (e.g., "NASA") should be rendered in small-caps.
+            processed_content := regexp_replace(processed_content, '\b([A-Z]{2,})\b', '<sc>\1</sc>', 'g');
+
+            -- Convert newlines to breaks (no paragraph wrapping)
+            processed_content := regexp_replace(processed_content, E'\n', '<break/>', 'g');
+    END CASE;
+
+    -- Return the processed content without paragraph wrappers.
+    RETURN processed_content;
+
+END;
+$$ LANGUAGE plpgsql;
+
 -- Create the title table
 CREATE TABLE IF NOT EXISTS title (
     title_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -153,9 +215,9 @@ SELECT
     uuid_generate_v4(),
     work_id,
     'en'::locale_code,
-    convert_to_jats(full_title),
-    convert_to_jats(title),
-    CASE WHEN subtitle IS NOT NULL THEN convert_to_jats(subtitle) ELSE NULL END,
+    convert_to_jats_title(full_title),
+    convert_to_jats_title(title),
+    CASE WHEN subtitle IS NOT NULL THEN convert_to_jats_title(subtitle) ELSE NULL END,
     TRUE
 FROM work
 WHERE full_title IS NOT NULL
@@ -283,5 +345,6 @@ ON biography(contribution_id, locale_code);
 ALTER TABLE contribution
     DROP COLUMN biography;
 
--- Clean up the conversion function after the migration is complete
+-- Clean up the conversion functions after the migration is complete
 DROP FUNCTION convert_to_jats(TEXT);
+DROP FUNCTION convert_to_jats_title(TEXT);
