@@ -93,7 +93,7 @@ pub async fn presign_put_for_upload(
     let presigning_config = PresigningConfig::expires_in(expires_in)
         .map_err(|e| ThothError::InternalError(format!("Failed to create presigning config: {}", e)))?;
 
-    let mut request = s3_client
+    let request = s3_client
         .put_object()
         .bucket(bucket)
         .key(temp_key)
