@@ -1,6 +1,6 @@
 use crate::ast::{
     ast_to_html, ast_to_jats, ast_to_markdown, ast_to_plain_text, html_to_ast, jats_to_ast,
-    markdown_to_ast, plain_text_ast_to_jats, plain_text_to_ast, strip_structural_elements_from_ast,
+    markdown_to_ast, plain_text_ast_to_jats, plain_text_to_ast,
     strip_structural_elements_from_ast_for_conversion, validate_ast_content,
 };
 use chrono::{DateTime, TimeZone, Utc};
@@ -712,7 +712,7 @@ pub fn convert_to_jats(
 
             // For title conversion, strip structural elements before validation
             let processed_ast = if conversion_limit == ConversionLimit::Title {
-                strip_structural_elements_from_ast(&ast)
+                strip_structural_elements_from_ast_for_conversion(&ast)
             } else {
                 ast
             };
@@ -727,7 +727,7 @@ pub fn convert_to_jats(
 
             // For title conversion, strip structural elements before validation
             let processed_ast = if conversion_limit == ConversionLimit::Title {
-                strip_structural_elements_from_ast(&ast)
+                strip_structural_elements_from_ast_for_conversion(&ast)
             } else {
                 ast
             };
@@ -742,13 +742,18 @@ pub fn convert_to_jats(
 
             // For title conversion, strip structural elements before validation
             let processed_ast = if conversion_limit == ConversionLimit::Title {
-                strip_structural_elements_from_ast(&ast)
+                strip_structural_elements_from_ast_for_conversion(&ast)
             } else {
                 ast
             };
 
             validate_ast_content(&processed_ast, conversion_limit)?;
-            output = plain_text_ast_to_jats(&processed_ast);
+            output = if conversion_limit == ConversionLimit::Title {
+                // Title JATS should remain inline (no paragraph wrapper)
+                ast_to_jats(&processed_ast)
+            } else {
+                plain_text_ast_to_jats(&processed_ast)
+            };
         }
 
         MarkupFormat::JatsXml => {}
@@ -776,7 +781,13 @@ pub fn convert_from_jats(
             MarkupFormat::Html => ast_to_html(&processed_ast),
             MarkupFormat::Markdown => ast_to_markdown(&processed_ast),
             MarkupFormat::PlainText => ast_to_plain_text(&processed_ast),
-            MarkupFormat::JatsXml => plain_text_ast_to_jats(&processed_ast),
+            MarkupFormat::JatsXml => {
+                if conversion_limit == ConversionLimit::Title {
+                    ast_to_jats(&processed_ast)
+                } else {
+                    plain_text_ast_to_jats(&processed_ast)
+                }
+            }
         });
     }
 
@@ -902,7 +913,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             output,
-            "<p><bold>Bold</bold> and <italic>Italic</italic> and <monospace>code</monospace></p>"
+            "<bold>Bold</bold> and <italic>Italic</italic> and <monospace>code</monospace>"
         );
     }
 
@@ -917,7 +928,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             output,
-            r#"<p><ext-link xlink:href="https://example.com">text</ext-link></p>"#
+            r#"<ext-link xlink:href="https://example.com">text</ext-link>"#
         );
     }
 
@@ -962,7 +973,7 @@ mod tests {
             ConversionLimit::Title,
         )
         .unwrap();
-        assert_eq!(output, "<p>Just plain text.</p>");
+        assert_eq!(output, "Just plain text.");
     }
     // --- convert_to_jats tests end   ---
 
@@ -1075,6 +1086,33 @@ mod tests {
         assert!(!output.contains("<ul>"));
         assert!(output.contains("Para"));
         assert!(output.contains("Item"));
+    }
+
+    #[test]
+    fn test_title_plain_text_to_jats_has_no_paragraph() {
+        let input = "Plain title";
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::PlainText,
+            ConversionLimit::Title,
+        )
+        .unwrap();
+        assert_eq!(output, "Plain title");
+    }
+
+    #[test]
+    fn test_title_plain_text_roundtrip_no_paragraphs() {
+        let plain = "Another plain title";
+        let jats = convert_to_jats(
+            plain.to_string(),
+            MarkupFormat::PlainText,
+            ConversionLimit::Title,
+        )
+        .unwrap();
+        assert!(!jats.contains("<p>"));
+
+        let back = convert_from_jats(&jats, MarkupFormat::JatsXml, ConversionLimit::Title).unwrap();
+        assert_eq!(back, plain);
     }
     // --- convert_from_jats tests end   ---
 
