@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
   - [710](https://github.com/thoth-pub/thoth/pull/710) - Deprecated thoth-app
 
+## [[0.13.15]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.15) - 2025-12-03
+### Changed
+  - [#717](https://github.com/thoth-pub/thoth/pull/717) - Update Thema codes to v1.6
+
 ## [[0.13.14]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.14) - 2025-10-14
 ### Changed
   - [708](https://github.com/thoth-pub/thoth/pull/708) - Replace ISBN parsing library with [`isbn`](https://crates.io/crates/isbn)
