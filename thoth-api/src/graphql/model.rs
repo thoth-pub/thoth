@@ -3180,7 +3180,7 @@ impl Work {
             filter,
             order.unwrap_or_default(),
             vec![],
-            None,
+            Some(*self.work_id()),
             None,
             locale_codes.unwrap_or_default(),
             vec![],

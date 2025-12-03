@@ -763,6 +763,23 @@ pub fn convert_from_jats(
     format: MarkupFormat,
     conversion_limit: ConversionLimit,
 ) -> ThothResult<String> {
+    // Allow plain-text content that was stored without JATS markup for titles.
+    if !jats_xml.contains('<') || !jats_xml.contains("</") {
+        let ast = plain_text_to_ast(jats_xml);
+        let processed_ast = if conversion_limit == ConversionLimit::Title {
+            strip_structural_elements_from_ast_for_conversion(&ast)
+        } else {
+            ast
+        };
+        validate_ast_content(&processed_ast, conversion_limit)?;
+        return Ok(match format {
+            MarkupFormat::Html => ast_to_html(&processed_ast),
+            MarkupFormat::Markdown => ast_to_markdown(&processed_ast),
+            MarkupFormat::PlainText => ast_to_plain_text(&processed_ast),
+            MarkupFormat::JatsXml => plain_text_ast_to_jats(&processed_ast),
+        });
+    }
+
     validate_format(jats_xml, &MarkupFormat::JatsXml)?;
 
     // Parse JATS to AST first for better handling
