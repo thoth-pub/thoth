@@ -1580,7 +1580,10 @@ pub mod work_relation;
 pub use affiliation::{Affiliation, NewAffiliation};
 pub use contribution::{Contribution, NewContribution};
 pub use contributor::{Contributor, NewContributor};
-pub use file::{File, FileType, FileUpload, NewFile, NewFileUpload};
+pub use file::{
+    CompleteFileUpload, File, FileType, FileUpload, FileUploadResponse, NewFile, NewFileUpload,
+    NewFrontcoverFileUpload, NewPublicationFileUpload, parse_doi, validate_file_extension,
+};
 pub use funding::{Funding, NewFunding};
 pub use imprint::{Imprint, NewImprint};
 pub use institution::{Institution, NewInstitution};
