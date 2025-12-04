@@ -3,11 +3,12 @@ use super::{
     ReferenceOrderBy,
 };
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{reference, reference_history};
-use crate::{crud_methods, db_insert};
+use crate::{crud_methods, db_change_ordinal, db_insert};
 use diesel::{
-    BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
+    BoolExpressionMethods, Connection, ExpressionMethods, PgTextExpressionMethods, QueryDsl,
+    RunQueryDsl,
 };
 use thoth_errors::ThothResult;
 use uuid::Uuid;
@@ -252,6 +253,29 @@ impl DbInsert for NewReferenceHistory {
     type MainEntity = ReferenceHistory;
 
     db_insert!(reference_history::table);
+}
+
+impl Reorder for Reference {
+    db_change_ordinal!(
+        reference::table,
+        reference::reference_ordinal,
+        "reference_reference_ordinal_work_id_uniq"
+    );
+
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>> {
+        reference::table
+            .select((reference::reference_id, reference::reference_ordinal))
+            .filter(
+                reference::work_id
+                    .eq(self.work_id)
+                    .and(reference::reference_id.ne(self.reference_id)),
+            )
+            .load::<(Uuid, i32)>(connection)
+            .map_err(Into::into)
+    }
 }
 
 #[cfg(test)]

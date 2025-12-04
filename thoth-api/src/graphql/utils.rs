@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-pub const ONIX_MAX_CHAR_LIMIT: u16 = 350;
+pub const MAX_SHORT_ABSTRACT_CHAR_LIMIT: u16 = 350;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, juniper::GraphQLEnum)]
 #[graphql(description = "Order in which to sort query results")]

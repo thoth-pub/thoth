@@ -393,6 +393,27 @@ where
     fn insert(&self, connection: &mut diesel::PgConnection) -> ThothResult<Self::MainEntity>;
 }
 
+#[cfg(feature = "backend")]
+/// Common functionality to correctly renumber all relevant database objects
+/// on a request to change the ordinal of one of them
+pub trait Reorder
+where
+    Self: Sized + Clone,
+{
+    fn change_ordinal(
+        &self,
+        db: &crate::db::PgPool,
+        current_ordinal: i32,
+        new_ordinal: i32,
+        account_id: &Uuid,
+    ) -> ThothResult<Self>;
+
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>>;
+}
+
 /// Declares function implementations for the `Crud` trait, reducing the boilerplate needed to define
 /// the CRUD functionality for each entity.
 ///
@@ -543,6 +564,84 @@ macro_rules! db_insert {
                 .values(self)
                 .get_result(connection)
                 .map_err(Into::into)
+        }
+    };
+}
+
+/// Declares a change ordinal function implementation for any insertable which
+/// has an ordinal field. Useful together with the `Reorder` trait.
+///
+/// Example usage
+/// -------------
+///
+/// ```ignore
+/// use crate::db_change_ordinal;
+/// use crate::model::Reorder;
+/// use crate::schema::contribution;
+///
+/// impl Reorder for Contribution {
+///     db_change_ordinal!(
+///         contribution::table,
+///         contribution::contribution_ordinal,
+///         "contribution_contribution_ordinal_work_id_uniq",
+///     );
+/// }
+/// ```
+///
+///
+#[cfg(feature = "backend")]
+#[macro_export]
+macro_rules! db_change_ordinal {
+    ($table_dsl:expr,
+     $ordinal_field:expr,
+     $constraint_name:literal) => {
+        fn change_ordinal(
+            &self,
+            db: &$crate::db::PgPool,
+            current_ordinal: i32,
+            new_ordinal: i32,
+            account_id: &Uuid,
+        ) -> ThothResult<Self> {
+            let mut connection = db.get()?;
+            let other_objects = self.get_other_objects(&mut connection)?;
+            // Execute all updates within the same transaction,
+            // because if one fails, the others need to be reverted.
+            connection.transaction(|connection| {
+                if current_ordinal == new_ordinal {
+                    // No change required. Caller should have checked this.
+                    return ThothResult::Ok(self.clone());
+                }
+                diesel::sql_query(format!("SET CONSTRAINTS {} DEFERRED", $constraint_name))
+                    .execute(connection)?;
+                for (id, ordinal) in other_objects {
+                    if new_ordinal > current_ordinal {
+                        if ordinal > current_ordinal && ordinal <= new_ordinal {
+                            let updated_ordinal = ordinal - 1;
+                            diesel::update($table_dsl.find(id))
+                                .set($ordinal_field.eq(&updated_ordinal))
+                                .execute(connection)?;
+                        }
+                    } else {
+                        if ordinal >= new_ordinal && ordinal < current_ordinal {
+                            let updated_ordinal = ordinal + 1;
+                            diesel::update($table_dsl.find(id))
+                                .set($ordinal_field.eq(&updated_ordinal))
+                                .execute(connection)?;
+                        }
+                    }
+                }
+                diesel::update($table_dsl.find(&self.pk()))
+                    .set($ordinal_field.eq(&new_ordinal))
+                    .get_result::<Self>(connection)
+                    .map_err(Into::into)
+                    .and_then(|t| {
+                        // On success, create a new history table entry.
+                        // Only record the original update, not the automatic reorderings.
+                        self.new_history_entry(account_id)
+                            .insert(connection)
+                            .map(|_| t)
+                    })
+            })
         }
     };
 }

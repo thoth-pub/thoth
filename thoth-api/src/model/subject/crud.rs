@@ -3,10 +3,13 @@ use super::{
 };
 use crate::graphql::model::SubjectOrderBy;
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{subject, subject_history};
-use crate::{crud_methods, db_insert};
-use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
+use crate::{crud_methods, db_change_ordinal, db_insert};
+use diesel::{
+    BoolExpressionMethods, Connection, ExpressionMethods, PgTextExpressionMethods, QueryDsl,
+    RunQueryDsl,
+};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
 
@@ -146,6 +149,30 @@ impl DbInsert for NewSubjectHistory {
     type MainEntity = SubjectHistory;
 
     db_insert!(subject_history::table);
+}
+
+impl Reorder for Subject {
+    db_change_ordinal!(
+        subject::table,
+        subject::subject_ordinal,
+        "subject_ordinal_type_uniq"
+    );
+
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>> {
+        subject::table
+            .select((subject::subject_id, subject::subject_ordinal))
+            .filter(
+                subject::work_id
+                    .eq(self.work_id)
+                    .and(subject::subject_type.eq(self.subject_type))
+                    .and(subject::subject_id.ne(self.subject_id)),
+            )
+            .load::<(Uuid, i32)>(connection)
+            .map_err(Into::into)
+    }
 }
 
 #[cfg(test)]

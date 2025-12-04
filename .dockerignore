@@ -9,9 +9,7 @@ db/
 LICENSE
 README.md
 Dockerfile
-Dockerfile.dev
 Makefile
 docker-compose.yml
-docker-compose.dev.yml
 CHANGELOG.md
 
