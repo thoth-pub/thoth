@@ -18,6 +18,7 @@ impl Crud for Language {
     type FilterParameter1 = LanguageCode;
     type FilterParameter2 = LanguageRelation;
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.language_id
@@ -35,6 +36,7 @@ impl Crud for Language {
         language_codes: Vec<Self::FilterParameter1>,
         language_relations: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Language>> {
         use crate::schema::language::dsl;
         let mut connection = db.get()?;
@@ -99,6 +101,7 @@ impl Crud for Language {
         language_codes: Vec<Self::FilterParameter1>,
         language_relations: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::language::dsl;
         let mut connection = db.get()?;

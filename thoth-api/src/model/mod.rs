@@ -306,6 +306,9 @@ where
     /// A third such structure, e.g. `TimeExpression`
     type FilterParameter3;
 
+    /// A fourth such structure, e.g. `TimeExpression`
+    type FilterParameter4;
+
     /// Specify the entity's primary key
     fn pk(&self) -> Uuid;
 
@@ -327,6 +330,7 @@ where
         filter_param_1: Vec<Self::FilterParameter1>,
         filter_param_2: Vec<Self::FilterParameter2>,
         filter_param_3: Option<Self::FilterParameter3>,
+        filter_param_4: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Self>>;
 
     /// Query the database to obtain the total number of entities satisfying the search criteria
@@ -337,6 +341,7 @@ where
         filter_param_1: Vec<Self::FilterParameter1>,
         filter_param_2: Vec<Self::FilterParameter2>,
         filter_param_3: Option<Self::FilterParameter3>,
+        filter_param_4: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32>;
 
     /// Query the database to obtain an instance of the entity given its ID
@@ -381,6 +386,27 @@ where
     type MainEntity;
 
     fn insert(&self, connection: &mut diesel::PgConnection) -> ThothResult<Self::MainEntity>;
+}
+
+#[cfg(feature = "backend")]
+/// Common functionality to correctly renumber all relevant database objects
+/// on a request to change the ordinal of one of them
+pub trait Reorder
+where
+    Self: Sized + Clone,
+{
+    fn change_ordinal(
+        &self,
+        db: &crate::db::PgPool,
+        current_ordinal: i32,
+        new_ordinal: i32,
+        account_id: &Uuid,
+    ) -> ThothResult<Self>;
+
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>>;
 }
 
 /// Declares function implementations for the `Crud` trait, reducing the boilerplate needed to define
@@ -466,6 +492,43 @@ macro_rules! crud_methods {
     };
 }
 
+/// Helper macro to apply an optional `TimeExpression` filter to a Diesel query.
+///
+/// This variant accepts a **converter** so you can adapt your internal timestamp
+/// type to the database column's Rust type (e.g. `NaiveDate` for `DATE` columns,
+/// or `DateTime<Utc>`/`Timestamp` for `TIMESTAMPTZ`).
+///
+/// # Parameters
+/// - `$query`: identifier bound to a mutable Diesel query builder (e.g. `query`)
+/// - `$col`:   Diesel column expression (e.g. `dsl::publication_date`)
+/// - `$opt`:   `Option<TimeExpression>`
+/// - `$conv`:  an expression that converts the internal timestamp into the correct
+///   Rust type for `$col`. It will be invoked like `$conv(te.timestamp)`.
+///
+/// # Examples
+/// For a `TIMESTAMPTZ` column:
+/// ```ignore
+/// apply_time_filter!(query, dsl::updated_at_with_relations, updated_at_with_relations, |ts: Timestamp| ts.0);
+/// ```
+///
+/// For a `DATE` column:
+/// ```ignore
+/// apply_time_filter!(query, dsl::publication_date, publication_date, |ts: Timestamp| ts.0.date_naive());
+/// ```
+#[cfg(feature = "backend")]
+#[macro_export]
+macro_rules! apply_time_filter {
+    ($query:ident, $col:expr, $opt:expr, $conv:expr) => {
+        if let Some(te) = $opt {
+            let __val = $conv(te.timestamp);
+            $query = match te.expression {
+                Expression::GreaterThan => $query.filter($col.gt(__val)),
+                Expression::LessThan => $query.filter($col.lt(__val)),
+            };
+        }
+    };
+}
+
 /// Declares an insert function implementation for any insertable. Useful together with the
 /// `DbInsert` trait.
 ///
@@ -496,6 +559,84 @@ macro_rules! db_insert {
                 .values(self)
                 .get_result(connection)
                 .map_err(Into::into)
+        }
+    };
+}
+
+/// Declares a change ordinal function implementation for any insertable which
+/// has an ordinal field. Useful together with the `Reorder` trait.
+///
+/// Example usage
+/// -------------
+///
+/// ```ignore
+/// use crate::db_change_ordinal;
+/// use crate::model::Reorder;
+/// use crate::schema::contribution;
+///
+/// impl Reorder for Contribution {
+///     db_change_ordinal!(
+///         contribution::table,
+///         contribution::contribution_ordinal,
+///         "contribution_contribution_ordinal_work_id_uniq",
+///     );
+/// }
+/// ```
+///
+///
+#[cfg(feature = "backend")]
+#[macro_export]
+macro_rules! db_change_ordinal {
+    ($table_dsl:expr,
+     $ordinal_field:expr,
+     $constraint_name:literal) => {
+        fn change_ordinal(
+            &self,
+            db: &$crate::db::PgPool,
+            current_ordinal: i32,
+            new_ordinal: i32,
+            account_id: &Uuid,
+        ) -> ThothResult<Self> {
+            let mut connection = db.get()?;
+            let other_objects = self.get_other_objects(&mut connection)?;
+            // Execute all updates within the same transaction,
+            // because if one fails, the others need to be reverted.
+            connection.transaction(|connection| {
+                if current_ordinal == new_ordinal {
+                    // No change required. Caller should have checked this.
+                    return ThothResult::Ok(self.clone());
+                }
+                diesel::sql_query(format!("SET CONSTRAINTS {} DEFERRED", $constraint_name))
+                    .execute(connection)?;
+                for (id, ordinal) in other_objects {
+                    if new_ordinal > current_ordinal {
+                        if ordinal > current_ordinal && ordinal <= new_ordinal {
+                            let updated_ordinal = ordinal - 1;
+                            diesel::update($table_dsl.find(id))
+                                .set($ordinal_field.eq(&updated_ordinal))
+                                .execute(connection)?;
+                        }
+                    } else {
+                        if ordinal >= new_ordinal && ordinal < current_ordinal {
+                            let updated_ordinal = ordinal + 1;
+                            diesel::update($table_dsl.find(id))
+                                .set($ordinal_field.eq(&updated_ordinal))
+                                .execute(connection)?;
+                        }
+                    }
+                }
+                diesel::update($table_dsl.find(&self.pk()))
+                    .set($ordinal_field.eq(&new_ordinal))
+                    .get_result::<Self>(connection)
+                    .map_err(Into::into)
+                    .and_then(|t| {
+                        // On success, create a new history table entry.
+                        // Only record the original update, not the automatic reorderings.
+                        self.new_history_entry(account_id)
+                            .insert(connection)
+                            .map(|_| t)
+                    })
+            })
         }
     };
 }

@@ -30,6 +30,7 @@ use crate::model::Doi;
 use crate::model::Isbn;
 use crate::model::LengthUnit;
 use crate::model::Orcid;
+use crate::model::Reorder;
 use crate::model::Ror;
 use crate::model::Timestamp;
 use crate::model::WeightUnit;
@@ -200,6 +201,10 @@ impl QueryRoot {
         )]
         work_statuses: Option<Vec<WorkStatus>>,
         #[graphql(
+            description = "Only show results with a publication date either before (less than) or after (greater than) the specified timestamp"
+        )]
+        publication_date: Option<TimeExpression>,
+        #[graphql(
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         )]
         updated_at_with_relations: Option<TimeExpression>,
@@ -219,6 +224,7 @@ impl QueryRoot {
             None,
             work_types.unwrap_or_default(),
             statuses,
+            publication_date,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -240,6 +246,7 @@ impl QueryRoot {
         Work::from_doi(&context.db, doi, vec![]).map_err(|e| e.into())
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[graphql(description = "Get the total number of works")]
     fn work_count(
         context: &Context,
@@ -267,6 +274,10 @@ impl QueryRoot {
         )]
         work_statuses: Option<Vec<WorkStatus>>,
         #[graphql(
+            description = "Only show results with a publication date either before (less than) or after (greater than) the specified timestamp"
+        )]
+        publication_date: Option<TimeExpression>,
+        #[graphql(
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         )]
         updated_at_with_relations: Option<TimeExpression>,
@@ -281,6 +292,7 @@ impl QueryRoot {
             publishers.unwrap_or_default(),
             work_types.unwrap_or_default(),
             statuses,
+            publication_date,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -316,6 +328,10 @@ impl QueryRoot {
         )]
         work_statuses: Option<Vec<WorkStatus>>,
         #[graphql(
+            description = "Only show results with a publication date either before (less than) or after (greater than) the specified timestamp"
+        )]
+        publication_date: Option<TimeExpression>,
+        #[graphql(
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         )]
         updated_at_with_relations: Option<TimeExpression>,
@@ -340,6 +356,7 @@ impl QueryRoot {
                 WorkType::JournalIssue,
             ],
             statuses,
+            publication_date,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -387,6 +404,10 @@ impl QueryRoot {
         )]
         work_statuses: Option<Vec<WorkStatus>>,
         #[graphql(
+            description = "Only show results with a publication date either before (less than) or after (greater than) the specified timestamp"
+        )]
+        publication_date: Option<TimeExpression>,
+        #[graphql(
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         )]
         updated_at_with_relations: Option<TimeExpression>,
@@ -406,6 +427,7 @@ impl QueryRoot {
                 WorkType::JournalIssue,
             ],
             statuses,
+            publication_date,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -441,6 +463,10 @@ impl QueryRoot {
         )]
         work_statuses: Option<Vec<WorkStatus>>,
         #[graphql(
+            description = "Only show results with a publication date either before (less than) or after (greater than) the specified timestamp"
+        )]
+        publication_date: Option<TimeExpression>,
+        #[graphql(
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         )]
         updated_at_with_relations: Option<TimeExpression>,
@@ -460,6 +486,7 @@ impl QueryRoot {
             None,
             vec![WorkType::BookChapter],
             statuses,
+            publication_date,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -497,6 +524,10 @@ impl QueryRoot {
         )]
         work_statuses: Option<Vec<WorkStatus>>,
         #[graphql(
+            description = "Only show results with a publication date either before (less than) or after (greater than) the specified timestamp"
+        )]
+        publication_date: Option<TimeExpression>,
+        #[graphql(
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         )]
         updated_at_with_relations: Option<TimeExpression>,
@@ -511,6 +542,7 @@ impl QueryRoot {
             publishers.unwrap_or_default(),
             vec![WorkType::BookChapter],
             statuses,
+            publication_date,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -554,6 +586,7 @@ impl QueryRoot {
             publication_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -592,6 +625,7 @@ impl QueryRoot {
             publication_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -629,6 +663,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -661,6 +696,7 @@ impl QueryRoot {
             publishers.unwrap_or_default(),
             vec![],
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -699,6 +735,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -732,6 +769,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -764,6 +802,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -785,7 +824,8 @@ impl QueryRoot {
         )]
         filter: Option<String>,
     ) -> FieldResult<i32> {
-        Contributor::count(&context.db, filter, vec![], vec![], vec![], None).map_err(|e| e.into())
+        Contributor::count(&context.db, filter, vec![], vec![], vec![], None, None)
+            .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query the full list of contributions")]
@@ -821,6 +861,7 @@ impl QueryRoot {
             contribution_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -848,6 +889,7 @@ impl QueryRoot {
             vec![],
             contribution_types.unwrap_or_default(),
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -891,6 +933,7 @@ impl QueryRoot {
             series_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -929,6 +972,7 @@ impl QueryRoot {
             series_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -961,6 +1005,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -975,7 +1020,7 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of issues")]
     fn issue_count(context: &Context) -> FieldResult<i32> {
-        Issue::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
+        Issue::count(&context.db, None, vec![], vec![], vec![], None, None).map_err(|e| e.into())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1025,6 +1070,7 @@ impl QueryRoot {
             language_codes.unwrap_or_default(),
             relations,
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1066,6 +1112,7 @@ impl QueryRoot {
             language_codes.unwrap_or_default(),
             relations,
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1103,6 +1150,7 @@ impl QueryRoot {
             location_platforms.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1130,6 +1178,7 @@ impl QueryRoot {
             vec![],
             location_platforms.unwrap_or_default(),
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -1168,6 +1217,7 @@ impl QueryRoot {
             currency_codes.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1195,6 +1245,7 @@ impl QueryRoot {
             vec![],
             currency_codes.unwrap_or_default(),
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -1238,6 +1289,7 @@ impl QueryRoot {
             subject_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1271,6 +1323,7 @@ impl QueryRoot {
             subject_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1303,6 +1356,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1324,7 +1378,8 @@ impl QueryRoot {
         )]
         filter: Option<String>,
     ) -> FieldResult<i32> {
-        Institution::count(&context.db, filter, vec![], vec![], vec![], None).map_err(|e| e.into())
+        Institution::count(&context.db, filter, vec![], vec![], vec![], None, None)
+            .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query the full list of fundings")]
@@ -1355,6 +1410,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1369,7 +1425,7 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of funding instances associated to works")]
     fn funding_count(context: &Context) -> FieldResult<i32> {
-        Funding::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
+        Funding::count(&context.db, None, vec![], vec![], vec![], None, None).map_err(|e| e.into())
     }
 
     #[graphql(description = "Query the full list of affiliations")]
@@ -1400,6 +1456,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1414,7 +1471,8 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of affiliations")]
     fn affiliation_count(context: &Context) -> FieldResult<i32> {
-        Affiliation::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
+        Affiliation::count(&context.db, None, vec![], vec![], vec![], None, None)
+            .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query the full list of references")]
@@ -1445,6 +1503,7 @@ impl QueryRoot {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -1459,7 +1518,8 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of references")]
     fn reference_count(context: &Context) -> FieldResult<i32> {
-        Reference::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
+        Reference::count(&context.db, None, vec![], vec![], vec![], None, None)
+            .map_err(|e| e.into())
     }
 }
 
@@ -2416,6 +2476,195 @@ impl MutationRoot {
 
         reference.delete(&context.db).map_err(|e| e.into())
     }
+
+    #[graphql(description = "Change the ordering of an affiliation within a contribution")]
+    fn move_affiliation(
+        context: &Context,
+        #[graphql(description = "Thoth ID of affiliation to be moved")] affiliation_id: Uuid,
+        #[graphql(
+            description = "Ordinal representing position to which affiliation should be moved"
+        )]
+        new_ordinal: i32,
+    ) -> FieldResult<Affiliation> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let affiliation = Affiliation::from_id(&context.db, &affiliation_id)?;
+
+        if new_ordinal == affiliation.affiliation_ordinal {
+            // No action required
+            return Ok(affiliation);
+        }
+
+        context
+            .account_access
+            .can_edit(affiliation.publisher_id(&context.db)?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        affiliation
+            .change_ordinal(
+                &context.db,
+                affiliation.affiliation_ordinal,
+                new_ordinal,
+                &account_id,
+            )
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Change the ordering of a contribution within a work")]
+    fn move_contribution(
+        context: &Context,
+        #[graphql(description = "Thoth ID of contribution to be moved")] contribution_id: Uuid,
+        #[graphql(
+            description = "Ordinal representing position to which contribution should be moved"
+        )]
+        new_ordinal: i32,
+    ) -> FieldResult<Contribution> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let contribution = Contribution::from_id(&context.db, &contribution_id)?;
+
+        if new_ordinal == contribution.contribution_ordinal {
+            // No action required
+            return Ok(contribution);
+        }
+
+        context
+            .account_access
+            .can_edit(contribution.publisher_id(&context.db)?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        contribution
+            .change_ordinal(
+                &context.db,
+                contribution.contribution_ordinal,
+                new_ordinal,
+                &account_id,
+            )
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Change the ordering of an issue within a series")]
+    fn move_issue(
+        context: &Context,
+        #[graphql(description = "Thoth ID of issue to be moved")] issue_id: Uuid,
+        #[graphql(description = "Ordinal representing position to which issue should be moved")]
+        new_ordinal: i32,
+    ) -> FieldResult<Issue> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let issue = Issue::from_id(&context.db, &issue_id)?;
+
+        if new_ordinal == issue.issue_ordinal {
+            // No action required
+            return Ok(issue);
+        }
+
+        context
+            .account_access
+            .can_edit(issue.publisher_id(&context.db)?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        issue
+            .change_ordinal(&context.db, issue.issue_ordinal, new_ordinal, &account_id)
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Change the ordering of a reference within a work")]
+    fn move_reference(
+        context: &Context,
+        #[graphql(description = "Thoth ID of reference to be moved")] reference_id: Uuid,
+        #[graphql(
+            description = "Ordinal representing position to which reference should be moved"
+        )]
+        new_ordinal: i32,
+    ) -> FieldResult<Reference> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let reference = Reference::from_id(&context.db, &reference_id)?;
+
+        if new_ordinal == reference.reference_ordinal {
+            // No action required
+            return Ok(reference);
+        }
+
+        context
+            .account_access
+            .can_edit(reference.publisher_id(&context.db)?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        reference
+            .change_ordinal(
+                &context.db,
+                reference.reference_ordinal,
+                new_ordinal,
+                &account_id,
+            )
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Change the ordering of a subject within a work")]
+    fn move_subject(
+        context: &Context,
+        #[graphql(description = "Thoth ID of subject to be moved")] subject_id: Uuid,
+        #[graphql(description = "Ordinal representing position to which subject should be moved")]
+        new_ordinal: i32,
+    ) -> FieldResult<Subject> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let subject = Subject::from_id(&context.db, &subject_id)?;
+
+        if new_ordinal == subject.subject_ordinal {
+            // No action required
+            return Ok(subject);
+        }
+
+        context
+            .account_access
+            .can_edit(subject.publisher_id(&context.db)?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        subject
+            .change_ordinal(
+                &context.db,
+                subject.subject_ordinal,
+                new_ordinal,
+                &account_id,
+            )
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Change the ordering of a work relation within a work")]
+    fn move_work_relation(
+        context: &Context,
+        #[graphql(description = "Thoth ID of work relation to be moved")] work_relation_id: Uuid,
+        #[graphql(
+            description = "Ordinal representing position to which work relation should be moved"
+        )]
+        new_ordinal: i32,
+    ) -> FieldResult<WorkRelation> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let work_relation = WorkRelation::from_id(&context.db, &work_relation_id)?;
+        if new_ordinal == work_relation.relation_ordinal {
+            // No action required
+            return Ok(work_relation);
+        }
+
+        // Work relations may link works from different publishers.
+        // User must have permissions for all relevant publishers.
+        context.account_access.can_edit(publisher_id_from_work_id(
+            &context.db,
+            work_relation.relator_work_id,
+        )?)?;
+        context.account_access.can_edit(publisher_id_from_work_id(
+            &context.db,
+            work_relation.related_work_id,
+        )?)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        work_relation
+            .change_ordinal(
+                &context.db,
+                work_relation.relation_ordinal,
+                new_ordinal,
+                &account_id,
+            )
+            .map_err(|e| e.into())
+    }
 }
 
 #[juniper::graphql_object(Context = Context, description = "A written text that can be published")]
@@ -2665,6 +2914,7 @@ impl Work {
             contribution_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -2712,6 +2962,7 @@ impl Work {
             language_codes.unwrap_or_default(),
             relations,
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -2749,6 +3000,7 @@ impl Work {
             None,
             publication_types.unwrap_or_default(),
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -2788,6 +3040,7 @@ impl Work {
             subject_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -2816,6 +3069,7 @@ impl Work {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -2843,6 +3097,7 @@ impl Work {
             None,
             vec![],
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -2876,6 +3131,7 @@ impl Work {
             relation_types.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -2907,6 +3163,7 @@ impl Work {
             None,
             vec![],
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -3053,6 +3310,7 @@ impl Publication {
             currency_codes.unwrap_or_default(),
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -3085,6 +3343,7 @@ impl Publication {
             None,
             location_platforms.unwrap_or_default(),
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -3161,6 +3420,7 @@ impl Publisher {
             None,
             vec![],
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -3245,6 +3505,10 @@ impl Imprint {
         #[graphql(
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         )]
+        publication_date: Option<TimeExpression>,
+        #[graphql(
+            description = "Only show results with a publication date either before (less than) or after (greater than) the specified timestamp"
+        )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
         let mut statuses = work_statuses.unwrap_or_default();
@@ -3262,6 +3526,7 @@ impl Imprint {
             None,
             work_types.unwrap_or_default(),
             statuses,
+            publication_date,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -3342,6 +3607,7 @@ impl Contributor {
             Some(self.contributor_id),
             contribution_types.unwrap_or_default(),
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -3454,6 +3720,7 @@ impl Contribution {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -3548,6 +3815,7 @@ impl Series {
             Some(self.series_id),
             vec![],
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
@@ -3757,7 +4025,7 @@ impl Subject {
     }
 
     #[graphql(
-        description = "Number representing this subject's position in an ordered list of subjects of the same type within the work (subjects of equal prominence can have the same number)"
+        description = "Number representing this subject's position in an ordered list of subjects of the same type within the work"
     )]
     pub fn subject_ordinal(&self) -> &i32 {
         &self.subject_ordinal
@@ -3846,6 +4114,7 @@ impl Institution {
             vec![],
             vec![],
             None,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -3873,6 +4142,7 @@ impl Institution {
             None,
             vec![],
             vec![],
+            None,
             None,
         )
         .map_err(|e| e.into())
