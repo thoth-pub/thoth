@@ -35,7 +35,6 @@ DROP TABLE IF EXISTS public.contribution CASCADE;
 DROP TABLE IF EXISTS public.affiliation_history CASCADE;
 DROP TABLE IF EXISTS public.affiliation CASCADE;
 DROP TABLE IF EXISTS public.account CASCADE;
-DROP TABLE IF EXISTS public.__diesel_schema_migrations CASCADE;
 
 -- Drop functions
 DROP FUNCTION IF EXISTS public.affiliation_work_updated_at_with_relations() CASCADE;

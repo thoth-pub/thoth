@@ -1577,16 +1577,6 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
--- Name: __diesel_schema_migrations; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.__diesel_schema_migrations (
-    version character varying(50) NOT NULL,
-    run_on timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
-
-
---
 -- Name: account; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2284,14 +2274,6 @@ CREATE TABLE public.work_relation_history (
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
-
-
---
--- Name: __diesel_schema_migrations __diesel_schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.__diesel_schema_migrations
-    ADD CONSTRAINT __diesel_schema_migrations_pkey PRIMARY KEY (version);
 
 
 --
