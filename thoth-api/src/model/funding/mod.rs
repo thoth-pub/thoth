@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::model::institution::Institution;
-use crate::model::work::WorkWithRelations;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::funding;
@@ -41,26 +39,6 @@ pub struct Funding {
     pub jurisdiction: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct FundingWithInstitution {
-    pub funding_id: Uuid,
-    pub work_id: Uuid,
-    pub institution_id: Uuid,
-    pub program: Option<String>,
-    pub project_name: Option<String>,
-    pub project_shortname: Option<String>,
-    pub grant_number: Option<String>,
-    pub jurisdiction: Option<String>,
-    pub institution: Institution,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct FundingWithWork {
-    pub work: WorkWithRelations,
 }
 
 #[cfg_attr(

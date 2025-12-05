@@ -2,12 +2,14 @@ use crate::marc21::{Marc21Field, MARC_ORGANIZATION_CODE};
 use cc_license::License;
 use chrono::{Datelike, Utc};
 use marc::{DescriptiveCatalogingForm, EncodingLevel, FieldRepr, Record, RecordBuilder};
+use thoth_api::ast::{ast_to_plain_text, jats_to_ast};
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
-    LanguageRelation, RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues,
-    WorkLanguages, WorkPublications, WorkRelations, WorkSubjects, WorkType,
+    AbstractType, LanguageRelation, RelationType, SubjectType, Work, WorkContributions,
+    WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkRelations, WorkSubjects,
+    WorkType,
 };
 use thoth_errors::{ThothError, ThothResult};
 
@@ -191,16 +193,21 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             true => "1",
             false => "0",
         };
-        let nonfiling_char_count = nonfiling_char_count(&self.title, &language);
+        let nonfiling_char_count = nonfiling_char_count(&self.titles[0].title, &language);
         let mut title_field =
-            FieldRepr::from((b"245", format!("{}{}", added_entry, nonfiling_char_count)));
-        if let Some(subtitle) = self.subtitle.clone() {
+            FieldRepr::from((b"245", format!("{added_entry}{nonfiling_char_count}")));
+        if let Some(subtitle) = self.titles[0].subtitle.clone() {
             title_field = title_field
-                .add_subfield(b"a", format!("{} :", self.title.clone()).as_bytes())
-                .and_then(|f| f.add_subfield(b"b", format!("{} /", subtitle).as_bytes()))?;
+                .add_subfield(
+                    b"a",
+                    format!("{} :", self.titles[0].title.clone()).as_bytes(),
+                )
+                .and_then(|f| f.add_subfield(b"b", format!("{subtitle} /").as_bytes()))?;
         } else {
-            title_field =
-                title_field.add_subfield(b"a", format!("{} /", self.title.clone()).as_bytes())?;
+            title_field = title_field.add_subfield(
+                b"a",
+                format!("{} /", self.titles[0].title.clone()).as_bytes(),
+            )?;
         }
         title_field
             .add_subfield(b"c", contributors_string(&self.contributions).as_bytes())
@@ -222,7 +229,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
                         3 if edition % 100 != 13 => "rd",
                         _ => "th",
                     };
-                    Some(format!("{}{} edition.", edition, suffix))
+                    Some(format!("{edition}{suffix} edition."))
                 }
             } {
                 FieldRepr::from((b"250", "\\\\"))
@@ -235,7 +242,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         let year = publication_date.year().to_string();
         if let Some(place) = self.place.clone() {
             FieldRepr::from((b"264", "\\1"))
-                .add_subfield(b"a", format!("{} :", place).into_bytes())
+                .add_subfield(b"a", format!("{place} :").into_bytes())
                 .and_then(|f| {
                     f.add_subfield(
                         b"b",
@@ -246,7 +253,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
                 .and_then(|f| builder.add_field(f))?;
         }
         FieldRepr::from((b"264", "\\4"))
-            .add_subfield(b"c", format!("©{}", year).into_bytes())
+            .add_subfield(b"c", format!("©{year}").into_bytes())
             .and_then(|f| builder.add_field(f))?;
 
         // 300 - extent and physical description
@@ -329,8 +336,16 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
                 .and_then(|f| builder.add_field(f))?;
         }
 
-        // 520 - abstract
-        if let Some(mut long_abstract) = self.long_abstract.clone() {
+        // 520 - abstract (canonical only, converted from JATS to plaintext)
+        if let Some(r#abstract) = self
+            .abstracts
+            .iter()
+            .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
+        {
+            // Convert JATS XML to plaintext: JATS → AST → Plain text
+            let ast = jats_to_ast(&r#abstract.content);
+            let plaintext = ast_to_plain_text(&ast);
+            let mut long_abstract = plaintext;
             // Strip out formatting marks as these may stop records loading successfully
             long_abstract.retain(|c| c != '\n' && c != '\r' && c != '\t');
             FieldRepr::from((b"520", "\\\\"))
@@ -465,10 +480,8 @@ fn contributor_fields(contributions: &[WorkContributions]) -> ThothResult<Vec<Fi
             .join(", ");
 
         let mut contributor_field = FieldRepr::from((field_code, indicator.as_str()));
-        contributor_field =
-            contributor_field.add_subfield(b"a", format!("{},", name).as_bytes())?;
-        contributor_field =
-            contributor_field.add_subfield(b"e", format!("{}.", roles).as_bytes())?;
+        contributor_field = contributor_field.add_subfield(b"a", format!("{name},").as_bytes())?;
+        contributor_field = contributor_field.add_subfield(b"e", format!("{roles}.").as_bytes())?;
         if let Some(affiliation) = &contributions.first().unwrap().affiliations.first() {
             contributor_field = contributor_field.add_subfield(
                 b"u",
@@ -573,7 +586,7 @@ fn toc_field(relations: &[WorkRelations]) -> ThothResult<FieldRepr> {
     let mut toc_field: FieldRepr = FieldRepr::from((b"505", "00"));
     let mut separator = " --";
     while let Some(chapter) = chapter_list.next() {
-        let chapter_title = &chapter.related_work.full_title;
+        let chapter_title = &chapter.related_work.titles[0].full_title;
         let chapter_pages = &chapter.related_work.page_interval;
         let chapter_authors = chapter
             .related_work
@@ -587,7 +600,7 @@ fn toc_field(relations: &[WorkRelations]) -> ThothResult<FieldRepr> {
             separator = ".";
         }
         if !chapter_authors.is_empty() {
-            toc_field = toc_field.add_subfield(b"t", format!("{} /", chapter_title))?;
+            toc_field = toc_field.add_subfield(b"t", format!("{chapter_title} /"))?;
             if chapter_pages.is_some() {
                 toc_field = toc_field.add_subfield(b"r", chapter_authors)?;
                 toc_field = toc_field.add_subfield(
@@ -596,7 +609,7 @@ fn toc_field(relations: &[WorkRelations]) -> ThothResult<FieldRepr> {
                 )?;
             } else {
                 toc_field =
-                    toc_field.add_subfield(b"r", format!("{}{}", chapter_authors, separator))?;
+                    toc_field.add_subfield(b"r", format!("{chapter_authors}{separator}"))?;
             }
         } else if chapter_pages.is_some() {
             toc_field = toc_field.add_subfield(b"t", chapter_title)?;
@@ -605,7 +618,7 @@ fn toc_field(relations: &[WorkRelations]) -> ThothResult<FieldRepr> {
                 format!("(pp{}){}", chapter_pages.as_ref().unwrap(), separator),
             )?;
         } else {
-            toc_field = toc_field.add_subfield(b"t", format!("{}{}", chapter_title, separator))?;
+            toc_field = toc_field.add_subfield(b"t", format!("{chapter_title}{separator}"))?;
         }
     }
     Ok(toc_field)
@@ -621,7 +634,7 @@ impl Marc21Field<Marc21RecordThoth> for WorkPublications {
             };
             FieldRepr::from((b"020", "\\\\"))
                 .add_subfield(identifier, isbn.to_hyphenless_string().as_bytes())
-                .and_then(|f| f.add_subfield(b"q", format!("({})", publication_type)))
+                .and_then(|f| f.add_subfield(b"q", format!("({publication_type})")))
                 .and_then(|f| builder.add_field(f))?;
         }
         Ok(())
@@ -700,8 +713,8 @@ impl Marc21Field<Marc21RecordThoth> for WorkSubjects {
 
 fn description_string(work: &Work) -> (String, Option<String>) {
     let description = match (work.page_breakdown.as_ref(), work.page_count) {
-        (Some(breakdown), _) => format!("1 online resource ({} pages)", breakdown),
-        (_, Some(count)) => format!("1 online resource ({} pages)", count),
+        (Some(breakdown), _) => format!("1 online resource ({breakdown} pages)"),
+        (_, Some(count)) => format!("1 online resource ({count} pages)"),
         _ => "1 online resource".to_string(),
     };
 
@@ -751,11 +764,11 @@ fn contributors_string(contributions: &[WorkContributions]) -> String {
 
         let type_string = match contribution_type {
             ContributionType::Author => names,
-            ContributionType::Editor => format!("edited by {}", names),
-            ContributionType::Translator => format!("translated by {}", names),
-            ContributionType::Photographer => format!("photography by {}", names),
-            ContributionType::Illustrator => format!("illustrations by {}", names),
-            ContributionType::MusicEditor => format!("music edited by {}", names),
+            ContributionType::Editor => format!("edited by {names}"),
+            ContributionType::Translator => format!("translated by {names}"),
+            ContributionType::Photographer => format!("photography by {names}"),
+            ContributionType::Illustrator => format!("illustrations by {names}"),
+            ContributionType::MusicEditor => format!("music edited by {names}"),
             _ => format!("{} {}", contribution_type.to_string().to_lowercase(), names),
         };
         type_strings.push(type_string);
@@ -800,9 +813,22 @@ pub(crate) mod tests {
         Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
+            abstracts: vec![thoth_client::WorkAbstracts {
+                abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                content: "<p>Lorem\tipsum\r\ndolor sit amet</p>".to_string(),
+                locale_code: thoth_client::LocaleCode::EN,
+                abstract_type: thoth_client::AbstractType::LONG,
+                canonical: true,
+            }],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(2),
@@ -811,8 +837,6 @@ pub(crate) mod tests {
             withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: None,
-            short_abstract: None,
-            long_abstract: Some("Lorem\tipsum\r\ndolor sit amet".to_string()),
             general_note: Some(
                 "Please note that in this book the mathematical formulas are encoded in MathML."
                     .to_string(),
@@ -864,7 +888,7 @@ pub(crate) mod tests {
                     last_name: "Author".to_string(),
                     full_name: "Sole Author".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(
@@ -889,7 +913,7 @@ pub(crate) mod tests {
                     last_name: "Editor".to_string(),
                     full_name: "Only Editor".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
                         orcid: Some(
@@ -905,7 +929,7 @@ pub(crate) mod tests {
                     last_name: "Translator".to_string(),
                     full_name: "Translator".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 3,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -1053,7 +1077,7 @@ pub(crate) mod tests {
             last_name: "".to_string(),
             full_name: "".to_string(),
             main_contribution: true,
-            biography: None,
+            biographies: vec![],
             contribution_ordinal: 1,
             contributor: WorkContributionsContributor {
                 orcid: None,
@@ -1069,17 +1093,21 @@ pub(crate) mod tests {
             relation_ordinal: 1,
             related_work: WorkRelationsRelatedWork {
                 work_status: WorkStatus::ACTIVE,
-                full_title: "Chapter One".to_string(),
-                title: "N/A".to_string(),
-                subtitle: None,
+                titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                    title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    full_title: "Chapter One".to_string(),
+                    title: "N/A".to_string(),
+                    subtitle: None,
+                    canonical: true,
+                }],
+                abstracts: vec![],
                 edition: None,
                 doi: None,
                 publication_date: None,
                 withdrawn_date: None,
                 license: None,
                 copyright_holder: None,
-                short_abstract: None,
-                long_abstract: None,
                 general_note: None,
                 place: None,
                 first_page: None,
@@ -1098,7 +1126,7 @@ pub(crate) mod tests {
                     first_name: Some("Chapter-One".to_string()),
                     last_name: "Author".to_string(),
                     full_name: "Chapter-One Author".to_string(),
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 1,
                     contributor: WorkRelationsRelatedWorkContributionsContributor {
                         orcid: None,
@@ -1633,7 +1661,7 @@ pub(crate) mod tests {
     fn test_toc_field_two_chapters_one_author_each() {
         let mut second_relation = test_relation();
         second_relation.relation_ordinal = 2;
-        second_relation.related_work.full_title = "Chapter Two".to_string();
+        second_relation.related_work.titles[0].full_title = "Chapter Two".to_string();
         second_relation.related_work.contributions[0].full_name = "Chapter-Two Author".to_string();
         // Place in reverse order and test correct re-ordering
         let relations = vec![second_relation, test_relation()];
@@ -1652,7 +1680,7 @@ pub(crate) mod tests {
         first_relation.related_work.contributions.clear();
         let mut second_relation = test_relation();
         second_relation.relation_ordinal = 2;
-        second_relation.related_work.full_title = "Chapter Two".to_string();
+        second_relation.related_work.titles[0].full_title = "Chapter Two".to_string();
         second_relation.related_work.contributions.clear();
         let relations = vec![first_relation, second_relation];
         let expected = Ok(FieldRepr::from((b"505", "00"))
@@ -1669,7 +1697,7 @@ pub(crate) mod tests {
         first_relation.related_work.contributions.clear();
         let mut second_relation = test_relation();
         second_relation.relation_ordinal = 2;
-        second_relation.related_work.full_title = "Chapter Two".to_string();
+        second_relation.related_work.titles[0].full_title = "Chapter Two".to_string();
         second_relation.related_work.page_interval = Some("20–30".to_string());
         second_relation.related_work.contributions.clear();
         let relations = vec![first_relation, second_relation];

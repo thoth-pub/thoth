@@ -6,10 +6,11 @@ use crate::graphql::model::TimeExpression;
 use crate::graphql::utils::{Direction, Expression};
 use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderBy};
 use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
-use crate::schema::{work, work_history};
+use crate::schema::{work, work_abstract, work_history, work_title};
 use crate::{apply_time_filter, crud_methods, db_insert};
 use diesel::{
-    BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
+    BoolExpressionMethods, ExpressionMethods, JoinOnDsl, PgTextExpressionMethods, QueryDsl,
+    RunQueryDsl,
 };
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -135,6 +136,16 @@ impl Crud for Work {
         let mut connection = db.get()?;
         let mut query = dsl::work
             .inner_join(crate::schema::imprint::table)
+            .left_join(
+                work_title::table.on(work_title::work_id
+                    .eq(dsl::work_id)
+                    .and(work_title::canonical.eq(true))),
+            )
+            .left_join(
+                work_abstract::table.on(work_abstract::work_id
+                    .eq(dsl::work_id)
+                    .and(work_abstract::canonical.eq(true))),
+            )
             .select(crate::schema::work::all_columns)
             .into_boxed();
 
@@ -152,16 +163,16 @@ impl Crud for Work {
                 Direction::Desc => query.order(dsl::work_status.desc()),
             },
             WorkField::FullTitle => match order.direction {
-                Direction::Asc => query.order(dsl::full_title.asc()),
-                Direction::Desc => query.order(dsl::full_title.desc()),
+                Direction::Asc => query.order(work_title::full_title.asc()),
+                Direction::Desc => query.order(work_title::full_title.desc()),
             },
             WorkField::Title => match order.direction {
-                Direction::Asc => query.order(dsl::title.asc()),
-                Direction::Desc => query.order(dsl::title.desc()),
+                Direction::Asc => query.order(work_title::title.asc()),
+                Direction::Desc => query.order(work_title::title.desc()),
             },
             WorkField::Subtitle => match order.direction {
-                Direction::Asc => query.order(dsl::subtitle.asc()),
-                Direction::Desc => query.order(dsl::subtitle.desc()),
+                Direction::Asc => query.order(work_title::subtitle.asc()),
+                Direction::Desc => query.order(work_title::subtitle.desc()),
             },
             WorkField::Reference => match order.direction {
                 Direction::Asc => query.order(dsl::reference.asc()),
@@ -244,12 +255,12 @@ impl Crud for Work {
                 Direction::Desc => query.order(dsl::oclc.desc()),
             },
             WorkField::ShortAbstract => match order.direction {
-                Direction::Asc => query.order(dsl::short_abstract.asc()),
-                Direction::Desc => query.order(dsl::short_abstract.desc()),
+                Direction::Asc => query.order(work_abstract::content.asc()),
+                Direction::Desc => query.order(work_abstract::content.desc()),
             },
             WorkField::LongAbstract => match order.direction {
-                Direction::Asc => query.order(dsl::long_abstract.asc()),
-                Direction::Desc => query.order(dsl::long_abstract.desc()),
+                Direction::Asc => query.order(work_abstract::content.asc()),
+                Direction::Desc => query.order(work_abstract::content.desc()),
             },
             WorkField::GeneralNote => match order.direction {
                 Direction::Asc => query.order(dsl::general_note.asc()),
@@ -311,14 +322,25 @@ impl Crud for Work {
         );
 
         if let Some(filter) = filter {
+            let title_work_ids = work_title::table
+                .filter(work_title::full_title.ilike(format!("%{filter}%")))
+                .select(work_title::work_id)
+                .load::<Uuid>(&mut connection)?;
+
+            let abstract_work_ids = work_abstract::table
+                .filter(work_abstract::content.ilike(format!("%{filter}%")))
+                .select(work_abstract::work_id)
+                .load::<Uuid>(&mut connection)?;
+
             query = query.filter(
-                dsl::full_title
+                dsl::doi
                     .ilike(format!("%{filter}%"))
                     .or(dsl::doi.ilike(format!("%{filter}%")))
                     .or(dsl::reference.ilike(format!("%{filter}%")))
-                    .or(dsl::short_abstract.ilike(format!("%{filter}%")))
-                    .or(dsl::long_abstract.ilike(format!("%{filter}%")))
-                    .or(dsl::landing_page.ilike(format!("%{filter}%"))),
+                    .or(dsl::landing_page.ilike(format!("%{filter}%")))
+                    .or(dsl::work_id
+                        .eq_any(title_work_ids)
+                        .or(dsl::work_id.eq_any(abstract_work_ids))),
             );
         }
         query
@@ -367,14 +389,23 @@ impl Crud for Work {
         );
 
         if let Some(filter) = filter {
+            let title_work_ids = work_title::table
+                .filter(work_title::full_title.ilike(format!("%{filter}%")))
+                .select(work_title::work_id)
+                .load::<Uuid>(&mut connection)?;
+
+            let abstract_work_ids = work_abstract::table
+                .filter(work_abstract::content.ilike(format!("%{filter}%")))
+                .select(work_abstract::work_id)
+                .load::<Uuid>(&mut connection)?;
+
             query = query.filter(
-                dsl::full_title
+                dsl::doi
                     .ilike(format!("%{filter}%"))
-                    .or(dsl::doi.ilike(format!("%{filter}%")))
                     .or(dsl::reference.ilike(format!("%{filter}%")))
-                    .or(dsl::short_abstract.ilike(format!("%{filter}%")))
-                    .or(dsl::long_abstract.ilike(format!("%{filter}%")))
-                    .or(dsl::landing_page.ilike(format!("%{filter}%"))),
+                    .or(dsl::landing_page.ilike(format!("%{filter}%")))
+                    .or(dsl::work_id.eq_any(title_work_ids))
+                    .or(dsl::work_id.eq_any(abstract_work_ids)),
             );
         }
 

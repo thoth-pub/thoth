@@ -6,7 +6,6 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
-use crate::model::publisher::Publisher;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::imprint;
@@ -45,17 +44,6 @@ pub struct Imprint {
     pub crossmark_doi: Option<Doi>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct ImprintWithPublisher {
-    pub imprint_id: Uuid,
-    pub imprint_name: String,
-    pub imprint_url: Option<String>,
-    pub crossmark_doi: Option<Doi>,
-    pub updated_at: Timestamp,
-    pub publisher: Publisher,
 }
 
 #[cfg_attr(

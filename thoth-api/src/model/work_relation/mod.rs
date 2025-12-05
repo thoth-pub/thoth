@@ -4,7 +4,6 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
-use crate::model::work::Work;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::work_relation;
@@ -120,17 +119,6 @@ pub struct WorkRelation {
     pub updated_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkRelationWithRelatedWork {
-    pub work_relation_id: Uuid,
-    pub relator_work_id: Uuid,
-    pub related_work_id: Uuid,
-    pub relation_type: RelationType,
-    pub relation_ordinal: i32,
-    pub related_work: Work,
-}
-
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
@@ -201,19 +189,6 @@ impl RelationType {
             RelationType::IsTranslationOf => RelationType::HasTranslation,
             RelationType::IsPartOf => RelationType::HasPart,
             RelationType::IsChildOf => RelationType::HasChild,
-        }
-    }
-}
-
-impl Default for WorkRelationWithRelatedWork {
-    fn default() -> WorkRelationWithRelatedWork {
-        WorkRelationWithRelatedWork {
-            work_relation_id: Default::default(),
-            relator_work_id: Default::default(),
-            related_work_id: Default::default(),
-            relation_type: Default::default(),
-            relation_ordinal: 1,
-            related_work: Default::default(),
         }
     }
 }

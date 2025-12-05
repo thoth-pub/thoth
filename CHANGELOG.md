@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+- [689](https://github.com/thoth-pub/thoth/issues/689) - Move `Work.fullTitle`, `Work.title` and `Work.subtitle` into a dedicated `Title` table, supporting multilingual and rich text fields
+- [689](https://github.com/thoth-pub/thoth/issues/689) - Move `Work.shortAbstract` and `Work.longAbstract` into a dedicated `Abstract` table with `abstractType`, supporting multilingual and rich text fields
+- [689](https://github.com/thoth-pub/thoth/issues/689) - Move `Contribution.biography` into a dedicated `Biography` table, supporting multilingual and rich text fields
+- [689](https://github.com/thoth-pub/thoth/issues/689) - Store all rich text fields internally as JATS XML, supporting conversion to/from HTML, Markdown, and plain text
+- [689](https://github.com/thoth-pub/thoth/issues/689) - Mark existing GraphQL fields as deprecated and return only the canonical version
+
 ### Added
   - [711](https://github.com/thoth-pub/thoth/pull/711) - Allow filtering work queries by publication date
   - [715](https://github.com/thoth-pub/thoth/pull/715) - Support reordering items which have ordinals
@@ -17,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [[0.13.15]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.15) - 2025-12-03
 ### Changed
-  - [#717](https://github.com/thoth-pub/thoth/pull/717) - Update Thema codes to v1.6
+- [#717](https://github.com/thoth-pub/thoth/pull/717) - Update Thema codes to v1.6
 
 ## [[0.13.14]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.14) - 2025-10-14
 ### Changed
