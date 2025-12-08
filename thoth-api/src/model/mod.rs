@@ -598,14 +598,19 @@ macro_rules! db_change_ordinal {
             account_id: &Uuid,
         ) -> ThothResult<Self> {
             let mut connection = db.get()?;
-            let other_objects = self.get_other_objects(&mut connection)?;
             // Execute all updates within the same transaction,
             // because if one fails, the others need to be reverted.
             connection.transaction(|connection| {
                 if current_ordinal == new_ordinal {
-                    // No change required. Caller should have checked this.
+                    // No change required.
                     return ThothResult::Ok(self.clone());
                 }
+
+                // Fetch all other objects in the same transactional snapshot
+                let mut other_objects = self.get_other_objects(connection)?;
+                // Ensure a deterministic order to avoid deadlocks
+                other_objects.sort_by_key(|(_, ordinal)| *ordinal);
+
                 diesel::sql_query(format!("SET CONSTRAINTS {} DEFERRED", $constraint_name))
                     .execute(connection)?;
                 for (id, ordinal) in other_objects {
