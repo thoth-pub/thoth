@@ -5,7 +5,6 @@ use crate::graphql::model::SubjectOrderBy;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{subject, subject_history};
-use crate::{crud_methods, db_change_ordinal, db_insert};
 use diesel::{
     BoolExpressionMethods, Connection, ExpressionMethods, PgTextExpressionMethods, QueryDsl,
     RunQueryDsl,

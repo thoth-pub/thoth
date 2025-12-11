@@ -3,7 +3,6 @@ use crate::graphql::model::IssueOrderBy;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{issue, issue_history};
-use crate::{crud_methods, db_change_ordinal, db_insert};
 use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
