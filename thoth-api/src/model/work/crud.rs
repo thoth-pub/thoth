@@ -7,7 +7,6 @@ use crate::graphql::utils::{Direction, Expression};
 use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderBy};
 use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
 use crate::schema::{work, work_history};
-use crate::{apply_time_filter, crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
