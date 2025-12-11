@@ -5,7 +5,6 @@ use super::{
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{work_relation, work_relation_history};
-use crate::{db_change_ordinal, db_insert};
 use diesel::{
     dsl::max, sql_query, sql_types::Text, BoolExpressionMethods, Connection, ExpressionMethods,
     QueryDsl, RunQueryDsl,
