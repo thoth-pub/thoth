@@ -6,8 +6,10 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{work_relation, work_relation_history};
 use crate::{db_change_ordinal, db_insert};
-use diesel::dsl::max;
-use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{
+    dsl::max, sql_query, sql_types::Text, BoolExpressionMethods, Connection, ExpressionMethods,
+    QueryDsl, RunQueryDsl,
+};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
@@ -129,30 +131,43 @@ impl Crud for WorkRelation {
         // For each Relator - Relationship - Related record we create, we must also
         // create the corresponding Related - InverseRelationship - Relator record.
         let mut connection = db.get()?;
-        // We need to determine an appropriate relation_ordinal for the inverse record.
-        // Find the current highest ordinal for the relevant work and type.
-        // This will return `None` if no records with this work and type already exist.
-        let max_inverse_ordinal = work_relation::table
-            .select(max(work_relation::relation_ordinal))
-            .filter(
-                work_relation::relator_work_id
-                    .eq(data.related_work_id)
-                    .and(work_relation::relation_type.eq(data.relation_type.convert_to_inverse())),
-            )
-            .get_result::<Option<i32>>(&mut connection)
-            .expect("Error loading work relation ordinal values");
-        let inverse_data = NewWorkRelation {
-            relator_work_id: data.related_work_id,
-            related_work_id: data.relator_work_id,
-            relation_type: data.relation_type.convert_to_inverse(),
-            // Set the ordinal based on the current highest ordinal for this work and type
-            // (defaulting to 1 if none exists). Note that user-entered ordinal sequences
-            // may contain 'holes' and this will not fill them.
-            relation_ordinal: max_inverse_ordinal.unwrap_or_default() + 1,
-        };
         // Execute both creations within the same transaction,
         // because if one fails, both need to be reverted.
         connection.transaction(|connection| {
+            // Take a transaction-level advisory lock to serialise ordinal assignment
+            // for this (relator_work, relation_type) pair. We build a stable string key
+            // from the related work ID and the inverse relation type, and let Postgres
+            // hash it to an integer for the lock.
+            sql_query("SELECT pg_advisory_xact_lock(hashtext($1))")
+                .bind::<Text, _>(format!(
+                    "{}|{:?}",
+                    data.related_work_id,
+                    data.relation_type.convert_to_inverse()
+                ))
+                .execute(connection)?;
+
+            // We need to determine an appropriate relation_ordinal for the inverse record.
+            // Find the current highest ordinal for the relevant work and type.
+            // This will return `None` if no records with this work and type already exist.
+            let max_inverse_ordinal =
+                work_relation::table
+                    .select(max(work_relation::relation_ordinal))
+                    .filter(work_relation::relator_work_id.eq(data.related_work_id).and(
+                        work_relation::relation_type.eq(data.relation_type.convert_to_inverse()),
+                    ))
+                    .get_result::<Option<i32>>(connection)
+                    .expect("Error loading work relation ordinal values");
+
+            let inverse_data = NewWorkRelation {
+                relator_work_id: data.related_work_id,
+                related_work_id: data.relator_work_id,
+                relation_type: data.relation_type.convert_to_inverse(),
+                // Set the ordinal based on the current highest ordinal for this work and type
+                // (defaulting to 1 if none exists). Note that user-entered ordinal sequences
+                // may contain 'holes' and this will not fill them.
+                relation_ordinal: max_inverse_ordinal.unwrap_or_default() + 1,
+            };
+
             diesel::insert_into(work_relation::table)
                 .values(&inverse_data)
                 .execute(connection)?;
