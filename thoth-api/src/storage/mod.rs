@@ -53,11 +53,20 @@ impl StorageConfig {
 /// Create an S3 client configured for the given region
 #[cfg(feature = "backend")]
 pub async fn create_s3_client(region: &str) -> S3Client {
+    eprintln!("S3_DEBUG: Creating S3 client for region: {}", region);
+
     let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
         .region(Region::new(region.to_string()))
         .load()
         .await;
-    S3Client::new(&config)
+
+    // Create S3 client with path-style addressing
+    let s3_config = aws_sdk_s3::config::Builder::from(&config)
+        .force_path_style(true)
+        .build();
+
+    eprintln!("S3_DEBUG: S3 client created with path-style addressing");
+    S3Client::from_conf(s3_config)
 }
 
 /// Create a CloudFront client
@@ -81,6 +90,7 @@ pub async fn presign_put_for_upload(
     declared_sha256: &str,
     expires_in_minutes: u64,
 ) -> ThothResult<String> {
+    eprintln!("PRESIGN_DEBUG: Creating presigned URL for bucket: {}, key: {}", bucket, temp_key);
     use base64::{engine::general_purpose, Engine as _};
 
     // Convert hex SHA-256 to base64
@@ -98,14 +108,19 @@ pub async fn presign_put_for_upload(
         .bucket(bucket)
         .key(temp_key)
         .content_type(declared_mime_type)
-        .checksum_sha256(&sha256_base64)
+        .checksum_sha256(sha256_base64)
         .checksum_algorithm(ChecksumAlgorithm::Sha256);
 
     // Presign the request
+    println!("DEBUG: About to presign request...");
     let presigned_request = request
         .presigned(presigning_config)
         .await
-        .map_err(|e| ThothError::InternalError(format!("Failed to presign request: {}", e)))?;
+        .map_err(|e| {
+            eprintln!("PRESIGN_DEBUG: Presigning failed with error: {:?}", e);
+            eprintln!("PRESIGN_DEBUG: Bucket: {}, Key: {}", bucket, temp_key);
+            ThothError::InternalError(format!("Failed to presign request: {}", e))
+        })?;
 
     Ok(presigned_request.uri().to_string())
 }
@@ -221,7 +236,7 @@ pub fn temp_key(file_upload_id: &Uuid) -> String {
 #[cfg(feature = "backend")]
 pub fn canonical_publication_key(doi_prefix: &str, doi_suffix: &str, extension: &str) -> String {
     format!(
-        "/{}/{}.{}",
+        "{}/{}.{}",
         doi_prefix.to_lowercase(),
         doi_suffix.to_lowercase(),
         extension.to_lowercase()
@@ -232,7 +247,7 @@ pub fn canonical_publication_key(doi_prefix: &str, doi_suffix: &str, extension: 
 #[cfg(feature = "backend")]
 pub fn canonical_frontcover_key(doi_prefix: &str, doi_suffix: &str, extension: &str) -> String {
     format!(
-        "/{}/{}_frontcover.{}",
+        "{}/{}_frontcover.{}",
         doi_prefix.to_lowercase(),
         doi_suffix.to_lowercase(),
         extension.to_lowercase()
@@ -242,8 +257,9 @@ pub fn canonical_frontcover_key(doi_prefix: &str, doi_suffix: &str, extension: &
 /// Build the full CDN URL from domain and object key
 #[cfg(feature = "backend")]
 pub fn build_cdn_url(cdn_domain: &str, object_key: &str) -> String {
-    // Ensure cdn_domain doesn't end with / and object_key starts with /
+    // Ensure cdn_domain doesn't end with / and object_key doesn't have a leading /
     let domain = cdn_domain.trim_end_matches('/');
-    format!("https://{}{}", domain, object_key)
+    let key = object_key.trim_start_matches('/');
+    format!("https://{}/{}", domain, key)
 }
 

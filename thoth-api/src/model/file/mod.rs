@@ -154,7 +154,15 @@ pub fn parse_doi(doi: &Doi) -> ThothResult<(String, String)> {
     // DOI format: https://doi.org/10.XXXX/SUFFIX
     // We need to extract 10.XXXX (prefix) and SUFFIX
     let doi_str = doi.to_lowercase_string();
-    let parts: Vec<&str> = doi_str.splitn(2, '/').collect();
+    // Remove the https://doi.org/ prefix if present
+    let doi_path = if doi_str.starts_with("https://doi.org/") {
+        doi_str.strip_prefix("https://doi.org/").unwrap()
+    } else if doi_str.starts_with("http://doi.org/") {
+        doi_str.strip_prefix("http://doi.org/").unwrap()
+    } else {
+        &doi_str
+    };
+    let parts: Vec<&str> = doi_path.splitn(2, '/').collect();
     if parts.len() != 2 {
         return Err(ThothError::InternalError(format!("Invalid DOI format: {}", doi_str)));
     }
@@ -181,16 +189,36 @@ pub fn validate_file_extension(
         }
         FileType::Publication => {
             if let Some(pub_type) = publication_type {
-                let valid_extensions = match pub_type {
+                let valid_extensions: Vec<&str> = match pub_type {
+                    // PDF
                     PublicationType::Pdf => vec!["pdf"],
+                    // EPUB
                     PublicationType::Epub => vec!["epub"],
+                    // HTML (including HTM and ZIP archives containing HTML)
+                    PublicationType::Html => vec!["html", "htm", "zip"],
+                    // XML (including ZIP archives containing XML)
                     PublicationType::Xml => vec!["xml", "zip"],
-                    PublicationType::Html => vec!["html"],
+                    // DOCX
+                    PublicationType::Docx => vec!["docx"],
+                    // MOBI
                     PublicationType::Mobi => vec!["mobi"],
+                    // AZW3
                     PublicationType::Azw3 => vec!["azw3"],
-                    _ => return Err(ThothError::InternalError(
-                        format!("File uploads not supported for publication type: {:?}", pub_type)
-                    )),
+                    // FictionBook: fb2, fbz, or ZIP archive (fb2.zip -> "zip")
+                    PublicationType::FictionBook => vec!["fb2", "fbz", "zip"],
+                    // MP3 audiobook
+                    PublicationType::Mp3 => vec!["mp3"],
+                    // WAV audiobook
+                    PublicationType::Wav => vec!["wav"],
+                    // Other types are not yet supported for uploads
+                    _ => {
+                        return Err(ThothError::InternalError(
+                            format!(
+                                "File uploads not supported for publication type: {:?}",
+                                pub_type
+                            ),
+                        ))
+                    }
                 };
                 if !valid_extensions.contains(&extension.to_lowercase().as_str()) {
                     return Err(ThothError::InternalError(
