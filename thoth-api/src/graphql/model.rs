@@ -234,7 +234,7 @@ impl QueryRoot {
             publication_date,
             updated_at_with_relations,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single work using its ID")]
@@ -242,7 +242,7 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth work ID to search on")] work_id: Uuid,
     ) -> FieldResult<Work> {
-        Work::from_id(&context.db, &work_id).map_err(|e| e.into())
+        Work::from_id(&context.db, &work_id).map_err(Into::into)
     }
 
     #[graphql(description = "Query a single work using its DOI")]
@@ -250,7 +250,7 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Work DOI to search on")] doi: Doi,
     ) -> FieldResult<Work> {
-        Work::from_doi(&context.db, doi, vec![]).map_err(|e| e.into())
+        Work::from_doi(&context.db, doi, vec![]).map_err(Into::into)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -302,7 +302,7 @@ impl QueryRoot {
             publication_date,
             updated_at_with_relations,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -366,7 +366,7 @@ impl QueryRoot {
             publication_date,
             updated_at_with_relations,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single book using its DOI")]
@@ -384,7 +384,7 @@ impl QueryRoot {
                 WorkType::JournalIssue,
             ],
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(
@@ -437,7 +437,7 @@ impl QueryRoot {
             publication_date,
             updated_at_with_relations,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -496,7 +496,7 @@ impl QueryRoot {
             publication_date,
             updated_at_with_relations,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single chapter using its DOI")]
@@ -504,7 +504,7 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Chapter DOI to search on")] doi: Doi,
     ) -> FieldResult<Work> {
-        Work::from_doi(&context.db, doi, vec![WorkType::BookChapter]).map_err(|e| e.into())
+        Work::from_doi(&context.db, doi, vec![WorkType::BookChapter]).map_err(Into::into)
     }
 
     #[graphql(
@@ -552,7 +552,7 @@ impl QueryRoot {
             publication_date,
             updated_at_with_relations,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of publications")]
@@ -595,7 +595,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single publication using its ID")]
@@ -603,7 +603,7 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth publication ID to search on")] publication_id: Uuid,
     ) -> FieldResult<Publication> {
-        Publication::from_id(&context.db, &publication_id).map_err(|e| e.into())
+        Publication::from_id(&context.db, &publication_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of publications")]
@@ -634,7 +634,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of publishers")]
@@ -672,7 +672,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single publisher using its ID")]
@@ -680,7 +680,7 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth publisher ID to search on")] publisher_id: Uuid,
     ) -> FieldResult<Publisher> {
-        Publisher::from_id(&context.db, &publisher_id).map_err(|e| e.into())
+        Publisher::from_id(&context.db, &publisher_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of publishers")]
@@ -706,7 +706,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of imprints")]
@@ -744,7 +744,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single imprint using its ID")]
@@ -752,7 +752,7 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth imprint ID to search on")] imprint_id: Uuid,
     ) -> FieldResult<Imprint> {
-        Imprint::from_id(&context.db, &imprint_id).map_err(|e| e.into())
+        Imprint::from_id(&context.db, &imprint_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of imprints")]
@@ -778,7 +778,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of contributors")]
@@ -811,7 +811,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single contributor using its ID")]
@@ -819,7 +819,7 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth contributor ID to search on")] contributor_id: Uuid,
     ) -> FieldResult<Contributor> {
-        Contributor::from_id(&context.db, &contributor_id).map_err(|e| e.into())
+        Contributor::from_id(&context.db, &contributor_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of contributors")]
@@ -832,7 +832,7 @@ impl QueryRoot {
         filter: Option<String>,
     ) -> FieldResult<i32> {
         Contributor::count(&context.db, filter, vec![], vec![], vec![], None, None)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of contributions")]
@@ -870,7 +870,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single contribution using its ID")]
@@ -878,7 +878,7 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth contribution ID to search on")] contribution_id: Uuid,
     ) -> FieldResult<Contribution> {
-        Contribution::from_id(&context.db, &contribution_id).map_err(|e| e.into())
+        Contribution::from_id(&context.db, &contribution_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of contributions")]
@@ -899,7 +899,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of series")]
@@ -942,7 +942,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single series using its ID")]
@@ -950,7 +950,7 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth series ID to search on")] series_id: Uuid,
     ) -> FieldResult<Series> {
-        Series::from_id(&context.db, &series_id).map_err(|e| e.into())
+        Series::from_id(&context.db, &series_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of series")]
@@ -981,7 +981,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of issues")]
@@ -1014,7 +1014,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single issue using its ID")]
@@ -1022,12 +1022,12 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth issue ID to search on")] issue_id: Uuid,
     ) -> FieldResult<Issue> {
-        Issue::from_id(&context.db, &issue_id).map_err(|e| e.into())
+        Issue::from_id(&context.db, &issue_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of issues")]
     fn issue_count(context: &Context) -> FieldResult<i32> {
-        Issue::count(&context.db, None, vec![], vec![], vec![], None, None).map_err(|e| e.into())
+        Issue::count(&context.db, None, vec![], vec![], vec![], None, None).map_err(Into::into)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1079,7 +1079,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single language using its ID")]
@@ -1087,7 +1087,7 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth language ID to search on")] language_id: Uuid,
     ) -> FieldResult<Language> {
-        Language::from_id(&context.db, &language_id).map_err(|e| e.into())
+        Language::from_id(&context.db, &language_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of languages associated to works")]
@@ -1121,7 +1121,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of locations")]
@@ -1159,7 +1159,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single location using its ID")]
@@ -1167,7 +1167,7 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth location ID to search on")] location_id: Uuid,
     ) -> FieldResult<Location> {
-        Location::from_id(&context.db, &location_id).map_err(|e| e.into())
+        Location::from_id(&context.db, &location_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of locations associated to works")]
@@ -1188,7 +1188,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of prices")]
@@ -1226,7 +1226,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single price using its ID")]
@@ -1234,7 +1234,7 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth price ID to search on")] price_id: Uuid,
     ) -> FieldResult<Price> {
-        Price::from_id(&context.db, &price_id).map_err(|e| e.into())
+        Price::from_id(&context.db, &price_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of prices associated to works")]
@@ -1255,7 +1255,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of subjects")]
@@ -1298,7 +1298,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single subject using its ID")]
@@ -1306,7 +1306,7 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth subject ID to search on")] subject_id: Uuid,
     ) -> FieldResult<Subject> {
-        Subject::from_id(&context.db, &subject_id).map_err(|e| e.into())
+        Subject::from_id(&context.db, &subject_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of subjects associated to works")]
@@ -1332,7 +1332,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of institutions")]
@@ -1365,7 +1365,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single institution using its ID")]
@@ -1373,7 +1373,7 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth institution ID to search on")] institution_id: Uuid,
     ) -> FieldResult<Institution> {
-        Institution::from_id(&context.db, &institution_id).map_err(|e| e.into())
+        Institution::from_id(&context.db, &institution_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of institutions")]
@@ -1386,7 +1386,7 @@ impl QueryRoot {
         filter: Option<String>,
     ) -> FieldResult<i32> {
         Institution::count(&context.db, filter, vec![], vec![], vec![], None, None)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of fundings")]
@@ -1419,7 +1419,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single funding using its ID")]
@@ -1427,12 +1427,12 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth funding ID to search on")] funding_id: Uuid,
     ) -> FieldResult<Funding> {
-        Funding::from_id(&context.db, &funding_id).map_err(|e| e.into())
+        Funding::from_id(&context.db, &funding_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of funding instances associated to works")]
     fn funding_count(context: &Context) -> FieldResult<i32> {
-        Funding::count(&context.db, None, vec![], vec![], vec![], None, None).map_err(|e| e.into())
+        Funding::count(&context.db, None, vec![], vec![], vec![], None, None).map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of affiliations")]
@@ -1465,7 +1465,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single affiliation using its ID")]
@@ -1473,13 +1473,13 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth affiliation ID to search on")] affiliation_id: Uuid,
     ) -> FieldResult<Affiliation> {
-        Affiliation::from_id(&context.db, &affiliation_id).map_err(|e| e.into())
+        Affiliation::from_id(&context.db, &affiliation_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of affiliations")]
     fn affiliation_count(context: &Context) -> FieldResult<i32> {
         Affiliation::count(&context.db, None, vec![], vec![], vec![], None, None)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of references")]
@@ -1512,7 +1512,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single reference using its ID")]
@@ -1520,13 +1520,12 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth reference ID to search on")] reference_id: Uuid,
     ) -> FieldResult<Reference> {
-        Reference::from_id(&context.db, &reference_id).map_err(|e| e.into())
+        Reference::from_id(&context.db, &reference_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of references")]
     fn reference_count(context: &Context) -> FieldResult<i32> {
-        Reference::count(&context.db, None, vec![], vec![], vec![], None, None)
-            .map_err(|e| e.into())
+        Reference::count(&context.db, None, vec![], vec![], vec![], None, None).map_err(Into::into)
     }
 
     #[graphql(description = "Query a title by its ID")]
@@ -1782,7 +1781,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query a single contact using its ID")]
@@ -1790,7 +1789,7 @@ impl QueryRoot {
         context: &Context,
         #[graphql(description = "Thoth contact ID to search on")] contact_id: Uuid,
     ) -> FieldResult<Contact> {
-        Contact::from_id(&context.db, &contact_id).map_err(|e| e.into())
+        Contact::from_id(&context.db, &contact_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of contacts")]
@@ -1811,7 +1810,7 @@ impl QueryRoot {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 }
 
@@ -1831,7 +1830,7 @@ impl MutationRoot {
 
         data.validate()?;
 
-        Work::create(&context.db, &data).map_err(|e| e.into())
+        Work::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new publisher with the specified values")]
@@ -1845,7 +1844,7 @@ impl MutationRoot {
             return Err(ThothError::Unauthorised.into());
         }
 
-        Publisher::create(&context.db, &data).map_err(|e| e.into())
+        Publisher::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new imprint with the specified values")]
@@ -1856,7 +1855,7 @@ impl MutationRoot {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context.account_access.can_edit(data.publisher_id)?;
 
-        Imprint::create(&context.db, &data).map_err(|e| e.into())
+        Imprint::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new contributor with the specified values")]
@@ -1865,7 +1864,7 @@ impl MutationRoot {
         #[graphql(description = "Values for contributor to be created")] data: NewContributor,
     ) -> FieldResult<Contributor> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        Contributor::create(&context.db, &data).map_err(|e| e.into())
+        Contributor::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new contribution with the specified values")]
@@ -1878,7 +1877,7 @@ impl MutationRoot {
             .account_access
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
-        Contribution::create(&context.db, &data).map_err(|e| e.into())
+        Contribution::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new publication with the specified values")]
@@ -1893,7 +1892,7 @@ impl MutationRoot {
 
         data.validate(&context.db)?;
 
-        Publication::create(&context.db, &data).map_err(|e| e.into())
+        Publication::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new series with the specified values")]
@@ -1906,7 +1905,7 @@ impl MutationRoot {
             .account_access
             .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
 
-        Series::create(&context.db, &data).map_err(|e| e.into())
+        Series::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new issue with the specified values")]
@@ -1921,7 +1920,7 @@ impl MutationRoot {
 
         data.imprints_match(&context.db)?;
 
-        Issue::create(&context.db, &data).map_err(|e| e.into())
+        Issue::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new language with the specified values")]
@@ -1934,7 +1933,7 @@ impl MutationRoot {
             .account_access
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
-        Language::create(&context.db, &data).map_err(|e| e.into())
+        Language::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new title with the specified values")]
@@ -1970,7 +1969,7 @@ impl MutationRoot {
             .transpose()?;
         data.full_title = convert_to_jats(data.full_title, markup, ConversionLimit::Title)?;
 
-        Title::create(&context.db, &data).map_err(|e| e.into())
+        Title::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new abstract with the specified values")]
@@ -2020,7 +2019,7 @@ impl MutationRoot {
             return Err(ThothError::ShortAbstractLimitExceedError.into());
         };
 
-        Abstract::create(&context.db, &data).map_err(|e| e.into())
+        Abstract::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new biography with the specified values")]
@@ -2067,7 +2066,7 @@ impl MutationRoot {
             ConversionLimit::Biography,
         )?;
 
-        Biography::create(&context.db, &data).map_err(|e| e.into())
+        Biography::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new institution with the specified values")]
@@ -2076,7 +2075,7 @@ impl MutationRoot {
         #[graphql(description = "Values for institution to be created")] data: NewInstitution,
     ) -> FieldResult<Institution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        Institution::create(&context.db, &data).map_err(|e| e.into())
+        Institution::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new funding with the specified values")]
@@ -2089,7 +2088,7 @@ impl MutationRoot {
             .account_access
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
-        Funding::create(&context.db, &data).map_err(|e| e.into())
+        Funding::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new location with the specified values")]
@@ -2116,7 +2115,7 @@ impl MutationRoot {
             data.can_be_non_canonical(&context.db)?;
         }
 
-        Location::create(&context.db, &data).map_err(|e| e.into())
+        Location::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new price with the specified values")]
@@ -2137,7 +2136,7 @@ impl MutationRoot {
             return Err(ThothError::PriceZeroError.into());
         }
 
-        Price::create(&context.db, &data).map_err(|e| e.into())
+        Price::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new subject with the specified values")]
@@ -2152,7 +2151,7 @@ impl MutationRoot {
 
         check_subject(&data.subject_type, &data.subject_code)?;
 
-        Subject::create(&context.db, &data).map_err(|e| e.into())
+        Subject::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new affiliation with the specified values")]
@@ -2168,7 +2167,7 @@ impl MutationRoot {
                 data.contribution_id,
             )?)?;
 
-        Affiliation::create(&context.db, &data).map_err(|e| e.into())
+        Affiliation::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new work relation with the specified values")]
@@ -2188,7 +2187,7 @@ impl MutationRoot {
             data.related_work_id,
         )?)?;
 
-        WorkRelation::create(&context.db, &data).map_err(|e| e.into())
+        WorkRelation::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new reference with the specified values")]
@@ -2201,7 +2200,7 @@ impl MutationRoot {
             .account_access
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
-        Reference::create(&context.db, &data).map_err(|e| e.into())
+        Reference::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new contact with the specified values")]
@@ -2212,7 +2211,7 @@ impl MutationRoot {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context.account_access.can_edit(data.publisher_id)?;
 
-        Contact::create(&context.db, &data).map_err(|e| e.into())
+        Contact::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing work with the specified values")]
@@ -2281,7 +2280,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         publisher
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing imprint with the specified values")]
@@ -2299,7 +2298,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         imprint
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing contributor with the specified values")]
@@ -2311,7 +2310,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         Contributor::from_id(&context.db, &data.contributor_id)?
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing contribution with the specified values")]
@@ -2334,7 +2333,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         contribution
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing publication with the specified values")]
@@ -2359,7 +2358,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         publication
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing series with the specified values")]
@@ -2381,7 +2380,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         series
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing issue with the specified values")]
@@ -2405,7 +2404,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         issue
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing language with the specified values")]
@@ -2428,7 +2427,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         language
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing institution with the specified values")]
@@ -2440,7 +2439,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         Institution::from_id(&context.db, &data.institution_id)?
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing funding with the specified values")]
@@ -2463,7 +2462,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         funding
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing location with the specified values")]
@@ -2514,7 +2513,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         current_location
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing price with the specified values")]
@@ -2545,7 +2544,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         price
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing subject with the specified values")]
@@ -2570,7 +2569,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         subject
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing affiliation with the specified values")]
@@ -2596,7 +2595,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         affiliation
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing work relation with the specified values")]
@@ -2634,7 +2633,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         work_relation
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing reference with the specified values")]
@@ -2657,7 +2656,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         reference
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing contact with the specified values")]
@@ -2675,7 +2674,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         contact
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing title with the specified values")]
@@ -2712,7 +2711,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         title
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing abstract with the specified values")]
@@ -2748,7 +2747,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         r#abstract
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing biography with the specified values")]
@@ -2782,7 +2781,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         biography
             .update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single work using its ID")]
@@ -2800,7 +2799,7 @@ impl MutationRoot {
             return Err(ThothError::ThothDeleteWorkError.into());
         }
 
-        work.delete(&context.db).map_err(|e| e.into())
+        work.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single publisher using its ID")]
@@ -2812,7 +2811,7 @@ impl MutationRoot {
         let publisher = Publisher::from_id(&context.db, &publisher_id)?;
         context.account_access.can_edit(publisher_id)?;
 
-        publisher.delete(&context.db).map_err(|e| e.into())
+        publisher.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single imprint using its ID")]
@@ -2824,7 +2823,7 @@ impl MutationRoot {
         let imprint = Imprint::from_id(&context.db, &imprint_id)?;
         context.account_access.can_edit(imprint.publisher_id())?;
 
-        imprint.delete(&context.db).map_err(|e| e.into())
+        imprint.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single contributor using its ID")]
@@ -2838,7 +2837,7 @@ impl MutationRoot {
             context.account_access.can_edit(linked_publisher_id)?;
         }
 
-        contributor.delete(&context.db).map_err(|e| e.into())
+        contributor.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single contribution using its ID")]
@@ -2852,7 +2851,7 @@ impl MutationRoot {
             .account_access
             .can_edit(contribution.publisher_id(&context.db)?)?;
 
-        contribution.delete(&context.db).map_err(|e| e.into())
+        contribution.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single publication using its ID")]
@@ -2866,7 +2865,7 @@ impl MutationRoot {
             .account_access
             .can_edit(publication.publisher_id(&context.db)?)?;
 
-        publication.delete(&context.db).map_err(|e| e.into())
+        publication.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single series using its ID")]
@@ -2880,7 +2879,7 @@ impl MutationRoot {
             .account_access
             .can_edit(series.publisher_id(&context.db)?)?;
 
-        series.delete(&context.db).map_err(|e| e.into())
+        series.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single issue using its ID")]
@@ -2894,7 +2893,7 @@ impl MutationRoot {
             .account_access
             .can_edit(issue.publisher_id(&context.db)?)?;
 
-        issue.delete(&context.db).map_err(|e| e.into())
+        issue.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single language using its ID")]
@@ -2908,7 +2907,7 @@ impl MutationRoot {
             .account_access
             .can_edit(language.publisher_id(&context.db)?)?;
 
-        language.delete(&context.db).map_err(|e| e.into())
+        language.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single title using its ID")]
@@ -2922,7 +2921,7 @@ impl MutationRoot {
             .account_access
             .can_edit(title.publisher_id(&context.db)?)?;
 
-        title.delete(&context.db).map_err(|e| e.into())
+        title.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single institution using its ID")]
@@ -2936,7 +2935,7 @@ impl MutationRoot {
             context.account_access.can_edit(linked_publisher_id)?;
         }
 
-        institution.delete(&context.db).map_err(|e| e.into())
+        institution.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single funding using its ID")]
@@ -2950,7 +2949,7 @@ impl MutationRoot {
             .account_access
             .can_edit(funding.publisher_id(&context.db)?)?;
 
-        funding.delete(&context.db).map_err(|e| e.into())
+        funding.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single location using its ID")]
@@ -2970,7 +2969,7 @@ impl MutationRoot {
             .account_access
             .can_edit(location.publisher_id(&context.db)?)?;
 
-        location.delete(&context.db).map_err(|e| e.into())
+        location.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single price using its ID")]
@@ -2984,7 +2983,7 @@ impl MutationRoot {
             .account_access
             .can_edit(price.publisher_id(&context.db)?)?;
 
-        price.delete(&context.db).map_err(|e| e.into())
+        price.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single subject using its ID")]
@@ -2998,7 +2997,7 @@ impl MutationRoot {
             .account_access
             .can_edit(subject.publisher_id(&context.db)?)?;
 
-        subject.delete(&context.db).map_err(|e| e.into())
+        subject.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single affiliation using its ID")]
@@ -3012,7 +3011,7 @@ impl MutationRoot {
             .account_access
             .can_edit(affiliation.publisher_id(&context.db)?)?;
 
-        affiliation.delete(&context.db).map_err(|e| e.into())
+        affiliation.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single work relation using its ID")]
@@ -3033,7 +3032,7 @@ impl MutationRoot {
             work_relation.related_work_id,
         )?)?;
 
-        work_relation.delete(&context.db).map_err(|e| e.into())
+        work_relation.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single reference using its ID")]
@@ -3047,7 +3046,7 @@ impl MutationRoot {
             .account_access
             .can_edit(reference.publisher_id(&context.db)?)?;
 
-        reference.delete(&context.db).map_err(|e| e.into())
+        reference.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single abstract using its ID")]
@@ -3061,7 +3060,7 @@ impl MutationRoot {
             .account_access
             .can_edit(r#abstract.publisher_id(&context.db)?)?;
 
-        r#abstract.delete(&context.db).map_err(|e| e.into())
+        r#abstract.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single biography using its ID")]
@@ -3075,7 +3074,7 @@ impl MutationRoot {
             .account_access
             .can_edit(biography.publisher_id(&context.db)?)?;
 
-        biography.delete(&context.db).map_err(|e| e.into())
+        biography.delete(&context.db).map_err(Into::into)
     }
 
     #[graphql(description = "Change the ordering of an affiliation within a contribution")]
@@ -3107,7 +3106,7 @@ impl MutationRoot {
                 new_ordinal,
                 &account_id,
             )
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Change the ordering of a contribution within a work")]
@@ -3139,7 +3138,7 @@ impl MutationRoot {
                 new_ordinal,
                 &account_id,
             )
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Change the ordering of an issue within a series")]
@@ -3164,7 +3163,7 @@ impl MutationRoot {
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         issue
             .change_ordinal(&context.db, issue.issue_ordinal, new_ordinal, &account_id)
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Change the ordering of a reference within a work")]
@@ -3196,7 +3195,7 @@ impl MutationRoot {
                 new_ordinal,
                 &account_id,
             )
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Change the ordering of a subject within a work")]
@@ -3226,7 +3225,7 @@ impl MutationRoot {
                 new_ordinal,
                 &account_id,
             )
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Change the ordering of a work relation within a work")]
@@ -3264,7 +3263,7 @@ impl MutationRoot {
                 new_ordinal,
                 &account_id,
             )
-            .map_err(|e| e.into())
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single contact using its ID")]
@@ -3276,7 +3275,7 @@ impl MutationRoot {
         let contact = Contact::from_id(&context.db, &contact_id)?;
         context.account_access.can_edit(contact.publisher_id())?;
 
-        contact.delete(&context.db).map_err(|e| e.into())
+        contact.delete(&context.db).map_err(Into::into)
     }
 }
 
@@ -3632,7 +3631,7 @@ impl Work {
 
     #[graphql(description = "Get this work's imprint")]
     pub fn imprint(&self, context: &Context) -> FieldResult<Imprint> {
-        Imprint::from_id(&context.db, &self.imprint_id).map_err(|e| e.into())
+        Imprint::from_id(&context.db, &self.imprint_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get contributions linked to this work")]
@@ -3666,7 +3665,7 @@ impl Work {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -3714,7 +3713,7 @@ impl Work {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Get publications linked to this work")]
@@ -3753,7 +3752,7 @@ impl Work {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Get subjects linked to this work")]
@@ -3792,7 +3791,7 @@ impl Work {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Get fundings linked to this work")]
@@ -3821,7 +3820,7 @@ impl Work {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Get issues linked to this work")]
@@ -3850,7 +3849,7 @@ impl Work {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
     #[graphql(description = "Get other works related to this work")]
     pub fn relations(
@@ -3883,7 +3882,7 @@ impl Work {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
     #[graphql(description = "Get references cited by this work")]
     pub fn references(
@@ -3916,7 +3915,7 @@ impl Work {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 }
 
@@ -4088,7 +4087,7 @@ impl Publication {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Get locations linked to this publication")]
@@ -4122,12 +4121,12 @@ impl Publication {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Get the work to which this publication belongs")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+        Work::from_id(&context.db, &self.work_id).map_err(Into::into)
     }
 }
 
@@ -4213,7 +4212,7 @@ impl Publisher {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Get contacts linked to this publisher")]
@@ -4293,7 +4292,7 @@ impl Imprint {
 
     #[graphql(description = "Get the publisher to which this imprint belongs")]
     pub fn publisher(&self, context: &Context) -> FieldResult<Publisher> {
-        Publisher::from_id(&context.db, &self.publisher_id).map_err(|e| e.into())
+        Publisher::from_id(&context.db, &self.publisher_id).map_err(Into::into)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -4353,7 +4352,7 @@ impl Imprint {
             publication_date,
             updated_at_with_relations,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 }
 
@@ -4434,7 +4433,7 @@ impl Contributor {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 }
 
@@ -4574,12 +4573,12 @@ impl Contribution {
 
     #[graphql(description = "Get the work in which the contribution appears")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+        Work::from_id(&context.db, &self.work_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the contributor who created the contribution")]
     pub fn contributor(&self, context: &Context) -> FieldResult<Contributor> {
-        Contributor::from_id(&context.db, &self.contributor_id).map_err(|e| e.into())
+        Contributor::from_id(&context.db, &self.contributor_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get affiliations linked to this contribution")]
@@ -4608,7 +4607,7 @@ impl Contribution {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 }
 
@@ -4675,7 +4674,7 @@ impl Series {
 
     #[graphql(description = "Get the imprint linked to this series")]
     pub fn imprint(&self, context: &Context) -> FieldResult<Imprint> {
-        Imprint::from_id(&context.db, &self.imprint_id).map_err(|e| e.into())
+        Imprint::from_id(&context.db, &self.imprint_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get issues linked to this series")]
@@ -4704,7 +4703,7 @@ impl Series {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 }
 
@@ -4744,12 +4743,12 @@ impl Issue {
 
     #[graphql(description = "Get the series to which the issue belongs")]
     pub fn series(&self, context: &Context) -> FieldResult<Series> {
-        Series::from_id(&context.db, &self.series_id).map_err(|e| e.into())
+        Series::from_id(&context.db, &self.series_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the work represented by the issue")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+        Work::from_id(&context.db, &self.work_id).map_err(Into::into)
     }
 }
 
@@ -4794,7 +4793,7 @@ impl Language {
 
     #[graphql(description = "Get the work which has this language")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+        Work::from_id(&context.db, &self.work_id).map_err(Into::into)
     }
 }
 
@@ -4844,7 +4843,7 @@ impl Location {
 
     #[graphql(description = "Get the publication linked to this location")]
     pub fn publication(&self, context: &Context) -> FieldResult<Publication> {
-        Publication::from_id(&context.db, &self.publication_id).map_err(|e| e.into())
+        Publication::from_id(&context.db, &self.publication_id).map_err(Into::into)
     }
 }
 
@@ -4884,7 +4883,7 @@ impl Price {
 
     #[graphql(description = "Get the publication linked to this price")]
     pub fn publication(&self, context: &Context) -> FieldResult<Publication> {
-        Publication::from_id(&context.db, &self.publication_id).map_err(|e| e.into())
+        Publication::from_id(&context.db, &self.publication_id).map_err(Into::into)
     }
 }
 
@@ -4929,7 +4928,7 @@ impl Subject {
 
     #[graphql(description = "Get the work to which the subject is linked")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+        Work::from_id(&context.db, &self.work_id).map_err(Into::into)
     }
 }
 
@@ -5002,7 +5001,7 @@ impl Institution {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Get affiliations linked to this institution")]
@@ -5031,7 +5030,7 @@ impl Institution {
             None,
             None,
         )
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     }
 }
 
@@ -5089,12 +5088,12 @@ impl Funding {
 
     #[graphql(description = "Get the funded work")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+        Work::from_id(&context.db, &self.work_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the funding institution")]
     pub fn institution(&self, context: &Context) -> FieldResult<Institution> {
-        Institution::from_id(&context.db, &self.institution_id).map_err(|e| e.into())
+        Institution::from_id(&context.db, &self.institution_id).map_err(Into::into)
     }
 }
 
@@ -5141,12 +5140,12 @@ impl Affiliation {
 
     #[graphql(description = "Get the institution linked to this affiliation")]
     pub fn institution(&self, context: &Context) -> FieldResult<Institution> {
-        Institution::from_id(&context.db, &self.institution_id).map_err(|e| e.into())
+        Institution::from_id(&context.db, &self.institution_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the contribution linked to this affiliation")]
     pub fn contribution(&self, context: &Context) -> FieldResult<Contribution> {
-        Contribution::from_id(&context.db, &self.contribution_id).map_err(|e| e.into())
+        Contribution::from_id(&context.db, &self.contribution_id).map_err(Into::into)
     }
 }
 
@@ -5191,7 +5190,7 @@ impl WorkRelation {
 
     #[graphql(description = "Get the other work in the relationship")]
     pub fn related_work(&self, context: &Context) -> FieldResult<Work> {
-        Work::from_id(&context.db, &self.related_work_id).map_err(|e| e.into())
+        Work::from_id(&context.db, &self.related_work_id).map_err(Into::into)
     }
 }
 
@@ -5341,7 +5340,7 @@ impl Reference {
 
     #[graphql(description = "The citing work.")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+        Work::from_id(&context.db, &self.work_id).map_err(Into::into)
     }
 }
 
@@ -5384,7 +5383,7 @@ impl Title {
 
     #[graphql(description = "Get the work to which the title is linked")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+        Work::from_id(&context.db, &self.work_id).map_err(Into::into)
     }
 }
 
@@ -5416,7 +5415,7 @@ impl Abstract {
     }
     #[graphql(description = "Get the work to which the abstract is linked")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+        Work::from_id(&context.db, &self.work_id).map_err(Into::into)
     }
 }
 
@@ -5450,12 +5449,12 @@ impl Biography {
     #[graphql(description = "Get the work to which the biography is linked via contribution")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         let contribution = Contribution::from_id(&context.db, &self.contribution_id)?;
-        Work::from_id(&context.db, &contribution.work_id).map_err(|e| e.into())
+        Work::from_id(&context.db, &contribution.work_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the contribution to which the biography is linked")]
     pub fn contribution(&self, context: &Context) -> FieldResult<Contribution> {
-        Contribution::from_id(&context.db, &self.contribution_id).map_err(|e| e.into())
+        Contribution::from_id(&context.db, &self.contribution_id).map_err(Into::into)
     }
 }
 
@@ -5493,7 +5492,7 @@ impl Contact {
 
     #[graphql(description = "Get the publisher to which this contact belongs")]
     pub fn publisher(&self, context: &Context) -> FieldResult<Publisher> {
-        Publisher::from_id(&context.db, &self.publisher_id).map_err(|e| e.into())
+        Publisher::from_id(&context.db, &self.publisher_id).map_err(Into::into)
     }
 }
 
