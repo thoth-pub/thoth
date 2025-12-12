@@ -2588,15 +2588,6 @@ impl MutationRoot {
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
 
-        let has_canonical_title = Work::from_id(&context.db, &data.work_id)?
-            .title(context)
-            .is_ok();
-
-        // Only superusers can update the canonical title
-        if has_canonical_title && data.canonical && !context.account_access.is_superuser {
-            return Err(ThothError::CanonicalTitleExistsError.into());
-        }
-
         let mut data = data.clone();
         data.title = convert_to_jats(data.title, markup_format, ConversionLimit::Title)?;
         data.subtitle = data
@@ -2629,28 +2620,6 @@ impl MutationRoot {
             context
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
-        }
-
-        let has_canonical_abstract = Abstract::all(
-            &context.db,
-            0,
-            0,
-            None,
-            AbstractOrderBy::default(),
-            vec![],
-            Some(data.work_id),
-            None,
-            vec![],
-            vec![],
-            None,
-            None,
-        )?
-        .iter()
-        .any(|abstract_item| abstract_item.canonical);
-
-        // Only superusers can update the canonical abstract
-        if has_canonical_abstract && data.canonical && !context.account_access.is_superuser {
-            return Err(ThothError::CanonicalAbstractExistsError.into());
         }
 
         let mut data = data.clone();
@@ -2688,28 +2657,6 @@ impl MutationRoot {
                     &context.db,
                     data.contribution_id,
                 )?)?;
-        }
-
-        let has_canonical_biography = Biography::all(
-            &context.db,
-            0,
-            0,
-            None,
-            BiographyOrderBy::default(),
-            vec![],
-            None,
-            Some(data.contribution_id),
-            vec![],
-            vec![],
-            None,
-            None,
-        )?
-        .iter()
-        .any(|biography_item| biography_item.canonical);
-
-        // Only superusers can update the canonical biography
-        if has_canonical_biography && data.canonical && !context.account_access.is_superuser {
-            return Err(ThothError::CanonicalBiographyExistsError.into());
         }
 
         let mut data = data.clone();
