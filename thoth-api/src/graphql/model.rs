@@ -2309,8 +2309,7 @@ impl MutationRoot {
     ) -> FieldResult<Contributor> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        Contributor::from_id(&context.db, &data.contributor_id)
-            .unwrap()
+        Contributor::from_id(&context.db, &data.contributor_id)?
             .update(&context.db, &data, &account_id)
             .map_err(|e| e.into())
     }
@@ -2439,8 +2438,7 @@ impl MutationRoot {
     ) -> FieldResult<Institution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        Institution::from_id(&context.db, &data.institution_id)
-            .unwrap()
+        Institution::from_id(&context.db, &data.institution_id)?
             .update(&context.db, &data, &account_id)
             .map_err(|e| e.into())
     }
