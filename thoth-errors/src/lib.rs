@@ -114,9 +114,7 @@ pub enum ThothError {
     CanonicalAbstractExistsError,
     #[error("Short abstract must be less than 350 characters.")]
     ShortAbstractLimitExceedError,
-    #[error(
-        "If canonical biography already exists, other biography can't be set as canonical."
-    )]
+    #[error("If canonical biography already exists, other biography can't be set as canonical.")]
     CanonicalBiographyExistsError,
     #[error("If canonical title already exists, other title can't be set as canonical.")]
     CanonicalTitleExistsError,
