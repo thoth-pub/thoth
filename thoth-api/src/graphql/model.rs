@@ -1535,7 +1535,7 @@ impl QueryRoot {
         markup_format: Option<MarkupFormat>,
     ) -> FieldResult<Title> {
         let mut title = Title::from_id(&context.db, &title_id).map_err(FieldError::from)?;
-        let markup = markup_format.unwrap();
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
         title.title = convert_from_jats(&title.title, markup, ConversionLimit::Title)?;
         if let Some(subtitle) = &title.subtitle {
             title.subtitle = Some(convert_from_jats(subtitle, markup, ConversionLimit::Title)?);
@@ -1586,7 +1586,7 @@ impl QueryRoot {
         )
         .map_err(FieldError::from)?;
 
-        let markup = markup_format.unwrap();
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
         for title in &mut titles {
             title.title = convert_from_jats(&title.title, markup, ConversionLimit::Title)?;
             if let Some(subtitle) = &title.subtitle {
@@ -1612,7 +1612,7 @@ impl QueryRoot {
             Abstract::from_id(&context.db, &abstract_id).map_err(FieldError::from)?;
         r#abstract.content = convert_from_jats(
             &r#abstract.content,
-            markup_format.unwrap(),
+            markup_format.ok_or(ThothError::MissingMarkupFormat)?,
             ConversionLimit::Abstract,
         )?;
         Ok(r#abstract)
@@ -1664,7 +1664,7 @@ impl QueryRoot {
         for r#abstract in &mut abstracts {
             r#abstract.content = convert_from_jats(
                 &r#abstract.content,
-                markup_format.unwrap(),
+                markup_format.ok_or(ThothError::MissingMarkupFormat)?,
                 ConversionLimit::Abstract,
             )?;
         }
@@ -1686,7 +1686,7 @@ impl QueryRoot {
             Biography::from_id(&context.db, &biography_id).map_err(FieldError::from)?;
         biography.content = convert_from_jats(
             &biography.content,
-            markup_format.unwrap(),
+            markup_format.ok_or(ThothError::MissingMarkupFormat)?,
             ConversionLimit::Biography,
         )?;
         Ok(biography)
@@ -1738,7 +1738,7 @@ impl QueryRoot {
         for biography in &mut biographies {
             biography.content = convert_from_jats(
                 &biography.content,
-                markup_format.unwrap(),
+                markup_format.ok_or(ThothError::MissingMarkupFormat)?,
                 ConversionLimit::Biography,
             )?;
         }
@@ -1959,7 +1959,7 @@ impl MutationRoot {
 
         let mut data = data.clone();
 
-        let markup = markup_format.unwrap();
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
         data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
         data.subtitle = data
             .subtitle
@@ -2009,7 +2009,7 @@ impl MutationRoot {
         let mut data = data.clone();
         data.content = convert_to_jats(
             data.content,
-            markup_format.unwrap(),
+            markup_format.ok_or(ThothError::MissingMarkupFormat)?,
             ConversionLimit::Abstract,
         )?;
 
@@ -2062,7 +2062,7 @@ impl MutationRoot {
         let mut data = data.clone();
         data.content = convert_to_jats(
             data.content,
-            markup_format.unwrap(),
+            markup_format.ok_or(ThothError::MissingMarkupFormat)?,
             ConversionLimit::Biography,
         )?;
 
@@ -2242,7 +2242,12 @@ impl MutationRoot {
             return Err(ThothError::ThothSetWorkStatusError.into());
         }
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         // update the work and, if it succeeds, synchronise its children statuses and pub. date
         match work.update(&context.db, &data, &account_id) {
             Ok(w) => {
@@ -2277,7 +2282,12 @@ impl MutationRoot {
         if data.publisher_id != publisher.publisher_id {
             context.account_access.can_edit(data.publisher_id)?;
         }
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         publisher
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2295,7 +2305,12 @@ impl MutationRoot {
         if data.publisher_id != imprint.publisher_id {
             context.account_access.can_edit(data.publisher_id)?;
         }
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         imprint
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2307,7 +2322,12 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing contributor")] data: PatchContributor,
     ) -> FieldResult<Contributor> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         Contributor::from_id(&context.db, &data.contributor_id)?
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2330,7 +2350,12 @@ impl MutationRoot {
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         contribution
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2355,7 +2380,12 @@ impl MutationRoot {
 
         data.validate(&context.db)?;
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         publication
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2377,7 +2407,12 @@ impl MutationRoot {
                 .account_access
                 .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
         }
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         series
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2401,7 +2436,12 @@ impl MutationRoot {
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         issue
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2424,7 +2464,12 @@ impl MutationRoot {
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         language
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2436,7 +2481,12 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing institution")] data: PatchInstitution,
     ) -> FieldResult<Institution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         Institution::from_id(&context.db, &data.institution_id)?
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2459,7 +2509,12 @@ impl MutationRoot {
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         funding
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2510,7 +2565,12 @@ impl MutationRoot {
             data.canonical_record_complete(&context.db)?;
         }
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         current_location
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2541,7 +2601,12 @@ impl MutationRoot {
             return Err(ThothError::PriceZeroError.into());
         }
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         price
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2566,7 +2631,12 @@ impl MutationRoot {
 
         check_subject(&data.subject_type, &data.subject_code)?;
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         subject
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2592,7 +2662,12 @@ impl MutationRoot {
                 )?)?;
         }
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         affiliation
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2630,7 +2705,12 @@ impl MutationRoot {
             )?)?;
         }
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         work_relation
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2653,7 +2733,12 @@ impl MutationRoot {
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         reference
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2671,7 +2756,12 @@ impl MutationRoot {
         if data.publisher_id != contact.publisher_id {
             context.account_access.can_edit(data.publisher_id)?;
         }
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         contact
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2698,7 +2788,7 @@ impl MutationRoot {
         }
 
         let mut data = data.clone();
-        let markup = markup_format.unwrap();
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
         data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
         data.subtitle = data
             .subtitle
@@ -2708,7 +2798,12 @@ impl MutationRoot {
             .transpose()?;
         data.full_title = convert_to_jats(data.full_title, markup, ConversionLimit::Title)?;
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         title
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2735,8 +2830,11 @@ impl MutationRoot {
         }
 
         let mut data = data.clone();
-        data.content =
-            convert_to_jats(data.content, markup_format.unwrap(), ConversionLimit::Title)?;
+        data.content = convert_to_jats(
+            data.content,
+            markup_format.ok_or(ThothError::MissingMarkupFormat)?,
+            ConversionLimit::Title,
+        )?;
 
         if data.abstract_type == AbstractType::Short
             && data.content.len() > MAX_SHORT_ABSTRACT_CHAR_LIMIT as usize
@@ -2744,7 +2842,12 @@ impl MutationRoot {
             return Err(ThothError::ShortAbstractLimitExceedError.into());
         }
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         r#abstract
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -2775,10 +2878,18 @@ impl MutationRoot {
         }
 
         let mut data = data.clone();
-        data.content =
-            convert_to_jats(data.content, markup_format.unwrap(), ConversionLimit::Title)?;
+        data.content = convert_to_jats(
+            data.content,
+            markup_format.ok_or(ThothError::MissingMarkupFormat)?,
+            ConversionLimit::Title,
+        )?;
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         biography
             .update(&context.db, &data, &account_id)
             .map_err(Into::into)
@@ -3098,7 +3209,12 @@ impl MutationRoot {
             .account_access
             .can_edit(affiliation.publisher_id(&context.db)?)?;
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         affiliation
             .change_ordinal(
                 &context.db,
@@ -3130,7 +3246,12 @@ impl MutationRoot {
             .account_access
             .can_edit(contribution.publisher_id(&context.db)?)?;
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         contribution
             .change_ordinal(
                 &context.db,
@@ -3160,7 +3281,12 @@ impl MutationRoot {
             .account_access
             .can_edit(issue.publisher_id(&context.db)?)?;
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         issue
             .change_ordinal(&context.db, issue.issue_ordinal, new_ordinal, &account_id)
             .map_err(Into::into)
@@ -3187,7 +3313,12 @@ impl MutationRoot {
             .account_access
             .can_edit(reference.publisher_id(&context.db)?)?;
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         reference
             .change_ordinal(
                 &context.db,
@@ -3217,7 +3348,12 @@ impl MutationRoot {
             .account_access
             .can_edit(subject.publisher_id(&context.db)?)?;
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         subject
             .change_ordinal(
                 &context.db,
@@ -3255,7 +3391,12 @@ impl MutationRoot {
             work_relation.related_work_id,
         )?)?;
 
-        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
         work_relation
             .change_ordinal(
                 &context.db,
@@ -3392,7 +3533,7 @@ impl Work {
         )
         .map_err(FieldError::from)?;
 
-        let markup = markup_format.unwrap();
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
         for title in titles.iter_mut() {
             title.title = convert_from_jats(&title.title, markup, ConversionLimit::Title)?;
             title.subtitle = title
@@ -3454,7 +3595,7 @@ impl Work {
         for r#abstract in &mut abstracts {
             r#abstract.content = convert_from_jats(
                 &r#abstract.content,
-                markup_format.unwrap(),
+                markup_format.ok_or(ThothError::MissingMarkupFormat)?,
                 ConversionLimit::Abstract,
             )?;
         }
@@ -4513,7 +4654,7 @@ impl Contribution {
         for biography in &mut biographies {
             biography.content = convert_from_jats(
                 &biography.content,
-                markup_format.unwrap(),
+                markup_format.ok_or(ThothError::MissingMarkupFormat)?,
                 ConversionLimit::Biography,
             )?;
         }

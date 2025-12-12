@@ -128,6 +128,8 @@ pub enum ThothError {
     TitleMultipleTopLevelElementsError,
     #[error("Title content cannot contain list item elements.")]
     TitleListItemError,
+    #[error("Markup format was not provided.")]
+    MissingMarkupFormat,
 }
 
 impl ThothError {
