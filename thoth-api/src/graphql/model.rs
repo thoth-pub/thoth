@@ -2831,7 +2831,7 @@ impl MutationRoot {
 
         let mut data = data.clone();
         let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
-        data.content = convert_to_jats(data.content, markup, ConversionLimit::Title)?;
+        data.content = convert_to_jats(data.content, markup, ConversionLimit::Abstract)?;
 
         if data.abstract_type == AbstractType::Short
             && data.content.len() > MAX_SHORT_ABSTRACT_CHAR_LIMIT as usize
@@ -2876,7 +2876,7 @@ impl MutationRoot {
 
         let mut data = data.clone();
         let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
-        data.content = convert_to_jats(data.content, markup, ConversionLimit::Title)?;
+        data.content = convert_to_jats(data.content, markup, ConversionLimit::Biography)?;
 
         let account_id = context
             .token
