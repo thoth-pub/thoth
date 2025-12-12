@@ -28,6 +28,8 @@ pub enum PublisherField {
     PublisherShortname,
     #[strum(serialize = "URL")]
     PublisherUrl,
+    AccessibilityStatement,
+    AccessibilityReportUrl,
     CreatedAt,
     UpdatedAt,
 }
@@ -40,6 +42,8 @@ pub struct Publisher {
     pub publisher_name: String,
     pub publisher_shortname: Option<String>,
     pub publisher_url: Option<String>,
+    pub accessibility_statement: Option<String>,
+    pub accessibility_report_url: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
 }
@@ -54,6 +58,8 @@ pub struct NewPublisher {
     pub publisher_name: String,
     pub publisher_shortname: Option<String>,
     pub publisher_url: Option<String>,
+    pub accessibility_statement: Option<String>,
+    pub accessibility_report_url: Option<String>,
 }
 
 #[cfg_attr(
@@ -67,6 +73,8 @@ pub struct PatchPublisher {
     pub publisher_name: String,
     pub publisher_shortname: Option<String>,
     pub publisher_url: Option<String>,
+    pub accessibility_statement: Option<String>,
+    pub accessibility_report_url: Option<String>,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]

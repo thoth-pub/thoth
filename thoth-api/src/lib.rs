@@ -15,6 +15,7 @@ extern crate dotenv;
 extern crate juniper;
 
 pub mod account;
+pub mod ast;
 #[cfg(feature = "backend")]
 pub mod db;
 pub mod graphql;

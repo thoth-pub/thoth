@@ -26,7 +26,9 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
 #
 {
     books(order: {field: PUBLICATION_DATE, direction: ASC}) {
-       fullTitle
+       titles {
+            fullTitle
+       }
        doi
        publications {
             publicationType

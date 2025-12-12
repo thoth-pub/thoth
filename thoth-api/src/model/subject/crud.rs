@@ -3,10 +3,12 @@ use super::{
 };
 use crate::graphql::model::SubjectOrderBy;
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{subject, subject_history};
-use crate::{crud_methods, db_insert};
-use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{
+    BoolExpressionMethods, Connection, ExpressionMethods, PgTextExpressionMethods, QueryDsl,
+    RunQueryDsl,
+};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
 
@@ -17,6 +19,7 @@ impl Crud for Subject {
     type FilterParameter1 = SubjectType;
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.subject_id
@@ -34,6 +37,7 @@ impl Crud for Subject {
         subject_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Subject>> {
         use crate::schema::subject::dsl::*;
         let mut connection = db.get()?;
@@ -99,6 +103,7 @@ impl Crud for Subject {
         subject_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::subject::dsl::*;
         let mut connection = db.get()?;
@@ -143,6 +148,30 @@ impl DbInsert for NewSubjectHistory {
     type MainEntity = SubjectHistory;
 
     db_insert!(subject_history::table);
+}
+
+impl Reorder for Subject {
+    db_change_ordinal!(
+        subject::table,
+        subject::subject_ordinal,
+        "subject_ordinal_type_uniq"
+    );
+
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>> {
+        subject::table
+            .select((subject::subject_id, subject::subject_ordinal))
+            .filter(
+                subject::work_id
+                    .eq(self.work_id)
+                    .and(subject::subject_type.eq(self.subject_type))
+                    .and(subject::subject_id.ne(self.subject_id)),
+            )
+            .load::<(Uuid, i32)>(connection)
+            .map_err(Into::into)
+    }
 }
 
 #[cfg(test)]
