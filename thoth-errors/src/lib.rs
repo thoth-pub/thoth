@@ -115,10 +115,10 @@ pub enum ThothError {
     #[error("Short abstract must be less than 350 characters.")]
     ShortAbstractLimitExceedError,
     #[error(
-        "If canonical biography already exists, other biography can't be setted as canonical."
+        "If canonical biography already exists, other biography can't be set as canonical."
     )]
     CanonicalBiographyExistsError,
-    #[error("If canonical title already exists, other title can't be setted as canonical.")]
+    #[error("If canonical title already exists, other title can't be set as canonical.")]
     CanonicalTitleExistsError,
     #[error("If file extension is not found, the file format is not supported.")]
     NoFileExtensionFound,
