@@ -417,14 +417,7 @@ fn write_abstract_content_with_locale_code<W: Write>(
             ("xml:lang", locale_code),
         ]),
         w,
-        |w| {
-            for paragraph in abstract_content.lines() {
-                if !paragraph.is_empty() {
-                    write_element_block("jats:p", w, |w| write_jats_content(paragraph, w))?;
-                }
-            }
-            Ok(())
-        },
+        |w| write_jats_content(abstract_content, w),
     )
 }
 
@@ -2353,7 +2346,7 @@ mod tests {
             .create_writer(&mut buffer);
 
         let result = write_abstract_content_with_locale_code(
-            "This is a test abstract.",
+            "<p>This is a test abstract.</p>",
             "long",
             "EN",
             &mut writer,
@@ -2372,7 +2365,7 @@ mod tests {
             .create_writer(&mut buffer);
 
         let result = write_abstract_content_with_locale_code(
-            "First paragraph.\n\nSecond paragraph.\n\n\nThird paragraph.",
+            "<p>First paragraph.</p><p>Second paragraph.</p><p>Third paragraph.</p>",
             "short",
             "FR",
             &mut writer,
@@ -2393,7 +2386,7 @@ mod tests {
             .create_writer(&mut buffer);
 
         let result = write_abstract_content_with_locale_code(
-            "\n\nOnly this line.\n\n",
+            "<p>Only this line.</p>",
             "other",
             "DE",
             &mut writer,
