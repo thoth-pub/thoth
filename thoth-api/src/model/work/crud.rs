@@ -146,152 +146,181 @@ impl Crud for Work {
                     .and(work_abstract::canonical.eq(true))),
             )
             .select(crate::schema::work::all_columns)
+            // Joining titles/abstracts can multiply rows (e.g. multiple canonicals by type/locale).
+            // We want one Work per row, so de-duplicate at the SQL level.
+            .distinct_on(dsl::work_id)
             .into_boxed();
 
         query = match order.field {
             WorkField::WorkId => match order.direction {
-                Direction::Asc => query.order(dsl::work_id.asc()),
-                Direction::Desc => query.order(dsl::work_id.desc()),
+                Direction::Asc => query.order_by(dsl::work_id.asc()),
+                Direction::Desc => query.order_by(dsl::work_id.desc()),
             },
             WorkField::WorkType => match order.direction {
-                Direction::Asc => query.order(dsl::work_type.asc()),
-                Direction::Desc => query.order(dsl::work_type.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::work_type.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::work_type.desc())),
             },
             WorkField::WorkStatus => match order.direction {
-                Direction::Asc => query.order(dsl::work_status.asc()),
-                Direction::Desc => query.order(dsl::work_status.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::work_status.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::work_status.desc())),
             },
             WorkField::FullTitle => match order.direction {
-                Direction::Asc => query.order(work_title::full_title.asc()),
-                Direction::Desc => query.order(work_title::full_title.desc()),
+                Direction::Asc => {
+                    query.order_by((dsl::work_id.asc(), work_title::full_title.asc()))
+                }
+                Direction::Desc => {
+                    query.order_by((dsl::work_id.asc(), work_title::full_title.desc()))
+                }
             },
             WorkField::Title => match order.direction {
-                Direction::Asc => query.order(work_title::title.asc()),
-                Direction::Desc => query.order(work_title::title.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), work_title::title.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), work_title::title.desc())),
             },
             WorkField::Subtitle => match order.direction {
-                Direction::Asc => query.order(work_title::subtitle.asc()),
-                Direction::Desc => query.order(work_title::subtitle.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), work_title::subtitle.asc())),
+                Direction::Desc => {
+                    query.order_by((dsl::work_id.asc(), work_title::subtitle.desc()))
+                }
             },
             WorkField::Reference => match order.direction {
-                Direction::Asc => query.order(dsl::reference.asc()),
-                Direction::Desc => query.order(dsl::reference.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::reference.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::reference.desc())),
             },
             WorkField::Edition => match order.direction {
-                Direction::Asc => query.order(dsl::edition.asc()),
-                Direction::Desc => query.order(dsl::edition.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::edition.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::edition.desc())),
             },
             WorkField::Doi => match order.direction {
-                Direction::Asc => query.order(dsl::doi.asc()),
-                Direction::Desc => query.order(dsl::doi.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::doi.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::doi.desc())),
             },
             WorkField::PublicationDate => match order.direction {
-                Direction::Asc => query.order(dsl::publication_date.asc()),
-                Direction::Desc => query.order(dsl::publication_date.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::publication_date.asc())),
+                Direction::Desc => {
+                    query.order_by((dsl::work_id.asc(), dsl::publication_date.desc()))
+                }
             },
             WorkField::WithdrawnDate => match order.direction {
-                Direction::Asc => query.order(dsl::withdrawn_date.asc()),
-                Direction::Desc => query.order(dsl::withdrawn_date.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::withdrawn_date.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::withdrawn_date.desc())),
             },
             WorkField::Place => match order.direction {
-                Direction::Asc => query.order(dsl::place.asc()),
-                Direction::Desc => query.order(dsl::place.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::place.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::place.desc())),
             },
             WorkField::PageCount => match order.direction {
-                Direction::Asc => query.order(dsl::page_count.asc()),
-                Direction::Desc => query.order(dsl::page_count.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::page_count.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::page_count.desc())),
             },
             WorkField::PageBreakdown => match order.direction {
-                Direction::Asc => query.order(dsl::page_breakdown.asc()),
-                Direction::Desc => query.order(dsl::page_breakdown.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::page_breakdown.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::page_breakdown.desc())),
             },
             WorkField::FirstPage => match order.direction {
-                Direction::Asc => query.order(dsl::first_page.asc()),
-                Direction::Desc => query.order(dsl::first_page.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::first_page.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::first_page.desc())),
             },
             WorkField::LastPage => match order.direction {
-                Direction::Asc => query.order(dsl::last_page.asc()),
-                Direction::Desc => query.order(dsl::last_page.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::last_page.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::last_page.desc())),
             },
             WorkField::PageInterval => match order.direction {
-                Direction::Asc => query.order(dsl::page_breakdown.asc()),
-                Direction::Desc => query.order(dsl::page_breakdown.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::page_breakdown.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::page_breakdown.desc())),
             },
             WorkField::ImageCount => match order.direction {
-                Direction::Asc => query.order(dsl::image_count.asc()),
-                Direction::Desc => query.order(dsl::image_count.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::image_count.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::image_count.desc())),
             },
             WorkField::TableCount => match order.direction {
-                Direction::Asc => query.order(dsl::table_count.asc()),
-                Direction::Desc => query.order(dsl::table_count.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::table_count.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::table_count.desc())),
             },
             WorkField::AudioCount => match order.direction {
-                Direction::Asc => query.order(dsl::audio_count.asc()),
-                Direction::Desc => query.order(dsl::audio_count.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::audio_count.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::audio_count.desc())),
             },
             WorkField::VideoCount => match order.direction {
-                Direction::Asc => query.order(dsl::video_count.asc()),
-                Direction::Desc => query.order(dsl::video_count.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::video_count.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::video_count.desc())),
             },
             WorkField::License => match order.direction {
-                Direction::Asc => query.order(dsl::license.asc()),
-                Direction::Desc => query.order(dsl::license.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::license.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::license.desc())),
             },
             WorkField::CopyrightHolder => match order.direction {
-                Direction::Asc => query.order(dsl::copyright_holder.asc()),
-                Direction::Desc => query.order(dsl::copyright_holder.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::copyright_holder.asc())),
+                Direction::Desc => {
+                    query.order_by((dsl::work_id.asc(), dsl::copyright_holder.desc()))
+                }
             },
             WorkField::LandingPage => match order.direction {
-                Direction::Asc => query.order(dsl::landing_page.asc()),
-                Direction::Desc => query.order(dsl::landing_page.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::landing_page.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::landing_page.desc())),
             },
             WorkField::Lccn => match order.direction {
-                Direction::Asc => query.order(dsl::lccn.asc()),
-                Direction::Desc => query.order(dsl::lccn.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::lccn.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::lccn.desc())),
             },
             WorkField::Oclc => match order.direction {
-                Direction::Asc => query.order(dsl::oclc.asc()),
-                Direction::Desc => query.order(dsl::oclc.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::oclc.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::oclc.desc())),
             },
             WorkField::ShortAbstract => match order.direction {
-                Direction::Asc => query.order(work_abstract::content.asc()),
-                Direction::Desc => query.order(work_abstract::content.desc()),
+                Direction::Asc => {
+                    query.order_by((dsl::work_id.asc(), work_abstract::content.asc()))
+                }
+                Direction::Desc => {
+                    query.order_by((dsl::work_id.asc(), work_abstract::content.desc()))
+                }
             },
             WorkField::LongAbstract => match order.direction {
-                Direction::Asc => query.order(work_abstract::content.asc()),
-                Direction::Desc => query.order(work_abstract::content.desc()),
+                Direction::Asc => {
+                    query.order_by((dsl::work_id.asc(), work_abstract::content.asc()))
+                }
+                Direction::Desc => {
+                    query.order_by((dsl::work_id.asc(), work_abstract::content.desc()))
+                }
             },
             WorkField::GeneralNote => match order.direction {
-                Direction::Asc => query.order(dsl::general_note.asc()),
-                Direction::Desc => query.order(dsl::general_note.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::general_note.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::general_note.desc())),
             },
             WorkField::BibliographyNote => match order.direction {
-                Direction::Asc => query.order(dsl::bibliography_note.asc()),
-                Direction::Desc => query.order(dsl::bibliography_note.desc()),
+                Direction::Asc => {
+                    query.order_by((dsl::work_id.asc(), dsl::bibliography_note.asc()))
+                }
+                Direction::Desc => {
+                    query.order_by((dsl::work_id.asc(), dsl::bibliography_note.desc()))
+                }
             },
             WorkField::Toc => match order.direction {
-                Direction::Asc => query.order(dsl::toc.asc()),
-                Direction::Desc => query.order(dsl::toc.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::toc.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::toc.desc())),
             },
             WorkField::CoverUrl => match order.direction {
-                Direction::Asc => query.order(dsl::cover_url.asc()),
-                Direction::Desc => query.order(dsl::cover_url.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::cover_url.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::cover_url.desc())),
             },
             WorkField::CoverCaption => match order.direction {
-                Direction::Asc => query.order(dsl::cover_caption.asc()),
-                Direction::Desc => query.order(dsl::cover_caption.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::cover_caption.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::cover_caption.desc())),
             },
             WorkField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(dsl::created_at.asc()),
-                Direction::Desc => query.order(dsl::created_at.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::created_at.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::created_at.desc())),
             },
             WorkField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(dsl::updated_at.asc()),
-                Direction::Desc => query.order(dsl::updated_at.desc()),
+                Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::updated_at.asc())),
+                Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::updated_at.desc())),
             },
             WorkField::UpdatedAtWithRelations => match order.direction {
-                Direction::Asc => query.order(dsl::updated_at_with_relations.asc()),
-                Direction::Desc => query.order(dsl::updated_at_with_relations.desc()),
+                Direction::Asc => {
+                    query.order_by((dsl::work_id.asc(), dsl::updated_at_with_relations.asc()))
+                }
+                Direction::Desc => {
+                    query.order_by((dsl::work_id.asc(), dsl::updated_at_with_relations.desc()))
+                }
             },
         };
         if !publishers.is_empty() {
@@ -343,7 +372,6 @@ impl Crud for Work {
             );
         }
         query
-            .then_order_by(dsl::work_id)
             .limit(limit.into())
             .offset(offset.into())
             .load::<Work>(&mut connection)
