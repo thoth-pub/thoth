@@ -2830,11 +2830,8 @@ impl MutationRoot {
         }
 
         let mut data = data.clone();
-        data.content = convert_to_jats(
-            data.content,
-            markup_format.ok_or(ThothError::MissingMarkupFormat)?,
-            ConversionLimit::Title,
-        )?;
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        data.content = convert_to_jats(data.content, markup, ConversionLimit::Title)?;
 
         if data.abstract_type == AbstractType::Short
             && data.content.len() > MAX_SHORT_ABSTRACT_CHAR_LIMIT as usize
@@ -2878,11 +2875,8 @@ impl MutationRoot {
         }
 
         let mut data = data.clone();
-        data.content = convert_to_jats(
-            data.content,
-            markup_format.ok_or(ThothError::MissingMarkupFormat)?,
-            ConversionLimit::Title,
-        )?;
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        data.content = convert_to_jats(data.content, markup, ConversionLimit::Title)?;
 
         let account_id = context
             .token
@@ -3592,12 +3586,10 @@ impl Work {
         )
         .map_err(FieldError::from)?;
 
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
         for r#abstract in &mut abstracts {
-            r#abstract.content = convert_from_jats(
-                &r#abstract.content,
-                markup_format.ok_or(ThothError::MissingMarkupFormat)?,
-                ConversionLimit::Abstract,
-            )?;
+            r#abstract.content =
+                convert_from_jats(&r#abstract.content, markup, ConversionLimit::Abstract)?;
         }
 
         Ok(abstracts)
@@ -4651,12 +4643,10 @@ impl Contribution {
         )
         .map_err(FieldError::from)?;
 
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
         for biography in &mut biographies {
-            biography.content = convert_from_jats(
-                &biography.content,
-                markup_format.ok_or(ThothError::MissingMarkupFormat)?,
-                ConversionLimit::Biography,
-            )?;
+            biography.content =
+                convert_from_jats(&biography.content, markup, ConversionLimit::Biography)?;
         }
 
         Ok(biographies)
