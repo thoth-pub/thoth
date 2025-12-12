@@ -1,42 +1,48 @@
-use chrono::naive::NaiveDate;
-use juniper::RootNode;
-use juniper::{EmptySubscription, FieldResult};
 use std::sync::Arc;
+
+use chrono::naive::NaiveDate;
+use juniper::{EmptySubscription, FieldError, FieldResult, RootNode};
 use uuid::Uuid;
 
-use crate::account::model::AccountAccess;
-use crate::account::model::DecodedToken;
+use super::utils::{Direction, Expression, MAX_SHORT_ABSTRACT_CHAR_LIMIT};
+use crate::account::model::{AccountAccess, DecodedToken};
 use crate::db::PgPool;
-use crate::model::affiliation::*;
-use crate::model::contribution::*;
-use crate::model::contributor::*;
-use crate::model::funding::*;
-use crate::model::imprint::*;
-use crate::model::institution::*;
-use crate::model::issue::*;
-use crate::model::language::*;
-use crate::model::location::*;
-use crate::model::price::*;
-use crate::model::publication::*;
-use crate::model::publisher::*;
-use crate::model::reference::*;
-use crate::model::series::*;
-use crate::model::subject::*;
-use crate::model::work::*;
-use crate::model::work_relation::*;
-use crate::model::Convert;
-use crate::model::Crud;
-use crate::model::Doi;
-use crate::model::Isbn;
-use crate::model::LengthUnit;
-use crate::model::Orcid;
-use crate::model::Reorder;
-use crate::model::Ror;
-use crate::model::Timestamp;
-use crate::model::WeightUnit;
+use crate::model::{
+    affiliation::{Affiliation, AffiliationOrderBy, NewAffiliation, PatchAffiliation},
+    biography::{Biography, BiographyOrderBy, NewBiography, PatchBiography},
+    contribution::{
+        Contribution, ContributionField, ContributionType, NewContribution, PatchContribution,
+    },
+    contributor::{Contributor, ContributorOrderBy, NewContributor, PatchContributor},
+    convert_from_jats, convert_to_jats,
+    funding::{Funding, FundingField, NewFunding, PatchFunding},
+    imprint::{Imprint, ImprintField, ImprintOrderBy, NewImprint, PatchImprint},
+    institution::{CountryCode, Institution, InstitutionOrderBy, NewInstitution, PatchInstitution},
+    issue::{Issue, IssueField, NewIssue, PatchIssue},
+    language::{
+        Language, LanguageCode, LanguageField, LanguageRelation, NewLanguage, PatchLanguage,
+    },
+    locale::LocaleCode,
+    location::{Location, LocationOrderBy, LocationPlatform, NewLocation, PatchLocation},
+    price::{CurrencyCode, NewPrice, PatchPrice, Price, PriceField},
+    publication::{
+        NewPublication, PatchPublication, Publication, PublicationOrderBy, PublicationProperties,
+        PublicationType,
+    },
+    publisher::{NewPublisher, PatchPublisher, Publisher, PublisherOrderBy},
+    r#abstract::{Abstract, AbstractOrderBy, AbstractType, NewAbstract, PatchAbstract},
+    reference::{NewReference, PatchReference, Reference, ReferenceOrderBy},
+    series::{NewSeries, PatchSeries, Series, SeriesOrderBy, SeriesType},
+    subject::{check_subject, NewSubject, PatchSubject, Subject, SubjectField, SubjectType},
+    title::{NewTitle, PatchTitle, Title, TitleOrderBy},
+    work::{NewWork, PatchWork, Work, WorkOrderBy, WorkProperties, WorkStatus, WorkType},
+    work_relation::{
+        NewWorkRelation, PatchWorkRelation, RelationType, WorkRelation, WorkRelationOrderBy,
+    },
+    ConversionLimit, Convert, Crud, Doi, Isbn, LengthUnit, MarkupFormat, Orcid, Reorder, Ror,
+    Timestamp, WeightUnit,
+};
 use thoth_errors::{ThothError, ThothResult};
-
-use super::utils::{Direction, Expression};
 
 impl juniper::Context for Context {}
 
@@ -1521,6 +1527,224 @@ impl QueryRoot {
         Reference::count(&context.db, None, vec![], vec![], vec![], None, None)
             .map_err(|e| e.into())
     }
+
+    #[graphql(description = "Query a title by its ID")]
+    fn title(
+        context: &Context,
+        title_id: Uuid,
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Title> {
+        let mut title = Title::from_id(&context.db, &title_id).map_err(FieldError::from)?;
+        let markup = markup_format.unwrap();
+        title.title = convert_from_jats(&title.title, markup, ConversionLimit::Title)?;
+        if let Some(subtitle) = &title.subtitle {
+            title.subtitle = Some(convert_from_jats(subtitle, markup, ConversionLimit::Title)?);
+        }
+        title.full_title = convert_from_jats(&title.full_title, markup, ConversionLimit::Title)?;
+        Ok(title)
+    }
+
+    #[graphql(description = "Query the full list of titles")]
+    fn titles(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on title_, subtitle, full_title fields"
+        )]
+        filter: Option<String>,
+        #[graphql(
+            default = TitleOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<TitleOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results with these locale codes"
+        )]
+        locale_codes: Option<Vec<LocaleCode>>,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set shows result with this markup format"
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Vec<Title>> {
+        let mut titles = Title::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            filter,
+            order.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+            locale_codes.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+        )
+        .map_err(FieldError::from)?;
+
+        let markup = markup_format.unwrap();
+        for title in &mut titles {
+            title.title = convert_from_jats(&title.title, markup, ConversionLimit::Title)?;
+            if let Some(subtitle) = &title.subtitle {
+                title.subtitle = Some(convert_from_jats(subtitle, markup, ConversionLimit::Title)?);
+            }
+            title.full_title =
+                convert_from_jats(&title.full_title, markup, ConversionLimit::Title)?;
+        }
+        Ok(titles)
+    }
+
+    #[graphql(description = "Query an abstract by its ID")]
+    fn r#abstract(
+        context: &Context,
+        abstract_id: Uuid,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set shows results with this markup format"
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Abstract> {
+        let mut r#abstract =
+            Abstract::from_id(&context.db, &abstract_id).map_err(FieldError::from)?;
+        r#abstract.content = convert_from_jats(
+            &r#abstract.content,
+            markup_format.unwrap(),
+            ConversionLimit::Abstract,
+        )?;
+        Ok(r#abstract)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[graphql(description = "Query the full list of abstracts")]
+    fn abstracts(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on content fields"
+        )]
+        filter: Option<String>,
+        #[graphql(
+            default = AbstractOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<AbstractOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set only shows results with these locale codes"
+        )]
+        locale_codes: Option<Vec<LocaleCode>>,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set shows result with this markup format"
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Vec<Abstract>> {
+        let mut abstracts = Abstract::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            filter,
+            order.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+            locale_codes.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+        )
+        .map_err(FieldError::from)?;
+
+        for r#abstract in &mut abstracts {
+            r#abstract.content = convert_from_jats(
+                &r#abstract.content,
+                markup_format.unwrap(),
+                ConversionLimit::Abstract,
+            )?;
+        }
+
+        Ok(abstracts)
+    }
+
+    #[graphql(description = "Query an biography by it's ID")]
+    fn biography(
+        context: &Context,
+        biography_id: Uuid,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set shows result with this markup format"
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Biography> {
+        let mut biography =
+            Biography::from_id(&context.db, &biography_id).map_err(FieldError::from)?;
+        biography.content = convert_from_jats(
+            &biography.content,
+            markup_format.unwrap(),
+            ConversionLimit::Biography,
+        )?;
+        Ok(biography)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[graphql(description = "Query biographies by work ID")]
+    fn biographies(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on content fields"
+        )]
+        filter: Option<String>,
+        #[graphql(
+            default = BiographyOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<BiographyOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results with these locale codes"
+        )]
+        locale_codes: Option<Vec<LocaleCode>>,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set shows result with this markup format"
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Vec<Biography>> {
+        let mut biographies = Biography::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            filter,
+            order.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+            locale_codes.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+        )
+        .map_err(FieldError::from)?;
+
+        for biography in &mut biographies {
+            biography.content = convert_from_jats(
+                &biography.content,
+                markup_format.unwrap(),
+                ConversionLimit::Biography,
+            )?;
+        }
+
+        Ok(biographies)
+    }
 }
 
 pub struct MutationRoot;
@@ -1643,6 +1867,139 @@ impl MutationRoot {
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
         Language::create(&context.db, &data).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Create a new title with the specified values")]
+    fn create_title(
+        context: &Context,
+        #[graphql(description = "The markup format of the title")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Values for title to be created")] data: NewTitle,
+    ) -> FieldResult<Title> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+
+        let has_canonical_title = Work::from_id(&context.db, &data.work_id)?
+            .title(context)
+            .is_ok();
+
+        if has_canonical_title && data.canonical {
+            return Err(ThothError::CanonicalTitleExistsError.into());
+        }
+
+        let mut data = data.clone();
+
+        let markup = markup_format.unwrap();
+        data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
+        data.subtitle = data
+            .subtitle
+            .map(|subtitle_content| {
+                convert_to_jats(subtitle_content, markup, ConversionLimit::Title)
+            })
+            .transpose()?;
+        data.full_title = convert_to_jats(data.full_title, markup, ConversionLimit::Title)?;
+
+        Title::create(&context.db, &data).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Create a new abstract with the specified values")]
+    fn create_abstract(
+        context: &Context,
+        #[graphql(description = "The markup format of the abstract")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Values for abstract to be created")] data: NewAbstract,
+    ) -> FieldResult<Abstract> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+
+        let has_canonical_abstract = Abstract::all(
+            &context.db,
+            1,
+            0,
+            None,
+            AbstractOrderBy::default(),
+            vec![],
+            Some(data.work_id),
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )?
+        .iter()
+        .any(|abstract_item| abstract_item.canonical);
+
+        if has_canonical_abstract && data.canonical {
+            return Err(ThothError::CanonicalAbstractExistsError.into());
+        }
+
+        let mut data = data.clone();
+        data.content = convert_to_jats(
+            data.content,
+            markup_format.unwrap(),
+            ConversionLimit::Abstract,
+        )?;
+
+        if data.abstract_type == AbstractType::Short
+            && data.content.len() > MAX_SHORT_ABSTRACT_CHAR_LIMIT as usize
+        {
+            return Err(ThothError::ShortAbstractLimitExceedError.into());
+        };
+
+        Abstract::create(&context.db, &data).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Create a new biography with the specified values")]
+    fn create_biography(
+        context: &Context,
+        #[graphql(description = "The markup format of the biography")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Values for biography to be created")] data: NewBiography,
+    ) -> FieldResult<Biography> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_contribution_id(
+                &context.db,
+                data.contribution_id,
+            )?)?;
+
+        let has_canonical_biography = Biography::all(
+            &context.db,
+            0,
+            0,
+            None,
+            BiographyOrderBy::default(),
+            vec![],
+            None,
+            Some(data.contribution_id),
+            vec![],
+            vec![],
+            None,
+            None,
+        )?
+        .iter()
+        .any(|biography_item| biography_item.canonical);
+
+        if has_canonical_biography && data.canonical {
+            return Err(ThothError::CanonicalBiographyExistsError.into());
+        }
+
+        let mut data = data.clone();
+        data.content = convert_to_jats(
+            data.content,
+            markup_format.unwrap(),
+            ConversionLimit::Biography,
+        )?;
+
+        Biography::create(&context.db, &data).map_err(|e| e.into())
     }
 
     #[graphql(description = "Create a new institution with the specified values")]
@@ -2226,6 +2583,113 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
+    #[graphql(description = "Update an existing title with the specified values")]
+    fn update_title(
+        context: &Context,
+        #[graphql(description = "The markup format of the title")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Values to apply to existing title")] data: PatchTitle,
+    ) -> FieldResult<Title> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let title = Title::from_id(&context.db, &data.title_id).unwrap();
+        context
+            .account_access
+            .can_edit(title.publisher_id(&context.db)?)?;
+
+        if data.work_id != title.work_id {
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+        }
+
+        let mut data = data.clone();
+        let markup = markup_format.unwrap();
+        data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
+        data.subtitle = data
+            .subtitle
+            .map(|subtitle_content| {
+                convert_to_jats(subtitle_content, markup, ConversionLimit::Title)
+            })
+            .transpose()?;
+        data.full_title = convert_to_jats(data.full_title, markup, ConversionLimit::Title)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        title
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Update an existing abstract with the specified values")]
+    fn update_abstract(
+        context: &Context,
+        #[graphql(description = "The markup format of the abstract")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Values to apply to existing abstract")] data: PatchAbstract,
+    ) -> FieldResult<Abstract> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let r#abstract = Abstract::from_id(&context.db, &data.abstract_id).unwrap();
+        context
+            .account_access
+            .can_edit(r#abstract.publisher_id(&context.db)?)?;
+
+        if data.work_id != r#abstract.work_id {
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+        }
+
+        let mut data = data.clone();
+        data.content =
+            convert_to_jats(data.content, markup_format.unwrap(), ConversionLimit::Title)?;
+
+        if data.abstract_type == AbstractType::Short
+            && data.content.len() > MAX_SHORT_ABSTRACT_CHAR_LIMIT as usize
+        {
+            return Err(ThothError::ShortAbstractLimitExceedError.into());
+        }
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        r#abstract
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Update an existing biography with the specified values")]
+    fn update_biography(
+        context: &Context,
+        #[graphql(description = "The markup format of the biography")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Values to apply to existing biography")] data: PatchBiography,
+    ) -> FieldResult<Biography> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let biography = Biography::from_id(&context.db, &data.biography_id).unwrap();
+        context
+            .account_access
+            .can_edit(biography.publisher_id(&context.db)?)?;
+
+        // If contribution changes, ensure permission on the new work via contribution
+        if data.contribution_id != biography.contribution_id {
+            context
+                .account_access
+                .can_edit(publisher_id_from_contribution_id(
+                    &context.db,
+                    data.contribution_id,
+                )?)?;
+        }
+
+        let mut data = data.clone();
+        data.content =
+            convert_to_jats(data.content, markup_format.unwrap(), ConversionLimit::Title)?;
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        biography
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
     #[graphql(description = "Delete a single work using its ID")]
     fn delete_work(
         context: &Context,
@@ -2352,6 +2816,20 @@ impl MutationRoot {
         language.delete(&context.db).map_err(|e| e.into())
     }
 
+    #[graphql(description = "Delete a single title using its ID")]
+    fn delete_title(
+        context: &Context,
+        #[graphql(description = "Thoth ID of title to be deleted")] title_id: Uuid,
+    ) -> FieldResult<Title> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let title = Title::from_id(&context.db, &title_id).unwrap();
+        context
+            .account_access
+            .can_edit(title.publisher_id(&context.db)?)?;
+
+        title.delete(&context.db).map_err(|e| e.into())
+    }
+
     #[graphql(description = "Delete a single institution using its ID")]
     fn delete_institution(
         context: &Context,
@@ -2475,6 +2953,34 @@ impl MutationRoot {
             .can_edit(reference.publisher_id(&context.db)?)?;
 
         reference.delete(&context.db).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Delete a single abstract using its ID")]
+    fn delete_abstract(
+        context: &Context,
+        #[graphql(description = "Thoth ID of abstract to be deleted")] abstract_id: Uuid,
+    ) -> FieldResult<Abstract> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let r#abstract = Abstract::from_id(&context.db, &abstract_id).unwrap();
+        context
+            .account_access
+            .can_edit(r#abstract.publisher_id(&context.db)?)?;
+
+        r#abstract.delete(&context.db).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Delete a single biography using its ID")]
+    fn delete_biography(
+        context: &Context,
+        #[graphql(description = "Thoth ID of biography to be deleted")] biography_id: Uuid,
+    ) -> FieldResult<Biography> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let biography = Biography::from_id(&context.db, &biography_id).unwrap();
+        context
+            .account_access
+            .can_edit(biography.publisher_id(&context.db)?)?;
+
+        biography.delete(&context.db).map_err(|e| e.into())
     }
 
     #[graphql(description = "Change the ordering of an affiliation within a contribution")]
@@ -2685,18 +3191,169 @@ impl Work {
     }
 
     #[graphql(description = "Concatenation of title and subtitle with punctuation mark")]
-    pub fn full_title(&self) -> &str {
-        self.full_title.as_str()
+    #[graphql(
+        deprecated = "Please use Work `titles` field instead to get the correct full title in a multilingual manner"
+    )]
+    pub fn full_title(&self, ctx: &Context) -> FieldResult<String> {
+        Ok(Title::canonical_from_work_id(&ctx.db, &self.work_id)?.full_title)
     }
 
     #[graphql(description = "Main title of the work (excluding subtitle)")]
-    pub fn title(&self) -> &str {
-        self.title.as_str()
+    #[graphql(
+        deprecated = "Please use Work `titles` field instead to get the correct title in a multilingual manner"
+    )]
+    pub fn title(&self, ctx: &Context) -> FieldResult<String> {
+        Ok(Title::canonical_from_work_id(&ctx.db, &self.work_id)?.title)
     }
 
     #[graphql(description = "Secondary title of the work (excluding main title)")]
-    pub fn subtitle(&self) -> Option<&String> {
-        self.subtitle.as_ref()
+    #[graphql(
+        deprecated = "Please use Work `titles` field instead to get the correct sub_title in a multilingual manner"
+    )]
+    pub fn subtitle(&self, ctx: &Context) -> FieldResult<Option<String>> {
+        Ok(Title::canonical_from_work_id(&ctx.db, &self.work_id)?.subtitle)
+    }
+
+    #[graphql(
+        description = "Short abstract of the work. Where a work has two different versions of the abstract, the truncated version should be entered here. Otherwise, it can be left blank. This field is not output in metadata formats; where relevant, Long Abstract is used instead."
+    )]
+    #[graphql(
+        deprecated = "Please use Work `abstracts` field instead to get the correct short abstract in a multilingual manner"
+    )]
+    pub fn short_abstract(&self, ctx: &Context) -> FieldResult<Option<String>> {
+        Ok(
+            Abstract::short_canonical_from_work_id(&ctx.db, &self.work_id)
+                .map(|a| a.content)
+                .ok(),
+        )
+    }
+
+    #[graphql(
+        description = "Abstract of the work. Where a work has only one abstract, it should be entered here, and Short Abstract can be left blank. Long Abstract is output in metadata formats, and Short Abstract is not."
+    )]
+    #[graphql(
+        deprecated = "Please use Work `abstracts` field instead to get the correct long abstract in a multilingual manner"
+    )]
+    pub fn long_abstract(&self, ctx: &Context) -> FieldResult<Option<String>> {
+        Ok(
+            Abstract::long_canonical_from_work_id(&ctx.db, &self.work_id)
+                .map(|a| a.content)
+                .ok(),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[graphql(description = "Query titles by work ID")]
+    fn titles(
+        &self,
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on title_, subtitle, full_title fields"
+        )]
+        filter: Option<String>,
+        #[graphql(
+            default = TitleOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<TitleOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results with these locale codes"
+        )]
+        locale_codes: Option<Vec<LocaleCode>>,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set, only shows results with this markup format"
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Vec<Title>> {
+        let mut titles = Title::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            filter,
+            order.unwrap_or_default(),
+            vec![],
+            Some(self.work_id),
+            None,
+            locale_codes.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+        )
+        .map_err(FieldError::from)?;
+
+        let markup = markup_format.unwrap();
+        for title in titles.iter_mut() {
+            title.title = convert_from_jats(&title.title, markup, ConversionLimit::Title)?;
+            title.subtitle = title
+                .subtitle
+                .as_ref()
+                .map(|subtitle| convert_from_jats(subtitle, markup, ConversionLimit::Title))
+                .transpose()?;
+            title.full_title =
+                convert_from_jats(&title.full_title, markup, ConversionLimit::Title)?;
+        }
+
+        Ok(titles)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[graphql(description = "Query abstracts by work ID")]
+    fn abstracts(
+        &self,
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on title_, subtitle, full_title fields"
+        )]
+        filter: Option<String>,
+        #[graphql(
+            default = AbstractOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<AbstractOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results with these locale codes"
+        )]
+        locale_codes: Option<Vec<LocaleCode>>,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set, only shows results with this markup format"
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Vec<Abstract>> {
+        let mut abstracts = Abstract::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            filter,
+            order.unwrap_or_default(),
+            vec![],
+            Some(*self.work_id()),
+            None,
+            locale_codes.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+        )
+        .map_err(FieldError::from)?;
+
+        for r#abstract in &mut abstracts {
+            r#abstract.content = convert_from_jats(
+                &r#abstract.content,
+                markup_format.unwrap(),
+                ConversionLimit::Abstract,
+            )?;
+        }
+
+        Ok(abstracts)
     }
 
     #[graphql(description = "Internal reference code")]
@@ -2801,20 +3458,6 @@ impl Work {
     )]
     pub fn oclc(&self) -> Option<&String> {
         self.oclc.as_ref()
-    }
-
-    #[graphql(
-        description = "Short abstract of the work. Where a work has two different versions of the abstract, the truncated version should be entered here. Otherwise, it can be left blank. This field is not output in metadata formats; where relevant, Long Abstract is used instead."
-    )]
-    pub fn short_abstract(&self) -> Option<&String> {
-        self.short_abstract.as_ref()
-    }
-
-    #[graphql(
-        description = "Abstract of the work. Where a work has only one abstract, it should be entered here, and Short Abstract can be left blank. Long Abstract is output in metadata formats, and Short Abstract is not."
-    )]
-    pub fn long_abstract(&self) -> Option<&String> {
-        self.long_abstract.as_ref()
     }
 
     #[graphql(
@@ -3643,9 +4286,71 @@ impl Contribution {
         self.main_contribution
     }
 
+    #[allow(clippy::too_many_arguments)]
+    #[graphql(description = "Query the full list of biographies")]
+    pub fn biographies(
+        &self,
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on title_, subtitle, full_title fields"
+        )]
+        filter: Option<String>,
+        #[graphql(
+            default = BiographyOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<BiographyOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results with these locale codes"
+        )]
+        locale_codes: Option<Vec<LocaleCode>>,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set, only shows results with this markup format"
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Vec<Biography>> {
+        let mut biographies = Biography::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            filter,
+            order.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+            locale_codes.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+        )
+        .map_err(FieldError::from)?;
+
+        for biography in &mut biographies {
+            biography.content = convert_from_jats(
+                &biography.content,
+                markup_format.unwrap(),
+                ConversionLimit::Biography,
+            )?;
+        }
+
+        Ok(biographies)
+    }
+
     #[graphql(description = "Biography of the contributor at the time of contribution")]
-    pub fn biography(&self) -> Option<&String> {
-        self.biography.as_ref()
+    #[graphql(
+        deprecated = "Please use Contribution `biographies` field instead to get the correct biography in a multilingual manner"
+    )]
+    pub fn biography(&self, ctx: &Context) -> FieldResult<Option<String>> {
+        Ok(
+            Biography::canonical_from_contribution_id(&ctx.db, &self.contribution_id)
+                .map(|a| a.content)
+                .ok(),
+        )
     }
 
     #[graphql(description = "Date and time at which the contribution record was created")]
@@ -4025,7 +4730,7 @@ impl Subject {
     }
 
     #[graphql(
-        description = "Number representing this subject's position in an ordered list of subjects of the same type within the work"
+        description = "Number representing this subject's position in an ordered list of subjects of the same type within the work (subjects of equal prominence can have the same number)"
     )]
     pub fn subject_ordinal(&self) -> &i32 {
         &self.subject_ordinal
@@ -4456,6 +5161,120 @@ impl Reference {
     #[graphql(description = "The citing work.")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "A title associated with a work.")]
+impl Title {
+    #[graphql(description = "Thoth ID of the title")]
+    pub fn title_id(&self) -> Uuid {
+        self.title_id
+    }
+
+    #[graphql(description = "Thoth ID of the work to which the title is linked")]
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
+    }
+
+    #[graphql(description = "Locale code of the title")]
+    pub fn locale_code(&self) -> &LocaleCode {
+        &self.locale_code
+    }
+
+    #[graphql(description = "Full title including subtitle")]
+    pub fn full_title(&self) -> &String {
+        &self.full_title
+    }
+
+    #[graphql(description = "Main title (excluding subtitle)")]
+    pub fn title(&self) -> &String {
+        &self.title
+    }
+
+    #[graphql(description = "Subtitle of the work")]
+    pub fn subtitle(&self) -> Option<&String> {
+        self.subtitle.as_ref()
+    }
+
+    #[graphql(description = "Whether this is the canonical title for the work")]
+    pub fn canonical(&self) -> bool {
+        self.canonical
+    }
+
+    #[graphql(description = "Get the work to which the title is linked")]
+    pub fn work(&self, context: &Context) -> FieldResult<Work> {
+        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "An abstract associated with a work.")]
+impl Abstract {
+    #[graphql(description = "Thoth ID of the abstract")]
+    pub fn abstract_id(&self) -> Uuid {
+        self.abstract_id
+    }
+    #[graphql(description = "Thoth ID of the work to which the abstract is linked")]
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
+    }
+    #[graphql(description = "Locale code of the abstract")]
+    pub fn locale_code(&self) -> &LocaleCode {
+        &self.locale_code
+    }
+    #[graphql(description = "Content of the abstract")]
+    pub fn content(&self) -> &String {
+        &self.content
+    }
+    #[graphql(description = "Whether this is the canonical abstract for the work")]
+    pub fn canonical(&self) -> bool {
+        self.canonical
+    }
+    #[graphql(description = "Type of the abstract")]
+    pub fn abstract_type(&self) -> &AbstractType {
+        &self.abstract_type
+    }
+    #[graphql(description = "Get the work to which the abstract is linked")]
+    pub fn work(&self, context: &Context) -> FieldResult<Work> {
+        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "A biography associated with a work and contribution.")]
+impl Biography {
+    #[graphql(description = "Thoth ID of the biography")]
+    pub fn biography_id(&self) -> Uuid {
+        self.biography_id
+    }
+
+    #[graphql(description = "Thoth ID of the contribution to which the biography is linked")]
+    pub fn contribution_id(&self) -> Uuid {
+        self.contribution_id
+    }
+
+    #[graphql(description = "Locale code of the biography")]
+    pub fn locale_code(&self) -> &LocaleCode {
+        &self.locale_code
+    }
+
+    #[graphql(description = "Content of the biography")]
+    pub fn content(&self) -> &String {
+        &self.content
+    }
+
+    #[graphql(description = "Whether this is the canonical biography for the contribution/work")]
+    pub fn canonical(&self) -> bool {
+        self.canonical
+    }
+
+    #[graphql(description = "Get the work to which the biography is linked via contribution")]
+    pub fn work(&self, context: &Context) -> FieldResult<Work> {
+        let contribution = Contribution::from_id(&context.db, &self.contribution_id)?;
+        Work::from_id(&context.db, &contribution.work_id).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get the contribution to which the biography is linked")]
+    pub fn contribution(&self, context: &Context) -> FieldResult<Contribution> {
+        Contribution::from_id(&context.db, &self.contribution_id).map_err(|e| e.into())
     }
 }
 

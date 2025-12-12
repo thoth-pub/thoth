@@ -1,9 +1,13 @@
 use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
+use thoth_api::model::language::LanguageCode as ApiLanguageCode;
+use thoth_api::model::locale::LocaleCode as ApiLocaleCode;
+
 use thoth_client::{
-    ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
-    WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkSubjects, WorkType,
+    AbstractType, ContributionType, LanguageRelation, PublicationType, SubjectType, Work,
+    WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkStatus,
+    WorkSubjects, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -167,10 +171,10 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                                 w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                             })?;
                             write_element_block("TitleText", w, |w| {
-                                w.write(XmlEvent::Characters(&self.title))
+                                w.write(XmlEvent::Characters(&self.titles[0].title))
                                     .map_err(|e| e.into())
                             })?;
-                            if let Some(subtitle) = &self.subtitle {
+                            if let Some(subtitle) = &self.titles[0].subtitle {
                                 write_element_block("Subtitle", w, |w| {
                                     w.write(XmlEvent::Characters(subtitle))
                                         .map_err(|e| e.into())
@@ -215,9 +219,18 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                         })
                     })
                 })?;
-                if self.long_abstract.is_some() || self.cover_url.is_some() {
+                if self
+                    .abstracts
+                    .iter()
+                    .any(|a| a.abstract_type == AbstractType::LONG && a.canonical)
+                    || self.cover_url.is_some()
+                {
                     write_element_block("CollateralDetail", w, |w| {
-                        if let Some(labstract) = &self.long_abstract {
+                        if let Some(r#abstract) = &self
+                            .abstracts
+                            .iter()
+                            .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
+                        {
                             write_element_block("TextContent", w, |w| {
                                 // 03 Description ("30 Abstract" not implemented in OAPEN)
                                 write_element_block("TextType", w, |w| {
@@ -227,12 +240,16 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                                 write_element_block("ContentAudience", w, |w| {
                                     w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                                 })?;
+                                let api_locale: ApiLocaleCode =
+                                    r#abstract.locale_code.clone().into();
+                                let lang_code: ApiLanguageCode = api_locale.into();
+                                let iso_code = lang_code.to_string().to_lowercase();
                                 write_full_element_block(
                                     "Text",
-                                    Some(vec![("language", "eng")]),
+                                    Some(vec![("language", &iso_code), ("textformat", "03")]),
                                     w,
                                     |w| {
-                                        w.write(XmlEvent::Characters(labstract))
+                                        w.write(XmlEvent::Characters(&r#abstract.content))
                                             .map_err(|e| e.into())
                                     },
                                 )
@@ -711,7 +728,7 @@ mod tests {
             last_name: "1".to_string(),
             full_name: "Author 1".to_string(),
             main_contribution: true,
-            biography: None,
+            biographies: vec![],
             contribution_ordinal: 1,
             contributor: WorkContributionsContributor {
                 orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -980,9 +997,22 @@ mod tests {
         let mut test_work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
+            abstracts: vec![thoth_client::WorkAbstracts {
+                abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                content: "Lorem ipsum dolor sit amet".to_string(),
+                locale_code: thoth_client::LocaleCode::EN,
+                abstract_type: thoth_client::AbstractType::LONG,
+                canonical: true,
+            }],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(1),
@@ -991,8 +1021,6 @@ mod tests {
             withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
-            short_abstract: None,
-            long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
             bibliography_note: None,
             place: Some("León, Spain".to_string()),
@@ -1100,7 +1128,9 @@ mod tests {
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(output.contains(
+            r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet</Text>"#
+        ));
         assert!(output.contains(r#"    <SupportingResource>"#));
         assert!(output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
         assert!(output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
@@ -1147,9 +1177,9 @@ mod tests {
 
         // Remove some values to test non-output of optional blocks
         test_work.doi = None;
-        test_work.subtitle = None;
+        test_work.titles[0].subtitle = None;
         test_work.page_count = None;
-        test_work.long_abstract = None;
+        test_work.abstracts.clear();
         test_work.place = None;
         test_work.publication_date = None;
         test_work.landing_page = None;
@@ -1177,7 +1207,9 @@ mod tests {
         );
         assert!(!output.contains(r#"    <TextContent>"#));
         assert!(!output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(!output.contains(
+            r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet</Text>"#
+        ));
         // No place supplied
         assert!(!output.contains(r#"    <CityOfPublication>León, Spain</CityOfPublication>"#));
         // No publication date supplied
@@ -1205,14 +1237,23 @@ mod tests {
 
         // Replace long abstract but remove cover URL
         // Result: CollateralDetail block still present, but now only contains long abstract
-        test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
+        test_work.abstracts.push(thoth_client::WorkAbstracts {
+            abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            content: "Lorem ipsum dolor sit amet".to_string(),
+            locale_code: thoth_client::LocaleCode::EN,
+            abstract_type: thoth_client::AbstractType::LONG,
+            canonical: true,
+        });
         test_work.cover_url = None;
         let output = generate_test_output(true, &test_work);
         assert!(output.contains(r#"  <CollateralDetail>"#));
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(output.contains(
+            r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet</Text>"#
+        ));
         assert!(!output.contains(r#"    <SupportingResource>"#));
         assert!(!output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
         assert!(!output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
@@ -1223,13 +1264,15 @@ mod tests {
 
         // Remove both cover URL and long abstract
         // Result: No CollateralDetail block present at all
-        test_work.long_abstract = None;
+        test_work.abstracts.clear();
         let output = generate_test_output(true, &test_work);
         assert!(!output.contains(r#"  <CollateralDetail>"#));
         assert!(!output.contains(r#"    <TextContent>"#));
         assert!(!output.contains(r#"      <TextType>03</TextType>"#));
         assert!(!output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(!output.contains(
+            r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet</Text>"#
+        ));
         assert!(!output.contains(r#"    <SupportingResource>"#));
         assert!(!output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
         assert!(!output.contains(r#"      <ResourceMode>03</ResourceMode>"#));

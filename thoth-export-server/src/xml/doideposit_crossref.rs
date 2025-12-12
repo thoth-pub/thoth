@@ -1,10 +1,11 @@
 use chrono::Utc;
+use regex::Regex;
 use std::io::Write;
 use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
-    ContributionType, Funding, PublicationType, Reference, RelationType, Work, WorkContributions,
-    WorkContributionsAffiliationsInstitution, WorkFundings, WorkIssuesSeries, WorkPublications,
-    WorkReferences, WorkRelations, WorkRelationsRelatedWorkContributions,
+    AbstractType, ContributionType, Funding, PublicationType, Reference, RelationType, Work,
+    WorkContributions, WorkContributionsAffiliationsInstitution, WorkFundings, WorkIssuesSeries,
+    WorkPublications, WorkReferences, WorkRelations, WorkRelationsRelatedWorkContributions,
     WorkRelationsRelatedWorkContributionsAffiliationsInstitution, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
@@ -205,7 +206,7 @@ fn write_chapter_contributions<W: Write>(
 }
 
 fn write_work_title<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
-    write_title_content(&work.title, work.subtitle.as_deref(), w)
+    write_title_content(&work.titles[0].title, work.titles[0].subtitle.as_deref(), w)
 }
 
 fn write_chapter_title<W: Write>(
@@ -213,8 +214,8 @@ fn write_chapter_title<W: Write>(
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
     write_title_content(
-        &chapter.related_work.title,
-        chapter.related_work.subtitle.as_deref(),
+        &chapter.related_work.titles[0].title,
+        chapter.related_work.titles[0].subtitle.as_deref(),
         w,
     )
 }
@@ -244,11 +245,19 @@ fn write_work_abstract<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothRe
     // which can be set to any value. In our case we use "long" or "short".
     // Abstracts must be output in JATS, we simply convert them into JATS by extracting its
     // paragraphs and tagging them with <jats:p>
-    if let Some(long_abstract) = &work.long_abstract {
-        write_abstract_content(long_abstract, "long", w)?;
-    }
-    if let Some(short_abstract) = &work.short_abstract {
-        write_abstract_content(short_abstract, "short", w)?;
+    // Output all abstracts with their locale codes
+    for abstract_item in &work.abstracts {
+        let abstract_type = match abstract_item.abstract_type {
+            AbstractType::LONG => "long",
+            AbstractType::SHORT => "short",
+            AbstractType::Other(_) => "other",
+        };
+        write_abstract_content_with_locale_code(
+            &abstract_item.content,
+            abstract_type,
+            &abstract_item.locale_code.to_string(),
+            w,
+        )?;
     }
     Ok(())
 }
@@ -257,15 +266,124 @@ fn write_chapter_abstract<W: Write>(
     chapter: &WorkRelations,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
-    // Crossref supports multiple abstracts when tagged with the "abstract-type" attribute,
-    // which can be set to any value. In our case we use "long" or "short".
-    // Abstracts must be output in JATS, we simply convert them into JATS by extracting its
-    // paragraphs and tagging them with <jats:p>
-    if let Some(long_abstract) = &chapter.related_work.long_abstract {
+    if let Some(long_abstract) = &chapter
+        .related_work
+        .abstracts
+        .iter()
+        .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
+        .map(|a| a.content.clone())
+    {
         write_abstract_content(long_abstract, "long", w)?;
     }
-    if let Some(short_abstract) = &chapter.related_work.short_abstract {
+    if let Some(short_abstract) = &chapter
+        .related_work
+        .abstracts
+        .iter()
+        .find(|a| a.abstract_type == AbstractType::SHORT && a.canonical)
+        .map(|a| a.content.clone())
+    {
         write_abstract_content(short_abstract, "short", w)?;
+    }
+    Ok(())
+}
+
+pub fn rename_tags_with_jats_prefix(text: &str) -> String {
+    // This regex matches an opening or closing HTML/XML tag:
+    // 1. (<) - captures '<'
+    // 2. (/?) - optional closing slash
+    // 3. ([a-zA-Z0-9]+(?::[a-zA-Z0-9-]+)?) - tag name with optional namespace prefix
+    // 4. ([^>]*) - everything else until '>'
+    let re = Regex::new(r"(<)(/?)([a-zA-Z0-9]+(?::[a-zA-Z0-9-]+)?)([^>]*)>").unwrap();
+    re.replace_all(text, |caps: &regex::Captures| {
+        let open_bracket = &caps[1];
+        let slash = &caps[2];
+        let tag_name = &caps[3];
+        let rest = &caps[4];
+
+        // Only add jats: prefix if it's not already there
+        if !tag_name.starts_with("jats:") {
+            format!("{open_bracket}{slash}jats:{tag_name}{rest}>")
+        } else {
+            format!("{open_bracket}{slash}{tag_name}{rest}>")
+        }
+    })
+    .to_string()
+}
+
+/// Write JATS content as actual XML elements (not escaped characters)
+fn write_jats_content<W: Write>(content: &str, w: &mut EventWriter<W>) -> ThothResult<()> {
+    use quick_xml::events::Event;
+    use quick_xml::Reader;
+
+    let prefixed_content = rename_tags_with_jats_prefix(content);
+    let mut reader = Reader::from_str(&prefixed_content);
+    let mut buf = Vec::new();
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(e)) => {
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let mut event_builder = XmlEvent::start_element(&*name);
+
+                // Add attributes
+                let attrs: Vec<(String, String)> = e
+                    .attributes()
+                    .flatten()
+                    .map(|attr| {
+                        (
+                            String::from_utf8_lossy(attr.key.as_ref()).to_string(),
+                            String::from_utf8_lossy(&attr.value).to_string(),
+                        )
+                    })
+                    .collect();
+
+                for (key, value) in &attrs {
+                    event_builder = event_builder.attr(key.as_str(), value.as_str());
+                }
+
+                w.write(event_builder)?;
+            }
+            Ok(Event::End(_)) => {
+                w.write(XmlEvent::end_element())?;
+            }
+            Ok(Event::Text(e)) => {
+                let text = e.unescape().unwrap_or_default();
+                if !text.trim().is_empty() || text.chars().all(char::is_whitespace) {
+                    w.write(XmlEvent::Characters(&text))?;
+                }
+            }
+            Ok(Event::Eof) => break,
+            Ok(Event::Empty(e)) => {
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let mut event_builder = XmlEvent::start_element(&*name);
+
+                // Add attributes
+                let attrs: Vec<(String, String)> = e
+                    .attributes()
+                    .flatten()
+                    .map(|attr| {
+                        (
+                            String::from_utf8_lossy(attr.key.as_ref()).to_string(),
+                            String::from_utf8_lossy(&attr.value).to_string(),
+                        )
+                    })
+                    .collect();
+
+                for (key, value) in &attrs {
+                    event_builder = event_builder.attr(key.as_str(), value.as_str());
+                }
+
+                w.write(event_builder)?;
+                w.write(XmlEvent::end_element())?;
+            }
+            Err(e) => {
+                return Err(ThothError::InternalError(format!(
+                    "Error parsing JATS content: {}",
+                    e
+                )))
+            }
+            _ => {}
+        }
+        buf.clear();
     }
     Ok(())
 }
@@ -280,16 +398,26 @@ fn write_abstract_content<W: Write>(
         Some(vec![("abstract-type", abstract_type)]),
         w,
         |w| {
-            for paragraph in abstract_content.lines() {
-                if !paragraph.is_empty() {
-                    write_element_block("jats:p", w, |w| {
-                        w.write(XmlEvent::Characters(paragraph))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-            }
+            write_jats_content(abstract_content, w)?;
             Ok(())
         },
+    )
+}
+
+fn write_abstract_content_with_locale_code<W: Write>(
+    abstract_content: &str,
+    abstract_type: &str,
+    locale_code: &str,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    write_full_element_block(
+        "jats:abstract",
+        Some(vec![
+            ("abstract-type", abstract_type),
+            ("xml:lang", locale_code),
+        ]),
+        w,
+        |w| write_jats_content(abstract_content, w),
     )
 }
 
@@ -1250,17 +1378,43 @@ mod tests {
             relation_ordinal: 1,
             related_work: WorkRelationsRelatedWork {
                 work_status: WorkStatus::ACTIVE,
-                full_title: "Chapter: One".to_string(),
-                title: "Chapter".to_string(),
-                subtitle: Some("One".to_string()),
+                titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                    title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    full_title: "Chapter: One".to_string(),
+                    title: "Chapter".to_string(),
+                    subtitle: Some("One".to_string()),
+                    canonical: true,
+                }],
+                abstracts: vec![
+                    thoth_client::WorkRelationsRelatedWorkAbstracts {
+                        abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001")
+                            .unwrap(),
+                        work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                        // Test JATS markup as returned from DB (converted by convert_to_jats() in migration)
+                        // Tests newlines (multiple paragraphs) and full range of rename_tags_with_jats_prefix()
+                        content: "First paragraph with <bold>bold text</bold> and <italic>italic text</italic>.\n\nSecond paragraph with H<sub>2</sub>O and x<sup>2</sup> plus <monospace>code</monospace> and <sc>small caps</sc> and <ext-link xlink:href=\"https://example.com\">a link</ext-link>.".to_string(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        abstract_type: thoth_client::AbstractType::LONG,
+                        canonical: true,
+                    },
+                    thoth_client::WorkRelationsRelatedWorkAbstracts {
+                        abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002")
+                            .unwrap(),
+                        work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                        // Shorter abstract with nested markup to test tag renaming with nesting
+                        content: "A shorter abstract with <italic>nested <bold>markup</bold> inside</italic>.".to_string(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        abstract_type: thoth_client::AbstractType::SHORT,
+                        canonical: true,
+                    },
+                ],
                 edition: None,
                 doi: Some(Doi::from_str("https://doi.org/10.00001/CHAPTER.0001").unwrap()),
                 publication_date: chrono::NaiveDate::from_ymd_opt(2000, 2, 28),
                 withdrawn_date: None,
                 license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
                 copyright_holder: None,
-                short_abstract: Some("A shorter abstract".to_string()),
-                long_abstract: Some("First paragraph.\n\nSecond paragraph.".to_string()),
                 general_note: None,
                 place: Some("Other Place".to_string()),
                 first_page: Some("10".to_string()),
@@ -1281,7 +1435,7 @@ mod tests {
                     first_name: Some("Chapter One".to_string()),
                     last_name: "Author".to_string(),
                     full_name: "Chapter One Author".to_string(),
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 1,
                     contributor: WorkRelationsRelatedWorkContributionsContributor {
                         orcid: Some(
@@ -1337,10 +1491,19 @@ mod tests {
         assert!(output.contains(r#"  </titles>"#));
         assert!(output.contains(r#"  <component_number>1</component_number>"#));
         assert!(output.contains(r#"  <jats:abstract abstract-type="long">"#));
-        assert!(output.contains(r#"    <jats:p>First paragraph.</jats:p>"#));
-        assert!(output.contains(r#"    <jats:p>Second paragraph.</jats:p>"#));
+        // Test that JATS tags are properly prefixed with jats: namespace and rendered as XML elements
+        assert!(output.contains(r#"<jats:bold>bold text</jats:bold>"#));
+        assert!(output.contains(r#"<jats:italic>italic text</jats:italic>"#));
+        assert!(output.contains(r#"H<jats:sub>2</jats:sub>O"#));
+        assert!(output.contains(r#"x<jats:sup>2</jats:sup>"#));
+        assert!(output.contains(r#"<jats:monospace>code</jats:monospace>"#));
+        assert!(output.contains(r#"<jats:sc>small caps</jats:sc>"#));
+        assert!(output
+            .contains(r#"<jats:ext-link xlink:href="https://example.com">a link</jats:ext-link>"#));
         assert!(output.contains(r#"  <jats:abstract abstract-type="short">"#));
-        assert!(output.contains(r#"    <jats:p>A shorter abstract</jats:p>"#));
+        // Test nested markup tag renaming
+        assert!(output
+            .contains(r#"<jats:italic>nested <jats:bold>markup</jats:bold> inside</jats:italic>"#));
         assert!(!output.contains(r#"    <jats:p></jats:p>"#));
         assert!(output.contains(r#"  <publication_date>"#));
         assert!(output.contains(r#"    <month>02</month>"#));
@@ -1381,7 +1544,7 @@ mod tests {
         assert!(output.contains(r#"    <collection property="text-mining">"#));
 
         // Remove/change some values to test variations/non-output of optional blocks
-        test_relations.related_work.subtitle = None;
+        test_relations.related_work.titles[0].subtitle = None;
         test_relations.related_work.last_page = None;
         test_relations.related_work.publication_date = None;
         test_relations.related_work.license = None;
@@ -1458,9 +1621,24 @@ mod tests {
         let mut test_work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
+            abstracts: vec![
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "<p>Lorem ipsum dolor sit amet</p>".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::LONG,
+                    canonical: true,
+                },
+            ],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(100),
@@ -1469,8 +1647,6 @@ mod tests {
             withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
-            short_abstract: None,
-            long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
             bibliography_note: None,
             place: Some("León, Spain".to_string()),
@@ -1534,7 +1710,7 @@ mod tests {
                     last_name: "Contributor".to_string(),
                     full_name: "Omitted Contributor".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 4,
                     contributor: WorkContributionsContributor {
                         orcid: Some(
@@ -1550,7 +1726,7 @@ mod tests {
                     last_name: "Author".to_string(),
                     full_name: "Sole Author".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(
@@ -1575,7 +1751,7 @@ mod tests {
                     last_name: "Editor".to_string(),
                     full_name: "Only Editor".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
                         orcid: Some(
@@ -1591,7 +1767,7 @@ mod tests {
                     last_name: "Translator".to_string(),
                     full_name: "Translator".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 3,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -1712,17 +1888,30 @@ mod tests {
                 relation_ordinal: 1,
                 related_work: WorkRelationsRelatedWork {
                     work_status: WorkStatus::ACTIVE,
-                    full_title: "Part: One".to_string(),
-                    title: "Part".to_string(),
-                    subtitle: Some("One".to_string()),
+                    titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                        title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        full_title: "Part: One".to_string(),
+                        title: "Part".to_string(),
+                        subtitle: Some("One".to_string()),
+                        canonical: true,
+                    }],
+                    abstracts: vec![
+                        thoth_client::WorkRelationsRelatedWorkAbstracts {
+                            abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            content: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>".to_string(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            abstract_type: thoth_client::AbstractType::SHORT,
+                            canonical: true,
+                        },
+                    ],
                     edition: None,
                     doi: Some(Doi::from_str("https://doi.org/10.00001/PART.0001").unwrap()),
                     publication_date: chrono::NaiveDate::from_ymd_opt(2000, 2, 28),
                     withdrawn_date: None,
                     license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
                     copyright_holder: None,
-                    short_abstract: None,
-                    long_abstract: None,
                     general_note: None,
                     place: Some("Other Place".to_string()),
                     first_page: Some("10".to_string()),
@@ -1831,7 +2020,7 @@ mod tests {
         assert!(output.contains(r#"      <titles>"#));
         assert!(output.contains(r#"        <title>Book Title</title>"#));
         assert!(output.contains(r#"        <subtitle>Book Subtitle</subtitle>"#));
-        assert!(output.contains(r#"      <jats:abstract abstract-type="long">"#));
+        assert!(output.contains(r#"      <jats:abstract abstract-type="long" xml:lang="EN">"#));
         assert!(output.contains(r#"        <jats:p>Lorem ipsum dolor sit amet</jats:p>"#));
         assert!(!output.contains(r#"      <jats:abstract abstract-type="short">"#));
         assert!(output.contains(r#"      <volume>11</volume>"#));
@@ -1928,17 +2117,30 @@ mod tests {
             relation_ordinal: 2,
             related_work: WorkRelationsRelatedWork {
                 work_status: WorkStatus::SUPERSEDED,
-                full_title: "Book Title: Book Subtitle: 1st Edition".to_string(),
-                title: "Part".to_string(),
-                subtitle: Some("One".to_string()),
+                titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                    title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000002").unwrap(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    full_title: "Book Title: Book Subtitle: 1st Edition".to_string(),
+                    title: "Part".to_string(),
+                    subtitle: Some("One".to_string()),
+                    canonical: true,
+                }],
+                abstracts: vec![
+                    thoth_client::WorkRelationsRelatedWorkAbstracts {
+                        abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                        work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                        content: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>".to_string(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        abstract_type: thoth_client::AbstractType::SHORT,
+                        canonical: true,
+                    },
+                ],
                 edition: None,
                 doi: Some(Doi::from_str("https://doi.org/10.00002/old_edition").unwrap()),
                 publication_date: chrono::NaiveDate::from_ymd_opt(1997, 2, 28),
                 withdrawn_date: chrono::NaiveDate::from_ymd_opt(1998, 2, 28),
                 license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
                 copyright_holder: None,
-                short_abstract: None,
-                long_abstract: None,
                 general_note: None,
                 place: Some("Other Place".to_string()),
                 first_page: Some("10".to_string()),
@@ -1976,7 +2178,7 @@ mod tests {
         // Remove/change some values to test variations/non-output of optional blocks
         test_work.work_type = WorkType::EDITED_BOOK;
         test_work.issues.clear();
-        test_work.subtitle = None;
+        test_work.titles[0].subtitle = None;
         test_work.place = None;
         test_work.license = None;
         // Remove last (translator) contributor
@@ -2136,6 +2338,104 @@ mod tests {
     }
 
     #[test]
+    fn test_write_abstract_content_with_locale_code() {
+        // Test basic functionality with single paragraph
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            "<p>This is a test abstract.</p>",
+            "long",
+            "EN",
+            &mut writer,
+        );
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains(r#"<jats:abstract abstract-type="long" xml:lang="EN">"#));
+        assert!(output.contains(r#"<jats:p>This is a test abstract.</jats:p>"#));
+        assert!(output.contains(r#"</jats:abstract>"#));
+
+        // Test with multiple paragraphs
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            "<p>First paragraph.</p><p>Second paragraph.</p><p>Third paragraph.</p>",
+            "short",
+            "FR",
+            &mut writer,
+        );
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains(r#"<jats:abstract abstract-type="short" xml:lang="FR">"#));
+        assert!(output.contains(r#"<jats:p>First paragraph.</jats:p>"#));
+        assert!(output.contains(r#"<jats:p>Second paragraph.</jats:p>"#));
+        assert!(output.contains(r#"<jats:p>Third paragraph.</jats:p>"#));
+        assert!(output.contains(r#"</jats:abstract>"#));
+
+        // Test with empty lines (should be skipped)
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            "<p>Only this line.</p>",
+            "other",
+            "DE",
+            &mut writer,
+        );
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains(r#"<jats:abstract abstract-type="other" xml:lang="DE">"#));
+        assert!(output.contains(r#"<jats:p>Only this line.</jats:p>"#));
+        assert!(!output.contains(r#"<jats:p></jats:p>"#));
+        assert!(output.contains(r#"</jats:abstract>"#));
+
+        // Test with JATS markup (should be properly rendered as XML elements)
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            "This has <bold>bold</bold> and <italic>italic</italic> markup.",
+            "long",
+            "ES",
+            &mut writer,
+        );
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains(r#"<jats:abstract abstract-type="long" xml:lang="ES">"#));
+        // JATS tags should be properly rendered with jats: prefix, not escaped
+        assert!(output.contains(r#"<jats:bold>bold</jats:bold>"#));
+        assert!(output.contains(r#"<jats:italic>italic</jats:italic>"#));
+        assert!(output.contains(r#"</jats:abstract>"#));
+
+        // Test with empty content
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code("", "short", "IT", &mut writer);
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains(r#"<jats:abstract abstract-type="short" xml:lang="IT" />"#));
+        // Should not contain any paragraph elements
+        assert!(!output.contains(r#"<jats:p>"#));
+    }
+
+    #[test]
     // Test that no more than 6 ISBNs are ever output.
     // Remove/change this test once the CrossRef 6-ISBN limit is removed/increased -
     // at this point, we need to remove the workaround and ensure that all ISBNs are included.
@@ -2143,9 +2443,24 @@ mod tests {
         let mut test_work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
+            abstracts: vec![
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::SHORT,
+                    canonical: true,
+                },
+            ],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(100),
@@ -2154,8 +2469,6 @@ mod tests {
             withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
-            short_abstract: None,
-            long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
             bibliography_note: None,
             place: Some("León, Spain".to_string()),
@@ -2342,5 +2655,88 @@ mod tests {
         assert!(output.contains(r#"      <isbn media_type="electronic">978-1-56619-909-4</isbn>"#));
         assert!(output.contains(r#"      <isbn media_type="electronic">978-92-95055-02-5</isbn>"#));
         assert!(!output.contains(r#"      <isbn media_type="electronic">978-1-4028-9462-6</isbn>"#));
+    }
+
+    #[test]
+    fn test_rename_tags_with_jats_prefix() {
+        // Test basic paragraph tags
+        let input = "<p>Simple paragraph</p>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(output, "<jats:p>Simple paragraph</jats:p>");
+
+        // Test nested tags
+        let input = "<p>Text with <bold>bold</bold> and <italic>italic</italic></p>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(
+            output,
+            "<jats:p>Text with <jats:bold>bold</jats:bold> and <jats:italic>italic</jats:italic></jats:p>"
+        );
+
+        // Test various JATS inline elements
+        let input = "H<sub>2</sub>O and x<sup>2</sup>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(
+            output,
+            "H<jats:sub>2</jats:sub>O and x<jats:sup>2</jats:sup>"
+        );
+
+        // Test monospace and small caps
+        let input = "<monospace>code</monospace> and <sc>small caps</sc>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(
+            output,
+            "<jats:monospace>code</jats:monospace> and <jats:sc>small caps</jats:sc>"
+        );
+
+        // Test external links with attributes
+        let input = r#"<ext-link xlink:href="https://example.com">link text</ext-link>"#;
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(
+            output,
+            r#"<jats:ext-link xlink:href="https://example.com">link text</jats:ext-link>"#
+        );
+
+        // Test multiple paragraphs
+        let input = "<p>First paragraph</p><p>Second paragraph</p>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(
+            output,
+            "<jats:p>First paragraph</jats:p><jats:p>Second paragraph</jats:p>"
+        );
+
+        // Test deeply nested tags
+        let input =
+            "<p>Outer <italic>italic with <bold>nested bold</bold> inside</italic> text</p>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(
+            output,
+            "<jats:p>Outer <jats:italic>italic with <jats:bold>nested bold</jats:bold> inside</jats:italic> text</jats:p>"
+        );
+
+        // Test that already-prefixed tags are not double-prefixed
+        let input = "<jats:p>Already prefixed</jats:p>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(output, "<jats:p>Already prefixed</jats:p>");
+
+        // Test mixed prefixed and non-prefixed tags
+        let input = "<p>Text with <jats:bold>already prefixed</jats:bold> and <italic>not prefixed</italic></p>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(
+            output,
+            "<jats:p>Text with <jats:bold>already prefixed</jats:bold> and <jats:italic>not prefixed</jats:italic></jats:p>"
+        );
+
+        // Test self-closing tags with attributes
+        let input = r#"<graphic xlink:href="image.jpg" />"#;
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(output, r#"<jats:graphic xlink:href="image.jpg" />"#);
+
+        // Test list elements
+        let input = "<list><list-item>Item 1</list-item><list-item>Item 2</list-item></list>";
+        let output = rename_tags_with_jats_prefix(input);
+        assert_eq!(
+            output,
+            "<jats:list><jats:list-item>Item 1</jats:list-item><jats:list-item>Item 2</jats:list-item></jats:list>"
+        );
     }
 }
