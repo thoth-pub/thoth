@@ -22,6 +22,7 @@ use crate::model::{
     language::{
         Language, LanguageCode, LanguageField, LanguageRelation, NewLanguage, PatchLanguage,
     },
+    locale::LocaleCode,
     location::{Location, LocationOrderBy, LocationPlatform, NewLocation, PatchLocation},
     price::{CurrencyCode, NewPrice, PatchPrice, Price, PriceField},
     publication::{
@@ -38,8 +39,8 @@ use crate::model::{
     work_relation::{
         NewWorkRelation, PatchWorkRelation, RelationType, WorkRelation, WorkRelationOrderBy,
     },
-    ConversionLimit, Convert, Crud, Doi, Isbn, LengthUnit, LocaleCode, MarkupFormat, Orcid,
-    Reorder, Ror, Timestamp, WeightUnit,
+    ConversionLimit, Convert, Crud, Doi, Isbn, LengthUnit, MarkupFormat, Orcid, Reorder, Ror,
+    Timestamp, WeightUnit,
 };
 use thoth_errors::{ThothError, ThothResult};
 

@@ -1733,25 +1733,3 @@ pub mod subject;
 pub mod title;
 pub mod work;
 pub mod work_relation;
-
-// Explicitly list the items to avoid ambiguous glob re-exports
-pub use affiliation::{Affiliation, NewAffiliation};
-pub use contribution::{Contribution, NewContribution};
-pub use contributor::{Contributor, NewContributor};
-pub use funding::{Funding, NewFunding};
-pub use imprint::{Imprint, NewImprint};
-pub use institution::{Institution, NewInstitution};
-pub use issue::{Issue, NewIssue};
-pub use language::{Language, NewLanguage};
-pub use locale::LocaleCode;
-pub use location::{Location, NewLocation};
-pub use price::{NewPrice, Price};
-pub use publication::{NewPublication, Publication};
-pub use publisher::{NewPublisher, Publisher};
-pub use r#abstract::{Abstract, NewAbstract};
-pub use reference::{NewReference, Reference};
-pub use series::{NewSeries, Series};
-pub use subject::{NewSubject, Subject};
-pub use title::{NewTitle, Title, TitleOrderBy};
-pub use work::{NewWork, Work};
-pub use work_relation::{NewWorkRelation, WorkRelation};
