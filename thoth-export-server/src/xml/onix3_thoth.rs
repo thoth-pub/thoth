@@ -3,9 +3,10 @@ use chrono::Utc;
 use std::io::Write;
 use thoth_api::model::language::LanguageCode as ApiLanguageCode;
 use thoth_client::{
-    AbstractType, ContributionType, LanguageRelation, LocationPlatform, PublicationType,
-    RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages,
-    WorkPublicationsLocations, WorkReferences, WorkRelations, WorkStatus, WorkType,
+    AbstractType, AccessibilityException, AccessibilityStandard, ContactType, ContributionType,
+    LanguageRelation, LocationPlatform, PublicationType, RelationType, SubjectType, Work,
+    WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublicationsLocations,
+    WorkReferences, WorkRelations, WorkStatus, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -143,6 +144,15 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             w.write(XmlEvent::Characters(isbn)).map_err(|e| e.into())
                         })
                     })?;
+                    write_element_block("ProductIdentifier", w, |w| {
+                        // 03 GTIN-13
+                        write_element_block("ProductIDType", w, |w| {
+                            w.write(XmlEvent::Characters("03")).map_err(Into::into)
+                        })?;
+                        write_element_block("IDValue", w, |w| {
+                            w.write(XmlEvent::Characters(isbn)).map_err(Into::into)
+                        })
+                    })?;
                 }
                 if let Some(doi) = &self.doi {
                     write_element_block("ProductIdentifier", w, |w| {
@@ -205,6 +215,103 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         write_element_block("ProductFormDetail", w, |w| {
                             w.write(XmlEvent::Characters(code)).map_err(|e| e.into())
                         })?;
+                    }
+                    if let Some(accessibility_statement) =
+                        &self.imprint.publisher.accessibility_statement
+                    {
+                        write_element_block("ProductFormFeature", w, |w| {
+                            // 09 E-publication accessibility detail
+                            write_element_block("ProductFormFeatureType", w, |w| {
+                                w.write(XmlEvent::Characters("09")).map_err(Into::into)
+                            })?;
+                            // 00 Accessibility summary
+                            write_element_block("ProductFormFeatureValue", w, |w| {
+                                w.write(XmlEvent::Characters("00")).map_err(Into::into)
+                            })?;
+                            write_element_block("ProductFormFeatureDescription", w, |w| {
+                                w.write(XmlEvent::Characters(&accessibility_statement.to_string()))
+                                    .map_err(Into::into)
+                            })
+                        })?;
+                    }
+                    let mut accessibility_codes = vec![];
+                    if let Some(standard) = &publication.accessibility_standard {
+                        let standard_codes = match standard {
+                            AccessibilityStandard::WCAG21AA => vec!["81", "85"],
+                            AccessibilityStandard::WCAG21AAA => vec!["81", "86"],
+                            AccessibilityStandard::WCAG22AA => vec!["82", "85"],
+                            AccessibilityStandard::WCAG22AAA => vec!["82", "86"],
+                            _ => unreachable!(),
+                        };
+                        accessibility_codes.extend(standard_codes);
+                    }
+                    if let Some(additional_standard) =
+                        &publication.accessibility_additional_standard
+                    {
+                        let additional_standard_codes = match additional_standard {
+                            AccessibilityStandard::EPUB_A11Y10AA => vec!["03"],
+                            AccessibilityStandard::EPUB_A11Y10AAA => vec!["03", "86"],
+                            AccessibilityStandard::EPUB_A11Y11AA => vec!["04", "85"],
+                            AccessibilityStandard::EPUB_A11Y11AAA => vec!["04", "86"],
+                            AccessibilityStandard::PDF_UA1 => vec!["05"],
+                            AccessibilityStandard::PDF_UA2 => vec!["06"],
+                            _ => unreachable!(),
+                        };
+                        accessibility_codes.extend(additional_standard_codes);
+                    }
+                    if let Some(exception) = &publication.accessibility_exception {
+                        let exception_code = match exception {
+                            AccessibilityException::MICRO_ENTERPRISES => "75",
+                            AccessibilityException::DISPROPORTIONATE_BURDEN => "76",
+                            AccessibilityException::FUNDAMENTAL_ALTERATION => "77",
+                            AccessibilityException::Other(_) => unreachable!(),
+                        };
+                        accessibility_codes.push(exception_code);
+                    }
+                    for code in accessibility_codes {
+                        write_element_block("ProductFormFeature", w, |w| {
+                            // 09 E-publication accessibility detail
+                            write_element_block("ProductFormFeatureType", w, |w| {
+                                w.write(XmlEvent::Characters("09")).map_err(Into::into)
+                            })?;
+                            write_element_block("ProductFormFeatureValue", w, |w| {
+                                w.write(XmlEvent::Characters(code)).map_err(Into::into)
+                            })
+                        })?;
+                    }
+                    if let Some(report_url) = &publication.accessibility_report_url {
+                        write_element_block("ProductFormFeature", w, |w| {
+                            // 09 E-publication accessibility detail
+                            write_element_block("ProductFormFeatureType", w, |w| {
+                                w.write(XmlEvent::Characters("09")).map_err(Into::into)
+                            })?;
+                            // 96 Publisher’s web page for detailed accessibility information
+                            write_element_block("ProductFormFeatureValue", w, |w| {
+                                w.write(XmlEvent::Characters("96")).map_err(Into::into)
+                            })?;
+                            write_element_block("ProductFormFeatureDescription", w, |w| {
+                                w.write(XmlEvent::Characters(&report_url.to_string()))
+                                    .map_err(Into::into)
+                            })
+                        })?;
+                    }
+                    for contact in &self.imprint.publisher.contacts {
+                        if contact.contact_type == ContactType::ACCESSIBILITY {
+                            write_element_block("ProductFormFeature", w, |w| {
+                                // 09 E-publication accessibility detail
+                                write_element_block("ProductFormFeatureType", w, |w| {
+                                    w.write(XmlEvent::Characters("09")).map_err(Into::into)
+                                })?;
+                                // 99 Publisher contact for further accessibility information
+                                write_element_block("ProductFormFeatureValue", w, |w| {
+                                    w.write(XmlEvent::Characters("99")).map_err(Into::into)
+                                })?;
+                                write_element_block("ProductFormFeatureDescription", w, |w| {
+                                    w.write(XmlEvent::Characters(&contact.email))
+                                        .map_err(Into::into)
+                                })
+                            })?;
+                        }
                     }
                     // 10 Text (eye-readable)
                     write_element_block("PrimaryContentType", w, |w| {
@@ -350,11 +457,9 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                     if let Some(edition) = &self.edition {
                         // "Normally sent only for the second and subsequent editions"
                         if edition > &1 {
-                            write_element_block("Edition", w, |w| {
-                                write_element_block("EditionNumber", w, |w| {
-                                    w.write(XmlEvent::Characters(&edition.to_string()))
-                                        .map_err(|e| e.into())
-                                })
+                            write_element_block("EditionNumber", w, |w| {
+                                w.write(XmlEvent::Characters(&edition.to_string()))
+                                    .map_err(|e| e.into())
                             })?;
                         }
                     }
@@ -442,7 +547,14 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         })?;
                     }
                     let mut main_subject_found = vec![];
+                    let mut keywords = vec![];
                     for subject in &self.subjects {
+                        // Best practice is to include only a single subject tag
+                        // for keywords, listing all of them separated by semicolons
+                        if subject.subject_type == SubjectType::KEYWORD {
+                            keywords.push(subject.subject_code.clone());
+                            continue;
+                        }
                         // One subject within every subject type can/should be marked as Main
                         // Use first one found with ordinal 1 (there may be multiple)
                         let is_main_subject = subject.subject_ordinal == 1
@@ -454,12 +566,13 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             }
                             XmlElement::<Onix3Thoth>::xml_element(&subject.subject_type, w)?;
                             match subject.subject_type {
-                                SubjectType::KEYWORD | SubjectType::CUSTOM => {
+                                SubjectType::CUSTOM => {
                                     write_element_block("SubjectHeadingText", w, |w| {
                                         w.write(XmlEvent::Characters(&subject.subject_code))
                                             .map_err(|e| e.into())
                                     })
                                 }
+                                SubjectType::KEYWORD => unreachable!(),
                                 _ => write_element_block("SubjectCode", w, |w| {
                                     w.write(XmlEvent::Characters(&subject.subject_code))
                                         .map_err(|e| e.into())
@@ -469,6 +582,15 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         if is_main_subject {
                             main_subject_found.push(subject.subject_type.clone());
                         }
+                    }
+                    if !keywords.is_empty() {
+                        write_element_block("Subject", w, |w| {
+                            XmlElement::<Onix3Thoth>::xml_element(&SubjectType::KEYWORD, w)?;
+                            write_element_block("SubjectHeadingText", w, |w| {
+                                w.write(XmlEvent::Characters(&keywords.join("; ")))
+                                    .map_err(Into::into)
+                            })
+                        })?;
                     }
                     write_element_block("Audience", w, |w| {
                         // 01 ONIX audience codes
@@ -671,57 +793,55 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                         &relation.relation_ordinal.to_string(),
                                     ))
                                     .map_err(|e| e.into())
-                                })
-                            })?;
-                            write_element_block("TextItem", w, |w| {
-                                // 03 Body matter
-                                write_element_block("TextItemType", w, |w| {
-                                    w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
                                 })?;
-                                write_element_block("TextItemIdentifier", w, |w| {
-                                    // 06 DOI
-                                    write_element_block("TextItemIDType", w, |w| {
-                                        w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                                write_element_block("TextItem", w, |w| {
+                                    // 03 Body matter
+                                    write_element_block("TextItemType", w, |w| {
+                                        w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
                                     })?;
-                                    write_element_block("IDValue", w, |w| {
-                                        w.write(XmlEvent::Characters(
-                                            &chapter.doi.as_ref().unwrap().to_string(),
-                                        ))
-                                        .map_err(|e| e.into())
-                                    })
-                                })
-                            })?;
-                            if let Some(first_page) = &chapter.first_page {
-                                write_element_block("PageRun", w, |w| {
-                                    write_element_block("FirstPageNumber", w, |w| {
-                                        w.write(XmlEvent::Characters(first_page))
-                                            .map_err(|e| e.into())
-                                    })?;
-                                    if let Some(last_page) = &chapter.last_page {
-                                        write_element_block("LastPageNumber", w, |w| {
-                                            w.write(XmlEvent::Characters(last_page))
+                                    write_element_block("TextItemIdentifier", w, |w| {
+                                        // 06 DOI
+                                        write_element_block("TextItemIDType", w, |w| {
+                                            w.write(XmlEvent::Characters("06"))
                                                 .map_err(|e| e.into())
                                         })?;
-                                    }
-                                    Ok(())
+                                        write_element_block("IDValue", w, |w| {
+                                            w.write(XmlEvent::Characters(
+                                                &chapter.doi.as_ref().unwrap().to_string(),
+                                            ))
+                                            .map_err(|e| e.into())
+                                        })
+                                    })
                                 })?;
-                            }
-                            if let Some(page_count) = &chapter.page_count {
-                                write_element_block("NumberOfPages", w, |w| {
-                                    w.write(XmlEvent::Characters(&page_count.to_string()))
-                                        .map_err(|e| e.into())
-                                })?;
-                            }
+                                if let Some(first_page) = &chapter.first_page {
+                                    write_element_block("PageRun", w, |w| {
+                                        write_element_block("FirstPageNumber", w, |w| {
+                                            w.write(XmlEvent::Characters(first_page))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        if let Some(last_page) = &chapter.last_page {
+                                            write_element_block("LastPageNumber", w, |w| {
+                                                w.write(XmlEvent::Characters(last_page))
+                                                    .map_err(|e| e.into())
+                                            })?;
+                                        }
+                                        Ok(())
+                                    })?;
+                                }
+                                if let Some(page_count) = &chapter.page_count {
+                                    write_element_block("NumberOfPages", w, |w| {
+                                        w.write(XmlEvent::Characters(&page_count.to_string()))
+                                            .map_err(|e| e.into())
+                                    })?;
+                                }
+                                Ok(())
+                            })?;
                         }
                         Ok(())
                     })?;
                 }
                 write_element_block("PublishingDetail", w, |w| {
                     write_element_block("Imprint", w, |w| {
-                        write_element_block("ImprintName", w, |w| {
-                            w.write(XmlEvent::Characters(&self.imprint.imprint_name))
-                                .map_err(|e| e.into())
-                        })?;
                         if let Some(url) = &self.imprint.imprint_url {
                             write_element_block("ImprintIdentifier", w, |w| {
                                 // 01 Proprietary
@@ -736,7 +856,10 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                 })
                             })?;
                         }
-                        Ok(())
+                        write_element_block("ImprintName", w, |w| {
+                            w.write(XmlEvent::Characters(&self.imprint.imprint_name))
+                                .map_err(|e| e.into())
+                        })
                     })?;
                     write_element_block("Publisher", w, |w| {
                         // 01 Publisher
@@ -830,16 +953,20 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             )
                         })?;
                     }
-                    if let Some(copyright_holder) = &self.copyright_holder {
-                        write_element_block("CopyrightStatement", w, |w| {
-                            write_element_block("CopyrightOwner", w, |w| {
-                                // This might be a CorporateName rather than PersonName, but we can't tell
-                                write_element_block("PersonName", w, |w| {
-                                    w.write(XmlEvent::Characters(copyright_holder))
-                                        .map_err(|e| e.into())
+                    if let Some(copyright_string) = &self.copyright_holder {
+                        // Format of field isn't controlled, but many records
+                        // use semicolon-separated lists
+                        for copyright_holder in copyright_string.split("; ") {
+                            write_element_block("CopyrightStatement", w, |w| {
+                                write_element_block("CopyrightOwner", w, |w| {
+                                    // This might be a CorporateName rather than PersonName, but we can't tell
+                                    write_element_block("PersonName", w, |w| {
+                                        w.write(XmlEvent::Characters(copyright_holder))
+                                            .map_err(Into::into)
+                                    })
                                 })
-                            })
-                        })?;
+                            })?;
+                        }
                     }
                     write_element_block("SalesRights", w, |w| {
                         // 02 For sale with non-exclusive rights in the specified countries or territories
@@ -896,6 +1023,17 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                         // 15 ISBN-13
                                         write_element_block("ProductIDType", w, |w| {
                                             w.write(XmlEvent::Characters("15"))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("IDValue", w, |w| {
+                                            w.write(XmlEvent::Characters(isbn))
+                                                .map_err(|e| e.into())
+                                        })
+                                    })?;
+                                    write_element_block("ProductIdentifier", w, |w| {
+                                        // 03 GTIN-13
+                                        write_element_block("ProductIDType", w, |w| {
+                                            w.write(XmlEvent::Characters("03"))
                                                 .map_err(|e| e.into())
                                         })?;
                                         write_element_block("IDValue", w, |w| {
@@ -1191,7 +1329,7 @@ impl XmlElementBlock<Onix3Thoth> for WorkContributions {
                         w.write(XmlEvent::Characters("21")).map_err(|e| e.into())
                     })?;
                     write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(&orcid.to_string()))
+                        w.write(XmlEvent::Characters(&orcid.to_hyphenless_string()))
                             .map_err(|e| e.into())
                     })
                 })?;
@@ -1580,9 +1718,10 @@ mod tests {
         ContributionType, CurrencyCode, FundingInstitution, LanguageCode, LanguageRelation,
         LocationPlatform, PublicationType, WorkContributionsAffiliations,
         WorkContributionsAffiliationsInstitution, WorkContributionsContributor, WorkImprint,
-        WorkImprintPublisher, WorkIssuesSeries, WorkPublications, WorkPublicationsLocations,
-        WorkPublicationsPrices, WorkRelationsRelatedWork, WorkRelationsRelatedWorkImprint,
-        WorkRelationsRelatedWorkImprintPublisher, WorkStatus, WorkSubjects, WorkType,
+        WorkImprintPublisher, WorkImprintPublisherContacts, WorkIssuesSeries, WorkPublications,
+        WorkPublicationsLocations, WorkPublicationsPrices, WorkRelationsRelatedWork,
+        WorkRelationsRelatedWorkImprint, WorkRelationsRelatedWorkImprintPublisher, WorkStatus,
+        WorkSubjects, WorkType,
     };
     use uuid::Uuid;
 
@@ -1650,7 +1789,7 @@ mod tests {
   <ContributorRole>A01</ContributorRole>
   <NameIdentifier>
     <NameIDType>21</NameIDType>
-    <IDValue>0000-0002-0000-0001</IDValue>
+    <IDValue>0000000200000001</IDValue>
   </NameIdentifier>
   <PersonName>Author N. 1</PersonName>
   <NamesBeforeKey>Author</NamesBeforeKey>
@@ -2302,6 +2441,11 @@ mod tests {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: None,
                     publisher_url: Some("https://publisher.oa".to_string()),
+                    accessibility_statement: Some("This is an accessibility statement".to_string()),
+                    contacts: vec![WorkImprintPublisherContacts {
+                        contact_type: ContactType::ACCESSIBILITY,
+                        email: "contact@accessibility.com".to_string(),
+                    }],
                 },
             },
             issues: vec![],
@@ -2322,6 +2466,10 @@ mod tests {
                 depth_in: Some(1.0),
                 weight_g: Some(152.0),
                 weight_oz: Some(5.3616),
+                accessibility_standard: None,
+                accessibility_additional_standard: None,
+                accessibility_exception: None,
+                accessibility_report_url: None,
                 prices: vec![
                     WorkPublicationsPrices {
                         currency_code: CurrencyCode::EUR,
@@ -2602,6 +2750,13 @@ mod tests {
         assert!(output.contains(
             r#"
   <ProductIdentifier>
+    <ProductIDType>03</ProductIDType>
+    <IDValue>9783161484100</IDValue>
+  </ProductIdentifier>"#
+        ));
+        assert!(output.contains(
+            r#"
+  <ProductIdentifier>
     <ProductIDType>06</ProductIDType>
     <IDValue>10.00001/BOOK.0001</IDValue>
   </ProductIdentifier>"#
@@ -2632,7 +2787,26 @@ mod tests {
             r#"
   <DescriptiveDetail>
     <ProductComposition>00</ProductComposition>
-    <ProductForm>BC</ProductForm>
+    <ProductForm>BC</ProductForm>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>00</ProductFormFeatureValue>
+      <ProductFormFeatureDescription>This is an accessibility statement</ProductFormFeatureDescription>
+    </ProductFormFeature>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>99</ProductFormFeatureValue>
+      <ProductFormFeatureDescription>contact@accessibility.com</ProductFormFeatureDescription>
+    </ProductFormFeature>"#
+        ));
+        assert!(output.contains(
+            r#"
     <PrimaryContentType>10</PrimaryContentType>"#
         ));
         assert!(output.contains(
@@ -2740,9 +2914,7 @@ mod tests {
         <Subtitle language="EN">Book Subtitle</Subtitle>
       </TitleElement>
     </TitleDetail>
-    <Edition>
-      <EditionNumber>2</EditionNumber>
-    </Edition>
+    <EditionNumber>2</EditionNumber>
     <Extent>
       <ExtentType>00</ExtentType>
       <ExtentValue>334</ExtentValue>
@@ -2894,28 +3066,28 @@ mod tests {
   <ContentDetail>
     <ContentItem>
       <LevelSequenceNumber>1</LevelSequenceNumber>
+      <TextItem>
+        <TextItemType>03</TextItemType>
+        <TextItemIdentifier>
+          <TextItemIDType>06</TextItemIDType>
+          <IDValue>10.00001/RELATION.0001</IDValue>
+        </TextItemIdentifier>
+      </TextItem>
+      <PageRun>
+        <FirstPageNumber>10</FirstPageNumber>
+        <LastPageNumber>20</LastPageNumber>
+      </PageRun>
+      <NumberOfPages>11</NumberOfPages>
     </ContentItem>
-    <TextItem>
-      <TextItemType>03</TextItemType>
-      <TextItemIdentifier>
-        <TextItemIDType>06</TextItemIDType>
-        <IDValue>10.00001/RELATION.0001</IDValue>
-      </TextItemIdentifier>
-    </TextItem>
-    <PageRun>
-      <FirstPageNumber>10</FirstPageNumber>
-      <LastPageNumber>20</LastPageNumber>
-    </PageRun>
-    <NumberOfPages>11</NumberOfPages>
   </ContentDetail>
   <PublishingDetail>
     <Imprint>
-      <ImprintName>OA Editions Imprint</ImprintName>
       <ImprintIdentifier>
         <ImprintIDType>01</ImprintIDType>
         <IDTypeName>URL</IDTypeName>
         <IDValue>https://imprint.oa</IDValue>
       </ImprintIdentifier>
+      <ImprintName>OA Editions Imprint</ImprintName>
     </Imprint>
     <Publisher>
       <PublishingRole>01</PublishingRole>
@@ -2945,12 +3117,26 @@ mod tests {
     <PublishingDate>
       <PublishingDateRole>01</PublishingDateRole>
       <Date dateformat="00">19991231</Date>
-    </PublishingDate>
+    </PublishingDate>"#
+        ));
+        assert!(output.contains(
+            r#"
     <CopyrightStatement>
       <CopyrightOwner>
-        <PersonName>Author 1; Author 2</PersonName>
+        <PersonName>Author 1</PersonName>
       </CopyrightOwner>
-    </CopyrightStatement>
+    </CopyrightStatement>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <CopyrightStatement>
+      <CopyrightOwner>
+        <PersonName>Author 2</PersonName>
+      </CopyrightOwner>
+    </CopyrightStatement>"#
+        ));
+        assert!(output.contains(
+            r#"
     <SalesRights>
       <SalesRightsType>02</SalesRightsType>
       <Territory>
@@ -3161,6 +3347,102 @@ mod tests {
         ));
         test_work.publications[0].publication_type = PublicationType::PAPERBACK;
 
+        // Test e-publication accessibility details output
+        test_work.publications[0].publication_type = PublicationType::PDF;
+        test_work.publications[0].accessibility_standard = Some(AccessibilityStandard::WCAG21AA);
+        test_work.publications[0].accessibility_additional_standard =
+            Some(AccessibilityStandard::PDF_UA1);
+        test_work.publications[0].accessibility_report_url = Some("https://report.url".to_string());
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>81</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>85</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>05</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>96</ProductFormFeatureValue>
+      <ProductFormFeatureDescription>https://report.url</ProductFormFeatureDescription>
+    </ProductFormFeature>"#
+        ));
+        test_work.publications[0].accessibility_additional_standard = None;
+        test_work.publications[0].accessibility_report_url = None;
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>81</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>85</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>05</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>96</ProductFormFeatureValue>
+      <ProductFormFeatureDescription>https://report.url</ProductFormFeatureDescription>
+    </ProductFormFeature>"#
+        ));
+        test_work.publications[0].accessibility_standard = None;
+        test_work.publications[0].accessibility_exception =
+            Some(AccessibilityException::FUNDAMENTAL_ALTERATION);
+        let output = generate_test_output(true, &test_work);
+        assert!(!output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>81</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>85</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>77</ProductFormFeatureValue>
+    </ProductFormFeature>"#
+        ));
+        test_work.publications[0].accessibility_exception = None;
+        test_work.publications[0].publication_type = PublicationType::PAPERBACK;
+
         // Remove/change some values to test (non-)output of optional blocks
         test_work.doi = None;
         test_work.lccn = None;
@@ -3180,7 +3462,8 @@ mod tests {
         test_work.landing_page = None;
         test_work.place = None;
         test_work.publication_date = None;
-        test_work.copyright_holder = None;
+        // Replace semicolons with commas
+        test_work.copyright_holder = Some("Author 1, Author 2".to_string());
         test_work.publications[0].isbn = None;
         test_work.publications[0].height_mm = None;
         test_work.publications[0].locations.pop();
@@ -3190,13 +3473,22 @@ mod tests {
         test_work.references.clear();
         test_work.imprint.imprint_url = None;
         test_work.imprint.publisher.publisher_url = None;
-        test_work.subjects.pop();
+        test_work.imprint.publisher.contacts.clear();
+        test_work.imprint.publisher.accessibility_statement = None;
+        test_work.subjects[6].subject_type = SubjectType::KEYWORD;
         let output = generate_test_output(true, &test_work);
         println!("{output}");
         assert!(!output.contains(
             r#"
   <ProductIdentifier>
     <ProductIDType>15</ProductIDType>
+    <IDValue>9783161484100</IDValue>
+  </ProductIdentifier>"#
+        ));
+        assert!(!output.contains(
+            r#"
+  <ProductIdentifier>
+    <ProductIDType>03</ProductIDType>
     <IDValue>9783161484100</IDValue>
   </ProductIdentifier>"#
         ));
@@ -3231,6 +3523,22 @@ mod tests {
         ));
         assert!(!output.contains(
             r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>00</ProductFormFeatureValue>
+      <ProductFormFeatureDescription>This is an accessibility statement</ProductFormFeatureDescription>
+    </ProductFormFeature>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>99</ProductFormFeatureValue>
+      <ProductFormFeatureDescription>contact@accessibility.com</ProductFormFeatureDescription>
+    </ProductFormFeature>"#
+        ));
+        assert!(!output.contains(
+            r#"
     <Measure>
       <MeasureType>01</MeasureType>
       <Measurement>234</Measurement>
@@ -3260,6 +3568,9 @@ mod tests {
         ));
         assert!(!output.contains(r#"        <Subtitle language="EN">Book Subtitle</Subtitle>"#));
         assert!(!output.contains(r#"    <Edition>"#));
+        assert!(!output.contains(r#"        <Subtitle>Book Subtitle</Subtitle>"#));
+        assert!(!output.contains(r#"    <EditionNumber>1</EditionNumber>"#));
+        assert!(!output.contains(r#"    <EditionNumber>"#));
         assert!(!output.contains(r#"    <Extent>"#));
         assert!(!output
             .contains(r#"    <IllustrationsNote>This is a bibliography note</IllustrationsNote>"#));
@@ -3275,6 +3586,20 @@ mod tests {
     <Subject>
       <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>
       <SubjectHeadingText>custom2</SubjectHeadingText>
+    </Subject>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <Subject>
+      <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>
+      <SubjectHeadingText>keyword1</SubjectHeadingText>
+    </Subject>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <Subject>
+      <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>
+      <SubjectHeadingText>keyword1; custom2</SubjectHeadingText>
     </Subject>"#
         ));
         assert!(!output.contains(
@@ -3349,12 +3674,12 @@ mod tests {
         // PageRun block still present but LastPageNumber absent
         assert!(output.contains(
             r#"
-    <PageRun>
-      <FirstPageNumber>10</FirstPageNumber>
-    </PageRun>"#
+      <PageRun>
+        <FirstPageNumber>10</FirstPageNumber>
+      </PageRun>"#
         ));
-        assert!(!output.contains(r#"      <LastPageNumber>20</LastPageNumber>"#));
-        assert!(!output.contains(r#"    <NumberOfPages>11</NumberOfPages>"#));
+        assert!(!output.contains(r#"        <LastPageNumber>20</LastPageNumber>"#));
+        assert!(!output.contains(r#"      <NumberOfPages>11</NumberOfPages>"#));
         // Imprint block still present but ImprintIdentifier absent
         assert!(output.contains(
             r#"
@@ -3398,7 +3723,23 @@ mod tests {
             r#"
     <CopyrightStatement>
       <CopyrightOwner>
-        <PersonName>Author 1; Author 2</PersonName>
+        <PersonName>Author 1</PersonName>
+      </CopyrightOwner>
+    </CopyrightStatement>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <CopyrightStatement>
+      <CopyrightOwner>
+        <PersonName>Author 2</PersonName>
+      </CopyrightOwner>
+    </CopyrightStatement>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <CopyrightStatement>
+      <CopyrightOwner>
+        <PersonName>Author 1, Author 2</PersonName>
       </CopyrightOwner>
     </CopyrightStatement>"#
         ));
@@ -3455,6 +3796,7 @@ mod tests {
         test_work.audio_count = None;
         test_work.video_count = None;
         test_work.cover_url = None;
+        test_work.copyright_holder = None;
         test_work.relations[0].related_work.first_page = None;
         // If first page is missing, last page isn't included even if present
         test_work.relations[0].related_work.last_page = Some("20".to_string());
@@ -3474,8 +3816,9 @@ mod tests {
         test_work.publications[0].locations.clear();
         let output = generate_test_output(true, &test_work);
         println!("{output}");
-        // Still no Edition, same as when value was 1
-        assert!(!output.contains(r#"    <Edition>"#));
+        // Still no EditionNumber, same as when value was 1
+        assert!(!output.contains(r#"    <EditionNumber>0</EditionNumber>"#));
+        assert!(!output.contains(r#"    <EditionNumber>"#));
         // No AncillaryContent or Subject blocks at all - skip from TitleDetail straight to Audience
         assert!(output.contains(
             r#"
@@ -3522,6 +3865,30 @@ mod tests {
           <WebsiteDescription>Publisher's website: webpage for this product</WebsiteDescription>
           <WebsiteLink>https://www.book.com/pb_landing</WebsiteLink>
         </Website>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <CopyrightStatement>
+      <CopyrightOwner>
+        <PersonName>Author 1</PersonName>
+      </CopyrightOwner>
+    </CopyrightStatement>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <CopyrightStatement>
+      <CopyrightOwner>
+        <PersonName>Author 2</PersonName>
+      </CopyrightOwner>
+    </CopyrightStatement>"#
+        ));
+        assert!(!output.contains(
+            r#"
+    <CopyrightStatement>
+      <CopyrightOwner>
+        <PersonName>Author 1, Author 2</PersonName>
+      </CopyrightOwner>
+    </CopyrightStatement>"#
         ));
         // UnpricedItemType block instead of any Prices
         assert!(output.contains(r#"      <UnpricedItemType>01</UnpricedItemType>"#));
@@ -3572,6 +3939,10 @@ mod tests {
             depth_in: None,
             weight_g: None,
             weight_oz: None,
+            accessibility_standard: None,
+            accessibility_additional_standard: None,
+            accessibility_exception: None,
+            accessibility_report_url: None,
             prices: vec![],
             locations: vec![],
         });
@@ -3593,11 +3964,24 @@ mod tests {
   </PublishingDetail>
   <RelatedMaterial>
     <RelatedProduct>
-      <ProductRelationCode>06</ProductRelationCode>
+      <ProductRelationCode>06</ProductRelationCode>"#
+        ));
+        assert!(output.contains(
+            r#"
       <ProductIdentifier>
         <ProductIDType>15</ProductIDType>
         <IDValue>9781402894626</IDValue>
-      </ProductIdentifier>
+      </ProductIdentifier>"#
+        ));
+        assert!(output.contains(
+            r#"
+      <ProductIdentifier>
+        <ProductIDType>03</ProductIDType>
+        <IDValue>9781402894626</IDValue>
+      </ProductIdentifier>"#
+        ));
+        assert!(output.contains(
+            r#"
     </RelatedProduct>
   </RelatedMaterial>
   <ProductSupply>"#

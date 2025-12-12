@@ -58,6 +58,18 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "markup_format"))]
     pub struct MarkupFormat;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "contact_type"))]
+    pub struct ContactType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "accessibility_standard"))]
+    pub struct AccessibilityStandard;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "accessibility_exception"))]
+    pub struct AccessibilityException;
 }
 
 table! {
@@ -127,6 +139,32 @@ table! {
     affiliation_history (affiliation_history_id) {
         affiliation_history_id -> Uuid,
         affiliation_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::ContactType;
+
+    contact (contact_id) {
+        contact_id -> Uuid,
+        publisher_id -> Uuid,
+        contact_type -> ContactType,
+        email -> Text,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    contact_history (contact_history_id) {
+        contact_history_id -> Uuid,
+        contact_id -> Uuid,
         account_id -> Uuid,
         data -> Jsonb,
         timestamp -> Timestamptz,
@@ -383,6 +421,8 @@ table! {
 table! {
     use diesel::sql_types::*;
     use super::sql_types::PublicationType;
+    use super::sql_types::AccessibilityStandard;
+    use super::sql_types::AccessibilityException;
 
     publication (publication_id) {
         publication_id -> Uuid,
@@ -399,6 +439,10 @@ table! {
         depth_in -> Nullable<Float8>,
         weight_g -> Nullable<Float8>,
         weight_oz -> Nullable<Float8>,
+        accessibility_standard -> Nullable<AccessibilityStandard>,
+        accessibility_additional_standard -> Nullable<AccessibilityStandard>,
+        accessibility_exception -> Nullable<AccessibilityException>,
+        accessibility_report_url -> Nullable<Text>,
     }
 }
 
@@ -422,6 +466,8 @@ table! {
         publisher_name -> Text,
         publisher_shortname -> Nullable<Text>,
         publisher_url -> Nullable<Text>,
+        accessibility_statement -> Nullable<Text>,
+        accessibility_report_url -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
@@ -694,6 +740,9 @@ joinable!(affiliation_history -> account (account_id));
 joinable!(affiliation_history -> affiliation (affiliation_id));
 joinable!(biography_history -> biography (biography_id));
 joinable!(biography_history -> account (account_id));
+joinable!(contact -> publisher (publisher_id));
+joinable!(contact_history -> account (account_id));
+joinable!(contact_history -> contact (contact_id));
 joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
 joinable!(contribution_history -> account (account_id));
@@ -756,6 +805,8 @@ allow_tables_to_appear_in_same_query!(
     affiliation_history,
     biography,
     biography_history,
+    contact,
+    contact_history,
     contribution,
     contribution_history,
     contributor,

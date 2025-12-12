@@ -490,10 +490,8 @@ fn contributor_fields(contributions: &[WorkContributions]) -> ThothResult<Vec<Fi
         }
         if let Some(orcid) = &contributions.first().unwrap().contributor.orcid {
             // $0 Authority Record Control Number (ORCID is a permitted source)
-            contributor_field = contributor_field.add_subfield(
-                b"0",
-                format!("(orcid){}", orcid.to_string().replace('-', "")),
-            )?;
+            contributor_field = contributor_field
+                .add_subfield(b"0", format!("(orcid){}", orcid.to_hyphenless_string()))?;
             // $1 Real World Object URI
             contributor_field =
                 contributor_field.add_subfield(b"1", orcid.with_domain().as_bytes())?;
@@ -866,6 +864,8 @@ pub(crate) mod tests {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: None,
                     publisher_url: None,
+                    accessibility_statement: None,
+                    contacts: vec![],
                 },
             },
             issues: vec![WorkIssues {
@@ -975,6 +975,10 @@ pub(crate) mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -993,6 +997,10 @@ pub(crate) mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -1011,6 +1019,10 @@ pub(crate) mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },

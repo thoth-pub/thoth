@@ -10,6 +10,7 @@ use crate::db::PgPool;
 use crate::model::{
     affiliation::{Affiliation, AffiliationOrderBy, NewAffiliation, PatchAffiliation},
     biography::{Biography, BiographyOrderBy, NewBiography, PatchBiography},
+    contact::{Contact, ContactOrderBy, ContactType, NewContact, PatchContact},
     contribution::{
         Contribution, ContributionField, ContributionType, NewContribution, PatchContribution,
     },
@@ -26,8 +27,8 @@ use crate::model::{
     location::{Location, LocationOrderBy, LocationPlatform, NewLocation, PatchLocation},
     price::{CurrencyCode, NewPrice, PatchPrice, Price, PriceField},
     publication::{
-        NewPublication, PatchPublication, Publication, PublicationOrderBy, PublicationProperties,
-        PublicationType,
+        AccessibilityException, AccessibilityStandard, NewPublication, PatchPublication,
+        Publication, PublicationOrderBy, PublicationProperties, PublicationType,
     },
     publisher::{NewPublisher, PatchPublisher, Publisher, PublisherOrderBy},
     r#abstract::{Abstract, AbstractOrderBy, AbstractType, NewAbstract, PatchAbstract},
@@ -1745,6 +1746,73 @@ impl QueryRoot {
 
         Ok(biographies)
     }
+
+    #[graphql(description = "Query the full list of contacts")]
+    fn contacts(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = ContactOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<ContactOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
+        publishers: Option<Vec<Uuid>>,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
+        contact_types: Option<Vec<ContactType>>,
+    ) -> FieldResult<Vec<Contact>> {
+        Contact::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
+            None,
+            None,
+            contact_types.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Query a single contact using its ID")]
+    fn contact(
+        context: &Context,
+        #[graphql(description = "Thoth contact ID to search on")] contact_id: Uuid,
+    ) -> FieldResult<Contact> {
+        Contact::from_id(&context.db, &contact_id).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get the total number of contacts")]
+    fn contact_count(
+        context: &Context,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by"
+        )]
+        contact_types: Option<Vec<ContactType>>,
+    ) -> FieldResult<i32> {
+        Contact::count(
+            &context.db,
+            None,
+            vec![],
+            contact_types.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+        )
+        .map_err(|e| e.into())
+    }
 }
 
 pub struct MutationRoot;
@@ -2134,6 +2202,17 @@ impl MutationRoot {
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
         Reference::create(&context.db, &data).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Create a new contact with the specified values")]
+    fn create_contact(
+        context: &Context,
+        #[graphql(description = "Values for contact to be created")] data: NewContact,
+    ) -> FieldResult<Contact> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context.account_access.can_edit(data.publisher_id)?;
+
+        Contact::create(&context.db, &data).map_err(|e| e.into())
     }
 
     #[graphql(description = "Update an existing work with the specified values")]
@@ -2579,6 +2658,24 @@ impl MutationRoot {
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         reference
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Update an existing contact with the specified values")]
+    fn update_contact(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing contact")] data: PatchContact,
+    ) -> FieldResult<Contact> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let contact = Contact::from_id(&context.db, &data.contact_id).unwrap();
+        context.account_access.can_edit(contact.publisher_id())?;
+
+        if data.publisher_id != contact.publisher_id {
+            context.account_access.can_edit(data.publisher_id)?;
+        }
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        contact
             .update(&context.db, &data, &account_id)
             .map_err(|e| e.into())
     }
@@ -3170,6 +3267,18 @@ impl MutationRoot {
                 &account_id,
             )
             .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Delete a single contact using its ID")]
+    fn delete_contact(
+        context: &Context,
+        #[graphql(description = "Thoth ID of contact to be deleted")] contact_id: Uuid,
+    ) -> FieldResult<Contact> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let contact = Contact::from_id(&context.db, &contact_id).unwrap();
+        context.account_access.can_edit(contact.publisher_id())?;
+
+        contact.delete(&context.db).map_err(|e| e.into())
     }
 }
 
@@ -3924,6 +4033,32 @@ impl Publication {
         }
     }
 
+    #[graphql(description = "WCAG standard accessibility level met by this publication (if any)")]
+    pub fn accessibility_standard(&self) -> Option<&AccessibilityStandard> {
+        self.accessibility_standard.as_ref()
+    }
+
+    #[graphql(
+        description = "EPUB- or PDF-specific standard accessibility level met by this publication, if applicable"
+    )]
+    pub fn accessibility_additional_standard(&self) -> Option<&AccessibilityStandard> {
+        self.accessibility_additional_standard.as_ref()
+    }
+
+    #[graphql(
+        description = "Reason for this publication not being required to comply with accessibility standards (if any)"
+    )]
+    pub fn accessibility_exception(&self) -> Option<&AccessibilityException> {
+        self.accessibility_exception.as_ref()
+    }
+
+    #[graphql(
+        description = "Link to a web page showing detailed accessibility information for this publication"
+    )]
+    pub fn accessibility_report_url(&self) -> Option<&String> {
+        self.accessibility_report_url.as_ref()
+    }
+
     #[graphql(description = "Get prices linked to this publication")]
     pub fn prices(
         &self,
@@ -4020,6 +4155,20 @@ impl Publisher {
         self.publisher_url.as_ref()
     }
 
+    #[graphql(
+        description = "Statement from the publisher on the accessibility of its texts for readers with impairments"
+    )]
+    pub fn accessibility_statement(&self) -> Option<&String> {
+        self.accessibility_statement.as_ref()
+    }
+
+    #[graphql(
+        description = "URL of the publisher's report on the accessibility of its texts for readers with impairments"
+    )]
+    pub fn accessibility_report_url(&self) -> Option<&String> {
+        self.accessibility_report_url.as_ref()
+    }
+
     #[graphql(description = "Date and time at which the publisher record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at
@@ -4067,6 +4216,40 @@ impl Publisher {
             None,
         )
         .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get contacts linked to this publisher")]
+    pub fn contacts(
+        &self,
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = ContactOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<ContactOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
+        contact_types: Option<Vec<ContactType>>,
+    ) -> FieldResult<Vec<Contact>> {
+        Contact::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            order.unwrap_or_default(),
+            vec![],
+            Some(self.publisher_id),
+            None,
+            contact_types.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+        )
+        .map_err(Into::into)
     }
 }
 
@@ -5275,6 +5458,44 @@ impl Biography {
     #[graphql(description = "Get the contribution to which the biography is linked")]
     pub fn contribution(&self, context: &Context) -> FieldResult<Contribution> {
         Contribution::from_id(&context.db, &self.contribution_id).map_err(|e| e.into())
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "A way to get in touch with a publisher.")]
+impl Contact {
+    #[graphql(description = "Thoth ID of the contact")]
+    pub fn contact_id(&self) -> Uuid {
+        self.contact_id
+    }
+
+    #[graphql(description = "Thoth ID of the publisher to which this contact belongs")]
+    pub fn publisher_id(&self) -> Uuid {
+        self.publisher_id
+    }
+
+    #[graphql(description = "Type of the contact")]
+    pub fn contact_type(&self) -> &ContactType {
+        &self.contact_type
+    }
+
+    #[graphql(description = "Email address of the contact")]
+    pub fn email(&self) -> &String {
+        &self.email
+    }
+
+    #[graphql(description = "Date and time at which the contact record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the contact record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+
+    #[graphql(description = "Get the publisher to which this contact belongs")]
+    pub fn publisher(&self, context: &Context) -> FieldResult<Publisher> {
+        Publisher::from_id(&context.db, &self.publisher_id).map_err(|e| e.into())
     }
 }
 

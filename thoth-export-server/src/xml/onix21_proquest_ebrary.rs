@@ -2,9 +2,9 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
-    AbstractType, ContributionType, LanguageRelation, PublicationType, SubjectType, Work,
-    WorkContributions, WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkSubjects,
-    WorkType,
+    AbstractType, AccessibilityStandard, ContactType, ContributionType, LanguageRelation,
+    PublicationType, SubjectType, Work, WorkContributions, WorkIssues, WorkLanguages,
+    WorkPublications, WorkStatus, WorkSubjects, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -155,6 +155,81 @@ impl XmlElementBlock<Onix21ProquestEbrary> for Work {
                 w.write(XmlEvent::Characters(epub_type))
                     .map_err(|e| e.into())
             })?;
+            if let Some(publication) = epub_publication {
+                if let Some(additional_standard) = &publication.accessibility_additional_standard {
+                    // Only EPUB standards are supported in ONIX 2.1, the highest being 1.0 WCAG AA
+                    // Mark any that exceed it as complying with it
+                    // (Note that accessibility exceptions are not supported)
+                    if *additional_standard == AccessibilityStandard::EPUB_A11Y10AA
+                        || *additional_standard == AccessibilityStandard::EPUB_A11Y10AAA
+                        || *additional_standard == AccessibilityStandard::EPUB_A11Y11AA
+                        || *additional_standard == AccessibilityStandard::EPUB_A11Y11AAA
+                    {
+                        write_element_block("ProductFormFeature", w, |w| {
+                            // 09 E-publication accessibility detail
+                            write_element_block("ProductFormFeatureType", w, |w| {
+                                w.write(XmlEvent::Characters("09")).map_err(Into::into)
+                            })?;
+                            write_element_block("ProductFormFeatureValue", w, |w| {
+                                w.write(XmlEvent::Characters("03")).map_err(Into::into)
+                            })
+                        })?;
+                    }
+                }
+                // Note accessibility statement is not supported in ONIX 2.1
+                if let Some(report_url) = &publication.accessibility_report_url {
+                    write_element_block("ProductFormFeature", w, |w| {
+                        // 09 E-publication accessibility detail
+                        write_element_block("ProductFormFeatureType", w, |w| {
+                            w.write(XmlEvent::Characters("09")).map_err(Into::into)
+                        })?;
+                        // 96 Publisher’s web page for detailed accessibility information
+                        write_element_block("ProductFormFeatureValue", w, |w| {
+                            w.write(XmlEvent::Characters("96")).map_err(Into::into)
+                        })?;
+                        write_element_block("ProductFormFeatureDescription", w, |w| {
+                            w.write(XmlEvent::Characters(&report_url.to_string()))
+                                .map_err(Into::into)
+                        })
+                    })?;
+                }
+            }
+            if let Some(publication) = pdf_publication {
+                if let Some(report_url) = &publication.accessibility_report_url {
+                    write_element_block("ProductFormFeature", w, |w| {
+                        // 09 E-publication accessibility detail
+                        write_element_block("ProductFormFeatureType", w, |w| {
+                            w.write(XmlEvent::Characters("09")).map_err(Into::into)
+                        })?;
+                        // 96 Publisher’s web page for detailed accessibility information
+                        write_element_block("ProductFormFeatureValue", w, |w| {
+                            w.write(XmlEvent::Characters("96")).map_err(Into::into)
+                        })?;
+                        write_element_block("ProductFormFeatureDescription", w, |w| {
+                            w.write(XmlEvent::Characters(&report_url.to_string()))
+                                .map_err(Into::into)
+                        })
+                    })?;
+                }
+            }
+            for contact in &self.imprint.publisher.contacts {
+                if contact.contact_type == ContactType::ACCESSIBILITY {
+                    write_element_block("ProductFormFeature", w, |w| {
+                        // 09 E-publication accessibility detail
+                        write_element_block("ProductFormFeatureType", w, |w| {
+                            w.write(XmlEvent::Characters("09")).map_err(Into::into)
+                        })?;
+                        // 99 Publisher contact for further accessibility information
+                        write_element_block("ProductFormFeatureValue", w, |w| {
+                            w.write(XmlEvent::Characters("99")).map_err(Into::into)
+                        })?;
+                        write_element_block("ProductFormFeatureDescription", w, |w| {
+                            w.write(XmlEvent::Characters(&contact.email))
+                                .map_err(Into::into)
+                        })
+                    })?;
+                }
+            }
             for issue in &self.issues {
                 XmlElementBlock::<Onix21ProquestEbrary>::xml_element(issue, w).ok();
             }
@@ -658,9 +733,10 @@ mod tests {
     use thoth_api::model::Isbn;
     use thoth_api::model::Orcid;
     use thoth_client::{
-        ContributionType, CurrencyCode, LanguageCode, LanguageRelation, LocationPlatform,
-        PublicationType, WorkContributionsContributor, WorkImprint, WorkImprintPublisher,
-        WorkIssuesSeries, WorkPublicationsLocations, WorkPublicationsPrices, WorkStatus, WorkType,
+        AccessibilityException, ContributionType, CurrencyCode, LanguageCode, LanguageRelation,
+        LocationPlatform, PublicationType, WorkContributionsContributor, WorkImprint,
+        WorkImprintPublisher, WorkImprintPublisherContacts, WorkIssuesSeries,
+        WorkPublicationsLocations, WorkPublicationsPrices, WorkStatus, WorkType,
     };
     use uuid::Uuid;
 
@@ -944,6 +1020,11 @@ mod tests {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: Some(("OAE").to_string()),
                     publisher_url: Some("https://www.publisher.com".to_string()),
+                    accessibility_statement: None,
+                    contacts: vec![WorkImprintPublisherContacts {
+                        contact_type: ContactType::ACCESSIBILITY,
+                        email: "contact@accessibility.com".to_string(),
+                    }],
                 },
             },
             issues: vec![],
@@ -965,6 +1046,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![WorkPublicationsLocations {
                         landing_page: Some("https://www.book.com/epub_landing".to_string()),
@@ -988,6 +1073,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![
                         WorkPublicationsPrices {
                             currency_code: CurrencyCode::GBP,
@@ -1020,6 +1109,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![
                         WorkPublicationsPrices {
                             currency_code: CurrencyCode::EUR,
@@ -1061,6 +1154,14 @@ mod tests {
         assert!(output.contains(r#"    <IDValue>10.00001/BOOK.0001</IDValue>"#));
         assert!(output.contains(r#"  <ProductForm>DG</ProductForm>"#));
         assert!(output.contains(r#"  <EpubType>002</EpubType>"#));
+        assert!(output.contains(
+            r#"
+  <ProductFormFeature>
+    <ProductFormFeatureType>09</ProductFormFeatureType>
+    <ProductFormFeatureValue>99</ProductFormFeatureValue>
+    <ProductFormFeatureDescription>contact@accessibility.com</ProductFormFeatureDescription>
+  </ProductFormFeature>"#
+        ));
         assert!(output.contains(r#"  <Title>"#));
         assert!(output.contains(r#"    <TitleType>01</TitleType>"#));
         assert!(output.contains(r#"    <TitleText>Book Title</TitleText>"#));
@@ -1132,6 +1233,74 @@ mod tests {
         assert!(output
             .contains(r#"    <AudienceRestrictionNote>Open access</AudienceRestrictionNote>"#));
         assert!(output.contains(r#"    <UnpricedItemType>01</UnpricedItemType>"#));
+
+        // Test e-publication accessibility details output
+        test_work.publications[0].accessibility_additional_standard =
+            Some(AccessibilityStandard::EPUB_A11Y10AA);
+        test_work.publications[0].accessibility_report_url = Some("https://report.url".to_string());
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(
+            r#"
+  <ProductFormFeature>
+    <ProductFormFeatureType>09</ProductFormFeatureType>
+    <ProductFormFeatureValue>03</ProductFormFeatureValue>
+  </ProductFormFeature>"#
+        ));
+        assert!(output.contains(
+            r#"
+  <ProductFormFeature>
+    <ProductFormFeatureType>09</ProductFormFeatureType>
+    <ProductFormFeatureValue>96</ProductFormFeatureValue>
+    <ProductFormFeatureDescription>https://report.url</ProductFormFeatureDescription>
+  </ProductFormFeature>"#
+        ));
+        // Only one EPUB standard code is available
+        test_work.publications[0].accessibility_additional_standard =
+            Some(AccessibilityStandard::EPUB_A11Y11AAA);
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(
+            r#"
+  <ProductFormFeature>
+    <ProductFormFeatureType>09</ProductFormFeatureType>
+    <ProductFormFeatureValue>03</ProductFormFeatureValue>
+  </ProductFormFeature>"#
+        ));
+        test_work.publications[0].accessibility_additional_standard = None;
+        test_work.publications[0].accessibility_report_url = None;
+        let output = generate_test_output(true, &test_work);
+        assert!(!output.contains(
+            r#"
+  <ProductFormFeature>
+    <ProductFormFeatureType>09</ProductFormFeatureType>
+    <ProductFormFeatureValue>03</ProductFormFeatureValue>
+  </ProductFormFeature>"#
+        ));
+        assert!(!output.contains(
+            r#"
+  <ProductFormFeature>
+    <ProductFormFeatureType>09</ProductFormFeatureType>
+    <ProductFormFeatureValue>96</ProductFormFeatureValue>
+    <ProductFormFeatureDescription>https://report.url</ProductFormFeatureDescription>
+  </ProductFormFeature>"#
+        ));
+        // Only EPUB standards are supported; no generic/PDF standards or exceptions
+        test_work.publications[1].accessibility_standard = Some(AccessibilityStandard::WCAG21AA);
+        test_work.publications[1].accessibility_additional_standard =
+            Some(AccessibilityStandard::PDF_UA1);
+        test_work.publications[1].accessibility_exception =
+            Some(AccessibilityException::FUNDAMENTAL_ALTERATION);
+        test_work.imprint.publisher.contacts.clear();
+        let output = generate_test_output(true, &test_work);
+        assert!(!output.contains(
+            r#"
+  <ProductFormFeature>
+    <ProductFormFeatureType>09</ProductFormFeatureType>
+    <ProductFormFeatureValue>99</ProductFormFeatureValue>
+    <ProductFormFeatureDescription>contact@accessibility.com</ProductFormFeatureDescription>
+  </ProductFormFeature>"#
+        ));
+        assert!(!output.contains(r#"  <ProductFormFeature>"#));
+        assert!(!output.contains(r#"    <ProductFormFeatureType>09</ProductFormFeatureType>"#));
 
         // Add withdrawn date
         test_work.withdrawn_date = chrono::NaiveDate::from_ymd_opt(2020, 12, 31);

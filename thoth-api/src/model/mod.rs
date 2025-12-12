@@ -291,6 +291,12 @@ impl Isbn {
     }
 }
 
+impl Orcid {
+    pub fn to_hyphenless_string(&self) -> String {
+        self.to_string().replace('-', "")
+    }
+}
+
 #[cfg(feature = "backend")]
 #[allow(clippy::too_many_arguments)]
 /// Common functionality to perform basic CRUD actions on Thoth entities
@@ -1487,6 +1493,13 @@ mod tests {
     }
 
     #[test]
+    fn test_orcid_to_hyphenless_string() {
+        let hyphenless_orcid =
+            Orcid("https://orcid.org/0000-0002-1234-5678".to_string()).to_hyphenless_string();
+        assert_eq!(hyphenless_orcid, "0000000212345678");
+    }
+
+    #[test]
     // Float equality comparison is fine here because the floats
     // have already been rounded by the functions under test
     #[allow(clippy::float_cmp)]
@@ -1715,6 +1728,7 @@ mod tests {
 pub mod r#abstract;
 pub mod affiliation;
 pub mod biography;
+pub mod contact;
 pub mod contribution;
 pub mod contributor;
 pub mod funding;
