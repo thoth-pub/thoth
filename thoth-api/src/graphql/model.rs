@@ -1886,8 +1886,7 @@ impl MutationRoot {
             .title(context)
             .is_ok();
 
-        // Only superusers can update the canonical title
-        if has_canonical_title && data.canonical && !context.account_access.is_superuser {
+        if has_canonical_title && data.canonical {
             return Err(ThothError::CanonicalTitleExistsError.into());
         }
 
@@ -1933,8 +1932,7 @@ impl MutationRoot {
         .iter()
         .any(|abstract_item| abstract_item.canonical);
 
-        // Only superusers can update the canonical abstract
-        if has_canonical_abstract && data.canonical && !context.account_access.is_superuser {
+        if has_canonical_abstract && data.canonical {
             return Err(ThothError::CanonicalAbstractExistsError.into());
         }
 
@@ -1981,8 +1979,7 @@ impl MutationRoot {
         .iter()
         .any(|biography_item| biography_item.canonical);
 
-        // Only superusers can create the canonical biography when a Thoth canonical biography already exists
-        if has_canonical_biography && data.canonical && !context.account_access.is_superuser {
+        if has_canonical_biography && data.canonical {
             return Err(ThothError::CanonicalBiographyExistsError.into());
         }
 
