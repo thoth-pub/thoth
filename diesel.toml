@@ -14,8 +14,8 @@ custom_type_derives = [
   "crate::model::language::Language_code",
   "crate::model::series::Series_type",
   "crate::model::price::Currency_code",
-  "crate::model::subject::Subject_type"
-  "crate::model::institution::Country_code"
+  "crate::model::subject::Subject_type",
+  "crate::model::institution::Country_code",
   "crate::model::work_relation::Relation_type"
   "crate::model::contact::Contact_type"
   "crate::model::publication::Accessibility_standard"

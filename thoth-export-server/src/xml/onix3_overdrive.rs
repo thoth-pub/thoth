@@ -1,10 +1,12 @@
 use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
+use thoth_api::model::language::LanguageCode as ApiLanguageCode;
+use thoth_api::model::locale::LocaleCode as ApiLocaleCode;
 use thoth_client::{
-    AccessibilityException, AccessibilityStandard, ContactType, ContributionType, CurrencyCode,
-    LanguageRelation, PublicationType, SubjectType, Work, WorkContributions, WorkFundings,
-    WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkType,
+    AbstractType, AccessibilityException, AccessibilityStandard, ContactType, ContributionType,
+    CurrencyCode, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
+    WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -68,7 +70,11 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                 "Missing Publication Date".to_string(),
             ))
         // Don't output works with no long abstract (Description element mandatory in OverDrive)
-        } else if self.long_abstract.is_none() {
+        } else if !self
+            .abstracts
+            .iter()
+            .any(|a| a.abstract_type == AbstractType::LONG && a.canonical)
+        {
             Err(ThothError::IncompleteMetadataRecord(
                 ONIX_ERROR.to_string(),
                 "Missing Long Abstract".to_string(),
@@ -300,10 +306,10 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                                 w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                             })?;
                             write_element_block("TitleText", w, |w| {
-                                w.write(XmlEvent::Characters(&self.title))
+                                w.write(XmlEvent::Characters(&self.titles[0].title))
                                     .map_err(|e| e.into())
                             })?;
-                            if let Some(subtitle) = &self.subtitle {
+                            if let Some(subtitle) = &self.titles[0].subtitle {
                                 write_element_block("Subtitle", w, |w| {
                                     w.write(XmlEvent::Characters(subtitle))
                                         .map_err(|e| e.into())
@@ -364,10 +370,26 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                         write_element_block("ContentAudience", w, |w| {
                             w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                         })?;
-                        write_full_element_block("Text", Some(vec![("language", "eng")]), w, |w| {
-                            w.write(XmlEvent::Characters(self.long_abstract.as_ref().unwrap()))
-                                .map_err(|e| e.into())
-                        })
+                        if let Some(long_abstract) = self
+                            .abstracts
+                            .iter()
+                            .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
+                        {
+                            let api_locale: ApiLocaleCode =
+                                long_abstract.locale_code.clone().into();
+                            let lang_code: ApiLanguageCode = api_locale.into();
+                            let iso_code = lang_code.to_string().to_lowercase();
+                            write_full_element_block(
+                                "Text",
+                                Some(vec![("language", &iso_code), ("textformat", "03")]),
+                                w,
+                                |w| {
+                                    w.write(XmlEvent::Characters(&long_abstract.content))
+                                        .map_err(|e| e.into())
+                                },
+                            )?;
+                        }
+                        Ok(())
                     })?;
                     if let Some(toc) = &self.toc {
                         write_element_block("TextContent", w, |w| {
@@ -936,7 +958,7 @@ mod tests {
             last_name: "1".to_string(),
             full_name: "Author 1".to_string(),
             main_contribution: true,
-            biography: None,
+            biographies: vec![],
             contribution_ordinal: 1,
             contributor: WorkContributionsContributor {
                 orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -1181,9 +1203,22 @@ mod tests {
         let mut test_work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
+            abstracts: vec![thoth_client::WorkAbstracts {
+                abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                content: "Lorem ipsum dolor sit amet".to_string(),
+                locale_code: thoth_client::LocaleCode::EN,
+                abstract_type: thoth_client::AbstractType::LONG,
+                canonical: true,
+            }],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(1),
@@ -1192,8 +1227,6 @@ mod tests {
             withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
-            short_abstract: None,
-            long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
             bibliography_note: None,
             place: Some("León, Spain".to_string()),
@@ -1390,7 +1423,9 @@ mod tests {
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(output.contains(
+            r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet</Text>"#
+        ));
         assert!(output.contains(r#"      <TextType>04</TextType>"#));
         assert!(output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
         assert!(output.contains(r#"    <SupportingResource>"#));
@@ -1548,7 +1583,7 @@ mod tests {
         // Remove/change some values to test (non-)output of optional blocks
         test_work.doi = None;
         test_work.license = None;
-        test_work.subtitle = None;
+        test_work.titles[0].subtitle = None;
         test_work.page_count = None;
         test_work.toc = None;
         test_work.cover_url = None;
@@ -1585,7 +1620,9 @@ mod tests {
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(output.contains(
+            r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet</Text>"#
+        ));
         assert!(!output.contains(r#"      <TextType>04</TextType>"#));
         assert!(!output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
         assert!(!output.contains(r#"    <SupportingResource>"#));
@@ -1660,7 +1697,8 @@ mod tests {
             language_relation: LanguageRelation::TRANSLATED_FROM,
             main_language: true,
         }];
-        test_work.long_abstract = None;
+        // Clear abstracts to test missing long abstract error
+        test_work.abstracts.clear();
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
@@ -1668,7 +1706,14 @@ mod tests {
         );
 
         // Replace long abstract but remove publication date: result is error
-        test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
+        test_work.abstracts = vec![thoth_client::WorkAbstracts {
+            abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            content: "Lorem ipsum dolor sit amet".to_string(),
+            locale_code: thoth_client::LocaleCode::EN,
+            abstract_type: thoth_client::AbstractType::LONG,
+            canonical: true,
+        }];
         test_work.publication_date = None;
         let output = generate_test_output(false, &test_work);
         assert_eq!(

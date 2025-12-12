@@ -1,13 +1,7 @@
-FROM rust:1.90.0
+FROM ghcr.io/thoth-pub/muslrust AS build
 
 ARG THOTH_EXPORT_API=https://export.thoth.pub
 ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    libssl-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
 
 # Get source
 COPY . .
@@ -15,8 +9,15 @@ COPY . .
 # Build Thoth for release from source
 RUN cargo build --release
 
-# Move the binary to root for easier access
-RUN mv target/release/thoth /thoth
+FROM scratch
+
+# Get thoth binary
+COPY --from=build \
+    /volume/target/x86_64-unknown-linux-musl/release/thoth /
+
+# Get CA certificates
+COPY --from=build \
+    /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 # Expose thoth's default ports
 EXPOSE 8080

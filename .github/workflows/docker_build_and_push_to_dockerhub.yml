@@ -44,22 +44,3 @@ jobs:
             THOTH_EXPORT_API=https://export.test.thoth.pub
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
-
-  build_dev_docker_image:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Build
-        id: docker_build
-        uses: docker/build-push-action@v5
-        with:
-          push: false
-          tags: thoth-pub/thoth:latest
-          file: Dockerfile.dev
-          build-args: |
-            THOTH_EXPORT_API=https://export.thoth.pub
-      - name: Image digest
-        run: echo ${{ steps.docker_build.outputs.digest }}

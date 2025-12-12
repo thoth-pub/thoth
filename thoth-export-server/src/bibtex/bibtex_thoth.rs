@@ -1,8 +1,10 @@
 use std::convert::TryFrom;
 use std::fmt;
 use std::io::Write;
+use thoth_api::ast::{ast_to_plain_text, jats_to_ast};
 use thoth_client::{
-    ContributionType, PublicationType, RelationType, Work, WorkContributions, WorkType,
+    AbstractType, ContributionType, PublicationType, RelationType, Work, WorkContributions,
+    WorkType,
 };
 use thoth_errors::{ThothError, ThothResult};
 
@@ -124,7 +126,10 @@ impl TryFrom<Work> for BibtexThothEntry {
         contributions.sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
         let (author, editor) = extract_authors_and_editors(contributions)?;
 
-        let shorttitle = work.subtitle.as_ref().map(|_| work.title.clone());
+        let shorttitle = work.titles[0]
+            .subtitle
+            .as_ref()
+            .map(|_| work.titles[0].title.clone());
         let (entry_type, booktitle, chapter, pages) = match work.work_type {
             WorkType::BOOK_CHAPTER => {
                 let (booktitle, chapter, pages) = work
@@ -133,7 +138,7 @@ impl TryFrom<Work> for BibtexThothEntry {
                     .filter_map(|r| {
                         if r.relation_type == RelationType::IS_CHILD_OF {
                             Some((
-                                r.related_work.full_title.clone(),
+                                r.related_work.titles[0].full_title.clone(),
                                 r.relation_ordinal,
                                 // BibTeX page ranges require a double dash between the page numbers
                                 work.page_interval.as_ref().map(|p| p.replace('–', "--")),
@@ -153,7 +158,7 @@ impl TryFrom<Work> for BibtexThothEntry {
 
         Ok(BibtexThothEntry {
             entry_type,
-            title: work.full_title,
+            title: work.titles[0].full_title.clone(),
             shorttitle,
             author,
             editor,
@@ -192,7 +197,15 @@ impl TryFrom<Work> for BibtexThothEntry {
                 .and_then(|i| i.series.issn_digital.as_ref().map(|s| s.to_string())),
             url: work.landing_page,
             copyright: work.license,
-            long_abstract: work.long_abstract,
+            long_abstract: work
+                .abstracts
+                .iter()
+                .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
+                .map(|x| {
+                    // Convert JATS to plaintext
+                    let ast = jats_to_ast(&x.content);
+                    ast_to_plain_text(&ast)
+                }),
         })
     }
 }
@@ -273,11 +286,34 @@ mod tests {
 
     fn test_work() -> Work {
         Work {
+            abstracts: vec![
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::LONG,
+                    canonical: true,
+                },
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "<p>Short abstract content.</p>".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::SHORT,
+                    canonical: true,
+                },
+            ],
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Work Title: Work Subtitle".to_string(),
-            title: "Work Title".to_string(),
-            subtitle: Some("Work Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Work Title: Work Subtitle".to_string(),
+                title: "Work Title".to_string(),
+                subtitle: Some("Work Subtitle".to_string()),
+                canonical: true,
+            }],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(1),
@@ -286,8 +322,6 @@ mod tests {
             withdrawn_date: None,
             license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
-            short_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.".to_string()),
-            long_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string()),
             general_note: Some("This is a general note".to_string()),
             bibliography_note: None,
             place: Some("León, Spain".to_string()),
@@ -338,7 +372,7 @@ mod tests {
                     last_name: "1".to_string(),
                     full_name: "Author 1".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -352,7 +386,7 @@ mod tests {
                     last_name: "2".to_string(),
                     full_name: "Author 2".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -366,7 +400,7 @@ mod tests {
                     last_name: "3".to_string(),
                     full_name: "Author 3".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 3,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -380,7 +414,7 @@ mod tests {
                     last_name: "1".to_string(),
                     full_name: "Editor 1".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 4,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -394,7 +428,7 @@ mod tests {
                     last_name: "2".to_string(),
                     full_name: "Editor 2".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 5,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -408,7 +442,7 @@ mod tests {
                     last_name: "3".to_string(),
                     full_name: "Editor 3".to_string(),
                     main_contribution: false,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 6,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -422,7 +456,7 @@ mod tests {
                     last_name: "1".to_string(),
                     full_name: "Translator 1".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 7,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -484,18 +518,22 @@ mod tests {
                 relation_type: RelationType::IS_CHILD_OF,
                 relation_ordinal: 7,
                 related_work: WorkRelationsRelatedWork {
+                    abstracts: vec![],
                     work_status: WorkStatus::ACTIVE,
-                    full_title: "Related work title".to_string(),
-                    title: "N/A".to_string(),
-                    subtitle: None,
+                    titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                        title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        full_title: "Related work title".to_string(),
+                        title: "N/A".to_string(),
+                        subtitle: None,
+                        canonical: true,
+                    }],
                     edition: None,
                     doi: None,
                     publication_date: None,
                     withdrawn_date: None,
                     license: None,
                     copyright_holder: None,
-                    short_abstract: None,
-                    long_abstract: None,
                     general_note: None,
                     place: None,
                     first_page: None,
@@ -521,17 +559,30 @@ mod tests {
                 relation_ordinal: 4,
                 related_work: WorkRelationsRelatedWork {
                     work_status: WorkStatus::ACTIVE,
-                    full_title: "Irrelevant related work".to_string(),
-                    title: "N/A".to_string(),
-                    subtitle: None,
+                    titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                        title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        full_title: "Irrelevant related work".to_string(),
+                        title: "N/A".to_string(),
+                        subtitle: None,
+                        canonical: true,
+                    }],
+                    abstracts: vec![
+                        thoth_client::WorkRelationsRelatedWorkAbstracts {
+                            abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            content: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>".to_string(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            abstract_type: thoth_client::AbstractType::LONG,
+                            canonical: true,
+                        },
+                    ],
                     edition: None,
                     doi: None,
                     publication_date: None,
                     withdrawn_date: None,
                     license: None,
                     copyright_holder: None,
-                    short_abstract: None,
-                    long_abstract: None,
                     general_note: None,
                     place: None,
                     first_page: None,
@@ -611,10 +662,10 @@ mod tests {
     fn test_work_without_subtitle() {
         let mut test_work = test_work();
         // Remove subtitle field: shorttitle is removed (as it would duplicate title)
-        test_work.subtitle = None;
-        // We need to manually update the full title to remove the subtitle
+        test_work.titles[0].subtitle = None;
+        // We need to manually update the   full title to remove the subtitle
         // in this test framework, but within the Thoth database this is automatic
-        test_work.full_title = "Work Title".to_string();
+        test_work.titles[0].full_title = "Work Title".to_string();
         let to_test = BibtexThoth.generate(&[test_work.clone()]);
         assert_eq!(
             to_test,
@@ -628,14 +679,14 @@ mod tests {
     #[test]
     fn test_bibtex_thoth_chapter() {
         let mut test_work = test_work();
-        test_work.subtitle = None;
-        test_work.full_title = "Work Title".to_string();
+        test_work.titles[0].subtitle = None;
+        test_work.titles[0].full_title = "Work Title".to_string();
         test_work.publications[1].isbn = None;
         test_work.place = None;
         test_work.doi = None;
         test_work.landing_page = None;
         test_work.license = None;
-        test_work.long_abstract = None;
+        test_work.abstracts.clear();
         test_work.issues.clear();
         // Change work type to Chapter and add chapter-specific details (page range):
         // entry type becomes "inbook", booktitle/chapter/pages fields will be added

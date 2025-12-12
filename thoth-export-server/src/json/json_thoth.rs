@@ -76,11 +76,34 @@ mod tests {
     // listed within TEST_WORK in correct ordinal order.
     lazy_static! {
         static ref TEST_WORK: Work = Work {
-            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            work_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+              title_id: Uuid::from_str("00000000-0000-0000-cccc-000000000001").unwrap(),
+              locale_code: thoth_client::LocaleCode::EN,
+              full_title: "Book Title: Book Subtitle".to_string(),
+              title: "Book Title".to_string(),
+              subtitle: Some("Book Subtitle".to_string()),
+              canonical: true,
+            }],
+            abstracts: vec![
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
+                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::SHORT,
+                    canonical: true,
+                },
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000002").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
+                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::LONG,
+                    canonical: true,
+                },
+            ],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(1),
@@ -89,8 +112,6 @@ mod tests {
             withdrawn_date: None,
             license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
-            short_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.".to_string()),
-            long_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string()),
             general_note: Some("This is a general note".to_string()),
             bibliography_note: Some("This is a bibliography note".to_string()),
             place: Some("León, Spain".to_string()),
@@ -141,7 +162,22 @@ mod tests {
                     last_name: "1".to_string(),
                     full_name: "Author 1".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![
+                        thoth_client::WorkContributionsBiographies {
+                            biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                            contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            content: "Author 1 was born".to_string(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            canonical: true,
+                        },
+                        thoth_client::WorkContributionsBiographies {
+                            biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000003").unwrap(),
+                            contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            content: "Author 1 studied at University".to_string(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            canonical: true,
+                        },
+                    ],
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -166,7 +202,7 @@ mod tests {
                     last_name: "2".to_string(),
                     full_name: "Author 2".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -408,17 +444,12 @@ mod tests {
                 relation_ordinal: 1,
                 related_work: WorkRelationsRelatedWork {
                     work_status: WorkStatus::ACTIVE,
-                    full_title: "Related work title".to_string(),
-                    title: "N/A".to_string(),
-                    subtitle: None,
                     edition: None,
                     doi: None,
                     publication_date: None,
                     withdrawn_date: None,
                     license: None,
                     copyright_holder: None,
-                    short_abstract: None,
-                    long_abstract: None,
                     general_note: None,
                     place: None,
                     first_page: None,
@@ -426,6 +457,24 @@ mod tests {
                     page_count: None,
                     page_interval: None,
                     landing_page: None,
+                    titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                      title_id: Uuid::from_str("00000000-0000-0000-cccc-000000000001").unwrap(),
+                      locale_code: thoth_client::LocaleCode::EN,
+                      full_title: "Related work title".to_string(),
+                      title: "N/A".to_string(),
+                      subtitle: None,
+                      canonical: true,
+                    }],
+                    abstracts: vec![
+                        thoth_client::WorkRelationsRelatedWorkAbstracts {
+                            abstract_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
+                            work_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
+                            content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            abstract_type: thoth_client::AbstractType::SHORT,
+                            canonical: true,
+                        },
+                    ],
                     imprint: WorkRelationsRelatedWorkImprint {
                         crossmark_doi: None,
                         publisher: WorkRelationsRelatedWorkImprintPublisher {
@@ -467,9 +516,6 @@ mod tests {
     const TEST_RESULT: &str = r#"
   "workId": "00000000-0000-0000-aaaa-000000000001",
   "workStatus": "ACTIVE",
-  "fullTitle": "Book Title: Book Subtitle",
-  "title": "Book Title",
-  "subtitle": "Book Subtitle",
   "workType": "MONOGRAPH",
   "reference": null,
   "edition": 1,
@@ -478,8 +524,6 @@ mod tests {
   "withdrawnDate": null,
   "license": "http://creativecommons.org/licenses/by/4.0/",
   "copyrightHolder": "Author 1; Author 2",
-  "shortAbstract": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.",
-  "longAbstract": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.",
   "generalNote": "This is a general note",
   "bibliographyNote": "This is a bibliography note",
   "place": "León, Spain",
@@ -498,6 +542,34 @@ mod tests {
   "oclc": "987654321",
   "coverUrl": "https://www.book.com/cover",
   "coverCaption": "This is a cover caption",
+  "titles": [
+    {
+      "titleId": "00000000-0000-0000-cccc-000000000001",
+      "localeCode": "EN",
+      "fullTitle": "Book Title: Book Subtitle",
+      "title": "Book Title",
+      "subtitle": "Book Subtitle",
+      "canonical": true
+    }
+  ],
+  "abstracts": [
+    {
+      "abstractId": "00000000-0000-0000-aaaa-000000000001",
+      "workId": "00000000-0000-0000-aaaa-000000000001",
+      "content": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.",
+      "localeCode": "EN",
+      "abstractType": "SHORT",
+      "canonical": true
+    },
+    {
+      "abstractId": "00000000-0000-0000-aaaa-000000000002",
+      "workId": "00000000-0000-0000-aaaa-000000000001",
+      "content": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.",
+      "localeCode": "EN",
+      "abstractType": "LONG",
+      "canonical": true
+    }
+  ],
   "imprint": {
     "imprintName": "OA Editions Imprint",
     "imprintUrl": null,
@@ -532,7 +604,22 @@ mod tests {
       "lastName": "1",
       "fullName": "Author 1",
       "mainContribution": true,
-      "biography": null,
+      "biographies": [
+        {
+          "biographyId": "00000000-0000-0000-aaaa-000000000002",
+          "contributionId": "00000000-0000-0000-aaaa-000000000001",
+          "content": "Author 1 was born",
+          "canonical": true,
+          "localeCode": "EN"
+        },
+        {
+          "biographyId": "00000000-0000-0000-aaaa-000000000003",
+          "contributionId": "00000000-0000-0000-aaaa-000000000001",
+          "content": "Author 1 studied at University",
+          "canonical": true,
+          "localeCode": "EN"
+        }
+      ],
       "contributionOrdinal": 1,
       "contributor": {
         "orcid": "https://orcid.org/0000-0002-0000-0001",
@@ -557,7 +644,7 @@ mod tests {
       "lastName": "2",
       "fullName": "Author 2",
       "mainContribution": true,
-      "biography": null,
+      "biographies": [],
       "contributionOrdinal": 2,
       "contributor": {
         "orcid": null,
@@ -805,9 +892,6 @@ mod tests {
       "relationType": "HAS_CHILD",
       "relationOrdinal": 1,
       "relatedWork": {
-        "fullTitle": "Related work title",
-        "title": "N/A",
-        "subtitle": null,
         "edition": null,
         "doi": null,
         "publicationDate": null,
@@ -815,8 +899,6 @@ mod tests {
         "workStatus": "ACTIVE",
         "license": null,
         "copyrightHolder": null,
-        "shortAbstract": null,
-        "longAbstract": null,
         "generalNote": null,
         "place": null,
         "firstPage": null,
@@ -824,6 +906,26 @@ mod tests {
         "pageCount": null,
         "pageInterval": null,
         "landingPage": null,
+        "titles": [
+          {
+            "titleId": "00000000-0000-0000-cccc-000000000001",
+            "localeCode": "EN",
+            "fullTitle": "Related work title",
+            "title": "N/A",
+            "subtitle": null,
+            "canonical": true
+          }
+        ],
+        "abstracts": [
+          {
+            "abstractId": "00000000-0000-0000-aaaa-000000000001",
+            "workId": "00000000-0000-0000-aaaa-000000000001",
+            "content": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.",
+            "localeCode": "EN",
+            "abstractType": "SHORT",
+            "canonical": true
+          }
+        ],
         "imprint": {
           "crossmarkDoi": null,
           "publisher": {

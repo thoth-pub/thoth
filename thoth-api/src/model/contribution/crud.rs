@@ -2,12 +2,12 @@ use super::{
     Contribution, ContributionField, ContributionHistory, ContributionType, NewContribution,
     NewContributionHistory, PatchContribution,
 };
+use crate::diesel::JoinOnDsl;
 use crate::graphql::model::ContributionOrderBy;
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{contribution, contribution_history};
-use crate::{crud_methods, db_insert};
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
 
@@ -42,6 +42,10 @@ impl Crud for Contribution {
         let mut connection = db.get()?;
         let mut query = contribution
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
+            .left_join(
+                crate::schema::biography::table
+                    .on(crate::schema::biography::contribution_id.eq(contribution_id)),
+            )
             .select(crate::schema::contribution::all_columns)
             .into_boxed();
 
@@ -67,8 +71,8 @@ impl Crud for Contribution {
                 Direction::Desc => query.order(main_contribution.desc()),
             },
             ContributionField::Biography => match order.direction {
-                Direction::Asc => query.order(biography.asc()),
-                Direction::Desc => query.order(biography.desc()),
+                Direction::Asc => query.order(crate::schema::biography::content.asc()),
+                Direction::Desc => query.order(crate::schema::biography::content.desc()),
             },
             ContributionField::CreatedAt => match order.direction {
                 Direction::Asc => query.order(created_at.asc()),
@@ -164,6 +168,32 @@ impl DbInsert for NewContributionHistory {
     type MainEntity = ContributionHistory;
 
     db_insert!(contribution_history::table);
+}
+
+impl Reorder for Contribution {
+    db_change_ordinal!(
+        contribution::table,
+        contribution::contribution_ordinal,
+        "contribution_contribution_ordinal_work_id_uniq"
+    );
+
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>> {
+        contribution::table
+            .select((
+                contribution::contribution_id,
+                contribution::contribution_ordinal,
+            ))
+            .filter(
+                contribution::work_id
+                    .eq(self.work_id)
+                    .and(contribution::contribution_id.ne(self.contribution_id)),
+            )
+            .load::<(Uuid, i32)>(connection)
+            .map_err(Into::into)
+    }
 }
 
 #[cfg(test)]

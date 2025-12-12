@@ -1,10 +1,11 @@
 use csv::Writer;
 use serde::Serialize;
 use std::io::Write;
+use thoth_api::ast::{ast_to_plain_text, jats_to_ast};
 use thoth_client::{
-    SubjectType, Work, WorkContributions, WorkContributionsAffiliations, WorkFundings, WorkIssues,
-    WorkLanguages, WorkPublications, WorkPublicationsLocations, WorkPublicationsPrices,
-    WorkReferences, WorkRelations, WorkSubjects,
+    AbstractType, SubjectType, Work, WorkContributions, WorkContributionsAffiliations,
+    WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkPublicationsLocations,
+    WorkPublicationsPrices, WorkReferences, WorkRelations, WorkSubjects,
 };
 use thoth_errors::ThothResult;
 
@@ -115,8 +116,8 @@ impl From<Work> for CsvThothRow {
             imprint: work.imprint.imprint_name,
             work_type: format!("{:?}", work.work_type),
             work_status: format!("{:?}", work.work_status),
-            title: work.title,
-            subtitle: work.subtitle,
+            title: work.titles[0].title.clone(),
+            subtitle: work.titles[0].subtitle.clone(),
             reference: work.reference,
             edition: work.edition,
             doi: work.doi.map(|d| d.to_string()),
@@ -137,8 +138,24 @@ impl From<Work> for CsvThothRow {
             video_count: work.video_count,
             lccn: work.lccn,
             oclc: work.oclc,
-            short_abstract: work.short_abstract,
-            long_abstract: work.long_abstract,
+            short_abstract: work
+                .abstracts
+                .iter()
+                .find(|a| a.abstract_type == AbstractType::SHORT && a.canonical)
+                .map(|x| {
+                    // Convert JATS to plaintext
+                    let ast = jats_to_ast(&x.content);
+                    ast_to_plain_text(&ast)
+                }),
+            long_abstract: work
+                .abstracts
+                .iter()
+                .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
+                .map(|x| {
+                    // Convert JATS to plaintext
+                    let ast = jats_to_ast(&x.content);
+                    ast_to_plain_text(&ast)
+                }),
             general_note: work.general_note,
             bibliography_note: work.bibliography_note,
             toc: work.toc,
@@ -329,7 +346,10 @@ impl CsvCell<CsvThoth> for WorkContributions {
             self.last_name,
             self.full_name,
             self.main_contribution,
-            self.biography.clone().unwrap_or_default(),
+            self.biographies
+                .first()
+                .map(|b| b.content.clone())
+                .unwrap_or_default(),
             self.contributor
                 .orcid
                 .as_ref()
@@ -453,7 +473,7 @@ impl CsvCell<CsvThoth> for WorkRelations {
     fn csv_cell(&self) -> String {
         format!(
             "(\"{}\", \"{}\", \"{:?}\", \"{}\")",
-            self.related_work.full_title,
+            self.related_work.titles[0].full_title,
             self.related_work
                 .doi
                 .as_ref()
@@ -517,9 +537,31 @@ mod tests {
         static ref TEST_WORK: Work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
+            abstracts: vec![thoth_client::WorkAbstracts {
+                abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                content: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.</p>".to_string(),
+                locale_code: thoth_client::LocaleCode::EN,
+                abstract_type: thoth_client::AbstractType::SHORT,
+                canonical: true,
+                },
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::LONG,
+                    canonical: true,
+                },
+            ],
             work_type: WorkType::MONOGRAPH,
             edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
@@ -528,8 +570,6 @@ mod tests {
             withdrawn_date: None,
             license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
-            short_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.".to_string()),
-            long_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string()),
             general_note: Some("This is a general note".to_string()),
             bibliography_note: Some("This is a bibliography note".to_string()),
             place: Some("León, Spain".to_string()),
@@ -580,7 +620,15 @@ mod tests {
                     last_name: "1".to_string(),
                     full_name: "Author 1".to_string(),
                     main_contribution: true,
-                    biography: Some("Author 1 is an author".to_string()),
+                    biographies: vec![
+                        thoth_client::WorkContributionsBiographies {
+                            biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                            contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            content: "Author 1 is an author".to_string(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            canonical: true,
+                        }
+                    ],
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -605,7 +653,7 @@ mod tests {
                     last_name: "2".to_string(),
                     full_name: "Author 2".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -847,17 +895,21 @@ mod tests {
                 relation_ordinal: 1,
                 related_work: WorkRelationsRelatedWork {
                     work_status: WorkStatus::ACTIVE,
-                    full_title: "Related work title".to_string(),
-                    title: "N/A".to_string(),
-                    subtitle: None,
+                    titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                        title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        full_title: "Related work title".to_string(),
+                        title: "N/A".to_string(),
+                        subtitle: None,
+                        canonical: true,
+                    }],
+                    abstracts: vec![],
                     edition: None,
                     doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
                     publication_date: None,
                     withdrawn_date: None,
                     license: None,
                     copyright_holder: None,
-                    short_abstract: None,
-                    long_abstract: None,
                     general_note: None,
                     place: None,
                     first_page: None,
@@ -994,7 +1046,13 @@ mod tests {
             last_name: "1".to_string(),
             full_name: "Author 1".to_string(),
             main_contribution: true,
-            biography: Some("Author 1 was born".to_string()),
+            biographies: vec![thoth_client::WorkContributionsBiographies {
+                biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                content: "Author 1 was born".to_string(),
+                locale_code: thoth_client::LocaleCode::EN,
+                canonical: true,
+            }],
             contribution_ordinal: 1,
             contributor: WorkContributionsContributor {
                 orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -1009,7 +1067,7 @@ mod tests {
         contribution.contribution_type = ContributionType::TRANSLATOR;
         contribution.first_name = None;
         contribution.main_contribution = false;
-        contribution.biography = None;
+        contribution.biographies = vec![];
         contribution.contributor.orcid = None;
         contribution.contributor.website = None;
         assert_eq!(
@@ -1187,17 +1245,30 @@ mod tests {
             relation_ordinal: 1,
             related_work: WorkRelationsRelatedWork {
                 work_status: WorkStatus::ACTIVE,
-                full_title: "Related work title".to_string(),
-                title: "N/A".to_string(),
-                subtitle: None,
+                titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                    title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    full_title: "Related work title".to_string(),
+                    title: "N/A".to_string(),
+                    subtitle: None,
+                    canonical: true,
+                }],
+                abstracts: vec![
+                        thoth_client::WorkRelationsRelatedWorkAbstracts {
+                            abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            content: "<p>Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.</p>".to_string(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            abstract_type: thoth_client::AbstractType::SHORT,
+                            canonical: true,
+                        },
+                    ],
                 edition: None,
                 doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
                 publication_date: None,
                 withdrawn_date: None,
                 license: None,
                 copyright_holder: None,
-                short_abstract: None,
-                long_abstract: None,
                 general_note: None,
                 place: None,
                 first_page: None,
@@ -1224,7 +1295,7 @@ mod tests {
         );
         relation.relation_type = RelationType::IS_TRANSLATION_OF;
         relation.relation_ordinal = 2;
-        relation.related_work.full_title = "Different related work title".to_string();
+        relation.related_work.titles[0].full_title = "Different related work title".to_string();
         relation.related_work.doi = None;
         assert_eq!(
             CsvCell::<CsvThoth>::csv_cell(&relation),
