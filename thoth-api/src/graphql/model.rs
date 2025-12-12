@@ -1528,18 +1528,18 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Query a title by its ID")]
-    fn title(context: &Context, title_id: Uuid, markup_format: MarkupFormat) -> FieldResult<Title> {
+    fn title(
+        context: &Context,
+        title_id: Uuid,
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Title> {
         let mut title = Title::from_id(&context.db, &title_id).map_err(FieldError::from)?;
-        title.title = convert_from_jats(&title.title, markup_format, ConversionLimit::Title)?;
+        let markup = markup_format.unwrap();
+        title.title = convert_from_jats(&title.title, markup, ConversionLimit::Title)?;
         if let Some(subtitle) = &title.subtitle {
-            title.subtitle = Some(convert_from_jats(
-                subtitle,
-                markup_format,
-                ConversionLimit::Title,
-            )?);
+            title.subtitle = Some(convert_from_jats(subtitle, markup, ConversionLimit::Title)?);
         }
-        title.full_title =
-            convert_from_jats(&title.full_title, markup_format, ConversionLimit::Title)?;
+        title.full_title = convert_from_jats(&title.full_title, markup, ConversionLimit::Title)?;
         Ok(title)
     }
 
@@ -1567,7 +1567,7 @@ impl QueryRoot {
             default = MarkupFormat::JatsXml,
             description = "If set shows result with this markup format"
         )]
-        markup_format: MarkupFormat,
+        markup_format: Option<MarkupFormat>,
     ) -> FieldResult<Vec<Title>> {
         let mut titles = Title::all(
             &context.db,
@@ -1585,17 +1585,14 @@ impl QueryRoot {
         )
         .map_err(FieldError::from)?;
 
+        let markup = markup_format.unwrap();
         for title in &mut titles {
-            title.title = convert_from_jats(&title.title, markup_format, ConversionLimit::Title)?;
+            title.title = convert_from_jats(&title.title, markup, ConversionLimit::Title)?;
             if let Some(subtitle) = &title.subtitle {
-                title.subtitle = Some(convert_from_jats(
-                    subtitle,
-                    markup_format,
-                    ConversionLimit::Title,
-                )?);
+                title.subtitle = Some(convert_from_jats(subtitle, markup, ConversionLimit::Title)?);
             }
             title.full_title =
-                convert_from_jats(&title.full_title, markup_format, ConversionLimit::Title)?;
+                convert_from_jats(&title.full_title, markup, ConversionLimit::Title)?;
         }
         Ok(titles)
     }
@@ -1608,13 +1605,13 @@ impl QueryRoot {
             default = MarkupFormat::JatsXml,
             description = "If set shows results with this markup format"
         )]
-        markup_format: MarkupFormat,
+        markup_format: Option<MarkupFormat>,
     ) -> FieldResult<Abstract> {
         let mut r#abstract =
             Abstract::from_id(&context.db, &abstract_id).map_err(FieldError::from)?;
         r#abstract.content = convert_from_jats(
             &r#abstract.content,
-            markup_format,
+            markup_format.unwrap(),
             ConversionLimit::Abstract,
         )?;
         Ok(r#abstract)
@@ -1645,7 +1642,7 @@ impl QueryRoot {
             default = MarkupFormat::JatsXml,
             description = "If set shows result with this markup format"
         )]
-        markup_format: MarkupFormat,
+        markup_format: Option<MarkupFormat>,
     ) -> FieldResult<Vec<Abstract>> {
         let mut abstracts = Abstract::all(
             &context.db,
@@ -1666,7 +1663,7 @@ impl QueryRoot {
         for r#abstract in &mut abstracts {
             r#abstract.content = convert_from_jats(
                 &r#abstract.content,
-                markup_format,
+                markup_format.unwrap(),
                 ConversionLimit::Abstract,
             )?;
         }
@@ -1682,13 +1679,13 @@ impl QueryRoot {
             default = MarkupFormat::JatsXml,
             description = "If set shows result with this markup format"
         )]
-        markup_format: MarkupFormat,
+        markup_format: Option<MarkupFormat>,
     ) -> FieldResult<Biography> {
         let mut biography =
             Biography::from_id(&context.db, &biography_id).map_err(FieldError::from)?;
         biography.content = convert_from_jats(
             &biography.content,
-            markup_format,
+            markup_format.unwrap(),
             ConversionLimit::Biography,
         )?;
         Ok(biography)
@@ -1719,7 +1716,7 @@ impl QueryRoot {
             default = MarkupFormat::JatsXml,
             description = "If set shows result with this markup format"
         )]
-        markup_format: MarkupFormat,
+        markup_format: Option<MarkupFormat>,
     ) -> FieldResult<Vec<Biography>> {
         let mut biographies = Biography::all(
             &context.db,
@@ -1740,7 +1737,7 @@ impl QueryRoot {
         for biography in &mut biographies {
             biography.content = convert_from_jats(
                 &biography.content,
-                markup_format,
+                markup_format.unwrap(),
                 ConversionLimit::Biography,
             )?;
         }
@@ -1874,7 +1871,9 @@ impl MutationRoot {
     #[graphql(description = "Create a new title with the specified values")]
     fn create_title(
         context: &Context,
-        #[graphql(description = "The markup format of the title")] markup_format: MarkupFormat,
+        #[graphql(description = "The markup format of the title")] markup_format: Option<
+            MarkupFormat,
+        >,
         #[graphql(description = "Values for title to be created")] data: NewTitle,
     ) -> FieldResult<Title> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
@@ -1892,14 +1891,15 @@ impl MutationRoot {
 
         let mut data = data.clone();
 
-        data.title = convert_to_jats(data.title, markup_format, ConversionLimit::Title)?;
+        let markup = markup_format.unwrap();
+        data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
         data.subtitle = data
             .subtitle
             .map(|subtitle_content| {
-                convert_to_jats(subtitle_content, markup_format, ConversionLimit::Title)
+                convert_to_jats(subtitle_content, markup, ConversionLimit::Title)
             })
             .transpose()?;
-        data.full_title = convert_to_jats(data.full_title, markup_format, ConversionLimit::Title)?;
+        data.full_title = convert_to_jats(data.full_title, markup, ConversionLimit::Title)?;
 
         Title::create(&context.db, &data).map_err(|e| e.into())
     }
@@ -1907,7 +1907,9 @@ impl MutationRoot {
     #[graphql(description = "Create a new abstract with the specified values")]
     fn create_abstract(
         context: &Context,
-        #[graphql(description = "The markup format of the abstract")] markup_format: MarkupFormat,
+        #[graphql(description = "The markup format of the abstract")] markup_format: Option<
+            MarkupFormat,
+        >,
         #[graphql(description = "Values for abstract to be created")] data: NewAbstract,
     ) -> FieldResult<Abstract> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
@@ -1937,7 +1939,11 @@ impl MutationRoot {
         }
 
         let mut data = data.clone();
-        data.content = convert_to_jats(data.content, markup_format, ConversionLimit::Abstract)?;
+        data.content = convert_to_jats(
+            data.content,
+            markup_format.unwrap(),
+            ConversionLimit::Abstract,
+        )?;
 
         if data.abstract_type == AbstractType::Short
             && data.content.len() > MAX_SHORT_ABSTRACT_CHAR_LIMIT as usize
@@ -1951,7 +1957,9 @@ impl MutationRoot {
     #[graphql(description = "Create a new biography with the specified values")]
     fn create_biography(
         context: &Context,
-        #[graphql(description = "The markup format of the biography")] markup_format: MarkupFormat,
+        #[graphql(description = "The markup format of the biography")] markup_format: Option<
+            MarkupFormat,
+        >,
         #[graphql(description = "Values for biography to be created")] data: NewBiography,
     ) -> FieldResult<Biography> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
@@ -1984,7 +1992,11 @@ impl MutationRoot {
         }
 
         let mut data = data.clone();
-        data.content = convert_to_jats(data.content, markup_format, ConversionLimit::Biography)?;
+        data.content = convert_to_jats(
+            data.content,
+            markup_format.unwrap(),
+            ConversionLimit::Biography,
+        )?;
 
         Biography::create(&context.db, &data).map_err(|e| e.into())
     }
@@ -2573,7 +2585,9 @@ impl MutationRoot {
     #[graphql(description = "Update an existing title with the specified values")]
     fn update_title(
         context: &Context,
-        #[graphql(description = "The markup format of the title")] markup_format: MarkupFormat,
+        #[graphql(description = "The markup format of the title")] markup_format: Option<
+            MarkupFormat,
+        >,
         #[graphql(description = "Values to apply to existing title")] data: PatchTitle,
     ) -> FieldResult<Title> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
@@ -2589,14 +2603,15 @@ impl MutationRoot {
         }
 
         let mut data = data.clone();
-        data.title = convert_to_jats(data.title, markup_format, ConversionLimit::Title)?;
+        let markup = markup_format.unwrap();
+        data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
         data.subtitle = data
             .subtitle
             .map(|subtitle_content| {
-                convert_to_jats(subtitle_content, markup_format, ConversionLimit::Title)
+                convert_to_jats(subtitle_content, markup, ConversionLimit::Title)
             })
             .transpose()?;
-        data.full_title = convert_to_jats(data.full_title, markup_format, ConversionLimit::Title)?;
+        data.full_title = convert_to_jats(data.full_title, markup, ConversionLimit::Title)?;
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         title
@@ -2607,7 +2622,9 @@ impl MutationRoot {
     #[graphql(description = "Update an existing abstract with the specified values")]
     fn update_abstract(
         context: &Context,
-        #[graphql(description = "The markup format of the abstract")] markup_format: MarkupFormat,
+        #[graphql(description = "The markup format of the abstract")] markup_format: Option<
+            MarkupFormat,
+        >,
         #[graphql(description = "Values to apply to existing abstract")] data: PatchAbstract,
     ) -> FieldResult<Abstract> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
@@ -2623,7 +2640,8 @@ impl MutationRoot {
         }
 
         let mut data = data.clone();
-        data.content = convert_to_jats(data.content, markup_format, ConversionLimit::Title)?;
+        data.content =
+            convert_to_jats(data.content, markup_format.unwrap(), ConversionLimit::Title)?;
 
         if data.abstract_type == AbstractType::Short
             && data.content.len() > MAX_SHORT_ABSTRACT_CHAR_LIMIT as usize
@@ -2640,7 +2658,9 @@ impl MutationRoot {
     #[graphql(description = "Update an existing biography with the specified values")]
     fn update_biography(
         context: &Context,
-        #[graphql(description = "The markup format of the biography")] markup_format: MarkupFormat,
+        #[graphql(description = "The markup format of the biography")] markup_format: Option<
+            MarkupFormat,
+        >,
         #[graphql(description = "Values to apply to existing biography")] data: PatchBiography,
     ) -> FieldResult<Biography> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
@@ -2660,7 +2680,8 @@ impl MutationRoot {
         }
 
         let mut data = data.clone();
-        data.content = convert_to_jats(data.content, markup_format, ConversionLimit::Title)?;
+        data.content =
+            convert_to_jats(data.content, markup_format.unwrap(), ConversionLimit::Title)?;
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         biography
@@ -3246,7 +3267,7 @@ impl Work {
             default = MarkupFormat::JatsXml,
             description = "If set, only shows results with this markup format"
         )]
-        markup_format: MarkupFormat,
+        markup_format: Option<MarkupFormat>,
     ) -> FieldResult<Vec<Title>> {
         let mut titles = Title::all(
             &context.db,
@@ -3264,15 +3285,16 @@ impl Work {
         )
         .map_err(FieldError::from)?;
 
+        let markup = markup_format.unwrap();
         for title in titles.iter_mut() {
-            title.title = convert_from_jats(&title.title, markup_format, ConversionLimit::Title)?;
+            title.title = convert_from_jats(&title.title, markup, ConversionLimit::Title)?;
             title.subtitle = title
                 .subtitle
                 .as_ref()
-                .map(|subtitle| convert_from_jats(subtitle, markup_format, ConversionLimit::Title))
+                .map(|subtitle| convert_from_jats(subtitle, markup, ConversionLimit::Title))
                 .transpose()?;
             title.full_title =
-                convert_from_jats(&title.full_title, markup_format, ConversionLimit::Title)?;
+                convert_from_jats(&title.full_title, markup, ConversionLimit::Title)?;
         }
 
         Ok(titles)
@@ -3304,7 +3326,7 @@ impl Work {
             default = MarkupFormat::JatsXml,
             description = "If set, only shows results with this markup format"
         )]
-        markup_format: MarkupFormat,
+        markup_format: Option<MarkupFormat>,
     ) -> FieldResult<Vec<Abstract>> {
         let mut abstracts = Abstract::all(
             &context.db,
@@ -3325,7 +3347,7 @@ impl Work {
         for r#abstract in &mut abstracts {
             r#abstract.content = convert_from_jats(
                 &r#abstract.content,
-                markup_format,
+                markup_format.unwrap(),
                 ConversionLimit::Abstract,
             )?;
         }
@@ -4289,7 +4311,7 @@ impl Contribution {
             default = MarkupFormat::JatsXml,
             description = "If set, only shows results with this markup format"
         )]
-        markup_format: MarkupFormat,
+        markup_format: Option<MarkupFormat>,
     ) -> FieldResult<Vec<Biography>> {
         let mut biographies = Biography::all(
             &context.db,
@@ -4310,7 +4332,7 @@ impl Contribution {
         for biography in &mut biographies {
             biography.content = convert_from_jats(
                 &biography.content,
-                markup_format,
+                markup_format.unwrap(),
                 ConversionLimit::Biography,
             )?;
         }
