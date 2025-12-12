@@ -2221,7 +2221,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing work")] data: PatchWork,
     ) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let work = Work::from_id(&context.db, &data.work_id).unwrap();
+        let work = Work::from_id(&context.db, &data.work_id)?;
         context
             .account_access
             .can_edit(work.publisher_id(&context.db)?)?;
@@ -2272,7 +2272,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing publisher")] data: PatchPublisher,
     ) -> FieldResult<Publisher> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let publisher = Publisher::from_id(&context.db, &data.publisher_id).unwrap();
+        let publisher = Publisher::from_id(&context.db, &data.publisher_id)?;
         context.account_access.can_edit(publisher.publisher_id)?;
 
         if data.publisher_id != publisher.publisher_id {
@@ -2290,7 +2290,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing imprint")] data: PatchImprint,
     ) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let imprint = Imprint::from_id(&context.db, &data.imprint_id).unwrap();
+        let imprint = Imprint::from_id(&context.db, &data.imprint_id)?;
         context.account_access.can_edit(imprint.publisher_id())?;
 
         if data.publisher_id != imprint.publisher_id {
@@ -2322,7 +2322,7 @@ impl MutationRoot {
         data: PatchContribution,
     ) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let contribution = Contribution::from_id(&context.db, &data.contribution_id).unwrap();
+        let contribution = Contribution::from_id(&context.db, &data.contribution_id)?;
         context
             .account_access
             .can_edit(contribution.publisher_id(&context.db)?)?;
@@ -2344,7 +2344,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing publication")] data: PatchPublication,
     ) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let publication = Publication::from_id(&context.db, &data.publication_id).unwrap();
+        let publication = Publication::from_id(&context.db, &data.publication_id)?;
         context
             .account_access
             .can_edit(publication.publisher_id(&context.db)?)?;
@@ -2369,7 +2369,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing series")] data: PatchSeries,
     ) -> FieldResult<Series> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let series = Series::from_id(&context.db, &data.series_id).unwrap();
+        let series = Series::from_id(&context.db, &data.series_id)?;
         context
             .account_access
             .can_edit(series.publisher_id(&context.db)?)?;
@@ -2391,7 +2391,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing issue")] data: PatchIssue,
     ) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let issue = Issue::from_id(&context.db, &data.issue_id).unwrap();
+        let issue = Issue::from_id(&context.db, &data.issue_id)?;
         context
             .account_access
             .can_edit(issue.publisher_id(&context.db)?)?;
@@ -2415,7 +2415,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing language")] data: PatchLanguage,
     ) -> FieldResult<Language> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let language = Language::from_id(&context.db, &data.language_id).unwrap();
+        let language = Language::from_id(&context.db, &data.language_id)?;
         context
             .account_access
             .can_edit(language.publisher_id(&context.db)?)?;
@@ -2451,7 +2451,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing funding")] data: PatchFunding,
     ) -> FieldResult<Funding> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let funding = Funding::from_id(&context.db, &data.funding_id).unwrap();
+        let funding = Funding::from_id(&context.db, &data.funding_id)?;
         context
             .account_access
             .can_edit(funding.publisher_id(&context.db)?)?;
@@ -2474,7 +2474,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing location")] data: PatchLocation,
     ) -> FieldResult<Location> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let current_location = Location::from_id(&context.db, &data.location_id).unwrap();
+        let current_location = Location::from_id(&context.db, &data.location_id)?;
         let has_canonical_thoth_location = Publication::from_id(&context.db, &data.publication_id)?
             .locations(
                 context,
@@ -2525,7 +2525,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing price")] data: PatchPrice,
     ) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let price = Price::from_id(&context.db, &data.price_id).unwrap();
+        let price = Price::from_id(&context.db, &data.price_id)?;
         context
             .account_access
             .can_edit(price.publisher_id(&context.db)?)?;
@@ -2556,7 +2556,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing subject")] data: PatchSubject,
     ) -> FieldResult<Subject> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let subject = Subject::from_id(&context.db, &data.subject_id).unwrap();
+        let subject = Subject::from_id(&context.db, &data.subject_id)?;
         context
             .account_access
             .can_edit(subject.publisher_id(&context.db)?)?;
@@ -2581,7 +2581,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing affiliation")] data: PatchAffiliation,
     ) -> FieldResult<Affiliation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let affiliation = Affiliation::from_id(&context.db, &data.affiliation_id).unwrap();
+        let affiliation = Affiliation::from_id(&context.db, &data.affiliation_id)?;
         context
             .account_access
             .can_edit(affiliation.publisher_id(&context.db)?)?;
@@ -2608,7 +2608,7 @@ impl MutationRoot {
         data: PatchWorkRelation,
     ) -> FieldResult<WorkRelation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let work_relation = WorkRelation::from_id(&context.db, &data.work_relation_id).unwrap();
+        let work_relation = WorkRelation::from_id(&context.db, &data.work_relation_id)?;
         // Work relations may link works from different publishers.
         // User must have permissions for all relevant publishers.
         context.account_access.can_edit(publisher_id_from_work_id(
@@ -2645,7 +2645,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing reference")] data: PatchReference,
     ) -> FieldResult<Reference> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let reference = Reference::from_id(&context.db, &data.reference_id).unwrap();
+        let reference = Reference::from_id(&context.db, &data.reference_id)?;
         context
             .account_access
             .can_edit(reference.publisher_id(&context.db)?)?;
@@ -2668,7 +2668,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing contact")] data: PatchContact,
     ) -> FieldResult<Contact> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let contact = Contact::from_id(&context.db, &data.contact_id).unwrap();
+        let contact = Contact::from_id(&context.db, &data.contact_id)?;
         context.account_access.can_edit(contact.publisher_id())?;
 
         if data.publisher_id != contact.publisher_id {
@@ -2689,7 +2689,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing title")] data: PatchTitle,
     ) -> FieldResult<Title> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let title = Title::from_id(&context.db, &data.title_id).unwrap();
+        let title = Title::from_id(&context.db, &data.title_id)?;
         context
             .account_access
             .can_edit(title.publisher_id(&context.db)?)?;
@@ -2726,7 +2726,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing abstract")] data: PatchAbstract,
     ) -> FieldResult<Abstract> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let r#abstract = Abstract::from_id(&context.db, &data.abstract_id).unwrap();
+        let r#abstract = Abstract::from_id(&context.db, &data.abstract_id)?;
         context
             .account_access
             .can_edit(r#abstract.publisher_id(&context.db)?)?;
@@ -2762,7 +2762,7 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing biography")] data: PatchBiography,
     ) -> FieldResult<Biography> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let biography = Biography::from_id(&context.db, &data.biography_id).unwrap();
+        let biography = Biography::from_id(&context.db, &data.biography_id)?;
         context
             .account_access
             .can_edit(biography.publisher_id(&context.db)?)?;
@@ -2793,7 +2793,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of work to be deleted")] work_id: Uuid,
     ) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let work = Work::from_id(&context.db, &work_id).unwrap();
+        let work = Work::from_id(&context.db, &work_id)?;
         context
             .account_access
             .can_edit(work.publisher_id(&context.db)?)?;
@@ -2811,7 +2811,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of publisher to be deleted")] publisher_id: Uuid,
     ) -> FieldResult<Publisher> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let publisher = Publisher::from_id(&context.db, &publisher_id).unwrap();
+        let publisher = Publisher::from_id(&context.db, &publisher_id)?;
         context.account_access.can_edit(publisher_id)?;
 
         publisher.delete(&context.db).map_err(|e| e.into())
@@ -2823,7 +2823,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of imprint to be deleted")] imprint_id: Uuid,
     ) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let imprint = Imprint::from_id(&context.db, &imprint_id).unwrap();
+        let imprint = Imprint::from_id(&context.db, &imprint_id)?;
         context.account_access.can_edit(imprint.publisher_id())?;
 
         imprint.delete(&context.db).map_err(|e| e.into())
@@ -2835,7 +2835,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of contributor to be deleted")] contributor_id: Uuid,
     ) -> FieldResult<Contributor> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let contributor = Contributor::from_id(&context.db, &contributor_id).unwrap();
+        let contributor = Contributor::from_id(&context.db, &contributor_id)?;
         for linked_publisher_id in contributor.linked_publisher_ids(&context.db)? {
             context.account_access.can_edit(linked_publisher_id)?;
         }
@@ -2849,7 +2849,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of contribution to be deleted")] contribution_id: Uuid,
     ) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let contribution = Contribution::from_id(&context.db, &contribution_id).unwrap();
+        let contribution = Contribution::from_id(&context.db, &contribution_id)?;
         context
             .account_access
             .can_edit(contribution.publisher_id(&context.db)?)?;
@@ -2863,7 +2863,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of publication to be deleted")] publication_id: Uuid,
     ) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let publication = Publication::from_id(&context.db, &publication_id).unwrap();
+        let publication = Publication::from_id(&context.db, &publication_id)?;
         context
             .account_access
             .can_edit(publication.publisher_id(&context.db)?)?;
@@ -2877,7 +2877,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of series to be deleted")] series_id: Uuid,
     ) -> FieldResult<Series> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let series = Series::from_id(&context.db, &series_id).unwrap();
+        let series = Series::from_id(&context.db, &series_id)?;
         context
             .account_access
             .can_edit(series.publisher_id(&context.db)?)?;
@@ -2891,7 +2891,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of issue to be deleted")] issue_id: Uuid,
     ) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let issue = Issue::from_id(&context.db, &issue_id).unwrap();
+        let issue = Issue::from_id(&context.db, &issue_id)?;
         context
             .account_access
             .can_edit(issue.publisher_id(&context.db)?)?;
@@ -2905,7 +2905,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of language to be deleted")] language_id: Uuid,
     ) -> FieldResult<Language> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let language = Language::from_id(&context.db, &language_id).unwrap();
+        let language = Language::from_id(&context.db, &language_id)?;
         context
             .account_access
             .can_edit(language.publisher_id(&context.db)?)?;
@@ -2919,7 +2919,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of title to be deleted")] title_id: Uuid,
     ) -> FieldResult<Title> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let title = Title::from_id(&context.db, &title_id).unwrap();
+        let title = Title::from_id(&context.db, &title_id)?;
         context
             .account_access
             .can_edit(title.publisher_id(&context.db)?)?;
@@ -2933,7 +2933,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of institution to be deleted")] institution_id: Uuid,
     ) -> FieldResult<Institution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let institution = Institution::from_id(&context.db, &institution_id).unwrap();
+        let institution = Institution::from_id(&context.db, &institution_id)?;
         for linked_publisher_id in institution.linked_publisher_ids(&context.db)? {
             context.account_access.can_edit(linked_publisher_id)?;
         }
@@ -2947,7 +2947,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of funding to be deleted")] funding_id: Uuid,
     ) -> FieldResult<Funding> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let funding = Funding::from_id(&context.db, &funding_id).unwrap();
+        let funding = Funding::from_id(&context.db, &funding_id)?;
         context
             .account_access
             .can_edit(funding.publisher_id(&context.db)?)?;
@@ -2961,7 +2961,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of location to be deleted")] location_id: Uuid,
     ) -> FieldResult<Location> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let location = Location::from_id(&context.db, &location_id).unwrap();
+        let location = Location::from_id(&context.db, &location_id)?;
         // Only superusers can delete locations where Location Platform is Thoth
         if !context.account_access.is_superuser
             && location.location_platform == LocationPlatform::Thoth
@@ -2981,7 +2981,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of price to be deleted")] price_id: Uuid,
     ) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let price = Price::from_id(&context.db, &price_id).unwrap();
+        let price = Price::from_id(&context.db, &price_id)?;
         context
             .account_access
             .can_edit(price.publisher_id(&context.db)?)?;
@@ -2995,7 +2995,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of subject to be deleted")] subject_id: Uuid,
     ) -> FieldResult<Subject> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let subject = Subject::from_id(&context.db, &subject_id).unwrap();
+        let subject = Subject::from_id(&context.db, &subject_id)?;
         context
             .account_access
             .can_edit(subject.publisher_id(&context.db)?)?;
@@ -3009,7 +3009,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of affiliation to be deleted")] affiliation_id: Uuid,
     ) -> FieldResult<Affiliation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let affiliation = Affiliation::from_id(&context.db, &affiliation_id).unwrap();
+        let affiliation = Affiliation::from_id(&context.db, &affiliation_id)?;
         context
             .account_access
             .can_edit(affiliation.publisher_id(&context.db)?)?;
@@ -3023,7 +3023,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of work relation to be deleted")] work_relation_id: Uuid,
     ) -> FieldResult<WorkRelation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let work_relation = WorkRelation::from_id(&context.db, &work_relation_id).unwrap();
+        let work_relation = WorkRelation::from_id(&context.db, &work_relation_id)?;
         // Work relations may link works from different publishers.
         // User must have permissions for all relevant publishers.
         context.account_access.can_edit(publisher_id_from_work_id(
@@ -3044,7 +3044,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of reference to be deleted")] reference_id: Uuid,
     ) -> FieldResult<Reference> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let reference = Reference::from_id(&context.db, &reference_id).unwrap();
+        let reference = Reference::from_id(&context.db, &reference_id)?;
         context
             .account_access
             .can_edit(reference.publisher_id(&context.db)?)?;
@@ -3058,7 +3058,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of abstract to be deleted")] abstract_id: Uuid,
     ) -> FieldResult<Abstract> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let r#abstract = Abstract::from_id(&context.db, &abstract_id).unwrap();
+        let r#abstract = Abstract::from_id(&context.db, &abstract_id)?;
         context
             .account_access
             .can_edit(r#abstract.publisher_id(&context.db)?)?;
@@ -3072,7 +3072,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of biography to be deleted")] biography_id: Uuid,
     ) -> FieldResult<Biography> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let biography = Biography::from_id(&context.db, &biography_id).unwrap();
+        let biography = Biography::from_id(&context.db, &biography_id)?;
         context
             .account_access
             .can_edit(biography.publisher_id(&context.db)?)?;
@@ -3275,7 +3275,7 @@ impl MutationRoot {
         #[graphql(description = "Thoth ID of contact to be deleted")] contact_id: Uuid,
     ) -> FieldResult<Contact> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let contact = Contact::from_id(&context.db, &contact_id).unwrap();
+        let contact = Contact::from_id(&context.db, &contact_id)?;
         context.account_access.can_edit(contact.publisher_id())?;
 
         contact.delete(&context.db).map_err(|e| e.into())
@@ -5505,24 +5505,18 @@ pub fn create_schema() -> Schema {
     Schema::new(QueryRoot {}, MutationRoot {}, EmptySubscription::new())
 }
 
-fn publisher_id_from_imprint_id(db: &crate::db::PgPool, imprint_id: Uuid) -> ThothResult<Uuid> {
+fn publisher_id_from_imprint_id(db: &PgPool, imprint_id: Uuid) -> ThothResult<Uuid> {
     Ok(Imprint::from_id(db, &imprint_id)?.publisher_id)
 }
 
-fn publisher_id_from_work_id(db: &crate::db::PgPool, work_id: Uuid) -> ThothResult<Uuid> {
+fn publisher_id_from_work_id(db: &PgPool, work_id: Uuid) -> ThothResult<Uuid> {
     Work::from_id(db, &work_id)?.publisher_id(db)
 }
 
-fn publisher_id_from_publication_id(
-    db: &crate::db::PgPool,
-    publication_id: Uuid,
-) -> ThothResult<Uuid> {
+fn publisher_id_from_publication_id(db: &PgPool, publication_id: Uuid) -> ThothResult<Uuid> {
     Publication::from_id(db, &publication_id)?.publisher_id(db)
 }
 
-fn publisher_id_from_contribution_id(
-    db: &crate::db::PgPool,
-    contribution_id: Uuid,
-) -> ThothResult<Uuid> {
+fn publisher_id_from_contribution_id(db: &PgPool, contribution_id: Uuid) -> ThothResult<Uuid> {
     Contribution::from_id(db, &contribution_id)?.publisher_id(db)
 }
