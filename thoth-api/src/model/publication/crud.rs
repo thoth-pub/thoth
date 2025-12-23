@@ -5,7 +5,6 @@ use super::{
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
-use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
@@ -100,6 +99,22 @@ impl Crud for Publication {
             PublicationField::WeightOz => match order.direction {
                 Direction::Asc => query.order(weight_oz.asc()),
                 Direction::Desc => query.order(weight_oz.desc()),
+            },
+            PublicationField::AccessibilityStandard => match order.direction {
+                Direction::Asc => query.order(accessibility_standard.asc()),
+                Direction::Desc => query.order(accessibility_standard.desc()),
+            },
+            PublicationField::AccessibilityAdditionalStandard => match order.direction {
+                Direction::Asc => query.order(accessibility_additional_standard.asc()),
+                Direction::Desc => query.order(accessibility_additional_standard.desc()),
+            },
+            PublicationField::AccessibilityException => match order.direction {
+                Direction::Asc => query.order(accessibility_exception.asc()),
+                Direction::Desc => query.order(accessibility_exception.desc()),
+            },
+            PublicationField::AccessibilityReportUrl => match order.direction {
+                Direction::Asc => query.order(accessibility_report_url.asc()),
+                Direction::Desc => query.order(accessibility_report_url.desc()),
             },
         };
         if !publishers.is_empty() {

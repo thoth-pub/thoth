@@ -88,6 +88,11 @@ fragment Work on Work {
             publisherName
             publisherShortname
             publisherUrl
+            accessibilityStatement
+            contacts {
+                contactType
+                email
+            }
         }
     }
     issues(limit: $issuesLimit, order: {field: ISSUE_ORDINAL, direction: ASC}) {
@@ -152,6 +157,10 @@ fragment Work on Work {
         depthMm: depth(units: MM)
         depthCm: depth(units: CM)
         depthIn: depth(units: IN)
+        accessibilityStandard
+        accessibilityAdditionalStandard
+        accessibilityException
+        accessibilityReportUrl
         prices {
             currencyCode
             unitPrice

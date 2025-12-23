@@ -417,14 +417,7 @@ fn write_abstract_content_with_locale_code<W: Write>(
             ("xml:lang", locale_code),
         ]),
         w,
-        |w| {
-            for paragraph in abstract_content.lines() {
-                if !paragraph.is_empty() {
-                    write_element_block("jats:p", w, |w| write_jats_content(paragraph, w))?;
-                }
-            }
-            Ok(())
-        },
+        |w| write_jats_content(abstract_content, w),
     )
 }
 
@@ -1680,6 +1673,8 @@ mod tests {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: Some("OAE".to_string()),
                     publisher_url: None,
+                    accessibility_statement: None,
+                    contacts: vec![],
                 },
             },
             issues: vec![
@@ -1809,6 +1804,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![WorkPublicationsLocations {
                         landing_page: Some("https://www.book.com/pdf_landing".to_string()),
@@ -1832,6 +1831,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![WorkPublicationsLocations {
                         landing_page: Some("https://www.book.com/xml_landing".to_string()),
@@ -1855,6 +1858,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -2353,7 +2360,7 @@ mod tests {
             .create_writer(&mut buffer);
 
         let result = write_abstract_content_with_locale_code(
-            "This is a test abstract.",
+            "<p>This is a test abstract.</p>",
             "long",
             "EN",
             &mut writer,
@@ -2372,7 +2379,7 @@ mod tests {
             .create_writer(&mut buffer);
 
         let result = write_abstract_content_with_locale_code(
-            "First paragraph.\n\nSecond paragraph.\n\n\nThird paragraph.",
+            "<p>First paragraph.</p><p>Second paragraph.</p><p>Third paragraph.</p>",
             "short",
             "FR",
             &mut writer,
@@ -2393,7 +2400,7 @@ mod tests {
             .create_writer(&mut buffer);
 
         let result = write_abstract_content_with_locale_code(
-            "\n\nOnly this line.\n\n",
+            "<p>Only this line.</p>",
             "other",
             "DE",
             &mut writer,
@@ -2502,6 +2509,8 @@ mod tests {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: Some("OAE".to_string()),
                     publisher_url: None,
+                    accessibility_statement: None,
+                    contacts: vec![],
                 },
             },
             issues: vec![],
@@ -2523,6 +2532,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -2541,6 +2554,10 @@ mod tests {
                     depth_in: Some(1.0),
                     weight_g: Some(152.0),
                     weight_oz: Some(5.3616),
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -2559,6 +2576,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -2577,6 +2598,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -2595,6 +2620,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -2613,6 +2642,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -2631,6 +2664,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
