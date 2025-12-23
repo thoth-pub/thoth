@@ -56,7 +56,6 @@ pub async fn create_s3_client(region: &str) -> S3Client {
         .load()
         .await;
 
-    // Create S3 client with path-style addressing
     let s3_config = aws_sdk_s3::config::Builder::from(&config)
         .force_path_style(true)
         .build();
@@ -92,7 +91,7 @@ pub async fn presign_put_for_upload(
     );
     use base64::{engine::general_purpose, Engine as _};
 
-    // Convert hex SHA-256 to base64
+    // hex SHA-256 to base64
     let sha256_bytes = hex::decode(declared_sha256)
         .map_err(|e| ThothError::InternalError(format!("Invalid SHA-256 hex: {}", e)))?;
     let sha256_base64 = general_purpose::STANDARD.encode(&sha256_bytes);
@@ -111,8 +110,6 @@ pub async fn presign_put_for_upload(
         .checksum_sha256(sha256_base64)
         .checksum_algorithm(ChecksumAlgorithm::Sha256);
 
-    // Presign the request
-    println!("DEBUG: About to presign request...");
     let presigned_request = request.presigned(presigning_config).await.map_err(|e| {
         eprintln!("PRESIGN_DEBUG: Presigning failed with error: {:?}", e);
         eprintln!("PRESIGN_DEBUG: Bucket: {}, Key: {}", bucket, temp_key);

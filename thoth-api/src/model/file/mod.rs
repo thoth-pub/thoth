@@ -185,7 +185,6 @@ pub fn parse_doi(doi: &Doi) -> ThothResult<(String, String)> {
 }
 
 #[cfg(feature = "backend")]
-/// Validate file extension matches the file type and publication type (if applicable)
 pub fn validate_file_extension(
     extension: &str,
     file_type: &FileType,
@@ -204,27 +203,16 @@ pub fn validate_file_extension(
         FileType::Publication => {
             if let Some(pub_type) = publication_type {
                 let valid_extensions: Vec<&str> = match pub_type {
-                    // PDF
                     PublicationType::Pdf => vec!["pdf"],
-                    // EPUB
                     PublicationType::Epub => vec!["epub"],
-                    // HTML (including HTM and ZIP archives containing HTML)
                     PublicationType::Html => vec!["html", "htm", "zip"],
-                    // XML (including ZIP archives containing XML)
                     PublicationType::Xml => vec!["xml", "zip"],
-                    // DOCX
                     PublicationType::Docx => vec!["docx"],
-                    // MOBI
                     PublicationType::Mobi => vec!["mobi"],
-                    // AZW3
                     PublicationType::Azw3 => vec!["azw3"],
-                    // FictionBook: fb2, fbz, or ZIP archive (fb2.zip -> "zip")
                     PublicationType::FictionBook => vec!["fb2", "fbz", "zip"],
-                    // MP3 audiobook
                     PublicationType::Mp3 => vec!["mp3"],
-                    // WAV audiobook
                     PublicationType::Wav => vec!["wav"],
-                    // Other types are not yet supported for uploads
                     _ => {
                         return Err(ThothError::InternalError(format!(
                             "File uploads not supported for publication type: {:?}",

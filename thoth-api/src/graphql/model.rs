@@ -3431,21 +3431,21 @@ impl MutationRoot {
             "DEBUG: Starting init_publication_file_upload for publication_id: {}",
             data.publication_id
         );
-        // TEMPORARY: Skip authentication for testing
-        // context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
 
-        // Get publication and check permissions
         let publication = Publication::from_id(&context.db, &data.publication_id)?;
-        // TEMPORARY: Skip permission check for testing
-        // context.account_access.can_edit(publisher_id_from_publication_id(&context.db, data.publication_id)?)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_publication_id(
+                &context.db,
+                data.publication_id,
+            )?)?;
 
-        // Get work to check DOI and get imprint
         let work = Work::from_id(&context.db, &publication.work_id)?;
         work.doi.ok_or_else(|| {
             ThothError::InternalError("Work must have a DOI to upload files".to_string())
         })?;
 
-        // Get imprint and check storage config
         let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
         let storage_config = StorageConfig::from_imprint(&imprint)?;
         eprintln!(
@@ -3453,7 +3453,6 @@ impl MutationRoot {
             storage_config.s3_bucket, storage_config.s3_region
         );
 
-        // Create file_upload record
         let new_upload = NewFileUpload {
             file_type: FileType::Publication,
             work_id: None,
@@ -3465,7 +3464,6 @@ impl MutationRoot {
 
         let file_upload = FileUpload::create(&context.db, &new_upload)?;
 
-        // Generate presigned URL
         eprintln!(
             "GRAPHQL_DEBUG: About to create S3 client for region: {}",
             storage_config.s3_region
@@ -3483,7 +3481,6 @@ impl MutationRoot {
         )
         .await?;
 
-        // Calculate expiration time
         let expires_at = Timestamp::parse_from_rfc3339(
             &chrono::Utc::now()
                 .checked_add_signed(chrono::Duration::minutes(30))
@@ -3511,22 +3508,18 @@ impl MutationRoot {
     ) -> FieldResult<FileUploadResponse> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
 
-        // Get work and check permissions
         let work = Work::from_id(&context.db, &data.work_id)?;
         context
             .account_access
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
-        // Check DOI exists
         work.doi.ok_or_else(|| {
             ThothError::InternalError("Work must have a DOI to upload files".to_string())
         })?;
 
-        // Get imprint and check storage config
         let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
         let storage_config = StorageConfig::from_imprint(&imprint)?;
 
-        // Create file_upload record
         let new_upload = NewFileUpload {
             file_type: FileType::Frontcover,
             work_id: Some(data.work_id),
@@ -3538,7 +3531,6 @@ impl MutationRoot {
 
         let file_upload = FileUpload::create(&context.db, &new_upload)?;
 
-        // Generate presigned URL
         let s3_client = create_s3_client(&storage_config.s3_region).await;
         let temp_key = temp_key(&file_upload.file_upload_id);
         let upload_url = presign_put_for_upload(
@@ -3551,7 +3543,6 @@ impl MutationRoot {
         )
         .await?;
 
-        // Calculate expiration time
         let expires_at = Timestamp::parse_from_rfc3339(
             &chrono::Utc::now()
                 .checked_add_signed(chrono::Duration::minutes(30))
@@ -3576,33 +3567,35 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Input for completing a file upload")] data: CompleteFileUpload,
     ) -> FieldResult<File> {
-        // TEMPORARY: Skip authentication for testing
-        // context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
 
-        // Load file_upload record
         let file_upload = FileUpload::from_id(&context.db, &data.file_upload_id)
             .map_err(|_| ThothError::EntityNotFound)?;
 
-        // TEMPORARY: Skip permission checks for testing
-        // Check permissions based on file type
         match file_upload.file_type {
             FileType::Publication => {
-                let _publication_id = file_upload.publication_id.ok_or_else(|| {
+                let publication_id = file_upload.publication_id.ok_or_else(|| {
                     ThothError::InternalError(
                         "Publication file upload missing publication_id".to_string(),
                     )
                 })?;
-                // context.account_access.can_edit(publisher_id_from_publication_id(&context.db, publication_id)?)?;
+                context
+                    .account_access
+                    .can_edit(publisher_id_from_publication_id(
+                        &context.db,
+                        publication_id,
+                    )?)?;
             }
             FileType::Frontcover => {
-                let _work_id = file_upload.work_id.ok_or_else(|| {
+                let work_id = file_upload.work_id.ok_or_else(|| {
                     ThothError::InternalError("Frontcover file upload missing work_id".to_string())
                 })?;
-                // context.account_access.can_edit(publisher_id_from_work_id(&context.db, work_id)?)?;
+                context
+                    .account_access
+                    .can_edit(publisher_id_from_work_id(&context.db, work_id)?)?;
             }
         }
 
-        // Get work and imprint for storage config
         let (work, storage_config) = match file_upload.file_type {
             FileType::Publication => {
                 let publication =
@@ -3624,16 +3617,13 @@ impl MutationRoot {
             .doi
             .ok_or_else(|| ThothError::InternalError("Work must have a DOI".to_string()))?;
 
-        // Parse DOI into prefix and suffix
         let (doi_prefix, doi_suffix) = parse_doi(&doi)?;
 
-        // HeadObject on temporary upload to validate it exists
         let s3_client = create_s3_client(&storage_config.s3_region).await;
         let temp_key = temp_key(&file_upload.file_upload_id);
         let (bytes, mime_type) =
             head_object(&s3_client, &storage_config.s3_bucket, &temp_key).await?;
 
-        // Validate file extension matches declared extension and file type
         validate_file_extension(
             &file_upload.declared_extension,
             &file_upload.file_type,
