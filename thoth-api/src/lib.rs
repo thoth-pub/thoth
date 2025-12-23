@@ -24,9 +24,9 @@ pub mod model;
 #[cfg(feature = "backend")]
 pub mod redis;
 #[cfg(feature = "backend")]
-pub mod storage;
-#[cfg(feature = "backend")]
 mod schema;
+#[cfg(feature = "backend")]
+pub mod storage;
 
 macro_rules! apis {
     ($($name:ident => $content:expr,)*) => (

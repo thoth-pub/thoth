@@ -3,11 +3,7 @@ use aws_config::Region;
 #[cfg(feature = "backend")]
 use aws_sdk_cloudfront::Client as CloudFrontClient;
 #[cfg(feature = "backend")]
-use aws_sdk_s3::{
-    presigning::PresigningConfig,
-    types::ChecksumAlgorithm,
-    Client as S3Client,
-};
+use aws_sdk_s3::{presigning::PresigningConfig, types::ChecksumAlgorithm, Client as S3Client};
 #[cfg(feature = "backend")]
 use std::time::Duration as StdDuration;
 #[cfg(feature = "backend")]
@@ -90,7 +86,10 @@ pub async fn presign_put_for_upload(
     declared_sha256: &str,
     expires_in_minutes: u64,
 ) -> ThothResult<String> {
-    eprintln!("PRESIGN_DEBUG: Creating presigned URL for bucket: {}, key: {}", bucket, temp_key);
+    eprintln!(
+        "PRESIGN_DEBUG: Creating presigned URL for bucket: {}, key: {}",
+        bucket, temp_key
+    );
     use base64::{engine::general_purpose, Engine as _};
 
     // Convert hex SHA-256 to base64
@@ -100,8 +99,9 @@ pub async fn presign_put_for_upload(
 
     let expires_in = StdDuration::from_secs(expires_in_minutes * 60);
 
-    let presigning_config = PresigningConfig::expires_in(expires_in)
-        .map_err(|e| ThothError::InternalError(format!("Failed to create presigning config: {}", e)))?;
+    let presigning_config = PresigningConfig::expires_in(expires_in).map_err(|e| {
+        ThothError::InternalError(format!("Failed to create presigning config: {}", e))
+    })?;
 
     let request = s3_client
         .put_object()
@@ -113,14 +113,11 @@ pub async fn presign_put_for_upload(
 
     // Presign the request
     println!("DEBUG: About to presign request...");
-    let presigned_request = request
-        .presigned(presigning_config)
-        .await
-        .map_err(|e| {
-            eprintln!("PRESIGN_DEBUG: Presigning failed with error: {:?}", e);
-            eprintln!("PRESIGN_DEBUG: Bucket: {}, Key: {}", bucket, temp_key);
-            ThothError::InternalError(format!("Failed to presign request: {}", e))
-        })?;
+    let presigned_request = request.presigned(presigning_config).await.map_err(|e| {
+        eprintln!("PRESIGN_DEBUG: Presigning failed with error: {:?}", e);
+        eprintln!("PRESIGN_DEBUG: Bucket: {}, Key: {}", bucket, temp_key);
+        ThothError::InternalError(format!("Failed to presign request: {}", e))
+    })?;
 
     Ok(presigned_request.uri().to_string())
 }
@@ -212,7 +209,9 @@ pub async fn invalidate_cloudfront(
                 .paths(paths)
                 .caller_reference(format!("thoth-{}", Uuid::new_v4()))
                 .build()
-                .map_err(|e| ThothError::InternalError(format!("Failed to build invalidation batch: {}", e)))?,
+                .map_err(|e| {
+                    ThothError::InternalError(format!("Failed to build invalidation batch: {}", e))
+                })?,
         )
         .send()
         .await
@@ -262,4 +261,3 @@ pub fn build_cdn_url(cdn_domain: &str, object_key: &str) -> String {
     let key = object_key.trim_start_matches('/');
     format!("https://{}/{}", domain, key)
 }
-

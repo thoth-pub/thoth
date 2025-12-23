@@ -1,4 +1,6 @@
 #[cfg(feature = "backend")]
+use super::FileType;
+#[cfg(feature = "backend")]
 use super::{File, FileUpload, NewFile, NewFileUpload};
 #[cfg(feature = "backend")]
 use crate::model::Crud;
@@ -12,8 +14,6 @@ use diesel::OptionalExtension;
 use thoth_errors::{ThothError, ThothResult};
 #[cfg(feature = "backend")]
 use uuid::Uuid;
-#[cfg(feature = "backend")]
-use super::FileType;
 
 #[cfg(feature = "backend")]
 impl Crud for File {
@@ -43,7 +43,9 @@ impl Crud for File {
         _filter_param_3: Option<Self::FilterParameter3>,
         _filter_param_4: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<File>> {
-        Err(ThothError::InternalError("File::all not implemented".to_string()))
+        Err(ThothError::InternalError(
+            "File::all not implemented".to_string(),
+        ))
     }
 
     fn count(
@@ -55,7 +57,9 @@ impl Crud for File {
         _filter_param_3: Option<Self::FilterParameter3>,
         _filter_param_4: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
-        Err(ThothError::InternalError("File::count not implemented".to_string()))
+        Err(ThothError::InternalError(
+            "File::count not implemented".to_string(),
+        ))
     }
 
     fn from_id(db: &crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
@@ -82,7 +86,9 @@ impl Crud for File {
         _data: &NewFile,
         _account_id: &Uuid,
     ) -> ThothResult<Self> {
-        Err(ThothError::InternalError("File::update not implemented".to_string()))
+        Err(ThothError::InternalError(
+            "File::update not implemented".to_string(),
+        ))
     }
 
     fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self> {
@@ -101,9 +107,12 @@ impl Crud for File {
                 crate::model::work::Work::from_id(db, &work_id)?.publisher_id(db)
             }
             (None, Some(publication_id)) => {
-                crate::model::publication::Publication::from_id(db, &publication_id)?.publisher_id(db)
+                crate::model::publication::Publication::from_id(db, &publication_id)?
+                    .publisher_id(db)
             }
-            _ => Err(ThothError::InternalError("File must have either work_id or publication_id".to_string())),
+            _ => Err(ThothError::InternalError(
+                "File must have either work_id or publication_id".to_string(),
+            )),
         }
     }
 }
@@ -136,7 +145,9 @@ impl Crud for FileUpload {
         _filter_param_3: Option<Self::FilterParameter3>,
         _filter_param_4: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<FileUpload>> {
-        Err(ThothError::InternalError("FileUpload::all not implemented".to_string()))
+        Err(ThothError::InternalError(
+            "FileUpload::all not implemented".to_string(),
+        ))
     }
 
     fn count(
@@ -148,7 +159,9 @@ impl Crud for FileUpload {
         _filter_param_3: Option<Self::FilterParameter3>,
         _filter_param_4: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
-        Err(ThothError::InternalError("FileUpload::count not implemented".to_string()))
+        Err(ThothError::InternalError(
+            "FileUpload::count not implemented".to_string(),
+        ))
     }
 
     fn from_id(db: &crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
@@ -175,7 +188,9 @@ impl Crud for FileUpload {
         _data: &NewFileUpload,
         _account_id: &Uuid,
     ) -> ThothResult<Self> {
-        Err(ThothError::InternalError("FileUpload::update not implemented".to_string()))
+        Err(ThothError::InternalError(
+            "FileUpload::update not implemented".to_string(),
+        ))
     }
 
     fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self> {
@@ -194,9 +209,12 @@ impl Crud for FileUpload {
                 crate::model::work::Work::from_id(db, &work_id)?.publisher_id(db)
             }
             (None, Some(publication_id)) => {
-                crate::model::publication::Publication::from_id(db, &publication_id)?.publisher_id(db)
+                crate::model::publication::Publication::from_id(db, &publication_id)?
+                    .publisher_id(db)
             }
-            _ => Err(ThothError::InternalError("FileUpload must have either work_id or publication_id".to_string())),
+            _ => Err(ThothError::InternalError(
+                "FileUpload must have either work_id or publication_id".to_string(),
+            )),
         }
     }
 }
@@ -205,9 +223,9 @@ impl Crud for FileUpload {
 impl File {
     /// Find a file by its object_key
     pub fn from_object_key(db: &crate::db::PgPool, object_key: &str) -> ThothResult<Self> {
+        use crate::schema::file::dsl;
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
-        use crate::schema::file::dsl;
 
         let mut connection = db.get()?;
         dsl::file
@@ -218,9 +236,9 @@ impl File {
 
     /// Find the front cover file for a work
     pub fn from_work_id(db: &crate::db::PgPool, work_id: &Uuid) -> ThothResult<Option<Self>> {
+        use crate::schema::file::dsl;
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
-        use crate::schema::file::dsl;
 
         let mut connection = db.get()?;
         dsl::file
@@ -232,10 +250,13 @@ impl File {
     }
 
     /// Find the publication file for a publication
-    pub fn from_publication_id(db: &crate::db::PgPool, publication_id: &Uuid) -> ThothResult<Option<Self>> {
+    pub fn from_publication_id(
+        db: &crate::db::PgPool,
+        publication_id: &Uuid,
+    ) -> ThothResult<Option<Self>> {
+        use crate::schema::file::dsl;
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
-        use crate::schema::file::dsl;
 
         let mut connection = db.get()?;
         dsl::file
@@ -246,4 +267,3 @@ impl File {
             .map_err(|e: diesel::result::Error| ThothError::from(e))
     }
 }
-

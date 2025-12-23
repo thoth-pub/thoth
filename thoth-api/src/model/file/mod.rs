@@ -4,8 +4,8 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::model::{Timestamp, Doi};
 use crate::model::publication::PublicationType;
+use crate::model::{Doi, Timestamp};
 #[cfg(feature = "backend")]
 use crate::schema::file;
 #[cfg(feature = "backend")]
@@ -106,9 +106,13 @@ pub struct NewFile {
 pub struct NewPublicationFileUpload {
     #[graphql(description = "Thoth ID of the publication linked to this file.")]
     pub publication_id: Uuid,
-    #[graphql(description = "MIME type declared by the client (used for validation and in the presigned URL).")]
+    #[graphql(
+        description = "MIME type declared by the client (used for validation and in the presigned URL)."
+    )]
     pub declared_mime_type: String,
-    #[graphql(description = "File extension to use in the final canonical key, e.g. 'pdf', 'epub', 'xml'.")]
+    #[graphql(
+        description = "File extension to use in the final canonical key, e.g. 'pdf', 'epub', 'xml'."
+    )]
     pub declared_extension: String,
     #[graphql(description = "SHA-256 checksum of the file, hex-encoded.")]
     pub declared_sha256: String,
@@ -122,7 +126,9 @@ pub struct NewFrontcoverFileUpload {
     pub work_id: Uuid,
     #[graphql(description = "MIME type declared by the client (e.g. 'image/jpeg').")]
     pub declared_mime_type: String,
-    #[graphql(description = "File extension to use in the final canonical key, e.g. 'jpg', 'png', 'webp'.")]
+    #[graphql(
+        description = "File extension to use in the final canonical key, e.g. 'jpg', 'png', 'webp'."
+    )]
     pub declared_extension: String,
     #[graphql(description = "SHA-256 checksum of the file, hex-encoded.")]
     pub declared_sha256: String,
@@ -130,7 +136,9 @@ pub struct NewFrontcoverFileUpload {
 
 #[cfg(feature = "backend")]
 #[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Input for completing a file upload and promoting it to its final DOI-based location.")]
+#[graphql(
+    description = "Input for completing a file upload and promoting it to its final DOI-based location."
+)]
 pub struct CompleteFileUpload {
     #[graphql(description = "ID of the upload session to complete.")]
     pub file_upload_id: Uuid,
@@ -138,7 +146,9 @@ pub struct CompleteFileUpload {
 
 #[cfg(feature = "backend")]
 #[derive(juniper::GraphQLObject)]
-#[graphql(description = "Response from initiating a file upload, containing the upload URL and expiration time.")]
+#[graphql(
+    description = "Response from initiating a file upload, containing the upload URL and expiration time."
+)]
 pub struct FileUploadResponse {
     #[graphql(description = "ID of the upload session.")]
     pub file_upload_id: Uuid,
@@ -164,7 +174,10 @@ pub fn parse_doi(doi: &Doi) -> ThothResult<(String, String)> {
     };
     let parts: Vec<&str> = doi_path.splitn(2, '/').collect();
     if parts.len() != 2 {
-        return Err(ThothError::InternalError(format!("Invalid DOI format: {}", doi_str)));
+        return Err(ThothError::InternalError(format!(
+            "Invalid DOI format: {}",
+            doi_str
+        )));
     }
     let prefix = parts[0].to_string();
     let suffix = parts[1].to_string();
@@ -182,9 +195,10 @@ pub fn validate_file_extension(
         FileType::Frontcover => {
             let valid_extensions = ["jpg", "jpeg", "png", "webp"];
             if !valid_extensions.contains(&extension.to_lowercase().as_str()) {
-                return Err(ThothError::InternalError(
-                    format!("Invalid extension for frontcover: {}. Allowed: jpg, jpeg, png, webp", extension)
-                ));
+                return Err(ThothError::InternalError(format!(
+                    "Invalid extension for frontcover: {}. Allowed: jpg, jpeg, png, webp",
+                    extension
+                )));
             }
         }
         FileType::Publication => {
@@ -212,23 +226,21 @@ pub fn validate_file_extension(
                     PublicationType::Wav => vec!["wav"],
                     // Other types are not yet supported for uploads
                     _ => {
-                        return Err(ThothError::InternalError(
-                            format!(
-                                "File uploads not supported for publication type: {:?}",
-                                pub_type
-                            ),
-                        ))
+                        return Err(ThothError::InternalError(format!(
+                            "File uploads not supported for publication type: {:?}",
+                            pub_type
+                        )))
                     }
                 };
                 if !valid_extensions.contains(&extension.to_lowercase().as_str()) {
-                    return Err(ThothError::InternalError(
-                        format!("Invalid extension for {}: {}. Allowed: {:?}", 
-                            format!("{:?}", pub_type), extension, valid_extensions)
-                    ));
+                    return Err(ThothError::InternalError(format!(
+                        "Invalid extension for {:?}: {}. Allowed: {:?}",
+                        pub_type, extension, valid_extensions
+                    )));
                 }
             } else {
                 return Err(ThothError::InternalError(
-                    "Publication type required for publication file validation".to_string()
+                    "Publication type required for publication file validation".to_string(),
                 ));
             }
         }
@@ -238,4 +250,3 @@ pub fn validate_file_extension(
 
 #[cfg(feature = "backend")]
 pub mod crud;
-
