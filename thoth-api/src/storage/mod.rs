@@ -72,8 +72,7 @@ pub async fn create_cloudfront_client() -> CloudFrontClient {
 }
 
 /// Generate a presigned PUT URL for uploading a file to S3
-///
-/// The URL includes required headers:
+/// required headers:
 /// - Content-Type: from declared_mime_type
 /// - x-amz-checksum-sha256: base64-encoded SHA-256 checksum
 #[cfg(feature = "backend")]
