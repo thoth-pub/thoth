@@ -40,63 +40,75 @@ impl Crud for Contribution {
     ) -> ThothResult<Vec<Contribution>> {
         use crate::schema::contribution::dsl::*;
         let mut connection = db.get()?;
-        let mut query = contribution
-            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
-            .left_join(
-                crate::schema::biography::table
-                    .on(crate::schema::biography::contribution_id.eq(contribution_id)),
-            )
-            .select(crate::schema::contribution::all_columns)
-            .into_boxed();
+        let mut query = diesel::query_dsl::methods::DistinctOnDsl::distinct_on(
+            contribution
+                .inner_join(crate::schema::work::table.inner_join(
+                    crate::schema::imprint::table,
+                ))
+                .left_join(
+                    crate::schema::biography::table.on(
+                        crate::schema::biography::contribution_id.eq(contribution_id),
+                    ),
+                )
+                .select(crate::schema::contribution::all_columns),
+            contribution_id,
+        )
+        .into_boxed();
 
         query = match order.field {
             ContributionField::ContributionId => match order.direction {
-                Direction::Asc => query.order(contribution_id.asc()),
-                Direction::Desc => query.order(contribution_id.desc()),
+                Direction::Asc => query.order((contribution_id, contribution_id.asc())),
+                Direction::Desc => query.order((contribution_id, contribution_id.desc())),
             },
             ContributionField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
+                Direction::Asc => query.order((contribution_id, work_id.asc())),
+                Direction::Desc => query.order((contribution_id, work_id.desc())),
             },
             ContributionField::ContributorId => match order.direction {
-                Direction::Asc => query.order(contributor_id.asc()),
-                Direction::Desc => query.order(contributor_id.desc()),
+                Direction::Asc => query.order((contribution_id, contributor_id.asc())),
+                Direction::Desc => query.order((contribution_id, contributor_id.desc())),
             },
             ContributionField::ContributionType => match order.direction {
-                Direction::Asc => query.order(contribution_type.asc()),
-                Direction::Desc => query.order(contribution_type.desc()),
+                Direction::Asc => query.order((contribution_id, contribution_type.asc())),
+                Direction::Desc => query.order((contribution_id, contribution_type.desc())),
             },
             ContributionField::MainContribution => match order.direction {
-                Direction::Asc => query.order(main_contribution.asc()),
-                Direction::Desc => query.order(main_contribution.desc()),
+                Direction::Asc => query.order((contribution_id, main_contribution.asc())),
+                Direction::Desc => query.order((contribution_id, main_contribution.desc())),
             },
             ContributionField::Biography => match order.direction {
-                Direction::Asc => query.order(crate::schema::biography::content.asc()),
-                Direction::Desc => query.order(crate::schema::biography::content.desc()),
+                Direction::Asc => query.order((
+                    contribution_id,
+                    crate::schema::biography::content.asc(),
+                )),
+                Direction::Desc => query.order((
+                    contribution_id,
+                    crate::schema::biography::content.desc(),
+                )),
             },
             ContributionField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
+                Direction::Asc => query.order((contribution_id, created_at.asc())),
+                Direction::Desc => query.order((contribution_id, created_at.desc())),
             },
             ContributionField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
+                Direction::Asc => query.order((contribution_id, updated_at.asc())),
+                Direction::Desc => query.order((contribution_id, updated_at.desc())),
             },
             ContributionField::FirstName => match order.direction {
-                Direction::Asc => query.order(first_name.asc()),
-                Direction::Desc => query.order(first_name.desc()),
+                Direction::Asc => query.order((contribution_id, first_name.asc())),
+                Direction::Desc => query.order((contribution_id, first_name.desc())),
             },
             ContributionField::LastName => match order.direction {
-                Direction::Asc => query.order(last_name.asc()),
-                Direction::Desc => query.order(last_name.desc()),
+                Direction::Asc => query.order((contribution_id, last_name.asc())),
+                Direction::Desc => query.order((contribution_id, last_name.desc())),
             },
             ContributionField::FullName => match order.direction {
-                Direction::Asc => query.order(full_name.asc()),
-                Direction::Desc => query.order(full_name.desc()),
+                Direction::Asc => query.order((contribution_id, full_name.asc())),
+                Direction::Desc => query.order((contribution_id, full_name.desc())),
             },
             ContributionField::ContributionOrdinal => match order.direction {
-                Direction::Asc => query.order(contribution_ordinal.asc()),
-                Direction::Desc => query.order(contribution_ordinal.desc()),
+                Direction::Asc => query.order((contribution_id, contribution_ordinal.asc())),
+                Direction::Desc => query.order((contribution_id, contribution_ordinal.desc())),
             },
         };
         if !publishers.is_empty() {
