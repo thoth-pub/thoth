@@ -2,7 +2,6 @@ use super::{
     Location, LocationField, LocationHistory, LocationOrderBy, LocationPlatform, NewLocation,
     NewLocationHistory, PatchLocation,
 };
-use crate::db_insert;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{location, location_history};
@@ -17,6 +16,7 @@ impl Crud for Location {
     type FilterParameter1 = LocationPlatform;
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.location_id
@@ -34,6 +34,7 @@ impl Crud for Location {
         location_platforms: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Location>> {
         use crate::schema::location::dsl::*;
         let mut connection = db.get()?;
@@ -102,6 +103,7 @@ impl Crud for Location {
         location_platforms: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::location::dsl::*;
         let mut connection = db.get()?;

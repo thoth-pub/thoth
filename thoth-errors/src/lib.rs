@@ -1,9 +1,8 @@
-#[cfg(not(target_arch = "wasm32"))]
 mod database_errors;
 
 use core::convert::From;
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, fmt};
+use std::borrow::Cow;
 use thiserror::Error;
 
 /// A specialised result type for returning Thoth data
@@ -111,6 +110,26 @@ pub enum ThothError {
     ThothSetWorkStatusError,
     #[error("Once a Work has been published, it cannot be deleted.")]
     ThothDeleteWorkError,
+    #[error("If canonical abstract already exists, other abstract can't be set as canonical.")]
+    CanonicalAbstractExistsError,
+    #[error("Short abstract must be less than 350 characters.")]
+    ShortAbstractLimitExceedError,
+    #[error("If canonical biography already exists, other biography can't be set as canonical.")]
+    CanonicalBiographyExistsError,
+    #[error("If canonical title already exists, other title can't be set as canonical.")]
+    CanonicalTitleExistsError,
+    #[error("If file extension is not found, the file format is not supported.")]
+    NoFileExtensionFound,
+    #[error("Unsupported file format")]
+    UnsupportedFileFormatError,
+    #[error("Content tag not found")]
+    TagNotFoundError,
+    #[error("Title content cannot contain multiple top-level elements.")]
+    TitleMultipleTopLevelElementsError,
+    #[error("Title content cannot contain list item elements.")]
+    TitleListItemError,
+    #[error("Markup format was not provided.")]
+    MissingMarkupFormat,
 }
 
 impl ThothError {
@@ -125,7 +144,6 @@ impl ThothError {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl juniper::IntoFieldError for ThothError {
     fn into_field_error(self) -> juniper::FieldError {
         use juniper::graphql_value;
@@ -152,7 +170,6 @@ impl juniper::IntoFieldError for ThothError {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl actix_web::error::ResponseError for ThothError {
     fn error_response(&self) -> actix_web::HttpResponse {
         use actix_web::HttpResponse;
@@ -178,52 +195,6 @@ impl actix_web::error::ResponseError for ThothError {
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct GraphqlError {
-    message: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GraqphqlErrorMessage {
-    errors: Vec<GraphqlError>,
-}
-
-impl fmt::Display for GraphqlError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
-impl fmt::Display for GraqphqlErrorMessage {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for error in &self.errors {
-            write!(f, "{error}")?;
-        }
-        Ok(())
-    }
-}
-
-impl From<yewtil::fetch::FetchError> for ThothError {
-    fn from(error: yewtil::fetch::FetchError) -> Self {
-        use serde_json::error::Result;
-        use yewtil::fetch::FetchError;
-        match error {
-            FetchError::DeserializeError { error: _, content } => {
-                let message: Result<GraqphqlErrorMessage> = serde_json::from_str(&content);
-                match message {
-                    Ok(m) => ThothError::GraphqlError(m.to_string()),
-                    Err(_) => ThothError::RequestError(content),
-                }
-            }
-            FetchError::CouldNotCreateFetchFuture => {
-                ThothError::RequestError("Could not connect to the API.".to_string())
-            }
-            _ => ThothError::RequestError(error.to_string()),
-        }
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
 impl From<csv::Error> for ThothError {
     fn from(e: csv::Error) -> Self {
         ThothError::CsvError(e.to_string())
@@ -248,14 +219,12 @@ impl From<reqwest::Error> for ThothError {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl From<reqwest_middleware::Error> for ThothError {
     fn from(error: reqwest_middleware::Error) -> ThothError {
         ThothError::InternalError(error.to_string())
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl From<xml::writer::Error> for ThothError {
     fn from(error: xml::writer::Error) -> ThothError {
         ThothError::InternalError(error.to_string())
@@ -268,14 +237,12 @@ impl From<uuid::Error> for ThothError {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl From<marc::Error> for ThothError {
     fn from(e: marc::Error) -> Self {
         ThothError::MarcError(e.to_string())
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl From<dialoguer::Error> for ThothError {
     fn from(e: dialoguer::Error) -> Self {
         ThothError::InternalError(e.to_string())
@@ -288,21 +255,18 @@ impl From<chrono::ParseError> for ThothError {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl From<deadpool_redis::redis::RedisError> for ThothError {
     fn from(e: deadpool_redis::redis::RedisError) -> Self {
         ThothError::RedisError(e.to_string())
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl From<deadpool_redis::PoolError> for ThothError {
     fn from(e: deadpool_redis::PoolError) -> Self {
         ThothError::InternalError(e.to_string())
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl From<Box<dyn std::error::Error + Send + Sync>> for ThothError {
     fn from(e: Box<dyn std::error::Error + Send + Sync>) -> Self {
         ThothError::InternalError(e.to_string())
@@ -338,20 +302,6 @@ mod tests {
             ThothError::from(uuid::Uuid::parse_str("not-a-uuid").unwrap_err()),
             ThothError::InvalidUuid
         );
-    }
-
-    #[test]
-    fn test_fetch_error() {
-        use yewtil::fetch::FetchError;
-        let error = "{\"data\":null,\"errors\":[{\"message\":\"A relation with this ordinal already exists.\",\"locations\":[{\"line\":8,\"column\":9}],\"path\":[\"createWorkRelation\"]}]}";
-        let fetch_error = FetchError::DeserializeError {
-            error: "".to_string(),
-            content: error.to_string(),
-        };
-        assert_eq!(
-            ThothError::from(fetch_error),
-            ThothError::GraphqlError("A relation with this ordinal already exists.".to_string())
-        )
     }
 
     #[test]

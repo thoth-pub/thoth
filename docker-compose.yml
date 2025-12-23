@@ -2,47 +2,15 @@ services:
   db:
     image: postgres:17
     container_name: "thoth_db"
-    restart: unless-stopped
+    ports:
+      - "5432:5432"
     volumes:
-      - db:/var/lib/postgresql/data
-      - /etc/localtime:/etc/localtime:ro
+      - ./db/_data:/var/lib/postgresql/data
     env_file:
       - .env
 
   redis:
     image: redis:alpine
     container_name: "thoth_redis"
-    restart: unless-stopped
-
-  graphql-api:
-    image: ghcr.io/thoth-pub/thoth
-    container_name: "thoth_graphql_api"
-    restart: unless-stopped
-    env_file:
-      - .env
-    depends_on:
-      - db
-
-  export-api:
-    image: ghcr.io/thoth-pub/thoth
-    container_name: "thoth_export_api"
-    restart: unless-stopped
-    command: ["start", "export-api"]
-    env_file:
-      - .env
-    depends_on:
-      - graphql-api
-
-  app:
-    image: ghcr.io/thoth-pub/thoth
-    container_name: "thoth_app"
-    restart: unless-stopped
-    command: ["start", "app"]
-    env_file:
-      - .env
-    depends_on:
-      - graphql-api
-      - export-api
-
-volumes:
-  db:
+    ports:
+      - "6379:6379"

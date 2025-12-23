@@ -1,11 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
-use crate::model::imprint::ImprintWithPublisher;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::series;
@@ -84,21 +82,6 @@ pub struct Series {
     pub series_cfp_url: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct SeriesWithImprint {
-    pub series_id: Uuid,
-    pub series_type: SeriesType,
-    pub series_name: String,
-    pub issn_print: Option<String>,
-    pub issn_digital: Option<String>,
-    pub series_url: Option<String>,
-    pub series_description: Option<String>,
-    pub series_cfp_url: Option<String>,
-    pub updated_at: Timestamp,
-    pub imprint: ImprintWithPublisher,
-}
-
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
@@ -159,26 +142,6 @@ pub struct NewSeriesHistory {
 pub struct SeriesOrderBy {
     pub field: SeriesField,
     pub direction: Direction,
-}
-
-impl fmt::Display for SeriesWithImprint {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.series_name)?;
-
-        let issns: Vec<String> = vec![
-            self.issn_print.as_ref().cloned(),
-            self.issn_digital.as_ref().cloned(),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-
-        if !issns.is_empty() {
-            write!(f, " ({})", issns.join(", "))?;
-        }
-
-        Ok(())
-    }
 }
 
 #[test]
@@ -276,42 +239,5 @@ fn test_seriesfield_fromstr() {
     assert!(SeriesField::from_str("Publisher").is_err());
     assert!(SeriesField::from_str("Issues").is_err());
 }
-
-#[test]
-fn test_display_with_issns() {
-    let series = SeriesWithImprint {
-        series_name: String::from("Test Series"),
-        issn_print: Some(String::from("1234-5678")),
-        issn_digital: Some(String::from("8765-4321")),
-        ..Default::default()
-    };
-
-    let formatted = format!("{}", series);
-    assert_eq!(formatted, "Test Series (1234-5678, 8765-4321)");
-}
-
-#[test]
-fn test_display_with_single_issn() {
-    let series = SeriesWithImprint {
-        series_name: String::from("Test Series"),
-        issn_print: Some(String::from("1234-5678")),
-        ..Default::default()
-    };
-
-    let formatted = format!("{}", series);
-    assert_eq!(formatted, "Test Series (1234-5678)");
-}
-
-#[test]
-fn test_display_without_issns() {
-    let series = SeriesWithImprint {
-        series_name: String::from("Test Series"),
-        ..Default::default()
-    };
-
-    let formatted = format!("{}", series);
-    assert_eq!(formatted, "Test Series");
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
