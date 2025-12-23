@@ -42,13 +42,10 @@ impl Crud for Contribution {
         let mut connection = db.get()?;
         let mut query = diesel::query_dsl::methods::DistinctOnDsl::distinct_on(
             contribution
-                .inner_join(crate::schema::work::table.inner_join(
-                    crate::schema::imprint::table,
-                ))
+                .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
                 .left_join(
-                    crate::schema::biography::table.on(
-                        crate::schema::biography::contribution_id.eq(contribution_id),
-                    ),
+                    crate::schema::biography::table
+                        .on(crate::schema::biography::contribution_id.eq(contribution_id)),
                 )
                 .select(crate::schema::contribution::all_columns),
             contribution_id,
@@ -77,14 +74,12 @@ impl Crud for Contribution {
                 Direction::Desc => query.order((contribution_id, main_contribution.desc())),
             },
             ContributionField::Biography => match order.direction {
-                Direction::Asc => query.order((
-                    contribution_id,
-                    crate::schema::biography::content.asc(),
-                )),
-                Direction::Desc => query.order((
-                    contribution_id,
-                    crate::schema::biography::content.desc(),
-                )),
+                Direction::Asc => {
+                    query.order((contribution_id, crate::schema::biography::content.asc()))
+                }
+                Direction::Desc => {
+                    query.order((contribution_id, crate::schema::biography::content.desc()))
+                }
             },
             ContributionField::CreatedAt => match order.direction {
                 Direction::Asc => query.order((contribution_id, created_at.asc())),
