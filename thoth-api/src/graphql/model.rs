@@ -2214,7 +2214,7 @@ impl MutationRoot {
     ) -> FieldResult<Work> {
         context.require_authentication()?;
         let work = Work::from_id(&context.db, &data.work_id)?;
-        let user = context.require_publisher(&work.publisher_id(&context.db))?;
+        let user = context.require_publisher(&work.publisher_id(&context.db)?)?;
 
         if data.imprint_id != work.imprint_id {
             context.require_publisher(&publisher_id_from_imprint_id(
