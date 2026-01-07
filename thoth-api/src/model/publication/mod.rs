@@ -390,18 +390,32 @@ pub trait PublicationProperties {
     }
 
     fn validate_dimensions_constraints(&self) -> ThothResult<()> {
-        use ThothError::*;
-
         if self.is_digital() && self.has_dimension() {
-            return Err(DimensionDigitalError);
+            return Err(ThothError::DimensionDigitalError);
         }
 
         // If value in one unit is supplied, the other cannot be left empty.
         for (metric, imperial, err) in [
-            (self.width_mm(), self.width_in(), WidthEmptyError),
-            (self.height_mm(), self.height_in(), HeightEmptyError),
-            (self.depth_mm(), self.depth_in(), DepthEmptyError),
-            (self.weight_g(), self.weight_oz(), WeightEmptyError),
+            (
+                self.width_mm(),
+                self.width_in(),
+                ThothError::WidthEmptyError,
+            ),
+            (
+                self.height_mm(),
+                self.height_in(),
+                ThothError::HeightEmptyError,
+            ),
+            (
+                self.depth_mm(),
+                self.depth_in(),
+                ThothError::DepthEmptyError,
+            ),
+            (
+                self.weight_g(),
+                self.weight_oz(),
+                ThothError::WeightEmptyError,
+            ),
         ] {
             if metric.is_some() ^ imperial.is_some() {
                 return Err(err);
@@ -436,8 +450,39 @@ pub trait PublicationProperties {
         if self.is_chapter(db)? {
             self.validate_chapter_constraints()?;
         }
-        self.validate_dimensions_constraints()
+        self.validate_dimensions_constraints()?;
+        self.validate_accessibility_constraints()
     }
+
+    #[cfg(feature = "backend")]
+    fn validate_accessibility_constraints(&self) -> ThothResult<()> {
+        let has_exception = self.accessibility_exception().is_some();
+        let has_standard = self.accessibility_standard().is_some();
+        let has_additional_standard = self.accessibility_additional_standard().is_some();
+
+        if has_additional_standard && !has_standard && !has_exception {
+            return Err(ThothError::InternalError(
+                "accessibility_additional_standard requires accessibility_standard to be set"
+                    .to_string(),
+            ));
+        }
+
+        if has_exception && (has_standard || has_additional_standard) {
+            return Err(ThothError::InternalError(
+                "accessibility_exception cannot be set together with accessibility standards"
+                    .to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    #[cfg(feature = "backend")]
+    fn accessibility_standard(&self) -> &Option<AccessibilityStandard>;
+    #[cfg(feature = "backend")]
+    fn accessibility_additional_standard(&self) -> &Option<AccessibilityStandard>;
+    #[cfg(feature = "backend")]
+    fn accessibility_exception(&self) -> &Option<AccessibilityException>;
 }
 
 macro_rules! publication_properties {
@@ -475,6 +520,19 @@ macro_rules! publication_properties {
             }
             fn work_id(&self) -> &Uuid {
                 &self.work_id
+            }
+
+            #[cfg(feature = "backend")]
+            fn accessibility_standard(&self) -> &Option<AccessibilityStandard> {
+                &self.accessibility_standard
+            }
+            #[cfg(feature = "backend")]
+            fn accessibility_additional_standard(&self) -> &Option<AccessibilityStandard> {
+                &self.accessibility_additional_standard
+            }
+            #[cfg(feature = "backend")]
+            fn accessibility_exception(&self) -> &Option<AccessibilityException> {
+                &self.accessibility_exception
             }
         }
     };

@@ -2364,7 +2364,13 @@ impl MutationRoot {
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
 
-        data.validate(&context.db)?;
+        // Validate the final state before updating
+        let mut publication_before_patch = publication.clone();
+        publication_before_patch.accessibility_standard = data.accessibility_standard;
+        publication_before_patch.accessibility_additional_standard =
+            data.accessibility_additional_standard;
+        publication_before_patch.accessibility_exception = data.accessibility_exception;
+        publication_before_patch.validate(&context.db)?;
 
         let account_id = context
             .token
