@@ -230,12 +230,6 @@ impl Crud for WorkRelation {
                 .map_err(Into::into)
         })
     }
-
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        Err(ThothError::InternalError(
-            "Method publisher_id() is not supported for Work Relation objects".to_string(),
-        ))
-    }
 }
 
 impl HistoryEntry for WorkRelation {

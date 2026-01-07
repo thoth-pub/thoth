@@ -115,13 +115,12 @@ impl Crud for Affiliation {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::contribution::Contribution::from_id(db, &self.contribution_id)?
-            .publisher_id(db)
-    }
-
     crud_methods!(affiliation::table, affiliation::dsl::affiliation);
 }
+
+publisher_id_impls!(Affiliation, NewAffiliation, PatchAffiliation, |s, db| {
+    crate::model::contribution::Contribution::from_id(db, &s.contribution_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Affiliation {
     type NewHistoryEntity = NewAffiliationHistory;

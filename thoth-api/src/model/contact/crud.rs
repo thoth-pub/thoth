@@ -112,12 +112,12 @@ impl Crud for Contact {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        Ok(self.publisher_id)
-    }
-
     crud_methods!(contact::table, contact::dsl::contact);
 }
+
+publisher_id_impls!(Contact, NewContact, PatchContact, |s, _db| {
+    Ok(s.publisher_id)
+});
 
 impl HistoryEntry for Contact {
     type NewHistoryEntity = NewContactHistory;

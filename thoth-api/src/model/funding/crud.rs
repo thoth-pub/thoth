@@ -122,12 +122,12 @@ impl Crud for Funding {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(funding::table, funding::dsl::funding);
 }
+
+publisher_id_impls!(Funding, NewFunding, PatchFunding, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Funding {
     type NewHistoryEntity = NewFundingHistory;

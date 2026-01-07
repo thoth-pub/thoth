@@ -371,9 +371,76 @@ where
 
     /// Delete the record from the database and obtain the deleted instance
     fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self>;
+}
 
-    /// Retrieve the ID of the publisher linked to this entity (if applicable)
+#[cfg(feature = "backend")]
+/// Retrieve the ID of the publisher linked to an entity or input type (if applicable).
+pub trait PublisherId
+where
+    Self: Sized,
+{
     fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid>;
+}
+
+/// Implements `PublisherId` for a main entity type, its `New*` type, and its `Patch*` type.
+///
+/// Due to macro hygiene, the implementation body is written as a block that uses **explicit**
+/// identifiers provided to the macro (e.g. `s` and `db`). The macro will bind those identifiers
+/// to the method's `self` and `db` parameters before expanding the body.
+///
+/// Example:
+/// ```ignore
+/// publisher_id_impls!(
+///     Contribution,
+///     NewContribution,
+///     PatchContribution,
+///     |s, db| {
+///         Work::from_id(db, &s.work_id)?.publisher_id(db)
+///     }
+/// );
+/// ```
+#[cfg(feature = "backend")]
+#[macro_export]
+macro_rules! publisher_id_impls {
+    (
+        $main_ty:ty,
+        $new_ty:ty,
+        $patch_ty:ty,
+        |$s:ident, $db:ident| $body:block $(,)?
+    ) => {
+        impl $crate::model::PublisherId for $main_ty {
+            fn publisher_id(
+                &self,
+                db: &$crate::db::PgPool,
+            ) -> $crate::model::ThothResult<uuid::Uuid> {
+                let $s = self;
+                let $db = db;
+                $body
+            }
+        }
+
+        impl $crate::model::PublisherId for $new_ty {
+            fn publisher_id(
+                &self,
+                db: &$crate::db::PgPool,
+            ) -> $crate::model::ThothResult<uuid::Uuid> {
+                let $s = self;
+                let $db = db;
+                $body
+            }
+        }
+
+        impl $crate::model::PublisherId for $patch_ty {
+            fn publisher_id(
+                &self,
+                db: &$crate::db::PgPool,
+            ) -> $crate::model::ThothResult<uuid::Uuid> {
+                let $s = self;
+                let $db = db;
+                $body
+            }
+        }
+    };
 }
 
 #[cfg(feature = "backend")]

@@ -122,12 +122,12 @@ impl Crud for Imprint {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        Ok(self.publisher_id)
-    }
-
     crud_methods!(imprint::table, imprint::dsl::imprint);
 }
+
+publisher_id_impls!(Imprint, NewImprint, PatchImprint, |s, _db| {
+    Ok(s.publisher_id)
+});
 
 impl HistoryEntry for Imprint {
     type NewHistoryEntity = NewImprintHistory;

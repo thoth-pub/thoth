@@ -112,12 +112,12 @@ impl Crud for Price {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::publication::Publication::from_id(db, &self.publication_id)?.publisher_id(db)
-    }
-
     crud_methods!(price::table, price::dsl::price);
 }
+
+publisher_id_impls!(Price, NewPrice, PatchPrice, |s, db| {
+    crate::model::publication::Publication::from_id(db, &s.publication_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Price {
     type NewHistoryEntity = NewPriceHistory;

@@ -122,12 +122,12 @@ impl Crud for Language {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(language::table, language::dsl::language);
 }
+
+publisher_id_impls!(Language, NewLanguage, PatchLanguage, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Language {
     type NewHistoryEntity = NewLanguageHistory;

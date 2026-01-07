@@ -5,7 +5,7 @@ use super::{
 use crate::graphql::model::TimeExpression;
 use crate::graphql::utils::{Direction, Expression};
 use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderBy};
-use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
+use crate::model::{Crud, DbInsert, Doi, HistoryEntry, PublisherId};
 use crate::schema::{work, work_abstract, work_history, work_title};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, JoinOnDsl, PgTextExpressionMethods, QueryDsl,
@@ -447,13 +447,13 @@ impl Crud for Work {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        let imprint = crate::model::imprint::Imprint::from_id(db, &self.imprint_id)?;
-        <crate::model::imprint::Imprint as Crud>::publisher_id(&imprint, db)
-    }
-
     crud_methods!(work::table, work::dsl::work);
 }
+
+publisher_id_impls!(Work, NewWork, PatchWork, |s, db| {
+    let imprint = crate::model::imprint::Imprint::from_id(db, &s.imprint_id)?;
+    <crate::model::imprint::Imprint as PublisherId>::publisher_id(&imprint, db)
+});
 
 impl HistoryEntry for Work {
     type NewHistoryEntity = NewWorkHistory;

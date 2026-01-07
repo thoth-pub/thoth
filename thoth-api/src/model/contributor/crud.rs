@@ -8,7 +8,7 @@ use crate::schema::{contributor, contributor_history};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
-use thoth_errors::{ThothError, ThothResult};
+use thoth_errors::ThothResult;
 use uuid::Uuid;
 
 impl Crud for Contributor {
@@ -122,13 +122,6 @@ impl Crud for Contributor {
             .map(|t| t.to_string().parse::<i32>().unwrap())
             .map_err(Into::into)
     }
-
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        Err(ThothError::InternalError(
-            "Method publisher_id() is not supported for Contributor objects".to_string(),
-        ))
-    }
-
     crud_methods!(contributor::table, contributor::dsl::contributor);
 }
 

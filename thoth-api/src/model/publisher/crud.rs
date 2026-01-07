@@ -2,8 +2,9 @@ use super::{
     NewPublisher, NewPublisherHistory, PatchPublisher, Publisher, PublisherField, PublisherHistory,
     PublisherOrderBy,
 };
+use crate::db::PgPool;
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{publisher, publisher_history};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
@@ -127,11 +128,19 @@ impl Crud for Publisher {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        Ok(self.pk())
-    }
-
     crud_methods!(publisher::table, publisher::dsl::publisher);
+}
+
+impl PublisherId for Publisher {
+    fn publisher_id(&self, _db: &PgPool) -> ThothResult<Uuid> {
+        Ok(self.publisher_id)
+    }
+}
+
+impl PublisherId for PatchPublisher {
+    fn publisher_id(&self, _db: &PgPool) -> ThothResult<Uuid> {
+        Ok(self.publisher_id)
+    }
 }
 
 impl HistoryEntry for Publisher {

@@ -145,12 +145,12 @@ impl Crud for Contribution {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(contribution::table, contribution::dsl::contribution);
 }
+
+publisher_id_impls!(Contribution, NewContribution, PatchContribution, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Contribution {
     type NewHistoryEntity = NewContributionHistory;

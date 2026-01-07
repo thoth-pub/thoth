@@ -40,8 +40,8 @@ use crate::model::{
     work_relation::{
         NewWorkRelation, PatchWorkRelation, RelationType, WorkRelation, WorkRelationOrderBy,
     },
-    ConversionLimit, Convert, Crud, Doi, Isbn, LengthUnit, MarkupFormat, Orcid, Reorder, Ror,
-    Timestamp, WeightUnit,
+    ConversionLimit, Convert, Crud, Doi, Isbn, LengthUnit, MarkupFormat, Orcid, PublisherId,
+    Reorder, Ror, Timestamp, WeightUnit,
 };
 use thoth_errors::{ThothError, ThothResult};
 
@@ -1886,10 +1886,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for work to be created")] data: NewWork,
     ) -> FieldResult<Work> {
-        context.require_publisher(&publisher_id_from_imprint_id(
-            &context.db,
-            &data.imprint_id,
-        )?)?;
+        context.require_publisher(&data.publisher_id(&context.db)?)?;
         data.validate()?;
         Work::create(&context.db, &data).map_err(Into::into)
     }
@@ -1926,7 +1923,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for contribution to be created")] data: NewContribution,
     ) -> FieldResult<Contribution> {
-        context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+        context.require_publisher(&data.publisher_id(&context.db)?)?;
         Contribution::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1935,7 +1932,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for publication to be created")] data: NewPublication,
     ) -> FieldResult<Publication> {
-        context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+        context.require_publisher(&data.publisher_id(&context.db)?)?;
         data.validate(&context.db)?;
         Publication::create(&context.db, &data).map_err(Into::into)
     }
@@ -1945,10 +1942,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for series to be created")] data: NewSeries,
     ) -> FieldResult<Series> {
-        context.require_publisher(&publisher_id_from_imprint_id(
-            &context.db,
-            &data.imprint_id,
-        )?)?;
+        context.require_publisher(&data.publisher_id(&context.db)?)?;
         Series::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1957,7 +1951,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for issue to be created")] data: NewIssue,
     ) -> FieldResult<Issue> {
-        context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+        context.require_publisher(&data.publisher_id(&context.db)?)?;
         data.imprints_match(&context.db)?;
         Issue::create(&context.db, &data).map_err(Into::into)
     }
@@ -1967,7 +1961,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for language to be created")] data: NewLanguage,
     ) -> FieldResult<Language> {
-        context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+        context.require_publisher(&data.publisher_id(&context.db)?)?;
         Language::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1979,7 +1973,7 @@ impl MutationRoot {
         >,
         #[graphql(description = "Values for title to be created")] data: NewTitle,
     ) -> FieldResult<Title> {
-        context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+        context.require_publisher(&data.publisher_id(&context.db)?)?;
 
         let has_canonical_title = Work::from_id(&context.db, &data.work_id)?
             .title(context)
@@ -2012,7 +2006,7 @@ impl MutationRoot {
         >,
         #[graphql(description = "Values for abstract to be created")] data: NewAbstract,
     ) -> FieldResult<Abstract> {
-        context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+        context.require_publisher(&data.publisher_id(&context.db)?)?;
 
         let has_canonical_abstract = Abstract::all(
             &context.db,
@@ -2056,10 +2050,7 @@ impl MutationRoot {
         >,
         #[graphql(description = "Values for biography to be created")] data: NewBiography,
     ) -> FieldResult<Biography> {
-        context.require_publisher(&publisher_id_from_contribution_id(
-            &context.db,
-            &data.contribution_id,
-        )?)?;
+        context.require_publisher(&data.publisher_id(&context.db)?)?;
 
         let has_canonical_biography = Biography::all(
             &context.db,
@@ -2103,7 +2094,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for funding to be created")] data: NewFunding,
     ) -> FieldResult<Funding> {
-        context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+        context.require_publisher(&data.publisher_id(&context.db)?)?;
         Funding::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2112,10 +2103,8 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for location to be created")] data: NewLocation,
     ) -> FieldResult<Location> {
-        let user = context.require_publisher(&publisher_id_from_publication_id(
-            &context.db,
-            &data.publication_id,
-        )?)?;
+        let user = context.require_publisher(&data.publisher_id(&context.db)?)?;
+
         // Only superusers can create new locations where Location Platform is Thoth
         if !user.is_superuser() && data.location_platform == LocationPlatform::Thoth {
             return Err(ThothError::ThothLocationError.into());
@@ -2135,10 +2124,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for price to be created")] data: NewPrice,
     ) -> FieldResult<Price> {
-        context.require_publisher(&publisher_id_from_publication_id(
-            &context.db,
-            &data.publication_id,
-        )?)?;
+        context.require_publisher(&data.publisher_id(&context.db)?)?;
 
         if data.unit_price <= 0.0 {
             // Prices must be non-zero (and non-negative).
@@ -2153,7 +2139,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for subject to be created")] data: NewSubject,
     ) -> FieldResult<Subject> {
-        context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+        context.require_publisher(&data.publisher_id(&context.db)?)?;
         check_subject(&data.subject_type, &data.subject_code)?;
         Subject::create(&context.db, &data).map_err(Into::into)
     }
@@ -2163,10 +2149,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for affiliation to be created")] data: NewAffiliation,
     ) -> FieldResult<Affiliation> {
-        context.require_publisher(&publisher_id_from_contribution_id(
-            &context.db,
-            &data.contribution_id,
-        )?)?;
+        context.require_publisher(&data.publisher_id(&context.db)?)?;
         Affiliation::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2194,7 +2177,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for reference to be created")] data: NewReference,
     ) -> FieldResult<Reference> {
-        context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+        context.require_publisher(&data.publisher_id(&context.db)?)?;
         Reference::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2217,10 +2200,7 @@ impl MutationRoot {
         let user = context.require_publisher(&work.publisher_id(&context.db)?)?;
 
         if data.imprint_id != work.imprint_id {
-            context.require_publisher(&publisher_id_from_imprint_id(
-                &context.db,
-                &data.imprint_id,
-            )?)?;
+            context.require_publisher(&data.publisher_id(&context.db)?)?;
             work.can_update_imprint(&context.db)?;
         }
 
@@ -2312,7 +2292,7 @@ impl MutationRoot {
         let user = context.require_publisher(&contribution.publisher_id(&context.db)?)?;
 
         if data.work_id != contribution.work_id {
-            context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+            context.require_publisher(&data.publisher_id(&context.db)?)?;
         }
         contribution
             .update(&context.db, &data, &user.user_id)
@@ -2326,13 +2306,10 @@ impl MutationRoot {
     ) -> FieldResult<Publication> {
         context.require_authentication()?;
         let publication = Publication::from_id(&context.db, &data.publication_id)?;
-        let user = context.require_publisher(&publisher_id_from_publication_id(
-            &context.db,
-            &data.publication_id,
-        )?)?;
+        let user = context.require_publisher(&data.publisher_id(&context.db)?)?;
 
         if data.work_id != publication.work_id {
-            context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+            context.require_publisher(&data.publisher_id(&context.db)?)?;
         }
 
         data.validate(&context.db)?;
@@ -2352,10 +2329,7 @@ impl MutationRoot {
         let user = context.require_publisher(&series.publisher_id(&context.db)?)?;
 
         if data.imprint_id != series.imprint_id {
-            context.require_publisher(&publisher_id_from_imprint_id(
-                &context.db,
-                &data.imprint_id,
-            )?)?;
+            context.require_publisher(&data.publisher_id(&context.db)?)?;
         }
         series
             .update(&context.db, &data, &user.user_id)
@@ -2374,7 +2348,7 @@ impl MutationRoot {
         data.imprints_match(&context.db)?;
 
         if data.work_id != issue.work_id {
-            context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+            context.require_publisher(&data.publisher_id(&context.db)?)?;
         }
         issue
             .update(&context.db, &data, &user.user_id)
@@ -2391,7 +2365,7 @@ impl MutationRoot {
         let user = context.require_publisher(&language.publisher_id(&context.db)?)?;
 
         if data.work_id != language.work_id {
-            context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+            context.require_publisher(&data.publisher_id(&context.db)?)?;
         }
 
         language
@@ -2420,7 +2394,7 @@ impl MutationRoot {
         let user = context.require_publisher(&funding.publisher_id(&context.db)?)?;
 
         if data.work_id != funding.work_id {
-            context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+            context.require_publisher(&data.publisher_id(&context.db)?)?;
         }
 
         funding
@@ -2458,10 +2432,7 @@ impl MutationRoot {
         }
 
         if data.publication_id != current_location.publication_id {
-            context.require_publisher(&publisher_id_from_publication_id(
-                &context.db,
-                &data.publication_id,
-            )?)?;
+            context.require_publisher(&data.publisher_id(&context.db)?)?;
         }
 
         if data.canonical {
@@ -2483,10 +2454,7 @@ impl MutationRoot {
         let user = context.require_publisher(&price.publisher_id(&context.db)?)?;
 
         if data.publication_id != price.publication_id {
-            context.require_publisher(&publisher_id_from_publication_id(
-                &context.db,
-                &data.publication_id,
-            )?)?;
+            context.require_publisher(&data.publisher_id(&context.db)?)?;
         }
 
         if data.unit_price <= 0.0 {
@@ -2509,7 +2477,7 @@ impl MutationRoot {
         let user = context.require_publisher(&subject.publisher_id(&context.db)?)?;
 
         if data.work_id != subject.work_id {
-            context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+            context.require_publisher(&data.publisher_id(&context.db)?)?;
         }
 
         check_subject(&data.subject_type, &data.subject_code)?;
@@ -2529,10 +2497,7 @@ impl MutationRoot {
         let user = context.require_publisher(&affiliation.publisher_id(&context.db)?)?;
 
         if data.contribution_id != affiliation.contribution_id {
-            context.require_publisher(&publisher_id_from_contribution_id(
-                &context.db,
-                &data.contribution_id,
-            )?)?;
+            context.require_publisher(&data.publisher_id(&context.db)?)?;
         }
 
         affiliation
@@ -2587,7 +2552,7 @@ impl MutationRoot {
         let user = context.require_publisher(&reference.publisher_id(&context.db)?)?;
 
         if data.work_id != reference.work_id {
-            context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+            context.require_publisher(&data.publisher_id(&context.db)?)?;
         }
 
         reference
@@ -2626,7 +2591,7 @@ impl MutationRoot {
         let user = context.require_publisher(&title.publisher_id(&context.db)?)?;
 
         if data.work_id != title.work_id {
-            context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+            context.require_publisher(&data.publisher_id(&context.db)?)?;
         }
 
         let mut data = data.clone();
@@ -2658,7 +2623,7 @@ impl MutationRoot {
         let user = context.require_publisher(&r#abstract.publisher_id(&context.db)?)?;
 
         if data.work_id != r#abstract.work_id {
-            context.require_publisher(&publisher_id_from_work_id(&context.db, &data.work_id)?)?;
+            context.require_publisher(&data.publisher_id(&context.db)?)?;
         }
 
         let mut data = data.clone();
@@ -2690,10 +2655,7 @@ impl MutationRoot {
 
         // If contribution changes, ensure permission on the new work via contribution
         if data.contribution_id != biography.contribution_id {
-            context.require_publisher(&publisher_id_from_contribution_id(
-                &context.db,
-                &data.contribution_id,
-            )?)?;
+            context.require_publisher(&data.publisher_id(&context.db)?)?;
         }
 
         let mut data = data.clone();
@@ -5371,18 +5333,6 @@ pub fn create_schema() -> Schema {
     Schema::new(QueryRoot {}, MutationRoot {}, EmptySubscription::new())
 }
 
-fn publisher_id_from_imprint_id(db: &PgPool, imprint_id: &Uuid) -> ThothResult<Uuid> {
-    Ok(Imprint::from_id(db, imprint_id)?.publisher_id)
-}
-
 fn publisher_id_from_work_id(db: &PgPool, work_id: &Uuid) -> ThothResult<Uuid> {
     Work::from_id(db, work_id)?.publisher_id(db)
-}
-
-fn publisher_id_from_publication_id(db: &PgPool, publication_id: &Uuid) -> ThothResult<Uuid> {
-    Publication::from_id(db, publication_id)?.publisher_id(db)
-}
-
-fn publisher_id_from_contribution_id(db: &PgPool, contribution_id: &Uuid) -> ThothResult<Uuid> {
-    Contribution::from_id(db, contribution_id)?.publisher_id(db)
 }

@@ -230,11 +230,12 @@ impl Crud for Reference {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
     crud_methods!(reference::table, reference::dsl::reference);
 }
+
+publisher_id_impls!(Reference, NewReference, PatchReference, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Reference {
     type NewHistoryEntity = NewReferenceHistory;

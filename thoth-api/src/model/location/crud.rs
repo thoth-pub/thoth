@@ -122,10 +122,6 @@ impl Crud for Location {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::publication::Publication::from_id(db, &self.publication_id)?.publisher_id(db)
-    }
-
     // `crud_methods!` cannot be used for update(), because we need to execute multiple statements
     // in the same transaction for changing a non-canonical location to canonical.
     // These functions recreate the `crud_methods!` logic.
@@ -194,6 +190,10 @@ impl Crud for Location {
         })
     }
 }
+
+publisher_id_impls!(Location, NewLocation, PatchLocation, |s, db| {
+    crate::model::publication::Publication::from_id(db, &s.publication_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Location {
     type NewHistoryEntity = NewLocationHistory;

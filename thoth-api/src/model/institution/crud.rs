@@ -119,12 +119,6 @@ impl Crud for Institution {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        Err(ThothError::InternalError(
-            "Method publisher_id() is not supported for Institution objects".to_string(),
-        ))
-    }
-
     crud_methods!(institution::table, institution::dsl::institution);
 }
 

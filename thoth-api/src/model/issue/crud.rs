@@ -106,12 +106,12 @@ impl Crud for Issue {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(issue::table, issue::dsl::issue);
 }
+
+publisher_id_impls!(Issue, NewIssue, PatchIssue, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Issue {
     type NewHistoryEntity = NewIssueHistory;

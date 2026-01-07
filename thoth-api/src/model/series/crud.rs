@@ -3,7 +3,7 @@ use super::{
     SeriesType,
 };
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{series, series_history};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
@@ -152,13 +152,13 @@ impl Crud for Series {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        let imprint = crate::model::imprint::Imprint::from_id(db, &self.imprint_id)?;
-        <crate::model::imprint::Imprint as Crud>::publisher_id(&imprint, db)
-    }
-
     crud_methods!(series::table, series::dsl::series);
 }
+
+publisher_id_impls!(Series, NewSeries, PatchSeries, |s, db| {
+    let imprint = crate::model::imprint::Imprint::from_id(db, &s.imprint_id)?;
+    <crate::model::imprint::Imprint as PublisherId>::publisher_id(&imprint, db)
+});
 
 impl HistoryEntry for Series {
     type NewHistoryEntity = NewSeriesHistory;
