@@ -2,36 +2,36 @@ services:
   db:
     image: postgres:17
     container_name: "thoth_db"
-    restart: unless-stopped
+    ports:
+      - "5432:5432"
     volumes:
-      - db:/var/lib/postgresql/data
-      - /etc/localtime:/etc/localtime:ro
+      - ./db/_data:/var/lib/postgresql/data
     env_file:
       - .env
+
+  zitadel-db:
+    image: postgres:17
+    container_name: "zitadel_db"
+    volumes:
+      - ./db/_zitadel:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: postgres
 
   redis:
     image: redis:alpine
     container_name: "thoth_redis"
-    restart: unless-stopped
+    ports:
+      - "6379:6379"
 
-  graphql-api:
-    image: ghcr.io/thoth-pub/thoth
-    container_name: "thoth_graphql_api"
-    restart: unless-stopped
+  zitadel:
+    image: ghcr.io/zitadel/zitadel:v3.2.2
+    command: 'start-from-init --masterkey "${ZITADEL_MASTERKEY}" --tlsMode disabled'
+    container_name: "zitadel"
+    ports:
+      - "8282:8080"
     env_file:
       - .env
+    volumes:
+      - ./machinekey:/machinekey
     depends_on:
-      - db
-
-  export-api:
-    image: ghcr.io/thoth-pub/thoth
-    container_name: "thoth_export_api"
-    restart: unless-stopped
-    command: ["start", "export-api"]
-    env_file:
-      - .env
-    depends_on:
-      - graphql-api
-
-volumes:
-  db:
+      - zitadel-db

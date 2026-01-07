@@ -15,7 +15,9 @@ use graphql_client::GraphQLQuery;
 use graphql_client::Response;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
+use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde_json::Value;
 use std::future::Future;
 use thoth_api::model::Timestamp;
 use thoth_errors::{ThothError, ThothResult};
@@ -56,6 +58,38 @@ impl ThothClient {
             .send()
     }
 
+    async fn parse_graphql_response<T: DeserializeOwned>(
+        &self,
+        res: reqwest::Response,
+    ) -> ThothResult<Response<T>> {
+        let status = res.status();
+        let bytes = res.bytes().await?;
+        if !status.is_success() {
+            return Err(ThothError::RequestError(format!(
+                "GraphQL {}: {}",
+                status.as_u16(),
+                String::from_utf8_lossy(&bytes)
+            )));
+        }
+        let value: Value = serde_json::from_slice(&bytes)?;
+
+        if let Some(errors) = value.get("errors") {
+            return Err(ThothError::RequestError(format!(
+                "GraphQL errors: {errors}"
+            )));
+        }
+
+        match value.get("data") {
+            None => Err(ThothError::RequestError(
+                "GraphQL response missing data field".to_string(),
+            )),
+            Some(data) if data.is_null() => Err(ThothError::RequestError(
+                "GraphQL response data is null".to_string(),
+            )),
+            _ => serde_json::from_value(value).map_err(Into::into),
+        }
+    }
+
     /// Get a `Work` from Thoth given its `work_id`
     ///
     /// # Errors
@@ -81,7 +115,8 @@ impl ThothClient {
         let variables: work_query::Variables = WorkQueryVariables::new(work_id, parameters).into();
         let request_body = WorkQuery::build_query(variables);
         let res = self.post_request(&request_body).await.await?;
-        let response_body: Response<work_query::ResponseData> = res.json().await?;
+        let response_body: Response<work_query::ResponseData> =
+            self.parse_graphql_response(res).await?;
         match response_body.data {
             Some(data) => Ok(data.work),
             None => Err(ThothError::EntityNotFound),
@@ -119,7 +154,8 @@ impl ThothClient {
             WorksQueryVariables::new(publishers, limit, offset, parameters).into();
         let request_body = WorksQuery::build_query(variables);
         let res = self.post_request(&request_body).await.await?;
-        let response_body: Response<works_query::ResponseData> = res.json().await?;
+        let response_body: Response<works_query::ResponseData> =
+            self.parse_graphql_response(res).await?;
         match response_body.data {
             Some(data) => Ok(data.works.iter().map(|w| w.clone().into()).collect()), // convert works_query::Work into work_query::Work
             None => Err(ThothError::EntityNotFound),
@@ -150,7 +186,8 @@ impl ThothClient {
         let variables = work_count_query::Variables { publishers };
         let request_body = WorkCountQuery::build_query(variables);
         let res = self.post_request(&request_body).await.await?;
-        let response_body: Response<work_count_query::ResponseData> = res.json().await?;
+        let response_body: Response<work_count_query::ResponseData> =
+            self.parse_graphql_response(res).await?;
         match response_body.data {
             Some(data) => Ok(data.work_count),
             None => Err(ThothError::EntityNotFound),
@@ -182,7 +219,8 @@ impl ThothClient {
         let variables = work_last_updated_query::Variables { work_id };
         let request_body = WorkLastUpdatedQuery::build_query(variables);
         let res = self.post_request(&request_body).await.await?;
-        let response_body: Response<work_last_updated_query::ResponseData> = res.json().await?;
+        let response_body: Response<work_last_updated_query::ResponseData> =
+            self.parse_graphql_response(res).await?;
         match response_body.data {
             Some(data) => Ok(data.work.updated_at_with_relations),
             None => Err(ThothError::EntityNotFound),
@@ -217,7 +255,8 @@ impl ThothClient {
         let variables = works_last_updated_query::Variables { publishers };
         let request_body = WorksLastUpdatedQuery::build_query(variables);
         let res = self.post_request(&request_body).await.await?;
-        let response_body: Response<works_last_updated_query::ResponseData> = res.json().await?;
+        let response_body: Response<works_last_updated_query::ResponseData> =
+            self.parse_graphql_response(res).await?;
         match response_body.data {
             Some(data) => {
                 if let Some(work) = data.works.first() {

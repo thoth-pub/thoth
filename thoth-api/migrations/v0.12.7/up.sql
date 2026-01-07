@@ -1,2 +1,0 @@
-ALTER TYPE publication_type ADD VALUE IF NOT EXISTS 'MP3';
-ALTER TYPE publication_type ADD VALUE IF NOT EXISTS 'WAV';

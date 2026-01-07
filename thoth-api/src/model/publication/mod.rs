@@ -5,9 +5,6 @@ use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
-use crate::model::location::Location;
-use crate::model::price::Price;
-use crate::model::work::WorkWithRelations;
 use crate::model::Isbn;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -110,6 +107,114 @@ pub enum PublicationType {
 
 #[cfg_attr(
     feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    graphql(
+        description = "Standardised specification for accessibility to which a publication may conform"
+    ),
+    ExistingTypePath = "crate::schema::sql_types::AccessibilityStandard"
+)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AccessibilityStandard {
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "wcag-21-aa",
+        graphql(description = "WCAG 2.1 AA")
+    )]
+    Wcag21aa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "wcag-21-aaa",
+        graphql(description = "WCAG 2.1 AAA")
+    )]
+    Wcag21aaa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "wcag-22-aa",
+        graphql(description = "WCAG 2.2 AA")
+    )]
+    Wcag22aa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "wcag-22-aaa",
+        graphql(description = "WCAG 2.2 AAA")
+    )]
+    Wcag22aaa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "epub-a11y-10-aa",
+        graphql(description = "EPUB Accessibility Specification 1.0 AA")
+    )]
+    EpubA11y10aa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "epub-a11y-10-aaa",
+        graphql(description = "EPUB Accessibility Specification 1.0 AAA")
+    )]
+    EpubA11y10aaa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "epub-a11y-11-aa",
+        graphql(description = "EPUB Accessibility Specification 1.1 AA")
+    )]
+    EpubA11y11aa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "epub-a11y-11-aaa",
+        graphql(description = "EPUB Accessibility Specification 1.1 AAA")
+    )]
+    EpubA11y11aaa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "pdf-ua-1",
+        graphql(description = "PDF/UA-1")
+    )]
+    PdfUa1,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "pdf-ua-2",
+        graphql(description = "PDF/UA-2")
+    )]
+    PdfUa2,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    graphql(
+        description = "Reason for publication not being required to comply with accessibility standards"
+    ),
+    ExistingTypePath = "crate::schema::sql_types::AccessibilityException"
+)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AccessibilityException {
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "micro-enterprises",
+        graphql(description = "Publisher is a micro-enterprise")
+    )]
+    MicroEnterprises,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "disproportionate-burden",
+        graphql(
+            description = "Making the publication accessible would financially overburden the publisher"
+        )
+    )]
+    DisproportionateBurden,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "fundamental-alteration",
+        graphql(
+            description = "Making the publication accessible would fundamentally modify the nature of it"
+        )
+    )]
+    FundamentalAlteration,
+}
+
+#[cfg_attr(
+    feature = "backend",
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting publications list")
 )]
@@ -135,6 +240,10 @@ pub enum PublicationField {
     DepthIn,
     WeightG,
     WeightOz,
+    AccessibilityStandard,
+    AccessibilityAdditionalStandard,
+    AccessibilityException,
+    AccessibilityReportUrl,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -155,27 +264,10 @@ pub struct Publication {
     pub depth_in: Option<f64>,
     pub weight_g: Option<f64>,
     pub weight_oz: Option<f64>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct PublicationWithRelations {
-    pub publication_id: Uuid,
-    pub publication_type: PublicationType,
-    pub work_id: Uuid,
-    pub isbn: Option<Isbn>,
-    pub updated_at: Timestamp,
-    pub width_mm: Option<f64>,
-    pub width_in: Option<f64>,
-    pub height_mm: Option<f64>,
-    pub height_in: Option<f64>,
-    pub depth_mm: Option<f64>,
-    pub depth_in: Option<f64>,
-    pub weight_g: Option<f64>,
-    pub weight_oz: Option<f64>,
-    pub prices: Option<Vec<Price>>,
-    pub locations: Option<Vec<Location>>,
-    pub work: WorkWithRelations,
+    pub accessibility_standard: Option<AccessibilityStandard>,
+    pub accessibility_additional_standard: Option<AccessibilityStandard>,
+    pub accessibility_exception: Option<AccessibilityException>,
+    pub accessibility_report_url: Option<String>,
 }
 
 #[cfg_attr(
@@ -196,6 +288,10 @@ pub struct NewPublication {
     pub depth_in: Option<f64>,
     pub weight_g: Option<f64>,
     pub weight_oz: Option<f64>,
+    pub accessibility_standard: Option<AccessibilityStandard>,
+    pub accessibility_additional_standard: Option<AccessibilityStandard>,
+    pub accessibility_exception: Option<AccessibilityException>,
+    pub accessibility_report_url: Option<String>,
 }
 
 #[cfg_attr(
@@ -217,6 +313,10 @@ pub struct PatchPublication {
     pub depth_in: Option<f64>,
     pub weight_g: Option<f64>,
     pub weight_oz: Option<f64>,
+    pub accessibility_standard: Option<AccessibilityStandard>,
+    pub accessibility_additional_standard: Option<AccessibilityStandard>,
+    pub accessibility_exception: Option<AccessibilityException>,
+    pub accessibility_report_url: Option<String>,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -380,7 +480,6 @@ macro_rules! publication_properties {
     };
 }
 publication_properties!(Publication);
-publication_properties!(PublicationWithRelations);
 publication_properties!(NewPublication);
 publication_properties!(PatchPublication);
 

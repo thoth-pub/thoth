@@ -6,7 +6,6 @@ use crate::graphql::model::LanguageOrderBy;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{language, language_history};
-use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
@@ -18,6 +17,7 @@ impl Crud for Language {
     type FilterParameter1 = LanguageCode;
     type FilterParameter2 = LanguageRelation;
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.language_id
@@ -35,6 +35,7 @@ impl Crud for Language {
         language_codes: Vec<Self::FilterParameter1>,
         language_relations: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Language>> {
         use crate::schema::language::dsl;
         let mut connection = db.get()?;
@@ -99,6 +100,7 @@ impl Crud for Language {
         language_codes: Vec<Self::FilterParameter1>,
         language_relations: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::language::dsl;
         let mut connection = db.get()?;

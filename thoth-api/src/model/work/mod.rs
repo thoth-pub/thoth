@@ -1,13 +1,4 @@
 use crate::graphql::utils::Direction;
-use crate::model::contribution::Contribution;
-use crate::model::funding::FundingWithInstitution;
-use crate::model::imprint::ImprintWithPublisher;
-use crate::model::issue::IssueWithSeries;
-use crate::model::language::Language;
-use crate::model::publication::Publication;
-use crate::model::reference::Reference;
-use crate::model::subject::Subject;
-use crate::model::work_relation::WorkRelationWithRelatedWork;
 use crate::model::Doi;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -16,7 +7,6 @@ use crate::schema::work;
 use crate::schema::work_history;
 use chrono::naive::NaiveDate;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use strum::Display;
 use strum::EnumString;
 use thoth_errors::{ThothError, ThothResult};
@@ -196,9 +186,6 @@ pub struct Work {
     pub work_id: Uuid,
     pub work_type: WorkType,
     pub work_status: WorkStatus,
-    pub full_title: String,
-    pub title: String,
-    pub subtitle: Option<String>,
     pub reference: Option<String>,
     pub edition: Option<i32>,
     pub imprint_id: Uuid,
@@ -217,8 +204,6 @@ pub struct Work {
     pub landing_page: Option<String>,
     pub lccn: Option<String>,
     pub oclc: Option<String>,
-    pub short_abstract: Option<String>,
-    pub long_abstract: Option<String>,
     pub general_note: Option<String>,
     pub bibliography_note: Option<String>,
     pub toc: Option<String>,
@@ -231,55 +216,6 @@ pub struct Work {
     pub page_interval: Option<String>,
     pub updated_at_with_relations: Timestamp,
 }
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkWithRelations {
-    pub work_id: Uuid,
-    pub work_type: WorkType,
-    pub work_status: WorkStatus,
-    pub full_title: String,
-    pub title: String,
-    pub subtitle: Option<String>,
-    pub reference: Option<String>,
-    pub edition: Option<i32>,
-    pub doi: Option<Doi>,
-    pub publication_date: Option<NaiveDate>,
-    pub withdrawn_date: Option<NaiveDate>,
-    pub place: Option<String>,
-    pub page_count: Option<i32>,
-    pub page_breakdown: Option<String>,
-    pub image_count: Option<i32>,
-    pub table_count: Option<i32>,
-    pub audio_count: Option<i32>,
-    pub video_count: Option<i32>,
-    pub license: Option<String>,
-    pub copyright_holder: Option<String>,
-    pub landing_page: Option<String>,
-    pub lccn: Option<String>,
-    pub oclc: Option<String>,
-    pub short_abstract: Option<String>,
-    pub long_abstract: Option<String>,
-    pub general_note: Option<String>,
-    pub bibliography_note: Option<String>,
-    pub toc: Option<String>,
-    pub cover_url: Option<String>,
-    pub cover_caption: Option<String>,
-    pub updated_at: Timestamp,
-    pub first_page: Option<String>,
-    pub last_page: Option<String>,
-    pub page_interval: Option<String>,
-    pub contributions: Option<Vec<Contribution>>,
-    pub publications: Option<Vec<Publication>>,
-    pub languages: Option<Vec<Language>>,
-    pub fundings: Option<Vec<FundingWithInstitution>>,
-    pub subjects: Option<Vec<Subject>>,
-    pub issues: Option<Vec<IssueWithSeries>>,
-    pub imprint: ImprintWithPublisher,
-    pub relations: Option<Vec<WorkRelationWithRelatedWork>>,
-    pub references: Option<Vec<Reference>>,
-}
-
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
@@ -289,9 +225,6 @@ pub struct WorkWithRelations {
 pub struct NewWork {
     pub work_type: WorkType,
     pub work_status: WorkStatus,
-    pub full_title: String,
-    pub title: String,
-    pub subtitle: Option<String>,
     pub reference: Option<String>,
     pub edition: Option<i32>,
     pub imprint_id: Uuid,
@@ -310,8 +243,6 @@ pub struct NewWork {
     pub landing_page: Option<String>,
     pub lccn: Option<String>,
     pub oclc: Option<String>,
-    pub short_abstract: Option<String>,
-    pub long_abstract: Option<String>,
     pub general_note: Option<String>,
     pub bibliography_note: Option<String>,
     pub toc: Option<String>,
@@ -332,9 +263,6 @@ pub struct PatchWork {
     pub work_id: Uuid,
     pub work_type: WorkType,
     pub work_status: WorkStatus,
-    pub full_title: String,
-    pub title: String,
-    pub subtitle: Option<String>,
     pub reference: Option<String>,
     pub edition: Option<i32>,
     pub imprint_id: Uuid,
@@ -353,8 +281,6 @@ pub struct PatchWork {
     pub landing_page: Option<String>,
     pub lccn: Option<String>,
     pub oclc: Option<String>,
-    pub short_abstract: Option<String>,
-    pub long_abstract: Option<String>,
     pub general_note: Option<String>,
     pub bibliography_note: Option<String>,
     pub toc: Option<String>,
@@ -393,31 +319,11 @@ pub struct WorkOrderBy {
 }
 
 pub trait WorkProperties {
-    fn title(&self) -> &str;
-    fn subtitle(&self) -> Option<&str>;
     fn work_status(&self) -> &WorkStatus;
     fn publication_date(&self) -> &Option<NaiveDate>;
     fn withdrawn_date(&self) -> &Option<NaiveDate>;
     fn first_page(&self) -> Option<&str>;
     fn last_page(&self) -> Option<&str>;
-
-    fn compile_fulltitle(&self) -> String {
-        self.subtitle().map_or_else(
-            || self.title().to_string(),
-            |subtitle| {
-                let title = self.title();
-                if title.ends_with('?')
-                    || title.ends_with('!')
-                    || title.ends_with(':')
-                    || title.ends_with('.')
-                {
-                    format!("{} {}", title, subtitle)
-                } else {
-                    format!("{}: {}", title, subtitle)
-                }
-            },
-        )
-    }
 
     fn compile_page_interval(&self) -> Option<String> {
         self.first_page()
@@ -464,12 +370,6 @@ pub trait WorkProperties {
 macro_rules! work_properties {
     ($t:ty) => {
         impl WorkProperties for $t {
-            fn title(&self) -> &str {
-                &self.title
-            }
-            fn subtitle(&self) -> Option<&str> {
-                self.subtitle.as_deref()
-            }
             fn work_status(&self) -> &WorkStatus {
                 &self.work_status
             }
@@ -492,30 +392,12 @@ macro_rules! work_properties {
 work_properties!(Work);
 work_properties!(NewWork);
 work_properties!(PatchWork);
-work_properties!(WorkWithRelations);
-
-impl WorkWithRelations {
-    pub fn publisher(&self) -> String {
-        self.imprint
-            .publisher
-            .publisher_shortname
-            .as_ref()
-            .map_or_else(
-                || self.imprint.publisher.publisher_name.to_string(),
-                |short_name| short_name.to_string(),
-            )
-    }
-}
-
 impl From<Work> for PatchWork {
     fn from(w: Work) -> Self {
         Self {
             work_id: w.work_id,
             work_type: w.work_type,
             work_status: w.work_status,
-            full_title: w.full_title,
-            title: w.title,
-            subtitle: w.subtitle,
             reference: w.reference,
             edition: w.edition,
             imprint_id: w.imprint_id,
@@ -534,8 +416,6 @@ impl From<Work> for PatchWork {
             landing_page: w.landing_page,
             lccn: w.lccn,
             oclc: w.oclc,
-            short_abstract: w.short_abstract,
-            long_abstract: w.long_abstract,
             general_note: w.general_note,
             bibliography_note: w.bibliography_note,
             toc: w.toc,
@@ -544,15 +424,6 @@ impl From<Work> for PatchWork {
             first_page: w.first_page,
             last_page: w.last_page,
             page_interval: w.page_interval,
-        }
-    }
-}
-
-impl fmt::Display for Work {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match &self.doi {
-            Some(doi) => write!(f, "{} - {}", self.full_title, doi),
-            None => write!(f, "{}", self.full_title),
         }
     }
 }
@@ -567,9 +438,6 @@ mod tests {
             work_id: Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_type: WorkType::Monograph,
             work_status: WorkStatus::Active,
-            full_title: "Some title".to_string(),
-            title: "Some title".to_string(),
-            subtitle: None,
             reference: None,
             edition: Some(1),
             imprint_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
@@ -588,8 +456,6 @@ mod tests {
             landing_page: Some("https://book.page".to_string()),
             lccn: None,
             oclc: None,
-            short_abstract: Some("Short abstract".to_string()),
-            long_abstract: Some("Long abstract".to_string()),
             general_note: None,
             bibliography_note: None,
             toc: None,
@@ -650,9 +516,6 @@ mod tests {
         assert_eq!(format!("{}", WorkField::WorkId), "ID");
         assert_eq!(format!("{}", WorkField::WorkType), "Type");
         assert_eq!(format!("{}", WorkField::WorkStatus), "WorkStatus");
-        assert_eq!(format!("{}", WorkField::FullTitle), "Title");
-        assert_eq!(format!("{}", WorkField::Title), "ShortTitle");
-        assert_eq!(format!("{}", WorkField::Subtitle), "Subtitle");
         assert_eq!(format!("{}", WorkField::Reference), "Reference");
         assert_eq!(format!("{}", WorkField::Edition), "Edition");
         assert_eq!(format!("{}", WorkField::Doi), "DOI");
@@ -881,9 +744,6 @@ mod tests {
             work_id,
             work_type,
             work_status,
-            full_title,
-            title,
-            subtitle,
             reference,
             edition,
             imprint_id,
@@ -902,8 +762,6 @@ mod tests {
             landing_page,
             lccn,
             oclc,
-            short_abstract,
-            long_abstract,
             general_note,
             bibliography_note,
             toc,
@@ -912,36 +770,6 @@ mod tests {
             first_page,
             last_page,
             page_interval
-        );
-    }
-
-    #[test]
-    fn test_compile_full_title() {
-        let mut work = test_work();
-        assert_eq!(work.compile_fulltitle(), "Some title".to_string());
-
-        work.subtitle = Some("With a subtitle".to_string());
-        assert_eq!(
-            work.compile_fulltitle(),
-            "Some title: With a subtitle".to_string()
-        );
-
-        work.title = "Some title?".to_string();
-        assert_eq!(
-            work.compile_fulltitle(),
-            "Some title? With a subtitle".to_string()
-        );
-
-        work.title = "Some title.".to_string();
-        assert_eq!(
-            work.compile_fulltitle(),
-            "Some title. With a subtitle".to_string()
-        );
-
-        work.title = "Some title!".to_string();
-        assert_eq!(
-            work.compile_fulltitle(),
-            "Some title! With a subtitle".to_string()
         );
     }
 

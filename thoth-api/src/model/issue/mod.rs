@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::model::series::SeriesWithImprint;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::issue;
@@ -32,16 +31,6 @@ pub struct Issue {
     pub issue_ordinal: i32,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct IssueWithSeries {
-    pub issue_id: Uuid,
-    pub work_id: Uuid,
-    pub series_id: Uuid,
-    pub issue_ordinal: i32,
-    pub series: SeriesWithImprint,
 }
 
 #[cfg_attr(
@@ -83,18 +72,6 @@ pub struct NewIssueHistory {
     pub issue_id: Uuid,
     pub user_id: String,
     pub data: serde_json::Value,
-}
-
-impl Default for IssueWithSeries {
-    fn default() -> IssueWithSeries {
-        IssueWithSeries {
-            issue_id: Default::default(),
-            work_id: Default::default(),
-            series_id: Default::default(),
-            issue_ordinal: 1,
-            series: Default::default(),
-        }
-    }
 }
 
 #[cfg(feature = "backend")]

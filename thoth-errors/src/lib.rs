@@ -110,6 +110,26 @@ pub enum ThothError {
     ThothSetWorkStatusError,
     #[error("Once a Work has been published, it cannot be deleted.")]
     ThothDeleteWorkError,
+    #[error("If canonical abstract already exists, other abstract can't be set as canonical.")]
+    CanonicalAbstractExistsError,
+    #[error("Short abstract must be less than 350 characters.")]
+    ShortAbstractLimitExceedError,
+    #[error("If canonical biography already exists, other biography can't be set as canonical.")]
+    CanonicalBiographyExistsError,
+    #[error("If canonical title already exists, other title can't be set as canonical.")]
+    CanonicalTitleExistsError,
+    #[error("If file extension is not found, the file format is not supported.")]
+    NoFileExtensionFound,
+    #[error("Unsupported file format")]
+    UnsupportedFileFormatError,
+    #[error("Content tag not found")]
+    TagNotFoundError,
+    #[error("Title content cannot contain multiple top-level elements.")]
+    TitleMultipleTopLevelElementsError,
+    #[error("Title content cannot contain list item elements.")]
+    TitleListItemError,
+    #[error("Markup format was not provided.")]
+    MissingMarkupFormat,
 }
 
 impl ThothError {

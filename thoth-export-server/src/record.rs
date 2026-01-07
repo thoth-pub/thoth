@@ -369,7 +369,7 @@ impl Display for MetadataSpecification {
             MetadataSpecification::Marc21MarkupThoth(_) => "marc21markup::thoth",
             MetadataSpecification::Marc21XmlThoth(_) => "marc21xml::thoth",
         };
-        write!(f, "{}", str)
+        write!(f, "{str}")
     }
 }
 
