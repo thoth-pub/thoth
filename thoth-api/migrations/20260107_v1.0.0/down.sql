@@ -30,7 +30,10 @@ CREATE TABLE publisher_account (
 SELECT diesel_manage_updated_at('publisher_account');
 
 -- Rename column user_id → account_id and change type to UUID
+ALTER TABLE abstract_history           ALTER COLUMN user_id TYPE UUID USING user_id::uuid;
 ALTER TABLE affiliation_history        ALTER COLUMN user_id TYPE UUID USING user_id::uuid;
+ALTER TABLE biography_history          ALTER COLUMN user_id TYPE UUID USING user_id::uuid;
+ALTER TABLE contact_history            ALTER COLUMN user_id TYPE UUID USING user_id::uuid;
 ALTER TABLE contribution_history       ALTER COLUMN user_id TYPE UUID USING user_id::uuid;
 ALTER TABLE contributor_history        ALTER COLUMN user_id TYPE UUID USING user_id::uuid;
 ALTER TABLE funding_history            ALTER COLUMN user_id TYPE UUID USING user_id::uuid;
@@ -45,10 +48,14 @@ ALTER TABLE publisher_history          ALTER COLUMN user_id TYPE UUID USING user
 ALTER TABLE reference_history          ALTER COLUMN user_id TYPE UUID USING user_id::uuid;
 ALTER TABLE series_history             ALTER COLUMN user_id TYPE UUID USING user_id::uuid;
 ALTER TABLE subject_history            ALTER COLUMN user_id TYPE UUID USING user_id::uuid;
+ALTER TABLE title_history              ALTER COLUMN user_id TYPE UUID USING user_id::uuid;
 ALTER TABLE work_history               ALTER COLUMN user_id TYPE UUID USING user_id::uuid;
 ALTER TABLE work_relation_history      ALTER COLUMN user_id TYPE UUID USING user_id::uuid;
 
+ALTER TABLE abstract_history           RENAME COLUMN user_id TO account_id;
 ALTER TABLE affiliation_history        RENAME COLUMN user_id TO account_id;
+ALTER TABLE biography_history          RENAME COLUMN user_id TO account_id;
+ALTER TABLE contact_history            RENAME COLUMN user_id TO account_id;
 ALTER TABLE contribution_history       RENAME COLUMN user_id TO account_id;
 ALTER TABLE contributor_history        RENAME COLUMN user_id TO account_id;
 ALTER TABLE funding_history            RENAME COLUMN user_id TO account_id;
@@ -63,11 +70,15 @@ ALTER TABLE publisher_history          RENAME COLUMN user_id TO account_id;
 ALTER TABLE reference_history          RENAME COLUMN user_id TO account_id;
 ALTER TABLE series_history             RENAME COLUMN user_id TO account_id;
 ALTER TABLE subject_history            RENAME COLUMN user_id TO account_id;
+ALTER TABLE title_history              RENAME COLUMN user_id TO account_id;
 ALTER TABLE work_history               RENAME COLUMN user_id TO account_id;
 ALTER TABLE work_relation_history      RENAME COLUMN user_id TO account_id;
 
 -- Restore foreign key constraints
+ALTER TABLE abstract_history           ADD CONSTRAINT abstract_history_account_id_fkey           FOREIGN KEY (account_id) REFERENCES account(account_id);
 ALTER TABLE affiliation_history        ADD CONSTRAINT affiliation_history_account_id_fkey        FOREIGN KEY (account_id) REFERENCES account(account_id);
+ALTER TABLE biography_history          ADD CONSTRAINT biography_history_account_id_fkey          FOREIGN KEY (account_id) REFERENCES account(account_id);
+ALTER TABLE contact_history            ADD CONSTRAINT contact_history_account_id_fkey            FOREIGN KEY (account_id) REFERENCES account(account_id);
 ALTER TABLE contribution_history       ADD CONSTRAINT contribution_history_account_id_fkey       FOREIGN KEY (account_id) REFERENCES account(account_id);
 ALTER TABLE contributor_history        ADD CONSTRAINT contributor_history_account_id_fkey        FOREIGN KEY (account_id) REFERENCES account(account_id);
 ALTER TABLE funding_history            ADD CONSTRAINT funding_history_account_id_fkey            FOREIGN KEY (account_id) REFERENCES account(account_id);
@@ -82,5 +93,6 @@ ALTER TABLE publisher_history          ADD CONSTRAINT publisher_history_account_
 ALTER TABLE reference_history          ADD CONSTRAINT reference_history_account_id_fkey          FOREIGN KEY (account_id) REFERENCES account(account_id);
 ALTER TABLE series_history             ADD CONSTRAINT series_history_account_id_fkey             FOREIGN KEY (account_id) REFERENCES account(account_id);
 ALTER TABLE subject_history            ADD CONSTRAINT subject_history_account_id_fkey            FOREIGN KEY (account_id) REFERENCES account(account_id);
+ALTER TABLE title_history              ADD CONSTRAINT title_history_account_id_fkey              FOREIGN KEY (account_id) REFERENCES account(account_id);
 ALTER TABLE work_history               ADD CONSTRAINT work_history_account_id_fkey               FOREIGN KEY (account_id) REFERENCES account(account_id);
 ALTER TABLE work_relation_history      ADD CONSTRAINT work_relation_history_account_id_fkey      FOREIGN KEY (account_id) REFERENCES account(account_id);

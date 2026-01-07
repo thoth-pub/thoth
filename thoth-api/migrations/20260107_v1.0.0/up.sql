@@ -1,5 +1,8 @@
 -- Drop foreign key constraints
+ALTER TABLE abstract_history           DROP CONSTRAINT IF EXISTS abstract_history_account_id_fkey;
 ALTER TABLE affiliation_history        DROP CONSTRAINT IF EXISTS affiliation_history_account_id_fkey;
+ALTER TABLE biography_history          DROP CONSTRAINT IF EXISTS biography_history_account_id_fkey;
+ALTER TABLE contact_history            DROP CONSTRAINT IF EXISTS contact_history_account_id_fkey;
 ALTER TABLE contribution_history       DROP CONSTRAINT IF EXISTS contribution_history_account_id_fkey;
 ALTER TABLE contributor_history        DROP CONSTRAINT IF EXISTS contributor_history_account_id_fkey;
 ALTER TABLE funding_history            DROP CONSTRAINT IF EXISTS funding_history_account_id_fkey;
@@ -15,11 +18,15 @@ ALTER TABLE publisher_history          DROP CONSTRAINT IF EXISTS publisher_histo
 ALTER TABLE reference_history          DROP CONSTRAINT IF EXISTS reference_history_account_id_fkey;
 ALTER TABLE series_history             DROP CONSTRAINT IF EXISTS series_history_account_id_fkey;
 ALTER TABLE subject_history            DROP CONSTRAINT IF EXISTS subject_history_account_id_fkey;
+ALTER TABLE title_history              DROP CONSTRAINT IF EXISTS title_history_account_id_fkey;
 ALTER TABLE work_history               DROP CONSTRAINT IF EXISTS work_history_account_id_fkey;
 ALTER TABLE work_relation_history      DROP CONSTRAINT IF EXISTS work_relation_history_account_id_fkey;
 
 -- Rename column account_id to user_id and change type to TEXT
+ALTER TABLE abstract_history           RENAME COLUMN account_id TO user_id;
 ALTER TABLE affiliation_history        RENAME COLUMN account_id TO user_id;
+ALTER TABLE biography_history          RENAME COLUMN account_id TO user_id;
+ALTER TABLE contact_history            RENAME COLUMN account_id TO user_id;
 ALTER TABLE contribution_history       RENAME COLUMN account_id TO user_id;
 ALTER TABLE contributor_history        RENAME COLUMN account_id TO user_id;
 ALTER TABLE funding_history            RENAME COLUMN account_id TO user_id;
@@ -34,10 +41,14 @@ ALTER TABLE publisher_history          RENAME COLUMN account_id TO user_id;
 ALTER TABLE reference_history          RENAME COLUMN account_id TO user_id;
 ALTER TABLE series_history             RENAME COLUMN account_id TO user_id;
 ALTER TABLE subject_history            RENAME COLUMN account_id TO user_id;
+ALTER TABLE title_history              RENAME COLUMN account_id TO user_id;
 ALTER TABLE work_history               RENAME COLUMN account_id TO user_id;
 ALTER TABLE work_relation_history      RENAME COLUMN account_id TO user_id;
 
+ALTER TABLE abstract_history           ALTER COLUMN user_id TYPE TEXT;
 ALTER TABLE affiliation_history        ALTER COLUMN user_id TYPE TEXT;
+ALTER TABLE biography_history          ALTER COLUMN user_id TYPE TEXT;
+ALTER TABLE contact_history            ALTER COLUMN user_id TYPE TEXT;
 ALTER TABLE contribution_history       ALTER COLUMN user_id TYPE TEXT;
 ALTER TABLE contributor_history        ALTER COLUMN user_id TYPE TEXT;
 ALTER TABLE funding_history            ALTER COLUMN user_id TYPE TEXT;
@@ -52,6 +63,7 @@ ALTER TABLE publisher_history          ALTER COLUMN user_id TYPE TEXT;
 ALTER TABLE reference_history          ALTER COLUMN user_id TYPE TEXT;
 ALTER TABLE series_history             ALTER COLUMN user_id TYPE TEXT;
 ALTER TABLE subject_history            ALTER COLUMN user_id TYPE TEXT;
+ALTER TABLE title_history              ALTER COLUMN user_id TYPE TEXT;
 ALTER TABLE work_history               ALTER COLUMN user_id TYPE TEXT;
 ALTER TABLE work_relation_history      ALTER COLUMN user_id TYPE TEXT;
 
