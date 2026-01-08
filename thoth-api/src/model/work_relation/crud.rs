@@ -3,7 +3,7 @@ use super::{
     WorkRelationField, WorkRelationHistory, WorkRelationOrderBy,
 };
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
+use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId, Reorder};
 use crate::schema::{work_relation, work_relation_history};
 use diesel::{
     dsl::max, sql_query, sql_types::Text, BoolExpressionMethods, Connection, ExpressionMethods,
@@ -231,6 +231,15 @@ impl Crud for WorkRelation {
         })
     }
 }
+
+publisher_ids_impls!(WorkRelation, NewWorkRelation, PatchWorkRelation, |s, db| {
+    let a = crate::model::work::Work::from_id(db, &s.relator_work_id)?.publisher_id(db)?;
+    let b = crate::model::work::Work::from_id(db, &s.related_work_id)?.publisher_id(db)?;
+    let mut v = vec![a, b];
+    v.sort();
+    v.dedup();
+    Ok(v)
+});
 
 impl HistoryEntry for WorkRelation {
     type NewHistoryEntity = NewWorkRelationHistory;

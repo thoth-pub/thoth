@@ -2,8 +2,9 @@ use super::{
     Institution, InstitutionField, InstitutionHistory, InstitutionOrderBy, NewInstitution,
     NewInstitutionHistory, PatchInstitution,
 };
+use crate::db::PgPool;
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, HistoryEntry, PublisherIds};
 use crate::schema::{institution, institution_history};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
@@ -122,6 +123,37 @@ impl Crud for Institution {
     crud_methods!(institution::table, institution::dsl::institution);
 }
 
+impl PublisherIds for Institution {
+    fn publisher_ids(&self, db: &PgPool) -> ThothResult<Vec<Uuid>> {
+        let mut connection = db.get()?;
+        let publishers_via_affiliation = crate::schema::publisher::table
+            .inner_join(
+                crate::schema::imprint::table.inner_join(
+                    crate::schema::work::table.inner_join(
+                        crate::schema::contribution::table
+                            .inner_join(crate::schema::affiliation::table),
+                    ),
+                ),
+            )
+            .select(crate::schema::publisher::publisher_id)
+            .filter(crate::schema::affiliation::institution_id.eq(self.institution_id))
+            .distinct()
+            .load::<Uuid>(&mut connection)
+            .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
+        let publishers_via_funding =
+            crate::schema::publisher::table
+                .inner_join(crate::schema::imprint::table.inner_join(
+                    crate::schema::work::table.inner_join(crate::schema::funding::table),
+                ))
+                .select(crate::schema::publisher::publisher_id)
+                .filter(crate::schema::funding::institution_id.eq(self.institution_id))
+                .distinct()
+                .load::<Uuid>(&mut connection)
+                .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
+        Ok([publishers_via_affiliation, publishers_via_funding].concat())
+    }
+}
+
 impl HistoryEntry for Institution {
     type NewHistoryEntity = NewInstitutionHistory;
 
@@ -138,41 +170,6 @@ impl DbInsert for NewInstitutionHistory {
     type MainEntity = InstitutionHistory;
 
     db_insert!(institution_history::table);
-}
-
-impl Institution {
-    pub fn linked_publisher_ids(&self, db: &crate::db::PgPool) -> ThothResult<Vec<Uuid>> {
-        institution_linked_publisher_ids(self.institution_id, db)
-    }
-}
-
-fn institution_linked_publisher_ids(
-    institution_id: Uuid,
-    db: &crate::db::PgPool,
-) -> ThothResult<Vec<Uuid>> {
-    let mut connection = db.get()?;
-    let publishers_via_affiliation = crate::schema::publisher::table
-        .inner_join(crate::schema::imprint::table.inner_join(
-            crate::schema::work::table.inner_join(
-                crate::schema::contribution::table.inner_join(crate::schema::affiliation::table),
-            ),
-        ))
-        .select(crate::schema::publisher::publisher_id)
-        .filter(crate::schema::affiliation::institution_id.eq(institution_id))
-        .distinct()
-        .load::<Uuid>(&mut connection)
-        .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
-    let publishers_via_funding = crate::schema::publisher::table
-        .inner_join(
-            crate::schema::imprint::table
-                .inner_join(crate::schema::work::table.inner_join(crate::schema::funding::table)),
-        )
-        .select(crate::schema::publisher::publisher_id)
-        .filter(crate::schema::funding::institution_id.eq(institution_id))
-        .distinct()
-        .load::<Uuid>(&mut connection)
-        .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
-    Ok([publishers_via_affiliation, publishers_via_funding].concat())
 }
 
 #[cfg(test)]

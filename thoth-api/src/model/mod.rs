@@ -382,6 +382,18 @@ where
     fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid>;
 }
 
+#[cfg(feature = "backend")]
+/// Retrieve the IDs of the publishers linked to an entity or input type (if applicable).
+///
+/// This is intended for entities that span more than one publisher scope, e.g. `WorkRelation`,
+/// where authorisation must be checked against all referenced publishers.
+pub trait PublisherIds
+where
+    Self: Sized,
+{
+    fn publisher_ids(&self, db: &crate::db::PgPool) -> ThothResult<Vec<Uuid>>;
+}
+
 /// Implements `PublisherId` for a main entity type, its `New*` type, and its `Patch*` type.
 ///
 /// Due to macro hygiene, the implementation body is written as a block that uses **explicit**
@@ -435,6 +447,72 @@ macro_rules! publisher_id_impls {
                 &self,
                 db: &$crate::db::PgPool,
             ) -> $crate::model::ThothResult<uuid::Uuid> {
+                let $s = self;
+                let $db = db;
+                $body
+            }
+        }
+    };
+}
+
+/// Implements `PublisherIds` for a main entity type, its `New*` type, and its `Patch*` type.
+///
+/// The implementation body is written as a block that uses **explicit** identifiers provided to the
+/// macro (e.g. `s` and `db`). The macro will bind those identifiers to the method's `self` and `db`
+/// parameters before expanding the body.
+///
+/// Example:
+/// ```ignore
+/// publisher_ids_impls!(
+///     WorkRelation,
+///     NewWorkRelation,
+///     PatchWorkRelation,
+///     |s, db| {
+///         let a = Work::from_id(db, &s.relator_work_id)?.publisher_id(db)?;
+///         let b = Work::from_id(db, &s.related_work_id)?.publisher_id(db)?;
+///         let mut v = vec![a, b];
+///         v.sort();
+///         v.dedup();
+///         Ok(v)
+///     }
+/// );
+/// ```
+#[cfg(feature = "backend")]
+#[macro_export]
+macro_rules! publisher_ids_impls {
+    (
+        $main_ty:ty,
+        $new_ty:ty,
+        $patch_ty:ty,
+        |$s:ident, $db:ident| $body:block $(,)?
+    ) => {
+        impl $crate::model::PublisherIds for $main_ty {
+            fn publisher_ids(
+                &self,
+                db: &$crate::db::PgPool,
+            ) -> $crate::model::ThothResult<Vec<uuid::Uuid>> {
+                let $s = self;
+                let $db = db;
+                $body
+            }
+        }
+
+        impl $crate::model::PublisherIds for $new_ty {
+            fn publisher_ids(
+                &self,
+                db: &$crate::db::PgPool,
+            ) -> $crate::model::ThothResult<Vec<uuid::Uuid>> {
+                let $s = self;
+                let $db = db;
+                $body
+            }
+        }
+
+        impl $crate::model::PublisherIds for $patch_ty {
+            fn publisher_ids(
+                &self,
+                db: &$crate::db::PgPool,
+            ) -> $crate::model::ThothResult<Vec<uuid::Uuid>> {
                 let $s = self;
                 let $db = db;
                 $body

@@ -2,8 +2,9 @@ use super::{
     Contributor, ContributorField, ContributorHistory, ContributorOrderBy, NewContributor,
     NewContributorHistory, PatchContributor,
 };
+use crate::db::PgPool;
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, HistoryEntry, PublisherIds};
 use crate::schema::{contributor, contributor_history};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
@@ -125,6 +126,21 @@ impl Crud for Contributor {
     crud_methods!(contributor::table, contributor::dsl::contributor);
 }
 
+impl PublisherIds for Contributor {
+    fn publisher_ids(&self, db: &PgPool) -> ThothResult<Vec<Uuid>> {
+        let mut connection = db.get()?;
+        crate::schema::publisher::table
+            .inner_join(crate::schema::imprint::table.inner_join(
+                crate::schema::work::table.inner_join(crate::schema::contribution::table),
+            ))
+            .select(crate::schema::publisher::publisher_id)
+            .filter(crate::schema::contribution::contributor_id.eq(self.contributor_id))
+            .distinct()
+            .load::<Uuid>(&mut connection)
+            .map_err(Into::into)
+    }
+}
+
 impl HistoryEntry for Contributor {
     type NewHistoryEntity = NewContributorHistory;
 
@@ -141,30 +157,6 @@ impl DbInsert for NewContributorHistory {
     type MainEntity = ContributorHistory;
 
     db_insert!(contributor_history::table);
-}
-
-impl Contributor {
-    pub fn linked_publisher_ids(&self, db: &crate::db::PgPool) -> ThothResult<Vec<Uuid>> {
-        contributor_linked_publisher_ids(self.contributor_id, db)
-    }
-}
-
-fn contributor_linked_publisher_ids(
-    contributor_id: Uuid,
-    db: &crate::db::PgPool,
-) -> ThothResult<Vec<Uuid>> {
-    let mut connection = db.get()?;
-    crate::schema::publisher::table
-        .inner_join(
-            crate::schema::imprint::table.inner_join(
-                crate::schema::work::table.inner_join(crate::schema::contribution::table),
-            ),
-        )
-        .select(crate::schema::publisher::publisher_id)
-        .filter(crate::schema::contribution::contributor_id.eq(contributor_id))
-        .distinct()
-        .load::<Uuid>(&mut connection)
-        .map_err(Into::into)
 }
 
 #[cfg(test)]

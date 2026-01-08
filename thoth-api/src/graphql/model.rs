@@ -41,7 +41,7 @@ use crate::model::{
         NewWorkRelation, PatchWorkRelation, RelationType, WorkRelation, WorkRelationOrderBy,
     },
     ConversionLimit, Convert, Crud, Doi, Isbn, LengthUnit, MarkupFormat, Orcid, PublisherId,
-    Reorder, Ror, Timestamp, WeightUnit,
+    PublisherIds, Reorder, Ror, Timestamp, WeightUnit,
 };
 use thoth_errors::{ThothError, ThothResult};
 
@@ -132,6 +132,25 @@ impl Context {
         let user = self.require_authentication()?;
         user.can_edit(publisher_id)?;
         Ok(user)
+    }
+
+    /// Authorise the current user against the publisher derived from the given value.
+    fn require_publisher_for<T: PublisherId>(&self, value: &T) -> ThothResult<&IntrospectedUser> {
+        let publisher_id = value.publisher_id(&self.db)?;
+        self.require_publisher(&publisher_id)
+    }
+
+    /// Authorise the current user against all publishers derived from the given value.
+    ///
+    /// This is intended for entities that span more than one publisher scope, e.g. `WorkRelation`.
+    fn require_publishers_for<T: PublisherIds>(&self, value: &T) -> ThothResult<&IntrospectedUser> {
+        let mut user: Option<&IntrospectedUser> = None;
+        for publisher_id in value.publisher_ids(&self.db)? {
+            user = Some(self.require_publisher(&publisher_id)?);
+        }
+        // If there are no publisher IDs, fall back to requiring authentication.
+        // This should be unusual, but prevents silently authorising unauthenticated users.
+        Ok(user.unwrap_or(self.require_authentication()?))
     }
 }
 
@@ -1886,7 +1905,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for work to be created")] data: NewWork,
     ) -> FieldResult<Work> {
-        context.require_publisher(&data.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&data)?;
         data.validate()?;
         Work::create(&context.db, &data).map_err(Into::into)
     }
@@ -1905,7 +1924,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for imprint to be created")] data: NewImprint,
     ) -> FieldResult<Imprint> {
-        context.require_publisher(&data.publisher_id)?;
+        context.require_publisher_for(&data)?;
         Imprint::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1923,7 +1942,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for contribution to be created")] data: NewContribution,
     ) -> FieldResult<Contribution> {
-        context.require_publisher(&data.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&data)?;
         Contribution::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1932,7 +1951,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for publication to be created")] data: NewPublication,
     ) -> FieldResult<Publication> {
-        context.require_publisher(&data.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&data)?;
         data.validate(&context.db)?;
         Publication::create(&context.db, &data).map_err(Into::into)
     }
@@ -1942,7 +1961,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for series to be created")] data: NewSeries,
     ) -> FieldResult<Series> {
-        context.require_publisher(&data.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&data)?;
         Series::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1951,7 +1970,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for issue to be created")] data: NewIssue,
     ) -> FieldResult<Issue> {
-        context.require_publisher(&data.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&data)?;
         data.imprints_match(&context.db)?;
         Issue::create(&context.db, &data).map_err(Into::into)
     }
@@ -1961,7 +1980,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for language to be created")] data: NewLanguage,
     ) -> FieldResult<Language> {
-        context.require_publisher(&data.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&data)?;
         Language::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1973,7 +1992,7 @@ impl MutationRoot {
         >,
         #[graphql(description = "Values for title to be created")] data: NewTitle,
     ) -> FieldResult<Title> {
-        context.require_publisher(&data.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&data)?;
 
         let has_canonical_title = Work::from_id(&context.db, &data.work_id)?
             .title(context)
@@ -2006,7 +2025,7 @@ impl MutationRoot {
         >,
         #[graphql(description = "Values for abstract to be created")] data: NewAbstract,
     ) -> FieldResult<Abstract> {
-        context.require_publisher(&data.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&data)?;
 
         let has_canonical_abstract = Abstract::all(
             &context.db,
@@ -2050,7 +2069,7 @@ impl MutationRoot {
         >,
         #[graphql(description = "Values for biography to be created")] data: NewBiography,
     ) -> FieldResult<Biography> {
-        context.require_publisher(&data.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&data)?;
 
         let has_canonical_biography = Biography::all(
             &context.db,
@@ -2094,7 +2113,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for funding to be created")] data: NewFunding,
     ) -> FieldResult<Funding> {
-        context.require_publisher(&data.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&data)?;
         Funding::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2103,7 +2122,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for location to be created")] data: NewLocation,
     ) -> FieldResult<Location> {
-        let user = context.require_publisher(&data.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&data)?;
 
         // Only superusers can create new locations where Location Platform is Thoth
         if !user.is_superuser() && data.location_platform == LocationPlatform::Thoth {
@@ -2124,7 +2143,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for price to be created")] data: NewPrice,
     ) -> FieldResult<Price> {
-        context.require_publisher(&data.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&data)?;
 
         if data.unit_price <= 0.0 {
             // Prices must be non-zero (and non-negative).
@@ -2139,7 +2158,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for subject to be created")] data: NewSubject,
     ) -> FieldResult<Subject> {
-        context.require_publisher(&data.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&data)?;
         check_subject(&data.subject_type, &data.subject_code)?;
         Subject::create(&context.db, &data).map_err(Into::into)
     }
@@ -2149,7 +2168,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for affiliation to be created")] data: NewAffiliation,
     ) -> FieldResult<Affiliation> {
-        context.require_publisher(&data.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&data)?;
         Affiliation::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2158,17 +2177,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for work relation to be created")] data: NewWorkRelation,
     ) -> FieldResult<WorkRelation> {
-        // Work relations may link works from different publishers.
-        // User must have permissions for all relevant publishers.
-        context.require_publisher(&publisher_id_from_work_id(
-            &context.db,
-            &data.relator_work_id,
-        )?)?;
-        context.require_publisher(&publisher_id_from_work_id(
-            &context.db,
-            &data.related_work_id,
-        )?)?;
-
+        context.require_publishers_for(&data)?;
         WorkRelation::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2177,7 +2186,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for reference to be created")] data: NewReference,
     ) -> FieldResult<Reference> {
-        context.require_publisher(&data.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&data)?;
         Reference::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2186,7 +2195,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for contact to be created")] data: NewContact,
     ) -> FieldResult<Contact> {
-        context.require_publisher(&data.publisher_id)?;
+        context.require_publisher_for(&data)?;
         Contact::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2197,10 +2206,10 @@ impl MutationRoot {
     ) -> FieldResult<Work> {
         context.require_authentication()?;
         let work = Work::from_id(&context.db, &data.work_id)?;
-        let user = context.require_publisher(&work.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&work)?;
 
         if data.imprint_id != work.imprint_id {
-            context.require_publisher(&data.publisher_id(&context.db)?)?;
+            context.require_publisher_for(&data)?;
             work.can_update_imprint(&context.db)?;
         }
 
@@ -2243,10 +2252,10 @@ impl MutationRoot {
     ) -> FieldResult<Publisher> {
         context.require_authentication()?;
         let publisher = Publisher::from_id(&context.db, &data.publisher_id)?;
-        let user = context.require_publisher(&publisher.publisher_id)?;
+        let user = context.require_publisher_for(&publisher)?;
 
         if data.publisher_id != publisher.publisher_id {
-            context.require_publisher(&data.publisher_id)?;
+            context.require_publisher_for(&data)?;
         }
         publisher
             .update(&context.db, &data, &user.user_id)
@@ -2260,10 +2269,10 @@ impl MutationRoot {
     ) -> FieldResult<Imprint> {
         context.require_authentication()?;
         let imprint = Imprint::from_id(&context.db, &data.imprint_id)?;
-        let user = context.require_publisher(&imprint.publisher_id())?;
+        let user = context.require_publisher_for(&imprint)?;
 
         if data.publisher_id != imprint.publisher_id {
-            context.require_publisher(&data.publisher_id)?;
+            context.require_publisher_for(&data)?;
         }
         imprint
             .update(&context.db, &data, &user.user_id)
@@ -2289,10 +2298,10 @@ impl MutationRoot {
     ) -> FieldResult<Contribution> {
         context.require_authentication()?;
         let contribution = Contribution::from_id(&context.db, &data.contribution_id)?;
-        let user = context.require_publisher(&contribution.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&contribution)?;
 
         if data.work_id != contribution.work_id {
-            context.require_publisher(&data.publisher_id(&context.db)?)?;
+            context.require_publisher_for(&data)?;
         }
         contribution
             .update(&context.db, &data, &user.user_id)
@@ -2306,10 +2315,10 @@ impl MutationRoot {
     ) -> FieldResult<Publication> {
         context.require_authentication()?;
         let publication = Publication::from_id(&context.db, &data.publication_id)?;
-        let user = context.require_publisher(&data.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&data)?;
 
         if data.work_id != publication.work_id {
-            context.require_publisher(&data.publisher_id(&context.db)?)?;
+            context.require_publisher_for(&data)?;
         }
 
         data.validate(&context.db)?;
@@ -2326,10 +2335,10 @@ impl MutationRoot {
     ) -> FieldResult<Series> {
         context.require_authentication()?;
         let series = Series::from_id(&context.db, &data.series_id)?;
-        let user = context.require_publisher(&series.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&series)?;
 
         if data.imprint_id != series.imprint_id {
-            context.require_publisher(&data.publisher_id(&context.db)?)?;
+            context.require_publisher_for(&data)?;
         }
         series
             .update(&context.db, &data, &user.user_id)
@@ -2343,12 +2352,12 @@ impl MutationRoot {
     ) -> FieldResult<Issue> {
         context.require_authentication()?;
         let issue = Issue::from_id(&context.db, &data.issue_id)?;
-        let user = context.require_publisher(&issue.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&issue)?;
 
         data.imprints_match(&context.db)?;
 
         if data.work_id != issue.work_id {
-            context.require_publisher(&data.publisher_id(&context.db)?)?;
+            context.require_publisher_for(&data)?;
         }
         issue
             .update(&context.db, &data, &user.user_id)
@@ -2362,10 +2371,10 @@ impl MutationRoot {
     ) -> FieldResult<Language> {
         context.require_authentication()?;
         let language = Language::from_id(&context.db, &data.language_id)?;
-        let user = context.require_publisher(&language.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&language)?;
 
         if data.work_id != language.work_id {
-            context.require_publisher(&data.publisher_id(&context.db)?)?;
+            context.require_publisher_for(&data)?;
         }
 
         language
@@ -2391,10 +2400,10 @@ impl MutationRoot {
     ) -> FieldResult<Funding> {
         context.require_authentication()?;
         let funding = Funding::from_id(&context.db, &data.funding_id)?;
-        let user = context.require_publisher(&funding.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&funding)?;
 
         if data.work_id != funding.work_id {
-            context.require_publisher(&data.publisher_id(&context.db)?)?;
+            context.require_publisher_for(&data)?;
         }
 
         funding
@@ -2409,7 +2418,7 @@ impl MutationRoot {
     ) -> FieldResult<Location> {
         context.require_authentication()?;
         let current_location = Location::from_id(&context.db, &data.location_id)?;
-        let user = context.require_publisher(&current_location.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&current_location)?;
 
         let has_canonical_thoth_location = Publication::from_id(&context.db, &data.publication_id)?
             .locations(
@@ -2432,7 +2441,7 @@ impl MutationRoot {
         }
 
         if data.publication_id != current_location.publication_id {
-            context.require_publisher(&data.publisher_id(&context.db)?)?;
+            context.require_publisher_for(&data)?;
         }
 
         if data.canonical {
@@ -2451,10 +2460,10 @@ impl MutationRoot {
     ) -> FieldResult<Price> {
         context.require_authentication()?;
         let price = Price::from_id(&context.db, &data.price_id)?;
-        let user = context.require_publisher(&price.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&price)?;
 
         if data.publication_id != price.publication_id {
-            context.require_publisher(&data.publisher_id(&context.db)?)?;
+            context.require_publisher_for(&data)?;
         }
 
         if data.unit_price <= 0.0 {
@@ -2474,10 +2483,10 @@ impl MutationRoot {
     ) -> FieldResult<Subject> {
         context.require_authentication()?;
         let subject = Subject::from_id(&context.db, &data.subject_id)?;
-        let user = context.require_publisher(&subject.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&subject)?;
 
         if data.work_id != subject.work_id {
-            context.require_publisher(&data.publisher_id(&context.db)?)?;
+            context.require_publisher_for(&data)?;
         }
 
         check_subject(&data.subject_type, &data.subject_code)?;
@@ -2494,10 +2503,10 @@ impl MutationRoot {
     ) -> FieldResult<Affiliation> {
         context.require_authentication()?;
         let affiliation = Affiliation::from_id(&context.db, &data.affiliation_id)?;
-        let user = context.require_publisher(&affiliation.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&affiliation)?;
 
         if data.contribution_id != affiliation.contribution_id {
-            context.require_publisher(&data.publisher_id(&context.db)?)?;
+            context.require_publisher_for(&data)?;
         }
 
         affiliation
@@ -2513,29 +2522,8 @@ impl MutationRoot {
     ) -> FieldResult<WorkRelation> {
         let user = context.require_authentication()?;
         let work_relation = WorkRelation::from_id(&context.db, &data.work_relation_id)?;
-        // Work relations may link works from different publishers.
-        // User must have permissions for all relevant publishers.
-        context.require_publisher(&publisher_id_from_work_id(
-            &context.db,
-            &work_relation.relator_work_id,
-        )?)?;
-        context.require_publisher(&publisher_id_from_work_id(
-            &context.db,
-            &work_relation.related_work_id,
-        )?)?;
-
-        if data.relator_work_id != work_relation.relator_work_id {
-            context.require_publisher(&publisher_id_from_work_id(
-                &context.db,
-                &data.relator_work_id,
-            )?)?;
-        }
-        if data.related_work_id != work_relation.related_work_id {
-            context.require_publisher(&publisher_id_from_work_id(
-                &context.db,
-                &data.related_work_id,
-            )?)?;
-        }
+        context.require_publishers_for(&work_relation)?;
+        context.require_publishers_for(&data)?;
 
         work_relation
             .update(&context.db, &data, &user.user_id)
@@ -2549,10 +2537,10 @@ impl MutationRoot {
     ) -> FieldResult<Reference> {
         context.require_authentication()?;
         let reference = Reference::from_id(&context.db, &data.reference_id)?;
-        let user = context.require_publisher(&reference.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&reference)?;
 
         if data.work_id != reference.work_id {
-            context.require_publisher(&data.publisher_id(&context.db)?)?;
+            context.require_publisher_for(&data)?;
         }
 
         reference
@@ -2567,10 +2555,10 @@ impl MutationRoot {
     ) -> FieldResult<Contact> {
         context.require_authentication()?;
         let contact = Contact::from_id(&context.db, &data.contact_id)?;
-        let user = context.require_publisher(&contact.publisher_id)?;
+        let user = context.require_publisher_for(&contact)?;
 
         if data.publisher_id != contact.publisher_id {
-            context.require_publisher(&data.publisher_id)?;
+            context.require_publisher_for(&data)?;
         }
 
         contact
@@ -2588,10 +2576,10 @@ impl MutationRoot {
     ) -> FieldResult<Title> {
         context.require_authentication()?;
         let title = Title::from_id(&context.db, &data.title_id)?;
-        let user = context.require_publisher(&title.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&title)?;
 
         if data.work_id != title.work_id {
-            context.require_publisher(&data.publisher_id(&context.db)?)?;
+            context.require_publisher_for(&data)?;
         }
 
         let mut data = data.clone();
@@ -2620,10 +2608,10 @@ impl MutationRoot {
     ) -> FieldResult<Abstract> {
         context.require_authentication()?;
         let r#abstract = Abstract::from_id(&context.db, &data.abstract_id)?;
-        let user = context.require_publisher(&r#abstract.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&r#abstract)?;
 
         if data.work_id != r#abstract.work_id {
-            context.require_publisher(&data.publisher_id(&context.db)?)?;
+            context.require_publisher_for(&data)?;
         }
 
         let mut data = data.clone();
@@ -2651,11 +2639,11 @@ impl MutationRoot {
     ) -> FieldResult<Biography> {
         context.require_authentication()?;
         let biography = Biography::from_id(&context.db, &data.biography_id)?;
-        let user = context.require_publisher(&biography.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&biography)?;
 
         // If contribution changes, ensure permission on the new work via contribution
         if data.contribution_id != biography.contribution_id {
-            context.require_publisher(&data.publisher_id(&context.db)?)?;
+            context.require_publisher_for(&data)?;
         }
 
         let mut data = data.clone();
@@ -2674,7 +2662,7 @@ impl MutationRoot {
     ) -> FieldResult<Work> {
         context.require_authentication()?;
         let work = Work::from_id(&context.db, &work_id)?;
-        let user = context.require_publisher(&work.publisher_id(&context.db)?)?;
+        let user = context.require_publisher_for(&work)?;
 
         if work.is_published() && !user.is_superuser() {
             return Err(ThothError::ThothDeleteWorkError.into());
@@ -2690,7 +2678,7 @@ impl MutationRoot {
     ) -> FieldResult<Publisher> {
         context.require_authentication()?;
         let publisher = Publisher::from_id(&context.db, &publisher_id)?;
-        context.require_publisher(&publisher_id)?;
+        context.require_publisher_for(&publisher)?;
 
         publisher.delete(&context.db).map_err(Into::into)
     }
@@ -2702,7 +2690,7 @@ impl MutationRoot {
     ) -> FieldResult<Imprint> {
         context.require_authentication()?;
         let imprint = Imprint::from_id(&context.db, &imprint_id)?;
-        context.require_publisher(&imprint.publisher_id())?;
+        context.require_publisher_for(&imprint)?;
 
         imprint.delete(&context.db).map_err(Into::into)
     }
@@ -2714,9 +2702,7 @@ impl MutationRoot {
     ) -> FieldResult<Contributor> {
         context.require_authentication()?;
         let contributor = Contributor::from_id(&context.db, &contributor_id)?;
-        for linked_publisher_id in contributor.linked_publisher_ids(&context.db)? {
-            context.require_publisher(&linked_publisher_id)?;
-        }
+        context.require_publishers_for(&contributor)?;
 
         contributor.delete(&context.db).map_err(Into::into)
     }
@@ -2728,7 +2714,7 @@ impl MutationRoot {
     ) -> FieldResult<Contribution> {
         context.require_authentication()?;
         let contribution = Contribution::from_id(&context.db, &contribution_id)?;
-        context.require_publisher(&contribution.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&contribution)?;
 
         contribution.delete(&context.db).map_err(Into::into)
     }
@@ -2740,7 +2726,7 @@ impl MutationRoot {
     ) -> FieldResult<Publication> {
         context.require_authentication()?;
         let publication = Publication::from_id(&context.db, &publication_id)?;
-        context.require_publisher(&publication.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&publication)?;
 
         publication.delete(&context.db).map_err(Into::into)
     }
@@ -2752,7 +2738,7 @@ impl MutationRoot {
     ) -> FieldResult<Series> {
         context.require_authentication()?;
         let series = Series::from_id(&context.db, &series_id)?;
-        context.require_publisher(&series.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&series)?;
 
         series.delete(&context.db).map_err(Into::into)
     }
@@ -2764,7 +2750,7 @@ impl MutationRoot {
     ) -> FieldResult<Issue> {
         context.require_authentication()?;
         let issue = Issue::from_id(&context.db, &issue_id)?;
-        context.require_publisher(&issue.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&issue)?;
 
         issue.delete(&context.db).map_err(Into::into)
     }
@@ -2776,7 +2762,7 @@ impl MutationRoot {
     ) -> FieldResult<Language> {
         context.require_authentication()?;
         let language = Language::from_id(&context.db, &language_id)?;
-        context.require_publisher(&language.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&language)?;
 
         language.delete(&context.db).map_err(Into::into)
     }
@@ -2788,7 +2774,7 @@ impl MutationRoot {
     ) -> FieldResult<Title> {
         context.require_authentication()?;
         let title = Title::from_id(&context.db, &title_id)?;
-        context.require_publisher(&title.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&title)?;
 
         title.delete(&context.db).map_err(Into::into)
     }
@@ -2800,9 +2786,7 @@ impl MutationRoot {
     ) -> FieldResult<Institution> {
         context.require_authentication()?;
         let institution = Institution::from_id(&context.db, &institution_id)?;
-        for linked_publisher_id in institution.linked_publisher_ids(&context.db)? {
-            context.require_publisher(&linked_publisher_id)?;
-        }
+        context.require_publishers_for(&institution)?;
 
         institution.delete(&context.db).map_err(Into::into)
     }
@@ -2814,7 +2798,7 @@ impl MutationRoot {
     ) -> FieldResult<Funding> {
         context.require_authentication()?;
         let funding = Funding::from_id(&context.db, &funding_id)?;
-        context.require_publisher(&funding.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&funding)?;
 
         funding.delete(&context.db).map_err(Into::into)
     }
@@ -2830,7 +2814,7 @@ impl MutationRoot {
         if !user.is_superuser() && location.location_platform == LocationPlatform::Thoth {
             return Err(ThothError::ThothLocationError.into());
         }
-        context.require_publisher(&location.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&location)?;
 
         location.delete(&context.db).map_err(Into::into)
     }
@@ -2842,7 +2826,7 @@ impl MutationRoot {
     ) -> FieldResult<Price> {
         context.require_authentication()?;
         let price = Price::from_id(&context.db, &price_id)?;
-        context.require_publisher(&price.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&price)?;
 
         price.delete(&context.db).map_err(Into::into)
     }
@@ -2854,7 +2838,7 @@ impl MutationRoot {
     ) -> FieldResult<Subject> {
         context.require_authentication()?;
         let subject = Subject::from_id(&context.db, &subject_id)?;
-        context.require_publisher(&subject.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&subject)?;
 
         subject.delete(&context.db).map_err(Into::into)
     }
@@ -2866,7 +2850,7 @@ impl MutationRoot {
     ) -> FieldResult<Affiliation> {
         context.require_authentication()?;
         let affiliation = Affiliation::from_id(&context.db, &affiliation_id)?;
-        context.require_publisher(&affiliation.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&affiliation)?;
 
         affiliation.delete(&context.db).map_err(Into::into)
     }
@@ -2878,16 +2862,7 @@ impl MutationRoot {
     ) -> FieldResult<WorkRelation> {
         context.require_authentication()?;
         let work_relation = WorkRelation::from_id(&context.db, &work_relation_id)?;
-        // Work relations may link works from different publishers.
-        // User must have permissions for all relevant publishers.
-        context.require_publisher(&publisher_id_from_work_id(
-            &context.db,
-            &work_relation.relator_work_id,
-        )?)?;
-        context.require_publisher(&publisher_id_from_work_id(
-            &context.db,
-            &work_relation.related_work_id,
-        )?)?;
+        context.require_publishers_for(&work_relation)?;
 
         work_relation.delete(&context.db).map_err(Into::into)
     }
@@ -2899,7 +2874,7 @@ impl MutationRoot {
     ) -> FieldResult<Reference> {
         context.require_authentication()?;
         let reference = Reference::from_id(&context.db, &reference_id)?;
-        context.require_publisher(&reference.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&reference)?;
 
         reference.delete(&context.db).map_err(Into::into)
     }
@@ -2911,7 +2886,7 @@ impl MutationRoot {
     ) -> FieldResult<Abstract> {
         context.require_authentication()?;
         let r#abstract = Abstract::from_id(&context.db, &abstract_id)?;
-        context.require_publisher(&r#abstract.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&r#abstract)?;
 
         r#abstract.delete(&context.db).map_err(Into::into)
     }
@@ -2923,7 +2898,7 @@ impl MutationRoot {
     ) -> FieldResult<Biography> {
         context.require_authentication()?;
         let biography = Biography::from_id(&context.db, &biography_id)?;
-        context.require_publisher(&biography.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&biography)?;
 
         biography.delete(&context.db).map_err(Into::into)
     }
@@ -2945,7 +2920,7 @@ impl MutationRoot {
             return Ok(affiliation);
         }
 
-        context.require_publisher(&affiliation.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&affiliation)?;
 
         affiliation
             .change_ordinal(
@@ -2974,7 +2949,7 @@ impl MutationRoot {
             return Ok(contribution);
         }
 
-        context.require_publisher(&contribution.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&contribution)?;
 
         contribution
             .change_ordinal(
@@ -3001,7 +2976,7 @@ impl MutationRoot {
             return Ok(issue);
         }
 
-        context.require_publisher(&issue.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&issue)?;
 
         issue
             .change_ordinal(&context.db, issue.issue_ordinal, new_ordinal, &user.user_id)
@@ -3025,7 +3000,7 @@ impl MutationRoot {
             return Ok(reference);
         }
 
-        context.require_publisher(&reference.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&reference)?;
 
         reference
             .change_ordinal(
@@ -3052,7 +3027,7 @@ impl MutationRoot {
             return Ok(subject);
         }
 
-        context.require_publisher(&subject.publisher_id(&context.db)?)?;
+        context.require_publisher_for(&subject)?;
 
         subject
             .change_ordinal(
@@ -3080,16 +3055,7 @@ impl MutationRoot {
             return Ok(work_relation);
         }
 
-        // Work relations may link works from different publishers.
-        // User must have permissions for all relevant publishers.
-        context.require_publisher(&publisher_id_from_work_id(
-            &context.db,
-            &work_relation.relator_work_id,
-        )?)?;
-        context.require_publisher(&publisher_id_from_work_id(
-            &context.db,
-            &work_relation.related_work_id,
-        )?)?;
+        context.require_publishers_for(&work_relation)?;
 
         work_relation
             .change_ordinal(
@@ -3108,7 +3074,7 @@ impl MutationRoot {
     ) -> FieldResult<Contact> {
         context.require_authentication()?;
         let contact = Contact::from_id(&context.db, &contact_id)?;
-        context.require_publisher(&contact.publisher_id)?;
+        context.require_publisher_for(&contact)?;
 
         contact.delete(&context.db).map_err(Into::into)
     }
@@ -5331,8 +5297,4 @@ pub type Schema = RootNode<'static, QueryRoot, MutationRoot, EmptySubscription<C
 
 pub fn create_schema() -> Schema {
     Schema::new(QueryRoot {}, MutationRoot {}, EmptySubscription::new())
-}
-
-fn publisher_id_from_work_id(db: &PgPool, work_id: &Uuid) -> ThothResult<Uuid> {
-    Work::from_id(db, work_id)?.publisher_id(db)
 }
