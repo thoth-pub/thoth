@@ -49,7 +49,7 @@ use crate::model::{
     reference::{NewReference, PatchReference, Reference, ReferenceOrderBy, ReferencePolicy},
     series::{NewSeries, PatchSeries, Series, SeriesOrderBy, SeriesPolicy, SeriesType},
     subject::{NewSubject, PatchSubject, Subject, SubjectPolicy, SubjectType},
-    title::{NewTitle, PatchTitle, Title, TitleOrderBy, TitlePolicy},
+    title::{convert_title_to_jats, NewTitle, PatchTitle, Title, TitleOrderBy, TitlePolicy},
     work::{NewWork, PatchWork, Work, WorkOrderBy, WorkPolicy, WorkStatus, WorkType},
     work_relation::{
         NewWorkRelation, PatchWorkRelation, RelationType, WorkRelation, WorkRelationOrderBy,
@@ -1811,21 +1811,12 @@ impl MutationRoot {
         #[graphql(description = "The markup format of the title")] markup_format: Option<
             MarkupFormat,
         >,
-        #[graphql(description = "Values for title to be created")] data: NewTitle,
+        #[graphql(description = "Values for title to be created")] mut data: NewTitle,
     ) -> FieldResult<Title> {
         TitlePolicy::can_create(context, &data, markup_format)?;
 
-        let mut data = data;
-        // Safe to unwrap after policy check.
         let markup = markup_format.expect("Validated by policy");
-        data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
-        data.subtitle = data
-            .subtitle
-            .map(|subtitle_content| {
-                convert_to_jats(subtitle_content, markup, ConversionLimit::Title)
-            })
-            .transpose()?;
-        data.full_title = convert_to_jats(data.full_title, markup, ConversionLimit::Title)?;
+        convert_title_to_jats(&mut data, markup)?;
 
         Title::create(&context.db, &data).map_err(Into::into)
     }
@@ -1836,11 +1827,10 @@ impl MutationRoot {
         #[graphql(description = "The markup format of the abstract")] markup_format: Option<
             MarkupFormat,
         >,
-        #[graphql(description = "Values for abstract to be created")] data: NewAbstract,
+        #[graphql(description = "Values for abstract to be created")] mut data: NewAbstract,
     ) -> FieldResult<Abstract> {
         AbstractPolicy::can_create(context, &data, markup_format)?;
 
-        let mut data = data;
         // Safe to unwrap after policy check.
         let markup = markup_format.expect("Validated by policy");
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Abstract)?;
@@ -1854,13 +1844,12 @@ impl MutationRoot {
         #[graphql(description = "The markup format of the biography")] markup_format: Option<
             MarkupFormat,
         >,
-        #[graphql(description = "Values for biography to be created")] data: NewBiography,
+        #[graphql(description = "Values for biography to be created")] mut data: NewBiography,
     ) -> FieldResult<Biography> {
         BiographyPolicy::can_create(context, &data, markup_format)?;
 
         // Safe to unwrap after policy check.
         let markup = markup_format.expect("Validated by policy");
-        let mut data = data;
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Biography)?;
 
         Biography::create(&context.db, &data).map_err(Into::into)
@@ -2167,21 +2156,13 @@ impl MutationRoot {
         #[graphql(description = "The markup format of the title")] markup_format: Option<
             MarkupFormat,
         >,
-        #[graphql(description = "Values to apply to existing title")] data: PatchTitle,
+        #[graphql(description = "Values to apply to existing title")] mut data: PatchTitle,
     ) -> FieldResult<Title> {
         let title = context.load_current(&data.title_id)?;
         TitlePolicy::can_update(context, &title, &data, markup_format)?;
 
-        let mut data = data;
         let markup = markup_format.expect("Validated by policy");
-        data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
-        data.subtitle = data
-            .subtitle
-            .map(|subtitle_content| {
-                convert_to_jats(subtitle_content, markup, ConversionLimit::Title)
-            })
-            .transpose()?;
-        data.full_title = convert_to_jats(data.full_title, markup, ConversionLimit::Title)?;
+        convert_title_to_jats(&mut data, markup)?;
 
         title.update(context, &data).map_err(Into::into)
     }
@@ -2192,13 +2173,11 @@ impl MutationRoot {
         #[graphql(description = "The markup format of the abstract")] markup_format: Option<
             MarkupFormat,
         >,
-        #[graphql(description = "Values to apply to existing abstract")] data: PatchAbstract,
+        #[graphql(description = "Values to apply to existing abstract")] mut data: PatchAbstract,
     ) -> FieldResult<Abstract> {
         let r#abstract = context.load_current(&data.abstract_id)?;
         AbstractPolicy::can_update(context, &r#abstract, &data, markup_format)?;
 
-        let mut data = data;
-        // Safe to unwrap after policy check.
         let markup = markup_format.expect("Validated by policy");
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Abstract)?;
 
@@ -2211,14 +2190,12 @@ impl MutationRoot {
         #[graphql(description = "The markup format of the biography")] markup_format: Option<
             MarkupFormat,
         >,
-        #[graphql(description = "Values to apply to existing biography")] data: PatchBiography,
+        #[graphql(description = "Values to apply to existing biography")] mut data: PatchBiography,
     ) -> FieldResult<Biography> {
         let biography = context.load_current(&data.biography_id)?;
         BiographyPolicy::can_update(context, &biography, &data, markup_format)?;
 
-        // Safe to unwrap after policy check.
         let markup = markup_format.expect("Validated by policy");
-        let mut data = data;
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Biography)?;
 
         biography.update(context, &data).map_err(Into::into)
