@@ -1919,9 +1919,9 @@ impl MutationRoot {
     ) -> FieldResult<Title> {
         TitlePolicy::can_create(context, &data, markup_format)?;
 
-        let mut data = data.clone();
+        let mut data = data;
         // Safe to unwrap after policy check.
-        let markup = markup_format.unwrap();
+        let markup = markup_format.expect("Validated by policy");
         data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
         data.subtitle = data
             .subtitle
@@ -1944,9 +1944,9 @@ impl MutationRoot {
     ) -> FieldResult<Abstract> {
         AbstractPolicy::can_create(context, &data, markup_format)?;
 
-        let mut data = data.clone();
+        let mut data = data;
         // Safe to unwrap after policy check.
-        let markup = markup_format.unwrap();
+        let markup = markup_format.expect("Validated by policy");
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Abstract)?;
 
         Abstract::create(&context.db, &data).map_err(Into::into)
@@ -1963,8 +1963,8 @@ impl MutationRoot {
         BiographyPolicy::can_create(context, &data, markup_format)?;
 
         // Safe to unwrap after policy check.
-        let markup = markup_format.unwrap();
-        let mut data = data.clone();
+        let markup = markup_format.expect("Validated by policy");
+        let mut data = data;
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Biography)?;
 
         Biography::create(&context.db, &data).map_err(Into::into)
@@ -2334,9 +2334,8 @@ impl MutationRoot {
         let title = Title::from_id(&context.db, &data.title_id)?;
         TitlePolicy::can_update(context, &title, &data, markup_format)?;
 
-        let mut data = data.clone();
-        // Safe to unwrap after policy check.
-        let markup = markup_format.unwrap();
+        let mut data = data;
+        let markup = markup_format.expect("Validated by policy");
         data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
         data.subtitle = data
             .subtitle
@@ -2363,9 +2362,9 @@ impl MutationRoot {
         let r#abstract = Abstract::from_id(&context.db, &data.abstract_id)?;
         AbstractPolicy::can_update(context, &r#abstract, &data, markup_format)?;
 
-        let mut data = data.clone();
+        let mut data = data;
         // Safe to unwrap after policy check.
-        let markup = markup_format.unwrap();
+        let markup = markup_format.expect("Validated by policy");
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Abstract)?;
 
         r#abstract
@@ -2386,8 +2385,8 @@ impl MutationRoot {
         BiographyPolicy::can_update(context, &biography, &data, markup_format)?;
 
         // Safe to unwrap after policy check.
-        let markup = markup_format.unwrap();
-        let mut data = data.clone();
+        let markup = markup_format.expect("Validated by policy");
+        let mut data = data;
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Biography)?;
 
         biography
@@ -2486,7 +2485,7 @@ impl MutationRoot {
     ) -> FieldResult<Issue> {
         context.require_authentication()?;
         let issue = Issue::from_id(&context.db, &issue_id)?;
-        context.require_publisher_for(&issue)?;
+        IssuePolicy::can_delete(context, &issue)?;
 
         issue.delete(&context.db).map_err(Into::into)
     }
