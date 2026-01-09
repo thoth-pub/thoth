@@ -76,3 +76,7 @@ pub struct NewIssueHistory {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::IssuePolicy;

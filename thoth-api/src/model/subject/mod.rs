@@ -8,8 +8,6 @@ use crate::model::Timestamp;
 use crate::schema::subject;
 #[cfg(feature = "backend")]
 use crate::schema::subject_history;
-use thoth_errors::ThothError;
-use thoth_errors::ThothResult;
 
 #[cfg_attr(
     feature = "backend",
@@ -120,18 +118,6 @@ pub struct NewSubjectHistory {
     pub data: serde_json::Value,
 }
 
-pub fn check_subject(subject_type: &SubjectType, code: &str) -> ThothResult<()> {
-    if matches!(subject_type, SubjectType::Thema)
-        && thema::THEMA_CODES.binary_search(&code).is_err()
-    {
-        return Err(ThothError::InvalidSubjectCode {
-            input: code.to_string(),
-            subject_type: subject_type.to_string(),
-        });
-    }
-    Ok(())
-}
-
 impl Default for Subject {
     fn default() -> Subject {
         Subject {
@@ -182,23 +168,10 @@ fn test_subjecttype_fromstr() {
     assert!(SubjectType::from_str("Library of Congress Subject Code").is_err());
 }
 
-#[test]
-fn test_check_subject() {
-    // Valid codes for specific schemas
-    assert!(check_subject(&SubjectType::Bic, "HRQX9").is_ok());
-    assert!(check_subject(&SubjectType::Bisac, "BIB004060").is_ok());
-    assert!(check_subject(&SubjectType::Thema, "ATXZ1").is_ok());
-
-    // Custom fields: no validity restrictions
-    assert!(check_subject(&SubjectType::Custom, "A custom subject").is_ok());
-    assert!(check_subject(&SubjectType::Keyword, "keyword").is_ok());
-
-    // Invalid codes for specific schemas: only validate Thema
-    assert!(check_subject(&SubjectType::Bic, "ABCD0").is_ok());
-    assert!(check_subject(&SubjectType::Bisac, "BLA123456").is_ok());
-    assert!(check_subject(&SubjectType::Thema, "AHBW").is_err());
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
 mod thema;
+#[cfg(feature = "backend")]
+pub(crate) use policy::SubjectPolicy;

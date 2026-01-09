@@ -4,7 +4,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{issue, issue_history};
 use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
-use thoth_errors::{ThothError, ThothResult};
+use thoth_errors::ThothResult;
 use uuid::Uuid;
 
 impl Crud for Issue {
@@ -151,39 +151,6 @@ impl Reorder for Issue {
             )
             .load::<(Uuid, i32)>(connection)
             .map_err(Into::into)
-    }
-}
-
-impl NewIssue {
-    pub fn imprints_match(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        issue_imprints_match(self.work_id, self.series_id, db)
-    }
-}
-
-impl PatchIssue {
-    pub fn imprints_match(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        issue_imprints_match(self.work_id, self.series_id, db)
-    }
-}
-
-fn issue_imprints_match(work_id: Uuid, series_id: Uuid, db: &crate::db::PgPool) -> ThothResult<()> {
-    use diesel::prelude::*;
-
-    let mut connection = db.get()?;
-    let series_imprint = crate::schema::series::table
-        .select(crate::schema::series::imprint_id)
-        .filter(crate::schema::series::series_id.eq(series_id))
-        .first::<Uuid>(&mut connection)
-        .expect("Error loading series for issue");
-    let work_imprint = crate::schema::work::table
-        .select(crate::schema::work::imprint_id)
-        .filter(crate::schema::work::work_id.eq(work_id))
-        .first::<Uuid>(&mut connection)
-        .expect("Error loading work for issue");
-    if work_imprint == series_imprint {
-        Ok(())
-    } else {
-        Err(ThothError::IssueImprintsError)
     }
 }
 

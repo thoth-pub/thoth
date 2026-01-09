@@ -1,8 +1,8 @@
 use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
 
-use crate::model::{PublisherId, PublisherIds};
 use crate::db::PgPool;
+use crate::model::{PublisherId, PublisherIds};
 use thoth_errors::{ThothError, ThothResult};
 
 pub(crate) trait UserAccess {
@@ -98,4 +98,34 @@ pub(crate) trait PolicyContext {
         }
         Ok(user)
     }
+}
+
+/// A policy for create actions.
+///
+/// Some create operations require additional parameters beyond the `New*` input (e.g. markup
+/// format). Use the `Params` type parameter for those cases.
+pub(crate) trait CreatePolicy<New, Params = ()> {
+    fn can_create<C: PolicyContext>(ctx: &C, data: &New, params: Params) -> ThothResult<()>;
+}
+
+/// A policy for update actions.
+///
+/// Some update operations require additional parameters beyond the `Patch*` input.
+pub(crate) trait UpdatePolicy<Model, Patch, Params = ()> {
+    fn can_update<C: PolicyContext>(
+        ctx: &C,
+        current: &Model,
+        patch: &Patch,
+        params: Params,
+    ) -> ThothResult<()>;
+}
+
+/// A policy for delete actions.
+pub(crate) trait DeletePolicy<Model> {
+    fn can_delete<C: PolicyContext>(ctx: &C, current: &Model) -> ThothResult<()>;
+}
+
+/// A policy for move / reorder actions.
+pub(crate) trait MovePolicy<Model> {
+    fn can_move<C: PolicyContext>(ctx: &C, current: &Model) -> ThothResult<()>;
 }

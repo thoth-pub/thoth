@@ -5,45 +5,59 @@ use juniper::{EmptySubscription, FieldError, FieldResult, RootNode};
 use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
 
-use super::utils::{Direction, Expression, MAX_SHORT_ABSTRACT_CHAR_LIMIT};
+use super::utils::{Direction, Expression};
 use crate::db::PgPool;
 use crate::model::{
-    affiliation::{Affiliation, AffiliationOrderBy, NewAffiliation, PatchAffiliation},
-    biography::{Biography, BiographyOrderBy, NewBiography, PatchBiography},
-    contact::{Contact, ContactOrderBy, ContactType, NewContact, PatchContact},
-    contribution::{
-        Contribution, ContributionField, ContributionType, NewContribution, PatchContribution,
+    affiliation::{
+        Affiliation, AffiliationOrderBy, AffiliationPolicy, NewAffiliation, PatchAffiliation,
     },
-    contributor::{Contributor, ContributorOrderBy, NewContributor, PatchContributor},
+    biography::{Biography, BiographyOrderBy, BiographyPolicy, NewBiography, PatchBiography},
+    contact::{Contact, ContactOrderBy, ContactPolicy, ContactType, NewContact, PatchContact},
+    contribution::{
+        Contribution, ContributionField, ContributionPolicy, ContributionType, NewContribution,
+        PatchContribution,
+    },
+    contributor::{
+        Contributor, ContributorOrderBy, ContributorPolicy, NewContributor, PatchContributor,
+    },
     convert_from_jats, convert_to_jats,
-    funding::{Funding, FundingField, NewFunding, PatchFunding},
-    imprint::{Imprint, ImprintField, ImprintOrderBy, NewImprint, PatchImprint},
-    institution::{CountryCode, Institution, InstitutionOrderBy, NewInstitution, PatchInstitution},
-    issue::{Issue, IssueField, NewIssue, PatchIssue},
+    funding::{Funding, FundingField, FundingPolicy, NewFunding, PatchFunding},
+    imprint::{Imprint, ImprintField, ImprintOrderBy, ImprintPolicy, NewImprint, PatchImprint},
+    institution::{
+        CountryCode, Institution, InstitutionOrderBy, InstitutionPolicy, NewInstitution,
+        PatchInstitution,
+    },
+    issue::{Issue, IssueField, IssuePolicy, NewIssue, PatchIssue},
     language::{
-        Language, LanguageCode, LanguageField, LanguageRelation, NewLanguage, PatchLanguage,
+        Language, LanguageCode, LanguageField, LanguagePolicy, LanguageRelation, NewLanguage,
+        PatchLanguage,
     },
     locale::LocaleCode,
-    location::{Location, LocationOrderBy, LocationPlatform, NewLocation, PatchLocation},
-    price::{CurrencyCode, NewPrice, PatchPrice, Price, PriceField},
+    location::{
+        Location, LocationOrderBy, LocationPlatform, LocationPolicy, NewLocation, PatchLocation,
+    },
+    price::{CurrencyCode, NewPrice, PatchPrice, Price, PriceField, PricePolicy},
     publication::{
         AccessibilityException, AccessibilityStandard, NewPublication, PatchPublication,
-        Publication, PublicationOrderBy, PublicationProperties, PublicationType,
+        Publication, PublicationOrderBy, PublicationPolicy, PublicationType,
     },
-    publisher::{NewPublisher, PatchPublisher, Publisher, PublisherOrderBy},
-    r#abstract::{Abstract, AbstractOrderBy, AbstractType, NewAbstract, PatchAbstract},
-    reference::{NewReference, PatchReference, Reference, ReferenceOrderBy},
-    series::{NewSeries, PatchSeries, Series, SeriesOrderBy, SeriesType},
-    subject::{check_subject, NewSubject, PatchSubject, Subject, SubjectField, SubjectType},
-    title::{NewTitle, PatchTitle, Title, TitleOrderBy},
-    work::{NewWork, PatchWork, Work, WorkOrderBy, WorkProperties, WorkStatus, WorkType},
+    publisher::{NewPublisher, PatchPublisher, Publisher, PublisherOrderBy, PublisherPolicy},
+    r#abstract::{
+        Abstract, AbstractOrderBy, AbstractPolicy, AbstractType, NewAbstract, PatchAbstract,
+    },
+    reference::{NewReference, PatchReference, Reference, ReferenceOrderBy, ReferencePolicy},
+    series::{NewSeries, PatchSeries, Series, SeriesOrderBy, SeriesPolicy, SeriesType},
+    subject::{NewSubject, PatchSubject, Subject, SubjectField, SubjectPolicy, SubjectType},
+    title::{NewTitle, PatchTitle, Title, TitleOrderBy, TitlePolicy},
+    work::{NewWork, PatchWork, Work, WorkOrderBy, WorkPolicy, WorkStatus, WorkType},
     work_relation::{
         NewWorkRelation, PatchWorkRelation, RelationType, WorkRelation, WorkRelationOrderBy,
+        WorkRelationPolicy,
     },
     ConversionLimit, Convert, Crud, Doi, Isbn, LengthUnit, MarkupFormat, Orcid, Reorder, Ror,
     Timestamp, WeightUnit,
 };
-use crate::policy::{PolicyContext, UserAccess};
+use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, PolicyContext, UpdatePolicy};
 use thoth_errors::ThothError;
 
 impl juniper::Context for Context {}
@@ -1819,8 +1833,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for work to be created")] data: NewWork,
     ) -> FieldResult<Work> {
-        context.require_publisher_for(&data)?;
-        data.validate()?;
+        WorkPolicy::can_create(context, &data, ())?;
         Work::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1829,7 +1842,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for publisher to be created")] data: NewPublisher,
     ) -> FieldResult<Publisher> {
-        context.require_superuser()?;
+        PublisherPolicy::can_create(context, &data, ())?;
         Publisher::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1838,7 +1851,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for imprint to be created")] data: NewImprint,
     ) -> FieldResult<Imprint> {
-        context.require_publisher_for(&data)?;
+        ImprintPolicy::can_create(context, &data, ())?;
         Imprint::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1847,7 +1860,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for contributor to be created")] data: NewContributor,
     ) -> FieldResult<Contributor> {
-        context.require_authentication()?;
+        ContributorPolicy::can_create(context, &data, ())?;
         Contributor::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1856,7 +1869,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for contribution to be created")] data: NewContribution,
     ) -> FieldResult<Contribution> {
-        context.require_publisher_for(&data)?;
+        ContributionPolicy::can_create(context, &data, ())?;
         Contribution::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1865,8 +1878,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for publication to be created")] data: NewPublication,
     ) -> FieldResult<Publication> {
-        context.require_publisher_for(&data)?;
-        data.validate(&context.db)?;
+        PublicationPolicy::can_create(context, &data, ())?;
         Publication::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1875,7 +1887,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for series to be created")] data: NewSeries,
     ) -> FieldResult<Series> {
-        context.require_publisher_for(&data)?;
+        SeriesPolicy::can_create(context, &data, ())?;
         Series::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1884,8 +1896,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for issue to be created")] data: NewIssue,
     ) -> FieldResult<Issue> {
-        context.require_publisher_for(&data)?;
-        data.imprints_match(&context.db)?;
+        IssuePolicy::can_create(context, &data, ())?;
         Issue::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1894,7 +1905,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for language to be created")] data: NewLanguage,
     ) -> FieldResult<Language> {
-        context.require_publisher_for(&data)?;
+        LanguagePolicy::can_create(context, &data, ())?;
         Language::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -1906,19 +1917,11 @@ impl MutationRoot {
         >,
         #[graphql(description = "Values for title to be created")] data: NewTitle,
     ) -> FieldResult<Title> {
-        context.require_publisher_for(&data)?;
-
-        let has_canonical_title = Work::from_id(&context.db, &data.work_id)?
-            .title(context)
-            .is_ok();
-
-        if has_canonical_title && data.canonical {
-            return Err(ThothError::CanonicalTitleExistsError.into());
-        }
+        TitlePolicy::can_create(context, &data, markup_format)?;
 
         let mut data = data.clone();
-
-        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        // Safe to unwrap after policy check.
+        let markup = markup_format.unwrap();
         data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
         data.subtitle = data
             .subtitle
@@ -1939,38 +1942,12 @@ impl MutationRoot {
         >,
         #[graphql(description = "Values for abstract to be created")] data: NewAbstract,
     ) -> FieldResult<Abstract> {
-        context.require_publisher_for(&data)?;
-
-        let has_canonical_abstract = Abstract::all(
-            &context.db,
-            1,
-            0,
-            None,
-            AbstractOrderBy::default(),
-            vec![],
-            Some(data.work_id),
-            None,
-            vec![],
-            vec![],
-            None,
-            None,
-        )?
-        .iter()
-        .any(|abstract_item| abstract_item.canonical);
-
-        if has_canonical_abstract && data.canonical {
-            return Err(ThothError::CanonicalAbstractExistsError.into());
-        }
+        AbstractPolicy::can_create(context, &data, markup_format)?;
 
         let mut data = data.clone();
-        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        // Safe to unwrap after policy check.
+        let markup = markup_format.unwrap();
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Abstract)?;
-
-        if data.abstract_type == AbstractType::Short
-            && data.content.len() > MAX_SHORT_ABSTRACT_CHAR_LIMIT as usize
-        {
-            return Err(ThothError::ShortAbstractLimitExceedError.into());
-        };
 
         Abstract::create(&context.db, &data).map_err(Into::into)
     }
@@ -1983,31 +1960,11 @@ impl MutationRoot {
         >,
         #[graphql(description = "Values for biography to be created")] data: NewBiography,
     ) -> FieldResult<Biography> {
-        context.require_publisher_for(&data)?;
+        BiographyPolicy::can_create(context, &data, markup_format)?;
 
-        let has_canonical_biography = Biography::all(
-            &context.db,
-            0,
-            0,
-            None,
-            BiographyOrderBy::default(),
-            vec![],
-            None,
-            Some(data.contribution_id),
-            vec![],
-            vec![],
-            None,
-            None,
-        )?
-        .iter()
-        .any(|biography_item| biography_item.canonical);
-
-        if has_canonical_biography && data.canonical {
-            return Err(ThothError::CanonicalBiographyExistsError.into());
-        }
-
+        // Safe to unwrap after policy check.
+        let markup = markup_format.unwrap();
         let mut data = data.clone();
-        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Biography)?;
 
         Biography::create(&context.db, &data).map_err(Into::into)
@@ -2018,7 +1975,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for institution to be created")] data: NewInstitution,
     ) -> FieldResult<Institution> {
-        context.require_authentication()?;
+        InstitutionPolicy::can_create(context, &data, ())?;
         Institution::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2027,7 +1984,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for funding to be created")] data: NewFunding,
     ) -> FieldResult<Funding> {
-        context.require_publisher_for(&data)?;
+        FundingPolicy::can_create(context, &data, ())?;
         Funding::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2036,19 +1993,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for location to be created")] data: NewLocation,
     ) -> FieldResult<Location> {
-        let user = context.require_publisher_for(&data)?;
-
-        // Only superusers can create new locations where Location Platform is Thoth
-        if !user.is_superuser() && data.location_platform == LocationPlatform::Thoth {
-            return Err(ThothError::ThothLocationError.into());
-        }
-
-        if data.canonical {
-            data.canonical_record_complete(&context.db)?;
-        } else {
-            data.can_be_non_canonical(&context.db)?;
-        }
-
+        LocationPolicy::can_create(context, &data, ())?;
         Location::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2057,13 +2002,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for price to be created")] data: NewPrice,
     ) -> FieldResult<Price> {
-        context.require_publisher_for(&data)?;
-
-        if data.unit_price <= 0.0 {
-            // Prices must be non-zero (and non-negative).
-            return Err(ThothError::PriceZeroError.into());
-        }
-
+        PricePolicy::can_create(context, &data, ())?;
         Price::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2072,8 +2011,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for subject to be created")] data: NewSubject,
     ) -> FieldResult<Subject> {
-        context.require_publisher_for(&data)?;
-        check_subject(&data.subject_type, &data.subject_code)?;
+        SubjectPolicy::can_create(context, &data, ())?;
         Subject::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2082,7 +2020,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for affiliation to be created")] data: NewAffiliation,
     ) -> FieldResult<Affiliation> {
-        context.require_publisher_for(&data)?;
+        AffiliationPolicy::can_create(context, &data, ())?;
         Affiliation::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2091,7 +2029,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for work relation to be created")] data: NewWorkRelation,
     ) -> FieldResult<WorkRelation> {
-        context.require_publishers_for(&data)?;
+        WorkRelationPolicy::can_create(context, &data, ())?;
         WorkRelation::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2100,7 +2038,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for reference to be created")] data: NewReference,
     ) -> FieldResult<Reference> {
-        context.require_publisher_for(&data)?;
+        ReferencePolicy::can_create(context, &data, ())?;
         Reference::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2109,7 +2047,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for contact to be created")] data: NewContact,
     ) -> FieldResult<Contact> {
-        context.require_publisher_for(&data)?;
+        ContactPolicy::can_create(context, &data, ())?;
         Contact::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -2118,24 +2056,9 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing work")] data: PatchWork,
     ) -> FieldResult<Work> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let work = Work::from_id(&context.db, &data.work_id)?;
-        let user = context.require_publisher_for(&work)?;
-
-        if data.imprint_id != work.imprint_id {
-            context.require_publisher_for(&data)?;
-            work.can_update_imprint(&context.db)?;
-        }
-
-        if data.work_type == WorkType::BookChapter {
-            work.can_be_chapter(&context.db)?;
-        }
-
-        data.validate()?;
-
-        if work.is_published() && !data.is_published() && !user.is_superuser() {
-            return Err(ThothError::ThothSetWorkStatusError.into());
-        }
+        WorkPolicy::can_update(context, &work, &data, ())?;
 
         // update the work and, if it succeeds, synchronise its children statuses and pub. date
         match work.update(&context.db, &data, &user.user_id) {
@@ -2164,13 +2087,10 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing publisher")] data: PatchPublisher,
     ) -> FieldResult<Publisher> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let publisher = Publisher::from_id(&context.db, &data.publisher_id)?;
-        let user = context.require_publisher_for(&publisher)?;
+        PublisherPolicy::can_update(context, &publisher, &data, ())?;
 
-        if data.publisher_id != publisher.publisher_id {
-            context.require_publisher_for(&data)?;
-        }
         publisher
             .update(&context.db, &data, &user.user_id)
             .map_err(Into::into)
@@ -2181,13 +2101,10 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing imprint")] data: PatchImprint,
     ) -> FieldResult<Imprint> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let imprint = Imprint::from_id(&context.db, &data.imprint_id)?;
-        let user = context.require_publisher_for(&imprint)?;
+        ImprintPolicy::can_update(context, &imprint, &data, ())?;
 
-        if data.publisher_id != imprint.publisher_id {
-            context.require_publisher_for(&data)?;
-        }
         imprint
             .update(&context.db, &data, &user.user_id)
             .map_err(Into::into)
@@ -2199,7 +2116,10 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing contributor")] data: PatchContributor,
     ) -> FieldResult<Contributor> {
         let user = context.require_authentication()?;
-        Contributor::from_id(&context.db, &data.contributor_id)?
+        let contributor = Contributor::from_id(&context.db, &data.contributor_id)?;
+        ContributorPolicy::can_update(context, &contributor, &data, ())?;
+
+        contributor
             .update(&context.db, &data, &user.user_id)
             .map_err(Into::into)
     }
@@ -2210,13 +2130,10 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing contribution")]
         data: PatchContribution,
     ) -> FieldResult<Contribution> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let contribution = Contribution::from_id(&context.db, &data.contribution_id)?;
-        let user = context.require_publisher_for(&contribution)?;
+        ContributionPolicy::can_update(context, &contribution, &data, ())?;
 
-        if data.work_id != contribution.work_id {
-            context.require_publisher_for(&data)?;
-        }
         contribution
             .update(&context.db, &data, &user.user_id)
             .map_err(Into::into)
@@ -2227,15 +2144,9 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing publication")] data: PatchPublication,
     ) -> FieldResult<Publication> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let publication = Publication::from_id(&context.db, &data.publication_id)?;
-        let user = context.require_publisher_for(&data)?;
-
-        if data.work_id != publication.work_id {
-            context.require_publisher_for(&data)?;
-        }
-
-        data.validate(&context.db)?;
+        PublicationPolicy::can_update(context, &publication, &data, ())?;
 
         publication
             .update(&context.db, &data, &user.user_id)
@@ -2247,13 +2158,10 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing series")] data: PatchSeries,
     ) -> FieldResult<Series> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let series = Series::from_id(&context.db, &data.series_id)?;
-        let user = context.require_publisher_for(&series)?;
+        SeriesPolicy::can_update(context, &series, &data, ())?;
 
-        if data.imprint_id != series.imprint_id {
-            context.require_publisher_for(&data)?;
-        }
         series
             .update(&context.db, &data, &user.user_id)
             .map_err(Into::into)
@@ -2264,15 +2172,10 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing issue")] data: PatchIssue,
     ) -> FieldResult<Issue> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let issue = Issue::from_id(&context.db, &data.issue_id)?;
-        let user = context.require_publisher_for(&issue)?;
+        IssuePolicy::can_update(context, &issue, &data, ())?;
 
-        data.imprints_match(&context.db)?;
-
-        if data.work_id != issue.work_id {
-            context.require_publisher_for(&data)?;
-        }
         issue
             .update(&context.db, &data, &user.user_id)
             .map_err(Into::into)
@@ -2283,13 +2186,9 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing language")] data: PatchLanguage,
     ) -> FieldResult<Language> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let language = Language::from_id(&context.db, &data.language_id)?;
-        let user = context.require_publisher_for(&language)?;
-
-        if data.work_id != language.work_id {
-            context.require_publisher_for(&data)?;
-        }
+        LanguagePolicy::can_update(context, &language, &data, ())?;
 
         language
             .update(&context.db, &data, &user.user_id)
@@ -2302,7 +2201,10 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing institution")] data: PatchInstitution,
     ) -> FieldResult<Institution> {
         let user = context.require_authentication()?;
-        Institution::from_id(&context.db, &data.institution_id)?
+        let institution = Institution::from_id(&context.db, &data.institution_id)?;
+        InstitutionPolicy::can_update(context, &institution, &data, ())?;
+
+        institution
             .update(&context.db, &data, &user.user_id)
             .map_err(Into::into)
     }
@@ -2312,13 +2214,9 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing funding")] data: PatchFunding,
     ) -> FieldResult<Funding> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let funding = Funding::from_id(&context.db, &data.funding_id)?;
-        let user = context.require_publisher_for(&funding)?;
-
-        if data.work_id != funding.work_id {
-            context.require_publisher_for(&data)?;
-        }
+        FundingPolicy::can_update(context, &funding, &data, ())?;
 
         funding
             .update(&context.db, &data, &user.user_id)
@@ -2330,37 +2228,9 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing location")] data: PatchLocation,
     ) -> FieldResult<Location> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let current_location = Location::from_id(&context.db, &data.location_id)?;
-        let user = context.require_publisher_for(&current_location)?;
-
-        let has_canonical_thoth_location = Publication::from_id(&context.db, &data.publication_id)?
-            .locations(
-                context,
-                Some(1),
-                None,
-                None,
-                Some(vec![LocationPlatform::Thoth]),
-            )?
-            .first()
-            .is_some_and(|location| location.canonical);
-        // Only superusers can update the canonical location when a Thoth Location Platform canonical location already exists
-        if has_canonical_thoth_location && data.canonical && !user.is_superuser() {
-            return Err(ThothError::ThothUpdateCanonicalError.into());
-        }
-
-        // Only superusers can edit locations where Location Platform is Thoth
-        if !user.is_superuser() && current_location.location_platform == LocationPlatform::Thoth {
-            return Err(ThothError::ThothLocationError.into());
-        }
-
-        if data.publication_id != current_location.publication_id {
-            context.require_publisher_for(&data)?;
-        }
-
-        if data.canonical {
-            data.canonical_record_complete(&context.db)?;
-        }
+        LocationPolicy::can_update(context, &current_location, &data, ())?;
 
         current_location
             .update(&context.db, &data, &user.user_id)
@@ -2372,18 +2242,9 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing price")] data: PatchPrice,
     ) -> FieldResult<Price> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let price = Price::from_id(&context.db, &data.price_id)?;
-        let user = context.require_publisher_for(&price)?;
-
-        if data.publication_id != price.publication_id {
-            context.require_publisher_for(&data)?;
-        }
-
-        if data.unit_price <= 0.0 {
-            // Prices must be non-zero (and non-negative).
-            return Err(ThothError::PriceZeroError.into());
-        }
+        PricePolicy::can_update(context, &price, &data, ())?;
 
         price
             .update(&context.db, &data, &user.user_id)
@@ -2395,15 +2256,9 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing subject")] data: PatchSubject,
     ) -> FieldResult<Subject> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let subject = Subject::from_id(&context.db, &data.subject_id)?;
-        let user = context.require_publisher_for(&subject)?;
-
-        if data.work_id != subject.work_id {
-            context.require_publisher_for(&data)?;
-        }
-
-        check_subject(&data.subject_type, &data.subject_code)?;
+        SubjectPolicy::can_update(context, &subject, &data, ())?;
 
         subject
             .update(&context.db, &data, &user.user_id)
@@ -2415,13 +2270,9 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing affiliation")] data: PatchAffiliation,
     ) -> FieldResult<Affiliation> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let affiliation = Affiliation::from_id(&context.db, &data.affiliation_id)?;
-        let user = context.require_publisher_for(&affiliation)?;
-
-        if data.contribution_id != affiliation.contribution_id {
-            context.require_publisher_for(&data)?;
-        }
+        AffiliationPolicy::can_update(context, &affiliation, &data, ())?;
 
         affiliation
             .update(&context.db, &data, &user.user_id)
@@ -2436,8 +2287,7 @@ impl MutationRoot {
     ) -> FieldResult<WorkRelation> {
         let user = context.require_authentication()?;
         let work_relation = WorkRelation::from_id(&context.db, &data.work_relation_id)?;
-        context.require_publishers_for(&work_relation)?;
-        context.require_publishers_for(&data)?;
+        WorkRelationPolicy::can_update(context, &work_relation, &data, ())?;
 
         work_relation
             .update(&context.db, &data, &user.user_id)
@@ -2449,13 +2299,9 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing reference")] data: PatchReference,
     ) -> FieldResult<Reference> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let reference = Reference::from_id(&context.db, &data.reference_id)?;
-        let user = context.require_publisher_for(&reference)?;
-
-        if data.work_id != reference.work_id {
-            context.require_publisher_for(&data)?;
-        }
+        ReferencePolicy::can_update(context, &reference, &data, ())?;
 
         reference
             .update(&context.db, &data, &user.user_id)
@@ -2467,13 +2313,9 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing contact")] data: PatchContact,
     ) -> FieldResult<Contact> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let contact = Contact::from_id(&context.db, &data.contact_id)?;
-        let user = context.require_publisher_for(&contact)?;
-
-        if data.publisher_id != contact.publisher_id {
-            context.require_publisher_for(&data)?;
-        }
+        ContactPolicy::can_update(context, &contact, &data, ())?;
 
         contact
             .update(&context.db, &data, &user.user_id)
@@ -2488,16 +2330,13 @@ impl MutationRoot {
         >,
         #[graphql(description = "Values to apply to existing title")] data: PatchTitle,
     ) -> FieldResult<Title> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let title = Title::from_id(&context.db, &data.title_id)?;
-        let user = context.require_publisher_for(&title)?;
-
-        if data.work_id != title.work_id {
-            context.require_publisher_for(&data)?;
-        }
+        TitlePolicy::can_update(context, &title, &data, markup_format)?;
 
         let mut data = data.clone();
-        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        // Safe to unwrap after policy check.
+        let markup = markup_format.unwrap();
         data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
         data.subtitle = data
             .subtitle
@@ -2520,23 +2359,14 @@ impl MutationRoot {
         >,
         #[graphql(description = "Values to apply to existing abstract")] data: PatchAbstract,
     ) -> FieldResult<Abstract> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let r#abstract = Abstract::from_id(&context.db, &data.abstract_id)?;
-        let user = context.require_publisher_for(&r#abstract)?;
-
-        if data.work_id != r#abstract.work_id {
-            context.require_publisher_for(&data)?;
-        }
+        AbstractPolicy::can_update(context, &r#abstract, &data, markup_format)?;
 
         let mut data = data.clone();
-        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        // Safe to unwrap after policy check.
+        let markup = markup_format.unwrap();
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Abstract)?;
-
-        if data.abstract_type == AbstractType::Short
-            && data.content.len() > MAX_SHORT_ABSTRACT_CHAR_LIMIT as usize
-        {
-            return Err(ThothError::ShortAbstractLimitExceedError.into());
-        }
 
         r#abstract
             .update(&context.db, &data, &user.user_id)
@@ -2551,17 +2381,13 @@ impl MutationRoot {
         >,
         #[graphql(description = "Values to apply to existing biography")] data: PatchBiography,
     ) -> FieldResult<Biography> {
-        context.require_authentication()?;
+        let user = context.require_authentication()?;
         let biography = Biography::from_id(&context.db, &data.biography_id)?;
-        let user = context.require_publisher_for(&biography)?;
+        BiographyPolicy::can_update(context, &biography, &data, markup_format)?;
 
-        // If contribution changes, ensure permission on the new work via contribution
-        if data.contribution_id != biography.contribution_id {
-            context.require_publisher_for(&data)?;
-        }
-
+        // Safe to unwrap after policy check.
+        let markup = markup_format.unwrap();
         let mut data = data.clone();
-        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Biography)?;
 
         biography
@@ -2576,11 +2402,7 @@ impl MutationRoot {
     ) -> FieldResult<Work> {
         context.require_authentication()?;
         let work = Work::from_id(&context.db, &work_id)?;
-        let user = context.require_publisher_for(&work)?;
-
-        if work.is_published() && !user.is_superuser() {
-            return Err(ThothError::ThothDeleteWorkError.into());
-        }
+        WorkPolicy::can_delete(context, &work)?;
 
         work.delete(&context.db).map_err(Into::into)
     }
@@ -2592,7 +2414,7 @@ impl MutationRoot {
     ) -> FieldResult<Publisher> {
         context.require_authentication()?;
         let publisher = Publisher::from_id(&context.db, &publisher_id)?;
-        context.require_publisher_for(&publisher)?;
+        PublisherPolicy::can_delete(context, &publisher)?;
 
         publisher.delete(&context.db).map_err(Into::into)
     }
@@ -2604,7 +2426,7 @@ impl MutationRoot {
     ) -> FieldResult<Imprint> {
         context.require_authentication()?;
         let imprint = Imprint::from_id(&context.db, &imprint_id)?;
-        context.require_publisher_for(&imprint)?;
+        ImprintPolicy::can_delete(context, &imprint)?;
 
         imprint.delete(&context.db).map_err(Into::into)
     }
@@ -2616,7 +2438,7 @@ impl MutationRoot {
     ) -> FieldResult<Contributor> {
         context.require_authentication()?;
         let contributor = Contributor::from_id(&context.db, &contributor_id)?;
-        context.require_publishers_for(&contributor)?;
+        ContributorPolicy::can_delete(context, &contributor)?;
 
         contributor.delete(&context.db).map_err(Into::into)
     }
@@ -2628,7 +2450,7 @@ impl MutationRoot {
     ) -> FieldResult<Contribution> {
         context.require_authentication()?;
         let contribution = Contribution::from_id(&context.db, &contribution_id)?;
-        context.require_publisher_for(&contribution)?;
+        ContributionPolicy::can_delete(context, &contribution)?;
 
         contribution.delete(&context.db).map_err(Into::into)
     }
@@ -2640,7 +2462,7 @@ impl MutationRoot {
     ) -> FieldResult<Publication> {
         context.require_authentication()?;
         let publication = Publication::from_id(&context.db, &publication_id)?;
-        context.require_publisher_for(&publication)?;
+        PublicationPolicy::can_delete(context, &publication)?;
 
         publication.delete(&context.db).map_err(Into::into)
     }
@@ -2652,7 +2474,7 @@ impl MutationRoot {
     ) -> FieldResult<Series> {
         context.require_authentication()?;
         let series = Series::from_id(&context.db, &series_id)?;
-        context.require_publisher_for(&series)?;
+        SeriesPolicy::can_delete(context, &series)?;
 
         series.delete(&context.db).map_err(Into::into)
     }
@@ -2676,7 +2498,7 @@ impl MutationRoot {
     ) -> FieldResult<Language> {
         context.require_authentication()?;
         let language = Language::from_id(&context.db, &language_id)?;
-        context.require_publisher_for(&language)?;
+        LanguagePolicy::can_delete(context, &language)?;
 
         language.delete(&context.db).map_err(Into::into)
     }
@@ -2688,7 +2510,7 @@ impl MutationRoot {
     ) -> FieldResult<Title> {
         context.require_authentication()?;
         let title = Title::from_id(&context.db, &title_id)?;
-        context.require_publisher_for(&title)?;
+        TitlePolicy::can_delete(context, &title)?;
 
         title.delete(&context.db).map_err(Into::into)
     }
@@ -2700,7 +2522,7 @@ impl MutationRoot {
     ) -> FieldResult<Institution> {
         context.require_authentication()?;
         let institution = Institution::from_id(&context.db, &institution_id)?;
-        context.require_publishers_for(&institution)?;
+        InstitutionPolicy::can_delete(context, &institution)?;
 
         institution.delete(&context.db).map_err(Into::into)
     }
@@ -2712,7 +2534,7 @@ impl MutationRoot {
     ) -> FieldResult<Funding> {
         context.require_authentication()?;
         let funding = Funding::from_id(&context.db, &funding_id)?;
-        context.require_publisher_for(&funding)?;
+        FundingPolicy::can_delete(context, &funding)?;
 
         funding.delete(&context.db).map_err(Into::into)
     }
@@ -2722,13 +2544,9 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Thoth ID of location to be deleted")] location_id: Uuid,
     ) -> FieldResult<Location> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let location = Location::from_id(&context.db, &location_id)?;
-        // Only superusers can delete locations where Location Platform is Thoth
-        if !user.is_superuser() && location.location_platform == LocationPlatform::Thoth {
-            return Err(ThothError::ThothLocationError.into());
-        }
-        context.require_publisher_for(&location)?;
+        LocationPolicy::can_delete(context, &location)?;
 
         location.delete(&context.db).map_err(Into::into)
     }
@@ -2740,7 +2558,7 @@ impl MutationRoot {
     ) -> FieldResult<Price> {
         context.require_authentication()?;
         let price = Price::from_id(&context.db, &price_id)?;
-        context.require_publisher_for(&price)?;
+        PricePolicy::can_delete(context, &price)?;
 
         price.delete(&context.db).map_err(Into::into)
     }
@@ -2752,7 +2570,7 @@ impl MutationRoot {
     ) -> FieldResult<Subject> {
         context.require_authentication()?;
         let subject = Subject::from_id(&context.db, &subject_id)?;
-        context.require_publisher_for(&subject)?;
+        SubjectPolicy::can_delete(context, &subject)?;
 
         subject.delete(&context.db).map_err(Into::into)
     }
@@ -2764,7 +2582,7 @@ impl MutationRoot {
     ) -> FieldResult<Affiliation> {
         context.require_authentication()?;
         let affiliation = Affiliation::from_id(&context.db, &affiliation_id)?;
-        context.require_publisher_for(&affiliation)?;
+        AffiliationPolicy::can_delete(context, &affiliation)?;
 
         affiliation.delete(&context.db).map_err(Into::into)
     }
@@ -2776,7 +2594,7 @@ impl MutationRoot {
     ) -> FieldResult<WorkRelation> {
         context.require_authentication()?;
         let work_relation = WorkRelation::from_id(&context.db, &work_relation_id)?;
-        context.require_publishers_for(&work_relation)?;
+        WorkRelationPolicy::can_delete(context, &work_relation)?;
 
         work_relation.delete(&context.db).map_err(Into::into)
     }
@@ -2788,7 +2606,7 @@ impl MutationRoot {
     ) -> FieldResult<Reference> {
         context.require_authentication()?;
         let reference = Reference::from_id(&context.db, &reference_id)?;
-        context.require_publisher_for(&reference)?;
+        ReferencePolicy::can_delete(context, &reference)?;
 
         reference.delete(&context.db).map_err(Into::into)
     }
@@ -2800,7 +2618,7 @@ impl MutationRoot {
     ) -> FieldResult<Abstract> {
         context.require_authentication()?;
         let r#abstract = Abstract::from_id(&context.db, &abstract_id)?;
-        context.require_publisher_for(&r#abstract)?;
+        AbstractPolicy::can_delete(context, &r#abstract)?;
 
         r#abstract.delete(&context.db).map_err(Into::into)
     }
@@ -2812,7 +2630,7 @@ impl MutationRoot {
     ) -> FieldResult<Biography> {
         context.require_authentication()?;
         let biography = Biography::from_id(&context.db, &biography_id)?;
-        context.require_publisher_for(&biography)?;
+        BiographyPolicy::can_delete(context, &biography)?;
 
         biography.delete(&context.db).map_err(Into::into)
     }
@@ -2828,13 +2646,12 @@ impl MutationRoot {
     ) -> FieldResult<Affiliation> {
         let user = context.require_authentication()?;
         let affiliation = Affiliation::from_id(&context.db, &affiliation_id)?;
+        AffiliationPolicy::can_move(context, &affiliation)?;
 
         if new_ordinal == affiliation.affiliation_ordinal {
             // No action required
             return Ok(affiliation);
         }
-
-        context.require_publisher_for(&affiliation)?;
 
         affiliation
             .change_ordinal(
@@ -2857,13 +2674,12 @@ impl MutationRoot {
     ) -> FieldResult<Contribution> {
         let user = context.require_authentication()?;
         let contribution = Contribution::from_id(&context.db, &contribution_id)?;
+        ContributionPolicy::can_move(context, &contribution)?;
 
         if new_ordinal == contribution.contribution_ordinal {
             // No action required
             return Ok(contribution);
         }
-
-        context.require_publisher_for(&contribution)?;
 
         contribution
             .change_ordinal(
@@ -2884,13 +2700,12 @@ impl MutationRoot {
     ) -> FieldResult<Issue> {
         let user = context.require_authentication()?;
         let issue = Issue::from_id(&context.db, &issue_id)?;
+        IssuePolicy::can_move(context, &issue)?;
 
         if new_ordinal == issue.issue_ordinal {
             // No action required
             return Ok(issue);
         }
-
-        context.require_publisher_for(&issue)?;
 
         issue
             .change_ordinal(&context.db, issue.issue_ordinal, new_ordinal, &user.user_id)
@@ -2908,13 +2723,12 @@ impl MutationRoot {
     ) -> FieldResult<Reference> {
         let user = context.require_authentication()?;
         let reference = Reference::from_id(&context.db, &reference_id)?;
+        ReferencePolicy::can_move(context, &reference)?;
 
         if new_ordinal == reference.reference_ordinal {
             // No action required
             return Ok(reference);
         }
-
-        context.require_publisher_for(&reference)?;
 
         reference
             .change_ordinal(
@@ -2935,13 +2749,12 @@ impl MutationRoot {
     ) -> FieldResult<Subject> {
         let user = context.require_authentication()?;
         let subject = Subject::from_id(&context.db, &subject_id)?;
+        SubjectPolicy::can_move(context, &subject)?;
 
         if new_ordinal == subject.subject_ordinal {
             // No action required
             return Ok(subject);
         }
-
-        context.require_publisher_for(&subject)?;
 
         subject
             .change_ordinal(
@@ -2964,12 +2777,12 @@ impl MutationRoot {
     ) -> FieldResult<WorkRelation> {
         let user = context.require_authentication()?;
         let work_relation = WorkRelation::from_id(&context.db, &work_relation_id)?;
+        WorkRelationPolicy::can_move(context, &work_relation)?;
+
         if new_ordinal == work_relation.relation_ordinal {
             // No action required
             return Ok(work_relation);
         }
-
-        context.require_publishers_for(&work_relation)?;
 
         work_relation
             .change_ordinal(
@@ -2988,7 +2801,7 @@ impl MutationRoot {
     ) -> FieldResult<Contact> {
         context.require_authentication()?;
         let contact = Contact::from_id(&context.db, &contact_id)?;
-        context.require_publisher_for(&contact)?;
+        ContactPolicy::can_delete(context, &contact)?;
 
         contact.delete(&context.db).map_err(Into::into)
     }

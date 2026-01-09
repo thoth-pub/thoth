@@ -265,3 +265,7 @@ fn test_relationtype_fromstr() {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::WorkRelationPolicy;
