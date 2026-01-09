@@ -1,6 +1,6 @@
 use super::{Funding, FundingField, FundingHistory, NewFunding, NewFundingHistory, PatchFunding};
-use crate::graphql::model::FundingOrderBy;
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
+use crate::graphql::inputs::FundingOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{funding, funding_history};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};

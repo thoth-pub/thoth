@@ -3,8 +3,8 @@ use super::{
     NewContributionHistory, PatchContribution,
 };
 use crate::diesel::JoinOnDsl;
-use crate::graphql::model::ContributionOrderBy;
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::ContributionOrderBy;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{contribution, contribution_history};
 use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};

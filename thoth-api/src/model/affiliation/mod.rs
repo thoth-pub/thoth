@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::affiliation;

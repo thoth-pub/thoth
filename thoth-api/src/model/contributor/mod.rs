@@ -5,7 +5,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::Orcid;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]

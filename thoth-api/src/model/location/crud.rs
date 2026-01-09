@@ -2,7 +2,7 @@ use super::{
     Location, LocationField, LocationHistory, LocationOrderBy, LocationPlatform, NewLocation,
     NewLocationHistory, PatchLocation,
 };
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{location, location_history};
 use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};

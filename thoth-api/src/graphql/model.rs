@@ -5,7 +5,10 @@ use juniper::{EmptySubscription, FieldError, FieldResult, RootNode};
 use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
 
-use super::utils::{Direction, Expression};
+use super::inputs::{
+    ContributionOrderBy, Direction, FundingOrderBy, IssueOrderBy, LanguageOrderBy, PriceOrderBy,
+    SubjectOrderBy, TimeExpression,
+};
 use crate::db::PgPool;
 use crate::model::{
     affiliation::{
@@ -14,29 +17,27 @@ use crate::model::{
     biography::{Biography, BiographyOrderBy, BiographyPolicy, NewBiography, PatchBiography},
     contact::{Contact, ContactOrderBy, ContactPolicy, ContactType, NewContact, PatchContact},
     contribution::{
-        Contribution, ContributionField, ContributionPolicy, ContributionType, NewContribution,
-        PatchContribution,
+        Contribution, ContributionPolicy, ContributionType, NewContribution, PatchContribution,
     },
     contributor::{
         Contributor, ContributorOrderBy, ContributorPolicy, NewContributor, PatchContributor,
     },
     convert_from_jats, convert_to_jats,
-    funding::{Funding, FundingField, FundingPolicy, NewFunding, PatchFunding},
+    funding::{Funding, FundingPolicy, NewFunding, PatchFunding},
     imprint::{Imprint, ImprintField, ImprintOrderBy, ImprintPolicy, NewImprint, PatchImprint},
     institution::{
         CountryCode, Institution, InstitutionOrderBy, InstitutionPolicy, NewInstitution,
         PatchInstitution,
     },
-    issue::{Issue, IssueField, IssuePolicy, NewIssue, PatchIssue},
+    issue::{Issue, IssuePolicy, NewIssue, PatchIssue},
     language::{
-        Language, LanguageCode, LanguageField, LanguagePolicy, LanguageRelation, NewLanguage,
-        PatchLanguage,
+        Language, LanguageCode, LanguagePolicy, LanguageRelation, NewLanguage, PatchLanguage,
     },
     locale::LocaleCode,
     location::{
         Location, LocationOrderBy, LocationPlatform, LocationPolicy, NewLocation, PatchLocation,
     },
-    price::{CurrencyCode, NewPrice, PatchPrice, Price, PriceField, PricePolicy},
+    price::{CurrencyCode, NewPrice, PatchPrice, Price, PricePolicy},
     publication::{
         AccessibilityException, AccessibilityStandard, NewPublication, PatchPublication,
         Publication, PublicationOrderBy, PublicationPolicy, PublicationType,
@@ -47,7 +48,7 @@ use crate::model::{
     },
     reference::{NewReference, PatchReference, Reference, ReferenceOrderBy, ReferencePolicy},
     series::{NewSeries, PatchSeries, Series, SeriesOrderBy, SeriesPolicy, SeriesType},
-    subject::{NewSubject, PatchSubject, Subject, SubjectField, SubjectPolicy, SubjectType},
+    subject::{NewSubject, PatchSubject, Subject, SubjectPolicy, SubjectType},
     title::{NewTitle, PatchTitle, Title, TitleOrderBy, TitlePolicy},
     work::{NewWork, PatchWork, Work, WorkOrderBy, WorkPolicy, WorkStatus, WorkType},
     work_relation::{
@@ -80,111 +81,6 @@ impl PolicyContext for Context {
     fn user(&self) -> Option<&IntrospectedUser> {
         self.user.as_ref()
     }
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting contributions list")]
-pub struct ContributionOrderBy {
-    pub field: ContributionField,
-    pub direction: Direction,
-}
-
-impl Default for ContributionOrderBy {
-    fn default() -> ContributionOrderBy {
-        ContributionOrderBy {
-            field: ContributionField::ContributionType,
-            direction: Default::default(),
-        }
-    }
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting issues list")]
-pub struct IssueOrderBy {
-    pub field: IssueField,
-    pub direction: Direction,
-}
-
-impl Default for IssueOrderBy {
-    fn default() -> IssueOrderBy {
-        IssueOrderBy {
-            field: IssueField::IssueOrdinal,
-            direction: Default::default(),
-        }
-    }
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting languages list")]
-pub struct LanguageOrderBy {
-    pub field: LanguageField,
-    pub direction: Direction,
-}
-
-impl Default for LanguageOrderBy {
-    fn default() -> LanguageOrderBy {
-        LanguageOrderBy {
-            field: LanguageField::LanguageCode,
-            direction: Default::default(),
-        }
-    }
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting prices list")]
-pub struct PriceOrderBy {
-    pub field: PriceField,
-    pub direction: Direction,
-}
-
-impl Default for PriceOrderBy {
-    fn default() -> PriceOrderBy {
-        PriceOrderBy {
-            field: PriceField::CurrencyCode,
-            direction: Default::default(),
-        }
-    }
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting subjects list")]
-pub struct SubjectOrderBy {
-    pub field: SubjectField,
-    pub direction: Direction,
-}
-
-impl Default for SubjectOrderBy {
-    fn default() -> SubjectOrderBy {
-        SubjectOrderBy {
-            field: SubjectField::SubjectType,
-            direction: Default::default(),
-        }
-    }
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting fundings list")]
-pub struct FundingOrderBy {
-    pub field: FundingField,
-    pub direction: Direction,
-}
-
-impl Default for FundingOrderBy {
-    fn default() -> FundingOrderBy {
-        FundingOrderBy {
-            field: FundingField::Program,
-            direction: Default::default(),
-        }
-    }
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(
-    description = "Timestamp and choice out of greater than/less than to use when filtering by a time field (e.g. updated_at)"
-)]
-pub struct TimeExpression {
-    pub timestamp: Timestamp,
-    pub expression: Expression,
 }
 
 pub struct QueryRoot;
@@ -2060,25 +1956,20 @@ impl MutationRoot {
         WorkPolicy::can_update(context, &work, &data, ())?;
 
         // update the work and, if it succeeds, synchronise its children statuses and pub. date
-        match work.update(context, &data) {
-            Ok(w) => {
-                // update chapters if their pub. data, withdrawn_date or work_status doesn't match the parent's
-                for child in work.children(&context.db)? {
-                    if child.publication_date != w.publication_date
-                        || child.work_status != w.work_status
-                        || child.withdrawn_date != w.withdrawn_date
-                    {
-                        let mut data: PatchWork = child.clone().into();
-                        data.publication_date = w.publication_date;
-                        data.withdrawn_date = w.withdrawn_date;
-                        data.work_status = w.work_status;
-                        child.update(context, &data)?;
-                    }
-                }
-                Ok(w)
+        let w = work.update(context, &data)?;
+        for child in work.children(&context.db)? {
+            if child.publication_date != w.publication_date
+                || child.work_status != w.work_status
+                || child.withdrawn_date != w.withdrawn_date
+            {
+                let mut data: PatchWork = child.clone().into();
+                data.publication_date = w.publication_date;
+                data.withdrawn_date = w.withdrawn_date;
+                data.work_status = w.work_status;
+                child.update(context, &data)?;
             }
-            Err(e) => Err(e.into()),
         }
+        Ok(w)
     }
 
     #[graphql(description = "Update an existing publisher with the specified values")]

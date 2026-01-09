@@ -1,6 +1,6 @@
 use super::{Issue, IssueField, IssueHistory, NewIssue, NewIssueHistory, PatchIssue};
-use crate::graphql::model::IssueOrderBy;
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
+use crate::graphql::inputs::IssueOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{issue, issue_history};
 use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};

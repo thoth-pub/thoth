@@ -3,7 +3,7 @@ use super::{
     Biography, BiographyField, BiographyHistory, BiographyOrderBy, NewBiography,
     NewBiographyHistory, PatchBiography,
 };
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{biography, biography_history};
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};

@@ -2,7 +2,7 @@ use super::{
     Affiliation, AffiliationField, AffiliationHistory, AffiliationOrderBy, NewAffiliation,
     NewAffiliationHistory, PatchAffiliation,
 };
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{affiliation, affiliation_history};
 use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};

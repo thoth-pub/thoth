@@ -2,7 +2,7 @@ use super::{
     LocaleCode, NewTitle, NewTitleHistory, PatchTitle, Title, TitleField, TitleHistory,
     TitleOrderBy,
 };
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{title_history, work_title};
 use diesel::{

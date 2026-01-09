@@ -2,7 +2,7 @@ use crate::model::locale::LocaleCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 
 #[cfg(feature = "backend")]
 use crate::schema::title_history;

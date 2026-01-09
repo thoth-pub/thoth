@@ -1,6 +1,6 @@
 use super::{CurrencyCode, NewPrice, NewPriceHistory, PatchPrice, Price, PriceField, PriceHistory};
-use crate::graphql::model::PriceOrderBy;
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
+use crate::graphql::inputs::PriceOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{price, price_history};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};

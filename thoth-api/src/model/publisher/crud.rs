@@ -3,7 +3,7 @@ use super::{
     PublisherOrderBy,
 };
 use crate::db::PgPool;
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{publisher, publisher_history};
 use diesel::{

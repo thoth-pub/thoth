@@ -2,7 +2,7 @@ use super::{
     NewWorkRelation, NewWorkRelationHistory, PatchWorkRelation, RelationType, WorkRelation,
     WorkRelationField, WorkRelationHistory, WorkRelationOrderBy,
 };
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId, Reorder};
 use crate::schema::{work_relation, work_relation_history};
 use diesel::{

@@ -1,8 +1,8 @@
 use super::{
     NewSubject, NewSubjectHistory, PatchSubject, Subject, SubjectField, SubjectHistory, SubjectType,
 };
-use crate::graphql::model::SubjectOrderBy;
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
+use crate::graphql::inputs::SubjectOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{subject, subject_history};
 use diesel::{

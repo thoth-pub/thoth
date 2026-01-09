@@ -3,7 +3,7 @@ use super::{
     Abstract, AbstractField, AbstractHistory, AbstractOrderBy, AbstractType, NewAbstract,
     NewAbstractHistory, PatchAbstract,
 };
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::work_abstract::dsl;
 use crate::schema::{abstract_history, work_abstract};

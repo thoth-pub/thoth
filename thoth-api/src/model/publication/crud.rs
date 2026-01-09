@@ -2,7 +2,7 @@ use super::{
     NewPublication, NewPublicationHistory, PatchPublication, Publication, PublicationField,
     PublicationHistory, PublicationOrderBy, PublicationType,
 };
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
