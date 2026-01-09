@@ -2,7 +2,7 @@ use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
 
 use crate::db::PgPool;
-use crate::model::{PublisherId, PublisherIds};
+use crate::model::{Crud, PublisherId, PublisherIds};
 use thoth_errors::{ThothError, ThothResult};
 
 pub(crate) trait UserAccess {
@@ -103,6 +103,12 @@ pub(crate) trait PolicyContext {
             user.can_edit(&publisher_id)?;
         }
         Ok(user)
+    }
+
+    /// Load an entity by primary key after requiring authentication.
+    fn load_current<T: Crud>(&self, id: &Uuid) -> ThothResult<T> {
+        self.require_authentication()?;
+        T::from_id(self.db(), id)
     }
 }
 
