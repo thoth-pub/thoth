@@ -2056,12 +2056,12 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing work")] data: PatchWork,
     ) -> FieldResult<Work> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let work = Work::from_id(&context.db, &data.work_id)?;
         WorkPolicy::can_update(context, &work, &data, ())?;
 
         // update the work and, if it succeeds, synchronise its children statuses and pub. date
-        match work.update(&context.db, &data, &user.user_id) {
+        match work.update(context, &data) {
             Ok(w) => {
                 // update chapters if their pub. data, withdrawn_date or work_status doesn't match the parent's
                 for child in work.children(&context.db)? {
@@ -2073,7 +2073,7 @@ impl MutationRoot {
                         data.publication_date = w.publication_date;
                         data.withdrawn_date = w.withdrawn_date;
                         data.work_status = w.work_status;
-                        child.update(&context.db, &data, &user.user_id)?;
+                        child.update(context, &data)?;
                     }
                 }
                 Ok(w)
@@ -2087,13 +2087,11 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing publisher")] data: PatchPublisher,
     ) -> FieldResult<Publisher> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let publisher = Publisher::from_id(&context.db, &data.publisher_id)?;
         PublisherPolicy::can_update(context, &publisher, &data, ())?;
 
-        publisher
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        publisher.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing imprint with the specified values")]
@@ -2101,13 +2099,11 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing imprint")] data: PatchImprint,
     ) -> FieldResult<Imprint> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let imprint = Imprint::from_id(&context.db, &data.imprint_id)?;
         ImprintPolicy::can_update(context, &imprint, &data, ())?;
 
-        imprint
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        imprint.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing contributor with the specified values")]
@@ -2115,13 +2111,11 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing contributor")] data: PatchContributor,
     ) -> FieldResult<Contributor> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let contributor = Contributor::from_id(&context.db, &data.contributor_id)?;
         ContributorPolicy::can_update(context, &contributor, &data, ())?;
 
-        contributor
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        contributor.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing contribution with the specified values")]
@@ -2130,13 +2124,11 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing contribution")]
         data: PatchContribution,
     ) -> FieldResult<Contribution> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let contribution = Contribution::from_id(&context.db, &data.contribution_id)?;
         ContributionPolicy::can_update(context, &contribution, &data, ())?;
 
-        contribution
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        contribution.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing publication with the specified values")]
@@ -2144,13 +2136,11 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing publication")] data: PatchPublication,
     ) -> FieldResult<Publication> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let publication = Publication::from_id(&context.db, &data.publication_id)?;
         PublicationPolicy::can_update(context, &publication, &data, ())?;
 
-        publication
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        publication.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing series with the specified values")]
@@ -2158,13 +2148,11 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing series")] data: PatchSeries,
     ) -> FieldResult<Series> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let series = Series::from_id(&context.db, &data.series_id)?;
         SeriesPolicy::can_update(context, &series, &data, ())?;
 
-        series
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        series.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing issue with the specified values")]
@@ -2172,13 +2160,11 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing issue")] data: PatchIssue,
     ) -> FieldResult<Issue> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let issue = Issue::from_id(&context.db, &data.issue_id)?;
         IssuePolicy::can_update(context, &issue, &data, ())?;
 
-        issue
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        issue.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing language with the specified values")]
@@ -2186,13 +2172,11 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing language")] data: PatchLanguage,
     ) -> FieldResult<Language> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let language = Language::from_id(&context.db, &data.language_id)?;
         LanguagePolicy::can_update(context, &language, &data, ())?;
 
-        language
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        language.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing institution with the specified values")]
@@ -2200,13 +2184,11 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing institution")] data: PatchInstitution,
     ) -> FieldResult<Institution> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let institution = Institution::from_id(&context.db, &data.institution_id)?;
         InstitutionPolicy::can_update(context, &institution, &data, ())?;
 
-        institution
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        institution.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing funding with the specified values")]
@@ -2214,13 +2196,11 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing funding")] data: PatchFunding,
     ) -> FieldResult<Funding> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let funding = Funding::from_id(&context.db, &data.funding_id)?;
         FundingPolicy::can_update(context, &funding, &data, ())?;
 
-        funding
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        funding.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing location with the specified values")]
@@ -2228,13 +2208,11 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing location")] data: PatchLocation,
     ) -> FieldResult<Location> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let current_location = Location::from_id(&context.db, &data.location_id)?;
         LocationPolicy::can_update(context, &current_location, &data, ())?;
 
-        current_location
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        current_location.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing price with the specified values")]
@@ -2242,13 +2220,11 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing price")] data: PatchPrice,
     ) -> FieldResult<Price> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let price = Price::from_id(&context.db, &data.price_id)?;
         PricePolicy::can_update(context, &price, &data, ())?;
 
-        price
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        price.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing subject with the specified values")]
@@ -2256,13 +2232,11 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing subject")] data: PatchSubject,
     ) -> FieldResult<Subject> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let subject = Subject::from_id(&context.db, &data.subject_id)?;
         SubjectPolicy::can_update(context, &subject, &data, ())?;
 
-        subject
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        subject.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing affiliation with the specified values")]
@@ -2270,13 +2244,11 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing affiliation")] data: PatchAffiliation,
     ) -> FieldResult<Affiliation> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let affiliation = Affiliation::from_id(&context.db, &data.affiliation_id)?;
         AffiliationPolicy::can_update(context, &affiliation, &data, ())?;
 
-        affiliation
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        affiliation.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing work relation with the specified values")]
@@ -2285,13 +2257,11 @@ impl MutationRoot {
         #[graphql(description = "Values to apply to existing work relation")]
         data: PatchWorkRelation,
     ) -> FieldResult<WorkRelation> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let work_relation = WorkRelation::from_id(&context.db, &data.work_relation_id)?;
         WorkRelationPolicy::can_update(context, &work_relation, &data, ())?;
 
-        work_relation
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        work_relation.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing reference with the specified values")]
@@ -2299,13 +2269,11 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing reference")] data: PatchReference,
     ) -> FieldResult<Reference> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let reference = Reference::from_id(&context.db, &data.reference_id)?;
         ReferencePolicy::can_update(context, &reference, &data, ())?;
 
-        reference
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        reference.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing contact with the specified values")]
@@ -2313,13 +2281,11 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing contact")] data: PatchContact,
     ) -> FieldResult<Contact> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let contact = Contact::from_id(&context.db, &data.contact_id)?;
         ContactPolicy::can_update(context, &contact, &data, ())?;
 
-        contact
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        contact.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing title with the specified values")]
@@ -2330,7 +2296,7 @@ impl MutationRoot {
         >,
         #[graphql(description = "Values to apply to existing title")] data: PatchTitle,
     ) -> FieldResult<Title> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let title = Title::from_id(&context.db, &data.title_id)?;
         TitlePolicy::can_update(context, &title, &data, markup_format)?;
 
@@ -2345,9 +2311,7 @@ impl MutationRoot {
             .transpose()?;
         data.full_title = convert_to_jats(data.full_title, markup, ConversionLimit::Title)?;
 
-        title
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        title.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing abstract with the specified values")]
@@ -2358,7 +2322,7 @@ impl MutationRoot {
         >,
         #[graphql(description = "Values to apply to existing abstract")] data: PatchAbstract,
     ) -> FieldResult<Abstract> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let r#abstract = Abstract::from_id(&context.db, &data.abstract_id)?;
         AbstractPolicy::can_update(context, &r#abstract, &data, markup_format)?;
 
@@ -2367,9 +2331,7 @@ impl MutationRoot {
         let markup = markup_format.expect("Validated by policy");
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Abstract)?;
 
-        r#abstract
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        r#abstract.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing biography with the specified values")]
@@ -2380,7 +2342,7 @@ impl MutationRoot {
         >,
         #[graphql(description = "Values to apply to existing biography")] data: PatchBiography,
     ) -> FieldResult<Biography> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let biography = Biography::from_id(&context.db, &data.biography_id)?;
         BiographyPolicy::can_update(context, &biography, &data, markup_format)?;
 
@@ -2389,9 +2351,7 @@ impl MutationRoot {
         let mut data = data;
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Biography)?;
 
-        biography
-            .update(&context.db, &data, &user.user_id)
-            .map_err(Into::into)
+        biography.update(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Delete a single work using its ID")]
@@ -2643,7 +2603,7 @@ impl MutationRoot {
         )]
         new_ordinal: i32,
     ) -> FieldResult<Affiliation> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let affiliation = Affiliation::from_id(&context.db, &affiliation_id)?;
         AffiliationPolicy::can_move(context, &affiliation)?;
 
@@ -2653,12 +2613,7 @@ impl MutationRoot {
         }
 
         affiliation
-            .change_ordinal(
-                &context.db,
-                affiliation.affiliation_ordinal,
-                new_ordinal,
-                &user.user_id,
-            )
+            .change_ordinal(context, affiliation.affiliation_ordinal, new_ordinal)
             .map_err(Into::into)
     }
 
@@ -2671,7 +2626,7 @@ impl MutationRoot {
         )]
         new_ordinal: i32,
     ) -> FieldResult<Contribution> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let contribution = Contribution::from_id(&context.db, &contribution_id)?;
         ContributionPolicy::can_move(context, &contribution)?;
 
@@ -2681,12 +2636,7 @@ impl MutationRoot {
         }
 
         contribution
-            .change_ordinal(
-                &context.db,
-                contribution.contribution_ordinal,
-                new_ordinal,
-                &user.user_id,
-            )
+            .change_ordinal(context, contribution.contribution_ordinal, new_ordinal)
             .map_err(Into::into)
     }
 
@@ -2697,7 +2647,7 @@ impl MutationRoot {
         #[graphql(description = "Ordinal representing position to which issue should be moved")]
         new_ordinal: i32,
     ) -> FieldResult<Issue> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let issue = Issue::from_id(&context.db, &issue_id)?;
         IssuePolicy::can_move(context, &issue)?;
 
@@ -2707,7 +2657,7 @@ impl MutationRoot {
         }
 
         issue
-            .change_ordinal(&context.db, issue.issue_ordinal, new_ordinal, &user.user_id)
+            .change_ordinal(context, issue.issue_ordinal, new_ordinal)
             .map_err(Into::into)
     }
 
@@ -2720,7 +2670,7 @@ impl MutationRoot {
         )]
         new_ordinal: i32,
     ) -> FieldResult<Reference> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let reference = Reference::from_id(&context.db, &reference_id)?;
         ReferencePolicy::can_move(context, &reference)?;
 
@@ -2730,12 +2680,7 @@ impl MutationRoot {
         }
 
         reference
-            .change_ordinal(
-                &context.db,
-                reference.reference_ordinal,
-                new_ordinal,
-                &user.user_id,
-            )
+            .change_ordinal(context, reference.reference_ordinal, new_ordinal)
             .map_err(Into::into)
     }
 
@@ -2746,7 +2691,7 @@ impl MutationRoot {
         #[graphql(description = "Ordinal representing position to which subject should be moved")]
         new_ordinal: i32,
     ) -> FieldResult<Subject> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let subject = Subject::from_id(&context.db, &subject_id)?;
         SubjectPolicy::can_move(context, &subject)?;
 
@@ -2756,12 +2701,7 @@ impl MutationRoot {
         }
 
         subject
-            .change_ordinal(
-                &context.db,
-                subject.subject_ordinal,
-                new_ordinal,
-                &user.user_id,
-            )
+            .change_ordinal(context, subject.subject_ordinal, new_ordinal)
             .map_err(Into::into)
     }
 
@@ -2774,7 +2714,7 @@ impl MutationRoot {
         )]
         new_ordinal: i32,
     ) -> FieldResult<WorkRelation> {
-        let user = context.require_authentication()?;
+        context.require_authentication()?;
         let work_relation = WorkRelation::from_id(&context.db, &work_relation_id)?;
         WorkRelationPolicy::can_move(context, &work_relation)?;
 
@@ -2784,12 +2724,7 @@ impl MutationRoot {
         }
 
         work_relation
-            .change_ordinal(
-                &context.db,
-                work_relation.relation_ordinal,
-                new_ordinal,
-                &user.user_id,
-            )
+            .change_ordinal(context, work_relation.relation_ordinal, new_ordinal)
             .map_err(Into::into)
     }
 

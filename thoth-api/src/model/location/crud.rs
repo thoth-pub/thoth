@@ -142,13 +142,12 @@ impl Crud for Location {
         })
     }
 
-    fn update(
+    fn update<C: crate::policy::PolicyContext>(
         &self,
-        db: &crate::db::PgPool,
+        ctx: &C,
         data: &PatchLocation,
-        user_id: &str,
     ) -> ThothResult<Self> {
-        let mut connection = db.get()?;
+        let mut connection = ctx.db().get()?;
         connection
             .transaction(|connection| {
                 if data.canonical == self.canonical {
@@ -163,7 +162,7 @@ impl Crud for Location {
                 } else {
                     // Update the existing canonical location to non-canonical
                     let mut old_canonical_location =
-                        PatchLocation::from(self.get_canonical_location(db)?);
+                        PatchLocation::from(self.get_canonical_location(ctx.db())?);
                     old_canonical_location.canonical = false;
                     diesel::update(location::table.find(old_canonical_location.location_id))
                         .set(old_canonical_location)
@@ -175,7 +174,7 @@ impl Crud for Location {
                 }
             })
             .and_then(|location| {
-                self.new_history_entry(user_id)
+                self.new_history_entry(ctx.user_id()?)
                     .insert(&mut connection)
                     .map(|_| location)
             })

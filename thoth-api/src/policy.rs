@@ -71,6 +71,12 @@ pub(crate) trait PolicyContext {
         self.user().ok_or(ThothError::Unauthorised)
     }
 
+    fn user_id(&self) -> ThothResult<&str> {
+        self.user()
+            .map(|u| u.user_id.as_str())
+            .ok_or(ThothError::Unauthorised)
+    }
+
     fn require_superuser(&self) -> ThothResult<&IntrospectedUser> {
         let user = self.require_authentication()?;
         if user.is_superuser() {

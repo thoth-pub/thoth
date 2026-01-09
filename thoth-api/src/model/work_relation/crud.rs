@@ -177,15 +177,14 @@ impl Crud for WorkRelation {
         })
     }
 
-    fn update(
+    fn update<C: crate::policy::PolicyContext>(
         &self,
-        db: &crate::db::PgPool,
+        ctx: &C,
         data: &PatchWorkRelation,
-        user_id: &str,
     ) -> ThothResult<Self> {
         // For each Relator - Relationship - Related record we update, we must also
         // update the corresponding Related - InverseRelationship - Relator record.
-        let inverse_work_relation = self.get_inverse(db)?;
+        let inverse_work_relation = self.get_inverse(ctx.db())?;
         let inverse_data = PatchWorkRelation {
             work_relation_id: inverse_work_relation.work_relation_id,
             relator_work_id: data.related_work_id,
@@ -195,7 +194,7 @@ impl Crud for WorkRelation {
         };
         // Execute both updates within the same transaction,
         // because if one fails, both need to be reverted.
-        let mut connection = db.get()?;
+        let mut connection = ctx.db().get()?;
         connection.transaction(|connection| {
             diesel::update(work_relation::table.find(inverse_work_relation.work_relation_id))
                 .set(inverse_data)
@@ -207,7 +206,7 @@ impl Crud for WorkRelation {
                 .and_then(|t| {
                     // On success, create a new history table entry.
                     // Only record the original update, not the automatic inverse update.
-                    self.new_history_entry(user_id)
+                    self.new_history_entry(ctx.user_id()?)
                         .insert(connection)
                         .map(|_| t)
                 })

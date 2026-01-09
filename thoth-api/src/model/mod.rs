@@ -3,6 +3,7 @@ use crate::ast::{
     markdown_to_ast, plain_text_ast_to_jats, plain_text_to_ast,
     strip_structural_elements_from_ast_for_conversion, validate_ast_content,
 };
+use crate::policy::PolicyContext;
 use chrono::{DateTime, TimeZone, Utc};
 use isbn::Isbn13;
 use serde::{Deserialize, Serialize};
@@ -300,7 +301,7 @@ impl Orcid {
 #[cfg(feature = "backend")]
 #[allow(clippy::too_many_arguments)]
 /// Common functionality to perform basic CRUD actions on Thoth entities
-pub trait Crud
+pub(crate) trait Crud
 where
     Self: Sized,
 {
@@ -362,12 +363,7 @@ where
     fn create(db: &crate::db::PgPool, data: &Self::NewEntity) -> ThothResult<Self>;
 
     /// Modify the record in the database and obtain the resulting instance
-    fn update(
-        &self,
-        db: &crate::db::PgPool,
-        data: &Self::PatchEntity,
-        user_id: &str,
-    ) -> ThothResult<Self>;
+    fn update<C: PolicyContext>(&self, ctx: &C, data: &Self::PatchEntity) -> ThothResult<Self>;
 
     /// Delete the record from the database and obtain the deleted instance
     fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self>;
@@ -547,16 +543,15 @@ where
 #[cfg(feature = "backend")]
 /// Common functionality to correctly renumber all relevant database objects
 /// on a request to change the ordinal of one of them
-pub trait Reorder
+pub(crate) trait Reorder
 where
     Self: Sized + Clone,
 {
-    fn change_ordinal(
+    fn change_ordinal<C: PolicyContext>(
         &self,
-        db: &crate::db::PgPool,
+        ctx: &C,
         current_ordinal: i32,
         new_ordinal: i32,
-        user_id: &str,
     ) -> ThothResult<Self>;
 
     fn get_other_objects(
@@ -613,22 +608,21 @@ macro_rules! crud_methods {
 
         /// Makes a database transaction that first updates the entity and then creates a new
         /// history entity record.
-        fn update(
+        fn update<C: $crate::policy::PolicyContext>(
             &self,
-            db: &$crate::db::PgPool,
+            ctx: &C,
             data: &Self::PatchEntity,
-            user_id: &str,
         ) -> ThothResult<Self> {
             use diesel::{Connection, QueryDsl, RunQueryDsl};
 
-            let mut connection = db.get()?;
+            let mut connection = ctx.db().get()?;
             connection.transaction(|connection| {
                 diesel::update($entity_dsl.find(&self.pk()))
                     .set(data)
                     .get_result(connection)
                     .map_err(Into::into)
                     .and_then(|c| {
-                        self.new_history_entry(user_id)
+                        self.new_history_entry(ctx.user_id()?)
                             .insert(connection)
                             .map(|_| c)
                     })
@@ -746,14 +740,13 @@ macro_rules! db_change_ordinal {
     ($table_dsl:expr,
      $ordinal_field:expr,
      $constraint_name:literal) => {
-        fn change_ordinal(
+        fn change_ordinal<C: $crate::policy::PolicyContext>(
             &self,
-            db: &$crate::db::PgPool,
+            ctx: &C,
             current_ordinal: i32,
             new_ordinal: i32,
-            user_id: &str,
         ) -> ThothResult<Self> {
-            let mut connection = db.get()?;
+            let mut connection = ctx.db().get()?;
             // Execute all updates within the same transaction,
             // because if one fails, the others need to be reverted.
             connection.transaction(|connection| {
@@ -793,7 +786,7 @@ macro_rules! db_change_ordinal {
                     .and_then(|t| {
                         // On success, create a new history table entry.
                         // Only record the original update, not the automatic reorderings.
-                        self.new_history_entry(user_id)
+                        self.new_history_entry(ctx.user_id()?)
                             .insert(connection)
                             .map(|_| t)
                     })
