@@ -3,8 +3,8 @@ use super::{
     NewContributionHistory, PatchContribution,
 };
 use crate::diesel::JoinOnDsl;
-use crate::graphql::model::ContributionOrderBy;
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::ContributionOrderBy;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{contribution, contribution_history};
 use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
@@ -152,20 +152,20 @@ impl Crud for Contribution {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(contribution::table, contribution::dsl::contribution);
 }
+
+publisher_id_impls!(Contribution, NewContribution, PatchContribution, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Contribution {
     type NewHistoryEntity = NewContributionHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             contribution_id: self.contribution_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -216,13 +216,13 @@ mod tests {
     #[test]
     fn test_new_contribution_history_from_contribution() {
         let contribution: Contribution = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_contribution_history = contribution.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_contribution_history = contribution.new_history_entry(&user_id);
         assert_eq!(
             new_contribution_history.contribution_id,
             contribution.contribution_id
         );
-        assert_eq!(new_contribution_history.account_id, account_id);
+        assert_eq!(new_contribution_history.user_id, user_id);
         assert_eq!(
             new_contribution_history.data,
             serde_json::Value::String(serde_json::to_string(&contribution).unwrap())

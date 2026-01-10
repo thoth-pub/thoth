@@ -1,6 +1,6 @@
 use super::{Funding, FundingField, FundingHistory, NewFunding, NewFundingHistory, PatchFunding};
-use crate::graphql::model::FundingOrderBy;
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
+use crate::graphql::inputs::FundingOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{funding, funding_history};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
@@ -122,20 +122,20 @@ impl Crud for Funding {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(funding::table, funding::dsl::funding);
 }
+
+publisher_id_impls!(Funding, NewFunding, PatchFunding, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Funding {
     type NewHistoryEntity = NewFundingHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             funding_id: self.funding_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -160,10 +160,10 @@ mod tests {
     #[test]
     fn test_new_funding_history_from_funding() {
         let funding: Funding = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_funding_history = funding.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_funding_history = funding.new_history_entry(&user_id);
         assert_eq!(new_funding_history.funding_id, funding.funding_id);
-        assert_eq!(new_funding_history.account_id, account_id);
+        assert_eq!(new_funding_history.user_id, user_id);
         assert_eq!(
             new_funding_history.data,
             serde_json::Value::String(serde_json::to_string(&funding).unwrap())

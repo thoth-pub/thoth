@@ -2,7 +2,7 @@ use crate::marc21::{Marc21Field, MARC_ORGANIZATION_CODE};
 use cc_license::License;
 use chrono::{Datelike, Utc};
 use marc::{DescriptiveCatalogingForm, EncodingLevel, FieldRepr, Record, RecordBuilder};
-use thoth_api::ast::{ast_to_plain_text, jats_to_ast};
+use thoth_api::markup::ast::{ast_to_plain_text, jats_to_ast};
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::IdentifierWithDomain;

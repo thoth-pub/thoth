@@ -3,8 +3,8 @@ use super::{
     Abstract, AbstractField, AbstractHistory, AbstractOrderBy, AbstractType, NewAbstract,
     NewAbstractHistory, PatchAbstract,
 };
-use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::graphql::inputs::Direction;
+use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::work_abstract::dsl;
 use crate::schema::{abstract_history, work_abstract};
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
@@ -146,21 +146,21 @@ impl Crud for Abstract {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        let work = crate::model::work::Work::from_id(db, &self.work_id)?;
-        <crate::model::work::Work as Crud>::publisher_id(&work, db)
-    }
-
     crud_methods!(work_abstract::table, work_abstract::dsl::work_abstract);
 }
+
+publisher_id_impls!(Abstract, NewAbstract, PatchAbstract, |s, db| {
+    let work = crate::model::work::Work::from_id(db, &s.work_id)?;
+    <crate::model::work::Work as PublisherId>::publisher_id(&work, db)
+});
 
 impl HistoryEntry for Abstract {
     type NewHistoryEntity = NewAbstractHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             abstract_id: self.abstract_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }

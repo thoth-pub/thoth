@@ -4,7 +4,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::publisher;
@@ -81,7 +81,7 @@ pub struct PatchPublisher {
 pub struct PublisherHistory {
     pub publisher_history_id: Uuid,
     pub publisher_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -93,7 +93,7 @@ pub struct PublisherHistory {
 )]
 pub struct NewPublisherHistory {
     pub publisher_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -167,3 +167,7 @@ fn test_publisherfield_fromstr() {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+pub mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::PublisherPolicy;

@@ -2,7 +2,7 @@ use super::{
     Imprint, ImprintField, ImprintHistory, ImprintOrderBy, NewImprint, NewImprintHistory,
     PatchImprint,
 };
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{imprint, imprint_history};
 use diesel::{
@@ -122,20 +122,20 @@ impl Crud for Imprint {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        Ok(self.publisher_id)
-    }
-
     crud_methods!(imprint::table, imprint::dsl::imprint);
 }
+
+publisher_id_impls!(Imprint, NewImprint, PatchImprint, |s, _db| {
+    Ok(s.publisher_id)
+});
 
 impl HistoryEntry for Imprint {
     type NewHistoryEntity = NewImprintHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             imprint_id: self.imprint_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -160,10 +160,10 @@ mod tests {
     #[test]
     fn test_new_imprint_history_from_imprint() {
         let imprint: Imprint = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_imprint_history = imprint.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_imprint_history = imprint.new_history_entry(&user_id);
         assert_eq!(new_imprint_history.imprint_id, imprint.imprint_id);
-        assert_eq!(new_imprint_history.account_id, account_id);
+        assert_eq!(new_imprint_history.user_id, user_id);
         assert_eq!(
             new_imprint_history.data,
             serde_json::Value::String(serde_json::to_string(&imprint).unwrap())

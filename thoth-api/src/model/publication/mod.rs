@@ -4,7 +4,7 @@ use strum::EnumString;
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::Isbn;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -323,7 +323,7 @@ pub struct PatchPublication {
 pub struct PublicationHistory {
     pub publication_history_id: Uuid,
     pub publication_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -335,7 +335,7 @@ pub struct PublicationHistory {
 )]
 pub struct NewPublicationHistory {
     pub publication_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -754,3 +754,7 @@ mod tests {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::PublicationPolicy;

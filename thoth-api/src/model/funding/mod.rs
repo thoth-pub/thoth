@@ -78,7 +78,7 @@ pub struct PatchFunding {
 pub struct FundingHistory {
     pub funding_history_id: Uuid,
     pub funding_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -90,9 +90,13 @@ pub struct FundingHistory {
 )]
 pub struct NewFundingHistory {
     pub funding_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::FundingPolicy;

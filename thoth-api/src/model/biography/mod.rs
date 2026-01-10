@@ -2,7 +2,7 @@ use crate::model::locale::LocaleCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 
 #[cfg(feature = "backend")]
 use crate::schema::biography;
@@ -87,7 +87,7 @@ pub struct PatchBiography {
 )]
 pub struct NewBiographyHistory {
     pub biography_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -95,10 +95,14 @@ pub struct NewBiographyHistory {
 pub struct BiographyHistory {
     pub biography_history_id: Uuid,
     pub biography_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::BiographyPolicy;

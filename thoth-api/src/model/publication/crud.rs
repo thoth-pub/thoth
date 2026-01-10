@@ -2,7 +2,7 @@ use super::{
     NewPublication, NewPublicationHistory, PatchPublication, Publication, PublicationField,
     PublicationHistory, PublicationOrderBy, PublicationType,
 };
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
@@ -177,20 +177,20 @@ impl Crud for Publication {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(publication::table, publication::dsl::publication);
 }
+
+publisher_id_impls!(Publication, NewPublication, PatchPublication, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Publication {
     type NewHistoryEntity = NewPublicationHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             publication_id: self.publication_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -215,13 +215,13 @@ mod tests {
     #[test]
     fn test_new_publication_history_from_publication() {
         let publication: Publication = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_publication_history = publication.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_publication_history = publication.new_history_entry(&user_id);
         assert_eq!(
             new_publication_history.publication_id,
             publication.publication_id
         );
-        assert_eq!(new_publication_history.account_id, account_id);
+        assert_eq!(new_publication_history.user_id, user_id);
         assert_eq!(
             new_publication_history.data,
             serde_json::Value::String(serde_json::to_string(&publication).unwrap())

@@ -3,8 +3,8 @@ use super::{
     Biography, BiographyField, BiographyHistory, BiographyOrderBy, NewBiography,
     NewBiographyHistory, PatchBiography,
 };
-use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::graphql::inputs::Direction;
+use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{biography, biography_history};
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::ThothResult;
@@ -130,23 +130,22 @@ impl Crud for Biography {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        let contribution =
-            crate::model::contribution::Contribution::from_id(db, &self.contribution_id)?;
-        let work = crate::model::work::Work::from_id(db, &contribution.work_id)?;
-        <crate::model::work::Work as Crud>::publisher_id(&work, db)
-    }
-
     crud_methods!(biography::table, biography::dsl::biography);
 }
+
+publisher_id_impls!(Biography, NewBiography, PatchBiography, |s, db| {
+    let contribution = crate::model::contribution::Contribution::from_id(db, &s.contribution_id)?;
+    let work = crate::model::work::Work::from_id(db, &contribution.work_id)?;
+    <crate::model::work::Work as PublisherId>::publisher_id(&work, db)
+});
 
 impl HistoryEntry for Biography {
     type NewHistoryEntity = NewBiographyHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             biography_id: self.biography_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }

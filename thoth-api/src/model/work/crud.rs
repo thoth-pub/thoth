@@ -2,10 +2,10 @@ use super::{
     NewWork, NewWorkHistory, PatchWork, Work, WorkField, WorkHistory, WorkOrderBy, WorkStatus,
     WorkType,
 };
-use crate::graphql::model::TimeExpression;
-use crate::graphql::utils::{Direction, Expression};
+use crate::graphql::inputs::TimeExpression;
+use crate::graphql::inputs::{Direction, Expression};
 use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderBy};
-use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
+use crate::model::{Crud, DbInsert, Doi, HistoryEntry, PublisherId};
 use crate::schema::{work, work_abstract, work_history, work_title};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, JoinOnDsl, PgTextExpressionMethods, QueryDsl,
@@ -447,21 +447,21 @@ impl Crud for Work {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        let imprint = crate::model::imprint::Imprint::from_id(db, &self.imprint_id)?;
-        <crate::model::imprint::Imprint as Crud>::publisher_id(&imprint, db)
-    }
-
     crud_methods!(work::table, work::dsl::work);
 }
+
+publisher_id_impls!(Work, NewWork, PatchWork, |s, db| {
+    let imprint = crate::model::imprint::Imprint::from_id(db, &s.imprint_id)?;
+    <crate::model::imprint::Imprint as PublisherId>::publisher_id(&imprint, db)
+});
 
 impl HistoryEntry for Work {
     type NewHistoryEntity = NewWorkHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             work_id: self.work_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -486,10 +486,10 @@ mod tests {
     #[test]
     fn test_new_work_history_from_work() {
         let work: Work = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_work_history = work.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_work_history = work.new_history_entry(&user_id);
         assert_eq!(new_work_history.work_id, work.work_id);
-        assert_eq!(new_work_history.account_id, account_id);
+        assert_eq!(new_work_history.user_id, user_id);
         assert_eq!(
             new_work_history.data,
             serde_json::Value::String(serde_json::to_string(&work).unwrap())

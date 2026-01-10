@@ -1,8 +1,10 @@
+use crate::markup::{convert_to_jats, ConversionLimit, MarkupFormat};
 use crate::model::locale::LocaleCode;
 use serde::{Deserialize, Serialize};
+use thoth_errors::ThothResult;
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 
 #[cfg(feature = "backend")]
 use crate::schema::title_history;
@@ -95,7 +97,7 @@ pub struct PatchTitle {
 )]
 pub struct NewTitleHistory {
     pub title_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -103,7 +105,7 @@ pub struct NewTitleHistory {
 pub struct TitleHistory {
     pub title_history_id: Uuid,
     pub title_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
@@ -111,6 +113,7 @@ pub struct TitleHistory {
 pub trait TitleProperties {
     fn title(&self) -> &str;
     fn subtitle(&self) -> Option<&str>;
+    fn full_title(&self) -> &str;
     fn locale_code(&self) -> &LocaleCode;
     fn canonical(&self) -> bool;
     fn compile_fulltitle(&self) -> String {
@@ -135,6 +138,9 @@ pub trait TitleProperties {
             },
         )
     }
+    fn set_title(&mut self, value: String);
+    fn set_subtitle(&mut self, value: Option<String>);
+    fn set_full_title(&mut self, value: String);
 }
 
 macro_rules! title_properties {
@@ -146,11 +152,23 @@ macro_rules! title_properties {
             fn subtitle(&self) -> Option<&str> {
                 self.subtitle.as_deref()
             }
+            fn full_title(&self) -> &str {
+                &self.full_title
+            }
             fn locale_code(&self) -> &LocaleCode {
                 &self.locale_code
             }
             fn canonical(&self) -> bool {
                 self.canonical
+            }
+            fn set_title(&mut self, value: String) {
+                self.title = value;
+            }
+            fn set_subtitle(&mut self, value: Option<String>) {
+                self.subtitle = value;
+            }
+            fn set_full_title(&mut self, value: String) {
+                self.full_title = value;
             }
         }
     };
@@ -160,5 +178,25 @@ title_properties!(Title);
 title_properties!(NewTitle);
 title_properties!(PatchTitle);
 
+pub(crate) fn convert_title_to_jats<T>(data: &mut T, format: MarkupFormat) -> ThothResult<()>
+where
+    T: TitleProperties,
+{
+    let title = convert_to_jats(data.title().to_owned(), format, ConversionLimit::Title)?;
+    let subtitle = data
+        .subtitle()
+        .map(|s| convert_to_jats(s.to_owned(), format, ConversionLimit::Title))
+        .transpose()?;
+    let full_title = convert_to_jats(data.full_title().to_owned(), format, ConversionLimit::Title)?;
+
+    data.set_title(title);
+    data.set_subtitle(subtitle);
+    data.set_full_title(full_title);
+    Ok(())
+}
+
 #[cfg(feature = "backend")]
 pub mod crud;
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::TitlePolicy;

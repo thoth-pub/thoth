@@ -5,7 +5,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::Orcid;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -82,7 +82,7 @@ pub struct PatchContributor {
 pub struct ContributorHistory {
     pub contributor_history_id: Uuid,
     pub contributor_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -94,7 +94,7 @@ pub struct ContributorHistory {
 )]
 pub struct NewContributorHistory {
     pub contributor_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -171,3 +171,7 @@ fn test_contributorfield_fromstr() {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::ContributorPolicy;
