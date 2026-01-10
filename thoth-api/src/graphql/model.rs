@@ -6,8 +6,8 @@ use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
 
 use super::inputs::{
-    ContributionOrderBy, Direction, FundingOrderBy, IssueOrderBy, LanguageOrderBy, PriceOrderBy,
-    SubjectOrderBy, TimeExpression,
+    ContributionOrderBy, Convert, Direction, FundingOrderBy, IssueOrderBy, LanguageOrderBy,
+    LengthUnit, PriceOrderBy, SubjectOrderBy, TimeExpression, WeightUnit,
 };
 use crate::db::PgPool;
 use crate::markup::{convert_from_jats, convert_to_jats, ConversionLimit, MarkupFormat};
@@ -55,7 +55,7 @@ use crate::model::{
         NewWorkRelation, PatchWorkRelation, RelationType, WorkRelation, WorkRelationOrderBy,
         WorkRelationPolicy,
     },
-    Convert, Crud, Doi, Isbn, LengthUnit, Orcid, Reorder, Ror, Timestamp, WeightUnit,
+    Crud, Doi, Isbn, Orcid, Reorder, Ror, Timestamp,
 };
 use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, PolicyContext, UpdatePolicy};
 use thoth_errors::ThothError;
