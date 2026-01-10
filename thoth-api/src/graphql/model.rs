@@ -1831,7 +1831,6 @@ impl MutationRoot {
     ) -> FieldResult<Abstract> {
         AbstractPolicy::can_create(context, &data, markup_format)?;
 
-        // Safe to unwrap after policy check.
         let markup = markup_format.expect("Validated by policy");
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Abstract)?;
 
@@ -1848,7 +1847,6 @@ impl MutationRoot {
     ) -> FieldResult<Biography> {
         BiographyPolicy::can_create(context, &data, markup_format)?;
 
-        // Safe to unwrap after policy check.
         let markup = markup_format.expect("Validated by policy");
         data.content = convert_to_jats(data.content, markup, ConversionLimit::Biography)?;
 
