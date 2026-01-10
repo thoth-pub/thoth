@@ -3,7 +3,7 @@ use diesel::prelude::*;
 use uuid::Uuid;
 
 use super::{Abstract, AbstractType, NewAbstract, PatchAbstract};
-use crate::model::MarkupFormat;
+use crate::markup::MarkupFormat;
 use crate::policy::{CreatePolicy, DeletePolicy, PolicyContext, UpdatePolicy};
 use crate::schema::work_abstract;
 use thoth_errors::{ThothError, ThothResult};

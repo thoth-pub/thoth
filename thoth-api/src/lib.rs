@@ -14,10 +14,10 @@ extern crate diesel_migrations;
 extern crate dotenv;
 extern crate juniper;
 
-pub mod ast;
 #[cfg(feature = "backend")]
 pub mod db;
 pub mod graphql;
+pub mod markup;
 #[macro_use]
 pub mod model;
 #[cfg(feature = "backend")]

@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::fmt;
 use std::io::Write;
-use thoth_api::ast::{ast_to_plain_text, jats_to_ast};
+use thoth_api::markup::ast::{ast_to_plain_text, jats_to_ast};
 use thoth_client::{
     AbstractType, ContributionType, PublicationType, RelationType, Work, WorkContributions,
     WorkType,

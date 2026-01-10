@@ -2,8 +2,8 @@ use diesel::dsl::{exists, select};
 use diesel::prelude::*;
 use uuid::Uuid;
 
+use crate::markup::MarkupFormat;
 use crate::model::biography::{Biography, NewBiography, PatchBiography};
-use crate::model::MarkupFormat;
 use crate::policy::{CreatePolicy, DeletePolicy, PolicyContext, UpdatePolicy};
 use crate::schema::biography;
 use thoth_errors::{ThothError, ThothResult};

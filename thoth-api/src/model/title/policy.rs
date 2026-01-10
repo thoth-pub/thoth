@@ -1,5 +1,5 @@
+use crate::markup::MarkupFormat;
 use crate::model::title::{NewTitle, PatchTitle, Title};
-use crate::model::MarkupFormat;
 use crate::policy::{CreatePolicy, DeletePolicy, PolicyContext, UpdatePolicy};
 use crate::schema::work_title;
 

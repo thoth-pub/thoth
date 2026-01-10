@@ -1,4 +1,5 @@
-use crate::model::{convert_to_jats, locale::LocaleCode, ConversionLimit, MarkupFormat};
+use crate::markup::{convert_to_jats, ConversionLimit, MarkupFormat};
+use crate::model::locale::LocaleCode;
 use serde::{Deserialize, Serialize};
 use thoth_errors::ThothResult;
 use uuid::Uuid;

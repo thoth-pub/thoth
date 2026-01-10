@@ -10,6 +10,7 @@ use super::inputs::{
     SubjectOrderBy, TimeExpression,
 };
 use crate::db::PgPool;
+use crate::markup::{convert_from_jats, convert_to_jats, ConversionLimit, MarkupFormat};
 use crate::model::{
     affiliation::{
         Affiliation, AffiliationOrderBy, AffiliationPolicy, NewAffiliation, PatchAffiliation,
@@ -22,7 +23,6 @@ use crate::model::{
     contributor::{
         Contributor, ContributorOrderBy, ContributorPolicy, NewContributor, PatchContributor,
     },
-    convert_from_jats, convert_to_jats,
     funding::{Funding, FundingPolicy, NewFunding, PatchFunding},
     imprint::{Imprint, ImprintField, ImprintOrderBy, ImprintPolicy, NewImprint, PatchImprint},
     institution::{
@@ -55,8 +55,7 @@ use crate::model::{
         NewWorkRelation, PatchWorkRelation, RelationType, WorkRelation, WorkRelationOrderBy,
         WorkRelationPolicy,
     },
-    ConversionLimit, Convert, Crud, Doi, Isbn, LengthUnit, MarkupFormat, Orcid, Reorder, Ror,
-    Timestamp, WeightUnit,
+    Convert, Crud, Doi, Isbn, LengthUnit, Orcid, Reorder, Ror, Timestamp, WeightUnit,
 };
 use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, PolicyContext, UpdatePolicy};
 use thoth_errors::ThothError;
