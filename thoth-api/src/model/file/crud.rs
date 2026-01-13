@@ -110,9 +110,7 @@ impl Crud for File {
                 crate::model::publication::Publication::from_id(db, &publication_id)?
                     .publisher_id(db)
             }
-            _ => Err(ThothError::InternalError(
-                "File must have either work_id or publication_id".to_string(),
-            )),
+            _ => Err(ThothError::FileMissingWorkOrPublicationId),
         }
     }
 }
@@ -212,9 +210,7 @@ impl Crud for FileUpload {
                 crate::model::publication::Publication::from_id(db, &publication_id)?
                     .publisher_id(db)
             }
-            _ => Err(ThothError::InternalError(
-                "FileUpload must have either work_id or publication_id".to_string(),
-            )),
+            _ => Err(ThothError::FileUploadMissingWorkOrPublicationId),
         }
     }
 }

@@ -168,10 +168,7 @@ pub fn validate_file_extension(
         FileType::Frontcover => {
             let valid_extensions = ["jpg", "jpeg", "png", "webp"];
             if !valid_extensions.contains(&extension.to_lowercase().as_str()) {
-                return Err(ThothError::InternalError(format!(
-                    "Invalid extension for frontcover: {}. Allowed: jpg, jpeg, png, webp",
-                    extension
-                )));
+                return Err(ThothError::InvalidFileExtension);
             }
         }
         FileType::Publication => {
@@ -188,22 +185,14 @@ pub fn validate_file_extension(
                     PublicationType::Mp3 => vec!["mp3"],
                     PublicationType::Wav => vec!["wav"],
                     _ => {
-                        return Err(ThothError::InternalError(format!(
-                            "File uploads not supported for publication type: {:?}",
-                            pub_type
-                        )))
+                        return Err(ThothError::UnsupportedPublicationTypeForFileUpload)
                     }
                 };
                 if !valid_extensions.contains(&extension.to_lowercase().as_str()) {
-                    return Err(ThothError::InternalError(format!(
-                        "Invalid extension for {:?}: {}. Allowed: {:?}",
-                        pub_type, extension, valid_extensions
-                    )));
+                    return Err(ThothError::InvalidFileExtension);
                 }
             } else {
-                return Err(ThothError::InternalError(
-                    "Publication type required for publication file validation".to_string(),
-                ));
+                return Err(ThothError::PublicationTypeRequiredForFileValidation);
             }
         }
     }

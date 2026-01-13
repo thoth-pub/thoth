@@ -3442,9 +3442,7 @@ impl MutationRoot {
             )?)?;
 
         let work = Work::from_id(&context.db, &publication.work_id)?;
-        work.doi.ok_or_else(|| {
-            ThothError::InternalError("Work must have a DOI to upload files".to_string())
-        })?;
+        work.doi.ok_or_else(|| ThothError::WorkMissingDoiForFileUpload)?;
 
         let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
         let storage_config = StorageConfig::from_imprint(&imprint)?;
@@ -3513,9 +3511,7 @@ impl MutationRoot {
             .account_access
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
-        work.doi.ok_or_else(|| {
-            ThothError::InternalError("Work must have a DOI to upload files".to_string())
-        })?;
+        work.doi.ok_or_else(|| ThothError::WorkMissingDoiForFileUpload)?;
 
         let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
         let storage_config = StorageConfig::from_imprint(&imprint)?;
@@ -3574,11 +3570,9 @@ impl MutationRoot {
 
         match file_upload.file_type {
             FileType::Publication => {
-                let publication_id = file_upload.publication_id.ok_or_else(|| {
-                    ThothError::InternalError(
-                        "Publication file upload missing publication_id".to_string(),
-                    )
-                })?;
+                let publication_id = file_upload
+                    .publication_id
+                    .ok_or_else(|| ThothError::PublicationFileUploadMissingPublicationId)?;
                 context
                     .account_access
                     .can_edit(publisher_id_from_publication_id(
@@ -3587,9 +3581,9 @@ impl MutationRoot {
                     )?)?;
             }
             FileType::Frontcover => {
-                let work_id = file_upload.work_id.ok_or_else(|| {
-                    ThothError::InternalError("Frontcover file upload missing work_id".to_string())
-                })?;
+                let work_id = file_upload
+                    .work_id
+                    .ok_or_else(|| ThothError::FrontcoverFileUploadMissingWorkId)?;
                 context
                     .account_access
                     .can_edit(publisher_id_from_work_id(&context.db, work_id)?)?;
@@ -3615,7 +3609,7 @@ impl MutationRoot {
 
         let doi = work
             .doi
-            .ok_or_else(|| ThothError::InternalError("Work must have a DOI".to_string()))?;
+            .ok_or_else(|| ThothError::WorkMissingDoiForFileUpload)?;
 
         let doi_prefix = doi.prefix();
         let doi_suffix = doi.suffix();
