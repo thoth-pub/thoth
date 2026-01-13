@@ -43,9 +43,7 @@ impl Crud for File {
         _filter_param_3: Option<Self::FilterParameter3>,
         _filter_param_4: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<File>> {
-        Err(ThothError::InternalError(
-            "File::all not implemented".to_string(),
-        ))
+        unimplemented!()
     }
 
     fn count(
@@ -57,9 +55,7 @@ impl Crud for File {
         _filter_param_3: Option<Self::FilterParameter3>,
         _filter_param_4: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
-        Err(ThothError::InternalError(
-            "File::count not implemented".to_string(),
-        ))
+        unimplemented!()
     }
 
     fn from_id(db: &crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
@@ -86,9 +82,7 @@ impl Crud for File {
         _data: &NewFile,
         _account_id: &Uuid,
     ) -> ThothResult<Self> {
-        Err(ThothError::InternalError(
-            "File::update not implemented".to_string(),
-        ))
+        unimplemented!()
     }
 
     fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self> {
@@ -143,9 +137,7 @@ impl Crud for FileUpload {
         _filter_param_3: Option<Self::FilterParameter3>,
         _filter_param_4: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<FileUpload>> {
-        Err(ThothError::InternalError(
-            "FileUpload::all not implemented".to_string(),
-        ))
+        unimplemented!()
     }
 
     fn count(
@@ -157,9 +149,7 @@ impl Crud for FileUpload {
         _filter_param_3: Option<Self::FilterParameter3>,
         _filter_param_4: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
-        Err(ThothError::InternalError(
-            "FileUpload::count not implemented".to_string(),
-        ))
+        unimplemented!()
     }
 
     fn from_id(db: &crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
@@ -186,9 +176,7 @@ impl Crud for FileUpload {
         _data: &NewFileUpload,
         _account_id: &Uuid,
     ) -> ThothResult<Self> {
-        Err(ThothError::InternalError(
-            "FileUpload::update not implemented".to_string(),
-        ))
+        unimplemented!()
     }
 
     fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self> {
