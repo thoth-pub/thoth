@@ -70,6 +70,10 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "accessibility_exception"))]
     pub struct AccessibilityException;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "resource_type"))]
+    pub struct ResourceType;
 }
 
 table! {
@@ -637,6 +641,7 @@ table! {
         last_page -> Nullable<Text>,
         page_interval -> Nullable<Text>,
         updated_at_with_relations -> Timestamptz,
+        resources_description -> Nullable<Text>,
     }
 }
 
@@ -732,6 +737,155 @@ table! {
     }
 }
 
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::ResourceType;
+
+    additional_resource (additional_resource_id) {
+        additional_resource_id -> Uuid,
+        work_id -> Uuid,
+        title -> Text,
+        description -> Nullable<Text>,
+        attribution -> Nullable<Text>,
+        resource_type -> ResourceType,
+        doi -> Nullable<Text>,
+        handle -> Nullable<Text>,
+        url -> Nullable<Text>,
+        resource_ordinal -> Int4,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    award (award_id) {
+        award_id -> Uuid,
+        work_id -> Uuid,
+        title -> Text,
+        url -> Nullable<Text>,
+        category -> Nullable<Text>,
+        note -> Nullable<Text>,
+        award_ordinal -> Int4,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    endorsement (endorsement_id) {
+        endorsement_id -> Uuid,
+        work_id -> Uuid,
+        author_name -> Nullable<Text>,
+        author_role -> Nullable<Text>,
+        url -> Nullable<Text>,
+        text -> Nullable<Text>,
+        endorsement_ordinal -> Int4,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    book_review (book_review_id) {
+        book_review_id -> Uuid,
+        work_id -> Uuid,
+        title -> Nullable<Text>,
+        author_name -> Nullable<Text>,
+        url -> Nullable<Text>,
+        doi -> Nullable<Text>,
+        review_date -> Nullable<Date>,
+        journal_name -> Nullable<Text>,
+        journal_volume -> Nullable<Text>,
+        journal_number -> Nullable<Text>,
+        journal_issn -> Nullable<Text>,
+        text -> Nullable<Text>,
+        review_ordinal -> Int4,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    work_featured_video (work_featured_video_id) {
+        work_featured_video_id -> Uuid,
+        work_id -> Uuid,
+        video_id -> Nullable<Text>,
+        title -> Nullable<Text>,
+        width -> Int4,
+        height -> Int4,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    additional_resource_history (additional_resource_history_id) {
+        additional_resource_history_id -> Uuid,
+        additional_resource_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    award_history (award_history_id) {
+        award_history_id -> Uuid,
+        award_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    endorsement_history (endorsement_history_id) {
+        endorsement_history_id -> Uuid,
+        endorsement_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    book_review_history (book_review_history_id) {
+        book_review_history_id -> Uuid,
+        book_review_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    work_featured_video_history (work_featured_video_history_id) {
+        work_featured_video_history_id -> Uuid,
+        work_featured_video_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
 joinable!(abstract_history -> work_abstract (abstract_id));
 joinable!(abstract_history -> account (account_id));
 joinable!(affiliation -> contribution (contribution_id));
@@ -789,6 +943,16 @@ joinable!(subject_history -> account (account_id));
 joinable!(subject_history -> subject (subject_id));
 joinable!(title_history -> work_title (title_id));
 joinable!(title_history -> account (account_id));
+joinable!(additional_resource_history -> additional_resource (additional_resource_id));
+joinable!(additional_resource_history -> account (account_id));
+joinable!(award_history -> award (award_id));
+joinable!(award_history -> account (account_id));
+joinable!(endorsement_history -> endorsement (endorsement_id));
+joinable!(endorsement_history -> account (account_id));
+joinable!(book_review_history -> book_review (book_review_id));
+joinable!(book_review_history -> account (account_id));
+joinable!(work_featured_video_history -> work_featured_video (work_featured_video_id));
+joinable!(work_featured_video_history -> account (account_id));
 joinable!(work -> imprint (imprint_id));
 joinable!(work_abstract -> work (work_id));
 joinable!(work_history -> account (account_id));
@@ -797,20 +961,33 @@ joinable!(work_relation -> work (relator_work_id));
 joinable!(work_relation_history -> account (account_id));
 joinable!(work_relation_history -> work_relation (work_relation_id));
 joinable!(work_title -> work (work_id));
+joinable!(additional_resource -> work (work_id));
+joinable!(award -> work (work_id));
+joinable!(endorsement -> work (work_id));
+joinable!(book_review -> work (work_id));
+joinable!(work_featured_video -> work (work_id));
 
 allow_tables_to_appear_in_same_query!(
     abstract_history,
     account,
+    additional_resource,
+    additional_resource_history,
     affiliation,
     affiliation_history,
+    award,
+    award_history,
     biography,
     biography_history,
+    book_review,
+    book_review_history,
     contact,
     contact_history,
     contribution,
     contribution_history,
     contributor,
     contributor_history,
+    endorsement,
+    endorsement_history,
     funding,
     funding_history,
     imprint,
@@ -839,6 +1016,8 @@ allow_tables_to_appear_in_same_query!(
     title_history,
     work,
     work_abstract,
+    work_featured_video,
+    work_featured_video_history,
     work_history,
     work_relation,
     work_relation_history,

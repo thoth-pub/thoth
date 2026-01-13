@@ -1726,11 +1726,15 @@ mod tests {
 }
 
 pub mod r#abstract;
+pub mod additional_resource;
 pub mod affiliation;
+pub mod award;
 pub mod biography;
+pub mod book_review;
 pub mod contact;
 pub mod contribution;
 pub mod contributor;
+pub mod endorsement;
 pub mod funding;
 pub mod imprint;
 pub mod institution;
@@ -1746,4 +1750,5 @@ pub mod series;
 pub mod subject;
 pub mod title;
 pub mod work;
+pub mod work_featured_video;
 pub mod work_relation;
