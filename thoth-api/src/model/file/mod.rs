@@ -184,9 +184,7 @@ pub fn validate_file_extension(
                     PublicationType::FictionBook => vec!["fb2", "fbz", "zip"],
                     PublicationType::Mp3 => vec!["mp3"],
                     PublicationType::Wav => vec!["wav"],
-                    _ => {
-                        return Err(ThothError::UnsupportedPublicationTypeForFileUpload)
-                    }
+                    _ => return Err(ThothError::UnsupportedPublicationTypeForFileUpload),
                 };
                 if !valid_extensions.contains(&extension.to_lowercase().as_str()) {
                     return Err(ThothError::InvalidFileExtension);

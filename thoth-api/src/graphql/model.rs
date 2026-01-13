@@ -3442,7 +3442,8 @@ impl MutationRoot {
             )?)?;
 
         let work = Work::from_id(&context.db, &publication.work_id)?;
-        work.doi.ok_or_else(|| ThothError::WorkMissingDoiForFileUpload)?;
+        work.doi
+            .ok_or_else(|| ThothError::WorkMissingDoiForFileUpload)?;
 
         let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
         let storage_config = StorageConfig::from_imprint(&imprint)?;
@@ -3511,7 +3512,8 @@ impl MutationRoot {
             .account_access
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
-        work.doi.ok_or_else(|| ThothError::WorkMissingDoiForFileUpload)?;
+        work.doi
+            .ok_or_else(|| ThothError::WorkMissingDoiForFileUpload)?;
 
         let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
         let storage_config = StorageConfig::from_imprint(&imprint)?;

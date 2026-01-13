@@ -1775,8 +1775,8 @@ pub use affiliation::{Affiliation, NewAffiliation};
 pub use contribution::{Contribution, NewContribution};
 pub use contributor::{Contributor, NewContributor};
 pub use file::{
-    validate_file_extension, CompleteFileUpload, File, FileType, FileUpload,
-    FileUploadResponse, NewFile, NewFileUpload, NewFrontcoverFileUpload, NewPublicationFileUpload,
+    validate_file_extension, CompleteFileUpload, File, FileType, FileUpload, FileUploadResponse,
+    NewFile, NewFileUpload, NewFrontcoverFileUpload, NewPublicationFileUpload,
 };
 pub use funding::{Funding, NewFunding};
 pub use imprint::{Imprint, NewImprint};

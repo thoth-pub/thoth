@@ -1,21 +1,13 @@
-#[cfg(feature = "backend")]
 use aws_config::Region;
-#[cfg(feature = "backend")]
 use aws_sdk_cloudfront::Client as CloudFrontClient;
-#[cfg(feature = "backend")]
 use aws_sdk_s3::{presigning::PresigningConfig, types::ChecksumAlgorithm, Client as S3Client};
-#[cfg(feature = "backend")]
 use std::time::Duration as StdDuration;
-#[cfg(feature = "backend")]
 use thoth_errors::{ThothError, ThothResult};
-#[cfg(feature = "backend")]
 use uuid::Uuid;
 
-#[cfg(feature = "backend")]
 use crate::model::imprint::Imprint;
 
 /// Storage configuration extracted from an imprint
-#[cfg(feature = "backend")]
 pub struct StorageConfig {
     pub s3_bucket: String,
     pub s3_region: String,
@@ -23,7 +15,6 @@ pub struct StorageConfig {
     pub cloudfront_dist_id: String,
 }
 
-#[cfg(feature = "backend")]
 impl StorageConfig {
     /// Extract storage configuration from an imprint
     pub fn from_imprint(imprint: &Imprint) -> ThothResult<Self> {
@@ -47,7 +38,6 @@ impl StorageConfig {
 }
 
 /// Create an S3 client configured for the given region
-#[cfg(feature = "backend")]
 pub async fn create_s3_client(region: &str) -> S3Client {
     eprintln!("S3_DEBUG: Creating S3 client for region: {}", region);
 
@@ -65,7 +55,6 @@ pub async fn create_s3_client(region: &str) -> S3Client {
 }
 
 /// Create a CloudFront client
-#[cfg(feature = "backend")]
 pub async fn create_cloudfront_client() -> CloudFrontClient {
     let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
     CloudFrontClient::new(&config)
@@ -75,7 +64,6 @@ pub async fn create_cloudfront_client() -> CloudFrontClient {
 /// required headers:
 /// - Content-Type: from declared_mime_type
 /// - x-amz-checksum-sha256: base64-encoded SHA-256 checksum
-#[cfg(feature = "backend")]
 pub async fn presign_put_for_upload(
     s3_client: &S3Client,
     bucket: &str,
@@ -119,7 +107,6 @@ pub async fn presign_put_for_upload(
 }
 
 /// Copy an object from temporary upload location to final canonical location
-#[cfg(feature = "backend")]
 pub async fn copy_temp_object_to_final(
     s3_client: &S3Client,
     bucket: &str,
@@ -141,7 +128,6 @@ pub async fn copy_temp_object_to_final(
 }
 
 /// Delete a temporary upload object from S3
-#[cfg(feature = "backend")]
 pub async fn delete_temp_object(
     s3_client: &S3Client,
     bucket: &str,
@@ -159,7 +145,6 @@ pub async fn delete_temp_object(
 }
 
 /// Get object metadata (HeadObject) from S3
-#[cfg(feature = "backend")]
 pub async fn head_object(
     s3_client: &S3Client,
     bucket: &str,
@@ -183,7 +168,6 @@ pub async fn head_object(
 }
 
 /// Invalidate CloudFront cache for a given path
-#[cfg(feature = "backend")]
 pub async fn invalidate_cloudfront(
     cloudfront_client: &CloudFrontClient,
     distribution_id: &str,
@@ -222,13 +206,11 @@ pub async fn invalidate_cloudfront(
 }
 
 /// Compute the temporary S3 key for an upload
-#[cfg(feature = "backend")]
 pub fn temp_key(file_upload_id: &Uuid) -> String {
     format!("uploads/{}", file_upload_id)
 }
 
 /// Compute the canonical object key for a publication file
-#[cfg(feature = "backend")]
 pub fn canonical_publication_key(doi_prefix: &str, doi_suffix: &str, extension: &str) -> String {
     format!(
         "{}/{}.{}",
@@ -239,7 +221,6 @@ pub fn canonical_publication_key(doi_prefix: &str, doi_suffix: &str, extension: 
 }
 
 /// Compute the canonical object key for a frontcover file
-#[cfg(feature = "backend")]
 pub fn canonical_frontcover_key(doi_prefix: &str, doi_suffix: &str, extension: &str) -> String {
     format!(
         "{}/{}_frontcover.{}",
@@ -250,7 +231,6 @@ pub fn canonical_frontcover_key(doi_prefix: &str, doi_suffix: &str, extension: &
 }
 
 /// Build the full CDN URL from domain and object key
-#[cfg(feature = "backend")]
 pub fn build_cdn_url(cdn_domain: &str, object_key: &str) -> String {
     // Ensure cdn_domain doesn't end with / and object_key doesn't have a leading /
     let domain = cdn_domain.trim_end_matches('/');
