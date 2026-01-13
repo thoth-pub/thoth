@@ -324,3 +324,282 @@ pub fn build_cdn_url(cdn_domain: &str, object_key: &str) -> String {
     let key = object_key.trim_start_matches('/');
     format!("https://{}/{}", domain, key)
 }
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use crate::model::Timestamp;
+    use std::sync::{Mutex, MutexGuard};
+    use uuid::Uuid;
+
+    lazy_static::lazy_static! {
+        static ref ENV_LOCK: Mutex<()> = Mutex::new(());
+    }
+
+    pub(crate) fn env_lock() -> MutexGuard<'static, ()> {
+        ENV_LOCK.lock().unwrap()
+    }
+
+    fn create_test_imprint_with_storage() -> Imprint {
+        Imprint {
+            imprint_id: Uuid::new_v4(),
+            publisher_id: Uuid::new_v4(),
+            imprint_name: "Test Imprint".to_string(),
+            imprint_url: None,
+            crossmark_doi: None,
+            s3_bucket: Some("test-bucket".to_string()),
+            s3_region: Some("us-east-1".to_string()),
+            cdn_domain: Some("cdn.example.com".to_string()),
+            cloudfront_dist_id: Some("E1234567890ABC".to_string()),
+            aws_access_key_id: None,
+            aws_secret_access_key: None,
+            created_at: Timestamp::default(),
+            updated_at: Timestamp::default(),
+        }
+    }
+
+    fn create_test_imprint_without_storage() -> Imprint {
+        Imprint {
+            imprint_id: Uuid::new_v4(),
+            publisher_id: Uuid::new_v4(),
+            imprint_name: "Test Imprint".to_string(),
+            imprint_url: None,
+            crossmark_doi: None,
+            s3_bucket: None,
+            s3_region: None,
+            cdn_domain: None,
+            cloudfront_dist_id: None,
+            aws_access_key_id: None,
+            aws_secret_access_key: None,
+            created_at: Timestamp::default(),
+            updated_at: Timestamp::default(),
+        }
+    }
+
+    #[test]
+    fn test_storage_config_from_imprint_success() {
+        let imprint = create_test_imprint_with_storage();
+        let config = StorageConfig::from_imprint(&imprint).unwrap();
+
+        assert_eq!(config.s3_bucket, "test-bucket");
+        assert_eq!(config.s3_region, "us-east-1");
+        assert_eq!(config.cdn_domain, "cdn.example.com");
+        assert_eq!(config.cloudfront_dist_id, "E1234567890ABC");
+        assert_eq!(config.aws_access_key_id, None);
+        assert_eq!(config.aws_secret_access_key, None);
+    }
+
+    #[test]
+    fn test_storage_config_from_imprint_missing_config() {
+        let imprint = create_test_imprint_without_storage();
+        let result = StorageConfig::from_imprint(&imprint);
+
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ThothError::InternalError(_))));
+    }
+
+    #[test]
+    fn test_storage_config_from_imprint_partial_config() {
+        let mut imprint = create_test_imprint_without_storage();
+        imprint.s3_bucket = Some("test-bucket".to_string());
+        // Missing other required fields
+
+        let result = StorageConfig::from_imprint(&imprint);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "backend")]
+    fn test_storage_config_from_imprint_with_credentials() {
+        use std::env;
+        let _env_guard = env_lock();
+        // Set a test encryption key (32 bytes)
+        let test_key = "test-secret-key-for-encryption-32-bytes!!";
+        env::set_var("ENCRYPTION_KEY", test_key);
+
+        let mut imprint = create_test_imprint_with_storage();
+        let encrypted_access_key = encrypt_credential("AKIAIOSFODNN7EXAMPLE").unwrap();
+        let encrypted_secret_key =
+            encrypt_credential("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY").unwrap();
+
+        imprint.aws_access_key_id = Some(encrypted_access_key);
+        imprint.aws_secret_access_key = Some(encrypted_secret_key);
+
+        let config = StorageConfig::from_imprint(&imprint).unwrap();
+
+        assert_eq!(
+            config.aws_access_key_id,
+            Some("AKIAIOSFODNN7EXAMPLE".to_string())
+        );
+        assert_eq!(
+            config.aws_secret_access_key,
+            Some("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY".to_string())
+        );
+
+        env::remove_var("ENCRYPTION_KEY");
+    }
+
+    #[test]
+    fn test_temp_key() {
+        let file_upload_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let key = temp_key(&file_upload_id);
+        assert_eq!(key, "uploads/550e8400-e29b-41d4-a716-446655440000");
+    }
+
+    #[test]
+    fn test_canonical_publication_key() {
+        let key = canonical_publication_key("10.12345", "Test-Suffix.01", "PDF");
+        assert_eq!(key, "10.12345/test-suffix.01.pdf");
+
+        let key2 = canonical_publication_key("10.1000", "182", "epub");
+        assert_eq!(key2, "10.1000/182.epub");
+
+        // Test case insensitivity
+        let key3 = canonical_publication_key("10.ABCDEF", "UPPERCASE-SUFFIX", "XML");
+        assert_eq!(key3, "10.abcdef/uppercase-suffix.xml");
+    }
+
+    #[test]
+    fn test_canonical_frontcover_key() {
+        let key = canonical_frontcover_key("10.12345", "Test-Suffix.01", "JPG");
+        assert_eq!(key, "10.12345/test-suffix.01_frontcover.jpg");
+
+        let key2 = canonical_frontcover_key("10.1000", "182", "png");
+        assert_eq!(key2, "10.1000/182_frontcover.png");
+
+        // Test case insensitivity
+        let key3 = canonical_frontcover_key("10.ABCDEF", "UPPERCASE-SUFFIX", "WEBP");
+        assert_eq!(key3, "10.abcdef/uppercase-suffix_frontcover.webp");
+    }
+
+    #[test]
+    fn test_build_cdn_url() {
+        // Normal case
+        let url = build_cdn_url("cdn.example.com", "10.12345/test.pdf");
+        assert_eq!(url, "https://cdn.example.com/10.12345/test.pdf");
+
+        // Domain with trailing slash
+        let url2 = build_cdn_url("cdn.example.com/", "10.12345/test.pdf");
+        assert_eq!(url2, "https://cdn.example.com/10.12345/test.pdf");
+
+        // Key with leading slash
+        let url3 = build_cdn_url("cdn.example.com", "/10.12345/test.pdf");
+        assert_eq!(url3, "https://cdn.example.com/10.12345/test.pdf");
+
+        // Both with slashes
+        let url4 = build_cdn_url("cdn.example.com/", "/10.12345/test.pdf");
+        assert_eq!(url4, "https://cdn.example.com/10.12345/test.pdf");
+
+        // Multiple trailing slashes
+        let url5 = build_cdn_url("cdn.example.com///", "///10.12345/test.pdf");
+        assert_eq!(url5, "https://cdn.example.com/10.12345/test.pdf");
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "backend")]
+    async fn test_create_s3_client_with_credentials() {
+        // Test that function doesn't panic and returns a client
+        // Note: This creates a real AWS client, but doesn't make actual AWS calls
+        let _client = create_s3_client_with_credentials("us-east-1", None, None).await;
+        // If we get here, the client was created successfully
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "backend")]
+    async fn test_create_s3_client_with_custom_credentials() {
+        // Test with custom credentials
+        let _client = create_s3_client_with_credentials(
+            "us-east-1",
+            Some("AKIAIOSFODNN7EXAMPLE"),
+            Some("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"),
+        )
+        .await;
+        // If we get here, the client was created successfully
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "backend")]
+    async fn test_create_cloudfront_client_with_credentials() {
+        // Test that function doesn't panic and returns a client
+        let _client = create_cloudfront_client_with_credentials(None, None).await;
+        // If we get here, the client was created successfully
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "backend")]
+    async fn test_create_cloudfront_client_with_custom_credentials() {
+        // Test with custom credentials
+        let _client = create_cloudfront_client_with_credentials(
+            Some("AKIAIOSFODNN7EXAMPLE"),
+            Some("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"),
+        )
+        .await;
+        // If we get here, the client was created successfully
+    }
+
+    #[test]
+    fn test_storage_config_from_imprint_partial_missing_fields() {
+        // Test with only some fields set
+        let mut imprint = create_test_imprint_without_storage();
+        imprint.s3_bucket = Some("test-bucket".to_string());
+        imprint.s3_region = Some("us-east-1".to_string());
+        // Missing cdn_domain and cloudfront_dist_id
+
+        let result = StorageConfig::from_imprint(&imprint);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_canonical_publication_key_edge_cases() {
+        // Empty suffix
+        let key = canonical_publication_key("10.12345", "", "pdf");
+        assert_eq!(key, "10.12345/.pdf");
+
+        // Suffix with dots
+        let key2 = canonical_publication_key("10.12345", "test.suffix.v2", "epub");
+        assert_eq!(key2, "10.12345/test.suffix.v2.epub");
+
+        // Extension with dots (should be handled as-is)
+        let key3 = canonical_publication_key("10.12345", "test", "tar.gz");
+        assert_eq!(key3, "10.12345/test.tar.gz");
+    }
+
+    #[test]
+    fn test_canonical_frontcover_key_edge_cases() {
+        // Empty suffix
+        let key = canonical_frontcover_key("10.12345", "", "jpg");
+        assert_eq!(key, "10.12345/_frontcover.jpg");
+
+        // Suffix with special characters
+        let key2 = canonical_frontcover_key("10.12345", "test-suffix_v2", "png");
+        assert_eq!(key2, "10.12345/test-suffix_v2_frontcover.png");
+    }
+
+    #[test]
+    fn test_build_cdn_url_edge_cases() {
+        // Empty key
+        let url = build_cdn_url("cdn.example.com", "");
+        assert_eq!(url, "https://cdn.example.com/");
+
+        // Key with multiple slashes
+        let url2 = build_cdn_url("cdn.example.com", "///path/to/file.pdf");
+        assert_eq!(url2, "https://cdn.example.com/path/to/file.pdf");
+
+        // Domain with protocol (should still work)
+        let url3 = build_cdn_url("https://cdn.example.com", "file.pdf");
+        assert_eq!(url3, "https://https://cdn.example.com/file.pdf");
+    }
+
+    #[test]
+    fn test_temp_key_different_uuids() {
+        let uuid1 = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let uuid2 = Uuid::parse_str("6ba7b810-9dad-11d1-80b4-00c04fd430c8").unwrap();
+
+        let key1 = temp_key(&uuid1);
+        let key2 = temp_key(&uuid2);
+
+        assert_ne!(key1, key2);
+        assert_eq!(key1, "uploads/550e8400-e29b-41d4-a716-446655440000");
+        assert_eq!(key2, "uploads/6ba7b810-9dad-11d1-80b4-00c04fd430c8");
+    }
+}

@@ -61,7 +61,7 @@ aws-config = { version = "1", optional = true }
 aws-credential-types = { version = "1", optional = true }
 base64 = { version = "0.22", optional = true }
 hex = { version = "0.4", optional = true }
-aes-gcm = { version = "0.10", optional = true, features = ["aes-256-gcm"] }
+aes-gcm = { version = "0.10", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.44", features = ["macros"] }

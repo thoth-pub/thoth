@@ -3456,7 +3456,7 @@ impl MutationRoot {
 
         let work = Work::from_id(&context.db, &publication.work_id)?;
         work.doi
-            .ok_or_else(|| ThothError::WorkMissingDoiForFileUpload)?;
+            .ok_or(ThothError::WorkMissingDoiForFileUpload)?;
 
         let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
         let storage_config = StorageConfig::from_imprint(&imprint)?;
@@ -3531,7 +3531,7 @@ impl MutationRoot {
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
         work.doi
-            .ok_or_else(|| ThothError::WorkMissingDoiForFileUpload)?;
+            .ok_or(ThothError::WorkMissingDoiForFileUpload)?;
 
         let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
         let storage_config = StorageConfig::from_imprint(&imprint)?;
@@ -3597,7 +3597,7 @@ impl MutationRoot {
             FileType::Publication => {
                 let publication_id = file_upload
                     .publication_id
-                    .ok_or_else(|| ThothError::PublicationFileUploadMissingPublicationId)?;
+                    .ok_or(ThothError::PublicationFileUploadMissingPublicationId)?;
                 context
                     .account_access
                     .can_edit(publisher_id_from_publication_id(
@@ -3608,7 +3608,7 @@ impl MutationRoot {
             FileType::Frontcover => {
                 let work_id = file_upload
                     .work_id
-                    .ok_or_else(|| ThothError::FrontcoverFileUploadMissingWorkId)?;
+                    .ok_or(ThothError::FrontcoverFileUploadMissingWorkId)?;
                 context
                     .account_access
                     .can_edit(publisher_id_from_work_id(&context.db, work_id)?)?;
@@ -3634,7 +3634,7 @@ impl MutationRoot {
 
         let doi = work
             .doi
-            .ok_or_else(|| ThothError::WorkMissingDoiForFileUpload)?;
+            .ok_or(ThothError::WorkMissingDoiForFileUpload)?;
 
         let doi_prefix = doi.prefix();
         let doi_suffix = doi.suffix();

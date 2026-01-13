@@ -199,3 +199,243 @@ pub fn validate_file_extension(
 
 #[cfg(feature = "backend")]
 pub mod crud;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_file_extension_frontcover_valid() {
+        let valid_extensions = ["jpg", "jpeg", "png", "webp", "JPG", "JPEG", "PNG", "WEBP"];
+        for ext in valid_extensions.iter() {
+            assert!(
+                validate_file_extension(ext, &FileType::Frontcover, None).is_ok(),
+                "Extension {} should be valid for frontcover",
+                ext
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_file_extension_frontcover_invalid() {
+        let invalid_extensions = ["gif", "bmp", "pdf", "txt", ""];
+        for ext in invalid_extensions.iter() {
+            assert!(
+                validate_file_extension(ext, &FileType::Frontcover, None).is_err(),
+                "Extension {} should be invalid for frontcover",
+                ext
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_file_extension_publication_pdf() {
+        assert!(
+            validate_file_extension("pdf", &FileType::Publication, Some(PublicationType::Pdf))
+                .is_ok()
+        );
+        assert!(
+            validate_file_extension("PDF", &FileType::Publication, Some(PublicationType::Pdf))
+                .is_ok()
+        );
+        assert!(validate_file_extension(
+            "epub",
+            &FileType::Publication,
+            Some(PublicationType::Pdf)
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_validate_file_extension_publication_epub() {
+        assert!(validate_file_extension(
+            "epub",
+            &FileType::Publication,
+            Some(PublicationType::Epub)
+        )
+        .is_ok());
+        assert!(validate_file_extension(
+            "pdf",
+            &FileType::Publication,
+            Some(PublicationType::Epub)
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_validate_file_extension_publication_html() {
+        assert!(validate_file_extension(
+            "html",
+            &FileType::Publication,
+            Some(PublicationType::Html)
+        )
+        .is_ok());
+        assert!(validate_file_extension(
+            "htm",
+            &FileType::Publication,
+            Some(PublicationType::Html)
+        )
+        .is_ok());
+        assert!(validate_file_extension(
+            "zip",
+            &FileType::Publication,
+            Some(PublicationType::Html)
+        )
+        .is_ok());
+        assert!(validate_file_extension(
+            "pdf",
+            &FileType::Publication,
+            Some(PublicationType::Html)
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_validate_file_extension_publication_xml() {
+        assert!(
+            validate_file_extension("xml", &FileType::Publication, Some(PublicationType::Xml))
+                .is_ok()
+        );
+        assert!(
+            validate_file_extension("zip", &FileType::Publication, Some(PublicationType::Xml))
+                .is_ok()
+        );
+        assert!(
+            validate_file_extension("pdf", &FileType::Publication, Some(PublicationType::Xml))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_validate_file_extension_publication_docx() {
+        assert!(validate_file_extension(
+            "docx",
+            &FileType::Publication,
+            Some(PublicationType::Docx)
+        )
+        .is_ok());
+        assert!(validate_file_extension(
+            "pdf",
+            &FileType::Publication,
+            Some(PublicationType::Docx)
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_validate_file_extension_publication_mobi() {
+        assert!(validate_file_extension(
+            "mobi",
+            &FileType::Publication,
+            Some(PublicationType::Mobi)
+        )
+        .is_ok());
+        assert!(validate_file_extension(
+            "pdf",
+            &FileType::Publication,
+            Some(PublicationType::Mobi)
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_validate_file_extension_publication_azw3() {
+        assert!(validate_file_extension(
+            "azw3",
+            &FileType::Publication,
+            Some(PublicationType::Azw3)
+        )
+        .is_ok());
+        assert!(validate_file_extension(
+            "pdf",
+            &FileType::Publication,
+            Some(PublicationType::Azw3)
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_validate_file_extension_publication_fictionbook() {
+        assert!(validate_file_extension(
+            "fb2",
+            &FileType::Publication,
+            Some(PublicationType::FictionBook)
+        )
+        .is_ok());
+        assert!(validate_file_extension(
+            "fbz",
+            &FileType::Publication,
+            Some(PublicationType::FictionBook)
+        )
+        .is_ok());
+        assert!(validate_file_extension(
+            "zip",
+            &FileType::Publication,
+            Some(PublicationType::FictionBook)
+        )
+        .is_ok());
+        assert!(validate_file_extension(
+            "pdf",
+            &FileType::Publication,
+            Some(PublicationType::FictionBook)
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_validate_file_extension_publication_mp3() {
+        assert!(
+            validate_file_extension("mp3", &FileType::Publication, Some(PublicationType::Mp3))
+                .is_ok()
+        );
+        assert!(
+            validate_file_extension("wav", &FileType::Publication, Some(PublicationType::Mp3))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_validate_file_extension_publication_wav() {
+        assert!(
+            validate_file_extension("wav", &FileType::Publication, Some(PublicationType::Wav))
+                .is_ok()
+        );
+        assert!(
+            validate_file_extension("mp3", &FileType::Publication, Some(PublicationType::Wav))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_validate_file_extension_publication_requires_type() {
+        assert!(validate_file_extension("pdf", &FileType::Publication, None).is_err());
+        assert!(matches!(
+            validate_file_extension("pdf", &FileType::Publication, None),
+            Err(ThothError::PublicationTypeRequiredForFileValidation)
+        ));
+    }
+
+    #[test]
+    fn test_validate_file_extension_publication_unsupported_type() {
+        assert!(validate_file_extension(
+            "pdf",
+            &FileType::Publication,
+            Some(PublicationType::Paperback)
+        )
+        .is_err());
+        assert!(matches!(
+            validate_file_extension(
+                "pdf",
+                &FileType::Publication,
+                Some(PublicationType::Paperback)
+            ),
+            Err(ThothError::UnsupportedPublicationTypeForFileUpload)
+        ));
+        assert!(validate_file_extension(
+            "pdf",
+            &FileType::Publication,
+            Some(PublicationType::Hardback)
+        )
+        .is_err());
+    }
+}

@@ -1744,6 +1744,49 @@ mod tests {
         let round_trip_timestamp = Timestamp::parse_from_rfc3339(&converted_string).unwrap();
         assert_eq!(timestamp, round_trip_timestamp);
     }
+
+    #[test]
+    fn test_doi_prefix() {
+        let doi = Doi("https://doi.org/10.12345/Test-Suffix.01".to_string());
+        assert_eq!(doi.prefix(), "10.12345");
+
+        let doi2 = Doi("https://doi.org/10.1000/182".to_string());
+        assert_eq!(doi2.prefix(), "10.1000");
+
+        let doi3 = Doi("10.1234/5678".to_string());
+        assert_eq!(doi3.prefix(), "10.1234");
+    }
+
+    #[test]
+    fn test_doi_suffix() {
+        let doi = Doi("https://doi.org/10.12345/Test-Suffix.01".to_string());
+        assert_eq!(doi.suffix(), "Test-Suffix.01");
+
+        let doi2 = Doi("https://doi.org/10.1000/182".to_string());
+        assert_eq!(doi2.suffix(), "182");
+
+        let doi3 = Doi("10.1234/5678".to_string());
+        assert_eq!(doi3.suffix(), "5678");
+
+        let doi4 = Doi("https://doi.org/10.2990/1471-5457(2005)24[2:tmpwac]2.0.co;2".to_string());
+        assert_eq!(doi4.suffix(), "1471-5457(2005)24[2:tmpwac]2.0.co;2");
+    }
+
+    #[test]
+    fn test_doi_prefix_and_suffix_roundtrip() {
+        let prefix = "10.12345";
+        let suffix = "Test-Suffix.01";
+        let doi = Doi(format!("https://doi.org/{}/{}", prefix, suffix));
+        assert_eq!(doi.prefix(), prefix);
+        assert_eq!(doi.suffix(), suffix);
+    }
+
+    #[test]
+    fn test_doi_prefix_empty_suffix() {
+        let doi = Doi("10.12345".to_string());
+        assert_eq!(doi.prefix(), "10.12345");
+        assert_eq!(doi.suffix(), "");
+    }
 }
 
 pub mod r#abstract;
