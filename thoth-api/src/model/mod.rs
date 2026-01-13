@@ -283,6 +283,27 @@ impl Doi {
     pub fn to_lowercase_string(&self) -> String {
         self.0.to_lowercase()
     }
+
+    /// Extract the DOI prefix (e.g., "10.12345")
+    pub fn prefix(&self) -> String {
+        let doi_without_domain = self.to_string();
+        doi_without_domain
+            .split('/')
+            .next()
+            .unwrap_or("")
+            .to_string()
+    }
+
+    /// Extract the DOI suffix (e.g., "Test-Suffix.01")
+    pub fn suffix(&self) -> String {
+        let doi_without_domain = self.to_string();
+        let parts: Vec<&str> = doi_without_domain.splitn(2, '/').collect();
+        if parts.len() == 2 {
+            parts[1].to_string()
+        } else {
+            String::new()
+        }
+    }
 }
 
 impl Isbn {
@@ -1754,7 +1775,7 @@ pub use affiliation::{Affiliation, NewAffiliation};
 pub use contribution::{Contribution, NewContribution};
 pub use contributor::{Contributor, NewContributor};
 pub use file::{
-    parse_doi, validate_file_extension, CompleteFileUpload, File, FileType, FileUpload,
+    validate_file_extension, CompleteFileUpload, File, FileType, FileUpload,
     FileUploadResponse, NewFile, NewFileUpload, NewFrontcoverFileUpload, NewPublicationFileUpload,
 };
 pub use funding::{Funding, NewFunding};

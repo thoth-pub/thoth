@@ -5,7 +5,7 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::model::publication::PublicationType;
-use crate::model::{Doi, Timestamp};
+use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::file;
 #[cfg(feature = "backend")]
@@ -156,32 +156,6 @@ pub struct FileUploadResponse {
     pub upload_url: String,
     #[graphql(description = "Time when the upload URL expires.")]
     pub expires_at: Timestamp,
-}
-
-#[cfg(feature = "backend")]
-/// Parse a DOI into prefix and suffix
-pub fn parse_doi(doi: &Doi) -> ThothResult<(String, String)> {
-    // DOI format: https://doi.org/10.XXXX/SUFFIX
-    // We need to extract 10.XXXX (prefix) and SUFFIX
-    let doi_str = doi.to_lowercase_string();
-    // Remove the https://doi.org/ prefix if present
-    let doi_path = if doi_str.starts_with("https://doi.org/") {
-        doi_str.strip_prefix("https://doi.org/").unwrap()
-    } else if doi_str.starts_with("http://doi.org/") {
-        doi_str.strip_prefix("http://doi.org/").unwrap()
-    } else {
-        &doi_str
-    };
-    let parts: Vec<&str> = doi_path.splitn(2, '/').collect();
-    if parts.len() != 2 {
-        return Err(ThothError::InternalError(format!(
-            "Invalid DOI format: {}",
-            doi_str
-        )));
-    }
-    let prefix = parts[0].to_string();
-    let suffix = parts[1].to_string();
-    Ok((prefix, suffix))
 }
 
 #[cfg(feature = "backend")]

@@ -17,7 +17,7 @@ use crate::model::{
     contributor::{Contributor, ContributorOrderBy, NewContributor, PatchContributor},
     convert_from_jats, convert_to_jats,
     file::{
-        parse_doi, validate_file_extension, CompleteFileUpload, File, FileType, FileUpload,
+        validate_file_extension, CompleteFileUpload, File, FileType, FileUpload,
         FileUploadResponse, NewFile, NewFileUpload, NewFrontcoverFileUpload,
         NewPublicationFileUpload,
     },
@@ -3617,7 +3617,8 @@ impl MutationRoot {
             .doi
             .ok_or_else(|| ThothError::InternalError("Work must have a DOI".to_string()))?;
 
-        let (doi_prefix, doi_suffix) = parse_doi(&doi)?;
+        let doi_prefix = doi.prefix();
+        let doi_suffix = doi.suffix();
 
         let s3_client = create_s3_client(&storage_config.s3_region).await;
         let temp_key = temp_key(&file_upload.file_upload_id);
