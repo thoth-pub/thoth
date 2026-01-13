@@ -7,16 +7,22 @@ use uuid::Uuid;
 
 use crate::model::imprint::Imprint;
 
-/// Storage configuration extracted from an imprint
+#[cfg(feature = "backend")]
+mod encryption;
+
+#[cfg(feature = "backend")]
+pub use encryption::{decrypt_credential, encrypt_credential};
+
 pub struct StorageConfig {
     pub s3_bucket: String,
     pub s3_region: String,
     pub cdn_domain: String,
     pub cloudfront_dist_id: String,
+    pub aws_access_key_id: Option<String>,
+    pub aws_secret_access_key: Option<String>,
 }
 
 impl StorageConfig {
-    /// Extract storage configuration from an imprint
     pub fn from_imprint(imprint: &Imprint) -> ThothResult<Self> {
         match (
             &imprint.s3_bucket,
@@ -24,12 +30,29 @@ impl StorageConfig {
             &imprint.cdn_domain,
             &imprint.cloudfront_dist_id,
         ) {
-            (Some(bucket), Some(region), Some(domain), Some(dist_id)) => Ok(StorageConfig {
-                s3_bucket: bucket.clone(),
-                s3_region: region.clone(),
-                cdn_domain: domain.clone(),
-                cloudfront_dist_id: dist_id.clone(),
-            }),
+            (Some(bucket), Some(region), Some(domain), Some(dist_id)) => {
+                // Decrypt credentials if they exist
+                let aws_access_key_id = imprint
+                    .aws_access_key_id
+                    .as_ref()
+                    .map(|encrypted| decrypt_credential(encrypted))
+                    .transpose()?;
+
+                let aws_secret_access_key = imprint
+                    .aws_secret_access_key
+                    .as_ref()
+                    .map(|encrypted| decrypt_credential(encrypted))
+                    .transpose()?;
+
+                Ok(StorageConfig {
+                    s3_bucket: bucket.clone(),
+                    s3_region: region.clone(),
+                    cdn_domain: domain.clone(),
+                    cloudfront_dist_id: dist_id.clone(),
+                    aws_access_key_id,
+                    aws_secret_access_key,
+                })
+            }
             _ => Err(ThothError::InternalError(
                 "Imprint is not configured for file hosting".to_string(),
             )),
@@ -38,13 +61,47 @@ impl StorageConfig {
 }
 
 /// Create an S3 client configured for the given region
+///
+/// AWS credentials are automatically loaded from the default credential chain:
+/// - Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN)
+/// - AWS credentials file (~/.aws/credentials)
+/// - IAM roles (when running on EC2/ECS/Lambda)
+/// - Other standard AWS credential sources
 pub async fn create_s3_client(region: &str) -> S3Client {
+    create_s3_client_with_credentials(region, None, None).await
+}
+
+/// Create an S3 client with custom credentials from StorageConfig
+///
+/// If credentials are provided in StorageConfig, they will be used.
+/// Otherwise, falls back to the default credential chain.
+pub async fn create_s3_client_with_credentials(
+    region: &str,
+    access_key_id: Option<&str>,
+    secret_access_key: Option<&str>,
+) -> S3Client {
     eprintln!("S3_DEBUG: Creating S3 client for region: {}", region);
 
-    let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
-        .region(Region::new(region.to_string()))
-        .load()
-        .await;
+    let mut config_builder = aws_config::defaults(aws_config::BehaviorVersion::latest())
+        .region(Region::new(region.to_string()));
+
+    // Use custom credentials if provided
+    if let (Some(access_key), Some(secret_key)) = (access_key_id, secret_access_key) {
+        eprintln!("S3_DEBUG: Using custom credentials from database");
+        use aws_credential_types::Credentials;
+        let credentials = Credentials::new(
+            access_key,
+            secret_key,
+            None, // session token
+            None, // expiration
+            "thoth-storage",
+        );
+        config_builder = config_builder.credentials_provider(credentials);
+    } else {
+        eprintln!("S3_DEBUG: Using default credential chain");
+    }
+
+    let config = config_builder.load().await;
 
     let s3_config = aws_sdk_s3::config::Builder::from(&config)
         .force_path_style(true)
@@ -55,8 +112,38 @@ pub async fn create_s3_client(region: &str) -> S3Client {
 }
 
 /// Create a CloudFront client
+///
+/// AWS credentials are automatically loaded from the default credential chain
+/// (see create_s3_client for details).
 pub async fn create_cloudfront_client() -> CloudFrontClient {
-    let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+    create_cloudfront_client_with_credentials(None, None).await
+}
+
+/// Create a CloudFront client with custom credentials from StorageConfig
+///
+/// If credentials are provided in StorageConfig, they will be used.
+/// Otherwise, falls back to the default credential chain.
+pub async fn create_cloudfront_client_with_credentials(
+    access_key_id: Option<&str>,
+    secret_access_key: Option<&str>,
+) -> CloudFrontClient {
+    let mut config_builder = aws_config::defaults(aws_config::BehaviorVersion::latest());
+
+    // Use custom credentials if provided
+    if let (Some(access_key), Some(secret_key)) = (access_key_id, secret_access_key) {
+        eprintln!("CLOUDFRONT_DEBUG: Using custom credentials from database");
+        use aws_credential_types::Credentials;
+        let credentials = Credentials::new(
+            access_key,
+            secret_key,
+            None, // session token
+            None, // expiration
+            "thoth-storage",
+        );
+        config_builder = config_builder.credentials_provider(credentials);
+    }
+
+    let config = config_builder.load().await;
     CloudFrontClient::new(&config)
 }
 

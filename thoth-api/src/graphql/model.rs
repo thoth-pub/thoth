@@ -51,8 +51,9 @@ use crate::model::{
 #[cfg(feature = "backend")]
 use crate::storage::{
     build_cdn_url, canonical_frontcover_key, canonical_publication_key, copy_temp_object_to_final,
-    create_cloudfront_client, create_s3_client, delete_temp_object, head_object,
-    invalidate_cloudfront, presign_put_for_upload, temp_key, StorageConfig,
+    create_cloudfront_client_with_credentials, create_s3_client_with_credentials,
+    delete_temp_object, head_object, invalidate_cloudfront, presign_put_for_upload, temp_key,
+    StorageConfig,
 };
 use thoth_errors::{ThothError, ThothResult};
 
@@ -2310,6 +2311,18 @@ impl MutationRoot {
         if data.publisher_id != imprint.publisher_id {
             context.account_access.can_edit(data.publisher_id)?;
         }
+
+        // Encrypt AWS credentials if provided
+        let mut encrypted_data = data;
+        if let Some(access_key) = &encrypted_data.aws_access_key_id {
+            encrypted_data.aws_access_key_id =
+                Some(crate::storage::encrypt_credential(access_key)?);
+        }
+        if let Some(secret_key) = &encrypted_data.aws_secret_access_key {
+            encrypted_data.aws_secret_access_key =
+                Some(crate::storage::encrypt_credential(secret_key)?);
+        }
+
         let account_id = context
             .token
             .jwt
@@ -2317,7 +2330,7 @@ impl MutationRoot {
             .ok_or(ThothError::Unauthorised)?
             .account_id(&context.db);
         imprint
-            .update(&context.db, &data, &account_id)
+            .update(&context.db, &encrypted_data, &account_id)
             .map_err(Into::into)
     }
 
@@ -3467,7 +3480,12 @@ impl MutationRoot {
             "GRAPHQL_DEBUG: About to create S3 client for region: {}",
             storage_config.s3_region
         );
-        let s3_client = create_s3_client(&storage_config.s3_region).await;
+        let s3_client = create_s3_client_with_credentials(
+            &storage_config.s3_region,
+            storage_config.aws_access_key_id.as_deref(),
+            storage_config.aws_secret_access_key.as_deref(),
+        )
+        .await;
         eprintln!("GRAPHQL_DEBUG: S3 client created, about to presign URL");
         let temp_key = temp_key(&file_upload.file_upload_id);
         let upload_url = presign_put_for_upload(
@@ -3529,7 +3547,12 @@ impl MutationRoot {
 
         let file_upload = FileUpload::create(&context.db, &new_upload)?;
 
-        let s3_client = create_s3_client(&storage_config.s3_region).await;
+        let s3_client = create_s3_client_with_credentials(
+            &storage_config.s3_region,
+            storage_config.aws_access_key_id.as_deref(),
+            storage_config.aws_secret_access_key.as_deref(),
+        )
+        .await;
         let temp_key = temp_key(&file_upload.file_upload_id);
         let upload_url = presign_put_for_upload(
             &s3_client,
@@ -3616,7 +3639,12 @@ impl MutationRoot {
         let doi_prefix = doi.prefix();
         let doi_suffix = doi.suffix();
 
-        let s3_client = create_s3_client(&storage_config.s3_region).await;
+        let s3_client = create_s3_client_with_credentials(
+            &storage_config.s3_region,
+            storage_config.aws_access_key_id.as_deref(),
+            storage_config.aws_secret_access_key.as_deref(),
+        )
+        .await;
         let temp_key = temp_key(&file_upload.file_upload_id);
         let (bytes, mime_type) =
             head_object(&s3_client, &storage_config.s3_bucket, &temp_key).await?;
@@ -3738,7 +3766,11 @@ impl MutationRoot {
 
         // Invalidate CloudFront cache if replacing existing file
         if should_invalidate {
-            let cloudfront_client = create_cloudfront_client().await;
+            let cloudfront_client = create_cloudfront_client_with_credentials(
+                storage_config.aws_access_key_id.as_deref(),
+                storage_config.aws_secret_access_key.as_deref(),
+            )
+            .await;
             invalidate_cloudfront(
                 &cloudfront_client,
                 &storage_config.cloudfront_dist_id,
