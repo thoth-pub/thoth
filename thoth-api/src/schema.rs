@@ -46,6 +46,30 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "relation_type"))]
     pub struct RelationType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "locale_code"))]
+    pub struct LocaleCode;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "abstract_type"))]
+    pub struct AbstractType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "markup_format"))]
+    pub struct MarkupFormat;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "contact_type"))]
+    pub struct ContactType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "accessibility_standard"))]
+    pub struct AccessibilityStandard;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "accessibility_exception"))]
+    pub struct AccessibilityException;
 }
 
 table! {
@@ -69,6 +93,21 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::{LocaleCode, MarkupFormat, AbstractType};
+
+    #[sql_name = "abstract"]
+    work_abstract (abstract_id) {
+        abstract_id -> Uuid,
+        work_id -> Uuid,
+        content -> Text,
+        locale_code -> LocaleCode,
+        abstract_type -> AbstractType,
+        canonical -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
 
     affiliation (affiliation_id) {
         affiliation_id -> Uuid,
@@ -78,6 +117,19 @@ table! {
         position -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::LocaleCode;
+
+    biography (biography_id) {
+        biography_id -> Uuid,
+        contribution_id -> Uuid,
+        content -> Text,
+        canonical -> Bool,
+        locale_code -> LocaleCode,
     }
 }
 
@@ -95,6 +147,32 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::ContactType;
+
+    contact (contact_id) {
+        contact_id -> Uuid,
+        publisher_id -> Uuid,
+        contact_type -> ContactType,
+        email -> Text,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    contact_history (contact_history_id) {
+        contact_history_id -> Uuid,
+        contact_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use super::sql_types::ContributionType;
 
     contribution (contribution_id) {
@@ -103,7 +181,6 @@ table! {
         contributor_id -> Uuid,
         contribution_type -> ContributionType,
         main_contribution -> Bool,
-        biography -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
         first_name -> Nullable<Text>,
@@ -344,6 +421,8 @@ table! {
 table! {
     use diesel::sql_types::*;
     use super::sql_types::PublicationType;
+    use super::sql_types::AccessibilityStandard;
+    use super::sql_types::AccessibilityException;
 
     publication (publication_id) {
         publication_id -> Uuid,
@@ -360,6 +439,10 @@ table! {
         depth_in -> Nullable<Float8>,
         weight_g -> Nullable<Float8>,
         weight_oz -> Nullable<Float8>,
+        accessibility_standard -> Nullable<AccessibilityStandard>,
+        accessibility_additional_standard -> Nullable<AccessibilityStandard>,
+        accessibility_exception -> Nullable<AccessibilityException>,
+        accessibility_report_url -> Nullable<Text>,
     }
 }
 
@@ -383,6 +466,8 @@ table! {
         publisher_name -> Text,
         publisher_shortname -> Nullable<Text>,
         publisher_url -> Nullable<Text>,
+        accessibility_statement -> Nullable<Text>,
+        accessibility_report_url -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
@@ -523,9 +608,6 @@ table! {
         work_id -> Uuid,
         work_type -> WorkType,
         work_status -> WorkStatus,
-        full_title -> Text,
-        title -> Text,
-        subtitle -> Nullable<Text>,
         reference -> Nullable<Text>,
         edition -> Nullable<Int4>,
         imprint_id -> Uuid,
@@ -544,8 +626,6 @@ table! {
         landing_page -> Nullable<Text>,
         lccn -> Nullable<Text>,
         oclc -> Nullable<Text>,
-        short_abstract -> Nullable<Text>,
-        long_abstract -> Nullable<Text>,
         general_note -> Nullable<Text>,
         bibliography_note -> Nullable<Text>,
         toc -> Nullable<Text>,
@@ -599,10 +679,70 @@ table! {
     }
 }
 
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::LocaleCode;
+    use super::sql_types::MarkupFormat;
+
+    #[sql_name = "title"]
+    work_title (title_id) {
+        title_id -> Uuid,
+        work_id -> Uuid,
+        full_title -> Text,
+        title -> Text,
+        subtitle -> Nullable<Text>,
+        canonical -> Bool,
+        locale_code -> LocaleCode,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    title_history (title_history_id) {
+        title_history_id -> Uuid,
+        title_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    abstract_history (abstract_history_id) {
+        abstract_history_id -> Uuid,
+        abstract_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    biography_history (biography_history_id) {
+        biography_history_id -> Uuid,
+        biography_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+joinable!(abstract_history -> work_abstract (abstract_id));
+joinable!(abstract_history -> account (account_id));
 joinable!(affiliation -> contribution (contribution_id));
 joinable!(affiliation -> institution (institution_id));
 joinable!(affiliation_history -> account (account_id));
 joinable!(affiliation_history -> affiliation (affiliation_id));
+joinable!(biography_history -> biography (biography_id));
+joinable!(biography_history -> account (account_id));
+joinable!(contact -> publisher (publisher_id));
+joinable!(contact_history -> account (account_id));
+joinable!(contact_history -> contact (contact_id));
 joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
 joinable!(contribution_history -> account (account_id));
@@ -647,17 +787,26 @@ joinable!(series_history -> series (series_id));
 joinable!(subject -> work (work_id));
 joinable!(subject_history -> account (account_id));
 joinable!(subject_history -> subject (subject_id));
+joinable!(title_history -> work_title (title_id));
+joinable!(title_history -> account (account_id));
 joinable!(work -> imprint (imprint_id));
+joinable!(work_abstract -> work (work_id));
 joinable!(work_history -> account (account_id));
 joinable!(work_history -> work (work_id));
 joinable!(work_relation -> work (relator_work_id));
 joinable!(work_relation_history -> account (account_id));
 joinable!(work_relation_history -> work_relation (work_relation_id));
+joinable!(work_title -> work (work_id));
 
 allow_tables_to_appear_in_same_query!(
+    abstract_history,
     account,
     affiliation,
     affiliation_history,
+    biography,
+    biography_history,
+    contact,
+    contact_history,
     contribution,
     contribution_history,
     contributor,
@@ -687,8 +836,11 @@ allow_tables_to_appear_in_same_query!(
     series_history,
     subject,
     subject_history,
+    title_history,
     work,
+    work_abstract,
     work_history,
     work_relation,
     work_relation_history,
+    work_title,
 );

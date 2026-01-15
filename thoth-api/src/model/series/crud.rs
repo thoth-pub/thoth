@@ -5,7 +5,6 @@ use super::{
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{series, series_history};
-use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -19,6 +18,7 @@ impl Crud for Series {
     type FilterParameter1 = SeriesType;
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.series_id
@@ -36,6 +36,7 @@ impl Crud for Series {
         series_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Series>> {
         use crate::schema::series::dsl::*;
         let mut connection = db.get()?;
@@ -116,6 +117,7 @@ impl Crud for Series {
         series_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::series::dsl::*;
         let mut connection = db.get()?;

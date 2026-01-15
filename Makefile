@@ -1,64 +1,60 @@
 .PHONY: \
-	build-graphql-api \
-	build-export-api \
-	build-app \
-	run-app \
+	help \
+	run-db \
+	run-redis \
 	run-graphql-api \
 	run-export-api \
-	watch-app \
-	docker-dev \
-	docker-dev-build \
-	docker-dev-run \
-	docker-dev-db \
-	docker-dev-redis \
 	build \
 	test \
+	check \
 	clippy \
 	format \
 	check-format \
-	check \
 	check-all \
+	migration
 
-all: build-graphql-api build-export-api build-app
-check-all: test check clippy check-format
+CARGO_VERSION := $(shell grep '^version' Cargo.toml | sed -E 's/version *= *"([^"]+)"/\1/')
+MAJOR        := $(word 1,$(subst ., ,$(CARGO_VERSION)))
+MINOR        := $(word 2,$(subst ., ,$(CARGO_VERSION)))
 
-run-app: build-app
-	RUST_BACKTRACE=1 cargo run start app
+DATE = $(shell date +"%Y%m%d")
 
-run-graphql-api: build-graphql-api
+help:
+	@echo "Available targets:"
+	@echo "  help              Show this help"
+	@echo "  run-db            Start PostgreSQL (docker)"
+	@echo "  run-redis         Start Redis (docker)"
+	@echo "  run-graphql-api   Run GraphQL API (cargo)"
+	@echo "  run-export-api    Run export API (cargo)"
+	@echo "  build             Build the workspace"
+	@echo "  test              Run tests"
+	@echo "  check             Run cargo check"
+	@echo "  clippy            Lint with cargo clippy"
+	@echo "  format            Format code with cargo fmt"
+	@echo "  check-format      Check formatting"
+	@echo "  check-all         Run tests, clippy, and formatting checks"
+	@echo "  migration         Create a database migration"
+
+run-db:
+	docker compose up db
+
+run-redis:
+	docker compose up redis
+
+run-graphql-api: build
 	RUST_BACKTRACE=1 cargo run init
 
-run-export-api: build-export-api
+run-export-api: build
 	RUST_BACKTRACE=1 cargo run start export-api
-
-watch-app:
-	trunk serve thoth-app/index.html
-
-docker-dev: docker-dev-build docker-dev-run
-
-docker-dev-build:
-	docker compose -f docker-compose.dev.yml build
-
-docker-dev-run:
-	docker compose -f docker-compose.dev.yml up
-
-docker-dev-db:
-	docker compose -f docker-compose.dev.yml up db
-
-docker-dev-redis:
-	docker compose -f docker-compose.dev.yml up redis
 
 build:
 	cargo build -vv
 
-build-graphql-api: build
-
-build-export-api: build
-
-build-app: build
-
 test:
 	cargo test --workspace
+
+check:
+	cargo check --workspace
 
 clippy:
 	cargo clippy --all --all-targets --all-features -- -D warnings
@@ -69,5 +65,12 @@ format:
 check-format:
 	cargo fmt --all -- --check
 
-check:
-	cargo check --workspace
+check-all: test check clippy check-format
+
+migration:
+	@new_minor=$$(expr $(MINOR) + 1); \
+	new_version="$(MAJOR).$$new_minor.0"; \
+	dir="thoth-api/migrations/$(DATE)_v$$new_version"; \
+	mkdir -p $$dir; \
+	touch $$dir/up.sql; \
+	touch $$dir/down.sql;

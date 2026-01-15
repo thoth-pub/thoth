@@ -5,7 +5,6 @@ use super::{
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publisher, publisher_history};
-use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -19,6 +18,7 @@ impl Crud for Publisher {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.publisher_id
@@ -36,6 +36,7 @@ impl Crud for Publisher {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Publisher>> {
         use crate::schema::publisher::dsl::*;
         let mut connection = db.get()?;
@@ -57,6 +58,14 @@ impl Crud for Publisher {
             PublisherField::PublisherUrl => match order.direction {
                 Direction::Asc => query.order(publisher_url.asc()),
                 Direction::Desc => query.order(publisher_url.desc()),
+            },
+            PublisherField::AccessibilityStatement => match order.direction {
+                Direction::Asc => query.order(accessibility_statement.asc()),
+                Direction::Desc => query.order(accessibility_statement.desc()),
+            },
+            PublisherField::AccessibilityReportUrl => match order.direction {
+                Direction::Asc => query.order(accessibility_report_url.asc()),
+                Direction::Desc => query.order(accessibility_report_url.desc()),
             },
             PublisherField::CreatedAt => match order.direction {
                 Direction::Asc => query.order(created_at.asc()),
@@ -91,6 +100,7 @@ impl Crud for Publisher {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::publisher::dsl::*;
         let mut connection = db.get()?;

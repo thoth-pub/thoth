@@ -3,10 +3,9 @@ use super::{
     NewAffiliationHistory, PatchAffiliation,
 };
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{affiliation, affiliation_history};
-use crate::{crud_methods, db_insert};
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
 
@@ -17,6 +16,7 @@ impl Crud for Affiliation {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.affiliation_id
@@ -34,6 +34,7 @@ impl Crud for Affiliation {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Affiliation>> {
         use crate::schema::affiliation::dsl::*;
         let mut connection = db.get()?;
@@ -98,6 +99,7 @@ impl Crud for Affiliation {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::affiliation::dsl::*;
         let mut connection = db.get()?;
@@ -137,6 +139,32 @@ impl DbInsert for NewAffiliationHistory {
     type MainEntity = AffiliationHistory;
 
     db_insert!(affiliation_history::table);
+}
+
+impl Reorder for Affiliation {
+    db_change_ordinal!(
+        affiliation::table,
+        affiliation::affiliation_ordinal,
+        "affiliation_affiliation_ordinal_contribution_id_uniq"
+    );
+
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>> {
+        affiliation::table
+            .select((
+                affiliation::affiliation_id,
+                affiliation::affiliation_ordinal,
+            ))
+            .filter(
+                affiliation::contribution_id
+                    .eq(self.contribution_id)
+                    .and(affiliation::affiliation_id.ne(self.affiliation_id)),
+            )
+            .load::<(Uuid, i32)>(connection)
+            .map_err(Into::into)
+    }
 }
 
 #[cfg(test)]
