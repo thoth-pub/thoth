@@ -348,3 +348,43 @@ ALTER TABLE contribution
 -- Clean up the conversion functions after the migration is complete
 DROP FUNCTION convert_to_jats(TEXT);
 DROP FUNCTION convert_to_jats_title(TEXT);
+
+--
+-- Name: biography_work_updated_at_with_relations(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.biography_work_updated_at_with_relations() RETURNS trigger
+    LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF (
+        NEW IS DISTINCT FROM OLD
+        ) THEN
+        UPDATE work
+        SET updated_at_with_relations = current_timestamp
+        FROM contribution
+        WHERE work.work_id = contribution.work_id AND contribution.contribution_id = OLD.contribution_id
+           OR work.work_id = contribution.work_id AND contribution.contribution_id = NEW.contribution_id;
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+--
+-- Name: affiliation set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.biography FOR EACH ROW EXECUTE FUNCTION public.biography_work_updated_at_with_relations();
+
+
+--
+-- Name: title set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.title FOR EACH ROW EXECUTE FUNCTION public.work_updated_at_with_relations();
+
+--
+-- Name: abstract set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.abstract FOR EACH ROW EXECUTE FUNCTION public.work_updated_at_with_relations();
