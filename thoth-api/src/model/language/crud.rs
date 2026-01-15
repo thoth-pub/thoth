@@ -2,8 +2,8 @@ use super::{
     Language, LanguageCode, LanguageField, LanguageHistory, LanguageRelation, NewLanguage,
     NewLanguageHistory, PatchLanguage,
 };
-use crate::graphql::model::LanguageOrderBy;
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
+use crate::graphql::inputs::LanguageOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{language, language_history};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
@@ -122,20 +122,20 @@ impl Crud for Language {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(language::table, language::dsl::language);
 }
+
+publisher_id_impls!(Language, NewLanguage, PatchLanguage, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Language {
     type NewHistoryEntity = NewLanguageHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             language_id: self.language_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -160,10 +160,10 @@ mod tests {
     #[test]
     fn test_new_language_history_from_language() {
         let language: Language = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_language_history = language.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_language_history = language.new_history_entry(&user_id);
         assert_eq!(new_language_history.language_id, language.language_id);
-        assert_eq!(new_language_history.account_id, account_id);
+        assert_eq!(new_language_history.user_id, user_id);
         assert_eq!(
             new_language_history.data,
             serde_json::Value::String(serde_json::to_string(&language).unwrap())

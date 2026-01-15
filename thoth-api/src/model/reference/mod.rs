@@ -2,7 +2,7 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::{Doi, Isbn, Timestamp};
 #[cfg(feature = "backend")]
 use crate::schema::reference;
@@ -143,7 +143,7 @@ pub struct PatchReference {
 pub struct ReferenceHistory {
     pub reference_history_id: Uuid,
     pub reference_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -155,7 +155,7 @@ pub struct ReferenceHistory {
 )]
 pub struct NewReferenceHistory {
     pub reference_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -178,3 +178,7 @@ fn test_referencefield_default() {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::ReferencePolicy;

@@ -2,8 +2,8 @@ use super::{
     LocaleCode, NewTitle, NewTitleHistory, PatchTitle, Title, TitleField, TitleHistory,
     TitleOrderBy,
 };
-use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::graphql::inputs::Direction;
+use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{title_history, work_title};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
@@ -144,21 +144,21 @@ impl Crud for Title {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        let work = crate::model::work::Work::from_id(db, &self.work_id)?;
-        <crate::model::work::Work as Crud>::publisher_id(&work, db)
-    }
-
     crud_methods!(work_title::table, work_title::dsl::work_title);
 }
+
+publisher_id_impls!(Title, NewTitle, PatchTitle, |s, db| {
+    let work = crate::model::work::Work::from_id(db, &s.work_id)?;
+    <crate::model::work::Work as PublisherId>::publisher_id(&work, db)
+});
 
 impl HistoryEntry for Title {
     type NewHistoryEntity = NewTitleHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             title_id: self.title_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }

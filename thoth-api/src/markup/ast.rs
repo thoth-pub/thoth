@@ -1,4 +1,4 @@
-use crate::model::ConversionLimit;
+use super::ConversionLimit;
 use pulldown_cmark::{Event, Parser, Tag};
 use scraper::{ElementRef, Html, Selector};
 use thoth_errors::{ThothError, ThothResult};

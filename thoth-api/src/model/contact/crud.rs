@@ -2,7 +2,7 @@ use super::{
     Contact, ContactField, ContactHistory, ContactOrderBy, ContactType, NewContact,
     NewContactHistory, PatchContact,
 };
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{contact, contact_history};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
@@ -112,20 +112,20 @@ impl Crud for Contact {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        Ok(self.publisher_id)
-    }
-
     crud_methods!(contact::table, contact::dsl::contact);
 }
+
+publisher_id_impls!(Contact, NewContact, PatchContact, |s, _db| {
+    Ok(s.publisher_id)
+});
 
 impl HistoryEntry for Contact {
     type NewHistoryEntity = NewContactHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             contact_id: self.contact_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -150,10 +150,10 @@ mod tests {
     #[test]
     fn test_new_contact_history_from_contact() {
         let contact: Contact = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_contact_history = contact.new_history_entry(&account_id);
+        let user_id = "12345";
+        let new_contact_history = contact.new_history_entry(user_id);
         assert_eq!(new_contact_history.contact_id, contact.contact_id);
-        assert_eq!(new_contact_history.account_id, account_id);
+        assert_eq!(new_contact_history.user_id, user_id);
         assert_eq!(
             new_contact_history.data,
             serde_json::Value::String(serde_json::to_string(&contact).unwrap())

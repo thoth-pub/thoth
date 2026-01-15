@@ -1,7 +1,9 @@
 .PHONY: \
 	help \
 	run-db \
+	run-zitadel-db \
 	run-redis \
+	run-zitadel \
 	run-graphql-api \
 	run-export-api \
 	build \
@@ -23,7 +25,9 @@ help:
 	@echo "Available targets:"
 	@echo "  help              Show this help"
 	@echo "  run-db            Start PostgreSQL (docker)"
+	@echo "  run-zitadel-db    Start Zitadel PostgreSQL (docker)"
 	@echo "  run-redis         Start Redis (docker)"
+	@echo "  run-zitadel       Start Zitadel (docker)"
 	@echo "  run-graphql-api   Run GraphQL API (cargo)"
 	@echo "  run-export-api    Run export API (cargo)"
 	@echo "  build             Build the workspace"
@@ -38,8 +42,14 @@ help:
 run-db:
 	docker compose up db
 
+run-zitadel-db:
+	docker compose up zitadel-db
+
 run-redis:
 	docker compose up redis
+
+run-zitadel:
+	docker compose up zitadel
 
 run-graphql-api: build
 	RUST_BACKTRACE=1 cargo run init
@@ -74,3 +84,4 @@ migration:
 	mkdir -p $$dir; \
 	touch $$dir/up.sql; \
 	touch $$dir/down.sql;
+

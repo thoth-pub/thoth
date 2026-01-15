@@ -1,10 +1,10 @@
 use super::{Issue, IssueField, IssueHistory, NewIssue, NewIssueHistory, PatchIssue};
-use crate::graphql::model::IssueOrderBy;
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
+use crate::graphql::inputs::IssueOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{issue, issue_history};
 use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
-use thoth_errors::{ThothError, ThothResult};
+use thoth_errors::ThothResult;
 use uuid::Uuid;
 
 impl Crud for Issue {
@@ -106,20 +106,20 @@ impl Crud for Issue {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(issue::table, issue::dsl::issue);
 }
+
+publisher_id_impls!(Issue, NewIssue, PatchIssue, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Issue {
     type NewHistoryEntity = NewIssueHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             issue_id: self.issue_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -154,39 +154,6 @@ impl Reorder for Issue {
     }
 }
 
-impl NewIssue {
-    pub fn imprints_match(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        issue_imprints_match(self.work_id, self.series_id, db)
-    }
-}
-
-impl PatchIssue {
-    pub fn imprints_match(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        issue_imprints_match(self.work_id, self.series_id, db)
-    }
-}
-
-fn issue_imprints_match(work_id: Uuid, series_id: Uuid, db: &crate::db::PgPool) -> ThothResult<()> {
-    use diesel::prelude::*;
-
-    let mut connection = db.get()?;
-    let series_imprint = crate::schema::series::table
-        .select(crate::schema::series::imprint_id)
-        .filter(crate::schema::series::series_id.eq(series_id))
-        .first::<Uuid>(&mut connection)
-        .expect("Error loading series for issue");
-    let work_imprint = crate::schema::work::table
-        .select(crate::schema::work::imprint_id)
-        .filter(crate::schema::work::work_id.eq(work_id))
-        .first::<Uuid>(&mut connection)
-        .expect("Error loading work for issue");
-    if work_imprint == series_imprint {
-        Ok(())
-    } else {
-        Err(ThothError::IssueImprintsError)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -200,10 +167,10 @@ mod tests {
     #[test]
     fn test_new_issue_history_from_issue() {
         let issue: Issue = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_issue_history = issue.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_issue_history = issue.new_history_entry(&user_id);
         assert_eq!(new_issue_history.issue_id, issue.issue_id);
-        assert_eq!(new_issue_history.account_id, account_id);
+        assert_eq!(new_issue_history.user_id, user_id);
         assert_eq!(
             new_issue_history.data,
             serde_json::Value::String(serde_json::to_string(&issue).unwrap())

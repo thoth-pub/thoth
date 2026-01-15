@@ -2,7 +2,7 @@ use super::{
     NewReference, NewReferenceHistory, PatchReference, Reference, ReferenceField, ReferenceHistory,
     ReferenceOrderBy,
 };
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{reference, reference_history};
 use diesel::{
@@ -230,19 +230,20 @@ impl Crud for Reference {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
     crud_methods!(reference::table, reference::dsl::reference);
 }
+
+publisher_id_impls!(Reference, NewReference, PatchReference, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Reference {
     type NewHistoryEntity = NewReferenceHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             reference_id: self.reference_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -290,10 +291,10 @@ mod tests {
     #[test]
     fn test_new_publisher_history_from_publisher() {
         let reference: Reference = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_reference_history = reference.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_reference_history = reference.new_history_entry(&user_id);
         assert_eq!(new_reference_history.reference_id, reference.reference_id);
-        assert_eq!(new_reference_history.account_id, account_id);
+        assert_eq!(new_reference_history.user_id, user_id);
         assert_eq!(
             new_reference_history.data,
             serde_json::Value::String(serde_json::to_string(&reference).unwrap())

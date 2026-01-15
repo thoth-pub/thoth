@@ -5,7 +5,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::Doi;
 use crate::model::Ror;
 use crate::model::Timestamp;
@@ -869,7 +869,7 @@ pub enum CountryCode {
 pub struct InstitutionHistory {
     pub institution_history_id: Uuid,
     pub institution_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -881,7 +881,7 @@ pub struct InstitutionHistory {
 )]
 pub struct NewInstitutionHistory {
     pub institution_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -1818,3 +1818,7 @@ fn test_countrycode_fromstr() {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::InstitutionPolicy;

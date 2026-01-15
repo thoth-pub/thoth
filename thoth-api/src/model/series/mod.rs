@@ -3,7 +3,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::series;
@@ -121,7 +121,7 @@ pub struct PatchSeries {
 pub struct SeriesHistory {
     pub series_history_id: Uuid,
     pub series_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -129,7 +129,7 @@ pub struct SeriesHistory {
 #[cfg_attr(feature = "backend", derive(Insertable), diesel(table_name = series_history))]
 pub struct NewSeriesHistory {
     pub series_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -241,3 +241,7 @@ fn test_seriesfield_fromstr() {
 }
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::SeriesPolicy;

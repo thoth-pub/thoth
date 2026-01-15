@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
+  - [697](https://github.com/thoth-pub/thoth/pull/697) – Migrated GraphQL API authentication to OIDC via Zitadel. Internal JWT handling has been replaced with introspection of Zitadel-issued tokens. Authorisation is now based entirely on token claims, removing the need for the internal `account` and `publisher_account` tables.
+  - [697](https://github.com/thoth-pub/thoth/pull/697) – Replaced legacy password-based login in the Thoth APP with Zitadel OIDC authentication using PKCE. The app now redirects to Zitadel for login, exchanges authorisation codes for tokens, and introspects tokens client-side to determine roles and permissions.
   - [689](https://github.com/thoth-pub/thoth/issues/689) - Move `Work.fullTitle`, `Work.title` and `Work.subtitle` into a dedicated `Title` table, supporting multilingual and rich text fields
   - [689](https://github.com/thoth-pub/thoth/issues/689) - Move `Work.shortAbstract` and `Work.longAbstract` into a dedicated `Abstract` table with `abstractType`, supporting multilingual and rich text fields
   - [689](https://github.com/thoth-pub/thoth/issues/689) - Move `Contribution.biography` into a dedicated `Biography` table, supporting multilingual and rich text fields

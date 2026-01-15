@@ -4,7 +4,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 
 #[cfg(feature = "backend")]
 use crate::schema::abstract_history;
@@ -123,7 +123,7 @@ pub struct PatchAbstract {
 )]
 pub struct NewAbstractHistory {
     pub abstract_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -131,10 +131,14 @@ pub struct NewAbstractHistory {
 pub struct AbstractHistory {
     pub abstract_history_id: Uuid,
     pub abstract_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::AbstractPolicy;

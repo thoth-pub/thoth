@@ -2,7 +2,7 @@ use super::{
     Location, LocationField, LocationHistory, LocationOrderBy, LocationPlatform, NewLocation,
     NewLocationHistory, PatchLocation,
 };
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{location, location_history};
 use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
@@ -122,10 +122,6 @@ impl Crud for Location {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::publication::Publication::from_id(db, &self.publication_id)?.publisher_id(db)
-    }
-
     // `crud_methods!` cannot be used for update(), because we need to execute multiple statements
     // in the same transaction for changing a non-canonical location to canonical.
     // These functions recreate the `crud_methods!` logic.
@@ -146,13 +142,12 @@ impl Crud for Location {
         })
     }
 
-    fn update(
+    fn update<C: crate::policy::PolicyContext>(
         &self,
-        db: &crate::db::PgPool,
+        ctx: &C,
         data: &PatchLocation,
-        account_id: &Uuid,
     ) -> ThothResult<Self> {
-        let mut connection = db.get()?;
+        let mut connection = ctx.db().get()?;
         connection
             .transaction(|connection| {
                 if data.canonical == self.canonical {
@@ -167,7 +162,7 @@ impl Crud for Location {
                 } else {
                     // Update the existing canonical location to non-canonical
                     let mut old_canonical_location =
-                        PatchLocation::from(self.get_canonical_location(db)?);
+                        PatchLocation::from(self.get_canonical_location(ctx.db())?);
                     old_canonical_location.canonical = false;
                     diesel::update(location::table.find(old_canonical_location.location_id))
                         .set(old_canonical_location)
@@ -179,7 +174,7 @@ impl Crud for Location {
                 }
             })
             .and_then(|location| {
-                self.new_history_entry(account_id)
+                self.new_history_entry(ctx.user_id()?)
                     .insert(&mut connection)
                     .map(|_| location)
             })
@@ -195,13 +190,17 @@ impl Crud for Location {
     }
 }
 
+publisher_id_impls!(Location, NewLocation, PatchLocation, |s, db| {
+    crate::model::publication::Publication::from_id(db, &s.publication_id)?.publisher_id(db)
+});
+
 impl HistoryEntry for Location {
     type NewHistoryEntity = NewLocationHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             location_id: self.location_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -315,10 +314,10 @@ mod tests {
     #[test]
     fn test_new_location_history_from_location() {
         let location: Location = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_location_history = location.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_location_history = location.new_history_entry(&user_id);
         assert_eq!(new_location_history.location_id, location.location_id);
-        assert_eq!(new_location_history.account_id, account_id);
+        assert_eq!(new_location_history.user_id, user_id);
         assert_eq!(
             new_location_history.data,
             serde_json::Value::String(serde_json::to_string(&location).unwrap())

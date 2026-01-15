@@ -1,0 +1,117 @@
+use chrono::NaiveDate;
+use serde::Deserialize;
+use serde::Serialize;
+use thoth_api::model::work::Work;
+use thoth_api::model::work::WorkStatus;
+use thoth_api::model::work::WorkType;
+use thoth_api::model::Doi;
+use uuid::Uuid;
+
+const CREATE_WORK_MUTATION: &str = "
+    mutation CreateWork(
+        $workType: WorkType!,
+        $workStatus: WorkStatus!,
+    ) {
+        createWork(
+            data: {
+            workType: $workType
+            workStatus: $workStatus
+            fullTitle: $fullTitle
+            title: $title
+            subtitle: $subtitle
+            reference: $reference
+            edition: $edition
+            imprintId: $imprintId
+            doi: $doi
+            publicationDate: $publicationDate
+            withdrawnDate: $withdrawnDate
+            place: $place
+            pageCount: $pageCount
+            pageBreakdown: $pageBreakdown
+            imageCount: $imageCount
+            tableCount: $tableCount
+            audioCount: $audioCount
+            videoCount: $videoCount
+            license: $license
+            copyrightHolder: $copyrightHolder
+            landingPage: $landingPage
+            lccn: $lccn
+            oclc: $oclc
+            shortAbstract: $shortAbstract
+            longAbstract: $longAbstract
+            generalNote: $generalNote
+            bibliographyNote: $bibliographyNote
+            toc: $toc
+            coverUrl: $coverUrl
+            coverCaption: $coverCaption
+            firstPage: $firstPage
+            lastPage: $lastPage
+            pageInterval: $pageInterval
+        }){
+            workId
+            workType
+            workStatus
+            fullTitle
+            title
+            imprintId
+            createdAt
+            updatedAt
+            updatedAtWithRelations
+        }
+    }
+";
+
+graphql_query_builder! {
+    CreateWorkRequest,
+    CreateWorkRequestBody,
+    Variables,
+    CREATE_WORK_MUTATION,
+    CreateWorkResponseBody,
+    CreateWorkResponseData,
+    PushCreateWork,
+    PushActionCreateWork
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Variables {
+    pub work_type: WorkType,
+    pub work_status: WorkStatus,
+    pub full_title: String,
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub reference: Option<String>,
+    pub edition: Option<i32>,
+    pub doi: Option<Doi>,
+    pub publication_date: Option<NaiveDate>,
+    pub withdrawn_date: Option<NaiveDate>,
+    pub place: Option<String>,
+    pub page_count: Option<i32>,
+    pub page_breakdown: Option<String>,
+    pub image_count: Option<i32>,
+    pub table_count: Option<i32>,
+    pub audio_count: Option<i32>,
+    pub video_count: Option<i32>,
+    pub license: Option<String>,
+    pub copyright_holder: Option<String>,
+    pub landing_page: Option<String>,
+    pub lccn: Option<String>,
+    pub oclc: Option<String>,
+    pub short_abstract: Option<String>,
+    pub long_abstract: Option<String>,
+    pub general_note: Option<String>,
+    pub bibliography_note: Option<String>,
+    pub toc: Option<String>,
+    pub cover_url: Option<String>,
+    pub cover_caption: Option<String>,
+    pub imprint_id: Uuid,
+    pub first_page: Option<String>,
+    pub last_page: Option<String>,
+    pub page_interval: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateWorkResponseData {
+    pub create_work: Option<Work>,
+}

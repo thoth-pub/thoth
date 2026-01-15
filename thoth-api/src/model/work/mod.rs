@@ -1,4 +1,4 @@
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::Doi;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -295,7 +295,7 @@ pub struct PatchWork {
 pub struct WorkHistory {
     pub work_history_id: Uuid,
     pub work_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -303,7 +303,7 @@ pub struct WorkHistory {
 #[cfg_attr(feature = "backend", derive(Insertable), diesel(table_name = work_history))]
 pub struct NewWorkHistory {
     pub work_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -893,3 +893,7 @@ mod tests {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::WorkPolicy;

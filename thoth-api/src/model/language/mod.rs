@@ -1151,7 +1151,7 @@ pub enum LanguageCode {
 pub struct LanguageHistory {
     pub language_history_id: Uuid,
     pub language_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -1163,7 +1163,7 @@ pub struct LanguageHistory {
 )]
 pub struct NewLanguageHistory {
     pub language_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -2213,3 +2213,7 @@ fn test_languagecode_fromstr() {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::LanguagePolicy;

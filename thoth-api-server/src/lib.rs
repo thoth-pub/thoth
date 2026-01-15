@@ -4,28 +4,27 @@ mod logger;
 use std::{io, sync::Arc, time::Duration};
 
 use actix_cors::Cors;
-use actix_identity::{Identity, IdentityMiddleware};
-use actix_session::{config::PersistentSession, storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{
-    cookie::{time::Duration as CookieDuration, Key},
-    error, get,
+    get,
     http::header,
     middleware::Compress,
     post,
     web::{Data, Json},
-    App, Error, HttpMessage, HttpRequest, HttpResponse, HttpServer, Result,
+    App, Error, HttpResponse, HttpServer, Result,
 };
+use base64::{engine::general_purpose, Engine as _};
 use serde::Serialize;
 use thoth_api::{
-    account::model::{AccountDetails, DecodedToken, LoginCredentials},
-    account::service::{get_account, get_account_details, login},
     db::{init_pool, PgPool},
     graphql::{
         model::{create_schema, Context, Schema},
         GraphQLRequest,
     },
 };
-use thoth_errors::ThothError;
+use zitadel::{
+    actix::introspection::{IntrospectedUser, IntrospectionConfigBuilder},
+    credentials::Application,
+};
 
 use crate::graphiql::graphiql_source;
 use crate::logger::{BodyLogger, Logger};
@@ -91,95 +90,15 @@ async fn graphql_schema(st: Data<Arc<Schema>>) -> HttpResponse {
 async fn graphql(
     st: Data<Arc<Schema>>,
     pool: Data<PgPool>,
-    token: DecodedToken,
+    user: Option<IntrospectedUser>,
     data: Json<GraphQLRequest>,
 ) -> Result<HttpResponse, Error> {
-    let ctx = Context::new(pool.into_inner(), token);
+    let ctx = Context::new(pool.into_inner(), user);
     let result = data.execute(&st, &ctx).await;
     match result.is_ok() {
         true => Ok(HttpResponse::Ok().json(result)),
         false => Ok(HttpResponse::BadRequest().json(result)),
     }
-}
-
-#[post("/account/login")]
-async fn login_credentials(
-    request: HttpRequest,
-    payload: Json<LoginCredentials>,
-    pool: Data<PgPool>,
-) -> Result<HttpResponse, Error> {
-    let r = payload.into_inner();
-
-    login(&r.email, &r.password, &pool)
-        .and_then(|account| {
-            account.issue_token(&pool)?;
-            let details = get_account_details(&account.email, &pool).unwrap();
-            let user_string = serde_json::to_string(&details)
-                .map_err(|_| ThothError::InternalError("Serder error".into()))?;
-            Identity::login(&request.extensions(), user_string)
-                .map_err(|_| ThothError::InternalError("Failed to store session cookie".into()))?;
-            Ok(HttpResponse::Ok().json(details))
-        })
-        .map_err(error::ErrorUnauthorized)
-}
-
-#[post("/account/token/renew")]
-async fn login_session(
-    request: HttpRequest,
-    token: DecodedToken,
-    identity: Option<Identity>,
-    pool: Data<PgPool>,
-) -> Result<HttpResponse, Error> {
-    let email = match identity {
-        Some(session) => {
-            let id = session.id().map_err(|_| ThothError::Unauthorised)?;
-            let details: AccountDetails =
-                serde_json::from_str(&id).map_err(|_| ThothError::Unauthorised)?;
-            details.email
-        }
-        None => {
-            token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-            let t = token.jwt.unwrap();
-            t.sub
-        }
-    };
-
-    get_account(&email, &pool)
-        .and_then(|account| {
-            account.issue_token(&pool)?;
-            let details = get_account_details(&account.email, &pool).unwrap();
-            let user_string = serde_json::to_string(&details)
-                .map_err(|_| ThothError::InternalError("Serder error".into()))?;
-            Identity::login(&request.extensions(), user_string)
-                .map_err(|_| ThothError::InternalError("Failed to store session cookie".into()))?;
-            Ok(HttpResponse::Ok().json(details))
-        })
-        .map_err(error::ErrorUnauthorized)
-}
-
-#[get("/account")]
-async fn account_details(
-    token: DecodedToken,
-    identity: Option<Identity>,
-    pool: Data<PgPool>,
-) -> Result<HttpResponse, Error> {
-    let email = match identity {
-        Some(session) => {
-            let id = session.id().map_err(|_| ThothError::Unauthorised)?;
-            let details: AccountDetails =
-                serde_json::from_str(&id).map_err(|_| ThothError::Unauthorised)?;
-            details.email
-        }
-        None => {
-            token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-            let t = token.jwt.unwrap();
-            t.sub
-        }
-    };
-
-    get_account_details(&email, &pool)
-        .map(|account_details| HttpResponse::Ok().json(account_details))
-        .map_err(error::ErrorUnauthorized)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -191,33 +110,26 @@ pub async fn start_server(
     threads: usize,
     keep_alive: u64,
     public_url: String,
-    domain: String,
-    secret_str: String,
-    session_duration: i64,
+    private_key: String,
 ) -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+
+    let decoded_private_key = general_purpose::STANDARD
+        .decode(&private_key)
+        .expect("Failed to base64-decode private key");
+    let decoded_str =
+        std::str::from_utf8(&decoded_private_key).expect("Decoded key is not valid UTF-8");
+    let auth = IntrospectionConfigBuilder::new("http://localhost:8282")
+        .with_jwt_profile(Application::load_from_json(decoded_str).unwrap())
+        .build()
+        .await
+        .unwrap();
 
     HttpServer::new(move || {
         App::new()
             .wrap(Compress::default())
             .wrap(Logger::default())
             .wrap(BodyLogger)
-            .wrap(IdentityMiddleware::default())
-            .wrap(
-                SessionMiddleware::builder(
-                    CookieSessionStore::default(),
-                    Key::from(secret_str.as_bytes()),
-                )
-                .cookie_name("auth".to_string())
-                .cookie_path("/".to_string())
-                .cookie_domain(Some(domain.clone()))
-                .cookie_secure(domain.clone().ne("localhost")) // Authentication requires https unless running on localhost
-                .session_lifecycle(
-                    PersistentSession::default()
-                        .session_ttl(CookieDuration::seconds(session_duration)),
-                )
-                .build(),
-            )
             .wrap(
                 Cors::default()
                     .allowed_methods(vec!["GET", "POST", "OPTIONS"])
@@ -226,6 +138,7 @@ pub async fn start_server(
                     .allowed_header(header::CONTENT_TYPE)
                     .supports_credentials(),
             )
+            .app_data(auth.clone())
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
             .app_data(Data::new(init_pool(&database_url)))
             .app_data(Data::new(Arc::new(create_schema())))
@@ -233,9 +146,6 @@ pub async fn start_server(
             .service(graphql_index)
             .service(graphql)
             .service(graphiql_interface)
-            .service(login_credentials)
-            .service(login_session)
-            .service(account_details)
             .service(graphql_schema)
     })
     .workers(threads)

@@ -3,7 +3,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::work_relation;
@@ -150,7 +150,7 @@ pub struct PatchWorkRelation {
 pub struct WorkRelationHistory {
     pub work_relation_history_id: Uuid,
     pub work_relation_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -162,7 +162,7 @@ pub struct WorkRelationHistory {
 )]
 pub struct NewWorkRelationHistory {
     pub work_relation_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -265,3 +265,7 @@ fn test_relationtype_fromstr() {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::WorkRelationPolicy;

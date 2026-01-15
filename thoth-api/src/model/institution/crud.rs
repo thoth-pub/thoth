@@ -2,8 +2,9 @@ use super::{
     Institution, InstitutionField, InstitutionHistory, InstitutionOrderBy, NewInstitution,
     NewInstitutionHistory, PatchInstitution,
 };
-use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::db::PgPool;
+use crate::graphql::inputs::Direction;
+use crate::model::{Crud, DbInsert, HistoryEntry, PublisherIds};
 use crate::schema::{institution, institution_history};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
@@ -119,22 +120,47 @@ impl Crud for Institution {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        Err(ThothError::InternalError(
-            "Method publisher_id() is not supported for Institution objects".to_string(),
-        ))
-    }
-
     crud_methods!(institution::table, institution::dsl::institution);
+}
+
+impl PublisherIds for Institution {
+    fn publisher_ids(&self, db: &PgPool) -> ThothResult<Vec<Uuid>> {
+        let mut connection = db.get()?;
+        let publishers_via_affiliation = crate::schema::publisher::table
+            .inner_join(
+                crate::schema::imprint::table.inner_join(
+                    crate::schema::work::table.inner_join(
+                        crate::schema::contribution::table
+                            .inner_join(crate::schema::affiliation::table),
+                    ),
+                ),
+            )
+            .select(crate::schema::publisher::publisher_id)
+            .filter(crate::schema::affiliation::institution_id.eq(self.institution_id))
+            .distinct()
+            .load::<Uuid>(&mut connection)
+            .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
+        let publishers_via_funding =
+            crate::schema::publisher::table
+                .inner_join(crate::schema::imprint::table.inner_join(
+                    crate::schema::work::table.inner_join(crate::schema::funding::table),
+                ))
+                .select(crate::schema::publisher::publisher_id)
+                .filter(crate::schema::funding::institution_id.eq(self.institution_id))
+                .distinct()
+                .load::<Uuid>(&mut connection)
+                .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
+        Ok([publishers_via_affiliation, publishers_via_funding].concat())
+    }
 }
 
 impl HistoryEntry for Institution {
     type NewHistoryEntity = NewInstitutionHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             institution_id: self.institution_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -144,41 +170,6 @@ impl DbInsert for NewInstitutionHistory {
     type MainEntity = InstitutionHistory;
 
     db_insert!(institution_history::table);
-}
-
-impl Institution {
-    pub fn linked_publisher_ids(&self, db: &crate::db::PgPool) -> ThothResult<Vec<Uuid>> {
-        institution_linked_publisher_ids(self.institution_id, db)
-    }
-}
-
-fn institution_linked_publisher_ids(
-    institution_id: Uuid,
-    db: &crate::db::PgPool,
-) -> ThothResult<Vec<Uuid>> {
-    let mut connection = db.get()?;
-    let publishers_via_affiliation = crate::schema::publisher::table
-        .inner_join(crate::schema::imprint::table.inner_join(
-            crate::schema::work::table.inner_join(
-                crate::schema::contribution::table.inner_join(crate::schema::affiliation::table),
-            ),
-        ))
-        .select(crate::schema::publisher::publisher_id)
-        .filter(crate::schema::affiliation::institution_id.eq(institution_id))
-        .distinct()
-        .load::<Uuid>(&mut connection)
-        .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
-    let publishers_via_funding = crate::schema::publisher::table
-        .inner_join(
-            crate::schema::imprint::table
-                .inner_join(crate::schema::work::table.inner_join(crate::schema::funding::table)),
-        )
-        .select(crate::schema::publisher::publisher_id)
-        .filter(crate::schema::funding::institution_id.eq(institution_id))
-        .distinct()
-        .load::<Uuid>(&mut connection)
-        .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
-    Ok([publishers_via_affiliation, publishers_via_funding].concat())
 }
 
 #[cfg(test)]
@@ -194,13 +185,13 @@ mod tests {
     #[test]
     fn test_new_institution_history_from_institution() {
         let institution: Institution = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_institution_history = institution.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_institution_history = institution.new_history_entry(&user_id);
         assert_eq!(
             new_institution_history.institution_id,
             institution.institution_id
         );
-        assert_eq!(new_institution_history.account_id, account_id);
+        assert_eq!(new_institution_history.user_id, user_id);
         assert_eq!(
             new_institution_history.data,
             serde_json::Value::String(serde_json::to_string(&institution).unwrap())

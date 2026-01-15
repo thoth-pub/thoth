@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::affiliation;
@@ -67,7 +67,7 @@ pub struct PatchAffiliation {
 pub struct AffiliationHistory {
     pub affiliation_history_id: Uuid,
     pub affiliation_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -79,7 +79,7 @@ pub struct AffiliationHistory {
 )]
 pub struct NewAffiliationHistory {
     pub affiliation_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -104,3 +104,7 @@ impl Default for AffiliationOrderBy {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::AffiliationPolicy;

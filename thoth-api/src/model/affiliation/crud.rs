@@ -2,7 +2,7 @@ use super::{
     Affiliation, AffiliationField, AffiliationHistory, AffiliationOrderBy, NewAffiliation,
     NewAffiliationHistory, PatchAffiliation,
 };
-use crate::graphql::utils::Direction;
+use crate::graphql::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{affiliation, affiliation_history};
 use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
@@ -115,21 +115,20 @@ impl Crud for Affiliation {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::contribution::Contribution::from_id(db, &self.contribution_id)?
-            .publisher_id(db)
-    }
-
     crud_methods!(affiliation::table, affiliation::dsl::affiliation);
 }
+
+publisher_id_impls!(Affiliation, NewAffiliation, PatchAffiliation, |s, db| {
+    crate::model::contribution::Contribution::from_id(db, &s.contribution_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Affiliation {
     type NewHistoryEntity = NewAffiliationHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             affiliation_id: self.affiliation_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -180,13 +179,13 @@ mod tests {
     #[test]
     fn test_new_affiliation_history_from_affiliation() {
         let affiliation: Affiliation = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_affiliation_history = affiliation.new_history_entry(&account_id);
+        let user_id = "123456".to_string();
+        let new_affiliation_history = affiliation.new_history_entry(&user_id);
         assert_eq!(
             new_affiliation_history.affiliation_id,
             affiliation.affiliation_id
         );
-        assert_eq!(new_affiliation_history.account_id, account_id);
+        assert_eq!(new_affiliation_history.user_id, user_id);
         assert_eq!(
             new_affiliation_history.data,
             serde_json::Value::String(serde_json::to_string(&affiliation).unwrap())

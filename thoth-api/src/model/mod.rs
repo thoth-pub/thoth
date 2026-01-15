@@ -1,60 +1,15 @@
-use crate::ast::{
-    ast_to_html, ast_to_jats, ast_to_markdown, ast_to_plain_text, html_to_ast, jats_to_ast,
-    markdown_to_ast, plain_text_ast_to_jats, plain_text_to_ast,
-    strip_structural_elements_from_ast_for_conversion, validate_ast_content,
-};
+use crate::policy::PolicyContext;
 use chrono::{DateTime, TimeZone, Utc};
 use isbn::Isbn13;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
-use strum::Display;
-use strum::EnumString;
 use thoth_errors::{ThothError, ThothResult};
-#[cfg(feature = "backend")]
 use uuid::Uuid;
 
 pub const DOI_DOMAIN: &str = "https://doi.org/";
 pub const ORCID_DOMAIN: &str = "https://orcid.org/";
 pub const ROR_DOMAIN: &str = "https://ror.org/";
-
-#[cfg_attr(
-    feature = "backend",
-    derive(juniper::GraphQLEnum),
-    graphql(description = "Unit of measurement for physical Work dimensions (mm, cm or in)")
-)]
-#[derive(
-    Debug, Copy, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display,
-)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[strum(serialize_all = "lowercase")]
-pub enum LengthUnit {
-    #[cfg_attr(feature = "backend", graphql(description = "Millimetres"))]
-    #[default]
-    Mm,
-    #[cfg_attr(feature = "backend", graphql(description = "Centimetres"))]
-    Cm,
-    #[cfg_attr(feature = "backend", graphql(description = "Inches"))]
-    In,
-}
-
-#[cfg_attr(
-    feature = "backend",
-    derive(juniper::GraphQLEnum),
-    graphql(description = "Unit of measurement for physical Work weight (grams or ounces)")
-)]
-#[derive(
-    Debug, Copy, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display,
-)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[strum(serialize_all = "lowercase")]
-pub enum WeightUnit {
-    #[cfg_attr(feature = "backend", graphql(description = "Grams"))]
-    #[default]
-    G,
-    #[cfg_attr(feature = "backend", graphql(description = "Ounces"))]
-    Oz,
-}
 
 #[cfg_attr(
     feature = "backend",
@@ -300,7 +255,7 @@ impl Orcid {
 #[cfg(feature = "backend")]
 #[allow(clippy::too_many_arguments)]
 /// Common functionality to perform basic CRUD actions on Thoth entities
-pub trait Crud
+pub(crate) trait Crud
 where
     Self: Sized,
 {
@@ -362,18 +317,158 @@ where
     fn create(db: &crate::db::PgPool, data: &Self::NewEntity) -> ThothResult<Self>;
 
     /// Modify the record in the database and obtain the resulting instance
-    fn update(
-        &self,
-        db: &crate::db::PgPool,
-        data: &Self::PatchEntity,
-        account_id: &Uuid,
-    ) -> ThothResult<Self>;
+    fn update<C: PolicyContext>(&self, ctx: &C, data: &Self::PatchEntity) -> ThothResult<Self>;
 
     /// Delete the record from the database and obtain the deleted instance
     fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self>;
+}
 
-    /// Retrieve the ID of the publisher linked to this entity (if applicable)
+#[cfg(feature = "backend")]
+/// Retrieve the ID of the publisher linked to an entity or input type (if applicable).
+pub trait PublisherId
+where
+    Self: Sized,
+{
     fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid>;
+}
+
+#[cfg(feature = "backend")]
+/// Retrieve the IDs of the publishers linked to an entity or input type (if applicable).
+///
+/// This is intended for entities that span more than one publisher scope, e.g. `WorkRelation`,
+/// where authorisation must be checked against all referenced publishers.
+pub trait PublisherIds
+where
+    Self: Sized,
+{
+    fn publisher_ids(&self, db: &crate::db::PgPool) -> ThothResult<Vec<Uuid>>;
+}
+
+/// Implements `PublisherId` for a main entity type, its `New*` type, and its `Patch*` type.
+///
+/// Due to macro hygiene, the implementation body is written as a block that uses **explicit**
+/// identifiers provided to the macro (e.g. `s` and `db`). The macro will bind those identifiers
+/// to the method's `self` and `db` parameters before expanding the body.
+///
+/// Example:
+/// ```ignore
+/// publisher_id_impls!(
+///     Contribution,
+///     NewContribution,
+///     PatchContribution,
+///     |s, db| {
+///         Work::from_id(db, &s.work_id)?.publisher_id(db)
+///     }
+/// );
+/// ```
+#[cfg(feature = "backend")]
+#[macro_export]
+macro_rules! publisher_id_impls {
+    (
+        $main_ty:ty,
+        $new_ty:ty,
+        $patch_ty:ty,
+        |$s:ident, $db:ident| $body:block $(,)?
+    ) => {
+        impl $crate::model::PublisherId for $main_ty {
+            fn publisher_id(
+                &self,
+                db: &$crate::db::PgPool,
+            ) -> $crate::model::ThothResult<uuid::Uuid> {
+                let $s = self;
+                let $db = db;
+                $body
+            }
+        }
+
+        impl $crate::model::PublisherId for $new_ty {
+            fn publisher_id(
+                &self,
+                db: &$crate::db::PgPool,
+            ) -> $crate::model::ThothResult<uuid::Uuid> {
+                let $s = self;
+                let $db = db;
+                $body
+            }
+        }
+
+        impl $crate::model::PublisherId for $patch_ty {
+            fn publisher_id(
+                &self,
+                db: &$crate::db::PgPool,
+            ) -> $crate::model::ThothResult<uuid::Uuid> {
+                let $s = self;
+                let $db = db;
+                $body
+            }
+        }
+    };
+}
+
+/// Implements `PublisherIds` for a main entity type, its `New*` type, and its `Patch*` type.
+///
+/// The implementation body is written as a block that uses **explicit** identifiers provided to the
+/// macro (e.g. `s` and `db`). The macro will bind those identifiers to the method's `self` and `db`
+/// parameters before expanding the body.
+///
+/// Example:
+/// ```ignore
+/// publisher_ids_impls!(
+///     WorkRelation,
+///     NewWorkRelation,
+///     PatchWorkRelation,
+///     |s, db| {
+///         let a = Work::from_id(db, &s.relator_work_id)?.publisher_id(db)?;
+///         let b = Work::from_id(db, &s.related_work_id)?.publisher_id(db)?;
+///         let mut v = vec![a, b];
+///         v.sort();
+///         v.dedup();
+///         Ok(v)
+///     }
+/// );
+/// ```
+#[cfg(feature = "backend")]
+#[macro_export]
+macro_rules! publisher_ids_impls {
+    (
+        $main_ty:ty,
+        $new_ty:ty,
+        $patch_ty:ty,
+        |$s:ident, $db:ident| $body:block $(,)?
+    ) => {
+        impl $crate::model::PublisherIds for $main_ty {
+            fn publisher_ids(
+                &self,
+                db: &$crate::db::PgPool,
+            ) -> $crate::model::ThothResult<Vec<uuid::Uuid>> {
+                let $s = self;
+                let $db = db;
+                $body
+            }
+        }
+
+        impl $crate::model::PublisherIds for $new_ty {
+            fn publisher_ids(
+                &self,
+                db: &$crate::db::PgPool,
+            ) -> $crate::model::ThothResult<Vec<uuid::Uuid>> {
+                let $s = self;
+                let $db = db;
+                $body
+            }
+        }
+
+        impl $crate::model::PublisherIds for $patch_ty {
+            fn publisher_ids(
+                &self,
+                db: &$crate::db::PgPool,
+            ) -> $crate::model::ThothResult<Vec<uuid::Uuid>> {
+                let $s = self;
+                let $db = db;
+                $body
+            }
+        }
+    };
 }
 
 #[cfg(feature = "backend")]
@@ -385,7 +480,7 @@ where
     /// The structure used to create a new history entity, e.g. `NewImprintHistory` for `Imprint`
     type NewHistoryEntity;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity;
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity;
 }
 
 #[cfg(feature = "backend")]
@@ -402,16 +497,15 @@ where
 #[cfg(feature = "backend")]
 /// Common functionality to correctly renumber all relevant database objects
 /// on a request to change the ordinal of one of them
-pub trait Reorder
+pub(crate) trait Reorder
 where
     Self: Sized + Clone,
 {
-    fn change_ordinal(
+    fn change_ordinal<C: PolicyContext>(
         &self,
-        db: &crate::db::PgPool,
+        ctx: &C,
         current_ordinal: i32,
         new_ordinal: i32,
-        account_id: &Uuid,
     ) -> ThothResult<Self>;
 
     fn get_other_objects(
@@ -468,22 +562,21 @@ macro_rules! crud_methods {
 
         /// Makes a database transaction that first updates the entity and then creates a new
         /// history entity record.
-        fn update(
+        fn update<C: $crate::policy::PolicyContext>(
             &self,
-            db: &$crate::db::PgPool,
+            ctx: &C,
             data: &Self::PatchEntity,
-            account_id: &Uuid,
         ) -> ThothResult<Self> {
             use diesel::{Connection, QueryDsl, RunQueryDsl};
 
-            let mut connection = db.get()?;
+            let mut connection = ctx.db().get()?;
             connection.transaction(|connection| {
                 diesel::update($entity_dsl.find(&self.pk()))
                     .set(data)
                     .get_result(connection)
                     .map_err(Into::into)
                     .and_then(|c| {
-                        self.new_history_entry(&account_id)
+                        self.new_history_entry(ctx.user_id()?)
                             .insert(connection)
                             .map(|_| c)
                     })
@@ -601,14 +694,13 @@ macro_rules! db_change_ordinal {
     ($table_dsl:expr,
      $ordinal_field:expr,
      $constraint_name:literal) => {
-        fn change_ordinal(
+        fn change_ordinal<C: $crate::policy::PolicyContext>(
             &self,
-            db: &$crate::db::PgPool,
+            ctx: &C,
             current_ordinal: i32,
             new_ordinal: i32,
-            account_id: &Uuid,
         ) -> ThothResult<Self> {
-            let mut connection = db.get()?;
+            let mut connection = ctx.db().get()?;
             // Execute all updates within the same transaction,
             // because if one fails, the others need to be reverted.
             connection.transaction(|connection| {
@@ -648,60 +740,13 @@ macro_rules! db_change_ordinal {
                     .and_then(|t| {
                         // On success, create a new history table entry.
                         // Only record the original update, not the automatic reorderings.
-                        self.new_history_entry(account_id)
+                        self.new_history_entry(ctx.user_id()?)
                             .insert(connection)
                             .map(|_| t)
                     })
             })
         }
     };
-}
-
-pub trait Convert {
-    fn convert_length_from_to(&self, current_units: &LengthUnit, new_units: &LengthUnit) -> f64;
-    fn convert_weight_from_to(&self, current_units: &WeightUnit, new_units: &WeightUnit) -> f64;
-}
-
-impl Convert for f64 {
-    fn convert_length_from_to(&self, current_units: &LengthUnit, new_units: &LengthUnit) -> f64 {
-        match (current_units, new_units) {
-            // If current units and new units are the same, no conversion is needed
-            (LengthUnit::Mm, LengthUnit::Mm)
-            | (LengthUnit::Cm, LengthUnit::Cm)
-            | (LengthUnit::In, LengthUnit::In) => *self,
-            // Return cm values rounded to max 1 decimal place (1 cm = 10 mm)
-            (LengthUnit::Mm, LengthUnit::Cm) => self.round() / 10.0,
-            // Return mm values rounded to nearest mm (1 cm = 10 mm)
-            (LengthUnit::Cm, LengthUnit::Mm) => (self * 10.0).round(),
-            // Return inch values rounded to 2 decimal places (1 inch = 25.4 mm)
-            (LengthUnit::Mm, LengthUnit::In) => {
-                let unrounded_inches = self / 25.4;
-                // To round to a non-integer scale, multiply by the appropriate factor,
-                // round to the nearest integer, then divide again by the same factor
-                (unrounded_inches * 100.0).round() / 100.0
-            }
-            // Return mm values rounded to nearest mm (1 inch = 25.4 mm)
-            (LengthUnit::In, LengthUnit::Mm) => (self * 25.4).round(),
-            // We don't currently support conversion between cm and in as it is not required
-            _ => unimplemented!(),
-        }
-    }
-
-    fn convert_weight_from_to(&self, current_units: &WeightUnit, new_units: &WeightUnit) -> f64 {
-        match (current_units, new_units) {
-            // If current units and new units are the same, no conversion is needed
-            (WeightUnit::G, WeightUnit::G) | (WeightUnit::Oz, WeightUnit::Oz) => *self,
-            // Return ounce values rounded to 4 decimal places (1 ounce = 28.349523125 grams)
-            (WeightUnit::G, WeightUnit::Oz) => {
-                let unrounded_ounces = self / 28.349523125;
-                // To round to a non-integer scale, multiply by the appropriate factor,
-                // round to the nearest integer, then divide again by the same factor
-                (unrounded_ounces * 10000.0).round() / 10000.0
-            }
-            // Return gram values rounded to nearest gram (1 ounce = 28.349523125 grams)
-            (WeightUnit::Oz, WeightUnit::G) => (self * 28.349523125).round(),
-        }
-    }
 }
 
 /// Assign the leading domain of an identifier
@@ -741,490 +786,9 @@ impl IdentifierWithDomain for Doi {}
 impl IdentifierWithDomain for Orcid {}
 impl IdentifierWithDomain for Ror {}
 
-/// Enum to represent the markup format
-#[cfg_attr(
-    feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
-    graphql(
-        description = "Allowed markup formats for text fields that support structured content"
-    ),
-    ExistingTypePath = "crate::schema::sql_types::MarkupFormat"
-)]
-#[derive(
-    Debug, Copy, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display,
-)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[strum(serialize_all = "UPPERCASE")]
-pub enum MarkupFormat {
-    #[cfg_attr(feature = "backend", graphql(description = "HTML format"))]
-    Html,
-    #[cfg_attr(feature = "backend", graphql(description = "Markdown format"))]
-    Markdown,
-    #[cfg_attr(feature = "backend", graphql(description = "Plain text format"))]
-    PlainText,
-    #[cfg_attr(feature = "backend", graphql(description = "JATS XML format"))]
-    #[default]
-    JatsXml,
-}
-
-/// Limits how much structure is preserved/allowed when converting to/from JATS.
-///
-/// - `Abstract`/`Biography`: allow basic structural elements (paragraphs, lists, emphasis, links).
-/// - `Title`: disallow structure; structural tags are stripped to plain inline text.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConversionLimit {
-    Abstract,
-    Biography,
-    Title,
-}
-
-/// Enum to represent abstract types
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum AbstractType {
-    Short,
-    Long,
-}
-
-/// Validate content format based on markup format
-pub fn validate_format(content: &str, format: &MarkupFormat) -> ThothResult<()> {
-    match format {
-        MarkupFormat::Html | MarkupFormat::JatsXml => {
-            // Basic HTML validation - check for opening and closing tags
-            if !content.contains('<') || !content.contains('>') || !content.contains("</") {
-                return Err(ThothError::UnsupportedFileFormatError);
-            }
-        }
-        MarkupFormat::Markdown => {
-            // Basic Markdown validation - check for markdown syntax
-            if content.contains('<') && content.contains('>') {
-                // At least one markdown element should be present
-                return Err(ThothError::UnsupportedFileFormatError);
-            }
-        }
-        MarkupFormat::PlainText => {}
-    }
-    Ok(())
-}
-
-/// Convert content to JATS XML format with specified tag
-pub fn convert_to_jats(
-    content: String,
-    format: MarkupFormat,
-    conversion_limit: ConversionLimit,
-) -> ThothResult<String> {
-    validate_format(&content, &format)?;
-    let mut output = content.clone();
-
-    match format {
-        MarkupFormat::Html => {
-            // Use ast library to parse HTML and convert to JATS
-            let ast = html_to_ast(&content);
-
-            // For title conversion, strip structural elements before validation
-            let processed_ast = if conversion_limit == ConversionLimit::Title {
-                strip_structural_elements_from_ast_for_conversion(&ast)
-            } else {
-                ast
-            };
-
-            validate_ast_content(&processed_ast, conversion_limit)?;
-            output = ast_to_jats(&processed_ast);
-        }
-
-        MarkupFormat::Markdown => {
-            // Use ast library to parse Markdown and convert to JATS
-            let ast = markdown_to_ast(&content);
-
-            // For title conversion, strip structural elements before validation
-            let processed_ast = if conversion_limit == ConversionLimit::Title {
-                strip_structural_elements_from_ast_for_conversion(&ast)
-            } else {
-                ast
-            };
-
-            validate_ast_content(&processed_ast, conversion_limit)?;
-            output = ast_to_jats(&processed_ast);
-        }
-
-        MarkupFormat::PlainText => {
-            // Use ast library to parse plain text and convert to JATS
-            let ast = plain_text_to_ast(&content);
-
-            // For title conversion, strip structural elements before validation
-            let processed_ast = if conversion_limit == ConversionLimit::Title {
-                strip_structural_elements_from_ast_for_conversion(&ast)
-            } else {
-                ast
-            };
-
-            validate_ast_content(&processed_ast, conversion_limit)?;
-            output = if conversion_limit == ConversionLimit::Title {
-                // Title JATS should remain inline (no paragraph wrapper)
-                ast_to_jats(&processed_ast)
-            } else {
-                plain_text_ast_to_jats(&processed_ast)
-            };
-        }
-
-        MarkupFormat::JatsXml => {}
-    }
-
-    Ok(output)
-}
-
-/// Convert from JATS XML to specified format using a specific tag name
-pub fn convert_from_jats(
-    jats_xml: &str,
-    format: MarkupFormat,
-    conversion_limit: ConversionLimit,
-) -> ThothResult<String> {
-    // Allow plain-text content that was stored without JATS markup for titles.
-    if !jats_xml.contains('<') || !jats_xml.contains("</") {
-        let ast = plain_text_to_ast(jats_xml);
-        let processed_ast = if conversion_limit == ConversionLimit::Title {
-            strip_structural_elements_from_ast_for_conversion(&ast)
-        } else {
-            ast
-        };
-        validate_ast_content(&processed_ast, conversion_limit)?;
-        return Ok(match format {
-            MarkupFormat::Html => ast_to_html(&processed_ast),
-            MarkupFormat::Markdown => ast_to_markdown(&processed_ast),
-            MarkupFormat::PlainText => ast_to_plain_text(&processed_ast),
-            MarkupFormat::JatsXml => {
-                if conversion_limit == ConversionLimit::Title {
-                    ast_to_jats(&processed_ast)
-                } else {
-                    plain_text_ast_to_jats(&processed_ast)
-                }
-            }
-        });
-    }
-
-    validate_format(jats_xml, &MarkupFormat::JatsXml)?;
-
-    // Parse JATS to AST first for better handling
-    let ast = jats_to_ast(jats_xml);
-
-    // For title conversion, strip structural elements before validation
-    let processed_ast = if conversion_limit == ConversionLimit::Title {
-        strip_structural_elements_from_ast_for_conversion(&ast)
-    } else {
-        ast
-    };
-
-    // Validate the AST content based on conversion limit
-    validate_ast_content(&processed_ast, conversion_limit)?;
-
-    let output = match format {
-        MarkupFormat::Html => {
-            // Use the dedicated AST to HTML converter
-            ast_to_html(&processed_ast)
-        }
-
-        MarkupFormat::Markdown => {
-            // Use the dedicated AST to Markdown converter
-            ast_to_markdown(&processed_ast)
-        }
-
-        MarkupFormat::PlainText => {
-            // Use the dedicated AST to plain text converter
-            ast_to_plain_text(&processed_ast)
-        }
-
-        MarkupFormat::JatsXml => {
-            // Return the AST converted back to JATS (should be identical)
-            jats_xml.to_string()
-        }
-    };
-
-    Ok(output)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // --- convert_to_jats tests start ---
-    #[test]
-    fn test_html_basic_formatting() {
-        let input = "<em>Italic</em> and <strong>Bold</strong>";
-        let output = convert_to_jats(
-            input.to_string(),
-            MarkupFormat::Html,
-            ConversionLimit::Biography,
-        )
-        .unwrap();
-        assert_eq!(output, "<italic>Italic</italic> and <bold>Bold</bold>");
-    }
-
-    #[test]
-    fn test_html_link_conversion() {
-        let input = r#"<a href="https://example.com">Link</a>"#;
-        let output = convert_to_jats(
-            input.to_string(),
-            MarkupFormat::Html,
-            ConversionLimit::Abstract,
-        )
-        .unwrap();
-        assert_eq!(
-            output,
-            r#"<ext-link xlink:href="https://example.com">Link</ext-link>"#
-        );
-    }
-
-    #[test]
-    fn test_html_with_structure_allowed() {
-        let input = "<ul><li>One</li><li>Two</li></ul>";
-        let output = convert_to_jats(
-            input.to_string(),
-            MarkupFormat::Html,
-            ConversionLimit::Abstract,
-        )
-        .unwrap();
-        assert_eq!(
-            output,
-            "<list><list-item>One</list-item><list-item>Two</list-item></list>"
-        );
-    }
-
-    #[test]
-    fn test_html_with_structure_stripped() {
-        let input = "<ul><li>One</li></ul>";
-        let output = convert_to_jats(
-            input.to_string(),
-            MarkupFormat::Html,
-            ConversionLimit::Title,
-        )
-        .unwrap();
-        assert_eq!(output, "One");
-    }
-
-    #[test]
-    fn test_html_small_caps_conversion() {
-        let input = "<text>Small caps text</text>";
-        let output = convert_to_jats(
-            input.to_string(),
-            MarkupFormat::Html,
-            ConversionLimit::Title,
-        )
-        .unwrap();
-        assert_eq!(output, "<sc>Small caps text</sc>");
-    }
-
-    #[test]
-    fn test_markdown_basic_formatting() {
-        let input = "**Bold** and *Italic* and `code`";
-        let output = convert_to_jats(
-            input.to_string(),
-            MarkupFormat::Markdown,
-            ConversionLimit::Title,
-        )
-        .unwrap();
-        assert_eq!(
-            output,
-            "<bold>Bold</bold> and <italic>Italic</italic> and <monospace>code</monospace>"
-        );
-    }
-
-    #[test]
-    fn test_markdown_link_conversion() {
-        let input = "[text](https://example.com)";
-        let output = convert_to_jats(
-            input.to_string(),
-            MarkupFormat::Markdown,
-            ConversionLimit::Title,
-        )
-        .unwrap();
-        assert_eq!(
-            output,
-            r#"<ext-link xlink:href="https://example.com">text</ext-link>"#
-        );
-    }
-
-    #[test]
-    fn test_markdown_with_structure() {
-        let input = "- Item 1\n- Item 2\n\nParagraph text";
-        let output = convert_to_jats(
-            input.to_string(),
-            MarkupFormat::Markdown,
-            ConversionLimit::Abstract,
-        )
-        .unwrap();
-
-        assert!(
-            output.contains(
-                "<list><list-item>Item 1</list-item><list-item>Item 2</list-item></list>"
-            ) && output.contains("<p>Paragraph text</p>")
-        );
-    }
-
-    #[test]
-    fn test_plain_text_with_url() {
-        let input = "Hello https://example.com world";
-        let output = convert_to_jats(
-            input.to_string(),
-            MarkupFormat::PlainText,
-            ConversionLimit::Biography,
-        )
-        .unwrap();
-        assert_eq!(
-        output,
-        "<p>Hello </p><ext-link xlink:href=\"https://example.com\"><p>https://example.com</p></ext-link><p> world</p>"
-    );
-    }
-
-    #[test]
-    fn test_plain_text_no_url() {
-        let input = "Just plain text.";
-        let output = convert_to_jats(
-            input.to_string(),
-            MarkupFormat::PlainText,
-            ConversionLimit::Title,
-        )
-        .unwrap();
-        assert_eq!(output, "Just plain text.");
-    }
-    // --- convert_to_jats tests end   ---
-
-    // --- convert_from_jats tests start   ---
-    #[test]
-    fn test_convert_from_jats_html_with_structure() {
-        let input = r#"
-            <p>Paragraph text</p>
-            <list><list-item>Item 1</list-item><list-item>Item 2</list-item></list>
-            <italic>Italic</italic> and <bold>Bold</bold>
-            <ext-link xlink:href="https://example.com">Link</ext-link>
-        "#;
-        let output =
-            convert_from_jats(input, MarkupFormat::Html, ConversionLimit::Abstract).unwrap();
-
-        assert!(output.contains("<p>Paragraph text</p>"));
-        assert!(output.contains("<ul><li>Item 1</li><li>Item 2</li></ul>"));
-        assert!(output.contains("<em>Italic</em>"));
-        assert!(output.contains("<strong>Bold</strong>"));
-        assert!(output.contains(r#"<a href="https://example.com">Link</a>"#));
-    }
-
-    #[test]
-    fn test_convert_from_jats_html_no_structure() {
-        let input = r#"
-            <p>Text</p><list><list-item>Item</list-item></list><bold>Bold</bold>
-        "#;
-        let output = convert_from_jats(input, MarkupFormat::Html, ConversionLimit::Title).unwrap();
-
-        assert!(!output.contains("<p>"));
-        assert!(!output.contains("<ul>"));
-        assert!(output.contains("<strong>Bold</strong>"));
-    }
-
-    #[test]
-    fn test_convert_from_jats_html_title_limit() {
-        let input = r#"<p>Title</p><bold>Bold</bold>"#;
-        let output = convert_from_jats(input, MarkupFormat::Html, ConversionLimit::Title).unwrap();
-
-        assert!(!output.contains("<p>"));
-        assert!(output.contains("<strong>Bold</strong>"));
-    }
-
-    #[test]
-    fn test_convert_from_jats_markdown_with_structure() {
-        let input = r#"
-            <p>Text</p><list><list-item>Item 1</list-item><list-item>Item 2</list-item></list>
-            <italic>It</italic> and <bold>Bold</bold>
-            <ext-link xlink:href="https://link.com">Here</ext-link>
-        "#;
-        let output =
-            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Biography).unwrap();
-
-        assert!(output.contains("Text"));
-        assert!(output.contains("- Item 1"));
-        assert!(output.contains("*It*"));
-        assert!(output.contains("**Bold**"));
-        assert!(output.contains("[Here](https://link.com)"));
-    }
-
-    #[test]
-    fn test_convert_from_jats_markdown_title_limit() {
-        let input = r#"<p>Title</p><italic>It</italic>"#;
-        let output =
-            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Title).unwrap();
-
-        assert!(!output.contains("<p>"));
-        assert!(output.contains("*It*"));
-    }
-
-    #[test]
-    fn test_convert_from_jats_plain_text_basic() {
-        let input = r#"
-            <p>Text</p> and <ext-link xlink:href="https://ex.com">Link</ext-link> and <sc>SC</sc>
-        "#;
-        let output =
-            convert_from_jats(input, MarkupFormat::PlainText, ConversionLimit::Abstract).unwrap();
-
-        assert!(output.contains("Text"));
-        assert!(output.contains("Link (https://ex.com)"));
-        assert!(!output.contains("<sc>"));
-        assert!(!output.contains("<"));
-    }
-
-    #[test]
-    fn test_convert_from_jats_preserves_inline_html() {
-        let input = r#"<italic>i</italic> <bold>b</bold> <monospace>code</monospace>"#;
-        let output =
-            convert_from_jats(input, MarkupFormat::Html, ConversionLimit::Abstract).unwrap();
-
-        assert!(output.contains("<em>i</em>"));
-        assert!(output.contains("<strong>b</strong>"));
-        assert!(output.contains("<code>code</code>"));
-    }
-
-    #[test]
-    fn test_convert_from_jats_jatsxml_noop() {
-        let input = r#"<p>Do nothing</p>"#;
-        let output =
-            convert_from_jats(input, MarkupFormat::JatsXml, ConversionLimit::Biography).unwrap();
-        assert_eq!(input, output);
-    }
-
-    #[test]
-    fn test_convert_from_jats_html_allow_structure_false() {
-        let input = r#"<p>Para</p><list><list-item>Item</list-item></list>"#;
-        let output = convert_from_jats(input, MarkupFormat::Html, ConversionLimit::Title).unwrap();
-
-        assert!(!output.contains("<p>"));
-        assert!(!output.contains("<ul>"));
-        assert!(output.contains("Para"));
-        assert!(output.contains("Item"));
-    }
-
-    #[test]
-    fn test_title_plain_text_to_jats_has_no_paragraph() {
-        let input = "Plain title";
-        let output = convert_to_jats(
-            input.to_string(),
-            MarkupFormat::PlainText,
-            ConversionLimit::Title,
-        )
-        .unwrap();
-        assert_eq!(output, "Plain title");
-    }
-
-    #[test]
-    fn test_title_plain_text_roundtrip_no_paragraphs() {
-        let plain = "Another plain title";
-        let jats = convert_to_jats(
-            plain.to_string(),
-            MarkupFormat::PlainText,
-            ConversionLimit::Title,
-        )
-        .unwrap();
-        assert!(!jats.contains("<p>"));
-
-        let back = convert_from_jats(&jats, MarkupFormat::JatsXml, ConversionLimit::Title).unwrap();
-        assert_eq!(back, plain);
-    }
-    // --- convert_from_jats tests end   ---
 
     #[test]
     fn test_doi_default() {
@@ -1497,173 +1061,6 @@ mod tests {
         let hyphenless_orcid =
             Orcid("https://orcid.org/0000-0002-1234-5678".to_string()).to_hyphenless_string();
         assert_eq!(hyphenless_orcid, "0000000212345678");
-    }
-
-    #[test]
-    // Float equality comparison is fine here because the floats
-    // have already been rounded by the functions under test
-    #[allow(clippy::float_cmp)]
-    fn test_convert_length_from_to() {
-        use LengthUnit::*;
-        assert_eq!(123.456.convert_length_from_to(&Mm, &Cm), 12.3);
-        assert_eq!(123.456.convert_length_from_to(&Mm, &In), 4.86);
-        assert_eq!(123.456.convert_length_from_to(&Cm, &Mm), 1235.0);
-        assert_eq!(123.456.convert_length_from_to(&In, &Mm), 3136.0);
-        // Test some standard print sizes
-        assert_eq!(4.25.convert_length_from_to(&In, &Mm), 108.0);
-        assert_eq!(108.0.convert_length_from_to(&Mm, &In), 4.25);
-        assert_eq!(6.0.convert_length_from_to(&In, &Mm), 152.0);
-        assert_eq!(152.0.convert_length_from_to(&Mm, &In), 5.98);
-        assert_eq!(8.5.convert_length_from_to(&In, &Mm), 216.0);
-        assert_eq!(216.0.convert_length_from_to(&Mm, &In), 8.5);
-        // Test that converting and then converting back again
-        // returns a value within a reasonable margin of error
-        assert_eq!(
-            5.06.convert_length_from_to(&In, &Mm)
-                .convert_length_from_to(&Mm, &In),
-            5.08
-        );
-        assert_eq!(
-            6.5.convert_length_from_to(&In, &Mm)
-                .convert_length_from_to(&Mm, &In),
-            6.5
-        );
-        assert_eq!(
-            7.44.convert_length_from_to(&In, &Mm)
-                .convert_length_from_to(&Mm, &In),
-            7.44
-        );
-        assert_eq!(
-            8.27.convert_length_from_to(&In, &Mm)
-                .convert_length_from_to(&Mm, &In),
-            8.27
-        );
-        assert_eq!(
-            9.0.convert_length_from_to(&In, &Mm)
-                .convert_length_from_to(&Mm, &In),
-            9.02
-        );
-        assert_eq!(
-            10.88
-                .convert_length_from_to(&In, &Mm)
-                .convert_length_from_to(&Mm, &In),
-            10.87
-        );
-        assert_eq!(
-            102.0
-                .convert_length_from_to(&Mm, &In)
-                .convert_length_from_to(&In, &Mm),
-            102.0
-        );
-        assert_eq!(
-            120.0
-                .convert_length_from_to(&Mm, &In)
-                .convert_length_from_to(&In, &Mm),
-            120.0
-        );
-        assert_eq!(
-            168.0
-                .convert_length_from_to(&Mm, &In)
-                .convert_length_from_to(&In, &Mm),
-            168.0
-        );
-        assert_eq!(
-            190.0
-                .convert_length_from_to(&Mm, &In)
-                .convert_length_from_to(&In, &Mm),
-            190.0
-        );
-    }
-
-    #[test]
-    // Float equality comparison is fine here because the floats
-    // have already been rounded by the functions under test
-    #[allow(clippy::float_cmp)]
-    fn test_convert_weight_from_to() {
-        use WeightUnit::*;
-        assert_eq!(123.456.convert_weight_from_to(&G, &Oz), 4.3548);
-        assert_eq!(123.456.convert_weight_from_to(&Oz, &G), 3500.0);
-        assert_eq!(4.25.convert_weight_from_to(&Oz, &G), 120.0);
-        assert_eq!(108.0.convert_weight_from_to(&G, &Oz), 3.8096);
-        assert_eq!(6.0.convert_weight_from_to(&Oz, &G), 170.0);
-        assert_eq!(152.0.convert_weight_from_to(&G, &Oz), 5.3616);
-        assert_eq!(8.5.convert_weight_from_to(&Oz, &G), 241.0);
-        assert_eq!(216.0.convert_weight_from_to(&G, &Oz), 7.6192);
-        // Test that converting and then converting back again
-        // returns a value within a reasonable margin of error
-        assert_eq!(
-            5.0.convert_weight_from_to(&Oz, &G)
-                .convert_weight_from_to(&G, &Oz),
-            5.0089
-        );
-        assert_eq!(
-            5.125
-                .convert_weight_from_to(&Oz, &G)
-                .convert_weight_from_to(&G, &Oz),
-            5.1147
-        );
-        assert_eq!(
-            6.5.convert_weight_from_to(&Oz, &G)
-                .convert_weight_from_to(&G, &Oz),
-            6.4904
-        );
-        assert_eq!(
-            7.25.convert_weight_from_to(&Oz, &G)
-                .convert_weight_from_to(&G, &Oz),
-            7.2664
-        );
-        assert_eq!(
-            7.44.convert_weight_from_to(&Oz, &G)
-                .convert_weight_from_to(&G, &Oz),
-            7.4428
-        );
-        assert_eq!(
-            8.0625
-                .convert_weight_from_to(&Oz, &G)
-                .convert_weight_from_to(&G, &Oz),
-            8.0777
-        );
-        assert_eq!(
-            9.0.convert_weight_from_to(&Oz, &G)
-                .convert_weight_from_to(&G, &Oz),
-            8.9949
-        );
-        assert_eq!(
-            10.75
-                .convert_weight_from_to(&Oz, &G)
-                .convert_weight_from_to(&G, &Oz),
-            10.7586
-        );
-        assert_eq!(
-            10.88
-                .convert_weight_from_to(&Oz, &G)
-                .convert_weight_from_to(&G, &Oz),
-            10.8644
-        );
-        assert_eq!(
-            102.0
-                .convert_weight_from_to(&G, &Oz)
-                .convert_weight_from_to(&Oz, &G),
-            102.0
-        );
-        assert_eq!(
-            120.0
-                .convert_weight_from_to(&G, &Oz)
-                .convert_weight_from_to(&Oz, &G),
-            120.0
-        );
-        assert_eq!(
-            168.0
-                .convert_weight_from_to(&G, &Oz)
-                .convert_weight_from_to(&Oz, &G),
-            168.0
-        );
-        assert_eq!(
-            190.0
-                .convert_weight_from_to(&G, &Oz)
-                .convert_weight_from_to(&Oz, &G),
-            190.0
-        );
     }
 
     #[test]
