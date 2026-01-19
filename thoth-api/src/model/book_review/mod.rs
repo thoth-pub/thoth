@@ -128,3 +128,68 @@ pub struct BookReviewHistory {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+
+#[test]
+fn test_bookreviewfield_default() {
+    let field: BookReviewField = Default::default();
+    assert_eq!(field, BookReviewField::ReviewOrdinal);
+}
+
+#[test]
+fn test_bookreviewfield_display() {
+    assert_eq!(format!("{}", BookReviewField::BookReviewId), "BookReviewId");
+    assert_eq!(format!("{}", BookReviewField::WorkId), "WorkId");
+    assert_eq!(
+        format!("{}", BookReviewField::ReviewOrdinal),
+        "ReviewOrdinal"
+    );
+    assert_eq!(format!("{}", BookReviewField::Title), "Title");
+    assert_eq!(format!("{}", BookReviewField::AuthorName), "AuthorName");
+    assert_eq!(format!("{}", BookReviewField::JournalName), "JournalName");
+    assert_eq!(format!("{}", BookReviewField::ReviewDate), "ReviewDate");
+    assert_eq!(format!("{}", BookReviewField::CreatedAt), "CreatedAt");
+    assert_eq!(format!("{}", BookReviewField::UpdatedAt), "UpdatedAt");
+}
+
+#[test]
+fn test_bookreviewfield_fromstr() {
+    use std::str::FromStr;
+    assert_eq!(
+        BookReviewField::from_str("BookReviewId").unwrap(),
+        BookReviewField::BookReviewId
+    );
+    assert_eq!(
+        BookReviewField::from_str("WorkId").unwrap(),
+        BookReviewField::WorkId
+    );
+    assert_eq!(
+        BookReviewField::from_str("ReviewOrdinal").unwrap(),
+        BookReviewField::ReviewOrdinal
+    );
+    assert_eq!(
+        BookReviewField::from_str("Title").unwrap(),
+        BookReviewField::Title
+    );
+    assert_eq!(
+        BookReviewField::from_str("AuthorName").unwrap(),
+        BookReviewField::AuthorName
+    );
+    assert_eq!(
+        BookReviewField::from_str("JournalName").unwrap(),
+        BookReviewField::JournalName
+    );
+    assert_eq!(
+        BookReviewField::from_str("ReviewDate").unwrap(),
+        BookReviewField::ReviewDate
+    );
+    assert_eq!(
+        BookReviewField::from_str("CreatedAt").unwrap(),
+        BookReviewField::CreatedAt
+    );
+    assert_eq!(
+        BookReviewField::from_str("UpdatedAt").unwrap(),
+        BookReviewField::UpdatedAt
+    );
+
+    assert!(BookReviewField::from_str("book_review_id").is_err());
+}

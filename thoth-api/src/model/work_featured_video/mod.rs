@@ -70,3 +70,12 @@ pub struct WorkFeaturedVideoHistory {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+
+#[test]
+fn test_work_featured_video_default() {
+    let video: WorkFeaturedVideo = Default::default();
+    assert_eq!(video.work_featured_video_id, Uuid::nil());
+    assert_eq!(video.work_id, Uuid::nil());
+    assert_eq!(video.width, 0);
+    assert_eq!(video.height, 0);
+}

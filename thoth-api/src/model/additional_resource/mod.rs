@@ -144,3 +144,143 @@ pub struct AdditionalResourceHistory {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+
+#[test]
+fn test_resourcetype_default() {
+    let resource_type: ResourceType = Default::default();
+    assert_eq!(resource_type, ResourceType::Other);
+}
+
+#[test]
+fn test_resourcetype_display() {
+    assert_eq!(format!("{}", ResourceType::Audio), "AUDIO");
+    assert_eq!(format!("{}", ResourceType::Video), "VIDEO");
+    assert_eq!(format!("{}", ResourceType::Image), "IMAGE");
+    assert_eq!(format!("{}", ResourceType::Blog), "BLOG");
+    assert_eq!(format!("{}", ResourceType::Website), "WEBSITE");
+    assert_eq!(format!("{}", ResourceType::Document), "DOCUMENT");
+    assert_eq!(format!("{}", ResourceType::Book), "BOOK");
+    assert_eq!(format!("{}", ResourceType::Article), "ARTICLE");
+    assert_eq!(format!("{}", ResourceType::Map), "MAP");
+    assert_eq!(format!("{}", ResourceType::Source), "SOURCE");
+    assert_eq!(format!("{}", ResourceType::Dataset), "DATASET");
+    assert_eq!(format!("{}", ResourceType::Spreadsheet), "SPREADSHEET");
+    assert_eq!(format!("{}", ResourceType::Other), "OTHER");
+}
+
+#[test]
+fn test_resourcetype_fromstr() {
+    use std::str::FromStr;
+    assert_eq!(
+        ResourceType::from_str("AUDIO").unwrap(),
+        ResourceType::Audio
+    );
+    assert_eq!(
+        ResourceType::from_str("VIDEO").unwrap(),
+        ResourceType::Video
+    );
+    assert_eq!(
+        ResourceType::from_str("IMAGE").unwrap(),
+        ResourceType::Image
+    );
+    assert_eq!(ResourceType::from_str("BLOG").unwrap(), ResourceType::Blog);
+    assert_eq!(
+        ResourceType::from_str("WEBSITE").unwrap(),
+        ResourceType::Website
+    );
+    assert_eq!(
+        ResourceType::from_str("DOCUMENT").unwrap(),
+        ResourceType::Document
+    );
+    assert_eq!(ResourceType::from_str("BOOK").unwrap(), ResourceType::Book);
+    assert_eq!(
+        ResourceType::from_str("ARTICLE").unwrap(),
+        ResourceType::Article
+    );
+    assert_eq!(ResourceType::from_str("MAP").unwrap(), ResourceType::Map);
+    assert_eq!(
+        ResourceType::from_str("SOURCE").unwrap(),
+        ResourceType::Source
+    );
+    assert_eq!(
+        ResourceType::from_str("DATASET").unwrap(),
+        ResourceType::Dataset
+    );
+    assert_eq!(
+        ResourceType::from_str("SPREADSHEET").unwrap(),
+        ResourceType::Spreadsheet
+    );
+    assert_eq!(
+        ResourceType::from_str("OTHER").unwrap(),
+        ResourceType::Other
+    );
+
+    assert!(ResourceType::from_str("audio").is_err());
+}
+
+#[test]
+fn test_additionalresourcefield_default() {
+    let field: AdditionalResourceField = Default::default();
+    assert_eq!(field, AdditionalResourceField::ResourceOrdinal);
+}
+
+#[test]
+fn test_additionalresourcefield_display() {
+    assert_eq!(
+        format!("{}", AdditionalResourceField::AdditionalResourceId),
+        "AdditionalResourceId"
+    );
+    assert_eq!(format!("{}", AdditionalResourceField::WorkId), "WorkId");
+    assert_eq!(
+        format!("{}", AdditionalResourceField::ResourceOrdinal),
+        "ResourceOrdinal"
+    );
+    assert_eq!(format!("{}", AdditionalResourceField::Title), "Title");
+    assert_eq!(
+        format!("{}", AdditionalResourceField::ResourceType),
+        "ResourceType"
+    );
+    assert_eq!(
+        format!("{}", AdditionalResourceField::CreatedAt),
+        "CreatedAt"
+    );
+    assert_eq!(
+        format!("{}", AdditionalResourceField::UpdatedAt),
+        "UpdatedAt"
+    );
+}
+
+#[test]
+fn test_additionalresourcefield_fromstr() {
+    use std::str::FromStr;
+    assert_eq!(
+        AdditionalResourceField::from_str("AdditionalResourceId").unwrap(),
+        AdditionalResourceField::AdditionalResourceId
+    );
+    assert_eq!(
+        AdditionalResourceField::from_str("WorkId").unwrap(),
+        AdditionalResourceField::WorkId
+    );
+    assert_eq!(
+        AdditionalResourceField::from_str("ResourceOrdinal").unwrap(),
+        AdditionalResourceField::ResourceOrdinal
+    );
+    assert_eq!(
+        AdditionalResourceField::from_str("Title").unwrap(),
+        AdditionalResourceField::Title
+    );
+    assert_eq!(
+        AdditionalResourceField::from_str("ResourceType").unwrap(),
+        AdditionalResourceField::ResourceType
+    );
+    assert_eq!(
+        AdditionalResourceField::from_str("CreatedAt").unwrap(),
+        AdditionalResourceField::CreatedAt
+    );
+    assert_eq!(
+        AdditionalResourceField::from_str("UpdatedAt").unwrap(),
+        AdditionalResourceField::UpdatedAt
+    );
+
+    assert!(AdditionalResourceField::from_str("additional_resource_id").is_err());
+}

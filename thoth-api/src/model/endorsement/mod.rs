@@ -106,3 +106,56 @@ pub struct EndorsementHistory {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+
+#[test]
+fn test_endorsementfield_default() {
+    let field: EndorsementField = Default::default();
+    assert_eq!(field, EndorsementField::EndorsementOrdinal);
+}
+
+#[test]
+fn test_endorsementfield_display() {
+    assert_eq!(
+        format!("{}", EndorsementField::EndorsementId),
+        "EndorsementId"
+    );
+    assert_eq!(format!("{}", EndorsementField::WorkId), "WorkId");
+    assert_eq!(
+        format!("{}", EndorsementField::EndorsementOrdinal),
+        "EndorsementOrdinal"
+    );
+    assert_eq!(format!("{}", EndorsementField::AuthorName), "AuthorName");
+    assert_eq!(format!("{}", EndorsementField::CreatedAt), "CreatedAt");
+    assert_eq!(format!("{}", EndorsementField::UpdatedAt), "UpdatedAt");
+}
+
+#[test]
+fn test_endorsementfield_fromstr() {
+    use std::str::FromStr;
+    assert_eq!(
+        EndorsementField::from_str("EndorsementId").unwrap(),
+        EndorsementField::EndorsementId
+    );
+    assert_eq!(
+        EndorsementField::from_str("WorkId").unwrap(),
+        EndorsementField::WorkId
+    );
+    assert_eq!(
+        EndorsementField::from_str("EndorsementOrdinal").unwrap(),
+        EndorsementField::EndorsementOrdinal
+    );
+    assert_eq!(
+        EndorsementField::from_str("AuthorName").unwrap(),
+        EndorsementField::AuthorName
+    );
+    assert_eq!(
+        EndorsementField::from_str("CreatedAt").unwrap(),
+        EndorsementField::CreatedAt
+    );
+    assert_eq!(
+        EndorsementField::from_str("UpdatedAt").unwrap(),
+        EndorsementField::UpdatedAt
+    );
+
+    assert!(EndorsementField::from_str("endorsement_id").is_err());
+}

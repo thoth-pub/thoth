@@ -107,3 +107,49 @@ pub struct AwardHistory {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+
+#[test]
+fn test_awardfield_default() {
+    let field: AwardField = Default::default();
+    assert_eq!(field, AwardField::AwardOrdinal);
+}
+
+#[test]
+fn test_awardfield_display() {
+    assert_eq!(format!("{}", AwardField::AwardId), "AwardId");
+    assert_eq!(format!("{}", AwardField::WorkId), "WorkId");
+    assert_eq!(format!("{}", AwardField::AwardOrdinal), "AwardOrdinal");
+    assert_eq!(format!("{}", AwardField::Title), "Title");
+    assert_eq!(format!("{}", AwardField::Category), "Category");
+    assert_eq!(format!("{}", AwardField::CreatedAt), "CreatedAt");
+    assert_eq!(format!("{}", AwardField::UpdatedAt), "UpdatedAt");
+}
+
+#[test]
+fn test_awardfield_fromstr() {
+    use std::str::FromStr;
+    assert_eq!(
+        AwardField::from_str("AwardId").unwrap(),
+        AwardField::AwardId
+    );
+    assert_eq!(AwardField::from_str("WorkId").unwrap(), AwardField::WorkId);
+    assert_eq!(
+        AwardField::from_str("AwardOrdinal").unwrap(),
+        AwardField::AwardOrdinal
+    );
+    assert_eq!(AwardField::from_str("Title").unwrap(), AwardField::Title);
+    assert_eq!(
+        AwardField::from_str("Category").unwrap(),
+        AwardField::Category
+    );
+    assert_eq!(
+        AwardField::from_str("CreatedAt").unwrap(),
+        AwardField::CreatedAt
+    );
+    assert_eq!(
+        AwardField::from_str("UpdatedAt").unwrap(),
+        AwardField::UpdatedAt
+    );
+
+    assert!(AwardField::from_str("award_id").is_err());
+}
