@@ -136,3 +136,17 @@ CREATE UNIQUE INDEX idx_award_workid_ordinal ON award (work_id, award_ordinal);
 CREATE UNIQUE INDEX idx_endorsement_workid_ordinal ON endorsement (work_id, endorsement_ordinal);
 CREATE UNIQUE INDEX idx_book_review_workid_ordinal ON book_review (work_id, review_ordinal);
 
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.additional_resource
+    FOR EACH ROW EXECUTE FUNCTION public.work_updated_at_with_relations();
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.award
+    FOR EACH ROW EXECUTE FUNCTION public.work_updated_at_with_relations();
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.endorsement
+    FOR EACH ROW EXECUTE FUNCTION public.work_updated_at_with_relations();
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.book_review
+    FOR EACH ROW EXECUTE FUNCTION public.work_updated_at_with_relations();
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.work_featured_video
+    FOR EACH ROW EXECUTE FUNCTION public.work_updated_at_with_relations();
