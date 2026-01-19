@@ -97,3 +97,50 @@ CREATE INDEX file_upload_publication_idx
 
 SELECT diesel_manage_updated_at('file_upload');
 
+CREATE FUNCTION public.file_work_updated_at_with_relations() RETURNS trigger
+    LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF (
+        NEW IS DISTINCT FROM OLD
+    ) THEN
+        UPDATE work
+        SET updated_at_with_relations = current_timestamp
+        WHERE work_id = OLD.work_id OR work_id = NEW.work_id;
+
+        UPDATE work
+        SET updated_at_with_relations = current_timestamp
+        FROM publication
+        WHERE work.work_id = publication.work_id
+            AND (publication.publication_id = OLD.publication_id OR publication.publication_id = NEW.publication_id);
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+CREATE FUNCTION public.file_upload_work_updated_at_with_relations() RETURNS trigger
+    LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF (
+        NEW IS DISTINCT FROM OLD
+    ) THEN
+        UPDATE work
+        SET updated_at_with_relations = current_timestamp
+        WHERE work_id = OLD.work_id OR work_id = NEW.work_id;
+
+        UPDATE work
+        SET updated_at_with_relations = current_timestamp
+        FROM publication
+        WHERE work.work_id = publication.work_id
+            AND (publication.publication_id = OLD.publication_id OR publication.publication_id = NEW.publication_id);
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.file
+    FOR EACH ROW EXECUTE FUNCTION public.file_work_updated_at_with_relations();
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.file_upload
+    FOR EACH ROW EXECUTE FUNCTION public.file_upload_work_updated_at_with_relations();
