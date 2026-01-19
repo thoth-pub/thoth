@@ -275,8 +275,6 @@ table! {
         s3_region -> Nullable<Text>,
         cdn_domain -> Nullable<Text>,
         cloudfront_dist_id -> Nullable<Text>,
-        aws_access_key_id -> Nullable<Text>,
-        aws_secret_access_key -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }

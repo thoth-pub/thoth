@@ -46,8 +46,6 @@ pub struct Imprint {
     pub s3_region: Option<String>,
     pub cdn_domain: Option<String>,
     pub cloudfront_dist_id: Option<String>,
-    pub aws_access_key_id: Option<String>,
-    pub aws_secret_access_key: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
 }
@@ -77,8 +75,6 @@ pub struct PatchImprint {
     pub imprint_name: String,
     pub imprint_url: Option<String>,
     pub crossmark_doi: Option<Doi>,
-    pub aws_access_key_id: Option<String>,
-    pub aws_secret_access_key: Option<String>,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]

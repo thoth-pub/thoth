@@ -2,9 +2,7 @@ ALTER TABLE imprint
   ADD COLUMN s3_bucket          TEXT,
   ADD COLUMN s3_region          TEXT,
   ADD COLUMN cdn_domain         TEXT,
-  ADD COLUMN cloudfront_dist_id TEXT,
-  ADD COLUMN aws_access_key_id  TEXT,
-  ADD COLUMN aws_secret_access_key TEXT;
+  ADD COLUMN cloudfront_dist_id TEXT;
 
 ALTER TABLE imprint
   ADD CONSTRAINT imprint_storage_cfg_all_or_none
@@ -13,21 +11,14 @@ ALTER TABLE imprint
       s3_bucket          IS NULL AND
       s3_region          IS NULL AND
       cdn_domain         IS NULL AND
-      cloudfront_dist_id IS NULL AND
-      aws_access_key_id  IS NULL AND
-      aws_secret_access_key IS NULL
+      cloudfront_dist_id IS NULL
     )
     OR
     (
       s3_bucket          IS NOT NULL AND
       s3_region          IS NOT NULL AND
       cdn_domain         IS NOT NULL AND
-      cloudfront_dist_id IS NOT NULL AND
-      (
-        (aws_access_key_id IS NULL AND aws_secret_access_key IS NULL)
-        OR
-        (aws_access_key_id IS NOT NULL AND aws_secret_access_key IS NOT NULL)
-      )
+      cloudfront_dist_id IS NOT NULL
     )
   );
 

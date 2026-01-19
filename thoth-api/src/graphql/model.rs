@@ -2312,17 +2312,6 @@ impl MutationRoot {
             context.account_access.can_edit(data.publisher_id)?;
         }
 
-        // Encrypt AWS credentials if provided
-        let mut encrypted_data = data;
-        if let Some(access_key) = &encrypted_data.aws_access_key_id {
-            encrypted_data.aws_access_key_id =
-                Some(crate::storage::encrypt_credential(access_key)?);
-        }
-        if let Some(secret_key) = &encrypted_data.aws_secret_access_key {
-            encrypted_data.aws_secret_access_key =
-                Some(crate::storage::encrypt_credential(secret_key)?);
-        }
-
         let account_id = context
             .token
             .jwt
@@ -2330,7 +2319,7 @@ impl MutationRoot {
             .ok_or(ThothError::Unauthorised)?
             .account_id(&context.db);
         imprint
-            .update(&context.db, &encrypted_data, &account_id)
+            .update(&context.db, &data, &account_id)
             .map_err(Into::into)
     }
 

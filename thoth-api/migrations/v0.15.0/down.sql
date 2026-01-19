@@ -6,8 +6,6 @@ DROP FUNCTION IF EXISTS file_work_updated_at_with_relations();
 
 ALTER TABLE imprint
   DROP CONSTRAINT IF EXISTS imprint_storage_cfg_all_or_none,
-  DROP COLUMN IF EXISTS aws_access_key_id,
-  DROP COLUMN IF EXISTS aws_secret_access_key,
   DROP COLUMN IF EXISTS s3_bucket,
   DROP COLUMN IF EXISTS s3_region,
   DROP COLUMN IF EXISTS cdn_domain,

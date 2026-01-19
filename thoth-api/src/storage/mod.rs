@@ -1,6 +1,7 @@
 use aws_config::Region;
 use aws_sdk_cloudfront::Client as CloudFrontClient;
 use aws_sdk_s3::{presigning::PresigningConfig, types::ChecksumAlgorithm, Client as S3Client};
+use std::env;
 use std::time::Duration as StdDuration;
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -24,35 +25,29 @@ pub struct StorageConfig {
 
 impl StorageConfig {
     pub fn from_imprint(imprint: &Imprint) -> ThothResult<Self> {
+        dotenv::dotenv().ok();
+        let (aws_access_key_id, aws_secret_access_key) = match (
+            env::var("AWS_ACCESS_KEY_ID").ok(),
+            env::var("AWS_SECRET_ACCESS_KEY").ok(),
+        ) {
+            (Some(access_key), Some(secret_key)) => (Some(access_key), Some(secret_key)),
+            _ => (None, None),
+        };
+
         match (
             &imprint.s3_bucket,
             &imprint.s3_region,
             &imprint.cdn_domain,
             &imprint.cloudfront_dist_id,
         ) {
-            (Some(bucket), Some(region), Some(domain), Some(dist_id)) => {
-                // Decrypt credentials if they exist
-                let aws_access_key_id = imprint
-                    .aws_access_key_id
-                    .as_ref()
-                    .map(|encrypted| decrypt_credential(encrypted))
-                    .transpose()?;
-
-                let aws_secret_access_key = imprint
-                    .aws_secret_access_key
-                    .as_ref()
-                    .map(|encrypted| decrypt_credential(encrypted))
-                    .transpose()?;
-
-                Ok(StorageConfig {
-                    s3_bucket: bucket.clone(),
-                    s3_region: region.clone(),
-                    cdn_domain: domain.clone(),
-                    cloudfront_dist_id: dist_id.clone(),
-                    aws_access_key_id,
-                    aws_secret_access_key,
-                })
-            }
+            (Some(bucket), Some(region), Some(domain), Some(dist_id)) => Ok(StorageConfig {
+                s3_bucket: bucket.clone(),
+                s3_region: region.clone(),
+                cdn_domain: domain.clone(),
+                cloudfront_dist_id: dist_id.clone(),
+                aws_access_key_id,
+                aws_secret_access_key,
+            }),
             _ => Err(ThothError::InternalError(
                 "Imprint is not configured for file hosting".to_string(),
             )),
@@ -351,8 +346,6 @@ pub(crate) mod tests {
             s3_region: Some("us-east-1".to_string()),
             cdn_domain: Some("cdn.example.com".to_string()),
             cloudfront_dist_id: Some("E1234567890ABC".to_string()),
-            aws_access_key_id: None,
-            aws_secret_access_key: None,
             created_at: Timestamp::default(),
             updated_at: Timestamp::default(),
         }
@@ -369,8 +362,6 @@ pub(crate) mod tests {
             s3_region: None,
             cdn_domain: None,
             cloudfront_dist_id: None,
-            aws_access_key_id: None,
-            aws_secret_access_key: None,
             created_at: Timestamp::default(),
             updated_at: Timestamp::default(),
         }
@@ -413,17 +404,13 @@ pub(crate) mod tests {
     fn test_storage_config_from_imprint_with_credentials() {
         use std::env;
         let _env_guard = env_lock();
-        // Set a test encryption key (32 bytes)
-        let test_key = "test-secret-key-for-encryption-32-bytes!!";
-        env::set_var("ENCRYPTION_KEY", test_key);
+        env::set_var("AWS_ACCESS_KEY_ID", "AKIAIOSFODNN7EXAMPLE");
+        env::set_var(
+            "AWS_SECRET_ACCESS_KEY",
+            "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        );
 
-        let mut imprint = create_test_imprint_with_storage();
-        let encrypted_access_key = encrypt_credential("AKIAIOSFODNN7EXAMPLE").unwrap();
-        let encrypted_secret_key =
-            encrypt_credential("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY").unwrap();
-
-        imprint.aws_access_key_id = Some(encrypted_access_key);
-        imprint.aws_secret_access_key = Some(encrypted_secret_key);
+        let imprint = create_test_imprint_with_storage();
 
         let config = StorageConfig::from_imprint(&imprint).unwrap();
 
@@ -436,7 +423,8 @@ pub(crate) mod tests {
             Some("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY".to_string())
         );
 
-        env::remove_var("ENCRYPTION_KEY");
+        env::remove_var("AWS_ACCESS_KEY_ID");
+        env::remove_var("AWS_SECRET_ACCESS_KEY");
     }
 
     #[test]
