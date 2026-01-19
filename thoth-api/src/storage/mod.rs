@@ -245,7 +245,7 @@ pub async fn head_object(
         .await
         .map_err(|e| ThothError::InternalError(format!("Failed to head object: {}", e)))?;
 
-    let bytes = response.content_length().unwrap_or(0) as i64;
+    let bytes = response.content_length().unwrap_or(0);
     let mime_type = response
         .content_type()
         .unwrap_or("application/octet-stream")
