@@ -136,3 +136,30 @@ pub fn revert() -> Arg {
         .help("Revert all database migrations")
         .action(ArgAction::SetTrue)
 }
+
+pub fn aws_access_key_id() -> Arg {
+    Arg::new("aws-access-key-id")
+        .long("aws-access-key-id")
+        .value_name("AWS_ACCESS_KEY_ID")
+        .env("AWS_ACCESS_KEY_ID")
+        .help("AWS access key id")
+        .num_args(1)
+}
+
+pub fn aws_secret_access_key() -> Arg {
+    Arg::new("aws-secret-access-key")
+        .long("aws-secret-access-key")
+        .value_name("AWS_SECRET_ACCESS_KEY")
+        .env("AWS_SECRET_ACCESS_KEY")
+        .help("AWS secret access key")
+        .num_args(1)
+}
+
+pub fn aws_session_token() -> Arg {
+    Arg::new("aws-session-token")
+        .long("aws-session-token")
+        .value_name("AWS_SESSION_TOKEN")
+        .env("AWS_SESSION_TOKEN")
+        .help("AWS session token")
+        .num_args(1)
+}
