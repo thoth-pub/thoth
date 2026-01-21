@@ -19,7 +19,9 @@ lazy_static! {
                 .arg(arguments::gql_url())
                 .arg(arguments::domain())
                 .arg(arguments::key())
-                .arg(arguments::session()),
+                .arg(arguments::aws_access_key_id())
+                .arg(arguments::aws_secret_access_key())
+                .arg(arguments::aws_session_token()),
         )
         .subcommand(
             Command::new("export-api")
@@ -43,7 +45,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     let url = arguments.get_one::<String>("gql-url").unwrap().to_owned();
     let domain = arguments.get_one::<String>("domain").unwrap().to_owned();
     let secret_str = arguments.get_one::<String>("key").unwrap().to_owned();
-    let session_duration = *arguments.get_one::<i64>("duration").unwrap();
+    let session_duration = 3600;
     api_server(
         database_url,
         host,

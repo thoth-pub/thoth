@@ -63,18 +63,6 @@ pub fn key() -> Arg {
         .num_args(1)
 }
 
-pub fn session() -> Arg {
-    Arg::new("duration")
-        .short('s')
-        .long("session-length")
-        .value_name("DURATION")
-        .env("SESSION_DURATION_SECONDS")
-        .default_value("3600")
-        .help("Authentication cookie session duration (seconds)")
-        .num_args(1)
-        .value_parser(value_parser!(i64))
-}
-
 pub fn gql_url() -> Arg {
     Arg::new("gql-url")
         .short('u')
@@ -137,4 +125,31 @@ pub fn revert() -> Arg {
         .long("revert")
         .help("Revert all database migrations")
         .action(ArgAction::SetTrue)
+}
+
+pub fn aws_access_key_id() -> Arg {
+    Arg::new("aws-access-key-id")
+        .long("aws-access-key-id")
+        .value_name("AWS_ACCESS_KEY_ID")
+        .env("AWS_ACCESS_KEY_ID")
+        .help("AWS access key id")
+        .num_args(1)
+}
+
+pub fn aws_secret_access_key() -> Arg {
+    Arg::new("aws-secret-access-key")
+        .long("aws-secret-access-key")
+        .value_name("AWS_SECRET_ACCESS_KEY")
+        .env("AWS_SECRET_ACCESS_KEY")
+        .help("AWS secret access key")
+        .num_args(1)
+}
+
+pub fn aws_session_token() -> Arg {
+    Arg::new("aws-session-token")
+        .long("aws-session-token")
+        .value_name("AWS_SESSION_TOKEN")
+        .env("AWS_SESSION_TOKEN")
+        .help("AWS session token")
+        .num_args(1)
 }
