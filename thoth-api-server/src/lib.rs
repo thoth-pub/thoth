@@ -31,7 +31,7 @@ use thoth_errors::ThothError;
 use crate::graphiql::graphiql_source;
 use crate::logger::{BodyLogger, Logger};
 
-#[derive(Serialize)]    
+#[derive(Serialize)]
 struct ApiConfig {
     api_name: String,
     api_version: String,
@@ -200,7 +200,10 @@ pub async fn start_server(
     aws_secret_access_key: Option<String>,
 ) -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-    let s3_region = match (env::var("AWS_REGION").ok(), env::var("AWS_DEFAULT_REGION").ok()) {
+    let s3_region = match (
+        env::var("AWS_REGION").ok(),
+        env::var("AWS_DEFAULT_REGION").ok(),
+    ) {
         (Some(value), _) if !value.is_empty() => value,
         (_, Some(value)) if !value.is_empty() => value,
         _ => "us-east-1".to_string(),

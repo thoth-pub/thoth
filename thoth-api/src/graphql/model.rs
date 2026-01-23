@@ -7,8 +7,6 @@ use uuid::Uuid;
 use super::utils::{Direction, Expression, MAX_SHORT_ABSTRACT_CHAR_LIMIT};
 use crate::account::model::{AccountAccess, DecodedToken};
 
-#[cfg(feature = "backend")]
-use aws_sdk_s3::Client as S3Client;
 use crate::db::PgPool;
 use crate::model::{
     affiliation::{Affiliation, AffiliationOrderBy, NewAffiliation, PatchAffiliation},
@@ -57,6 +55,8 @@ use crate::storage::{
     create_cloudfront_client_with_credentials, delete_temp_object, head_object,
     invalidate_cloudfront, presign_put_for_upload, temp_key, StorageConfig,
 };
+#[cfg(feature = "backend")]
+use aws_sdk_s3::Client as S3Client;
 use thoth_errors::{ThothError, ThothResult};
 
 impl juniper::Context for Context {}
