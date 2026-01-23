@@ -6,6 +6,9 @@ use uuid::Uuid;
 
 use super::utils::{Direction, Expression, MAX_SHORT_ABSTRACT_CHAR_LIMIT};
 use crate::account::model::{AccountAccess, DecodedToken};
+
+#[cfg(feature = "backend")]
+use aws_sdk_s3::Client as S3Client;
 use crate::db::PgPool;
 use crate::model::{
     affiliation::{Affiliation, AffiliationOrderBy, NewAffiliation, PatchAffiliation},
@@ -51,9 +54,8 @@ use crate::model::{
 #[cfg(feature = "backend")]
 use crate::storage::{
     build_cdn_url, canonical_frontcover_key, canonical_publication_key, copy_temp_object_to_final,
-    create_cloudfront_client_with_credentials, create_s3_client_with_credentials,
-    delete_temp_object, head_object, invalidate_cloudfront, presign_put_for_upload, temp_key,
-    StorageConfig,
+    create_cloudfront_client_with_credentials, delete_temp_object, head_object,
+    invalidate_cloudfront, presign_put_for_upload, temp_key, StorageConfig,
 };
 use thoth_errors::{ThothError, ThothResult};
 
@@ -62,14 +64,16 @@ impl juniper::Context for Context {}
 #[derive(Clone)]
 pub struct Context {
     pub db: Arc<PgPool>,
+    pub s3: Arc<S3Client>,
     pub account_access: AccountAccess,
     pub token: DecodedToken,
 }
 
 impl Context {
-    pub fn new(pool: Arc<PgPool>, token: DecodedToken) -> Self {
+    pub fn new(pool: Arc<PgPool>, s3: Arc<S3Client>, token: DecodedToken) -> Self {
         Self {
             db: pool,
+            s3,
             account_access: token.get_user_permissions(),
             token,
         }
@@ -3464,20 +3468,10 @@ impl MutationRoot {
 
         let file_upload = FileUpload::create(&context.db, &new_upload)?;
 
-        eprintln!(
-            "GRAPHQL_DEBUG: About to create S3 client for region: {}",
-            storage_config.s3_region
-        );
-        let s3_client = create_s3_client_with_credentials(
-            &storage_config.s3_region,
-            storage_config.aws_access_key_id.as_deref(),
-            storage_config.aws_secret_access_key.as_deref(),
-        )
-        .await;
-        eprintln!("GRAPHQL_DEBUG: S3 client created, about to presign URL");
+        let s3_client = &context.s3;
         let temp_key = temp_key(&file_upload.file_upload_id);
         let upload_url = presign_put_for_upload(
-            &s3_client,
+            s3_client,
             &storage_config.s3_bucket,
             &temp_key,
             &data.declared_mime_type,
@@ -3534,15 +3528,10 @@ impl MutationRoot {
 
         let file_upload = FileUpload::create(&context.db, &new_upload)?;
 
-        let s3_client = create_s3_client_with_credentials(
-            &storage_config.s3_region,
-            storage_config.aws_access_key_id.as_deref(),
-            storage_config.aws_secret_access_key.as_deref(),
-        )
-        .await;
+        let s3_client = &context.s3;
         let temp_key = temp_key(&file_upload.file_upload_id);
         let upload_url = presign_put_for_upload(
-            &s3_client,
+            s3_client,
             &storage_config.s3_bucket,
             &temp_key,
             &data.declared_mime_type,
@@ -3624,15 +3613,10 @@ impl MutationRoot {
         let doi_prefix = doi.prefix();
         let doi_suffix = doi.suffix();
 
-        let s3_client = create_s3_client_with_credentials(
-            &storage_config.s3_region,
-            storage_config.aws_access_key_id.as_deref(),
-            storage_config.aws_secret_access_key.as_deref(),
-        )
-        .await;
+        let s3_client = &context.s3;
         let temp_key = temp_key(&file_upload.file_upload_id);
         let (bytes, mime_type) =
-            head_object(&s3_client, &storage_config.s3_bucket, &temp_key).await?;
+            head_object(s3_client, &storage_config.s3_bucket, &temp_key).await?;
 
         validate_file_extension(
             &file_upload.declared_extension,
@@ -3663,7 +3647,7 @@ impl MutationRoot {
 
         // Copy object to final location
         copy_temp_object_to_final(
-            &s3_client,
+            s3_client,
             &storage_config.s3_bucket,
             &temp_key,
             &canonical_key,
@@ -3771,7 +3755,7 @@ impl MutationRoot {
         diesel::delete(dsl::file_upload.find(&file_upload.file_upload_id))
             .execute(&mut connection)
             .map_err(|e: diesel::result::Error| ThothError::from(e))?;
-        delete_temp_object(&s3_client, &storage_config.s3_bucket, &temp_key).await?;
+        delete_temp_object(s3_client, &storage_config.s3_bucket, &temp_key).await?;
 
         Ok(file)
     }

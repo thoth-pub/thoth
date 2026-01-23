@@ -145,11 +145,32 @@ pub fn aws_secret_access_key() -> Arg {
         .num_args(1)
 }
 
-pub fn aws_session_token() -> Arg {
-    Arg::new("aws-session-token")
-        .long("aws-session-token")
-        .value_name("AWS_SESSION_TOKEN")
-        .env("AWS_SESSION_TOKEN")
-        .help("AWS session token")
+pub fn aws_region() -> Arg {
+    Arg::new("aws-region")
+        .long("aws-region")
+        .value_name("AWS_REGION")
+        .env("AWS_REGION")
+        .help("AWS region for S3/CloudFront")
         .num_args(1)
+}
+
+pub fn aws_default_region() -> Arg {
+    Arg::new("aws-default-region")
+        .long("aws-default-region")
+        .value_name("AWS_DEFAULT_REGION")
+        .env("AWS_DEFAULT_REGION")
+        .help("AWS default region for S3/CloudFront")
+        .num_args(1)
+}
+
+pub fn session() -> Arg {
+    Arg::new("duration")
+        .short('s')
+        .long("session-length")
+        .value_name("DURATION")
+        .env("SESSION_DURATION_SECONDS")
+        .default_value("3600")
+        .help("Authentication cookie session duration (seconds)")
+        .num_args(1)
+        .value_parser(value_parser!(i64))
 }

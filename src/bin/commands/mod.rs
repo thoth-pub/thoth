@@ -26,6 +26,9 @@ lazy_static! {
         .arg(arguments::keep_alive("GRAPHQL_API_KEEP_ALIVE"))
         .arg(arguments::gql_url())
         .arg(arguments::domain())
+        .arg(arguments::session())
+        .arg(arguments::aws_region())
+        .arg(arguments::aws_default_region())
         .arg(arguments::key());
 }
 

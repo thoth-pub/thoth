@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [689](https://github.com/thoth-pub/thoth/issues/689) - Mark existing GraphQL fields as deprecated and return only the canonical version
   - [701](https://github.com/thoth-pub/thoth/issues/701) - Add accessibility-related metadata to Thoth data model and outputs
   - [682](https://github.com/thoth-pub/thoth/issues/682) - Improve ONIX 3.0 and 3.1 outputs based on feedback from EDItEUR
+  - [713](https://github.com/thoth-pub/thoth/issues/713) - Add a secure and scalable file upload architecture for books and chapters.
 
 ### Added
   - [711](https://github.com/thoth-pub/thoth/pull/711) - Allow filtering work queries by publication date

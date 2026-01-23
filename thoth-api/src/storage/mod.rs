@@ -1,6 +1,7 @@
 use aws_config::Region;
 use aws_sdk_cloudfront::Client as CloudFrontClient;
-use aws_sdk_s3::{presigning::PresigningConfig, types::ChecksumAlgorithm, Client as S3Client};
+pub use aws_sdk_s3::Client as S3Client;
+use aws_sdk_s3::{presigning::PresigningConfig, types::ChecksumAlgorithm};
 use std::env;
 use std::time::Duration as StdDuration;
 use thoth_errors::{ThothError, ThothResult};
@@ -58,12 +59,16 @@ impl StorageConfig {
 /// Create an S3 client configured for the given region
 ///
 /// AWS credentials are automatically loaded from the default credential chain:
-/// - Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN)
+/// - Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
 /// - AWS credentials file (~/.aws/credentials)
 /// - IAM roles (when running on EC2/ECS/Lambda)
 /// - Other standard AWS credential sources
-pub async fn create_s3_client(region: &str) -> S3Client {
-    create_s3_client_with_credentials(region, None, None).await
+pub async fn create_s3_client(
+    region: &str,
+    access_key_id: Option<&str>,
+    secret_access_key: Option<&str>,
+) -> S3Client {
+    create_s3_client_with_credentials(region, access_key_id, secret_access_key).await
 }
 
 /// Create an S3 client with custom credentials from StorageConfig
@@ -87,7 +92,7 @@ pub async fn create_s3_client_with_credentials(
         let credentials = Credentials::new(
             access_key,
             secret_key,
-            None, // session token
+            None,
             None, // expiration
             "thoth-storage",
         );
