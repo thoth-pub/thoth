@@ -8,14 +8,25 @@ use super::utils::{Direction, Expression, MAX_SHORT_ABSTRACT_CHAR_LIMIT};
 use crate::account::model::{AccountAccess, DecodedToken};
 use crate::db::PgPool;
 use crate::model::{
+    additional_resource::{
+        AdditionalResource, AdditionalResourceOrderBy, NewAdditionalResource,
+        PatchAdditionalResource,
+    },
     affiliation::{Affiliation, AffiliationOrderBy, NewAffiliation, PatchAffiliation},
+    award::{Award as AwardModel, AwardOrderBy, NewAward, PatchAward},
     biography::{Biography, BiographyOrderBy, NewBiography, PatchBiography},
+    book_review::{
+        BookReview as BookReviewModel, BookReviewOrderBy, NewBookReview, PatchBookReview,
+    },
     contact::{Contact, ContactOrderBy, ContactType, NewContact, PatchContact},
     contribution::{
         Contribution, ContributionField, ContributionType, NewContribution, PatchContribution,
     },
     contributor::{Contributor, ContributorOrderBy, NewContributor, PatchContributor},
     convert_from_jats, convert_to_jats,
+    endorsement::{
+        Endorsement as EndorsementModel, EndorsementOrderBy, NewEndorsement, PatchEndorsement,
+    },
     funding::{Funding, FundingField, NewFunding, PatchFunding},
     imprint::{Imprint, ImprintField, ImprintOrderBy, NewImprint, PatchImprint},
     institution::{CountryCode, Institution, InstitutionOrderBy, NewInstitution, PatchInstitution},
@@ -37,6 +48,9 @@ use crate::model::{
     subject::{check_subject, NewSubject, PatchSubject, Subject, SubjectField, SubjectType},
     title::{NewTitle, PatchTitle, Title, TitleOrderBy},
     work::{NewWork, PatchWork, Work, WorkOrderBy, WorkProperties, WorkStatus, WorkType},
+    work_featured_video::{
+        NewWorkFeaturedVideo, PatchWorkFeaturedVideo, WorkFeaturedVideo as WorkFeaturedVideoModel,
+    },
     work_relation::{
         NewWorkRelation, PatchWorkRelation, RelationType, WorkRelation, WorkRelationOrderBy,
     },
@@ -3140,6 +3154,377 @@ impl MutationRoot {
         reference.delete(&context.db).map_err(Into::into)
     }
 
+    // Additional Resource mutations
+    #[graphql(description = "Create a new additional resource with the specified values")]
+    fn create_additional_resource(
+        context: &Context,
+        #[graphql(description = "The markup format of the resource fields")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Values for additional resource to be created")]
+        data: NewAdditionalResource,
+    ) -> FieldResult<WorkResource> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+
+        let mut data = data.clone();
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
+        data.description = data
+            .description
+            .map(|desc| convert_to_jats(desc, markup, ConversionLimit::Abstract))
+            .transpose()?;
+
+        let resource = AdditionalResource::create(&context.db, &data)?;
+        WorkResource::from_model(resource, markup).map_err(Into::into)
+    }
+
+    #[graphql(description = "Update an existing additional resource with the specified values")]
+    fn update_additional_resource(
+        context: &Context,
+        #[graphql(description = "The markup format of the resource fields")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Values to apply to existing additional resource")]
+        data: PatchAdditionalResource,
+    ) -> FieldResult<WorkResource> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let resource = AdditionalResource::from_id(&context.db, &data.additional_resource_id)?;
+        context
+            .account_access
+            .can_edit(resource.publisher_id(&context.db)?)?;
+
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
+        let mut data = data.clone();
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
+        if let Some(description) = &data.description {
+            data.description = Some(convert_to_jats(
+                description.clone(),
+                markup,
+                ConversionLimit::Abstract,
+            )?);
+        }
+
+        let updated = resource.update(&context.db, &data, &account_id)?;
+        WorkResource::from_model(updated, markup).map_err(Into::into)
+    }
+
+    #[graphql(description = "Delete a single additional resource using its ID")]
+    fn delete_additional_resource(
+        context: &Context,
+        #[graphql(description = "The markup format of the resource fields")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Thoth ID of additional resource to be deleted")]
+        additional_resource_id: Uuid,
+    ) -> FieldResult<WorkResource> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let resource = AdditionalResource::from_id(&context.db, &additional_resource_id)?;
+        context
+            .account_access
+            .can_edit(resource.publisher_id(&context.db)?)?;
+        let deleted = resource.delete(&context.db)?;
+        let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        WorkResource::from_model(deleted, markup).map_err(Into::into)
+    }
+
+    // Award mutations
+    #[graphql(description = "Create a new award with the specified values")]
+    fn create_award(
+        context: &Context,
+        #[graphql(description = "The markup format of the award fields")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Values for award to be created")] data: NewAward,
+    ) -> FieldResult<Award> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+
+        let mut data = data.clone();
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
+        data.note = data
+            .note
+            .map(|note| convert_to_jats(note, markup, ConversionLimit::Abstract))
+            .transpose()?;
+
+        let award = AwardModel::create(&context.db, &data)?;
+        Award::from_model(award, markup).map_err(Into::into)
+    }
+
+    #[graphql(description = "Update an existing award with the specified values")]
+    fn update_award(
+        context: &Context,
+        #[graphql(description = "The markup format of the award fields")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Values to apply to existing award")] data: PatchAward,
+    ) -> FieldResult<Award> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let award = AwardModel::from_id(&context.db, &data.award_id)?;
+        context
+            .account_access
+            .can_edit(award.publisher_id(&context.db)?)?;
+
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
+        let mut data = data.clone();
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
+        if let Some(note) = &data.note {
+            data.note = Some(convert_to_jats(
+                note.clone(),
+                markup,
+                ConversionLimit::Abstract,
+            )?);
+        }
+
+        let updated = award.update(&context.db, &data, &account_id)?;
+        Award::from_model(updated, markup).map_err(Into::into)
+    }
+
+    #[graphql(description = "Delete a single award using its ID")]
+    fn delete_award(
+        context: &Context,
+        #[graphql(description = "The markup format of the award fields")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Thoth ID of award to be deleted")] award_id: Uuid,
+    ) -> FieldResult<Award> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let award = AwardModel::from_id(&context.db, &award_id)?;
+        context
+            .account_access
+            .can_edit(award.publisher_id(&context.db)?)?;
+        let deleted = award.delete(&context.db)?;
+        let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        Award::from_model(deleted, markup).map_err(Into::into)
+    }
+
+    // Endorsement mutations
+    #[graphql(description = "Create a new endorsement with the specified values")]
+    fn create_endorsement(
+        context: &Context,
+        #[graphql(description = "The markup format of the endorsement text")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Values for endorsement to be created")] data: NewEndorsement,
+    ) -> FieldResult<Endorsement> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+
+        let mut data = data.clone();
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        data.text = data
+            .text
+            .map(|text| convert_to_jats(text, markup, ConversionLimit::Abstract))
+            .transpose()?;
+
+        let endorsement = EndorsementModel::create(&context.db, &data)?;
+        Endorsement::from_model(endorsement, markup).map_err(Into::into)
+    }
+
+    #[graphql(description = "Update an existing endorsement with the specified values")]
+    fn update_endorsement(
+        context: &Context,
+        #[graphql(description = "The markup format of the endorsement text")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Values to apply to existing endorsement")] data: PatchEndorsement,
+    ) -> FieldResult<Endorsement> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let endorsement = EndorsementModel::from_id(&context.db, &data.endorsement_id)?;
+        context
+            .account_access
+            .can_edit(endorsement.publisher_id(&context.db)?)?;
+
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
+        let mut data = data.clone();
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        if let Some(text) = &data.text {
+            data.text = Some(convert_to_jats(
+                text.clone(),
+                markup,
+                ConversionLimit::Abstract,
+            )?);
+        }
+
+        let updated = endorsement.update(&context.db, &data, &account_id)?;
+        Endorsement::from_model(updated, markup).map_err(Into::into)
+    }
+
+    #[graphql(description = "Delete a single endorsement using its ID")]
+    fn delete_endorsement(
+        context: &Context,
+        #[graphql(description = "The markup format of the endorsement fields")]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(description = "Thoth ID of endorsement to be deleted")] endorsement_id: Uuid,
+    ) -> FieldResult<Endorsement> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let endorsement = EndorsementModel::from_id(&context.db, &endorsement_id)?;
+        context
+            .account_access
+            .can_edit(endorsement.publisher_id(&context.db)?)?;
+        let deleted = endorsement.delete(&context.db)?;
+        let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        Endorsement::from_model(deleted, markup).map_err(Into::into)
+    }
+
+    // Book Review mutations
+    #[graphql(description = "Create a new book review with the specified values")]
+    fn create_book_review(
+        context: &Context,
+        #[graphql(description = "The markup format of the review text")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Values for book review to be created")] data: NewBookReview,
+    ) -> FieldResult<BookReview> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+
+        let mut data = data.clone();
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        data.text = data
+            .text
+            .map(|text| convert_to_jats(text, markup, ConversionLimit::Abstract))
+            .transpose()?;
+
+        let review = BookReviewModel::create(&context.db, &data)?;
+        BookReview::from_model(review, markup).map_err(Into::into)
+    }
+
+    #[graphql(description = "Update an existing book review with the specified values")]
+    fn update_book_review(
+        context: &Context,
+        #[graphql(description = "The markup format of the review text")] markup_format: Option<
+            MarkupFormat,
+        >,
+        #[graphql(description = "Values to apply to existing book review")] data: PatchBookReview,
+    ) -> FieldResult<BookReview> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let review = BookReviewModel::from_id(&context.db, &data.book_review_id)?;
+        context
+            .account_access
+            .can_edit(review.publisher_id(&context.db)?)?;
+
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
+        let mut data = data.clone();
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        if let Some(text) = &data.text {
+            data.text = Some(convert_to_jats(
+                text.clone(),
+                markup,
+                ConversionLimit::Abstract,
+            )?);
+        }
+
+        let updated = review.update(&context.db, &data, &account_id)?;
+        BookReview::from_model(updated, markup).map_err(Into::into)
+    }
+
+    #[graphql(description = "Delete a single book review using its ID")]
+    fn delete_book_review(
+        context: &Context,
+        #[graphql(description = "The markup format of the book review fields")]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(description = "Thoth ID of book review to be deleted")] book_review_id: Uuid,
+    ) -> FieldResult<BookReview> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let review = BookReviewModel::from_id(&context.db, &book_review_id)?;
+        context
+            .account_access
+            .can_edit(review.publisher_id(&context.db)?)?;
+        let deleted = review.delete(&context.db)?;
+        let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        BookReview::from_model(deleted, markup).map_err(Into::into)
+    }
+
+    // Featured Video mutations
+    #[graphql(description = "Create or update a featured video for a work")]
+    fn create_work_featured_video(
+        context: &Context,
+        #[graphql(description = "Values for featured video to be created")]
+        data: NewWorkFeaturedVideo,
+    ) -> FieldResult<WorkFeaturedVideoModel> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+
+        // Check if video already exists for this work
+        if let Ok(Some(_)) = WorkFeaturedVideoModel::from_work_id(&context.db, &data.work_id) {
+            return Err(ThothError::InternalError(
+                "Featured video already exists for this work. Use update_work_featured_video instead.".to_string(),
+            ).into());
+        }
+
+        WorkFeaturedVideoModel::create(&context.db, &data).map_err(Into::into)
+    }
+
+    #[graphql(description = "Update an existing featured video")]
+    fn update_work_featured_video(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing featured video")]
+        data: PatchWorkFeaturedVideo,
+    ) -> FieldResult<WorkFeaturedVideoModel> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let video = WorkFeaturedVideoModel::from_id(&context.db, &data.work_featured_video_id)?;
+        context
+            .account_access
+            .can_edit(video.publisher_id(&context.db)?)?;
+
+        let account_id = context
+            .token
+            .jwt
+            .as_ref()
+            .ok_or(ThothError::Unauthorised)?
+            .account_id(&context.db);
+        video
+            .update(&context.db, &data, &account_id)
+            .map_err(Into::into)
+    }
+
+    #[graphql(description = "Delete a featured video using its ID")]
+    fn delete_work_featured_video(
+        context: &Context,
+        #[graphql(description = "Thoth ID of featured video to be deleted")] work_featured_video_id: Uuid,
+    ) -> FieldResult<WorkFeaturedVideoModel> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let video = WorkFeaturedVideoModel::from_id(&context.db, &work_featured_video_id)?;
+        context
+            .account_access
+            .can_edit(video.publisher_id(&context.db)?)?;
+        video.delete(&context.db).map_err(Into::into)
+    }
+
     #[graphql(description = "Delete a single abstract using its ID")]
     fn delete_abstract(
         context: &Context,
@@ -4035,6 +4420,170 @@ impl Work {
             None,
         )
         .map_err(Into::into)
+    }
+
+    #[graphql(description = "Description of additional resources for this work")]
+    pub fn resources_description(
+        &self,
+        _context: &Context,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set shows result with this markup format"
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Option<String>> {
+        match &self.resources_description {
+            Some(desc) => {
+                let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+                Ok(Some(convert_from_jats(
+                    desc,
+                    markup,
+                    ConversionLimit::Abstract,
+                )?))
+            }
+            None => Ok(None),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[graphql(description = "Get additional resources linked to this work")]
+    pub fn additional_resources(
+        &self,
+        context: &Context,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set shows result with this markup format"
+        )]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(default = 50, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+    ) -> FieldResult<Vec<WorkResource>> {
+        let resources = AdditionalResource::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            AdditionalResourceOrderBy::default(),
+            vec![],
+            Some(self.work_id),
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )?;
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        Ok(resources
+            .into_iter()
+            .map(|r| WorkResource::from_model(r, markup))
+            .collect::<Result<Vec<_>, _>>()?)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[graphql(description = "Get awards linked to this work")]
+    pub fn awards(
+        &self,
+        context: &Context,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set shows result with this markup format"
+        )]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(default = 50, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+    ) -> FieldResult<Vec<Award>> {
+        let awards = AwardModel::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            AwardOrderBy::default(),
+            vec![],
+            Some(self.work_id),
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )?;
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        Ok(awards
+            .into_iter()
+            .map(|a| Award::from_model(a, markup))
+            .collect::<Result<Vec<_>, _>>()?)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[graphql(description = "Get endorsements linked to this work")]
+    pub fn endorsements(
+        &self,
+        context: &Context,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set shows result with this markup format"
+        )]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(default = 50, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+    ) -> FieldResult<Vec<Endorsement>> {
+        let endorsements = EndorsementModel::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            EndorsementOrderBy::default(),
+            vec![],
+            Some(self.work_id),
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )?;
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        Ok(endorsements
+            .into_iter()
+            .map(|e| Endorsement::from_model(e, markup))
+            .collect::<Result<Vec<_>, _>>()?)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[graphql(description = "Get book reviews linked to this work")]
+    pub fn book_reviews(
+        &self,
+        context: &Context,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "If set shows result with this markup format"
+        )]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(default = 50, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+    ) -> FieldResult<Vec<BookReview>> {
+        let reviews = BookReviewModel::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            BookReviewOrderBy::default(),
+            vec![],
+            Some(self.work_id),
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )?;
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        Ok(reviews
+            .into_iter()
+            .map(|r| BookReview::from_model(r, markup))
+            .collect::<Result<Vec<_>, _>>()?)
+    }
+
+    #[graphql(description = "Get featured video for this work")]
+    pub fn featured_video(&self, context: &Context) -> FieldResult<Option<WorkFeaturedVideoModel>> {
+        WorkFeaturedVideoModel::from_work_id(&context.db, &self.work_id).map_err(Into::into)
     }
 }
 
@@ -5610,6 +6159,286 @@ impl Contact {
     #[graphql(description = "Get the publisher to which this contact belongs")]
     pub fn publisher(&self, context: &Context) -> FieldResult<Publisher> {
         Publisher::from_id(&context.db, &self.publisher_id).map_err(Into::into)
+    }
+}
+
+// GraphQL wrapper types for new entities with markup conversion
+pub struct WorkResource {
+    inner: AdditionalResource,
+    markup_format: MarkupFormat,
+}
+
+impl WorkResource {
+    fn from_model(resource: AdditionalResource, markup_format: MarkupFormat) -> ThothResult<Self> {
+        Ok(Self {
+            inner: resource,
+            markup_format,
+        })
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "An additional resource linked to a work")]
+impl WorkResource {
+    #[graphql(description = "Thoth ID of the additional resource")]
+    pub fn work_resource_id(&self) -> Uuid {
+        self.inner.additional_resource_id
+    }
+
+    #[graphql(description = "Title of the resource")]
+    pub fn title(&self) -> FieldResult<String> {
+        convert_from_jats(
+            &self.inner.title,
+            self.markup_format,
+            ConversionLimit::Title,
+        )
+        .map_err(Into::into)
+    }
+
+    #[graphql(description = "Description of the resource")]
+    pub fn description(&self) -> FieldResult<Option<String>> {
+        match &self.inner.description {
+            Some(desc) => Ok(Some(convert_from_jats(
+                desc,
+                self.markup_format,
+                ConversionLimit::Abstract,
+            )?)),
+            None => Ok(None),
+        }
+    }
+
+    #[graphql(description = "Attribution for the resource")]
+    pub fn attribution(&self) -> Option<&String> {
+        self.inner.attribution.as_ref()
+    }
+
+    #[graphql(description = "Type of the resource")]
+    pub fn resource_type(&self) -> String {
+        self.inner.resource_type.to_string()
+    }
+
+    #[graphql(description = "DOI of the resource")]
+    pub fn doi(&self) -> Option<&String> {
+        self.inner.doi.as_ref()
+    }
+
+    #[graphql(description = "Handle of the resource")]
+    pub fn handle(&self) -> Option<&String> {
+        self.inner.handle.as_ref()
+    }
+
+    #[graphql(description = "URL of the resource")]
+    pub fn url(&self) -> Option<&String> {
+        self.inner.url.as_ref()
+    }
+}
+
+pub struct Award {
+    inner: AwardModel,
+    markup_format: MarkupFormat,
+}
+
+impl Award {
+    fn from_model(award: AwardModel, markup_format: MarkupFormat) -> ThothResult<Self> {
+        Ok(Self {
+            inner: award,
+            markup_format,
+        })
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "An award linked to a work")]
+impl Award {
+    #[graphql(description = "Thoth ID of the award")]
+    pub fn award_id(&self) -> Uuid {
+        self.inner.award_id
+    }
+
+    #[graphql(description = "Title of the award")]
+    pub fn title(&self) -> FieldResult<String> {
+        convert_from_jats(
+            &self.inner.title,
+            self.markup_format,
+            ConversionLimit::Title,
+        )
+        .map_err(Into::into)
+    }
+
+    #[graphql(description = "URL of the award")]
+    pub fn url(&self) -> Option<&String> {
+        self.inner.url.as_ref()
+    }
+
+    #[graphql(description = "Category of the award")]
+    pub fn category(&self) -> Option<&String> {
+        self.inner.category.as_ref()
+    }
+
+    #[graphql(description = "Note about the award")]
+    pub fn note(&self) -> FieldResult<Option<String>> {
+        match &self.inner.note {
+            Some(note) => Ok(Some(convert_from_jats(
+                note,
+                self.markup_format,
+                ConversionLimit::Abstract,
+            )?)),
+            None => Ok(None),
+        }
+    }
+}
+
+pub struct Endorsement {
+    inner: EndorsementModel,
+    markup_format: MarkupFormat,
+}
+
+impl Endorsement {
+    fn from_model(endorsement: EndorsementModel, markup_format: MarkupFormat) -> ThothResult<Self> {
+        Ok(Self {
+            inner: endorsement,
+            markup_format,
+        })
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "An endorsement linked to a work")]
+impl Endorsement {
+    #[graphql(description = "Thoth ID of the endorsement")]
+    pub fn endorsement_id(&self) -> Uuid {
+        self.inner.endorsement_id
+    }
+
+    #[graphql(description = "Name of the endorser")]
+    pub fn author_name(&self) -> Option<&String> {
+        self.inner.author_name.as_ref()
+    }
+
+    #[graphql(description = "Role of the endorser")]
+    pub fn author_role(&self) -> Option<&String> {
+        self.inner.author_role.as_ref()
+    }
+
+    #[graphql(description = "URL related to the endorsement")]
+    pub fn url(&self) -> Option<&String> {
+        self.inner.url.as_ref()
+    }
+
+    #[graphql(description = "Text of the endorsement")]
+    pub fn text(&self) -> FieldResult<Option<String>> {
+        match &self.inner.text {
+            Some(text) => Ok(Some(convert_from_jats(
+                text,
+                self.markup_format,
+                ConversionLimit::Abstract,
+            )?)),
+            None => Ok(None),
+        }
+    }
+}
+
+pub struct BookReview {
+    inner: BookReviewModel,
+    markup_format: MarkupFormat,
+}
+
+impl BookReview {
+    fn from_model(review: BookReviewModel, markup_format: MarkupFormat) -> ThothResult<Self> {
+        Ok(Self {
+            inner: review,
+            markup_format,
+        })
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "A book review linked to a work")]
+impl BookReview {
+    #[graphql(description = "Thoth ID of the book review")]
+    pub fn book_review_id(&self) -> Uuid {
+        self.inner.book_review_id
+    }
+
+    #[graphql(description = "Title of the review")]
+    pub fn title(&self) -> Option<&String> {
+        self.inner.title.as_ref()
+    }
+
+    #[graphql(description = "Name of the review author")]
+    pub fn author_name(&self) -> Option<&String> {
+        self.inner.author_name.as_ref()
+    }
+
+    #[graphql(description = "URL of the review")]
+    pub fn url(&self) -> Option<&String> {
+        self.inner.url.as_ref()
+    }
+
+    #[graphql(description = "DOI of the review")]
+    pub fn doi(&self) -> Option<&String> {
+        self.inner.doi.as_ref()
+    }
+
+    #[graphql(description = "Date of the review")]
+    pub fn review_date(&self) -> Option<NaiveDate> {
+        self.inner.review_date
+    }
+
+    #[graphql(description = "Name of the journal")]
+    pub fn journal_name(&self) -> Option<&String> {
+        self.inner.journal_name.as_ref()
+    }
+
+    #[graphql(description = "Volume of the journal")]
+    pub fn journal_volume(&self) -> Option<&String> {
+        self.inner.journal_volume.as_ref()
+    }
+
+    #[graphql(description = "Number of the journal")]
+    pub fn journal_number(&self) -> Option<&String> {
+        self.inner.journal_number.as_ref()
+    }
+
+    #[graphql(description = "ISSN of the journal")]
+    pub fn journal_issn(&self) -> Option<&String> {
+        self.inner.journal_issn.as_ref()
+    }
+
+    #[graphql(description = "Text of the review")]
+    pub fn text(&self) -> FieldResult<Option<String>> {
+        match &self.inner.text {
+            Some(text) => Ok(Some(convert_from_jats(
+                text,
+                self.markup_format,
+                ConversionLimit::Abstract,
+            )?)),
+            None => Ok(None),
+        }
+    }
+}
+
+#[juniper::graphql_object(Context = Context, description = "A featured video for a work")]
+impl WorkFeaturedVideoModel {
+    #[graphql(description = "Thoth ID of the featured video")]
+    pub fn work_featured_video_id(&self) -> Uuid {
+        self.work_featured_video_id
+    }
+
+    #[graphql(description = "Platform-specific video ID")]
+    pub fn video_id(&self) -> Option<&String> {
+        self.video_id.as_ref()
+    }
+
+    #[graphql(description = "Title/caption of the video")]
+    pub fn title(&self) -> Option<&String> {
+        self.title.as_ref()
+    }
+
+    #[graphql(description = "Width of the video")]
+    pub fn width(&self) -> i32 {
+        self.width
+    }
+
+    #[graphql(description = "Height of the video")]
+    pub fn height(&self) -> i32 {
+        self.height
     }
 }
 

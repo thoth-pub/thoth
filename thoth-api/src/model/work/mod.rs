@@ -215,6 +215,7 @@ pub struct Work {
     pub last_page: Option<String>,
     pub page_interval: Option<String>,
     pub updated_at_with_relations: Timestamp,
+    pub resources_description: Option<String>,
 }
 #[cfg_attr(
     feature = "backend",
@@ -251,6 +252,7 @@ pub struct NewWork {
     pub first_page: Option<String>,
     pub last_page: Option<String>,
     pub page_interval: Option<String>,
+    pub resources_description: Option<String>,
 }
 
 #[cfg_attr(
@@ -289,6 +291,7 @@ pub struct PatchWork {
     pub first_page: Option<String>,
     pub last_page: Option<String>,
     pub page_interval: Option<String>,
+    pub resources_description: Option<String>,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -424,6 +427,7 @@ impl From<Work> for PatchWork {
             first_page: w.first_page,
             last_page: w.last_page,
             page_interval: w.page_interval,
+            resources_description: w.resources_description,
         }
     }
 }
@@ -466,6 +470,7 @@ mod tests {
             first_page: None,
             last_page: None,
             page_interval: None,
+            resources_description: None,
             updated_at_with_relations: Default::default(),
         }
     }
