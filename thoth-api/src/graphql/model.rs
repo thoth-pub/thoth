@@ -6,7 +6,11 @@ use uuid::Uuid;
 
 use super::utils::{Direction, Expression, MAX_SHORT_ABSTRACT_CHAR_LIMIT};
 use crate::account::model::{AccountAccess, DecodedToken};
+
 use crate::db::PgPool;
+use crate::model::file::{
+    complete_file_upload, init_frontcover_file_upload, init_publication_file_upload,
+};
 use crate::model::{
     affiliation::{Affiliation, AffiliationOrderBy, NewAffiliation, PatchAffiliation},
     biography::{Biography, BiographyOrderBy, NewBiography, PatchBiography},
@@ -16,6 +20,10 @@ use crate::model::{
     },
     contributor::{Contributor, ContributorOrderBy, NewContributor, PatchContributor},
     convert_from_jats, convert_to_jats,
+    file::{
+        CompleteFileUpload, File, FileType, FileUploadResponse, NewFrontcoverFileUpload,
+        NewPublicationFileUpload,
+    },
     funding::{Funding, FundingField, NewFunding, PatchFunding},
     imprint::{Imprint, ImprintField, ImprintOrderBy, NewImprint, PatchImprint},
     institution::{CountryCode, Institution, InstitutionOrderBy, NewInstitution, PatchInstitution},
@@ -43,6 +51,8 @@ use crate::model::{
     ConversionLimit, Convert, Crud, Doi, Isbn, LengthUnit, MarkupFormat, Orcid, Reorder, Ror,
     Timestamp, WeightUnit,
 };
+#[cfg(feature = "backend")]
+use aws_sdk_s3::Client as S3Client;
 use thoth_errors::{ThothError, ThothResult};
 
 impl juniper::Context for Context {}
@@ -50,14 +60,16 @@ impl juniper::Context for Context {}
 #[derive(Clone)]
 pub struct Context {
     pub db: Arc<PgPool>,
+    pub s3: Arc<S3Client>,
     pub account_access: AccountAccess,
     pub token: DecodedToken,
 }
 
 impl Context {
-    pub fn new(pool: Arc<PgPool>, token: DecodedToken) -> Self {
+    pub fn new(pool: Arc<PgPool>, s3: Arc<S3Client>, token: DecodedToken) -> Self {
         Self {
             db: pool,
+            s3,
             account_access: token.get_user_permissions(),
             token,
         }
@@ -604,6 +616,14 @@ impl QueryRoot {
         #[graphql(description = "Thoth publication ID to search on")] publication_id: Uuid,
     ) -> FieldResult<Publication> {
         Publication::from_id(&context.db, &publication_id).map_err(Into::into)
+    }
+
+    #[graphql(description = "Query a single file using its ID")]
+    fn file(
+        context: &Context,
+        #[graphql(description = "Thoth file ID to search on")] file_id: Uuid,
+    ) -> FieldResult<File> {
+        File::from_id(&context.db, &file_id).map_err(|e| e.into())
     }
 
     #[graphql(description = "Get the total number of publications")]
@@ -2291,6 +2311,7 @@ impl MutationRoot {
         if data.publisher_id != imprint.publisher_id {
             context.account_access.can_edit(data.publisher_id)?;
         }
+
         let account_id = context
             .token
             .jwt
@@ -3398,6 +3419,65 @@ impl MutationRoot {
 
         contact.delete(&context.db).map_err(Into::into)
     }
+
+    #[cfg(feature = "backend")]
+    #[graphql(
+        description = "Start uploading a publication file (e.g. PDF, EPUB, XML) for a given publication. Returns an upload session ID and a presigned S3 PUT URL."
+    )]
+    async fn init_publication_file_upload(
+        context: &Context,
+        #[graphql(description = "Input for starting a publication file upload")]
+        data: NewPublicationFileUpload,
+    ) -> FieldResult<FileUploadResponse> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        init_publication_file_upload(
+            context.db.as_ref(),
+            context.s3.as_ref(),
+            &context.account_access,
+            data,
+        )
+        .await
+        .map_err(Into::into)
+    }
+
+    #[cfg(feature = "backend")]
+    #[graphql(
+        description = "Start uploading a front cover image for a given work. Returns an upload session ID and a presigned S3 PUT URL."
+    )]
+    async fn init_frontcover_file_upload(
+        context: &Context,
+        #[graphql(description = "Input for starting a front cover upload")]
+        data: NewFrontcoverFileUpload,
+    ) -> FieldResult<FileUploadResponse> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        init_frontcover_file_upload(
+            context.db.as_ref(),
+            context.s3.as_ref(),
+            &context.account_access,
+            data,
+        )
+        .await
+        .map_err(Into::into)
+    }
+
+    #[cfg(feature = "backend")]
+    #[graphql(
+        description = "Complete a file upload by validating the uploaded object, moving it to its canonical DOI-based key, updating/creating the file record."
+    )]
+    async fn complete_file_upload(
+        context: &Context,
+        #[graphql(description = "Input for completing a file upload")] data: CompleteFileUpload,
+    ) -> FieldResult<File> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        complete_file_upload(
+            context.db.as_ref(),
+            context.s3.as_ref(),
+            &context.account_access,
+            data,
+        )
+        .await
+        .map_err(Into::into)
+    }
 }
 
 #[juniper::graphql_object(Context = Context, description = "A written text that can be published")]
@@ -4003,6 +4083,12 @@ impl Work {
         )
         .map_err(Into::into)
     }
+
+    #[graphql(description = "Get the front cover file for this work")]
+    pub fn frontcover(&self, context: &Context) -> FieldResult<Option<File>> {
+        File::from_work_id(&context.db, &self.work_id).map_err(|e| e.into())
+    }
+
     #[graphql(description = "Get references cited by this work")]
     pub fn references(
         &self,
@@ -4241,6 +4327,11 @@ impl Publication {
             None,
         )
         .map_err(Into::into)
+    }
+
+    #[graphql(description = "Get the publication file for this publication")]
+    pub fn file(&self, context: &Context) -> FieldResult<Option<File>> {
+        File::from_publication_id(&context.db, &self.publication_id).map_err(|e| e.into())
     }
 
     #[graphql(description = "Get the work to which this publication belongs")]
@@ -5633,4 +5724,65 @@ fn publisher_id_from_publication_id(db: &PgPool, publication_id: Uuid) -> ThothR
 
 fn publisher_id_from_contribution_id(db: &PgPool, contribution_id: Uuid) -> ThothResult<Uuid> {
     Contribution::from_id(db, &contribution_id)?.publisher_id(db)
+}
+
+#[cfg(feature = "backend")]
+#[juniper::graphql_object(Context = Context, description = "A file stored in the system (publication file or front cover).")]
+impl File {
+    #[graphql(description = "Thoth ID of the file")]
+    pub fn file_id(&self) -> &Uuid {
+        &self.file_id
+    }
+
+    #[graphql(description = "Type of file (publication or frontcover)")]
+    pub fn file_type(&self) -> &FileType {
+        &self.file_type
+    }
+
+    #[graphql(description = "Thoth ID of the work (for frontcovers)")]
+    pub fn work_id(&self) -> Option<&Uuid> {
+        self.work_id.as_ref()
+    }
+
+    #[graphql(description = "Thoth ID of the publication (for publication files)")]
+    pub fn publication_id(&self) -> Option<&Uuid> {
+        self.publication_id.as_ref()
+    }
+
+    #[graphql(description = "S3 object key (canonical DOI-based path)")]
+    pub fn object_key(&self) -> &String {
+        &self.object_key
+    }
+
+    #[graphql(description = "Public CDN URL")]
+    pub fn cdn_url(&self) -> &String {
+        &self.cdn_url
+    }
+
+    #[graphql(description = "MIME type used when serving the file")]
+    pub fn mime_type(&self) -> &String {
+        &self.mime_type
+    }
+
+    #[graphql(description = "Size of the file in bytes")]
+    pub fn bytes(&self) -> i32 {
+        // Note: GraphQL doesn't support i64, so we cast to i32
+        // Files larger than 2GB will show incorrect size
+        self.bytes as i32
+    }
+
+    #[graphql(description = "SHA-256 checksum of the stored file")]
+    pub fn sha256(&self) -> &String {
+        &self.sha256
+    }
+
+    #[graphql(description = "Date and time at which the file record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the file record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
 }

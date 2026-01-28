@@ -283,6 +283,27 @@ impl Doi {
     pub fn to_lowercase_string(&self) -> String {
         self.0.to_lowercase()
     }
+
+    /// Extract the DOI prefix (e.g., "10.12345")
+    pub fn prefix(&self) -> String {
+        let doi_without_domain = self.to_string();
+        doi_without_domain
+            .split('/')
+            .next()
+            .unwrap_or("")
+            .to_string()
+    }
+
+    /// Extract the DOI suffix (e.g., "Test-Suffix.01")
+    pub fn suffix(&self) -> String {
+        let doi_without_domain = self.to_string();
+        let parts: Vec<&str> = doi_without_domain.splitn(2, '/').collect();
+        if parts.len() == 2 {
+            parts[1].to_string()
+        } else {
+            String::new()
+        }
+    }
 }
 
 impl Isbn {
@@ -1723,6 +1744,49 @@ mod tests {
         let round_trip_timestamp = Timestamp::parse_from_rfc3339(&converted_string).unwrap();
         assert_eq!(timestamp, round_trip_timestamp);
     }
+
+    #[test]
+    fn test_doi_prefix() {
+        let doi = Doi("https://doi.org/10.12345/Test-Suffix.01".to_string());
+        assert_eq!(doi.prefix(), "10.12345");
+
+        let doi2 = Doi("https://doi.org/10.1000/182".to_string());
+        assert_eq!(doi2.prefix(), "10.1000");
+
+        let doi3 = Doi("10.1234/5678".to_string());
+        assert_eq!(doi3.prefix(), "10.1234");
+    }
+
+    #[test]
+    fn test_doi_suffix() {
+        let doi = Doi("https://doi.org/10.12345/Test-Suffix.01".to_string());
+        assert_eq!(doi.suffix(), "Test-Suffix.01");
+
+        let doi2 = Doi("https://doi.org/10.1000/182".to_string());
+        assert_eq!(doi2.suffix(), "182");
+
+        let doi3 = Doi("10.1234/5678".to_string());
+        assert_eq!(doi3.suffix(), "5678");
+
+        let doi4 = Doi("https://doi.org/10.2990/1471-5457(2005)24[2:tmpwac]2.0.co;2".to_string());
+        assert_eq!(doi4.suffix(), "1471-5457(2005)24[2:tmpwac]2.0.co;2");
+    }
+
+    #[test]
+    fn test_doi_prefix_and_suffix_roundtrip() {
+        let prefix = "10.12345";
+        let suffix = "Test-Suffix.01";
+        let doi = Doi(format!("https://doi.org/{}/{}", prefix, suffix));
+        assert_eq!(doi.prefix(), prefix);
+        assert_eq!(doi.suffix(), suffix);
+    }
+
+    #[test]
+    fn test_doi_prefix_empty_suffix() {
+        let doi = Doi("10.12345".to_string());
+        assert_eq!(doi.prefix(), "10.12345");
+        assert_eq!(doi.suffix(), "");
+    }
 }
 
 pub mod r#abstract;
@@ -1731,6 +1795,7 @@ pub mod biography;
 pub mod contact;
 pub mod contribution;
 pub mod contributor;
+pub mod file;
 pub mod funding;
 pub mod imprint;
 pub mod institution;
@@ -1747,3 +1812,29 @@ pub mod subject;
 pub mod title;
 pub mod work;
 pub mod work_relation;
+
+// Explicitly list the items to avoid ambiguous glob re-exports
+pub use affiliation::{Affiliation, NewAffiliation};
+pub use contribution::{Contribution, NewContribution};
+pub use contributor::{Contributor, NewContributor};
+pub use file::{
+    validate_file_extension, CompleteFileUpload, File, FileType, FileUpload, FileUploadResponse,
+    NewFile, NewFileUpload, NewFrontcoverFileUpload, NewPublicationFileUpload,
+};
+pub use funding::{Funding, NewFunding};
+pub use imprint::{Imprint, NewImprint};
+pub use institution::{Institution, NewInstitution};
+pub use issue::{Issue, NewIssue};
+pub use language::{Language, NewLanguage};
+pub use locale::LocaleCode;
+pub use location::{Location, NewLocation};
+pub use price::{NewPrice, Price};
+pub use publication::{NewPublication, Publication};
+pub use publisher::{NewPublisher, Publisher};
+pub use r#abstract::{Abstract, NewAbstract};
+pub use reference::{NewReference, Reference};
+pub use series::{NewSeries, Series};
+pub use subject::{NewSubject, Subject};
+pub use title::{NewTitle, Title, TitleOrderBy};
+pub use work::{NewWork, Work};
+pub use work_relation::{NewWorkRelation, WorkRelation};

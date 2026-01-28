@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [711](https://github.com/thoth-pub/thoth/pull/711) - Allow filtering work queries by publication date
   - [715](https://github.com/thoth-pub/thoth/pull/715) - Support reordering items which have ordinals
+  - [713](https://github.com/thoth-pub/thoth/issues/713) - Add a secure and scalable file upload architecture for books and chapters.
 
 ### Fixed
   - [712](https://github.com/thoth-pub/thoth/pull/712) - Make `updated_at_with_relations` propagation less deadlock-prone

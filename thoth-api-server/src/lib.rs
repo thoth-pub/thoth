@@ -1,7 +1,7 @@
 mod graphiql;
 mod logger;
 
-use std::{io, sync::Arc, time::Duration};
+use std::{env, io, sync::Arc, time::Duration};
 
 use actix_cors::Cors;
 use actix_identity::{Identity, IdentityMiddleware};
@@ -24,6 +24,7 @@ use thoth_api::{
         model::{create_schema, Context, Schema},
         GraphQLRequest,
     },
+    storage::{create_s3_client, S3Client},
 };
 use thoth_errors::ThothError;
 
@@ -91,10 +92,11 @@ async fn graphql_schema(st: Data<Arc<Schema>>) -> HttpResponse {
 async fn graphql(
     st: Data<Arc<Schema>>,
     pool: Data<PgPool>,
+    s3_client: Data<Arc<S3Client>>,
     token: DecodedToken,
     data: Json<GraphQLRequest>,
 ) -> Result<HttpResponse, Error> {
-    let ctx = Context::new(pool.into_inner(), token);
+    let ctx = Context::new(pool.into_inner(), s3_client.get_ref().clone(), token);
     let result = data.execute(&st, &ctx).await;
     match result.is_ok() {
         true => Ok(HttpResponse::Ok().json(result)),
@@ -194,8 +196,24 @@ pub async fn start_server(
     domain: String,
     secret_str: String,
     session_duration: i64,
+    aws_access_key_id: Option<String>,
+    aws_secret_access_key: Option<String>,
 ) -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+    let s3_region = match (
+        env::var("AWS_REGION").ok(),
+        env::var("AWS_DEFAULT_REGION").ok(),
+    ) {
+        (Some(value), _) if !value.is_empty() => value,
+        (_, Some(value)) if !value.is_empty() => value,
+        _ => "us-east-1".to_string(),
+    };
+    let s3_client = create_s3_client(
+        &s3_region,
+        aws_access_key_id.as_deref(),
+        aws_secret_access_key.as_deref(),
+    )
+    .await;
 
     HttpServer::new(move || {
         App::new()
@@ -228,6 +246,7 @@ pub async fn start_server(
             )
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
             .app_data(Data::new(init_pool(&database_url)))
+            .app_data(Data::new(Arc::new(s3_client.clone())))
             .app_data(Data::new(Arc::new(create_schema())))
             .service(index)
             .service(graphql_index)
