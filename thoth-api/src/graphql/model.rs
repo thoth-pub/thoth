@@ -8,6 +8,9 @@ use super::utils::{Direction, Expression, MAX_SHORT_ABSTRACT_CHAR_LIMIT};
 use crate::account::model::{AccountAccess, DecodedToken};
 
 use crate::db::PgPool;
+use crate::model::file::{
+    complete_file_upload, init_frontcover_file_upload, init_publication_file_upload,
+};
 use crate::model::{
     affiliation::{Affiliation, AffiliationOrderBy, NewAffiliation, PatchAffiliation},
     biography::{Biography, BiographyOrderBy, NewBiography, PatchBiography},
@@ -18,8 +21,7 @@ use crate::model::{
     contributor::{Contributor, ContributorOrderBy, NewContributor, PatchContributor},
     convert_from_jats, convert_to_jats,
     file::{
-        validate_file_extension, CompleteFileUpload, File, FileType, FileUpload,
-        FileUploadResponse, NewFile, NewFileUpload, NewFrontcoverFileUpload,
+        CompleteFileUpload, File, FileType, FileUploadResponse, NewFrontcoverFileUpload,
         NewPublicationFileUpload,
     },
     funding::{Funding, FundingField, NewFunding, PatchFunding},
@@ -48,12 +50,6 @@ use crate::model::{
     },
     ConversionLimit, Convert, Crud, Doi, Isbn, LengthUnit, MarkupFormat, Orcid, Reorder, Ror,
     Timestamp, WeightUnit,
-};
-#[cfg(feature = "backend")]
-use crate::storage::{
-    build_cdn_url, canonical_frontcover_key, canonical_publication_key, copy_temp_object_to_final,
-    create_cloudfront_client_with_credentials, delete_temp_object, head_object,
-    invalidate_cloudfront, presign_put_for_upload, temp_key, StorageConfig,
 };
 #[cfg(feature = "backend")]
 use aws_sdk_s3::Client as S3Client;
@@ -3433,67 +3429,15 @@ impl MutationRoot {
         #[graphql(description = "Input for starting a publication file upload")]
         data: NewPublicationFileUpload,
     ) -> FieldResult<FileUploadResponse> {
-        println!(
-            "DEBUG: Starting init_publication_file_upload for publication_id: {}",
-            data.publication_id
-        );
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-
-        let publication = Publication::from_id(&context.db, &data.publication_id)?;
-        context
-            .account_access
-            .can_edit(publisher_id_from_publication_id(
-                &context.db,
-                data.publication_id,
-            )?)?;
-
-        let work = Work::from_id(&context.db, &publication.work_id)?;
-        work.doi.ok_or(ThothError::WorkMissingDoiForFileUpload)?;
-
-        let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
-        let storage_config = StorageConfig::from_imprint(&imprint)?;
-        eprintln!(
-            "GRAPHQL_DEBUG: Storage config obtained: bucket={}, region={}",
-            storage_config.s3_bucket, storage_config.s3_region
-        );
-
-        let new_upload = NewFileUpload {
-            file_type: FileType::Publication,
-            work_id: None,
-            publication_id: Some(data.publication_id),
-            declared_mime_type: data.declared_mime_type.clone(),
-            declared_extension: data.declared_extension.to_lowercase(),
-            declared_sha256: data.declared_sha256.clone(),
-        };
-
-        let file_upload = FileUpload::create(&context.db, &new_upload)?;
-
-        let s3_client = &context.s3;
-        let temp_key = temp_key(&file_upload.file_upload_id);
-        let upload_url = presign_put_for_upload(
-            s3_client,
-            &storage_config.s3_bucket,
-            &temp_key,
-            &data.declared_mime_type,
-            &data.declared_sha256,
-            30, // 30 minutes expiration
+        init_publication_file_upload(
+            context.db.as_ref(),
+            context.s3.as_ref(),
+            &context.account_access,
+            data,
         )
-        .await?;
-
-        let expires_at = Timestamp::parse_from_rfc3339(
-            &chrono::Utc::now()
-                .checked_add_signed(chrono::Duration::minutes(30))
-                .ok_or_else(|| {
-                    ThothError::InternalError("Failed to calculate expiration time".to_string())
-                })?
-                .to_rfc3339(),
-        )?;
-
-        Ok(FileUploadResponse {
-            file_upload_id: file_upload.file_upload_id,
-            upload_url,
-            expires_at,
-        })
+        .await
+        .map_err(Into::into)
     }
 
     #[cfg(feature = "backend")]
@@ -3506,54 +3450,14 @@ impl MutationRoot {
         data: NewFrontcoverFileUpload,
     ) -> FieldResult<FileUploadResponse> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-
-        let work = Work::from_id(&context.db, &data.work_id)?;
-        context
-            .account_access
-            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
-
-        work.doi.ok_or(ThothError::WorkMissingDoiForFileUpload)?;
-
-        let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
-        let storage_config = StorageConfig::from_imprint(&imprint)?;
-
-        let new_upload = NewFileUpload {
-            file_type: FileType::Frontcover,
-            work_id: Some(data.work_id),
-            publication_id: None,
-            declared_mime_type: data.declared_mime_type.clone(),
-            declared_extension: data.declared_extension.to_lowercase(),
-            declared_sha256: data.declared_sha256.clone(),
-        };
-
-        let file_upload = FileUpload::create(&context.db, &new_upload)?;
-
-        let s3_client = &context.s3;
-        let temp_key = temp_key(&file_upload.file_upload_id);
-        let upload_url = presign_put_for_upload(
-            s3_client,
-            &storage_config.s3_bucket,
-            &temp_key,
-            &data.declared_mime_type,
-            &data.declared_sha256,
-            30, // 30 minutes expiration
+        init_frontcover_file_upload(
+            context.db.as_ref(),
+            context.s3.as_ref(),
+            &context.account_access,
+            data,
         )
-        .await?;
-
-        let expires_at = Timestamp::parse_from_rfc3339(
-            &chrono::Utc::now()
-                .checked_add_signed(chrono::Duration::minutes(30))
-                .ok_or_else(|| {
-                    ThothError::InternalError("Failed to calculate expiration time".to_string())
-                })?
-                .to_rfc3339(),
-        )?;
-
-        Ok(FileUploadResponse {
-            file_upload_id: file_upload.file_upload_id,
-            upload_url,
-            expires_at,
-        })
+        .await
+        .map_err(Into::into)
     }
 
     #[cfg(feature = "backend")]
@@ -3565,199 +3469,14 @@ impl MutationRoot {
         #[graphql(description = "Input for completing a file upload")] data: CompleteFileUpload,
     ) -> FieldResult<File> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-
-        let file_upload = FileUpload::from_id(&context.db, &data.file_upload_id)
-            .map_err(|_| ThothError::EntityNotFound)?;
-
-        match file_upload.file_type {
-            FileType::Publication => {
-                let publication_id = file_upload
-                    .publication_id
-                    .ok_or(ThothError::PublicationFileUploadMissingPublicationId)?;
-                context
-                    .account_access
-                    .can_edit(publisher_id_from_publication_id(
-                        &context.db,
-                        publication_id,
-                    )?)?;
-            }
-            FileType::Frontcover => {
-                let work_id = file_upload
-                    .work_id
-                    .ok_or(ThothError::FrontcoverFileUploadMissingWorkId)?;
-                context
-                    .account_access
-                    .can_edit(publisher_id_from_work_id(&context.db, work_id)?)?;
-            }
-        }
-
-        let (work, storage_config) = match file_upload.file_type {
-            FileType::Publication => {
-                let publication =
-                    Publication::from_id(&context.db, &file_upload.publication_id.unwrap())?;
-                let work = Work::from_id(&context.db, &publication.work_id)?;
-                let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
-                let storage_config = StorageConfig::from_imprint(&imprint)?;
-                (work, storage_config)
-            }
-            FileType::Frontcover => {
-                let work = Work::from_id(&context.db, &file_upload.work_id.unwrap())?;
-                let imprint = Imprint::from_id(&context.db, &work.imprint_id)?;
-                let storage_config = StorageConfig::from_imprint(&imprint)?;
-                (work, storage_config)
-            }
-        };
-
-        let doi = work.doi.ok_or(ThothError::WorkMissingDoiForFileUpload)?;
-
-        let doi_prefix = doi.prefix();
-        let doi_suffix = doi.suffix();
-
-        let s3_client = &context.s3;
-        let temp_key = temp_key(&file_upload.file_upload_id);
-        let (bytes, mime_type) =
-            head_object(s3_client, &storage_config.s3_bucket, &temp_key).await?;
-
-        validate_file_extension(
-            &file_upload.declared_extension,
-            &file_upload.file_type,
-            if file_upload.file_type == FileType::Publication {
-                Some(
-                    Publication::from_id(&context.db, &file_upload.publication_id.unwrap())?
-                        .publication_type,
-                )
-            } else {
-                None
-            },
-        )?;
-
-        // Compute canonical key
-        let canonical_key = match file_upload.file_type {
-            FileType::Publication => {
-                canonical_publication_key(&doi_prefix, &doi_suffix, &file_upload.declared_extension)
-            }
-            FileType::Frontcover => {
-                canonical_frontcover_key(&doi_prefix, &doi_suffix, &file_upload.declared_extension)
-            }
-        };
-
-        // Check if file already exists (for cache invalidation)
-        let existing_file = File::from_object_key(&context.db, &canonical_key).ok();
-        let should_invalidate = existing_file.is_some();
-
-        // Copy object to final location
-        copy_temp_object_to_final(
-            s3_client,
-            &storage_config.s3_bucket,
-            &temp_key,
-            &canonical_key,
+        complete_file_upload(
+            context.db.as_ref(),
+            context.s3.as_ref(),
+            &context.account_access,
+            data,
         )
-        .await?;
-
-        // Build CDN URL
-        let cdn_url = build_cdn_url(&storage_config.cdn_domain, &canonical_key);
-
-        // Create or update file record
-        let new_file = NewFile {
-            file_type: file_upload.file_type,
-            work_id: file_upload.work_id,
-            publication_id: file_upload.publication_id,
-            object_key: canonical_key.clone(),
-            cdn_url: cdn_url.clone(),
-            mime_type: mime_type.clone(),
-            bytes,
-            sha256: file_upload.declared_sha256.clone(),
-        };
-
-        let file = if let Some(existing) = &existing_file {
-            // Update existing file
-            use crate::schema::file::dsl;
-            use diesel::prelude::*;
-            let mut connection = context.db.get()?;
-            diesel::update(dsl::file.find(&existing.file_id))
-                .set((
-                    dsl::cdn_url.eq(&new_file.cdn_url),
-                    dsl::mime_type.eq(&new_file.mime_type),
-                    dsl::bytes.eq(new_file.bytes),
-                    dsl::sha256.eq(&new_file.sha256),
-                ))
-                .get_result::<File>(&mut connection)
-                .map_err(|e: diesel::result::Error| ThothError::from(e))?
-        } else {
-            File::create(&context.db, &new_file)?
-        };
-
-        // Update Work.cover_url for frontcovers
-        if file_upload.file_type == FileType::Frontcover {
-            let work_id = file_upload.work_id.unwrap();
-            use crate::schema::work::dsl;
-            use diesel::prelude::*;
-            let mut connection = context.db.get()?;
-            diesel::update(dsl::work.find(&work_id))
-                .set(dsl::cover_url.eq(Some(cdn_url.clone())))
-                .execute(&mut connection)
-                .map_err(|e: diesel::result::Error| ThothError::from(e))?;
-        }
-
-        // Create/update canonical Location for publication files
-        if file_upload.file_type == FileType::Publication {
-            let publication_id = file_upload.publication_id.unwrap();
-            use crate::schema::location::dsl;
-            use diesel::prelude::*;
-            let mut connection = context.db.get()?;
-
-            // Check if canonical location exists
-            let existing_location = dsl::location
-                .filter(dsl::publication_id.eq(publication_id))
-                .filter(dsl::canonical.eq(true))
-                .first::<Location>(&mut connection)
-                .optional()
-                .map_err(|e: diesel::result::Error| ThothError::from(e))?;
-
-            if let Some(loc) = existing_location {
-                // Update existing canonical location
-                diesel::update(dsl::location.find(&loc.location_id))
-                    .set(dsl::full_text_url.eq(Some(cdn_url.clone())))
-                    .execute(&mut connection)
-                    .map_err(|e: diesel::result::Error| ThothError::from(e))?;
-            } else {
-                // Create new canonical location
-                let new_location = NewLocation {
-                    publication_id,
-                    landing_page: Some(work.landing_page.clone().unwrap_or_default()),
-                    full_text_url: Some(cdn_url.clone()),
-                    location_platform: LocationPlatform::Thoth,
-                    canonical: true,
-                };
-                Location::create(&context.db, &new_location)?;
-            }
-        }
-
-        // Invalidate CloudFront cache if replacing existing file
-        if should_invalidate {
-            let cloudfront_client = create_cloudfront_client_with_credentials(
-                storage_config.aws_access_key_id.as_deref(),
-                storage_config.aws_secret_access_key.as_deref(),
-            )
-            .await;
-            invalidate_cloudfront(
-                &cloudfront_client,
-                &storage_config.cloudfront_dist_id,
-                &canonical_key,
-            )
-            .await?;
-        }
-
-        // Cleanup: delete file_upload record and temp object
-        use crate::schema::file_upload::dsl;
-        use diesel::prelude::*;
-        let mut connection = context.db.get()?;
-        diesel::delete(dsl::file_upload.find(&file_upload.file_upload_id))
-            .execute(&mut connection)
-            .map_err(|e: diesel::result::Error| ThothError::from(e))?;
-        delete_temp_object(s3_client, &storage_config.s3_bucket, &temp_key).await?;
-
-        Ok(file)
+        .await
+        .map_err(Into::into)
     }
 }
 

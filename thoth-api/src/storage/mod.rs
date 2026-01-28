@@ -8,11 +8,8 @@ use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 use crate::model::imprint::Imprint;
-
-#[cfg(feature = "backend")]
 mod encryption;
 
-#[cfg(feature = "backend")]
 pub use encryption::{decrypt_credential, encrypt_credential};
 
 pub struct StorageConfig {
@@ -26,14 +23,12 @@ pub struct StorageConfig {
 
 impl StorageConfig {
     pub fn from_imprint(imprint: &Imprint) -> ThothResult<Self> {
-        dotenv::dotenv().ok();
-        let (aws_access_key_id, aws_secret_access_key) = match (
-            env::var("AWS_ACCESS_KEY_ID").ok(),
-            env::var("AWS_SECRET_ACCESS_KEY").ok(),
-        ) {
-            (Some(access_key), Some(secret_key)) => (Some(access_key), Some(secret_key)),
-            _ => (None, None),
-        };
+        let aws_access_key_id = env::var("AWS_ACCESS_KEY_ID")
+            .ok()
+            .filter(|value| !value.is_empty());
+        let aws_secret_access_key = env::var("AWS_SECRET_ACCESS_KEY")
+            .ok()
+            .filter(|value| !value.is_empty());
 
         match (
             &imprint.s3_bucket,
@@ -72,9 +67,6 @@ pub async fn create_s3_client(
 }
 
 /// Create an S3 client with custom credentials from StorageConfig
-///
-/// If credentials are provided in StorageConfig, they will be used.
-/// Otherwise, falls back to the default credential chain.
 pub async fn create_s3_client_with_credentials(
     region: &str,
     access_key_id: Option<&str>,
@@ -89,13 +81,7 @@ pub async fn create_s3_client_with_credentials(
     if let (Some(access_key), Some(secret_key)) = (access_key_id, secret_access_key) {
         eprintln!("S3_DEBUG: Using custom credentials from database");
         use aws_credential_types::Credentials;
-        let credentials = Credentials::new(
-            access_key,
-            secret_key,
-            None,
-            None, // expiration
-            "thoth-storage",
-        );
+        let credentials = Credentials::new(access_key, secret_key, None, None, "thoth-storage");
         config_builder = config_builder.credentials_provider(credentials);
     } else {
         eprintln!("S3_DEBUG: Using default credential chain");
@@ -112,17 +98,11 @@ pub async fn create_s3_client_with_credentials(
 }
 
 /// Create a CloudFront client
-///
-/// AWS credentials are automatically loaded from the default credential chain
-/// (see create_s3_client for details).
 pub async fn create_cloudfront_client() -> CloudFrontClient {
     create_cloudfront_client_with_credentials(None, None).await
 }
 
 /// Create a CloudFront client with custom credentials from StorageConfig
-///
-/// If credentials are provided in StorageConfig, they will be used.
-/// Otherwise, falls back to the default credential chain.
 pub async fn create_cloudfront_client_with_credentials(
     access_key_id: Option<&str>,
     secret_access_key: Option<&str>,
@@ -133,13 +113,7 @@ pub async fn create_cloudfront_client_with_credentials(
     if let (Some(access_key), Some(secret_key)) = (access_key_id, secret_access_key) {
         eprintln!("CLOUDFRONT_DEBUG: Using custom credentials from database");
         use aws_credential_types::Credentials;
-        let credentials = Credentials::new(
-            access_key,
-            secret_key,
-            None, // session token
-            None, // expiration
-            "thoth-storage",
-        );
+        let credentials = Credentials::new(access_key, secret_key, None, None, "thoth-storage");
         config_builder = config_builder.credentials_provider(credentials);
     }
 
@@ -329,6 +303,7 @@ pub fn build_cdn_url(cdn_domain: &str, object_key: &str) -> String {
 pub(crate) mod tests {
     use super::*;
     use crate::model::Timestamp;
+    use std::env;
     use std::sync::{Mutex, MutexGuard};
     use uuid::Uuid;
 
@@ -374,6 +349,9 @@ pub(crate) mod tests {
 
     #[test]
     fn test_storage_config_from_imprint_success() {
+        let _guard = env_lock();
+        env::remove_var("AWS_ACCESS_KEY_ID");
+        env::remove_var("AWS_SECRET_ACCESS_KEY");
         let imprint = create_test_imprint_with_storage();
         let config = StorageConfig::from_imprint(&imprint).unwrap();
 
@@ -407,14 +385,12 @@ pub(crate) mod tests {
     #[test]
     #[cfg(feature = "backend")]
     fn test_storage_config_from_imprint_with_credentials() {
-        use std::env;
-        let _env_guard = env_lock();
+        let _guard = env_lock();
         env::set_var("AWS_ACCESS_KEY_ID", "AKIAIOSFODNN7EXAMPLE");
         env::set_var(
             "AWS_SECRET_ACCESS_KEY",
             "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
         );
-
         let imprint = create_test_imprint_with_storage();
 
         let config = StorageConfig::from_imprint(&imprint).unwrap();
