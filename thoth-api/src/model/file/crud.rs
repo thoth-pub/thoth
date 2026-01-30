@@ -4,6 +4,7 @@ use crate::model::Crud;
 use crate::schema::{file, file_upload};
 use diesel::prelude::*;
 use diesel::OptionalExtension;
+use diesel::{QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
@@ -50,8 +51,6 @@ impl Crud for File {
     }
 
     fn from_id(db: &crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
-        use diesel::QueryDsl;
-        use diesel::RunQueryDsl;
         let mut connection = db.get()?;
         file::table
             .find(entity_id)
@@ -77,8 +76,6 @@ impl Crud for File {
     }
 
     fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self> {
-        use diesel::QueryDsl;
-        use diesel::RunQueryDsl;
         let mut connection = db.get()?;
         diesel::delete(file::table.find(self.file_id))
             .execute(&mut connection)
@@ -143,8 +140,6 @@ impl Crud for FileUpload {
     }
 
     fn from_id(db: &crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
-        use diesel::QueryDsl;
-        use diesel::RunQueryDsl;
         let mut connection = db.get()?;
         file_upload::table
             .find(entity_id)
@@ -170,8 +165,6 @@ impl Crud for FileUpload {
     }
 
     fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self> {
-        use diesel::QueryDsl;
-        use diesel::RunQueryDsl;
         let mut connection = db.get()?;
         diesel::delete(file_upload::table.find(self.file_upload_id))
             .execute(&mut connection)
@@ -196,8 +189,6 @@ impl Crud for FileUpload {
 impl File {
     pub fn from_object_key(db: &crate::db::PgPool, object_key: &str) -> ThothResult<Self> {
         use crate::schema::file::dsl;
-        use diesel::QueryDsl;
-        use diesel::RunQueryDsl;
 
         let mut connection = db.get()?;
         dsl::file
@@ -208,8 +199,6 @@ impl File {
 
     pub fn from_work_id(db: &crate::db::PgPool, work_id: &Uuid) -> ThothResult<Option<Self>> {
         use crate::schema::file::dsl;
-        use diesel::QueryDsl;
-        use diesel::RunQueryDsl;
 
         let mut connection = db.get()?;
         dsl::file
@@ -225,8 +214,6 @@ impl File {
         publication_id: &Uuid,
     ) -> ThothResult<Option<Self>> {
         use crate::schema::file::dsl;
-        use diesel::QueryDsl;
-        use diesel::RunQueryDsl;
 
         let mut connection = db.get()?;
         dsl::file
