@@ -164,15 +164,6 @@ pub fn aws_region() -> Arg {
         .num_args(1)
 }
 
-pub fn aws_default_region() -> Arg {
-    Arg::new("aws-default-region")
-        .long("aws-default-region")
-        .value_name("AWS_DEFAULT_REGION")
-        .env("AWS_DEFAULT_REGION")
-        .help("AWS default region for S3/CloudFront")
-        .num_args(1)
-}
-
 pub fn session() -> Arg {
     Arg::new("duration")
         .short('s')
