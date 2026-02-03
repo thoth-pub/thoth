@@ -255,7 +255,6 @@ table! {
         imprint_url -> Nullable<Text>,
         crossmark_doi -> Nullable<Text>,
         s3_bucket -> Nullable<Text>,
-        s3_region -> Nullable<Text>,
         cdn_domain -> Nullable<Text>,
         cloudfront_dist_id -> Nullable<Text>,
         created_at -> Timestamptz,
