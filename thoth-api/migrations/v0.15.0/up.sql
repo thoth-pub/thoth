@@ -1,6 +1,5 @@
 ALTER TABLE imprint
   ADD COLUMN s3_bucket          TEXT,
-  ADD COLUMN s3_region          TEXT,
   ADD COLUMN cdn_domain         TEXT,
   ADD COLUMN cloudfront_dist_id TEXT;
 
@@ -9,14 +8,12 @@ ALTER TABLE imprint
   CHECK (
     (
       s3_bucket          IS NULL AND
-      s3_region          IS NULL AND
       cdn_domain         IS NULL AND
       cloudfront_dist_id IS NULL
     )
     OR
     (
       s3_bucket          IS NOT NULL AND
-      s3_region          IS NOT NULL AND
       cdn_domain         IS NOT NULL AND
       cloudfront_dist_id IS NOT NULL
     )
