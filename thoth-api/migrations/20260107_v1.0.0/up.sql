@@ -70,3 +70,12 @@ ALTER TABLE work_relation_history      ALTER COLUMN user_id TYPE TEXT;
 -- Drop the obsolete tables
 DROP TABLE IF EXISTS publisher_account;
 DROP TABLE IF EXISTS account;
+
+-- Store ZITADEL organisation id for publisher-scoped authorisation
+ALTER TABLE publisher
+    ADD COLUMN IF NOT EXISTS zitadel_id TEXT;
+
+-- Each publisher should map to at most one ZITADEL organisation
+CREATE UNIQUE INDEX IF NOT EXISTS publisher_zitadel_id_key
+    ON publisher (zitadel_id)
+    WHERE zitadel_id IS NOT NULL;

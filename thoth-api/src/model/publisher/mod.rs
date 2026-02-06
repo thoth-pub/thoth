@@ -28,6 +28,7 @@ pub enum PublisherField {
     PublisherShortname,
     #[strum(serialize = "URL")]
     PublisherUrl,
+    ZitadelId,
     AccessibilityStatement,
     AccessibilityReportUrl,
     CreatedAt,
@@ -42,6 +43,7 @@ pub struct Publisher {
     pub publisher_name: String,
     pub publisher_shortname: Option<String>,
     pub publisher_url: Option<String>,
+    pub zitadel_id: Option<String>,
     pub accessibility_statement: Option<String>,
     pub accessibility_report_url: Option<String>,
     pub created_at: Timestamp,
@@ -58,6 +60,7 @@ pub struct NewPublisher {
     pub publisher_name: String,
     pub publisher_shortname: Option<String>,
     pub publisher_url: Option<String>,
+    pub zitadel_id: Option<String>,
     pub accessibility_statement: Option<String>,
     pub accessibility_report_url: Option<String>,
 }
@@ -73,6 +76,7 @@ pub struct PatchPublisher {
     pub publisher_name: String,
     pub publisher_shortname: Option<String>,
     pub publisher_url: Option<String>,
+    pub zitadel_id: Option<String>,
     pub accessibility_statement: Option<String>,
     pub accessibility_report_url: Option<String>,
 }
@@ -129,6 +133,7 @@ fn test_publisherfield_display() {
         "ShortName"
     );
     assert_eq!(format!("{}", PublisherField::PublisherUrl), "URL");
+    assert_eq!(format!("{}", PublisherField::ZitadelId), "ZitadelId");
     assert_eq!(format!("{}", PublisherField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", PublisherField::UpdatedAt), "UpdatedAt");
 }
@@ -151,6 +156,10 @@ fn test_publisherfield_fromstr() {
     assert_eq!(
         PublisherField::from_str("URL").unwrap(),
         PublisherField::PublisherUrl
+    );
+    assert_eq!(
+        PublisherField::from_str("ZitadelId").unwrap(),
+        PublisherField::ZitadelId
     );
     assert_eq!(
         PublisherField::from_str("CreatedAt").unwrap(),

@@ -60,6 +60,10 @@ impl Crud for Publisher {
                 Direction::Asc => query.order(publisher_url.asc()),
                 Direction::Desc => query.order(publisher_url.desc()),
             },
+            PublisherField::ZitadelId => match order.direction {
+                Direction::Asc => query.order(zitadel_id.asc()),
+                Direction::Desc => query.order(zitadel_id.desc()),
+            },
             PublisherField::AccessibilityStatement => match order.direction {
                 Direction::Asc => query.order(accessibility_statement.asc()),
                 Direction::Desc => query.order(accessibility_statement.desc()),

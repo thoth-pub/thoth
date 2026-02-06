@@ -3429,6 +3429,11 @@ impl Publisher {
         self.publisher_url.as_ref()
     }
 
+    #[graphql(description = "Zitadel organisation ID associated with the publisher")]
+    pub fn zitadel_id(&self) -> Option<&String> {
+        self.zitadel_id.as_ref()
+    }
+
     #[graphql(
         description = "Statement from the publisher on the accessibility of its texts for readers with impairments"
     )]

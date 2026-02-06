@@ -96,3 +96,8 @@ ALTER TABLE subject_history            ADD CONSTRAINT subject_history_account_id
 ALTER TABLE title_history              ADD CONSTRAINT title_history_account_id_fkey              FOREIGN KEY (account_id) REFERENCES account(account_id);
 ALTER TABLE work_history               ADD CONSTRAINT work_history_account_id_fkey               FOREIGN KEY (account_id) REFERENCES account(account_id);
 ALTER TABLE work_relation_history      ADD CONSTRAINT work_relation_history_account_id_fkey      FOREIGN KEY (account_id) REFERENCES account(account_id);
+
+-- Remove ZITADEL organisation id column/index from publisher
+DROP INDEX IF EXISTS publisher_zitadel_id_key;
+ALTER TABLE publisher
+    DROP COLUMN IF EXISTS zitadel_id;

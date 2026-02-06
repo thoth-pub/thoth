@@ -325,11 +325,22 @@ where
 
 #[cfg(feature = "backend")]
 /// Retrieve the ID of the publisher linked to an entity or input type (if applicable).
+///
+/// This trait also provides a default `zitadel_id` implementation derived from the publisher.
 pub trait PublisherId
 where
     Self: Sized,
 {
     fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid>;
+
+    /// Retrieve the ZITADEL organisation id for the linked publisher.
+    fn zitadel_id(&self, db: &crate::db::PgPool) -> ThothResult<String> {
+        use crate::model::publisher::Publisher;
+
+        let publisher_id = self.publisher_id(db)?;
+        let publisher = Publisher::from_id(db, &publisher_id)?;
+        publisher.zitadel_id.ok_or(ThothError::Unauthorised)
+    }
 }
 
 #[cfg(feature = "backend")]
@@ -342,6 +353,24 @@ where
     Self: Sized,
 {
     fn publisher_ids(&self, db: &crate::db::PgPool) -> ThothResult<Vec<Uuid>>;
+
+    /// Retrieve the ZITADEL organisation ids for the linked publishers.
+    fn zitadel_ids(&self, db: &crate::db::PgPool) -> ThothResult<Vec<String>> {
+        use crate::model::publisher::Publisher;
+
+        let mut org_ids: Vec<String> = self
+            .publisher_ids(db)?
+            .into_iter()
+            .map(|publisher_id| {
+                let publisher = Publisher::from_id(db, &publisher_id)?;
+                publisher.zitadel_id.ok_or(ThothError::Unauthorised)
+            })
+            .collect::<ThothResult<Vec<String>>>()?;
+
+        org_ids.sort();
+        org_ids.dedup();
+        Ok(org_ids)
+    }
 }
 
 /// Implements `PublisherId` for a main entity type, its `New*` type, and its `Patch*` type.
@@ -427,6 +456,7 @@ macro_rules! publisher_id_impls {
 ///     }
 /// );
 /// ```
+
 #[cfg(feature = "backend")]
 #[macro_export]
 macro_rules! publisher_ids_impls {
