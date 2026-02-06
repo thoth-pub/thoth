@@ -24,6 +24,10 @@ impl UpdatePolicy<Publisher, PatchPublisher> for PublisherPolicy {
         ctx.require_publisher_for(current)?;
         ctx.require_publisher_for(patch)?;
 
+        if patch.zitadel_id != current.zitadel_id {
+            ctx.require_superuser()?;
+        }
+
         Ok(())
     }
 }
