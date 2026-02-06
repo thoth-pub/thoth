@@ -2,7 +2,7 @@ use super::{
     NewSeries, NewSeriesHistory, PatchSeries, Series, SeriesField, SeriesHistory, SeriesOrderBy,
     SeriesType,
 };
-use crate::graphql::inputs::Direction;
+use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{series, series_history};
 use diesel::{

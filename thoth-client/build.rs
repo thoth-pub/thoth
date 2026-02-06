@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::Path;
-use thoth_api::graphql::model::create_schema;
+use thoth_api::graphql::create_schema;
 
 // Generate the GraphQL schema and store it in assets/schema.graphql
 fn main() {

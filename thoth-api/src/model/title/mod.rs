@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
 
-use crate::graphql::inputs::Direction;
+use crate::graphql::types::inputs::Direction;
 
 #[cfg(feature = "backend")]
 use crate::schema::title_history;

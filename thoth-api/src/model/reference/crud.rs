@@ -2,7 +2,7 @@ use super::{
     NewReference, NewReferenceHistory, PatchReference, Reference, ReferenceField, ReferenceHistory,
     ReferenceOrderBy,
 };
-use crate::graphql::inputs::Direction;
+use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{reference, reference_history};
 use diesel::{

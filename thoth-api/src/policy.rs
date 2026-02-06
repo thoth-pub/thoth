@@ -10,7 +10,7 @@ use strum::AsRefStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, AsRefStr)]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
-enum Role {
+pub(crate) enum Role {
     Superuser,
     PublisherAdmin,
     PublisherUser,
@@ -19,7 +19,7 @@ enum Role {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(crate) struct PublisherPermissions {
+pub struct PublisherPermissions {
     pub publisher_admin: bool,
     pub work_lifecycle: bool,
     pub cdn_write: bool,
@@ -174,6 +174,7 @@ pub(crate) trait PolicyContext {
     }
 
     /// Authorise the current user to upload or modify files for the publisher derived from the given value.
+    #[allow(dead_code)]
     fn require_cdn_write_for<T: PublisherId>(&self, value: &T) -> ThothResult<&IntrospectedUser> {
         self.require_role_for_publisher(value, Role::CdnWrite)
     }
@@ -183,30 +184,6 @@ pub(crate) trait PolicyContext {
     /// This is intended for entities that span more than one publisher scope, e.g. `WorkRelation`.
     fn require_publishers_for<T: PublisherIds>(&self, value: &T) -> ThothResult<&IntrospectedUser> {
         self.require_role_for_publishers(value, Role::PublisherUser)
-    }
-
-    /// Authorise the current user to edit publisher and imprint data for ALL publishers derived from the given value.
-    fn require_publisher_admin_for_publishers<T: PublisherIds>(
-        &self,
-        value: &T,
-    ) -> ThothResult<&IntrospectedUser> {
-        self.require_role_for_publishers(value, Role::PublisherAdmin)
-    }
-
-    /// Authorise the current user to change lifecycle-related fields for ALL publishers derived from the given value.
-    fn require_work_lifecycle_for_publishers<T: PublisherIds>(
-        &self,
-        value: &T,
-    ) -> ThothResult<&IntrospectedUser> {
-        self.require_role_for_publishers(value, Role::WorkLifecycle)
-    }
-
-    /// Authorise the current user to upload or modify files for ALL publishers derived from the given value.
-    fn require_cdn_write_for_publishers<T: PublisherIds>(
-        &self,
-        value: &T,
-    ) -> ThothResult<&IntrospectedUser> {
-        self.require_role_for_publishers(value, Role::CdnWrite)
     }
 
     /// Authorise the current user against the publisher derived from the given value,
@@ -362,7 +339,6 @@ mod tests {
         let mut admin_scoped = scoped("org-2");
         admin_scoped.insert("org-1".to_string(), "label".to_string());
         roles.insert(Role::PublisherAdmin.as_ref().to_string(), admin_scoped);
-
 
         let user = mk_user(Some(roles));
         let orgs = user.publisher_org_ids();

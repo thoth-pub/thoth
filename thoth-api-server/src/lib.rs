@@ -16,10 +16,7 @@ use base64::{engine::general_purpose, Engine as _};
 use serde::Serialize;
 use thoth_api::{
     db::{init_pool, PgPool},
-    graphql::{
-        model::{create_schema, Context, Schema},
-        GraphQLRequest,
-    },
+    graphql::{create_schema, Context, GraphQLRequest, Schema},
 };
 use zitadel::{
     actix::introspection::{IntrospectedUser, IntrospectionConfigBuilder},

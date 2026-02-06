@@ -2,8 +2,8 @@ use super::{
     NewWork, NewWorkHistory, PatchWork, Work, WorkField, WorkHistory, WorkOrderBy, WorkStatus,
     WorkType,
 };
-use crate::graphql::inputs::TimeExpression;
-use crate::graphql::inputs::{Direction, Expression};
+use crate::graphql::types::inputs::TimeExpression;
+use crate::graphql::types::inputs::{Direction, Expression};
 use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderBy};
 use crate::model::{Crud, DbInsert, Doi, HistoryEntry, PublisherId};
 use crate::schema::{work, work_abstract, work_history, work_title};

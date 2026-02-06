@@ -23,8 +23,8 @@ impl UpdatePolicy<Imprint, PatchImprint> for ImprintPolicy {
         patch: &PatchImprint,
         _params: (),
     ) -> ThothResult<()> {
-        ctx.require_publisher_for(current)?;
-        ctx.require_publisher_for(patch)?;
+        ctx.require_publisher_admin_for(current)?;
+        ctx.require_publisher_admin_for(patch)?;
         Ok(())
     }
 }

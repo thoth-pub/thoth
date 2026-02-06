@@ -2,7 +2,7 @@ use super::{
     Imprint, ImprintField, ImprintHistory, ImprintOrderBy, NewImprint, NewImprintHistory,
     PatchImprint,
 };
-use crate::graphql::inputs::Direction;
+use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{imprint, imprint_history};
 use diesel::{

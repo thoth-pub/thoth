@@ -31,6 +31,13 @@ impl UpdatePolicy<Work, PatchWork> for WorkPolicy {
             current.can_be_chapter(ctx.db())?;
         }
 
+        if patch.work_status != current.work_status
+            || patch.publication_date != current.publication_date
+            || patch.withdrawn_date != current.withdrawn_date
+        {
+            ctx.require_work_lifecycle_for(patch)?;
+        }
+
         patch.validate()?;
 
         if current.is_published() && !patch.is_published() && !user.is_superuser() {

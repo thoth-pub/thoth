@@ -3,7 +3,7 @@ use super::{
     NewInstitutionHistory, PatchInstitution,
 };
 use crate::db::PgPool;
-use crate::graphql::inputs::Direction;
+use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherIds};
 use crate::schema::{institution, institution_history};
 use diesel::{

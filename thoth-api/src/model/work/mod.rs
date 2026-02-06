@@ -1,4 +1,4 @@
-use crate::graphql::inputs::Direction;
+use crate::graphql::types::inputs::Direction;
 use crate::model::Doi;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]

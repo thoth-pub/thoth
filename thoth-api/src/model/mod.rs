@@ -456,7 +456,6 @@ macro_rules! publisher_id_impls {
 ///     }
 /// );
 /// ```
-
 #[cfg(feature = "backend")]
 #[macro_export]
 macro_rules! publisher_ids_impls {

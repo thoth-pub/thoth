@@ -2,7 +2,7 @@ use super::{
     Contact, ContactField, ContactHistory, ContactOrderBy, ContactType, NewContact,
     NewContactHistory, PatchContact,
 };
-use crate::graphql::inputs::Direction;
+use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{contact, contact_history};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};

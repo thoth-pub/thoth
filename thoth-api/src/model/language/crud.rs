@@ -2,8 +2,8 @@ use super::{
     Language, LanguageCode, LanguageField, LanguageHistory, LanguageRelation, NewLanguage,
     NewLanguageHistory, PatchLanguage,
 };
-use crate::graphql::inputs::Direction;
-use crate::graphql::inputs::LanguageOrderBy;
+use crate::graphql::types::inputs::Direction;
+use crate::graphql::types::inputs::LanguageOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{language, language_history};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};

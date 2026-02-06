@@ -4,7 +4,7 @@ use strum::EnumString;
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
-use crate::graphql::inputs::Direction;
+use crate::graphql::types::inputs::Direction;
 use crate::model::Isbn;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]

@@ -3,7 +3,7 @@ use super::{
     PublisherOrderBy,
 };
 use crate::db::PgPool;
-use crate::graphql::inputs::Direction;
+use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{publisher, publisher_history};
 use diesel::{
@@ -133,6 +133,27 @@ impl Crud for Publisher {
     }
 
     crud_methods!(publisher::table, publisher::dsl::publisher);
+}
+
+impl Publisher {
+    pub fn by_zitadel_ids(
+        db: &crate::db::PgPool,
+        org_ids: Vec<String>,
+    ) -> ThothResult<Vec<Publisher>> {
+        use crate::schema::publisher::dsl::*;
+
+        if org_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut connection = db.get()?;
+        let org_ids: Vec<Option<String>> = org_ids.into_iter().map(Some).collect();
+
+        publisher
+            .filter(zitadel_id.eq_any(org_ids))
+            .load::<Publisher>(&mut connection)
+            .map_err(Into::into)
+    }
 }
 
 impl PublisherId for Publisher {
