@@ -151,7 +151,10 @@ impl TryFrom<Work> for KbartOclcRow {
             num_last_issue_online: None,
             title_url: landing_page,
             first_author,
-            title_id: work.titles[0].title_id.to_string(),
+            title_id: work
+                .doi
+                .map(|d| d.to_string())
+                .unwrap_or_else(|| work.work_id.to_string()),
             embargo_info: None,
             coverage_depth: "fulltext".to_string(),
             notes: None,
