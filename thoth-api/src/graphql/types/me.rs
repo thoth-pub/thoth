@@ -8,6 +8,8 @@ use zitadel::actix::introspection::IntrospectedUser;
 pub struct Me {
     pub user_id: String,
     pub email: Option<String>,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
     pub is_superuser: bool,
     pub publisher_contexts: Vec<PublisherContext>,
 }
@@ -32,6 +34,8 @@ impl ToMe for IntrospectedUser {
         Ok(Me {
             user_id: self.user_id.clone(),
             email: self.email.clone(),
+            first_name: self.given_name.clone(),
+            last_name: self.family_name.clone(),
             is_superuser,
             publisher_contexts,
         })
@@ -100,6 +104,14 @@ impl Me {
 
     fn email(&self) -> Option<&String> {
         self.email.as_ref()
+    }
+
+    fn first_name(&self) -> Option<&String> {
+        self.first_name.as_ref()
+    }
+
+    fn last_name(&self) -> Option<&String> {
+        self.last_name.as_ref()
     }
 
     fn is_superuser(&self) -> bool {
