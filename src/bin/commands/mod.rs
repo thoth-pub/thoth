@@ -22,7 +22,8 @@ lazy_static! {
         .arg(arguments::threads("GRAPHQL_API_THREADS"))
         .arg(arguments::keep_alive("GRAPHQL_API_KEEP_ALIVE"))
         .arg(arguments::gql_url())
-        .arg(arguments::key());
+        .arg(arguments::key())
+        .arg(arguments::zitadel_url());
 }
 
 lazy_static! {

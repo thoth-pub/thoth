@@ -108,6 +108,7 @@ pub async fn start_server(
     keep_alive: u64,
     public_url: String,
     private_key: String,
+    zitadel_url: String,
 ) -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
@@ -116,7 +117,7 @@ pub async fn start_server(
         .expect("Failed to base64-decode private key");
     let decoded_str =
         std::str::from_utf8(&decoded_private_key).expect("Decoded key is not valid UTF-8");
-    let auth = IntrospectionConfigBuilder::new("http://localhost:8282")
+    let auth = IntrospectionConfigBuilder::new(&zitadel_url)
         .with_jwt_profile(Application::load_from_json(decoded_str).unwrap())
         .build()
         .await
