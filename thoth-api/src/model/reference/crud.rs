@@ -277,27 +277,3 @@ impl Reorder for Reference {
             .map_err(Into::into)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_reference_pk() {
-        let reference: Reference = Default::default();
-        assert_eq!(reference.pk(), reference.reference_id);
-    }
-
-    #[test]
-    fn test_new_publisher_history_from_publisher() {
-        let reference: Reference = Default::default();
-        let user_id = "123456".to_string();
-        let new_reference_history = reference.new_history_entry(&user_id);
-        assert_eq!(new_reference_history.reference_id, reference.reference_id);
-        assert_eq!(new_reference_history.user_id, user_id);
-        assert_eq!(
-            new_reference_history.data,
-            serde_json::Value::String(serde_json::to_string(&reference).unwrap())
-        );
-    }
-}

@@ -165,30 +165,3 @@ impl Reorder for Affiliation {
             .map_err(Into::into)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_affiliation_pk() {
-        let affiliation: Affiliation = Default::default();
-        assert_eq!(affiliation.pk(), affiliation.affiliation_id);
-    }
-
-    #[test]
-    fn test_new_affiliation_history_from_affiliation() {
-        let affiliation: Affiliation = Default::default();
-        let user_id = "123456".to_string();
-        let new_affiliation_history = affiliation.new_history_entry(&user_id);
-        assert_eq!(
-            new_affiliation_history.affiliation_id,
-            affiliation.affiliation_id
-        );
-        assert_eq!(new_affiliation_history.user_id, user_id);
-        assert_eq!(
-            new_affiliation_history.data,
-            serde_json::Value::String(serde_json::to_string(&affiliation).unwrap())
-        );
-    }
-}

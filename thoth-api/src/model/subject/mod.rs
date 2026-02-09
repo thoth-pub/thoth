@@ -132,42 +132,6 @@ impl Default for Subject {
     }
 }
 
-#[test]
-fn test_subjecttype_default() {
-    let subjecttype: SubjectType = Default::default();
-    assert_eq!(subjecttype, SubjectType::Keyword);
-}
-
-#[test]
-fn test_subjecttype_display() {
-    assert_eq!(format!("{}", SubjectType::Bic), "BIC");
-    assert_eq!(format!("{}", SubjectType::Bisac), "BISAC");
-    assert_eq!(format!("{}", SubjectType::Thema), "Thema");
-    assert_eq!(format!("{}", SubjectType::Lcc), "LCC");
-    assert_eq!(format!("{}", SubjectType::Custom), "Custom");
-    assert_eq!(format!("{}", SubjectType::Keyword), "Keyword");
-}
-
-#[test]
-fn test_subjecttype_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(SubjectType::from_str("BIC").unwrap(), SubjectType::Bic);
-    assert_eq!(SubjectType::from_str("BISAC").unwrap(), SubjectType::Bisac);
-    assert_eq!(SubjectType::from_str("Thema").unwrap(), SubjectType::Thema);
-    assert_eq!(SubjectType::from_str("LCC").unwrap(), SubjectType::Lcc);
-    assert_eq!(
-        SubjectType::from_str("Custom").unwrap(),
-        SubjectType::Custom
-    );
-    assert_eq!(
-        SubjectType::from_str("Keyword").unwrap(),
-        SubjectType::Keyword
-    );
-
-    assert!(SubjectType::from_str("bic").is_err());
-    assert!(SubjectType::from_str("Library of Congress Subject Code").is_err());
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
 #[cfg(feature = "backend")]
@@ -175,3 +139,5 @@ mod policy;
 mod thema;
 #[cfg(feature = "backend")]
 pub(crate) use policy::SubjectPolicy;
+#[cfg(test)]
+mod tests;

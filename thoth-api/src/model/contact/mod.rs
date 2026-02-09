@@ -114,15 +114,11 @@ pub struct ContactOrderBy {
     pub direction: Direction,
 }
 
-#[test]
-fn test_contactfield_default() {
-    let contfield: ContactField = Default::default();
-    assert_eq!(contfield, ContactField::Email);
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
 #[cfg(feature = "backend")]
 mod policy;
 #[cfg(feature = "backend")]
 pub(crate) use policy::ContactPolicy;
+#[cfg(test)]
+mod tests;

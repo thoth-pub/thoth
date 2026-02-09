@@ -108,3 +108,5 @@ pub mod crud;
 mod policy;
 #[cfg(feature = "backend")]
 pub(crate) use policy::AffiliationPolicy;
+#[cfg(test)]
+mod tests;

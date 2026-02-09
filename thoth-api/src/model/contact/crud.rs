@@ -136,27 +136,3 @@ impl DbInsert for NewContactHistory {
 
     db_insert!(contact_history::table);
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_contact_pk() {
-        let contact: Contact = Default::default();
-        assert_eq!(contact.pk(), contact.contact_id);
-    }
-
-    #[test]
-    fn test_new_contact_history_from_contact() {
-        let contact: Contact = Default::default();
-        let user_id = "12345";
-        let new_contact_history = contact.new_history_entry(user_id);
-        assert_eq!(new_contact_history.contact_id, contact.contact_id);
-        assert_eq!(new_contact_history.user_id, user_id);
-        assert_eq!(
-            new_contact_history.data,
-            serde_json::Value::String(serde_json::to_string(&contact).unwrap())
-        );
-    }
-}

@@ -26,6 +26,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   THOTH_EXPORT_API: https://export.thoth.pub
+  TEST_DATABASE_URL: postgres://thoth:thoth@localhost:5432/thoth_test
   TEST_REDIS_URL: redis://localhost:6379
 
 jobs:
@@ -47,6 +48,19 @@ jobs:
   test:
     runs-on: ubuntu-latest
     services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: thoth_test
+          POSTGRES_USER: thoth
+          POSTGRES_PASSWORD: thoth
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
       redis:
         image: redis:alpine
         options: >-

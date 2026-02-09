@@ -144,104 +144,11 @@ pub struct SeriesOrderBy {
     pub direction: Direction,
 }
 
-#[test]
-fn test_seriestype_default() {
-    let seriestype: SeriesType = Default::default();
-    assert_eq!(seriestype, SeriesType::BookSeries);
-}
-
-#[test]
-fn test_seriesfield_default() {
-    let seriesfield: SeriesField = Default::default();
-    assert_eq!(seriesfield, SeriesField::SeriesName);
-}
-
-#[test]
-fn test_seriestype_display() {
-    assert_eq!(format!("{}", SeriesType::Journal), "Journal");
-    assert_eq!(format!("{}", SeriesType::BookSeries), "Book Series");
-}
-
-#[test]
-fn test_seriesfield_display() {
-    assert_eq!(format!("{}", SeriesField::SeriesId), "ID");
-    assert_eq!(format!("{}", SeriesField::SeriesType), "SeriesType");
-    assert_eq!(format!("{}", SeriesField::SeriesName), "Series");
-    assert_eq!(format!("{}", SeriesField::IssnPrint), "ISSNPrint");
-    assert_eq!(format!("{}", SeriesField::IssnDigital), "ISSNDigital");
-    assert_eq!(format!("{}", SeriesField::SeriesUrl), "SeriesURL");
-    assert_eq!(
-        format!("{}", SeriesField::SeriesDescription),
-        "SeriesDescription"
-    );
-    assert_eq!(format!("{}", SeriesField::SeriesCfpUrl), "SeriesCFPURL");
-    assert_eq!(format!("{}", SeriesField::CreatedAt), "CreatedAt");
-    assert_eq!(format!("{}", SeriesField::UpdatedAt), "UpdatedAt");
-}
-
-#[test]
-fn test_seriestype_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(
-        SeriesType::from_str("Journal").unwrap(),
-        SeriesType::Journal
-    );
-    assert_eq!(
-        SeriesType::from_str("Book Series").unwrap(),
-        SeriesType::BookSeries
-    );
-
-    assert!(SeriesType::from_str("bookseries").is_err());
-    assert!(SeriesType::from_str("Collection").is_err());
-}
-
-#[test]
-fn test_seriesfield_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(SeriesField::from_str("ID").unwrap(), SeriesField::SeriesId);
-    assert_eq!(
-        SeriesField::from_str("SeriesType").unwrap(),
-        SeriesField::SeriesType
-    );
-    assert_eq!(
-        SeriesField::from_str("Series").unwrap(),
-        SeriesField::SeriesName
-    );
-    assert_eq!(
-        SeriesField::from_str("ISSNPrint").unwrap(),
-        SeriesField::IssnPrint
-    );
-    assert_eq!(
-        SeriesField::from_str("ISSNDigital").unwrap(),
-        SeriesField::IssnDigital
-    );
-    assert_eq!(
-        SeriesField::from_str("SeriesURL").unwrap(),
-        SeriesField::SeriesUrl
-    );
-    assert_eq!(
-        SeriesField::from_str("SeriesDescription").unwrap(),
-        SeriesField::SeriesDescription
-    );
-    assert_eq!(
-        SeriesField::from_str("SeriesCFPURL").unwrap(),
-        SeriesField::SeriesCfpUrl
-    );
-    assert_eq!(
-        SeriesField::from_str("CreatedAt").unwrap(),
-        SeriesField::CreatedAt
-    );
-    assert_eq!(
-        SeriesField::from_str("UpdatedAt").unwrap(),
-        SeriesField::UpdatedAt
-    );
-    assert!(SeriesField::from_str("SeriesID").is_err());
-    assert!(SeriesField::from_str("Publisher").is_err());
-    assert!(SeriesField::from_str("Issues").is_err());
-}
 #[cfg(feature = "backend")]
 pub mod crud;
 #[cfg(feature = "backend")]
 mod policy;
 #[cfg(feature = "backend")]
 pub(crate) use policy::SeriesPolicy;
+#[cfg(test)]
+mod tests;

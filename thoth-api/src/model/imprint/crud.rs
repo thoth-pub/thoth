@@ -146,27 +146,3 @@ impl DbInsert for NewImprintHistory {
 
     db_insert!(imprint_history::table);
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_imprint_pk() {
-        let imprint: Imprint = Default::default();
-        assert_eq!(imprint.pk(), imprint.imprint_id);
-    }
-
-    #[test]
-    fn test_new_imprint_history_from_imprint() {
-        let imprint: Imprint = Default::default();
-        let user_id = "123456".to_string();
-        let new_imprint_history = imprint.new_history_entry(&user_id);
-        assert_eq!(new_imprint_history.imprint_id, imprint.imprint_id);
-        assert_eq!(new_imprint_history.user_id, user_id);
-        assert_eq!(
-            new_imprint_history.data,
-            serde_json::Value::String(serde_json::to_string(&imprint).unwrap())
-        );
-    }
-}

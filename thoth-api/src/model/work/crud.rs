@@ -472,27 +472,3 @@ impl DbInsert for NewWorkHistory {
 
     db_insert!(work_history::table);
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_work_pk() {
-        let work: Work = Default::default();
-        assert_eq!(work.pk(), work.work_id);
-    }
-
-    #[test]
-    fn test_new_work_history_from_work() {
-        let work: Work = Default::default();
-        let user_id = "123456".to_string();
-        let new_work_history = work.new_history_entry(&user_id);
-        assert_eq!(new_work_history.work_id, work.work_id);
-        assert_eq!(new_work_history.user_id, user_id);
-        assert_eq!(
-            new_work_history.data,
-            serde_json::Value::String(serde_json::to_string(&work).unwrap())
-        );
-    }
-}

@@ -106,3 +106,5 @@ pub mod crud;
 mod policy;
 #[cfg(feature = "backend")]
 pub(crate) use policy::BiographyPolicy;
+#[cfg(test)]
+mod tests;

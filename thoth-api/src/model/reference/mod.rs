@@ -170,15 +170,11 @@ pub struct ReferenceOrderBy {
     pub direction: Direction,
 }
 
-#[test]
-fn test_referencefield_default() {
-    let reffield: ReferenceField = Default::default();
-    assert_eq!(reffield, ReferenceField::ReferenceOrdinal);
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
 #[cfg(feature = "backend")]
 mod policy;
 #[cfg(feature = "backend")]
 pub(crate) use policy::ReferencePolicy;
+#[cfg(test)]
+mod tests;

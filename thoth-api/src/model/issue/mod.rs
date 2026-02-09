@@ -80,3 +80,5 @@ pub mod crud;
 mod policy;
 #[cfg(feature = "backend")]
 pub(crate) use policy::IssuePolicy;
+#[cfg(test)]
+mod tests;

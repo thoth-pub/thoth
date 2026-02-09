@@ -153,27 +153,3 @@ impl Reorder for Issue {
             .map_err(Into::into)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_issue_pk() {
-        let issue: Issue = Default::default();
-        assert_eq!(issue.pk(), issue.issue_id);
-    }
-
-    #[test]
-    fn test_new_issue_history_from_issue() {
-        let issue: Issue = Default::default();
-        let user_id = "123456".to_string();
-        let new_issue_history = issue.new_history_entry(&user_id);
-        assert_eq!(new_issue_history.issue_id, issue.issue_id);
-        assert_eq!(new_issue_history.user_id, user_id);
-        assert_eq!(
-            new_issue_history.data,
-            serde_json::Value::String(serde_json::to_string(&issue).unwrap())
-        );
-    }
-}

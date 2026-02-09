@@ -311,30 +311,3 @@ impl WorkRelation {
             })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_work_relation_pk() {
-        let work_relation: WorkRelation = Default::default();
-        assert_eq!(work_relation.pk(), work_relation.work_relation_id);
-    }
-
-    #[test]
-    fn test_new_work_relation_history_from_work_relation() {
-        let work_relation: WorkRelation = Default::default();
-        let user_id = "123456".to_string();
-        let new_work_relation_history = work_relation.new_history_entry(&user_id);
-        assert_eq!(
-            new_work_relation_history.work_relation_id,
-            work_relation.work_relation_id
-        );
-        assert_eq!(new_work_relation_history.user_id, user_id);
-        assert_eq!(
-            new_work_relation_history.data,
-            serde_json::Value::String(serde_json::to_string(&work_relation).unwrap())
-        );
-    }
-}

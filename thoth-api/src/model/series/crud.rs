@@ -177,27 +177,3 @@ impl DbInsert for NewSeriesHistory {
 
     db_insert!(series_history::table);
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_series_pk() {
-        let series: Series = Default::default();
-        assert_eq!(series.pk(), series.series_id);
-    }
-
-    #[test]
-    fn test_new_series_history_from_series() {
-        let series: Series = Default::default();
-        let user_id = "123456".to_string();
-        let new_series_history = series.new_history_entry(&user_id);
-        assert_eq!(new_series_history.series_id, series.series_id);
-        assert_eq!(new_series_history.user_id, user_id);
-        assert_eq!(
-            new_series_history.data,
-            serde_json::Value::String(serde_json::to_string(&series).unwrap())
-        );
-    }
-}

@@ -100,3 +100,5 @@ pub mod crud;
 mod policy;
 #[cfg(feature = "backend")]
 pub(crate) use policy::FundingPolicy;
+#[cfg(test)]
+mod tests;

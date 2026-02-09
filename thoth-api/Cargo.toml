@@ -52,4 +52,5 @@ uuid = { version = "1.16.0", features = ["serde", "v4"] }
 zitadel = { version = "5.5.1", features = ["actix"], optional = true}
 
 [dev-dependencies]
-tokio = { version = "1.44", features = ["macros"] }
+fs2 = "0.4.3"
+tokio = { version = "1.44", features = ["macros", "rt"] }

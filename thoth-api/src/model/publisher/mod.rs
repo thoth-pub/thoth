@@ -118,65 +118,11 @@ impl fmt::Display for Publisher {
     }
 }
 
-#[test]
-fn test_publisherfield_default() {
-    let pubfield: PublisherField = Default::default();
-    assert_eq!(pubfield, PublisherField::PublisherName);
-}
-
-#[test]
-fn test_publisherfield_display() {
-    assert_eq!(format!("{}", PublisherField::PublisherId), "ID");
-    assert_eq!(format!("{}", PublisherField::PublisherName), "Name");
-    assert_eq!(
-        format!("{}", PublisherField::PublisherShortname),
-        "ShortName"
-    );
-    assert_eq!(format!("{}", PublisherField::PublisherUrl), "URL");
-    assert_eq!(format!("{}", PublisherField::ZitadelId), "ZitadelId");
-    assert_eq!(format!("{}", PublisherField::CreatedAt), "CreatedAt");
-    assert_eq!(format!("{}", PublisherField::UpdatedAt), "UpdatedAt");
-}
-
-#[test]
-fn test_publisherfield_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(
-        PublisherField::from_str("ID").unwrap(),
-        PublisherField::PublisherId
-    );
-    assert_eq!(
-        PublisherField::from_str("Name").unwrap(),
-        PublisherField::PublisherName
-    );
-    assert_eq!(
-        PublisherField::from_str("ShortName").unwrap(),
-        PublisherField::PublisherShortname
-    );
-    assert_eq!(
-        PublisherField::from_str("URL").unwrap(),
-        PublisherField::PublisherUrl
-    );
-    assert_eq!(
-        PublisherField::from_str("ZitadelId").unwrap(),
-        PublisherField::ZitadelId
-    );
-    assert_eq!(
-        PublisherField::from_str("CreatedAt").unwrap(),
-        PublisherField::CreatedAt
-    );
-    assert_eq!(
-        PublisherField::from_str("UpdatedAt").unwrap(),
-        PublisherField::UpdatedAt
-    );
-    assert!(PublisherField::from_str("PublisherID").is_err());
-    assert!(PublisherField::from_str("Website").is_err());
-    assert!(PublisherField::from_str("Imprint").is_err());
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
 #[cfg(feature = "backend")]
 pub mod policy;
 #[cfg(feature = "backend")]
 pub(crate) use policy::PublisherPolicy;
+#[cfg(test)]
+mod tests;

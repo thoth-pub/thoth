@@ -54,8 +54,8 @@ impl Crud for Contribution {
 
         query = match order.field {
             ContributionField::ContributionId => match order.direction {
-                Direction::Asc => query.order((contribution_id, contribution_id.asc())),
-                Direction::Desc => query.order((contribution_id, contribution_id.desc())),
+                Direction::Asc => query.order(contribution_id.asc()),
+                Direction::Desc => query.order(contribution_id.desc()),
             },
             ContributionField::WorkId => match order.direction {
                 Direction::Asc => query.order((contribution_id, work_id.asc())),
@@ -200,32 +200,5 @@ impl Reorder for Contribution {
             )
             .load::<(Uuid, i32)>(connection)
             .map_err(Into::into)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_contribution_pk() {
-        let contribution: Contribution = Default::default();
-        assert_eq!(contribution.pk(), contribution.contribution_id);
-    }
-
-    #[test]
-    fn test_new_contribution_history_from_contribution() {
-        let contribution: Contribution = Default::default();
-        let user_id = "123456".to_string();
-        let new_contribution_history = contribution.new_history_entry(&user_id);
-        assert_eq!(
-            new_contribution_history.contribution_id,
-            contribution.contribution_id
-        );
-        assert_eq!(new_contribution_history.user_id, user_id);
-        assert_eq!(
-            new_contribution_history.data,
-            serde_json::Value::String(serde_json::to_string(&contribution).unwrap())
-        );
     }
 }

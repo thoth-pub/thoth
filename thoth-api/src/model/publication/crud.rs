@@ -201,30 +201,3 @@ impl DbInsert for NewPublicationHistory {
 
     db_insert!(publication_history::table);
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_publication_pk() {
-        let publication: Publication = Default::default();
-        assert_eq!(publication.pk(), publication.publication_id);
-    }
-
-    #[test]
-    fn test_new_publication_history_from_publication() {
-        let publication: Publication = Default::default();
-        let user_id = "123456".to_string();
-        let new_publication_history = publication.new_history_entry(&user_id);
-        assert_eq!(
-            new_publication_history.publication_id,
-            publication.publication_id
-        );
-        assert_eq!(new_publication_history.user_id, user_id);
-        assert_eq!(
-            new_publication_history.data,
-            serde_json::Value::String(serde_json::to_string(&publication).unwrap())
-        );
-    }
-}

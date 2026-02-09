@@ -300,27 +300,3 @@ fn location_canonical_record_complete(
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_location_pk() {
-        let location: Location = Default::default();
-        assert_eq!(location.pk(), location.location_id);
-    }
-
-    #[test]
-    fn test_new_location_history_from_location() {
-        let location: Location = Default::default();
-        let user_id = "123456".to_string();
-        let new_location_history = location.new_history_entry(&user_id);
-        assert_eq!(new_location_history.location_id, location.location_id);
-        assert_eq!(new_location_history.user_id, user_id);
-        assert_eq!(
-            new_location_history.data,
-            serde_json::Value::String(serde_json::to_string(&location).unwrap())
-        );
-    }
-}

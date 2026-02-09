@@ -171,30 +171,3 @@ impl DbInsert for NewInstitutionHistory {
 
     db_insert!(institution_history::table);
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_institution_pk() {
-        let institution: Institution = Default::default();
-        assert_eq!(institution.pk(), institution.institution_id);
-    }
-
-    #[test]
-    fn test_new_institution_history_from_institution() {
-        let institution: Institution = Default::default();
-        let user_id = "123456".to_string();
-        let new_institution_history = institution.new_history_entry(&user_id);
-        assert_eq!(
-            new_institution_history.institution_id,
-            institution.institution_id
-        );
-        assert_eq!(new_institution_history.user_id, user_id);
-        assert_eq!(
-            new_institution_history.data,
-            serde_json::Value::String(serde_json::to_string(&institution).unwrap())
-        );
-    }
-}

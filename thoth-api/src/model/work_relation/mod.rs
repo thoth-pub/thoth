@@ -193,79 +193,11 @@ impl RelationType {
     }
 }
 
-#[test]
-fn test_relationtype_default() {
-    let reltype: RelationType = Default::default();
-    assert_eq!(reltype, RelationType::HasChild);
-}
-
-#[test]
-fn test_workrelationfield_default() {
-    let workrelfield: WorkRelationField = Default::default();
-    assert_eq!(workrelfield, WorkRelationField::RelationType);
-}
-
-#[test]
-fn test_relationtype_display() {
-    assert_eq!(format!("{}", RelationType::Replaces), "Replaces");
-    assert_eq!(
-        format!("{}", RelationType::HasTranslation),
-        "Has Translation"
-    );
-    assert_eq!(format!("{}", RelationType::HasPart), "Has Part");
-    assert_eq!(format!("{}", RelationType::HasChild), "Has Child");
-    assert_eq!(format!("{}", RelationType::IsReplacedBy), "Is Replaced By");
-    assert_eq!(
-        format!("{}", RelationType::IsTranslationOf),
-        "Is Translation Of"
-    );
-    assert_eq!(format!("{}", RelationType::IsPartOf), "Is Part Of");
-    assert_eq!(format!("{}", RelationType::IsChildOf), "Is Child Of");
-}
-
-#[test]
-fn test_relationtype_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(
-        RelationType::from_str("Replaces").unwrap(),
-        RelationType::Replaces
-    );
-    assert_eq!(
-        RelationType::from_str("Has Translation").unwrap(),
-        RelationType::HasTranslation
-    );
-    assert_eq!(
-        RelationType::from_str("Has Part").unwrap(),
-        RelationType::HasPart
-    );
-    assert_eq!(
-        RelationType::from_str("Has Child").unwrap(),
-        RelationType::HasChild
-    );
-    assert_eq!(
-        RelationType::from_str("Is Replaced By").unwrap(),
-        RelationType::IsReplacedBy
-    );
-    assert_eq!(
-        RelationType::from_str("Is Translation Of").unwrap(),
-        RelationType::IsTranslationOf
-    );
-    assert_eq!(
-        RelationType::from_str("Is Part Of").unwrap(),
-        RelationType::IsPartOf
-    );
-    assert_eq!(
-        RelationType::from_str("Is Child Of").unwrap(),
-        RelationType::IsChildOf
-    );
-
-    assert!(RelationType::from_str("Has Parent").is_err());
-    assert!(RelationType::from_str("Subsumes").is_err());
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
 #[cfg(feature = "backend")]
 mod policy;
 #[cfg(feature = "backend")]
 pub(crate) use policy::WorkRelationPolicy;
+#[cfg(test)]
+mod tests;
