@@ -32,6 +32,7 @@ mod policy {
     use crate::model::title::policy::TitlePolicy;
     use crate::model::Crud;
     use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
+    use thoth_errors::ThothError;
 
     #[test]
     fn crud_policy_allows_publisher_user_with_markup() {
@@ -108,6 +109,43 @@ mod policy {
 
         assert!(TitlePolicy::can_create(&ctx, &new_title, None).is_err());
         assert!(TitlePolicy::can_update(&ctx, &title, &patch, None).is_err());
+    }
+
+    #[test]
+    fn crud_policy_rejects_duplicate_canonical_title() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("title-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let canonical_title = NewTitle {
+            work_id: work.work_id,
+            locale_code: LocaleCode::En,
+            full_title: "Canonical Title".to_string(),
+            title: "Canonical".to_string(),
+            subtitle: None,
+            canonical: true,
+        };
+        Title::create(pool.as_ref(), &canonical_title).expect("Failed to create title");
+
+        let new_title = NewTitle {
+            work_id: work.work_id,
+            locale_code: LocaleCode::En,
+            full_title: "Second Canonical Title".to_string(),
+            title: "Second".to_string(),
+            subtitle: None,
+            canonical: true,
+        };
+
+        let result = TitlePolicy::can_create(&ctx, &new_title, Some(MarkupFormat::Html));
+        assert!(matches!(result, Err(ThothError::CanonicalTitleExistsError)));
     }
 
     #[test]

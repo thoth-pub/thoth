@@ -83,7 +83,7 @@ mod policy {
         create_publisher, create_work, setup_test_db, test_context_with_user, test_user_with_role,
     };
     use crate::model::Crud;
-    use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
+    use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, Role, UpdatePolicy};
 
     #[test]
     fn crud_policy_allows_publisher_user_for_write() {
@@ -116,6 +116,7 @@ mod policy {
         assert!(AffiliationPolicy::can_create(&ctx, &new_affiliation, ()).is_ok());
         assert!(AffiliationPolicy::can_update(&ctx, &affiliation, &patch, ()).is_ok());
         assert!(AffiliationPolicy::can_delete(&ctx, &affiliation).is_ok());
+        assert!(AffiliationPolicy::can_move(&ctx, &affiliation).is_ok());
     }
 
     #[test]
@@ -149,6 +150,7 @@ mod policy {
         assert!(AffiliationPolicy::can_create(&ctx, &new_affiliation, ()).is_err());
         assert!(AffiliationPolicy::can_update(&ctx, &affiliation, &patch, ()).is_err());
         assert!(AffiliationPolicy::can_delete(&ctx, &affiliation).is_err());
+        assert!(AffiliationPolicy::can_move(&ctx, &affiliation).is_err());
     }
 }
 

@@ -117,7 +117,8 @@ mod policy {
         test_user_with_role,
     };
     use crate::model::work_relation::policy::WorkRelationPolicy;
-    use crate::policy::{CreatePolicy, Role};
+    use crate::model::Crud;
+    use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, Role, UpdatePolicy};
 
     fn multi_org_user(user_id: &str, role: Role, org_ids: &[String]) -> IntrospectedUser {
         let mut scoped = HashMap::new();
@@ -168,6 +169,20 @@ mod policy {
         };
 
         assert!(WorkRelationPolicy::can_create(&ctx, &new_relation, ()).is_err());
+
+        let relation = WorkRelation::create(pool.as_ref(), &new_relation)
+            .expect("Failed to create work relation");
+        let patch = PatchWorkRelation {
+            work_relation_id: relation.work_relation_id,
+            relator_work_id: relation.relator_work_id,
+            related_work_id: relation.related_work_id,
+            relation_type: RelationType::Replaces,
+            relation_ordinal: 2,
+        };
+
+        assert!(WorkRelationPolicy::can_update(&ctx, &relation, &patch, ()).is_err());
+        assert!(WorkRelationPolicy::can_delete(&ctx, &relation).is_err());
+        assert!(WorkRelationPolicy::can_move(&ctx, &relation).is_err());
     }
 
     #[test]
@@ -202,6 +217,20 @@ mod policy {
         };
 
         assert!(WorkRelationPolicy::can_create(&ctx, &new_relation, ()).is_ok());
+
+        let relation = WorkRelation::create(pool.as_ref(), &new_relation)
+            .expect("Failed to create work relation");
+        let patch = PatchWorkRelation {
+            work_relation_id: relation.work_relation_id,
+            relator_work_id: relation.relator_work_id,
+            related_work_id: relation.related_work_id,
+            relation_type: RelationType::Replaces,
+            relation_ordinal: 2,
+        };
+
+        assert!(WorkRelationPolicy::can_update(&ctx, &relation, &patch, ()).is_ok());
+        assert!(WorkRelationPolicy::can_delete(&ctx, &relation).is_ok());
+        assert!(WorkRelationPolicy::can_move(&ctx, &relation).is_ok());
     }
 }
 

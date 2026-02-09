@@ -219,7 +219,7 @@ mod policy {
         test_context_with_user, test_user_with_role,
     };
     use crate::model::Crud;
-    use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
+    use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, Role, UpdatePolicy};
 
     #[test]
     fn crud_policy_allows_publisher_user_for_write() {
@@ -258,6 +258,7 @@ mod policy {
         assert!(ContributionPolicy::can_create(&ctx, &new_contribution, ()).is_ok());
         assert!(ContributionPolicy::can_update(&ctx, &contribution, &patch, ()).is_ok());
         assert!(ContributionPolicy::can_delete(&ctx, &contribution).is_ok());
+        assert!(ContributionPolicy::can_move(&ctx, &contribution).is_ok());
     }
 
     #[test]
@@ -298,6 +299,7 @@ mod policy {
         assert!(ContributionPolicy::can_create(&ctx, &new_contribution, ()).is_err());
         assert!(ContributionPolicy::can_update(&ctx, &contribution, &patch, ()).is_err());
         assert!(ContributionPolicy::can_delete(&ctx, &contribution).is_err());
+        assert!(ContributionPolicy::can_move(&ctx, &contribution).is_err());
     }
 }
 

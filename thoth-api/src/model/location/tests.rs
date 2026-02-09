@@ -186,6 +186,7 @@ mod policy {
     };
     use crate::model::Crud;
     use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
+    use thoth_errors::ThothError;
 
     #[test]
     fn crud_policy_allows_publisher_user_for_write() {
@@ -254,6 +255,102 @@ mod policy {
         let super_ctx = test_context_with_user(pool.clone(), superuser);
         assert!(LocationPolicy::can_create(&super_ctx, &new_location, ()).is_ok());
     }
+
+    #[test]
+    fn crud_policy_rejects_non_superuser_for_thoth_update_and_delete() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("location-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_publication(pool.as_ref(), &work);
+        let location = Location::create(
+            pool.as_ref(),
+            &NewLocation {
+                publication_id: publication.publication_id,
+                landing_page: Some("https://example.com/landing".to_string()),
+                full_text_url: Some("https://example.com/full".to_string()),
+                location_platform: LocationPlatform::Thoth,
+                canonical: true,
+            },
+        )
+        .expect("Failed to create location");
+
+        let patch = PatchLocation {
+            location_id: location.location_id,
+            publication_id: location.publication_id,
+            landing_page: Some("https://example.com/updated".to_string()),
+            full_text_url: Some("https://example.com/full.pdf".to_string()),
+            location_platform: location.location_platform,
+            canonical: location.canonical,
+        };
+
+        let update_result = LocationPolicy::can_update(&ctx, &location, &patch, ());
+        assert!(matches!(update_result, Err(ThothError::ThothLocationError)));
+
+        let delete_result = LocationPolicy::can_delete(&ctx, &location);
+        assert!(matches!(delete_result, Err(ThothError::ThothLocationError)));
+    }
+
+    #[test]
+    fn crud_policy_rejects_non_superuser_thoth_canonical_update() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("location-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_publication(pool.as_ref(), &work);
+
+        Location::create(
+            pool.as_ref(),
+            &NewLocation {
+                publication_id: publication.publication_id,
+                landing_page: Some("https://example.com/landing".to_string()),
+                full_text_url: Some("https://example.com/full".to_string()),
+                location_platform: LocationPlatform::Thoth,
+                canonical: true,
+            },
+        )
+        .expect("Failed to create canonical thoth location");
+
+        let location = Location::create(
+            pool.as_ref(),
+            &NewLocation {
+                publication_id: publication.publication_id,
+                landing_page: Some("https://example.com/other".to_string()),
+                full_text_url: None,
+                location_platform: LocationPlatform::PublisherWebsite,
+                canonical: false,
+            },
+        )
+        .expect("Failed to create location");
+
+        let patch = PatchLocation {
+            location_id: location.location_id,
+            publication_id: location.publication_id,
+            landing_page: location.landing_page.clone(),
+            full_text_url: location.full_text_url.clone(),
+            location_platform: location.location_platform,
+            canonical: true,
+        };
+
+        let result = LocationPolicy::can_update(&ctx, &location, &patch, ());
+        assert!(matches!(result, Err(ThothError::ThothUpdateCanonicalError)));
+    }
 }
 
 #[cfg(feature = "backend")]
@@ -266,6 +363,7 @@ mod crud {
         test_context,
     };
     use crate::model::Crud;
+    use thoth_errors::ThothError;
 
     fn make_location(
         pool: &crate::db::PgPool,
@@ -322,6 +420,36 @@ mod crud {
 
         let deleted = updated.delete(pool.as_ref()).expect("Failed to delete");
         assert!(Location::from_id(pool.as_ref(), &deleted.location_id).is_err());
+    }
+
+    #[test]
+    fn crud_update_rejects_changing_canonical_to_non_canonical() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_publication(pool.as_ref(), &work);
+
+        let location = make_location(
+            pool.as_ref(),
+            publication.publication_id,
+            LocationPlatform::PublisherWebsite,
+            true,
+            Some("https://example.com/landing".to_string()),
+        );
+        let patch = PatchLocation {
+            location_id: location.location_id,
+            publication_id: location.publication_id,
+            landing_page: location.landing_page.clone(),
+            full_text_url: location.full_text_url.clone(),
+            location_platform: location.location_platform,
+            canonical: false,
+        };
+
+        let ctx = test_context(pool.clone(), "test-user");
+        let result = location.update(&ctx, &patch);
+        assert!(matches!(result, Err(ThothError::CanonicalLocationError)));
     }
 
     #[test]

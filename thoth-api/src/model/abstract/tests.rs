@@ -25,13 +25,14 @@ mod policy {
     use super::*;
 
     use crate::markup::MarkupFormat;
-    use crate::model::r#abstract::policy::AbstractPolicy;
+    use crate::model::r#abstract::policy::{AbstractPolicy, MAX_SHORT_ABSTRACT_CHAR_LIMIT};
     use crate::model::tests::db::{
         create_imprint, create_publisher, create_work, setup_test_db, test_context_with_user,
         test_user_with_role,
     };
     use crate::model::Crud;
     use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
+    use thoth_errors::ThothError;
 
     #[test]
     fn crud_policy_allows_publisher_user_with_markup() {
@@ -109,6 +110,74 @@ mod policy {
 
         assert!(AbstractPolicy::can_create(&ctx, &new_abstract, None).is_err());
         assert!(AbstractPolicy::can_update(&ctx, &abstract_item, &patch, None).is_err());
+    }
+
+    #[test]
+    fn crud_policy_rejects_duplicate_canonical_abstract() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("abstract-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let canonical_abstract = NewAbstract {
+            work_id: work.work_id,
+            content: "Canonical Abstract".to_string(),
+            locale_code: LocaleCode::En,
+            abstract_type: AbstractType::Long,
+            canonical: true,
+        };
+        Abstract::create(pool.as_ref(), &canonical_abstract).expect("Failed to create abstract");
+
+        let new_abstract = NewAbstract {
+            work_id: work.work_id,
+            content: "Second Canonical Abstract".to_string(),
+            locale_code: LocaleCode::En,
+            abstract_type: AbstractType::Long,
+            canonical: true,
+        };
+
+        let result = AbstractPolicy::can_create(&ctx, &new_abstract, Some(MarkupFormat::Html));
+        assert!(matches!(
+            result,
+            Err(ThothError::CanonicalAbstractExistsError)
+        ));
+    }
+
+    #[test]
+    fn crud_policy_rejects_short_abstract_over_limit() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("abstract-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let content = "a".repeat(MAX_SHORT_ABSTRACT_CHAR_LIMIT as usize + 1);
+        let new_abstract = NewAbstract {
+            work_id: work.work_id,
+            content,
+            locale_code: LocaleCode::En,
+            abstract_type: AbstractType::Short,
+            canonical: false,
+        };
+
+        let result = AbstractPolicy::can_create(&ctx, &new_abstract, Some(MarkupFormat::Html));
+        assert!(matches!(
+            result,
+            Err(ThothError::ShortAbstractLimitExceedError)
+        ));
     }
 
     #[test]
