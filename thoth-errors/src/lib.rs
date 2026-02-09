@@ -273,6 +273,18 @@ impl From<Box<dyn std::error::Error + Send + Sync>> for ThothError {
     }
 }
 
+impl From<Box<dyn std::error::Error>> for ThothError {
+    fn from(e: Box<dyn std::error::Error>) -> Self {
+        ThothError::InternalError(e.to_string())
+    }
+}
+
+impl From<tonic::Status> for ThothError {
+    fn from(e: tonic::Status) -> Self {
+        ThothError::InternalError(e.to_string())
+    }
+}
+
 impl From<serde_json::Error> for ThothError {
     fn from(e: serde_json::Error) -> Self {
         ThothError::InternalError(e.to_string())

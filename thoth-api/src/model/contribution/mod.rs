@@ -173,7 +173,7 @@ pub struct PatchContribution {
 pub struct ContributionHistory {
     pub contribution_history_id: Uuid,
     pub contribution_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -185,7 +185,7 @@ pub struct ContributionHistory {
 )]
 pub struct NewContributionHistory {
     pub contribution_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -207,102 +207,11 @@ impl Default for Contribution {
     }
 }
 
-#[test]
-fn test_contributiontype_default() {
-    let contributiontype: ContributionType = Default::default();
-    assert_eq!(contributiontype, ContributionType::Author);
-}
-
-#[test]
-fn test_contributiontype_display() {
-    assert_eq!(format!("{}", ContributionType::Author), "Author");
-    assert_eq!(format!("{}", ContributionType::Editor), "Editor");
-    assert_eq!(format!("{}", ContributionType::Translator), "Translator");
-    assert_eq!(
-        format!("{}", ContributionType::Photographer),
-        "Photographer"
-    );
-    assert_eq!(format!("{}", ContributionType::Illustrator), "Illustrator");
-    assert_eq!(format!("{}", ContributionType::MusicEditor), "Music Editor");
-    assert_eq!(format!("{}", ContributionType::ForewordBy), "Foreword By");
-    assert_eq!(
-        format!("{}", ContributionType::IntroductionBy),
-        "Introduction By"
-    );
-    assert_eq!(format!("{}", ContributionType::AfterwordBy), "Afterword By");
-    assert_eq!(format!("{}", ContributionType::PrefaceBy), "Preface By");
-    assert_eq!(format!("{}", ContributionType::SoftwareBy), "Software By");
-    assert_eq!(format!("{}", ContributionType::ResearchBy), "Research By");
-    assert_eq!(
-        format!("{}", ContributionType::ContributionsBy),
-        "Contributions By"
-    );
-    assert_eq!(format!("{}", ContributionType::Indexer), "Indexer");
-}
-
-#[test]
-fn test_contributiontype_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(
-        ContributionType::from_str("Author").unwrap(),
-        ContributionType::Author
-    );
-    assert_eq!(
-        ContributionType::from_str("Editor").unwrap(),
-        ContributionType::Editor
-    );
-    assert_eq!(
-        ContributionType::from_str("Translator").unwrap(),
-        ContributionType::Translator
-    );
-    assert_eq!(
-        ContributionType::from_str("Photographer").unwrap(),
-        ContributionType::Photographer
-    );
-    assert_eq!(
-        ContributionType::from_str("Illustrator").unwrap(),
-        ContributionType::Illustrator
-    );
-    assert_eq!(
-        ContributionType::from_str("Music Editor").unwrap(),
-        ContributionType::MusicEditor
-    );
-    assert_eq!(
-        ContributionType::from_str("Foreword By").unwrap(),
-        ContributionType::ForewordBy
-    );
-    assert_eq!(
-        ContributionType::from_str("Introduction By").unwrap(),
-        ContributionType::IntroductionBy
-    );
-    assert_eq!(
-        ContributionType::from_str("Afterword By").unwrap(),
-        ContributionType::AfterwordBy
-    );
-    assert_eq!(
-        ContributionType::from_str("Preface By").unwrap(),
-        ContributionType::PrefaceBy
-    );
-    assert_eq!(
-        ContributionType::from_str("Software By").unwrap(),
-        ContributionType::SoftwareBy
-    );
-    assert_eq!(
-        ContributionType::from_str("Research By").unwrap(),
-        ContributionType::ResearchBy
-    );
-    assert_eq!(
-        ContributionType::from_str("Contributions By").unwrap(),
-        ContributionType::ContributionsBy
-    );
-    assert_eq!(
-        ContributionType::from_str("Indexer").unwrap(),
-        ContributionType::Indexer
-    );
-
-    assert!(ContributionType::from_str("Juggler").is_err());
-    assert!(ContributionType::from_str("Supervisor").is_err());
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::ContributionPolicy;
+#[cfg(test)]
+mod tests;

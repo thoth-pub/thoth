@@ -5,7 +5,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::types::inputs::Direction;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::imprint;
@@ -77,7 +77,7 @@ pub struct PatchImprint {
 pub struct ImprintHistory {
     pub imprint_history_id: Uuid,
     pub imprint_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -89,7 +89,7 @@ pub struct ImprintHistory {
 )]
 pub struct NewImprintHistory {
     pub imprint_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -104,53 +104,11 @@ pub struct ImprintOrderBy {
     pub direction: Direction,
 }
 
-#[test]
-fn test_imprintfield_default() {
-    let impfield: ImprintField = Default::default();
-    assert_eq!(impfield, ImprintField::ImprintName);
-}
-
-#[test]
-fn test_imprintfield_display() {
-    assert_eq!(format!("{}", ImprintField::ImprintId), "ID");
-    assert_eq!(format!("{}", ImprintField::ImprintName), "Imprint");
-    assert_eq!(format!("{}", ImprintField::ImprintUrl), "ImprintURL");
-    assert_eq!(format!("{}", ImprintField::CrossmarkDoi), "CrossmarkDOI");
-    assert_eq!(format!("{}", ImprintField::CreatedAt), "CreatedAt");
-    assert_eq!(format!("{}", ImprintField::UpdatedAt), "UpdatedAt");
-}
-
-#[test]
-fn test_imprintfield_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(
-        ImprintField::from_str("ID").unwrap(),
-        ImprintField::ImprintId
-    );
-    assert_eq!(
-        ImprintField::from_str("Imprint").unwrap(),
-        ImprintField::ImprintName
-    );
-    assert_eq!(
-        ImprintField::from_str("ImprintURL").unwrap(),
-        ImprintField::ImprintUrl
-    );
-    assert_eq!(
-        ImprintField::from_str("CrossmarkDOI").unwrap(),
-        ImprintField::CrossmarkDoi
-    );
-    assert_eq!(
-        ImprintField::from_str("CreatedAt").unwrap(),
-        ImprintField::CreatedAt
-    );
-    assert_eq!(
-        ImprintField::from_str("UpdatedAt").unwrap(),
-        ImprintField::UpdatedAt
-    );
-    assert!(ImprintField::from_str("ImprintID").is_err());
-    assert!(ImprintField::from_str("Publisher").is_err());
-    assert!(ImprintField::from_str("Website").is_err());
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::ImprintPolicy;
+#[cfg(test)]
+mod tests;

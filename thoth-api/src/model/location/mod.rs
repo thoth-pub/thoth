@@ -3,7 +3,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::types::inputs::Direction;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::location;
@@ -216,7 +216,7 @@ pub struct PatchLocation {
 pub struct LocationHistory {
     pub location_history_id: Uuid,
     pub location_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -228,7 +228,7 @@ pub struct LocationHistory {
 )]
 pub struct NewLocationHistory {
     pub location_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -264,144 +264,11 @@ impl From<Location> for PatchLocation {
     }
 }
 
-#[test]
-fn test_location_to_patch_location() {
-    let location = Location {
-        location_id: Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-        publication_id: Uuid::parse_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
-        landing_page: Some("https://www.book.com/pb_landing".to_string()),
-        full_text_url: Some("https://example.com/full_text.pdf".to_string()),
-        location_platform: LocationPlatform::PublisherWebsite,
-        created_at: Default::default(),
-        updated_at: Default::default(),
-        canonical: true,
-    };
-
-    let patch_location = PatchLocation::from(location.clone());
-
-    assert_eq!(patch_location.location_id, location.location_id);
-    assert_eq!(patch_location.publication_id, location.publication_id);
-    assert_eq!(patch_location.landing_page, location.landing_page);
-    assert_eq!(patch_location.full_text_url, location.full_text_url);
-    assert_eq!(patch_location.location_platform, location.location_platform);
-    assert_eq!(patch_location.canonical, location.canonical);
-}
-
-#[test]
-fn test_locationplatform_default() {
-    let locationplatform: LocationPlatform = Default::default();
-    assert_eq!(locationplatform, LocationPlatform::Other);
-}
-
-#[test]
-fn test_locationplatform_display() {
-    assert_eq!(format!("{}", LocationPlatform::ProjectMuse), "Project MUSE");
-    assert_eq!(format!("{}", LocationPlatform::Oapen), "OAPEN");
-    assert_eq!(format!("{}", LocationPlatform::Doab), "DOAB");
-    assert_eq!(format!("{}", LocationPlatform::Jstor), "JSTOR");
-    assert_eq!(format!("{}", LocationPlatform::EbscoHost), "EBSCO Host");
-    assert_eq!(format!("{}", LocationPlatform::OclcKb), "OCLC KB");
-    assert_eq!(format!("{}", LocationPlatform::ProquestKb), "ProQuest KB");
-    assert_eq!(
-        format!("{}", LocationPlatform::ProquestExlibris),
-        "ProQuest ExLibris"
-    );
-    assert_eq!(format!("{}", LocationPlatform::EbscoKb), "EBSCO KB");
-    assert_eq!(format!("{}", LocationPlatform::JiscKb), "JISC KB");
-    assert_eq!(format!("{}", LocationPlatform::GoogleBooks), "Google Books");
-    assert_eq!(
-        format!("{}", LocationPlatform::InternetArchive),
-        "Internet Archive"
-    );
-    assert_eq!(format!("{}", LocationPlatform::ScienceOpen), "ScienceOpen");
-    assert_eq!(format!("{}", LocationPlatform::ScieloBooks), "SciELO Books");
-    assert_eq!(format!("{}", LocationPlatform::Zenodo), "Zenodo");
-    assert_eq!(
-        format!("{}", LocationPlatform::PublisherWebsite),
-        "Publisher Website"
-    );
-    assert_eq!(format!("{}", LocationPlatform::Thoth), "Thoth");
-    assert_eq!(format!("{}", LocationPlatform::Other), "Other");
-}
-
-#[test]
-fn test_locationplatform_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(
-        LocationPlatform::from_str("Project MUSE").unwrap(),
-        LocationPlatform::ProjectMuse
-    );
-    assert_eq!(
-        LocationPlatform::from_str("OAPEN").unwrap(),
-        LocationPlatform::Oapen
-    );
-    assert_eq!(
-        LocationPlatform::from_str("DOAB").unwrap(),
-        LocationPlatform::Doab
-    );
-    assert_eq!(
-        LocationPlatform::from_str("JSTOR").unwrap(),
-        LocationPlatform::Jstor
-    );
-    assert_eq!(
-        LocationPlatform::from_str("EBSCO Host").unwrap(),
-        LocationPlatform::EbscoHost
-    );
-    assert_eq!(
-        LocationPlatform::from_str("OCLC KB").unwrap(),
-        LocationPlatform::OclcKb
-    );
-    assert_eq!(
-        LocationPlatform::from_str("ProQuest KB").unwrap(),
-        LocationPlatform::ProquestKb
-    );
-    assert_eq!(
-        LocationPlatform::from_str("ProQuest ExLibris").unwrap(),
-        LocationPlatform::ProquestExlibris
-    );
-    assert_eq!(
-        LocationPlatform::from_str("EBSCO KB").unwrap(),
-        LocationPlatform::EbscoKb
-    );
-    assert_eq!(
-        LocationPlatform::from_str("JISC KB").unwrap(),
-        LocationPlatform::JiscKb
-    );
-    assert_eq!(
-        LocationPlatform::from_str("Google Books").unwrap(),
-        LocationPlatform::GoogleBooks
-    );
-    assert_eq!(
-        LocationPlatform::from_str("Internet Archive").unwrap(),
-        LocationPlatform::InternetArchive
-    );
-    assert_eq!(
-        LocationPlatform::from_str("ScienceOpen").unwrap(),
-        LocationPlatform::ScienceOpen
-    );
-    assert_eq!(
-        LocationPlatform::from_str("SciELO Books").unwrap(),
-        LocationPlatform::ScieloBooks
-    );
-    assert_eq!(
-        LocationPlatform::from_str("Zenodo").unwrap(),
-        LocationPlatform::Zenodo
-    );
-    assert_eq!(
-        LocationPlatform::from_str("Publisher Website").unwrap(),
-        LocationPlatform::PublisherWebsite
-    );
-    assert_eq!(
-        LocationPlatform::from_str("Thoth").unwrap(),
-        LocationPlatform::Thoth
-    );
-    assert_eq!(
-        LocationPlatform::from_str("Other").unwrap(),
-        LocationPlatform::Other
-    );
-    assert!(LocationPlatform::from_str("Amazon").is_err());
-    assert!(LocationPlatform::from_str("Twitter").is_err());
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::LocationPolicy;
+#[cfg(test)]
+mod tests;

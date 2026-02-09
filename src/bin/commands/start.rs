@@ -17,9 +17,8 @@ lazy_static! {
                 .arg(arguments::threads("GRAPHQL_API_THREADS"))
                 .arg(arguments::keep_alive("GRAPHQL_API_KEEP_ALIVE"))
                 .arg(arguments::gql_url())
-                .arg(arguments::domain())
                 .arg(arguments::key())
-                .arg(arguments::session()),
+                .arg(arguments::zitadel_url()),
         )
         .subcommand(
             Command::new("export-api")
@@ -41,9 +40,11 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     let threads = *arguments.get_one::<usize>("threads").unwrap();
     let keep_alive = *arguments.get_one::<u64>("keep-alive").unwrap();
     let url = arguments.get_one::<String>("gql-url").unwrap().to_owned();
-    let domain = arguments.get_one::<String>("domain").unwrap().to_owned();
-    let secret_str = arguments.get_one::<String>("key").unwrap().to_owned();
-    let session_duration = *arguments.get_one::<i64>("duration").unwrap();
+    let private_key = arguments.get_one::<String>("key").unwrap().to_owned();
+    let zitadel_url = arguments
+        .get_one::<String>("zitadel-url")
+        .unwrap()
+        .to_owned();
     api_server(
         database_url,
         host,
@@ -51,9 +52,8 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
         threads,
         keep_alive,
         url,
-        domain,
-        secret_str,
-        session_duration,
+        private_key,
+        zitadel_url,
     )
     .map_err(|e| e.into())
 }

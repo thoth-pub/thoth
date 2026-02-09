@@ -1,7 +1,7 @@
 use csv::Writer;
 use serde::Serialize;
 use std::io::Write;
-use thoth_api::ast::{ast_to_plain_text, jats_to_ast};
+use thoth_api::markup::ast::{ast_to_plain_text, jats_to_ast};
 use thoth_client::{
     AbstractType, SubjectType, Work, WorkContributions, WorkContributionsAffiliations,
     WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkPublicationsLocations,

@@ -5,7 +5,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::types::inputs::Direction;
 use crate::model::Orcid;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -82,7 +82,7 @@ pub struct PatchContributor {
 pub struct ContributorHistory {
     pub contributor_history_id: Uuid,
     pub contributor_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -94,7 +94,7 @@ pub struct ContributorHistory {
 )]
 pub struct NewContributorHistory {
     pub contributor_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -119,55 +119,11 @@ impl fmt::Display for Contributor {
     }
 }
 
-#[test]
-fn test_contributorfield_default() {
-    let contfield: ContributorField = Default::default();
-    assert_eq!(contfield, ContributorField::FullName);
-}
-
-#[test]
-fn test_contributorfield_display() {
-    assert_eq!(format!("{}", ContributorField::ContributorId), "ID");
-    assert_eq!(format!("{}", ContributorField::FirstName), "FirstName");
-    assert_eq!(format!("{}", ContributorField::LastName), "LastName");
-    assert_eq!(format!("{}", ContributorField::FullName), "FullName");
-    assert_eq!(format!("{}", ContributorField::Orcid), "ORCID");
-    assert_eq!(format!("{}", ContributorField::Website), "Website");
-    assert_eq!(format!("{}", ContributorField::CreatedAt), "CreatedAt");
-    assert_eq!(format!("{}", ContributorField::UpdatedAt), "UpdatedAt");
-}
-
-#[test]
-fn test_contributorfield_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(
-        ContributorField::from_str("ID").unwrap(),
-        ContributorField::ContributorId
-    );
-    assert_eq!(
-        ContributorField::from_str("FirstName").unwrap(),
-        ContributorField::FirstName
-    );
-    assert_eq!(
-        ContributorField::from_str("LastName").unwrap(),
-        ContributorField::LastName
-    );
-    assert_eq!(
-        ContributorField::from_str("FullName").unwrap(),
-        ContributorField::FullName
-    );
-    assert_eq!(
-        ContributorField::from_str("ORCID").unwrap(),
-        ContributorField::Orcid
-    );
-    assert_eq!(
-        ContributorField::from_str("UpdatedAt").unwrap(),
-        ContributorField::UpdatedAt
-    );
-    assert!(ContributorField::from_str("ContributorID").is_err());
-    assert!(ContributorField::from_str("Biography").is_err());
-    assert!(ContributorField::from_str("Institution").is_err());
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::ContributorPolicy;
+#[cfg(test)]
+mod tests;

@@ -1,8 +1,8 @@
 use super::{
     NewSubject, NewSubjectHistory, PatchSubject, Subject, SubjectField, SubjectHistory, SubjectType,
 };
-use crate::graphql::model::SubjectOrderBy;
-use crate::graphql::utils::Direction;
+use crate::graphql::types::inputs::Direction;
+use crate::graphql::types::inputs::SubjectOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{subject, subject_history};
 use diesel::{
@@ -125,20 +125,20 @@ impl Crud for Subject {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(subject::table, subject::dsl::subject);
 }
+
+publisher_id_impls!(Subject, NewSubject, PatchSubject, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Subject {
     type NewHistoryEntity = NewSubjectHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             subject_id: self.subject_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -171,29 +171,5 @@ impl Reorder for Subject {
             )
             .load::<(Uuid, i32)>(connection)
             .map_err(Into::into)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_subject_pk() {
-        let subject: Subject = Default::default();
-        assert_eq!(subject.pk(), subject.subject_id);
-    }
-
-    #[test]
-    fn test_new_subject_history_from_subject() {
-        let subject: Subject = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_subject_history = subject.new_history_entry(&account_id);
-        assert_eq!(new_subject_history.subject_id, subject.subject_id);
-        assert_eq!(new_subject_history.account_id, account_id);
-        assert_eq!(
-            new_subject_history.data,
-            serde_json::Value::String(serde_json::to_string(&subject).unwrap())
-        );
     }
 }

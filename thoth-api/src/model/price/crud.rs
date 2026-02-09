@@ -1,6 +1,6 @@
 use super::{CurrencyCode, NewPrice, NewPriceHistory, PatchPrice, Price, PriceField, PriceHistory};
-use crate::graphql::model::PriceOrderBy;
-use crate::graphql::utils::Direction;
+use crate::graphql::types::inputs::Direction;
+use crate::graphql::types::inputs::PriceOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{price, price_history};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
@@ -112,20 +112,20 @@ impl Crud for Price {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::publication::Publication::from_id(db, &self.publication_id)?.publisher_id(db)
-    }
-
     crud_methods!(price::table, price::dsl::price);
 }
+
+publisher_id_impls!(Price, NewPrice, PatchPrice, |s, db| {
+    crate::model::publication::Publication::from_id(db, &s.publication_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Price {
     type NewHistoryEntity = NewPriceHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             price_id: self.price_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -135,28 +135,4 @@ impl DbInsert for NewPriceHistory {
     type MainEntity = PriceHistory;
 
     db_insert!(price_history::table);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_price_pk() {
-        let price: Price = Default::default();
-        assert_eq!(price.pk(), price.price_id);
-    }
-
-    #[test]
-    fn test_new_price_history_from_price() {
-        let price: Price = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_price_history = price.new_history_entry(&account_id);
-        assert_eq!(new_price_history.price_id, price.price_id);
-        assert_eq!(new_price_history.account_id, account_id);
-        assert_eq!(
-            new_price_history.data,
-            serde_json::Value::String(serde_json::to_string(&price).unwrap())
-        );
-    }
 }

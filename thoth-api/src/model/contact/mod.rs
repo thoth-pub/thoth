@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::types::inputs::Direction;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::contact;
@@ -87,7 +87,7 @@ pub struct PatchContact {
 pub struct ContactHistory {
     pub contact_history_id: Uuid,
     pub contact_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
@@ -99,7 +99,7 @@ pub struct ContactHistory {
 )]
 pub struct NewContactHistory {
     pub contact_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -114,11 +114,11 @@ pub struct ContactOrderBy {
     pub direction: Direction,
 }
 
-#[test]
-fn test_contactfield_default() {
-    let contfield: ContactField = Default::default();
-    assert_eq!(contfield, ContactField::Email);
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::ContactPolicy;
+#[cfg(test)]
+mod tests;
