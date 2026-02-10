@@ -401,6 +401,44 @@ mod crud {
     }
 
     #[test]
+    fn crud_count_filters_by_publishers() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        make_reference(
+            pool.as_ref(),
+            work.work_id,
+            1,
+            Some(format!("Citation {}", Uuid::new_v4())),
+        );
+
+        let other_publisher = create_publisher(pool.as_ref());
+        let other_imprint = create_imprint(pool.as_ref(), &other_publisher);
+        let other_work = create_work(pool.as_ref(), &other_imprint);
+        make_reference(
+            pool.as_ref(),
+            other_work.work_id,
+            1,
+            Some(format!("Other {}", Uuid::new_v4())),
+        );
+
+        let count = Reference::count(
+            pool.as_ref(),
+            None,
+            vec![publisher.publisher_id],
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to count references by publisher");
+
+        assert_eq!(count, 1);
+    }
+
+    #[test]
     fn crud_filter_matches_unstructured_citation() {
         let (_guard, pool) = setup_test_db();
 

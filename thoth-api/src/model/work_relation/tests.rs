@@ -78,6 +78,34 @@ mod display_and_parse {
     }
 }
 
+#[cfg(feature = "backend")]
+mod conversions {
+    use super::*;
+    use crate::model::tests::db::setup_test_db;
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
+
+    #[test]
+    fn relationtype_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(RelationType::HasPart);
+    }
+
+    #[test]
+    fn workrelationfield_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(WorkRelationField::RelationType);
+    }
+
+    #[test]
+    fn relationtype_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<RelationType, crate::schema::sql_types::RelationType>(
+            pool.as_ref(),
+            "'has-part'::relation_type",
+            RelationType::HasPart,
+        );
+    }
+}
+
 mod helpers {
     use super::*;
     use crate::model::{Crud, HistoryEntry};
@@ -101,6 +129,42 @@ mod helpers {
         assert_eq!(
             new_work_relation_history.data,
             serde_json::Value::String(serde_json::to_string(&work_relation).unwrap())
+        );
+    }
+
+    #[test]
+    fn relationtype_convert_to_inverse_pairs() {
+        assert_eq!(
+            RelationType::HasTranslation.convert_to_inverse(),
+            RelationType::IsTranslationOf
+        );
+        assert_eq!(
+            RelationType::IsTranslationOf.convert_to_inverse(),
+            RelationType::HasTranslation
+        );
+        assert_eq!(
+            RelationType::IsReplacedBy.convert_to_inverse(),
+            RelationType::Replaces
+        );
+        assert_eq!(
+            RelationType::Replaces.convert_to_inverse(),
+            RelationType::IsReplacedBy
+        );
+        assert_eq!(
+            RelationType::IsPartOf.convert_to_inverse(),
+            RelationType::HasPart
+        );
+        assert_eq!(
+            RelationType::HasPart.convert_to_inverse(),
+            RelationType::IsPartOf
+        );
+        assert_eq!(
+            RelationType::IsChildOf.convert_to_inverse(),
+            RelationType::HasChild
+        );
+        assert_eq!(
+            RelationType::HasChild.convert_to_inverse(),
+            RelationType::IsChildOf
         );
     }
 }
@@ -237,6 +301,9 @@ mod policy {
 #[cfg(feature = "backend")]
 mod crud {
     use super::*;
+    use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+    use thoth_errors::ThothError;
+
     use crate::model::tests::db::{
         create_imprint, create_publisher, create_work, setup_test_db, test_context,
     };
@@ -669,5 +736,105 @@ mod crud {
 
         assert_eq!(refreshed_first.relation_ordinal, 2);
         assert_eq!(refreshed_second.relation_ordinal, 1);
+    }
+
+    #[test]
+    fn crud_change_ordinal_noop_keeps_relation() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let relator = create_work(pool.as_ref(), &imprint);
+        let related = create_work(pool.as_ref(), &imprint);
+
+        let relation = make_work_relation(
+            pool.as_ref(),
+            relator.work_id,
+            related.work_id,
+            RelationType::HasPart,
+            1,
+        );
+
+        let ctx = test_context(pool.clone(), "test-user");
+        let updated = relation
+            .change_ordinal(&ctx, relation.relation_ordinal, relation.relation_ordinal)
+            .expect("Failed to no-op change ordinal");
+
+        assert_eq!(updated.relation_ordinal, relation.relation_ordinal);
+    }
+
+    #[test]
+    fn crud_change_ordinal_move_up_reorders_work_relations() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let relator = create_work(pool.as_ref(), &imprint);
+        let related_one = create_work(pool.as_ref(), &imprint);
+        let related_two = create_work(pool.as_ref(), &imprint);
+
+        let first = make_work_relation(
+            pool.as_ref(),
+            relator.work_id,
+            related_one.work_id,
+            RelationType::HasPart,
+            1,
+        );
+        let second = make_work_relation(
+            pool.as_ref(),
+            relator.work_id,
+            related_two.work_id,
+            RelationType::HasPart,
+            2,
+        );
+
+        let ctx = test_context(pool.clone(), "test-user");
+        let updated = second
+            .change_ordinal(&ctx, second.relation_ordinal, 1)
+            .expect("Failed to move relation ordinal up");
+
+        let refreshed_first =
+            WorkRelation::from_id(pool.as_ref(), &first.work_relation_id).expect("Failed to fetch");
+        let refreshed_second = WorkRelation::from_id(pool.as_ref(), &updated.work_relation_id)
+            .expect("Failed to fetch");
+
+        assert_eq!(refreshed_second.relation_ordinal, 1);
+        assert_eq!(refreshed_first.relation_ordinal, 2);
+    }
+
+    #[test]
+    fn crud_get_inverse_rejects_mismatched_relation_types() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let relator = create_work(pool.as_ref(), &imprint);
+        let related = create_work(pool.as_ref(), &imprint);
+
+        let relation = make_work_relation(
+            pool.as_ref(),
+            relator.work_id,
+            related.work_id,
+            RelationType::HasPart,
+            1,
+        );
+        let inverse = relation
+            .get_inverse(pool.as_ref())
+            .expect("Failed to fetch inverse relation");
+
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        diesel::update(
+            crate::schema::work_relation::dsl::work_relation.find(inverse.work_relation_id),
+        )
+        .set(crate::schema::work_relation::dsl::relation_type.eq(RelationType::Replaces))
+        .execute(&mut connection)
+        .expect("Failed to update inverse relation type");
+
+        let result = relation.get_inverse(pool.as_ref());
+        assert!(matches!(
+            result,
+            Err(ThothError::InternalError(msg))
+                if msg.contains("Found mismatched relation types")
+        ));
     }
 }

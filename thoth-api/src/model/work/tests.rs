@@ -307,6 +307,10 @@ mod display_and_parse {
 
 mod conversions {
     use super::*;
+    #[cfg(feature = "backend")]
+    use crate::model::tests::db::setup_test_db;
+    #[cfg(feature = "backend")]
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
 
     #[test]
     fn work_into_patchwork_copies_fields() {
@@ -350,6 +354,48 @@ mod conversions {
             first_page,
             last_page,
             page_interval
+        );
+    }
+
+    #[cfg(feature = "backend")]
+    #[test]
+    fn worktype_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(WorkType::Monograph);
+    }
+
+    #[cfg(feature = "backend")]
+    #[test]
+    fn workstatus_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(WorkStatus::Active);
+    }
+
+    #[cfg(feature = "backend")]
+    #[test]
+    fn workfield_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(WorkField::WorkId);
+    }
+
+    #[cfg(feature = "backend")]
+    #[test]
+    fn worktype_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<WorkType, crate::schema::sql_types::WorkType>(
+            pool.as_ref(),
+            "'monograph'::work_type",
+            WorkType::Monograph,
+        );
+    }
+
+    #[cfg(feature = "backend")]
+    #[test]
+    fn workstatus_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<WorkStatus, crate::schema::sql_types::WorkStatus>(
+            pool.as_ref(),
+            "'active'::work_status",
+            WorkStatus::Active,
         );
     }
 }
@@ -507,13 +553,103 @@ mod policy {
     use chrono::NaiveDate;
     use zitadel::actix::introspection::IntrospectedUser;
 
+    use crate::model::publication::{NewPublication, Publication, PublicationType};
     use crate::model::tests::db::{
         create_imprint, create_publisher, create_work, setup_test_db, test_context_with_user,
         test_superuser, test_user_with_role,
     };
     use crate::model::work::policy::WorkPolicy;
     use crate::model::Crud;
+    use crate::model::Isbn;
     use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
+    use thoth_errors::ThothError;
+
+    fn make_patch_from_work(work: &Work) -> PatchWork {
+        PatchWork {
+            work_id: work.work_id,
+            work_type: work.work_type,
+            work_status: work.work_status,
+            reference: work.reference.clone(),
+            edition: work.edition,
+            imprint_id: work.imprint_id,
+            doi: work.doi.clone(),
+            publication_date: work.publication_date,
+            withdrawn_date: work.withdrawn_date,
+            place: work.place.clone(),
+            page_count: work.page_count,
+            page_breakdown: work.page_breakdown.clone(),
+            image_count: work.image_count,
+            table_count: work.table_count,
+            audio_count: work.audio_count,
+            video_count: work.video_count,
+            license: work.license.clone(),
+            copyright_holder: work.copyright_holder.clone(),
+            landing_page: work.landing_page.clone(),
+            lccn: work.lccn.clone(),
+            oclc: work.oclc.clone(),
+            general_note: work.general_note.clone(),
+            bibliography_note: work.bibliography_note.clone(),
+            toc: work.toc.clone(),
+            cover_url: work.cover_url.clone(),
+            cover_caption: work.cover_caption.clone(),
+            first_page: work.first_page.clone(),
+            last_page: work.last_page.clone(),
+            page_interval: work.page_interval.clone(),
+        }
+    }
+
+    fn make_new_work(imprint_id: Uuid) -> NewWork {
+        NewWork {
+            work_type: WorkType::Monograph,
+            work_status: WorkStatus::Forthcoming,
+            reference: None,
+            edition: Some(1),
+            imprint_id,
+            doi: None,
+            publication_date: None,
+            withdrawn_date: None,
+            place: None,
+            page_count: None,
+            page_breakdown: None,
+            image_count: None,
+            table_count: None,
+            audio_count: None,
+            video_count: None,
+            license: None,
+            copyright_holder: None,
+            landing_page: None,
+            lccn: None,
+            oclc: None,
+            general_note: None,
+            bibliography_note: None,
+            toc: None,
+            cover_url: None,
+            cover_caption: None,
+            first_page: None,
+            last_page: None,
+            page_interval: None,
+        }
+    }
+
+    fn make_new_publication_with_isbn(work_id: Uuid, isbn: Isbn) -> NewPublication {
+        NewPublication {
+            publication_type: PublicationType::Epub,
+            work_id,
+            isbn: Some(isbn),
+            width_mm: None,
+            width_in: None,
+            height_mm: None,
+            height_in: None,
+            depth_mm: None,
+            depth_in: None,
+            weight_g: None,
+            weight_oz: None,
+            accessibility_standard: None,
+            accessibility_additional_standard: None,
+            accessibility_exception: None,
+            accessibility_report_url: None,
+        }
+    }
 
     fn user_with_roles(user_id: &str, org_id: &str, roles: &[Role]) -> IntrospectedUser {
         let mut project_roles = HashMap::new();
@@ -597,37 +733,9 @@ mod policy {
         let imprint = create_imprint(pool.as_ref(), &publisher);
         let work = create_work(pool.as_ref(), &imprint);
 
-        let patch = PatchWork {
-            work_id: work.work_id,
-            work_type: work.work_type,
-            work_status: work.work_status,
-            reference: work.reference.clone(),
-            edition: work.edition,
-            imprint_id: work.imprint_id,
-            doi: work.doi.clone(),
-            publication_date: NaiveDate::from_ymd_opt(2020, 1, 1),
-            withdrawn_date: None,
-            place: work.place.clone(),
-            page_count: work.page_count,
-            page_breakdown: work.page_breakdown.clone(),
-            image_count: work.image_count,
-            table_count: work.table_count,
-            audio_count: work.audio_count,
-            video_count: work.video_count,
-            license: work.license.clone(),
-            copyright_holder: work.copyright_holder.clone(),
-            landing_page: work.landing_page.clone(),
-            lccn: work.lccn.clone(),
-            oclc: work.oclc.clone(),
-            general_note: work.general_note.clone(),
-            bibliography_note: work.bibliography_note.clone(),
-            toc: work.toc.clone(),
-            cover_url: work.cover_url.clone(),
-            cover_caption: work.cover_caption.clone(),
-            first_page: work.first_page.clone(),
-            last_page: work.last_page.clone(),
-            page_interval: work.page_interval.clone(),
-        };
+        let mut patch = make_patch_from_work(&work);
+        patch.work_status = WorkStatus::Active;
+        patch.publication_date = NaiveDate::from_ymd_opt(2020, 1, 1);
 
         let org_id = publisher
             .zitadel_id
@@ -644,6 +752,116 @@ mod policy {
         );
         let lifecycle_ctx = test_context_with_user(pool.clone(), lifecycle_user);
         assert!(WorkPolicy::can_update(&lifecycle_ctx, &work, &patch, ()).is_ok());
+    }
+
+    #[test]
+    fn crud_policy_requires_work_lifecycle_role_for_withdrawn_date_change() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let mut new_work = make_new_work(imprint.imprint_id);
+        new_work.work_status = WorkStatus::Withdrawn;
+        new_work.publication_date = NaiveDate::from_ymd_opt(2020, 1, 1);
+        new_work.withdrawn_date = NaiveDate::from_ymd_opt(2021, 1, 1);
+        let work = Work::create(pool.as_ref(), &new_work).expect("Failed to create work");
+
+        let mut patch = make_patch_from_work(&work);
+        patch.withdrawn_date = NaiveDate::from_ymd_opt(2022, 1, 1);
+
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let basic_user = test_user_with_role("work-user", Role::PublisherUser, &org_id);
+        let basic_ctx = test_context_with_user(pool.clone(), basic_user);
+        assert!(WorkPolicy::can_update(&basic_ctx, &work, &patch, ()).is_err());
+
+        let lifecycle_user = user_with_roles(
+            "work-user",
+            &org_id,
+            &[Role::PublisherUser, Role::WorkLifecycle],
+        );
+        let lifecycle_ctx = test_context_with_user(pool.clone(), lifecycle_user);
+        assert!(WorkPolicy::can_update(&lifecycle_ctx, &work, &patch, ()).is_ok());
+    }
+
+    #[test]
+    fn crud_policy_allows_non_lifecycle_update_without_work_lifecycle_role() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+
+        let mut patch = make_patch_from_work(&work);
+        patch.reference = Some("Updated reference".to_string());
+
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let basic_user = test_user_with_role("work-user", Role::PublisherUser, &org_id);
+        let basic_ctx = test_context_with_user(pool.clone(), basic_user);
+
+        assert!(WorkPolicy::can_update(&basic_ctx, &work, &patch, ()).is_ok());
+    }
+
+    #[test]
+    fn crud_policy_rejects_chapter_when_isbn_publication_exists() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+
+        let new_publication =
+            make_new_publication_with_isbn(work.work_id, Isbn("978-3-16-148410-0".to_string()));
+
+        Publication::create(pool.as_ref(), &new_publication)
+            .expect("Failed to create publication with ISBN");
+
+        let mut patch = make_patch_from_work(&work);
+        patch.work_type = WorkType::BookChapter;
+
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("work-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let result = WorkPolicy::can_update(&ctx, &work, &patch, ());
+        assert!(matches!(result, Err(ThothError::ChapterIsbnError)));
+    }
+
+    #[test]
+    fn crud_policy_prevents_non_superuser_from_unpublishing_work() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let mut new_work = make_new_work(imprint.imprint_id);
+        new_work.work_status = WorkStatus::Active;
+        new_work.publication_date = NaiveDate::from_ymd_opt(2020, 1, 1);
+        let work = Work::create(pool.as_ref(), &new_work).expect("Failed to create work");
+
+        let mut patch = make_patch_from_work(&work);
+        patch.work_status = WorkStatus::Forthcoming;
+
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let lifecycle_user = user_with_roles(
+            "work-user",
+            &org_id,
+            &[Role::PublisherUser, Role::WorkLifecycle],
+        );
+        let ctx = test_context_with_user(pool.clone(), lifecycle_user);
+
+        let result = WorkPolicy::can_update(&ctx, &work, &patch, ());
+        assert!(matches!(result, Err(ThothError::ThothSetWorkStatusError)));
     }
 
     #[test]
@@ -882,6 +1100,90 @@ mod crud {
         let count = Work::count(pool.as_ref(), None, vec![], vec![], vec![], None, None)
             .expect("Failed to count works");
         assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn crud_count_filters_by_publisher_type_status_and_publication_date() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let other_publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let other_imprint = create_imprint(pool.as_ref(), &other_publisher);
+
+        Work::create(
+            pool.as_ref(),
+            &NewWork {
+                work_type: WorkType::Monograph,
+                work_status: WorkStatus::Active,
+                publication_date: NaiveDate::from_ymd_opt(2000, 1, 1),
+                ..make_new_work(imprint.imprint_id)
+            },
+        )
+        .expect("Failed to create work");
+        Work::create(
+            pool.as_ref(),
+            &NewWork {
+                work_type: WorkType::BookChapter,
+                work_status: WorkStatus::Forthcoming,
+                edition: None,
+                publication_date: NaiveDate::from_ymd_opt(2020, 1, 1),
+                ..make_new_work(other_imprint.imprint_id)
+            },
+        )
+        .expect("Failed to create work");
+
+        let count_by_publisher = Work::count(
+            pool.as_ref(),
+            None,
+            vec![publisher.publisher_id],
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to count works by publisher");
+        assert_eq!(count_by_publisher, 1);
+
+        let count_by_type = Work::count(
+            pool.as_ref(),
+            None,
+            vec![],
+            vec![WorkType::BookChapter],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to count works by type");
+        assert_eq!(count_by_type, 1);
+
+        let count_by_status = Work::count(
+            pool.as_ref(),
+            None,
+            vec![],
+            vec![],
+            vec![WorkStatus::Active],
+            None,
+            None,
+        )
+        .expect("Failed to count works by status");
+        assert_eq!(count_by_status, 1);
+
+        let newer_than = TimeExpression {
+            timestamp: Timestamp::parse_from_rfc3339("2010-01-01T00:00:00Z").unwrap(),
+            expression: Expression::GreaterThan,
+        };
+        let count_by_date = Work::count(
+            pool.as_ref(),
+            None,
+            vec![],
+            vec![],
+            vec![],
+            Some(newer_than),
+            None,
+        )
+        .expect("Failed to count works by publication date");
+        assert_eq!(count_by_date, 1);
     }
 
     #[test]
@@ -1452,6 +1754,66 @@ mod crud {
 
         assert_eq!(count_newer, 2);
         assert_eq!(count_older, 2);
+    }
+
+    #[test]
+    fn crud_filter_param_limits_updated_at_with_relations_in_all() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        create_work(pool.as_ref(), &imprint);
+        create_work(pool.as_ref(), &imprint);
+
+        let greater_than = TimeExpression {
+            timestamp: Timestamp::parse_from_rfc3339("1970-01-01T00:00:00Z").unwrap(),
+            expression: Expression::GreaterThan,
+        };
+        let less_than = TimeExpression {
+            timestamp: Timestamp::parse_from_rfc3339("3000-01-01T00:00:00Z").unwrap(),
+            expression: Expression::LessThan,
+        };
+
+        let newer = Work::all(
+            pool.as_ref(),
+            10,
+            0,
+            None,
+            WorkOrderBy {
+                field: WorkField::WorkId,
+                direction: Direction::Asc,
+            },
+            vec![],
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+            Some(greater_than),
+        )
+        .expect("Failed to filter works by updated_at_with_relations (gt)");
+
+        let older = Work::all(
+            pool.as_ref(),
+            10,
+            0,
+            None,
+            WorkOrderBy {
+                field: WorkField::WorkId,
+                direction: Direction::Asc,
+            },
+            vec![],
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+            Some(less_than),
+        )
+        .expect("Failed to filter works by updated_at_with_relations (lt)");
+
+        assert_eq!(newer.len(), 2);
+        assert_eq!(older.len(), 2);
     }
 
     #[test]

@@ -1057,6 +1057,45 @@ mod display_and_parse {
     }
 }
 
+#[cfg(feature = "backend")]
+mod conversions {
+    use super::*;
+    use crate::model::tests::db::setup_test_db;
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
+
+    #[test]
+    fn languagecode_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(LanguageCode::Eng);
+    }
+
+    #[test]
+    fn languagerelation_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(LanguageRelation::Original);
+    }
+
+    #[test]
+    fn languagecode_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<LanguageCode, crate::schema::sql_types::LanguageCode>(
+            pool.as_ref(),
+            "'eng'::language_code",
+            LanguageCode::Eng,
+        );
+    }
+
+    #[test]
+    fn languagerelation_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<LanguageRelation, crate::schema::sql_types::LanguageRelation>(
+            pool.as_ref(),
+            "'original'::language_relation",
+            LanguageRelation::Original,
+        );
+    }
+}
+
 mod helpers {
     use super::*;
     use crate::model::{Crud, HistoryEntry};
@@ -1340,6 +1379,43 @@ mod crud {
             None,
         )
         .expect("Failed to count languages by code");
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn crud_count_filters_by_language_relation() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+
+        make_language(
+            pool.as_ref(),
+            work.work_id,
+            LanguageCode::Eng,
+            LanguageRelation::Original,
+            true,
+        );
+        make_language(
+            pool.as_ref(),
+            work.work_id,
+            LanguageCode::Spa,
+            LanguageRelation::TranslatedFrom,
+            false,
+        );
+
+        let count = Language::count(
+            pool.as_ref(),
+            None,
+            vec![],
+            vec![],
+            vec![LanguageRelation::Original],
+            None,
+            None,
+        )
+        .expect("Failed to count languages by relation");
+
         assert_eq!(count, 1);
     }
 

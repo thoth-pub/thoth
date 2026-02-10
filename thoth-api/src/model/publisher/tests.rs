@@ -62,6 +62,15 @@ mod display_and_parse {
         assert!(PublisherField::from_str("Website").is_err());
         assert!(PublisherField::from_str("Imprint").is_err());
     }
+
+    #[test]
+    fn publisher_display_formats_name() {
+        let publisher = Publisher {
+            publisher_name: "Test Publisher".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(format!("{publisher}"), "Test Publisher");
+    }
 }
 
 mod helpers {
@@ -301,6 +310,28 @@ mod crud {
     }
 
     #[test]
+    fn crud_count_filters_by_name() {
+        let (_guard, pool) = setup_test_db();
+
+        let marker = format!("Filter {}", Uuid::new_v4());
+        make_publisher(pool.as_ref(), format!("Press {marker}"));
+        make_publisher(pool.as_ref(), "Other Press".to_string());
+
+        let count = Publisher::count(
+            pool.as_ref(),
+            Some(marker),
+            vec![],
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to count publishers by name filter");
+
+        assert_eq!(count, 1);
+    }
+
+    #[test]
     fn crud_filter_matches_name() {
         let (_guard, pool) = setup_test_db();
 
@@ -379,6 +410,16 @@ mod crud {
 
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].publisher_id, publisher.publisher_id);
+    }
+
+    #[test]
+    fn crud_by_zitadel_ids_returns_empty_for_empty_input() {
+        let (_guard, pool) = setup_test_db();
+
+        let results = Publisher::by_zitadel_ids(pool.as_ref(), vec![])
+            .expect("Failed to fetch publishers by zitadel id");
+
+        assert!(results.is_empty());
     }
 
     #[test]

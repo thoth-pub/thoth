@@ -182,6 +182,29 @@ mod display_and_parse {
     }
 }
 
+#[cfg(feature = "backend")]
+mod conversions {
+    use super::*;
+    use crate::model::tests::db::setup_test_db;
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
+
+    #[test]
+    fn contributiontype_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(ContributionType::Author);
+    }
+
+    #[test]
+    fn contributiontype_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<ContributionType, crate::schema::sql_types::ContributionType>(
+            pool.as_ref(),
+            "'author'::contribution_type",
+            ContributionType::Author,
+        );
+    }
+}
+
 mod helpers {
     use super::*;
     use crate::model::{Crud, HistoryEntry};

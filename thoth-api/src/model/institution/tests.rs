@@ -927,6 +927,52 @@ mod display_and_parse {
         assert!(CountryCode::from_str("Mesopotamia").is_err());
         assert!(CountryCode::from_str("Czechoslovakia").is_err());
     }
+
+    #[test]
+    fn institution_display_formats_with_optional_ids() {
+        let with_ror = Institution {
+            institution_name: "Test Institution".to_string(),
+            ror: Some(Ror("https://ror.org/0abcdef12".to_string())),
+            ..Default::default()
+        };
+        assert_eq!(format!("{with_ror}"), "Test Institution - 0abcdef12");
+
+        let with_doi = Institution {
+            institution_name: "Test Institution".to_string(),
+            institution_doi: Some(Doi("https://doi.org/10.1234/abcd".to_string())),
+            ..Default::default()
+        };
+        assert_eq!(format!("{with_doi}"), "Test Institution - 10.1234/abcd");
+
+        let no_ids = Institution {
+            institution_name: "Test Institution".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(format!("{no_ids}"), "Test Institution");
+    }
+}
+
+#[cfg(feature = "backend")]
+mod conversions {
+    use super::*;
+    use crate::model::tests::db::setup_test_db;
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
+
+    #[test]
+    fn countrycode_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(CountryCode::Gbr);
+    }
+
+    #[test]
+    fn countrycode_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<CountryCode, crate::schema::sql_types::CountryCode>(
+            pool.as_ref(),
+            "'gbr'::country_code",
+            CountryCode::Gbr,
+        );
+    }
 }
 
 mod helpers {
@@ -964,8 +1010,8 @@ mod policy {
     use crate::model::funding::{Funding, NewFunding};
     use crate::model::institution::policy::InstitutionPolicy;
     use crate::model::tests::db::{
-        create_imprint, create_publisher, create_work, setup_test_db, test_context_with_user,
-        test_user_with_role,
+        create_imprint, create_publisher, create_work, setup_test_db, test_context,
+        test_context_with_user, test_user_with_role,
     };
     use crate::model::Crud;
     use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
@@ -995,6 +1041,33 @@ mod policy {
 
         assert!(InstitutionPolicy::can_create(&ctx, &new_institution, ()).is_err());
         assert!(InstitutionPolicy::can_update(&ctx, &institution, &patch, ()).is_err());
+    }
+
+    #[test]
+    fn crud_policy_allows_authenticated_user_for_create_update() {
+        let (_guard, pool) = setup_test_db();
+
+        let ctx = test_context(pool.clone(), "institution-user");
+
+        let new_institution = NewInstitution {
+            institution_name: "Institution Policy".to_string(),
+            institution_doi: None,
+            ror: None,
+            country_code: Some(CountryCode::Gbr),
+        };
+
+        let institution = Institution::create(pool.as_ref(), &new_institution)
+            .expect("Failed to create institution");
+        let patch = PatchInstitution {
+            institution_id: institution.institution_id,
+            institution_name: "Updated Institution".to_string(),
+            institution_doi: institution.institution_doi.clone(),
+            ror: institution.ror.clone(),
+            country_code: institution.country_code,
+        };
+
+        assert!(InstitutionPolicy::can_create(&ctx, &new_institution, ()).is_ok());
+        assert!(InstitutionPolicy::can_update(&ctx, &institution, &patch, ()).is_ok());
     }
 
     #[test]

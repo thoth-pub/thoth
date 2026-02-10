@@ -604,6 +604,12 @@ mod crud {
             institution_two.institution_id,
             2,
         );
+        let third = make_affiliation(
+            pool.as_ref(),
+            contribution.contribution_id,
+            create_institution(pool.as_ref()).institution_id,
+            3,
+        );
 
         let ctx = test_context(pool.clone(), "test-user");
         let updated = first
@@ -614,8 +620,59 @@ mod crud {
             Affiliation::from_id(pool.as_ref(), &updated.affiliation_id).expect("Failed to fetch");
         let refreshed_second =
             Affiliation::from_id(pool.as_ref(), &second.affiliation_id).expect("Failed to fetch");
+        let refreshed_third =
+            Affiliation::from_id(pool.as_ref(), &third.affiliation_id).expect("Failed to fetch");
 
         assert_eq!(refreshed_first.affiliation_ordinal, 2);
         assert_eq!(refreshed_second.affiliation_ordinal, 1);
+        assert_eq!(refreshed_third.affiliation_ordinal, 3);
+    }
+
+    #[test]
+    fn crud_change_ordinal_move_up_reorders_affiliations() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let contributor = create_contributor(pool.as_ref());
+        let contribution = create_contribution(pool.as_ref(), &work, &contributor);
+        let institution_one = create_institution(pool.as_ref());
+        let institution_two = create_institution(pool.as_ref());
+
+        let first = make_affiliation(
+            pool.as_ref(),
+            contribution.contribution_id,
+            institution_one.institution_id,
+            1,
+        );
+        let second = make_affiliation(
+            pool.as_ref(),
+            contribution.contribution_id,
+            institution_two.institution_id,
+            2,
+        );
+        let third = make_affiliation(
+            pool.as_ref(),
+            contribution.contribution_id,
+            create_institution(pool.as_ref()).institution_id,
+            3,
+        );
+
+        let ctx = test_context(pool.clone(), "test-user");
+        let updated = second
+            .change_ordinal(&ctx, second.affiliation_ordinal, 1)
+            .expect("Failed to move affiliation ordinal up");
+
+        let refreshed_first =
+            Affiliation::from_id(pool.as_ref(), &first.affiliation_id).expect("Failed to fetch");
+        let refreshed_second =
+            Affiliation::from_id(pool.as_ref(), &updated.affiliation_id).expect("Failed to fetch");
+        let refreshed_third =
+            Affiliation::from_id(pool.as_ref(), &third.affiliation_id).expect("Failed to fetch");
+
+        assert_eq!(refreshed_second.affiliation_ordinal, 1);
+        assert_eq!(refreshed_first.affiliation_ordinal, 2);
+        assert_eq!(refreshed_third.affiliation_ordinal, 3);
     }
 }

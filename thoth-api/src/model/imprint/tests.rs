@@ -258,6 +258,37 @@ mod crud {
     }
 
     #[test]
+    fn crud_count_filters_by_publishers() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let other_publisher = create_publisher(pool.as_ref());
+        make_imprint(
+            pool.as_ref(),
+            publisher.publisher_id,
+            "Match Imprint".to_string(),
+        );
+        make_imprint(
+            pool.as_ref(),
+            other_publisher.publisher_id,
+            "Other Imprint".to_string(),
+        );
+
+        let count = Imprint::count(
+            pool.as_ref(),
+            None,
+            vec![publisher.publisher_id],
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to count imprints by publisher");
+
+        assert_eq!(count, 1);
+    }
+
+    #[test]
     fn crud_filter_matches_imprint_name() {
         let (_guard, pool) = setup_test_db();
 

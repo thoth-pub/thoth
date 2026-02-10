@@ -20,6 +20,77 @@ fn make_abstract(
     Abstract::create(pool, &new_abstract).expect("Failed to create abstract")
 }
 
+mod defaults {
+    use super::*;
+
+    #[test]
+    fn abstracttype_default_is_short() {
+        let abstract_type: AbstractType = Default::default();
+        assert_eq!(abstract_type, AbstractType::Short);
+    }
+
+    #[test]
+    fn abstractorderby_default_is_canonical_desc() {
+        let order: AbstractOrderBy = Default::default();
+        assert!(matches!(order.field, AbstractField::Canonical));
+        assert!(matches!(order.direction, Direction::Desc));
+    }
+
+    #[test]
+    fn newabstract_default_values() {
+        let new_abstract = NewAbstract::default();
+        assert_eq!(new_abstract.work_id, Uuid::default());
+        assert_eq!(new_abstract.content, "");
+        assert_eq!(new_abstract.locale_code, LocaleCode::default());
+        assert_eq!(new_abstract.abstract_type, AbstractType::Short);
+        assert!(!new_abstract.canonical);
+    }
+}
+
+mod display_and_parse {
+    use super::*;
+
+    #[test]
+    fn abstracttype_display_formats_expected_strings() {
+        assert_eq!(format!("{}", AbstractType::Short), "SHORT");
+        assert_eq!(format!("{}", AbstractType::Long), "LONG");
+    }
+
+    #[test]
+    fn abstracttype_fromstr_parses_expected_values() {
+        use std::str::FromStr;
+        assert_eq!(
+            AbstractType::from_str("SHORT").unwrap(),
+            AbstractType::Short
+        );
+        assert_eq!(AbstractType::from_str("LONG").unwrap(), AbstractType::Long);
+        assert!(AbstractType::from_str("BRIEF").is_err());
+    }
+}
+
+#[cfg(feature = "backend")]
+mod conversions {
+    use super::*;
+    use crate::model::tests::db::setup_test_db;
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
+
+    #[test]
+    fn abstracttype_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(AbstractType::Short);
+    }
+
+    #[test]
+    fn abstracttype_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<AbstractType, crate::schema::sql_types::AbstractType>(
+            pool.as_ref(),
+            "'short'::abstract_type",
+            AbstractType::Short,
+        );
+    }
+}
+
 #[cfg(feature = "backend")]
 mod policy {
     use super::*;
@@ -174,6 +245,50 @@ mod policy {
         };
 
         let result = AbstractPolicy::can_create(&ctx, &new_abstract, Some(MarkupFormat::Html));
+        assert!(matches!(
+            result,
+            Err(ThothError::ShortAbstractLimitExceedError)
+        ));
+    }
+
+    #[test]
+    fn crud_policy_rejects_short_abstract_update_over_limit() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("abstract-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+
+        let abstract_item = Abstract::create(
+            pool.as_ref(),
+            &NewAbstract {
+                work_id: work.work_id,
+                content: "Short Abstract".to_string(),
+                locale_code: LocaleCode::En,
+                abstract_type: AbstractType::Short,
+                canonical: false,
+            },
+        )
+        .expect("Failed to create abstract");
+
+        let patch = PatchAbstract {
+            abstract_id: abstract_item.abstract_id,
+            work_id: abstract_item.work_id,
+            content: "a".repeat(MAX_SHORT_ABSTRACT_CHAR_LIMIT as usize + 1),
+            locale_code: abstract_item.locale_code,
+            abstract_type: AbstractType::Short,
+            canonical: abstract_item.canonical,
+        };
+
+        let result =
+            AbstractPolicy::can_update(&ctx, &abstract_item, &patch, Some(MarkupFormat::Html));
         assert!(matches!(
             result,
             Err(ThothError::ShortAbstractLimitExceedError)

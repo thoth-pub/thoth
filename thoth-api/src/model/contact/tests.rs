@@ -43,6 +43,48 @@ mod defaults {
     }
 }
 
+mod display_and_parse {
+    use super::*;
+
+    #[test]
+    fn contacttype_display_formats_expected_strings() {
+        assert_eq!(format!("{}", ContactType::Accessibility), "Accessibility");
+    }
+
+    #[test]
+    fn contacttype_fromstr_parses_expected_values() {
+        use std::str::FromStr;
+        assert_eq!(
+            ContactType::from_str("Accessibility").unwrap(),
+            ContactType::Accessibility
+        );
+        assert!(ContactType::from_str("Other").is_err());
+    }
+}
+
+#[cfg(feature = "backend")]
+mod conversions {
+    use super::*;
+    use crate::model::tests::db::setup_test_db;
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
+
+    #[test]
+    fn contacttype_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(ContactType::Accessibility);
+    }
+
+    #[test]
+    fn contacttype_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<ContactType, crate::schema::sql_types::ContactType>(
+            pool.as_ref(),
+            "'Accessibility'::contact_type",
+            ContactType::Accessibility,
+        );
+    }
+}
+
 mod helpers {
     use super::*;
     use crate::model::{Crud, HistoryEntry};
@@ -242,6 +284,37 @@ mod crud {
         let count = Contact::count(pool.as_ref(), None, vec![], vec![], vec![], None, None)
             .expect("Failed to count contacts");
         assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn crud_count_filters_by_publishers() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let other_publisher = create_publisher(pool.as_ref());
+        make_contact(
+            pool.as_ref(),
+            publisher.publisher_id,
+            format!("first-{}@example.com", Uuid::new_v4()),
+        );
+        make_contact(
+            pool.as_ref(),
+            other_publisher.publisher_id,
+            format!("second-{}@example.com", Uuid::new_v4()),
+        );
+
+        let count = Contact::count(
+            pool.as_ref(),
+            None,
+            vec![publisher.publisher_id],
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to count contacts by publisher");
+
+        assert_eq!(count, 1);
     }
 
     #[test]

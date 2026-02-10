@@ -111,6 +111,67 @@ mod display_and_parse {
     }
 }
 
+#[cfg(feature = "backend")]
+mod conversions {
+    use super::*;
+    use crate::model::tests::db::setup_test_db;
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
+
+    #[test]
+    fn publicationtype_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(PublicationType::Paperback);
+    }
+
+    #[test]
+    fn accessibilitystandard_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(AccessibilityStandard::EpubA11y11aa);
+    }
+
+    #[test]
+    fn accessibilityexception_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(AccessibilityException::MicroEnterprises);
+    }
+
+    #[test]
+    fn publicationtype_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<PublicationType, crate::schema::sql_types::PublicationType>(
+            pool.as_ref(),
+            "'Paperback'::publication_type",
+            PublicationType::Paperback,
+        );
+    }
+
+    #[test]
+    fn accessibilitystandard_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<
+            AccessibilityStandard,
+            crate::schema::sql_types::AccessibilityStandard,
+        >(
+            pool.as_ref(),
+            "'epub-a11y-11-aa'::accessibility_standard",
+            AccessibilityStandard::EpubA11y11aa,
+        );
+    }
+
+    #[test]
+    fn accessibilityexception_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<
+            AccessibilityException,
+            crate::schema::sql_types::AccessibilityException,
+        >(
+            pool.as_ref(),
+            "'micro-enterprises'::accessibility_exception",
+            AccessibilityException::MicroEnterprises,
+        );
+    }
+}
+
 mod helpers {
     use super::*;
     use crate::model::{Crud, HistoryEntry};
@@ -437,6 +498,7 @@ mod crud {
         create_imprint, create_publication, create_publisher, create_work, setup_test_db,
         test_context,
     };
+    use crate::model::work::{NewWork, Work, WorkStatus, WorkType};
     use crate::model::Crud;
 
     fn make_publication(
@@ -464,6 +526,49 @@ mod crud {
         };
 
         Publication::create(pool, &new_publication).expect("Failed to create publication")
+    }
+
+    fn make_work_with_type(
+        pool: &crate::db::PgPool,
+        imprint_id: Uuid,
+        work_type: WorkType,
+    ) -> Work {
+        let new_work = NewWork {
+            work_type,
+            work_status: WorkStatus::Forthcoming,
+            reference: None,
+            edition: if work_type == WorkType::BookChapter {
+                None
+            } else {
+                Some(1)
+            },
+            imprint_id,
+            doi: None,
+            publication_date: None,
+            withdrawn_date: None,
+            place: None,
+            page_count: None,
+            page_breakdown: None,
+            image_count: None,
+            table_count: None,
+            audio_count: None,
+            video_count: None,
+            license: None,
+            copyright_holder: None,
+            landing_page: None,
+            lccn: None,
+            oclc: None,
+            general_note: None,
+            bibliography_note: None,
+            toc: None,
+            cover_url: None,
+            cover_caption: None,
+            first_page: None,
+            last_page: None,
+            page_interval: None,
+        };
+
+        Work::create(pool, &new_work).expect("Failed to create work")
     }
 
     #[test]
@@ -510,6 +615,106 @@ mod crud {
             .delete(pool.as_ref())
             .expect("Failed to delete publication");
         assert!(Publication::from_id(pool.as_ref(), &deleted.publication_id).is_err());
+    }
+
+    #[test]
+    fn crud_validate_rejects_chapter_with_isbn() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = make_work_with_type(pool.as_ref(), imprint.imprint_id, WorkType::BookChapter);
+
+        let publication = Publication::create(
+            pool.as_ref(),
+            &NewPublication {
+                publication_type: PublicationType::Pdf,
+                work_id: work.work_id,
+                isbn: Some(Isbn::from_str("978-0-306-40615-7").unwrap()),
+                width_mm: None,
+                width_in: None,
+                height_mm: None,
+                height_in: None,
+                depth_mm: None,
+                depth_in: None,
+                weight_g: None,
+                weight_oz: None,
+                accessibility_standard: None,
+                accessibility_additional_standard: None,
+                accessibility_exception: None,
+                accessibility_report_url: None,
+            },
+        )
+        .expect("Failed to create publication");
+
+        let result = publication.validate(pool.as_ref());
+        assert!(matches!(result, Err(ThothError::ChapterIsbnError)));
+    }
+
+    #[test]
+    fn crud_validate_rejects_chapter_with_dimensions() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = make_work_with_type(pool.as_ref(), imprint.imprint_id, WorkType::BookChapter);
+
+        let publication = Publication {
+            publication_id: Uuid::new_v4(),
+            publication_type: PublicationType::Pdf,
+            work_id: work.work_id,
+            isbn: None,
+            created_at: Default::default(),
+            updated_at: Default::default(),
+            width_mm: Some(100.0),
+            width_in: None,
+            height_mm: None,
+            height_in: None,
+            depth_mm: None,
+            depth_in: None,
+            weight_g: None,
+            weight_oz: None,
+            accessibility_standard: None,
+            accessibility_additional_standard: None,
+            accessibility_exception: None,
+            accessibility_report_url: None,
+        };
+
+        let result = publication.validate(pool.as_ref());
+        assert!(matches!(result, Err(ThothError::ChapterDimensionError)));
+    }
+
+    #[test]
+    fn crud_validate_allows_chapter_without_isbn_or_dimensions() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = make_work_with_type(pool.as_ref(), imprint.imprint_id, WorkType::BookChapter);
+
+        let publication = Publication::create(
+            pool.as_ref(),
+            &NewPublication {
+                publication_type: PublicationType::Pdf,
+                work_id: work.work_id,
+                isbn: None,
+                width_mm: None,
+                width_in: None,
+                height_mm: None,
+                height_in: None,
+                depth_mm: None,
+                depth_in: None,
+                weight_g: None,
+                weight_oz: None,
+                accessibility_standard: None,
+                accessibility_additional_standard: None,
+                accessibility_exception: None,
+                accessibility_report_url: None,
+            },
+        )
+        .expect("Failed to create publication");
+
+        assert!(publication.validate(pool.as_ref()).is_ok());
     }
 
     #[test]
@@ -613,6 +818,78 @@ mod crud {
             None,
         )
         .expect("Failed to count publications by type");
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn crud_count_filters_by_publishers() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        make_publication(
+            pool.as_ref(),
+            work.work_id,
+            PublicationType::Paperback,
+            None,
+        );
+
+        let other_publisher = create_publisher(pool.as_ref());
+        let other_imprint = create_imprint(pool.as_ref(), &other_publisher);
+        let other_work = create_work(pool.as_ref(), &other_imprint);
+        make_publication(
+            pool.as_ref(),
+            other_work.work_id,
+            PublicationType::Pdf,
+            None,
+        );
+
+        let count = Publication::count(
+            pool.as_ref(),
+            None,
+            vec![publisher.publisher_id],
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to count publications by publisher");
+
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn crud_count_filters_by_isbn_substring() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        make_publication(
+            pool.as_ref(),
+            work.work_id,
+            PublicationType::Paperback,
+            Some(Isbn::from_str("978-0-306-40615-7").unwrap()),
+        );
+        make_publication(
+            pool.as_ref(),
+            work.work_id,
+            PublicationType::Pdf,
+            Some(Isbn::from_str("978-1-4028-9462-6").unwrap()),
+        );
+
+        let count = Publication::count(
+            pool.as_ref(),
+            Some("306-40615".to_string()),
+            vec![],
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to count publications by ISBN filter");
+
         assert_eq!(count, 1);
     }
 
