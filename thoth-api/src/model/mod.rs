@@ -13,7 +13,7 @@ pub const ROR_DOMAIN: &str = "https://ror.org/";
 
 #[cfg_attr(
     feature = "backend",
-    derive(DieselNewType, juniper::GraphQLScalar),
+    derive(diesel_derive_newtype::DieselNewType, juniper::GraphQLScalar),
     graphql(
         transparent,
         description = r#"Digital Object Identifier. Expressed as `^https:\/\/doi\.org\/10\.\d{4,9}\/[-._;()\/:a-zA-Z0-9<>+\[\]]+$`"#
@@ -24,7 +24,7 @@ pub struct Doi(String);
 
 #[cfg_attr(
     feature = "backend",
-    derive(DieselNewType, juniper::GraphQLScalar),
+    derive(diesel_derive_newtype::DieselNewType, juniper::GraphQLScalar),
     graphql(
         transparent,
         description = "13-digit International Standard Book Number, with its parts separated by hyphens"
@@ -35,7 +35,7 @@ pub struct Isbn(String);
 
 #[cfg_attr(
     feature = "backend",
-    derive(DieselNewType, juniper::GraphQLScalar),
+    derive(diesel_derive_newtype::DieselNewType, juniper::GraphQLScalar),
     graphql(
         transparent,
         description = r#"ORCID (Open Researcher and Contributor ID) identifier. Expressed as `^https:\/\/orcid\.org\/\d{4}-\d{4}-\d{4}-\d{3}[\dX]$`"#
@@ -46,7 +46,7 @@ pub struct Orcid(String);
 
 #[cfg_attr(
     feature = "backend",
-    derive(DieselNewType, juniper::GraphQLScalar),
+    derive(diesel_derive_newtype::DieselNewType, juniper::GraphQLScalar),
     graphql(
         transparent,
         description = r#"ROR (Research Organization Registry) identifier. Expressed as `^https:\/\/ror\.org\/0[a-hjkmnp-z0-9]{6}\d{2}$`"#
@@ -57,7 +57,7 @@ pub struct Ror(String);
 
 #[cfg_attr(
     feature = "backend",
-    derive(DieselNewType, juniper::GraphQLScalar),
+    derive(diesel_derive_newtype::DieselNewType, juniper::GraphQLScalar),
     graphql(
         transparent,
         description = "RFC 3339 combined date and time in UTC time zone (e.g. \"1999-12-31T23:59:00Z\")"

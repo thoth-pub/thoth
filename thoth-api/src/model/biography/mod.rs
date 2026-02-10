@@ -41,7 +41,7 @@ impl Default for BiographyOrderBy {
     }
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Biography {
@@ -54,7 +54,7 @@ pub struct Biography {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable, Clone),
+    derive(juniper::GraphQLInputObject, diesel::Insertable, Clone),
     graphql(description = "Set of values required to define a new work's biography"),
     diesel(table_name = biography)
 )]
@@ -68,7 +68,7 @@ pub struct NewBiography {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset, Clone),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset, Clone),
     graphql(description = "Set of values required to update an existing work's biography"),
     diesel(table_name = biography, treat_none_as_null = true)
 )]
@@ -82,7 +82,7 @@ pub struct PatchBiography {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = biography_history)
 )]
 pub struct NewBiographyHistory {
@@ -91,7 +91,7 @@ pub struct NewBiographyHistory {
     pub data: serde_json::Value,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct BiographyHistory {
     pub biography_history_id: Uuid,
     pub biography_id: Uuid,

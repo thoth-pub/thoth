@@ -13,7 +13,7 @@ use crate::schema::work_abstract;
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "BCP-47 code representing locale"),
     ExistingTypePath = "crate::schema::sql_types::AbstractType"
 )]
@@ -63,7 +63,7 @@ impl Default for AbstractOrderBy {
     }
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Abstract {
@@ -77,7 +77,7 @@ pub struct Abstract {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable, Clone),
+    derive(juniper::GraphQLInputObject, diesel::Insertable, Clone),
     graphql(description = "Set of values required to define a new work's abstract"),
     diesel(table_name = work_abstract)
 )]
@@ -103,7 +103,7 @@ impl Default for NewAbstract {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset, Clone),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset, Clone),
     graphql(description = "Set of values required to update an existing work's abstract"),
     diesel(table_name = work_abstract)
 )]
@@ -118,7 +118,7 @@ pub struct PatchAbstract {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = abstract_history)
 )]
 pub struct NewAbstractHistory {
@@ -127,7 +127,7 @@ pub struct NewAbstractHistory {
     pub data: serde_json::Value,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct AbstractHistory {
     pub abstract_history_id: Uuid,
     pub abstract_id: Uuid,

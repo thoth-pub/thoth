@@ -33,7 +33,7 @@ pub enum ImprintField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Imprint {
@@ -48,7 +48,7 @@ pub struct Imprint {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new brand under which a publisher issues works"),
     diesel(table_name = imprint)
 )]
@@ -61,7 +61,7 @@ pub struct NewImprint {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing brand under which a publisher issues works"),
     diesel(table_name = imprint, treat_none_as_null = true)
 )]
@@ -73,7 +73,7 @@ pub struct PatchImprint {
     pub crossmark_doi: Option<Doi>,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct ImprintHistory {
     pub imprint_history_id: Uuid,
     pub imprint_id: Uuid,
@@ -84,7 +84,7 @@ pub struct ImprintHistory {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = imprint_history)
 )]
 pub struct NewImprintHistory {

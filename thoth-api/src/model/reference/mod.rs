@@ -45,7 +45,7 @@ pub enum ReferenceField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Reference {
@@ -78,7 +78,7 @@ pub struct Reference {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new citation to a written text"),
     diesel(table_name = reference)
 )]
@@ -109,7 +109,7 @@ pub struct NewReference {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing citation to a written text"),
     diesel(table_name = reference, treat_none_as_null = true)
 )]
@@ -139,7 +139,7 @@ pub struct PatchReference {
     pub retrieval_date: Option<NaiveDate>,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct ReferenceHistory {
     pub reference_history_id: Uuid,
     pub reference_id: Uuid,
@@ -150,7 +150,7 @@ pub struct ReferenceHistory {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = reference_history)
 )]
 pub struct NewReferenceHistory {

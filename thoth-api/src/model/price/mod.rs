@@ -23,7 +23,7 @@ pub enum PriceField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Price {
@@ -37,7 +37,7 @@ pub struct Price {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new amount of money that a publication costs"),
     diesel(table_name = price)
 )]
@@ -49,7 +49,7 @@ pub struct NewPrice {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing amount of money that a publication costs"),
     diesel(table_name = price, treat_none_as_null = true)
 )]
@@ -62,7 +62,7 @@ pub struct PatchPrice {
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "Three-letter ISO 4217 code representing a currency"),
     ExistingTypePath = "crate::schema::sql_types::CurrencyCode"
 )]
@@ -823,7 +823,7 @@ pub enum CurrencyCode {
     Zwr,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct PriceHistory {
     pub price_history_id: Uuid,
     pub price_id: Uuid,
@@ -832,7 +832,7 @@ pub struct PriceHistory {
     pub timestamp: Timestamp,
 }
 
-#[cfg_attr(feature = "backend", derive(Insertable), diesel(table_name = price_history))]
+#[cfg_attr(feature = "backend", derive(diesel::Insertable), diesel(table_name = price_history))]
 pub struct NewPriceHistory {
     pub price_id: Uuid,
     pub user_id: String,

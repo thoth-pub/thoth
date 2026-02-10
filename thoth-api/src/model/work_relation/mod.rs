@@ -12,7 +12,7 @@ use crate::schema::work_relation_history;
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "Nature of a relationship between works"),
     ExistingTypePath = "crate::schema::sql_types::RelationType"
 )]
@@ -106,7 +106,7 @@ pub enum WorkRelationField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkRelation {
@@ -121,7 +121,7 @@ pub struct WorkRelation {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new relationship between two works"),
     diesel(table_name = work_relation)
 )]
@@ -134,7 +134,7 @@ pub struct NewWorkRelation {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing relationship between two works"),
     diesel(table_name = work_relation, treat_none_as_null = true)
 )]
@@ -146,7 +146,7 @@ pub struct PatchWorkRelation {
     pub relation_ordinal: i32,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct WorkRelationHistory {
     pub work_relation_history_id: Uuid,
     pub work_relation_id: Uuid,
@@ -157,7 +157,7 @@ pub struct WorkRelationHistory {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = work_relation_history)
 )]
 pub struct NewWorkRelationHistory {

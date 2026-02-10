@@ -35,7 +35,7 @@ pub enum PublisherField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Publisher {
@@ -52,7 +52,7 @@ pub struct Publisher {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new organisation that produces and distributes works"),
     diesel(table_name = publisher)
 )]
@@ -67,7 +67,7 @@ pub struct NewPublisher {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing organisation that produces and distributes works"),
     diesel(table_name = publisher, treat_none_as_null = true)
 )]
@@ -81,7 +81,7 @@ pub struct PatchPublisher {
     pub accessibility_report_url: Option<String>,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct PublisherHistory {
     pub publisher_history_id: Uuid,
     pub publisher_id: Uuid,
@@ -92,7 +92,7 @@ pub struct PublisherHistory {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = publisher_history)
 )]
 pub struct NewPublisherHistory {

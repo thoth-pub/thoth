@@ -21,7 +21,7 @@ pub enum IssueField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Issue {
@@ -35,7 +35,7 @@ pub struct Issue {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new work published as a number in a periodical"),
     diesel(table_name = issue)
 )]
@@ -47,7 +47,7 @@ pub struct NewIssue {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing work published as a number in a periodical"),
     diesel(table_name = issue, treat_none_as_null = true)
 )]
@@ -58,7 +58,7 @@ pub struct PatchIssue {
     pub issue_ordinal: i32,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct IssueHistory {
     pub issue_history_id: Uuid,
     pub issue_id: Uuid,
@@ -67,7 +67,7 @@ pub struct IssueHistory {
     pub timestamp: Timestamp,
 }
 
-#[cfg_attr(feature = "backend", derive(Insertable), diesel(table_name = issue_history))]
+#[cfg_attr(feature = "backend", derive(diesel::Insertable), diesel(table_name = issue_history))]
 pub struct NewIssueHistory {
     pub issue_id: Uuid,
     pub user_id: String,

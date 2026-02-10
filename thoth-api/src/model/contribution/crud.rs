@@ -2,7 +2,7 @@ use super::{
     Contribution, ContributionField, ContributionHistory, ContributionType, NewContribution,
     NewContributionHistory, PatchContribution,
 };
-use crate::diesel::JoinOnDsl;
+use diesel::JoinOnDsl;
 use crate::graphql::types::inputs::ContributionOrderBy;
 use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
