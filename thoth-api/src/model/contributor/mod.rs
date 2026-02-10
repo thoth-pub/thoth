@@ -35,7 +35,7 @@ pub enum ContributorField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contributor {
@@ -51,7 +51,7 @@ pub struct Contributor {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new individual involved in the production of works"),
     diesel(table_name = contributor)
 )]
@@ -65,7 +65,7 @@ pub struct NewContributor {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing individual involved in the production of works"),
     diesel(table_name = contributor, treat_none_as_null = true)
 )]
@@ -78,7 +78,7 @@ pub struct PatchContributor {
     pub website: Option<String>,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct ContributorHistory {
     pub contributor_history_id: Uuid,
     pub contributor_id: Uuid,
@@ -89,7 +89,7 @@ pub struct ContributorHistory {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = contributor_history)
 )]
 pub struct NewContributorHistory {

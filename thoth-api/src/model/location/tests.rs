@@ -126,6 +126,10 @@ mod display_and_parse {
 
 mod conversions {
     use super::*;
+    #[cfg(feature = "backend")]
+    use crate::model::tests::db::setup_test_db;
+    #[cfg(feature = "backend")]
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
 
     #[test]
     fn location_into_patch_location_copies_fields() {
@@ -148,6 +152,24 @@ mod conversions {
         assert_eq!(patch_location.full_text_url, location.full_text_url);
         assert_eq!(patch_location.location_platform, location.location_platform);
         assert_eq!(patch_location.canonical, location.canonical);
+    }
+
+    #[cfg(feature = "backend")]
+    #[test]
+    fn locationplatform_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(LocationPlatform::Other);
+    }
+
+    #[cfg(feature = "backend")]
+    #[test]
+    fn locationplatform_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<LocationPlatform, crate::schema::sql_types::LocationPlatform>(
+            pool.as_ref(),
+            "'Other'::location_platform",
+            LocationPlatform::Other,
+        );
     }
 }
 
@@ -180,12 +202,14 @@ mod policy {
     use super::*;
 
     use crate::model::location::policy::LocationPolicy;
+    use crate::model::publication::{NewPublication, Publication, PublicationType};
     use crate::model::tests::db::{
         create_imprint, create_publication, create_publisher, create_work, setup_test_db,
         test_context_with_user, test_superuser, test_user_with_role,
     };
     use crate::model::Crud;
     use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
+    use thoth_errors::ThothError;
 
     #[test]
     fn crud_policy_allows_publisher_user_for_write() {
@@ -226,6 +250,174 @@ mod policy {
     }
 
     #[test]
+    fn crud_policy_rejects_canonical_update_without_complete_record() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("location-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = Publication::create(
+            pool.as_ref(),
+            &NewPublication {
+                publication_type: PublicationType::Pdf,
+                work_id: work.work_id,
+                isbn: None,
+                width_mm: None,
+                width_in: None,
+                height_mm: None,
+                height_in: None,
+                depth_mm: None,
+                depth_in: None,
+                weight_g: None,
+                weight_oz: None,
+                accessibility_standard: None,
+                accessibility_additional_standard: None,
+                accessibility_exception: None,
+                accessibility_report_url: None,
+            },
+        )
+        .expect("Failed to create publication");
+
+        let location = Location::create(
+            pool.as_ref(),
+            &NewLocation {
+                publication_id: publication.publication_id,
+                landing_page: Some("https://example.com/landing".to_string()),
+                full_text_url: None,
+                location_platform: LocationPlatform::PublisherWebsite,
+                canonical: false,
+            },
+        )
+        .expect("Failed to create location");
+
+        let patch = PatchLocation {
+            location_id: location.location_id,
+            publication_id: location.publication_id,
+            landing_page: location.landing_page.clone(),
+            full_text_url: None,
+            location_platform: location.location_platform,
+            canonical: true,
+        };
+
+        let result = LocationPolicy::can_update(&ctx, &location, &patch, ());
+        assert!(matches!(result, Err(ThothError::LocationUrlError)));
+    }
+
+    #[test]
+    fn crud_policy_allows_update_when_not_canonical() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("location-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_publication(pool.as_ref(), &work);
+
+        let location = Location::create(
+            pool.as_ref(),
+            &NewLocation {
+                publication_id: publication.publication_id,
+                landing_page: Some("https://example.com/landing".to_string()),
+                full_text_url: None,
+                location_platform: LocationPlatform::PublisherWebsite,
+                canonical: true,
+            },
+        )
+        .expect("Failed to create location");
+
+        let patch = PatchLocation {
+            location_id: location.location_id,
+            publication_id: location.publication_id,
+            landing_page: location.landing_page.clone(),
+            full_text_url: location.full_text_url.clone(),
+            location_platform: location.location_platform,
+            canonical: false,
+        };
+
+        assert!(LocationPolicy::can_update(&ctx, &location, &patch, ()).is_ok());
+    }
+
+    #[test]
+    fn crud_policy_allows_non_canonical_when_canonical_exists() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("location-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_publication(pool.as_ref(), &work);
+
+        Location::create(
+            pool.as_ref(),
+            &NewLocation {
+                publication_id: publication.publication_id,
+                landing_page: Some("https://example.com/landing".to_string()),
+                full_text_url: None,
+                location_platform: LocationPlatform::PublisherWebsite,
+                canonical: true,
+            },
+        )
+        .expect("Failed to create canonical location");
+
+        let new_location = NewLocation {
+            publication_id: publication.publication_id,
+            landing_page: Some("https://example.com/other".to_string()),
+            full_text_url: None,
+            location_platform: LocationPlatform::PublisherWebsite,
+            canonical: false,
+        };
+
+        assert!(LocationPolicy::can_create(&ctx, &new_location, ()).is_ok());
+    }
+
+    #[test]
+    fn crud_policy_rejects_non_canonical_without_canonical() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("location-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_publication(pool.as_ref(), &work);
+
+        let new_location = NewLocation {
+            publication_id: publication.publication_id,
+            landing_page: Some("https://example.com/landing".to_string()),
+            full_text_url: None,
+            location_platform: LocationPlatform::PublisherWebsite,
+            canonical: false,
+        };
+
+        let result = LocationPolicy::can_create(&ctx, &new_location, ());
+        assert!(matches!(result, Err(ThothError::CanonicalLocationError)));
+    }
+
+    #[test]
     fn crud_policy_rejects_non_superuser_for_thoth_platform() {
         let (_guard, pool) = setup_test_db();
 
@@ -254,6 +446,102 @@ mod policy {
         let super_ctx = test_context_with_user(pool.clone(), superuser);
         assert!(LocationPolicy::can_create(&super_ctx, &new_location, ()).is_ok());
     }
+
+    #[test]
+    fn crud_policy_rejects_non_superuser_for_thoth_update_and_delete() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("location-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_publication(pool.as_ref(), &work);
+        let location = Location::create(
+            pool.as_ref(),
+            &NewLocation {
+                publication_id: publication.publication_id,
+                landing_page: Some("https://example.com/landing".to_string()),
+                full_text_url: Some("https://example.com/full".to_string()),
+                location_platform: LocationPlatform::Thoth,
+                canonical: true,
+            },
+        )
+        .expect("Failed to create location");
+
+        let patch = PatchLocation {
+            location_id: location.location_id,
+            publication_id: location.publication_id,
+            landing_page: Some("https://example.com/updated".to_string()),
+            full_text_url: Some("https://example.com/full.pdf".to_string()),
+            location_platform: location.location_platform,
+            canonical: location.canonical,
+        };
+
+        let update_result = LocationPolicy::can_update(&ctx, &location, &patch, ());
+        assert!(matches!(update_result, Err(ThothError::ThothLocationError)));
+
+        let delete_result = LocationPolicy::can_delete(&ctx, &location);
+        assert!(matches!(delete_result, Err(ThothError::ThothLocationError)));
+    }
+
+    #[test]
+    fn crud_policy_rejects_non_superuser_thoth_canonical_update() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("location-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_publication(pool.as_ref(), &work);
+
+        Location::create(
+            pool.as_ref(),
+            &NewLocation {
+                publication_id: publication.publication_id,
+                landing_page: Some("https://example.com/landing".to_string()),
+                full_text_url: Some("https://example.com/full".to_string()),
+                location_platform: LocationPlatform::Thoth,
+                canonical: true,
+            },
+        )
+        .expect("Failed to create canonical thoth location");
+
+        let location = Location::create(
+            pool.as_ref(),
+            &NewLocation {
+                publication_id: publication.publication_id,
+                landing_page: Some("https://example.com/other".to_string()),
+                full_text_url: None,
+                location_platform: LocationPlatform::PublisherWebsite,
+                canonical: false,
+            },
+        )
+        .expect("Failed to create location");
+
+        let patch = PatchLocation {
+            location_id: location.location_id,
+            publication_id: location.publication_id,
+            landing_page: location.landing_page.clone(),
+            full_text_url: location.full_text_url.clone(),
+            location_platform: location.location_platform,
+            canonical: true,
+        };
+
+        let result = LocationPolicy::can_update(&ctx, &location, &patch, ());
+        assert!(matches!(result, Err(ThothError::ThothUpdateCanonicalError)));
+    }
 }
 
 #[cfg(feature = "backend")]
@@ -261,11 +549,13 @@ mod crud {
     use super::*;
     use uuid::Uuid;
 
+    use crate::model::publication::{NewPublication, Publication, PublicationType};
     use crate::model::tests::db::{
         create_imprint, create_publication, create_publisher, create_work, setup_test_db,
         test_context,
     };
     use crate::model::Crud;
+    use thoth_errors::ThothError;
 
     fn make_location(
         pool: &crate::db::PgPool,
@@ -322,6 +612,181 @@ mod crud {
 
         let deleted = updated.delete(pool.as_ref()).expect("Failed to delete");
         assert!(Location::from_id(pool.as_ref(), &deleted.location_id).is_err());
+    }
+
+    #[test]
+    fn crud_update_rejects_changing_canonical_to_non_canonical() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_publication(pool.as_ref(), &work);
+
+        let location = make_location(
+            pool.as_ref(),
+            publication.publication_id,
+            LocationPlatform::PublisherWebsite,
+            true,
+            Some("https://example.com/landing".to_string()),
+        );
+        let patch = PatchLocation {
+            location_id: location.location_id,
+            publication_id: location.publication_id,
+            landing_page: location.landing_page.clone(),
+            full_text_url: location.full_text_url.clone(),
+            location_platform: location.location_platform,
+            canonical: false,
+        };
+
+        let ctx = test_context(pool.clone(), "test-user");
+        let result = location.update(&ctx, &patch);
+        assert!(matches!(result, Err(ThothError::CanonicalLocationError)));
+    }
+
+    #[test]
+    fn crud_update_promotes_non_canonical_to_canonical() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_publication(pool.as_ref(), &work);
+
+        let canonical = make_location(
+            pool.as_ref(),
+            publication.publication_id,
+            LocationPlatform::PublisherWebsite,
+            true,
+            Some("https://example.com/canonical".to_string()),
+        );
+        let non_canonical = make_location(
+            pool.as_ref(),
+            publication.publication_id,
+            LocationPlatform::Other,
+            false,
+            Some("https://example.com/other".to_string()),
+        );
+
+        let patch = PatchLocation {
+            location_id: non_canonical.location_id,
+            publication_id: non_canonical.publication_id,
+            landing_page: non_canonical.landing_page.clone(),
+            full_text_url: non_canonical.full_text_url.clone(),
+            location_platform: non_canonical.location_platform,
+            canonical: true,
+        };
+
+        let ctx = test_context(pool.clone(), "test-user");
+        let updated = non_canonical
+            .update(&ctx, &patch)
+            .expect("Failed to promote non-canonical location");
+
+        assert!(updated.canonical);
+
+        let refreshed = Location::from_id(pool.as_ref(), &canonical.location_id)
+            .expect("Failed to fetch canonical location");
+        assert!(!refreshed.canonical);
+
+        let canonical_lookup = non_canonical
+            .get_canonical_location(pool.as_ref())
+            .expect("Failed to load canonical location");
+        assert_eq!(canonical_lookup.location_id, updated.location_id);
+    }
+
+    #[test]
+    fn crud_new_location_can_be_non_canonical_requires_existing_canonical() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_publication(pool.as_ref(), &work);
+
+        let new_location = NewLocation {
+            publication_id: publication.publication_id,
+            landing_page: Some("https://example.com/landing".to_string()),
+            full_text_url: None,
+            location_platform: LocationPlatform::PublisherWebsite,
+            canonical: false,
+        };
+
+        let result = new_location.can_be_non_canonical(pool.as_ref());
+        assert!(matches!(result, Err(ThothError::CanonicalLocationError)));
+    }
+
+    #[test]
+    fn crud_new_location_can_be_non_canonical_allows_when_canonical_exists() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_publication(pool.as_ref(), &work);
+
+        Location::create(
+            pool.as_ref(),
+            &NewLocation {
+                publication_id: publication.publication_id,
+                landing_page: Some("https://example.com/landing".to_string()),
+                full_text_url: Some("https://example.com/full.pdf".to_string()),
+                location_platform: LocationPlatform::PublisherWebsite,
+                canonical: true,
+            },
+        )
+        .expect("Failed to create canonical location");
+
+        let new_location = NewLocation {
+            publication_id: publication.publication_id,
+            landing_page: Some("https://example.com/other".to_string()),
+            full_text_url: None,
+            location_platform: LocationPlatform::Other,
+            canonical: false,
+        };
+
+        assert!(new_location.can_be_non_canonical(pool.as_ref()).is_ok());
+    }
+
+    #[test]
+    fn crud_canonical_record_complete_requires_urls_for_digital_publications() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+
+        let publication = Publication::create(
+            pool.as_ref(),
+            &NewPublication {
+                publication_type: PublicationType::Pdf,
+                work_id: work.work_id,
+                isbn: None,
+                width_mm: None,
+                width_in: None,
+                height_mm: None,
+                height_in: None,
+                depth_mm: None,
+                depth_in: None,
+                weight_g: None,
+                weight_oz: None,
+                accessibility_standard: None,
+                accessibility_additional_standard: None,
+                accessibility_exception: None,
+                accessibility_report_url: None,
+            },
+        )
+        .expect("Failed to create publication");
+
+        let new_location = NewLocation {
+            publication_id: publication.publication_id,
+            landing_page: Some("https://example.com/landing".to_string()),
+            full_text_url: None,
+            location_platform: LocationPlatform::PublisherWebsite,
+            canonical: true,
+        };
+
+        let result = new_location.canonical_record_complete(pool.as_ref());
+        assert!(matches!(result, Err(ThothError::LocationUrlError)));
     }
 
     #[test]

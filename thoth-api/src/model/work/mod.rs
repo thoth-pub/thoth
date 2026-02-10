@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "Type of a work"),
     ExistingTypePath = "crate::schema::sql_types::WorkType"
 )]
@@ -65,7 +65,7 @@ pub enum WorkType {
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(
         description = "Publication status of a work throughout its lifecycle. For a visual representation of the workflow, refer to the work status flowchart https://github.com/thoth-pub/thoth/wiki/Thoth_Works#work-status-flowchart"
     ),
@@ -179,7 +179,7 @@ pub enum WorkField {
     UpdatedAtWithRelations,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Work {
@@ -218,7 +218,7 @@ pub struct Work {
 }
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new written text that can be published"),
     diesel(table_name = work)
 )]
@@ -255,7 +255,7 @@ pub struct NewWork {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing written text that can be published"),
     diesel(table_name = work, treat_none_as_null = true)
 )]
@@ -291,7 +291,7 @@ pub struct PatchWork {
     pub page_interval: Option<String>,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct WorkHistory {
     pub work_history_id: Uuid,
     pub work_id: Uuid,
@@ -300,7 +300,7 @@ pub struct WorkHistory {
     pub timestamp: Timestamp,
 }
 
-#[cfg_attr(feature = "backend", derive(Insertable), diesel(table_name = work_history))]
+#[cfg_attr(feature = "backend", derive(diesel::Insertable), diesel(table_name = work_history))]
 pub struct NewWorkHistory {
     pub work_id: Uuid,
     pub user_id: String,

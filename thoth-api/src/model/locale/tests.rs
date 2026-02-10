@@ -2,6 +2,10 @@ use super::*;
 
 mod conversions {
     use super::*;
+    #[cfg(feature = "backend")]
+    use crate::model::tests::db::setup_test_db;
+    #[cfg(feature = "backend")]
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
     use strum::IntoEnumIterator;
 
     #[test]
@@ -102,5 +106,23 @@ mod conversions {
             assert_eq!(code.len(), 3);
             assert!(code.chars().all(|c| c.is_ascii_uppercase()));
         }
+    }
+
+    #[cfg(feature = "backend")]
+    #[test]
+    fn localecode_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(LocaleCode::En);
+    }
+
+    #[cfg(feature = "backend")]
+    #[test]
+    fn localecode_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<LocaleCode, crate::schema::sql_types::LocaleCode>(
+            pool.as_ref(),
+            "'en'::locale_code",
+            LocaleCode::En,
+        );
     }
 }

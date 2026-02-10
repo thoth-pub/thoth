@@ -2,11 +2,11 @@ use super::{
     Contribution, ContributionField, ContributionHistory, ContributionType, NewContribution,
     NewContributionHistory, PatchContribution,
 };
-use crate::diesel::JoinOnDsl;
 use crate::graphql::types::inputs::ContributionOrderBy;
 use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{contribution, contribution_history};
+use diesel::JoinOnDsl;
 use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::ThothResult;
 use uuid::Uuid;

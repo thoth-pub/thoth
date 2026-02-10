@@ -20,6 +20,112 @@ fn make_title(
     Title::create(pool, &new_title).expect("Failed to create title")
 }
 
+mod conversions {
+    use super::*;
+    use crate::markup::MarkupFormat;
+
+    #[test]
+    fn convert_title_to_jats_updates_fields() {
+        let mut title = Title {
+            title: "<title>My Title</title>".to_string(),
+            subtitle: Some("<subtitle>Sub</subtitle>".to_string()),
+            full_title: "<title>My Title: Sub</title>".to_string(),
+            locale_code: LocaleCode::En,
+            canonical: false,
+            ..Default::default()
+        };
+
+        convert_title_to_jats(&mut title, MarkupFormat::JatsXml)
+            .expect("Failed to convert title to JATS");
+
+        assert_eq!(title.title(), "<title>My Title</title>");
+        assert_eq!(
+            TitleProperties::subtitle(&title),
+            Some("<subtitle>Sub</subtitle>")
+        );
+        assert_eq!(title.full_title(), "<title>My Title: Sub</title>");
+    }
+}
+
+mod helpers {
+    use super::*;
+
+    #[test]
+    fn compile_fulltitle_formats_with_subtitle_and_punctuation() {
+        let mut title = Title {
+            title: "Hello".to_string(),
+            subtitle: Some("World".to_string()),
+            full_title: "".to_string(),
+            locale_code: LocaleCode::En,
+            canonical: false,
+            ..Default::default()
+        };
+
+        assert_eq!(title.compile_fulltitle(), "Hello: World");
+
+        title.title = "Hello?".to_string();
+        assert_eq!(title.compile_fulltitle(), "Hello? World");
+
+        title.title = "".to_string();
+        assert_eq!(title.compile_fulltitle(), "Untitled: World");
+
+        title.subtitle = None;
+        title.title = "Solo".to_string();
+        assert_eq!(title.compile_fulltitle(), "Solo");
+    }
+
+    #[test]
+    fn titleproperties_accessors_and_setters_work() {
+        let mut title = Title {
+            title: "Main".to_string(),
+            subtitle: Some("Sub".to_string()),
+            full_title: "Main: Sub".to_string(),
+            locale_code: LocaleCode::En,
+            canonical: true,
+            ..Default::default()
+        };
+
+        assert_eq!(title.title(), "Main");
+        assert_eq!(TitleProperties::subtitle(&title), Some("Sub"));
+        assert_eq!(title.full_title(), "Main: Sub");
+        assert_eq!(title.locale_code(), &LocaleCode::En);
+        assert!(title.canonical());
+
+        title.set_title("Updated".to_string());
+        title.set_subtitle(None);
+        title.set_full_title("Updated".to_string());
+
+        assert_eq!(title.title(), "Updated");
+        assert_eq!(TitleProperties::subtitle(&title), None);
+        assert_eq!(title.full_title(), "Updated");
+
+        let new_title = NewTitle {
+            work_id: Uuid::new_v4(),
+            locale_code: LocaleCode::En,
+            full_title: "New Title".to_string(),
+            title: "New".to_string(),
+            subtitle: None,
+            canonical: true,
+        };
+
+        assert_eq!(new_title.locale_code(), &LocaleCode::En);
+        assert!(new_title.canonical());
+
+        let patch_title = PatchTitle {
+            title_id: Uuid::new_v4(),
+            work_id: Uuid::new_v4(),
+            locale_code: LocaleCode::Fr,
+            full_title: "Patch Title".to_string(),
+            title: "Patch".to_string(),
+            subtitle: None,
+            canonical: false,
+        };
+
+        assert_eq!(patch_title.locale_code(), &LocaleCode::Fr);
+        assert!(!patch_title.canonical());
+    }
+}
+
 #[cfg(feature = "backend")]
 mod policy {
     use super::*;
@@ -32,6 +138,7 @@ mod policy {
     use crate::model::title::policy::TitlePolicy;
     use crate::model::Crud;
     use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
+    use thoth_errors::ThothError;
 
     #[test]
     fn crud_policy_allows_publisher_user_with_markup() {
@@ -108,6 +215,43 @@ mod policy {
 
         assert!(TitlePolicy::can_create(&ctx, &new_title, None).is_err());
         assert!(TitlePolicy::can_update(&ctx, &title, &patch, None).is_err());
+    }
+
+    #[test]
+    fn crud_policy_rejects_duplicate_canonical_title() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("title-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let canonical_title = NewTitle {
+            work_id: work.work_id,
+            locale_code: LocaleCode::En,
+            full_title: "Canonical Title".to_string(),
+            title: "Canonical".to_string(),
+            subtitle: None,
+            canonical: true,
+        };
+        Title::create(pool.as_ref(), &canonical_title).expect("Failed to create title");
+
+        let new_title = NewTitle {
+            work_id: work.work_id,
+            locale_code: LocaleCode::En,
+            full_title: "Second Canonical Title".to_string(),
+            title: "Second".to_string(),
+            subtitle: None,
+            canonical: true,
+        };
+
+        let result = TitlePolicy::can_create(&ctx, &new_title, Some(MarkupFormat::Html));
+        assert!(matches!(result, Err(ThothError::CanonicalTitleExistsError)));
     }
 
     #[test]

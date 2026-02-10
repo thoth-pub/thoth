@@ -11,7 +11,7 @@ use crate::schema::subject_history;
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "Type of a subject (e.g. the subject category scheme being used)"),
     ExistingTypePath = "crate::schema::sql_types::SubjectType"
 )]
@@ -58,7 +58,7 @@ pub enum SubjectField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Subject {
@@ -73,7 +73,7 @@ pub struct Subject {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new significant discipline or term related to a work"),
     diesel(table_name = subject)
 )]
@@ -86,7 +86,7 @@ pub struct NewSubject {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing significant discipline or term related to a work"),
     diesel(table_name = subject, treat_none_as_null = true)
 )]
@@ -98,7 +98,7 @@ pub struct PatchSubject {
     pub subject_ordinal: i32,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct SubjectHistory {
     pub subject_history_id: Uuid,
     pub subject_id: Uuid,
@@ -109,7 +109,7 @@ pub struct SubjectHistory {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = subject_history)
 )]
 pub struct NewSubjectHistory {

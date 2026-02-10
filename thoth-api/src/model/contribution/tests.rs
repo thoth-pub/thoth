@@ -182,6 +182,29 @@ mod display_and_parse {
     }
 }
 
+#[cfg(feature = "backend")]
+mod conversions {
+    use super::*;
+    use crate::model::tests::db::setup_test_db;
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
+
+    #[test]
+    fn contributiontype_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(ContributionType::Author);
+    }
+
+    #[test]
+    fn contributiontype_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<ContributionType, crate::schema::sql_types::ContributionType>(
+            pool.as_ref(),
+            "'author'::contribution_type",
+            ContributionType::Author,
+        );
+    }
+}
+
 mod helpers {
     use super::*;
     use crate::model::{Crud, HistoryEntry};
@@ -219,7 +242,7 @@ mod policy {
         test_context_with_user, test_user_with_role,
     };
     use crate::model::Crud;
-    use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
+    use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, Role, UpdatePolicy};
 
     #[test]
     fn crud_policy_allows_publisher_user_for_write() {
@@ -258,6 +281,7 @@ mod policy {
         assert!(ContributionPolicy::can_create(&ctx, &new_contribution, ()).is_ok());
         assert!(ContributionPolicy::can_update(&ctx, &contribution, &patch, ()).is_ok());
         assert!(ContributionPolicy::can_delete(&ctx, &contribution).is_ok());
+        assert!(ContributionPolicy::can_move(&ctx, &contribution).is_ok());
     }
 
     #[test]
@@ -298,6 +322,7 @@ mod policy {
         assert!(ContributionPolicy::can_create(&ctx, &new_contribution, ()).is_err());
         assert!(ContributionPolicy::can_update(&ctx, &contribution, &patch, ()).is_err());
         assert!(ContributionPolicy::can_delete(&ctx, &contribution).is_err());
+        assert!(ContributionPolicy::can_move(&ctx, &contribution).is_err());
     }
 }
 

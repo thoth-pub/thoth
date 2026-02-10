@@ -7,7 +7,7 @@ use crate::model::language::LanguageCode;
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "BCP-47 code representing locale"),
     ExistingTypePath = "crate::schema::sql_types::LocaleCode"
 )]

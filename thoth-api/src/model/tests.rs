@@ -1,12 +1,18 @@
 use super::*;
 
 #[cfg(feature = "backend")]
+use crate::db::PgPool;
+
+#[cfg(feature = "backend")]
 pub(crate) mod db {
     use std::collections::HashMap;
     use std::env;
     use std::fs::OpenOptions;
     use std::sync::{Arc, OnceLock};
+    use std::time::Duration;
 
+    use diesel::pg::PgConnection;
+    use diesel::r2d2::ConnectionManager;
     use diesel::RunQueryDsl;
     use fs2::FileExt;
     use uuid::Uuid;
@@ -60,6 +66,16 @@ pub(crate) mod db {
         migrations.expect("Failed to run migrations for test DB");
         let pool = POOL.get_or_init(|| Arc::new(init_pool(&url)));
         pool.clone()
+    }
+
+    pub(crate) fn failing_pool() -> PgPool {
+        let manager = ConnectionManager::<PgConnection>::new(
+            "postgres://invalid:invalid@localhost:1/invalid",
+        );
+        diesel::r2d2::Pool::builder()
+            .max_size(1)
+            .connection_timeout(Duration::from_millis(100))
+            .build_unchecked(manager)
     }
 
     pub(crate) fn reset_db(pool: &PgPool) -> Result<(), diesel::result::Error> {
@@ -295,6 +311,198 @@ END $$;
     }
 }
 
+#[cfg(feature = "backend")]
+pub(crate) fn assert_graphql_enum_roundtrip<E>(value: E)
+where
+    E: juniper::FromInputValue<juniper::DefaultScalarValue>
+        + juniper::ToInputValue<juniper::DefaultScalarValue>
+        + juniper::GraphQLType<juniper::DefaultScalarValue>
+        + juniper::GraphQLValue<juniper::DefaultScalarValue, Context = (), TypeInfo = ()>
+        + PartialEq
+        + std::fmt::Debug
+        + Clone,
+    <E as juniper::FromInputValue<juniper::DefaultScalarValue>>::Error: std::fmt::Debug,
+{
+    let _ = <E as juniper::GraphQLType<juniper::DefaultScalarValue>>::name(&());
+    let mut registry = juniper::Registry::new(Default::default());
+    let _ = <E as juniper::GraphQLType<juniper::DefaultScalarValue>>::meta(&(), &mut registry);
+    let _ = <E as juniper::GraphQLValue<juniper::DefaultScalarValue>>::type_name(&value, &());
+
+    let input = value.to_input_value();
+    let parsed = E::from_input_value(&input).expect("GraphQL enum should parse");
+    assert_eq!(parsed, value);
+}
+
+#[cfg(feature = "backend")]
+pub(crate) fn assert_db_enum_to_sql<E, ST>(pool: &PgPool, value: &E)
+where
+    E: diesel::serialize::ToSql<ST, diesel::pg::Pg>
+        + diesel::serialize::ToSql<diesel::sql_types::Nullable<ST>, diesel::pg::Pg>
+        + std::fmt::Debug,
+    ST: diesel::sql_types::SingleValue + diesel::sql_types::SqlType,
+    diesel::pg::Pg: diesel::sql_types::HasSqlType<ST>
+        + diesel::sql_types::HasSqlType<diesel::sql_types::Nullable<ST>>,
+{
+    use diesel::pg::PgMetadataLookup;
+    use diesel::query_builder::bind_collector::RawBytesBindCollector;
+    use diesel::query_builder::BindCollector;
+
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let mut collector = RawBytesBindCollector::<diesel::pg::Pg>::new();
+    let metadata_lookup: &mut dyn PgMetadataLookup = &mut *connection;
+    collector
+        .push_bound_value::<ST, _>(value, metadata_lookup)
+        .expect("Failed to serialize DB enum");
+    collector
+        .push_bound_value::<diesel::sql_types::Nullable<ST>, _>(value, metadata_lookup)
+        .expect("Failed to serialize DB enum (nullable)");
+}
+
+#[cfg(feature = "backend")]
+pub(crate) fn assert_db_enum_as_expression<E, ST>(value: E)
+where
+    E: diesel::expression::AsExpression<ST>
+        + diesel::expression::AsExpression<diesel::sql_types::Nullable<ST>>
+        + Copy,
+    for<'a> &'a E: diesel::expression::AsExpression<ST>
+        + diesel::expression::AsExpression<diesel::sql_types::Nullable<ST>>,
+    for<'a> &'a &'a E: diesel::expression::AsExpression<ST>
+        + diesel::expression::AsExpression<diesel::sql_types::Nullable<ST>>,
+    ST: diesel::sql_types::SqlType
+        + diesel::expression::TypedExpressionType
+        + diesel::sql_types::SingleValue,
+{
+    let _ = <E as diesel::expression::AsExpression<ST>>::as_expression(value);
+    let _ = <E as diesel::expression::AsExpression<diesel::sql_types::Nullable<ST>>>::as_expression(
+        value,
+    );
+    let value_ref = &value;
+    let _ = <&E as diesel::expression::AsExpression<ST>>::as_expression(value_ref);
+    let _ =
+        <&E as diesel::expression::AsExpression<diesel::sql_types::Nullable<ST>>>::as_expression(
+            value_ref,
+        );
+    let value_ref_ref = &value_ref;
+    let _ = <&&E as diesel::expression::AsExpression<ST>>::as_expression(value_ref_ref);
+    let _ =
+        <&&E as diesel::expression::AsExpression<diesel::sql_types::Nullable<ST>>>::as_expression(
+            value_ref_ref,
+        );
+}
+
+#[cfg(feature = "backend")]
+pub(crate) fn assert_db_enum_queryable<E, ST>(value: E)
+where
+    E: diesel::Queryable<ST, diesel::pg::Pg, Row = E> + Copy,
+{
+    let _ = <E as diesel::Queryable<ST, diesel::pg::Pg>>::build(value)
+        .expect("Failed to build DB enum via Queryable");
+}
+
+#[cfg(feature = "backend")]
+pub(crate) fn assert_db_enum_roundtrip<E, ST>(pool: &PgPool, literal: &str, expected: E)
+where
+    E: diesel::deserialize::FromSqlRow<ST, diesel::pg::Pg>
+        + diesel::serialize::ToSql<ST, diesel::pg::Pg>
+        + diesel::serialize::ToSql<diesel::sql_types::Nullable<ST>, diesel::pg::Pg>
+        + diesel::expression::AsExpression<ST>
+        + diesel::expression::AsExpression<diesel::sql_types::Nullable<ST>>
+        + diesel::Queryable<ST, diesel::pg::Pg, Row = E>
+        + Copy
+        + PartialEq
+        + std::fmt::Debug
+        + 'static,
+    for<'a> &'a E: diesel::expression::AsExpression<ST>
+        + diesel::expression::AsExpression<diesel::sql_types::Nullable<ST>>,
+    for<'a> &'a &'a E: diesel::expression::AsExpression<ST>
+        + diesel::expression::AsExpression<diesel::sql_types::Nullable<ST>>,
+    ST: diesel::sql_types::SingleValue
+        + diesel::sql_types::SqlType
+        + diesel::expression::TypedExpressionType,
+    diesel::pg::Pg: diesel::sql_types::HasSqlType<ST>,
+{
+    use diesel::dsl::sql;
+    use diesel::prelude::*;
+
+    assert_db_enum_as_expression::<E, ST>(expected);
+    assert_db_enum_queryable::<E, ST>(expected);
+    assert_db_enum_to_sql::<E, ST>(pool, &expected);
+
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let fetched: E = diesel::select(sql::<ST>(literal))
+        .get_result(&mut connection)
+        .expect("Failed to roundtrip DB enum");
+
+    assert_eq!(fetched, expected);
+}
+
+mod publisher_ids {
+    use crate::model::tests::db::{create_imprint, create_publisher, create_work, setup_test_db};
+    use crate::model::work_relation::{NewWorkRelation, RelationType, WorkRelation};
+    use crate::model::{Crud, PublisherId, PublisherIds};
+
+    #[test]
+    fn publisher_id_zitadel_id_resolves_from_related_publisher() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+
+        let zitadel_id = work
+            .zitadel_id(pool.as_ref())
+            .expect("Failed to resolve publisher zitadel id");
+        assert_eq!(zitadel_id, publisher.zitadel_id.clone().unwrap());
+    }
+
+    #[test]
+    fn publisher_ids_zitadel_ids_returns_sorted_unique_ids() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let other_publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let other_imprint = create_imprint(pool.as_ref(), &other_publisher);
+        let relator = create_work(pool.as_ref(), &imprint);
+        let related = create_work(pool.as_ref(), &other_imprint);
+
+        let new_relation = NewWorkRelation {
+            relator_work_id: relator.work_id,
+            related_work_id: related.work_id,
+            relation_type: RelationType::HasPart,
+            relation_ordinal: 1,
+        };
+        let relation =
+            WorkRelation::create(pool.as_ref(), &new_relation).expect("Failed to create relation");
+
+        let mut expected = vec![
+            publisher.zitadel_id.clone().unwrap(),
+            other_publisher.zitadel_id.clone().unwrap(),
+        ];
+        expected.sort();
+
+        let ids = relation
+            .zitadel_ids(pool.as_ref())
+            .expect("Failed to resolve publisher zitadel ids");
+        assert_eq!(ids, expected);
+    }
+}
+
+#[cfg(feature = "backend")]
+mod db_errors {
+    use crate::model::publisher::Publisher;
+    use crate::model::tests::db::failing_pool;
+    use crate::model::Crud;
+    use uuid::Uuid;
+
+    #[test]
+    fn failing_pool_returns_error() {
+        let pool = failing_pool();
+        let result = Publisher::from_id(&pool, &Uuid::new_v4());
+        assert!(result.is_err());
+    }
+}
+
 #[test]
 fn test_doi_default() {
     let doi: Doi = Default::default();
@@ -441,6 +649,17 @@ fn test_doi_fromstr() {
 }
 
 #[test]
+fn doi_fromstr_rejects_empty_input() {
+    assert!(matches!(Doi::from_str(""), Err(ThothError::DoiEmptyError)));
+}
+
+#[test]
+fn doi_fromstr_rejects_invalid_input() {
+    let result = Doi::from_str("not-a-doi");
+    assert!(matches!(result, Err(ThothError::DoiParseError(_))));
+}
+
+#[test]
 fn test_isbn_fromstr() {
     // Note the `isbn2` crate contains tests of valid/invalid ISBN values -
     // this focuses on testing that a valid ISBN in any format is standardised
@@ -462,6 +681,20 @@ fn test_isbn_fromstr() {
     assert!(Isbn::from_str("1234567890123").is_err());
     assert!(Isbn::from_str("0-684-84328-5").is_err());
     assert!(Isbn::from_str("abcdef").is_err());
+}
+
+#[test]
+fn isbn_fromstr_rejects_empty_input() {
+    assert!(matches!(
+        Isbn::from_str(""),
+        Err(ThothError::IsbnEmptyError)
+    ));
+}
+
+#[test]
+fn isbn_fromstr_rejects_garbage_input() {
+    let result = Isbn::from_str("not-an-isbn");
+    assert!(matches!(result, Err(ThothError::IsbnParseError(_))));
 }
 
 #[test]
@@ -515,6 +748,20 @@ fn test_orcid_fromstr() {
 }
 
 #[test]
+fn orcid_fromstr_rejects_empty_input() {
+    assert!(matches!(
+        Orcid::from_str(""),
+        Err(ThothError::OrcidEmptyError)
+    ));
+}
+
+#[test]
+fn orcid_fromstr_rejects_invalid_input() {
+    let result = Orcid::from_str("0000-0002-1234-567");
+    assert!(matches!(result, Err(ThothError::OrcidParseError(_))));
+}
+
+#[test]
 fn test_ror_fromstr() {
     let standardised = Ror("https://ror.org/0abcdef12".to_string());
     assert_eq!(
@@ -551,6 +798,17 @@ fn test_ror_fromstr() {
     assert!(Ror::from_str("//ror.org/0abcdef12").is_err());
     assert!(Ror::from_str("https://ror-org/0abcdef12").is_err());
     assert!(Ror::from_str("0abcdef12https://ror.org/").is_err());
+}
+
+#[test]
+fn ror_fromstr_rejects_empty_input() {
+    assert!(matches!(Ror::from_str(""), Err(ThothError::RorEmptyError)));
+}
+
+#[test]
+fn ror_fromstr_rejects_invalid_input() {
+    let result = Ror::from_str("not-a-ror");
+    assert!(matches!(result, Err(ThothError::RorParseError(_))));
 }
 
 #[test]

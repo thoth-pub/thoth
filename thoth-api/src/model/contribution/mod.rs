@@ -11,7 +11,7 @@ use crate::schema::contribution_history;
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "Role describing the type of contribution to the work"),
     ExistingTypePath = "crate::schema::sql_types::ContributionType"
 )]
@@ -118,7 +118,7 @@ pub enum ContributionField {
     ContributionOrdinal,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contribution {
@@ -136,7 +136,7 @@ pub struct Contribution {
 }
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new individual involvement in the production of a work"),
     diesel(table_name = contribution)
 )]
@@ -153,7 +153,7 @@ pub struct NewContribution {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an individual involvement in the production of a work"),
     diesel(table_name = contribution, treat_none_as_null = true)
 )]
@@ -169,7 +169,7 @@ pub struct PatchContribution {
     pub contribution_ordinal: i32,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct ContributionHistory {
     pub contribution_history_id: Uuid,
     pub contribution_id: Uuid,
@@ -180,7 +180,7 @@ pub struct ContributionHistory {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = contribution_history)
 )]
 pub struct NewContributionHistory {

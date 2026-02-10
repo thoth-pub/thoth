@@ -63,6 +63,29 @@ mod display_and_parse {
     }
 }
 
+#[cfg(feature = "backend")]
+mod conversions {
+    use super::*;
+    use crate::model::tests::db::setup_test_db;
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
+
+    #[test]
+    fn subjecttype_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(SubjectType::Bisac);
+    }
+
+    #[test]
+    fn subjecttype_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<SubjectType, crate::schema::sql_types::SubjectType>(
+            pool.as_ref(),
+            "'bisac'::subject_type",
+            SubjectType::Bisac,
+        );
+    }
+}
+
 mod helpers {
     use super::*;
     use crate::model::{Crud, HistoryEntry};
@@ -97,7 +120,7 @@ mod policy {
         test_user_with_role,
     };
     use crate::model::Crud;
-    use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
+    use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, Role, UpdatePolicy};
 
     #[test]
     fn crud_policy_allows_publisher_user_for_write() {
@@ -132,6 +155,7 @@ mod policy {
         assert!(SubjectPolicy::can_create(&ctx, &new_subject, ()).is_ok());
         assert!(SubjectPolicy::can_update(&ctx, &subject, &patch, ()).is_ok());
         assert!(SubjectPolicy::can_delete(&ctx, &subject).is_ok());
+        assert!(SubjectPolicy::can_move(&ctx, &subject).is_ok());
     }
 
     #[test]
@@ -193,6 +217,7 @@ mod policy {
         assert!(SubjectPolicy::can_create(&ctx, &new_subject, ()).is_err());
         assert!(SubjectPolicy::can_update(&ctx, &subject, &patch, ()).is_err());
         assert!(SubjectPolicy::can_delete(&ctx, &subject).is_err());
+        assert!(SubjectPolicy::can_move(&ctx, &subject).is_err());
     }
 }
 
@@ -369,6 +394,43 @@ mod crud {
             None,
         )
         .expect("Failed to count subjects by type");
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn crud_count_filters_by_subject_code() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+
+        make_subject(
+            pool.as_ref(),
+            work.work_id,
+            SubjectType::Keyword,
+            "ABC123".to_string(),
+            1,
+        );
+        make_subject(
+            pool.as_ref(),
+            work.work_id,
+            SubjectType::Keyword,
+            "XYZ999".to_string(),
+            2,
+        );
+
+        let count = Subject::count(
+            pool.as_ref(),
+            Some("ABC".to_string()),
+            vec![],
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to count subjects by code");
+
         assert_eq!(count, 1);
     }
 

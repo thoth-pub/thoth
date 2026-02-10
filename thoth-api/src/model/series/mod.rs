@@ -12,7 +12,7 @@ use crate::schema::series_history;
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "Type of a series"),
     ExistingTypePath = "crate::schema::sql_types::SeriesType"
 )]
@@ -65,7 +65,7 @@ pub enum SeriesField {
     SeriesCfpUrl,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Series {
@@ -84,7 +84,7 @@ pub struct Series {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new periodical of publications"),
     diesel(table_name = series)
 )]
@@ -101,7 +101,7 @@ pub struct NewSeries {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing periodical of publications"),
     diesel(table_name = series, treat_none_as_null = true)
 )]
@@ -117,7 +117,7 @@ pub struct PatchSeries {
     pub imprint_id: Uuid,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct SeriesHistory {
     pub series_history_id: Uuid,
     pub series_id: Uuid,
@@ -126,7 +126,7 @@ pub struct SeriesHistory {
     pub timestamp: Timestamp,
 }
 
-#[cfg_attr(feature = "backend", derive(Insertable), diesel(table_name = series_history))]
+#[cfg_attr(feature = "backend", derive(diesel::Insertable), diesel(table_name = series_history))]
 pub struct NewSeriesHistory {
     pub series_id: Uuid,
     pub user_id: String,

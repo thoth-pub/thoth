@@ -13,7 +13,7 @@ use ast::{
 /// Enum to represent the markup format
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(
         description = "Allowed markup formats for text fields that support structured content"
     ),

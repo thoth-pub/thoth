@@ -34,7 +34,7 @@ mod policy {
         test_context_with_user, test_user_with_role,
     };
     use crate::model::Crud;
-    use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
+    use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, Role, UpdatePolicy};
 
     #[test]
     fn crud_policy_allows_publisher_user_for_write() {
@@ -68,6 +68,7 @@ mod policy {
         assert!(IssuePolicy::can_create(&ctx, &new_issue, ()).is_ok());
         assert!(IssuePolicy::can_update(&ctx, &issue, &patch, ()).is_ok());
         assert!(IssuePolicy::can_delete(&ctx, &issue).is_ok());
+        assert!(IssuePolicy::can_move(&ctx, &issue).is_ok());
     }
 
     #[test]
@@ -95,6 +96,38 @@ mod policy {
         };
 
         assert!(IssuePolicy::can_create(&ctx, &new_issue, ()).is_err());
+    }
+
+    #[test]
+    fn crud_policy_rejects_user_without_publisher_role() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let series = create_series(pool.as_ref(), &imprint);
+        let work = create_work(pool.as_ref(), &imprint);
+
+        let new_issue = NewIssue {
+            series_id: series.series_id,
+            work_id: work.work_id,
+            issue_ordinal: 1,
+        };
+
+        let issue = Issue::create(pool.as_ref(), &new_issue).expect("Failed to create");
+        let patch = PatchIssue {
+            issue_id: issue.issue_id,
+            series_id: issue.series_id,
+            work_id: issue.work_id,
+            issue_ordinal: 2,
+        };
+
+        let user = test_user_with_role("issue-user", Role::PublisherUser, "org-other");
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        assert!(IssuePolicy::can_create(&ctx, &new_issue, ()).is_err());
+        assert!(IssuePolicy::can_update(&ctx, &issue, &patch, ()).is_err());
+        assert!(IssuePolicy::can_delete(&ctx, &issue).is_err());
+        assert!(IssuePolicy::can_move(&ctx, &issue).is_err());
     }
 }
 

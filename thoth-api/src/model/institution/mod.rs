@@ -37,7 +37,7 @@ pub enum InstitutionField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Institution {
@@ -52,7 +52,7 @@ pub struct Institution {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new organisation with which contributors may be affiliated or by which works may be funded"),
     diesel(table_name = institution)
 )]
@@ -65,7 +65,7 @@ pub struct NewInstitution {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing organisation with which contributors may be affiliated or by which works may be funded"),
     diesel(table_name = institution, treat_none_as_null = true)
 )]
@@ -79,7 +79,7 @@ pub struct PatchInstitution {
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "Three-letter ISO 3166-1 code representing a country"),
     ExistingTypePath = "crate::schema::sql_types::CountryCode"
 )]
@@ -865,7 +865,7 @@ pub enum CountryCode {
     Zwe,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct InstitutionHistory {
     pub institution_history_id: Uuid,
     pub institution_id: Uuid,
@@ -876,7 +876,7 @@ pub struct InstitutionHistory {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = institution_history)
 )]
 pub struct NewInstitutionHistory {

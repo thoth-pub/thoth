@@ -80,7 +80,7 @@ mod policy {
         test_user_with_role,
     };
     use crate::model::Crud;
-    use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
+    use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, Role, UpdatePolicy};
 
     #[test]
     fn crud_policy_allows_publisher_user_for_write() {
@@ -151,6 +151,7 @@ mod policy {
         assert!(ReferencePolicy::can_create(&ctx, &new_reference, ()).is_ok());
         assert!(ReferencePolicy::can_update(&ctx, &reference, &patch, ()).is_ok());
         assert!(ReferencePolicy::can_delete(&ctx, &reference).is_ok());
+        assert!(ReferencePolicy::can_move(&ctx, &reference).is_ok());
     }
 
     #[test]
@@ -223,6 +224,7 @@ mod policy {
         assert!(ReferencePolicy::can_create(&ctx, &new_reference, ()).is_err());
         assert!(ReferencePolicy::can_update(&ctx, &reference, &patch, ()).is_err());
         assert!(ReferencePolicy::can_delete(&ctx, &reference).is_err());
+        assert!(ReferencePolicy::can_move(&ctx, &reference).is_err());
     }
 }
 
@@ -396,6 +398,44 @@ mod crud {
         let count = Reference::count(pool.as_ref(), None, vec![], vec![], vec![], None, None)
             .expect("Failed to count references");
         assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn crud_count_filters_by_publishers() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        make_reference(
+            pool.as_ref(),
+            work.work_id,
+            1,
+            Some(format!("Citation {}", Uuid::new_v4())),
+        );
+
+        let other_publisher = create_publisher(pool.as_ref());
+        let other_imprint = create_imprint(pool.as_ref(), &other_publisher);
+        let other_work = create_work(pool.as_ref(), &other_imprint);
+        make_reference(
+            pool.as_ref(),
+            other_work.work_id,
+            1,
+            Some(format!("Other {}", Uuid::new_v4())),
+        );
+
+        let count = Reference::count(
+            pool.as_ref(),
+            None,
+            vec![publisher.publisher_id],
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to count references by publisher");
+
+        assert_eq!(count, 1);
     }
 
     #[test]

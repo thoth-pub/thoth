@@ -53,6 +53,7 @@ mod policy {
     };
     use crate::model::Crud;
     use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
+    use thoth_errors::ThothError;
 
     #[test]
     fn crud_policy_allows_publisher_user_with_markup() {
@@ -163,6 +164,46 @@ mod policy {
         )
         .is_err());
         assert!(BiographyPolicy::can_delete(&ctx, &biography_item).is_err());
+    }
+
+    #[test]
+    fn crud_policy_rejects_duplicate_canonical_biography() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("biography-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let contributor = create_contributor(pool.as_ref());
+        let contribution = create_contribution(pool.as_ref(), &work, &contributor);
+
+        let canonical = make_new_biography(
+            contribution.contribution_id,
+            "Canonical Biography",
+            true,
+            LocaleCode::En,
+        );
+        Biography::create(pool.as_ref(), &canonical).expect("Failed to create canonical biography");
+
+        let new_biography = make_new_biography(
+            contribution.contribution_id,
+            "Second Canonical",
+            true,
+            LocaleCode::En,
+        );
+
+        let result = BiographyPolicy::can_create(&ctx, &new_biography, Some(MarkupFormat::Html));
+
+        assert!(matches!(
+            result,
+            Err(ThothError::CanonicalBiographyExistsError)
+        ));
     }
 }
 

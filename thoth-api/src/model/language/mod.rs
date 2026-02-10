@@ -11,7 +11,7 @@ use crate::schema::language_history;
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(
         description = "Relation between a language listed for a work and the original language of the work's text"
     ),
@@ -58,7 +58,7 @@ pub enum LanguageField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Language {
@@ -73,7 +73,7 @@ pub struct Language {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new description of a work's language"),
     diesel(table_name = language)
 )]
@@ -86,7 +86,7 @@ pub struct NewLanguage {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing description of a work's language"),
     diesel(table_name = language, treat_none_as_null = true)
 )]
@@ -100,7 +100,7 @@ pub struct PatchLanguage {
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "Three-letter ISO 639 code representing a language"),
     ExistingTypePath = "crate::schema::sql_types::LanguageCode"
 )]
@@ -1147,7 +1147,7 @@ pub enum LanguageCode {
     Zza,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct LanguageHistory {
     pub language_history_id: Uuid,
     pub language_id: Uuid,
@@ -1158,7 +1158,7 @@ pub struct LanguageHistory {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = language_history)
 )]
 pub struct NewLanguageHistory {

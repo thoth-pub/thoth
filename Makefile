@@ -13,7 +13,8 @@
 	format \
 	check-format \
 	check-all \
-	migration
+	migration \
+	coverage
 
 CARGO_VERSION := $(shell grep '^version' Cargo.toml | sed -E 's/version *= *"([^"]+)"/\1/')
 MAJOR        := $(word 1,$(subst ., ,$(CARGO_VERSION)))
@@ -32,6 +33,7 @@ help:
 	@echo "  run-export-api    Run export API (cargo)"
 	@echo "  build             Build the workspace"
 	@echo "  test              Run tests"
+	@echo "  coverage          Run test coverage (cargo llvm-cov)"
 	@echo "  check             Run cargo check"
 	@echo "  clippy            Lint with cargo clippy"
 	@echo "  format            Format code with cargo fmt"
@@ -62,6 +64,9 @@ build:
 
 test:
 	cargo test --workspace
+
+coverage:
+	cargo llvm-cov --workspace --all-features --html --output-dir ./coverage
 
 check:
 	cargo check --workspace

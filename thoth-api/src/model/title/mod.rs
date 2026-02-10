@@ -45,7 +45,7 @@ impl Default for TitleOrderBy {
     }
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Title {
@@ -60,7 +60,7 @@ pub struct Title {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable, Clone),
+    derive(juniper::GraphQLInputObject, diesel::Insertable, Clone),
     graphql(description = "Set of values required to define a new work's title"),
     diesel(table_name = work_title)
 )]
@@ -76,7 +76,7 @@ pub struct NewTitle {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset, Clone),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset, Clone),
     graphql(description = "Set of values required to update an existing work's title"),
     diesel(table_name = work_title, treat_none_as_null = true)
 )]
@@ -92,7 +92,7 @@ pub struct PatchTitle {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = title_history)
 )]
 pub struct NewTitleHistory {
@@ -101,7 +101,7 @@ pub struct NewTitleHistory {
     pub data: serde_json::Value,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct TitleHistory {
     pub title_history_id: Uuid,
     pub title_id: Uuid,

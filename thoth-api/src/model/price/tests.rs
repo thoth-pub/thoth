@@ -644,6 +644,29 @@ mod display_and_parse {
     }
 }
 
+#[cfg(feature = "backend")]
+mod conversions {
+    use super::*;
+    use crate::model::tests::db::setup_test_db;
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
+
+    #[test]
+    fn currencycode_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(CurrencyCode::Gbp);
+    }
+
+    #[test]
+    fn currencycode_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<CurrencyCode, crate::schema::sql_types::CurrencyCode>(
+            pool.as_ref(),
+            "'gbp'::currency_code",
+            CurrencyCode::Gbp,
+        );
+    }
+}
+
 mod helpers {
     use super::*;
     use crate::model::{Crud, HistoryEntry};

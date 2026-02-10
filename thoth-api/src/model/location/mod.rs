@@ -12,7 +12,7 @@ use crate::schema::location_history;
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "Platform where a publication is hosted or can be acquired"),
     ExistingTypePath = "crate::schema::sql_types::LocationPlatform"
 )]
@@ -169,7 +169,7 @@ pub enum LocationField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Location {
@@ -185,7 +185,7 @@ pub struct Location {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new location (such as a web shop or distribution platform) where a publication can be acquired or viewed"),
     diesel(table_name = location)
 )]
@@ -199,7 +199,7 @@ pub struct NewLocation {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing location (such as a web shop or distribution platform) where a publication can be acquired or viewed"),
     diesel(table_name = location, treat_none_as_null = true)
 )]
@@ -212,7 +212,7 @@ pub struct PatchLocation {
     pub canonical: bool,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct LocationHistory {
     pub location_history_id: Uuid,
     pub location_id: Uuid,
@@ -223,7 +223,7 @@ pub struct LocationHistory {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = location_history)
 )]
 pub struct NewLocationHistory {

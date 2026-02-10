@@ -11,7 +11,7 @@ use crate::schema::contact_history;
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "Type of a contact"),
     ExistingTypePath = "crate::schema::sql_types::ContactType"
 )]
@@ -46,7 +46,7 @@ pub enum ContactField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contact {
@@ -60,7 +60,7 @@ pub struct Contact {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new way of getting in touch with a publisher"),
     diesel(table_name = contact)
 )]
@@ -72,7 +72,7 @@ pub struct NewContact {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing way of getting in touch with a publisher"),
     diesel(table_name = contact, treat_none_as_null = true)
 )]
@@ -83,7 +83,7 @@ pub struct PatchContact {
     pub email: String,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct ContactHistory {
     pub contact_history_id: Uuid,
     pub contact_id: Uuid,
@@ -94,7 +94,7 @@ pub struct ContactHistory {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = contact_history)
 )]
 pub struct NewContactHistory {

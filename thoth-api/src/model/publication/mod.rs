@@ -14,7 +14,7 @@ use crate::schema::publication_history;
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "Format of a publication"),
     ExistingTypePath = "crate::schema::sql_types::PublicationType"
 )]
@@ -107,7 +107,7 @@ pub enum PublicationType {
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(
         description = "Standardised specification for accessibility to which a publication may conform"
     ),
@@ -180,7 +180,7 @@ pub enum AccessibilityStandard {
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(
         description = "Reason for publication not being required to comply with accessibility standards"
     ),
@@ -246,7 +246,7 @@ pub enum PublicationField {
     AccessibilityReportUrl,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Publication {
@@ -272,7 +272,7 @@ pub struct Publication {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new manifestation of a written text"),
     diesel(table_name = publication)
 )]
@@ -296,7 +296,7 @@ pub struct NewPublication {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing manifestation of a written text"),
     diesel(table_name = publication, treat_none_as_null = true)
 )]
@@ -319,7 +319,7 @@ pub struct PatchPublication {
     pub accessibility_report_url: Option<String>,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct PublicationHistory {
     pub publication_history_id: Uuid,
     pub publication_id: Uuid,
@@ -330,7 +330,7 @@ pub struct PublicationHistory {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = publication_history)
 )]
 pub struct NewPublicationHistory {

@@ -70,6 +70,26 @@ mod display_and_parse {
         assert!(ContributorField::from_str("Biography").is_err());
         assert!(ContributorField::from_str("Institution").is_err());
     }
+
+    #[test]
+    fn contributor_display_includes_orcid_when_present() {
+        let contributor = Contributor {
+            full_name: "Jane Doe".to_string(),
+            orcid: Some(Orcid("https://orcid.org/0000-0002-1234-5678".to_string())),
+            ..Default::default()
+        };
+        assert_eq!(format!("{contributor}"), "Jane Doe - 0000-0002-1234-5678");
+    }
+
+    #[test]
+    fn contributor_display_omits_orcid_when_absent() {
+        let contributor = Contributor {
+            full_name: "Jane Doe".to_string(),
+            orcid: None,
+            ..Default::default()
+        };
+        assert_eq!(format!("{contributor}"), "Jane Doe");
+    }
 }
 
 mod helpers {
@@ -107,7 +127,7 @@ mod policy {
     use crate::model::contributor::policy::ContributorPolicy;
     use crate::model::tests::db::{
         create_contribution, create_imprint, create_publisher, create_work, setup_test_db,
-        test_context_with_user, test_user_with_role,
+        test_context, test_context_with_user, test_user_with_role,
     };
     use crate::model::Crud;
     use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
@@ -139,6 +159,35 @@ mod policy {
 
         assert!(ContributorPolicy::can_create(&ctx, &new_contributor, ()).is_err());
         assert!(ContributorPolicy::can_update(&ctx, &contributor, &patch, ()).is_err());
+    }
+
+    #[test]
+    fn crud_policy_allows_authenticated_user_for_create_update() {
+        let (_guard, pool) = setup_test_db();
+
+        let ctx = test_context(pool.clone(), "contributor-user");
+
+        let new_contributor = NewContributor {
+            first_name: Some("Test".to_string()),
+            last_name: "Contributor".to_string(),
+            full_name: "Test Contributor".to_string(),
+            orcid: None,
+            website: None,
+        };
+
+        let contributor =
+            Contributor::create(pool.as_ref(), &new_contributor).expect("Failed to create");
+        let patch = PatchContributor {
+            contributor_id: contributor.contributor_id,
+            first_name: contributor.first_name.clone(),
+            last_name: contributor.last_name.clone(),
+            full_name: "Updated Contributor".to_string(),
+            orcid: contributor.orcid.clone(),
+            website: contributor.website.clone(),
+        };
+
+        assert!(ContributorPolicy::can_create(&ctx, &new_contributor, ()).is_ok());
+        assert!(ContributorPolicy::can_update(&ctx, &contributor, &patch, ()).is_ok());
     }
 
     #[test]

@@ -72,6 +72,8 @@ pub mod sql_types {
     pub struct AccessibilityException;
 }
 
+use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
+
 table! {
     use diesel::sql_types::*;
     use super::sql_types::{LocaleCode, MarkupFormat, AbstractType};

@@ -25,7 +25,7 @@ pub enum FundingField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Funding {
@@ -43,7 +43,7 @@ pub struct Funding {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new grant awarded for the publication of a work by an institution"),
     diesel(table_name = funding)
 )]
@@ -59,7 +59,7 @@ pub struct NewFunding {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing grant awarded for the publication of a work by an institution"),
     diesel(table_name = funding, treat_none_as_null = true)
 )]
@@ -74,7 +74,7 @@ pub struct PatchFunding {
     pub jurisdiction: Option<String>,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct FundingHistory {
     pub funding_history_id: Uuid,
     pub funding_id: Uuid,
@@ -85,7 +85,7 @@ pub struct FundingHistory {
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = funding_history)
 )]
 pub struct NewFundingHistory {

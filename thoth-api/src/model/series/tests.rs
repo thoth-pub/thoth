@@ -152,6 +152,29 @@ mod display_and_parse {
     }
 }
 
+#[cfg(feature = "backend")]
+mod conversions {
+    use super::*;
+    use crate::model::tests::db::setup_test_db;
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
+
+    #[test]
+    fn seriestype_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(SeriesType::Journal);
+    }
+
+    #[test]
+    fn seriestype_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<SeriesType, crate::schema::sql_types::SeriesType>(
+            pool.as_ref(),
+            "'journal'::series_type",
+            SeriesType::Journal,
+        );
+    }
+}
+
 mod helpers {
     use super::*;
     use crate::model::{Crud, HistoryEntry};
@@ -383,6 +406,76 @@ mod crud {
             None,
         )
         .expect("Failed to count series by type");
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn crud_count_filters_by_publishers() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        make_series(
+            pool.as_ref(),
+            imprint.imprint_id,
+            SeriesType::Journal,
+            format!("Series {}", Uuid::new_v4()),
+        );
+
+        let other_publisher = create_publisher(pool.as_ref());
+        let other_imprint = create_imprint(pool.as_ref(), &other_publisher);
+        make_series(
+            pool.as_ref(),
+            other_imprint.imprint_id,
+            SeriesType::Journal,
+            format!("Other {}", Uuid::new_v4()),
+        );
+
+        let count = Series::count(
+            pool.as_ref(),
+            None,
+            vec![publisher.publisher_id],
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to count series by publisher");
+
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn crud_count_filters_by_name() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let marker = format!("Filter {}", Uuid::new_v4());
+        make_series(
+            pool.as_ref(),
+            imprint.imprint_id,
+            SeriesType::Journal,
+            format!("Series {marker}"),
+        );
+        make_series(
+            pool.as_ref(),
+            imprint.imprint_id,
+            SeriesType::Journal,
+            "Other Series".to_string(),
+        );
+
+        let count = Series::count(
+            pool.as_ref(),
+            Some(marker),
+            vec![],
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to count series by name filter");
+
         assert_eq!(count, 1);
     }
 
