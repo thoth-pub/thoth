@@ -135,13 +135,12 @@ impl FromStr for Doi {
             Err(ThothError::DoiEmptyError)
         } else if let Some(matches) = RE.captures(input) {
             // The 0th capture always corresponds to the entire match
-            if let Some(identifier) = matches.get(1) {
-                let standardised = format!("{}{}", DOI_DOMAIN, identifier.as_str());
-                let doi: Doi = Doi(standardised);
-                Ok(doi)
-            } else {
-                Err(ThothError::DoiParseError(input.to_string()))
-            }
+            let identifier = matches
+                .get(1)
+                .ok_or_else(|| ThothError::DoiParseError(input.to_string()))?;
+            let standardised = format!("{}{}", DOI_DOMAIN, identifier.as_str());
+            let doi: Doi = Doi(standardised);
+            Ok(doi)
         } else {
             Err(ThothError::DoiParseError(input.to_string()))
         }
@@ -156,10 +155,12 @@ impl FromStr for Isbn {
             Err(ThothError::IsbnEmptyError)
         } else {
             match input.parse::<Isbn13>() {
-                Ok(parsed) => match parsed.hyphenate() {
-                    Ok(hyphenated) => Ok(Isbn(hyphenated.to_string())),
-                    Err(_) => Err(ThothError::IsbnParseError(input.to_string())),
-                },
+                Ok(parsed) => {
+                    let hyphenated = parsed
+                        .hyphenate()
+                        .map_err(|_| ThothError::IsbnParseError(input.to_string()))?;
+                    Ok(Isbn(hyphenated.to_string()))
+                }
                 Err(_) => Err(ThothError::IsbnParseError(input.to_string())),
             }
         }
@@ -187,13 +188,12 @@ impl FromStr for Orcid {
             Err(ThothError::OrcidEmptyError)
         } else if let Some(matches) = RE.captures(input) {
             // The 0th capture always corresponds to the entire match
-            if let Some(identifier) = matches.get(1) {
-                let standardised = format!("{}{}", ORCID_DOMAIN, identifier.as_str());
-                let orcid: Orcid = Orcid(standardised);
-                Ok(orcid)
-            } else {
-                Err(ThothError::OrcidParseError(input.to_string()))
-            }
+            let identifier = matches
+                .get(1)
+                .ok_or_else(|| ThothError::OrcidParseError(input.to_string()))?;
+            let standardised = format!("{}{}", ORCID_DOMAIN, identifier.as_str());
+            let orcid: Orcid = Orcid(standardised);
+            Ok(orcid)
         } else {
             Err(ThothError::OrcidParseError(input.to_string()))
         }
@@ -221,13 +221,12 @@ impl FromStr for Ror {
             Err(ThothError::RorEmptyError)
         } else if let Some(matches) = RE.captures(input) {
             // The 0th capture always corresponds to the entire match
-            if let Some(identifier) = matches.get(1) {
-                let standardised = format!("{}{}", ROR_DOMAIN, identifier.as_str());
-                let ror: Ror = Ror(standardised);
-                Ok(ror)
-            } else {
-                Err(ThothError::RorParseError(input.to_string()))
-            }
+            let identifier = matches
+                .get(1)
+                .ok_or_else(|| ThothError::RorParseError(input.to_string()))?;
+            let standardised = format!("{}{}", ROR_DOMAIN, identifier.as_str());
+            let ror: Ror = Ror(standardised);
+            Ok(ror)
         } else {
             Err(ThothError::RorParseError(input.to_string()))
         }
