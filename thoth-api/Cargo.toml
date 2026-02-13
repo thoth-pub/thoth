@@ -28,8 +28,7 @@ backend = [
     "aws-config",
     "aws-credential-types",
     "base64",
-    "hex",
-    "aes-gcm"
+    "hex"
 ]
 
 [dependencies]
@@ -63,7 +62,6 @@ aws-config = { version = "1", optional = true }
 aws-credential-types = { version = "1", optional = true }
 base64 = { version = "0.22", optional = true }
 hex = { version = "0.4", optional = true }
-aes-gcm = { version = "0.10", optional = true }
 
 [dev-dependencies]
 fs2 = "0.4.3"

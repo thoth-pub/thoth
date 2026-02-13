@@ -30,9 +30,11 @@ pub(crate) mod db {
     use crate::model::work::{NewWork, Work, WorkStatus, WorkType};
     use crate::model::Crud;
     use crate::policy::Role;
+    use crate::storage::{create_cloudfront_client, create_s3_client, CloudFrontClient, S3Client};
 
     static MIGRATIONS: OnceLock<Result<(), String>> = OnceLock::new();
     static POOL: OnceLock<Arc<PgPool>> = OnceLock::new();
+    static CLIENTS: OnceLock<(Arc<S3Client>, Arc<CloudFrontClient>)> = OnceLock::new();
 
     pub(crate) struct TestDbGuard {
         _file: std::fs::File,
@@ -76,6 +78,26 @@ pub(crate) mod db {
             .max_size(1)
             .connection_timeout(Duration::from_millis(100))
             .build_unchecked(manager)
+    }
+
+    fn test_clients() -> (Arc<S3Client>, Arc<CloudFrontClient>) {
+        let (s3_client, cloudfront_client) = CLIENTS.get_or_init(|| {
+            std::thread::spawn(|| {
+                let runtime =
+                    tokio::runtime::Runtime::new().expect("Failed to build Tokio runtime");
+                runtime.block_on(async {
+                    let s3 =
+                        create_s3_client("test-access-key", "test-secret-key", "us-east-1").await;
+                    let cloudfront =
+                        create_cloudfront_client("test-access-key", "test-secret-key", "us-east-1")
+                            .await;
+                    (Arc::new(s3), Arc::new(cloudfront))
+                })
+            })
+            .join()
+            .expect("Failed to initialize AWS clients")
+        });
+        (Arc::clone(s3_client), Arc::clone(cloudfront_client))
     }
 
     pub(crate) fn reset_db(pool: &PgPool) -> Result<(), diesel::result::Error> {
@@ -123,7 +145,8 @@ END $$;
     }
 
     pub(crate) fn test_context(pool: Arc<PgPool>, user_id: &str) -> Context {
-        Context::new(pool, Some(test_user(user_id)))
+        let (s3_client, cloudfront_client) = test_clients();
+        Context::new(pool, Some(test_user(user_id)), s3_client, cloudfront_client)
     }
 
     pub(crate) fn test_user_with_role(user_id: &str, role: Role, org_id: &str) -> IntrospectedUser {
@@ -167,7 +190,13 @@ END $$;
     }
 
     pub(crate) fn test_context_with_user(pool: Arc<PgPool>, user: IntrospectedUser) -> Context {
-        Context::new(pool, Some(user))
+        let (s3_client, cloudfront_client) = test_clients();
+        Context::new(pool, Some(user), s3_client, cloudfront_client)
+    }
+
+    pub(crate) fn test_context_anonymous(pool: Arc<PgPool>) -> Context {
+        let (s3_client, cloudfront_client) = test_clients();
+        Context::new(pool, None, s3_client, cloudfront_client)
     }
 
     pub(crate) fn create_publisher(pool: &PgPool) -> Publisher {

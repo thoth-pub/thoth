@@ -9,6 +9,10 @@ use crate::model::{
     contact::{Contact, ContactPolicy, NewContact, PatchContact},
     contribution::{Contribution, ContributionPolicy, NewContribution, PatchContribution},
     contributor::{Contributor, ContributorPolicy, NewContributor, PatchContributor},
+    file::{
+        CompleteFileUpload, File, FilePolicy, FileUpload, FileUploadResponse, NewFileUpload,
+        NewFrontcoverFileUpload, NewPublicationFileUpload,
+    },
     funding::{Funding, FundingPolicy, NewFunding, PatchFunding},
     imprint::{Imprint, ImprintPolicy, NewImprint, PatchImprint},
     institution::{Institution, InstitutionPolicy, NewInstitution, PatchInstitution},
@@ -28,6 +32,11 @@ use crate::model::{
     Crud, Reorder,
 };
 use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, PolicyContext, UpdatePolicy};
+use crate::storage::{
+    build_cdn_url, copy_temp_object_to_final, delete_object, head_object,
+    reconcile_replaced_object, temp_key, StorageConfig,
+};
+use thoth_errors::ThothError;
 
 pub struct MutationRoot;
 
@@ -854,6 +863,123 @@ impl MutationRoot {
         work_relation
             .change_ordinal(context, work_relation.relation_ordinal, new_ordinal)
             .map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Start uploading a publication file (e.g. PDF, EPUB, XML) for a given publication. Returns an upload session ID, a presigned S3 PUT URL, and required PUT headers."
+    )]
+    async fn init_publication_file_upload(
+        context: &Context,
+        #[graphql(description = "Input for starting a publication file upload")]
+        data: NewPublicationFileUpload,
+    ) -> FieldResult<FileUploadResponse> {
+        let publication: Publication = context.load_current(&data.publication_id)?;
+
+        let new_upload: NewFileUpload = data.into();
+        FilePolicy::can_create(context, &new_upload, Some(publication.publication_type))?;
+
+        let work: Work = context.load_current(&publication.work_id)?;
+        work.doi.ok_or(ThothError::WorkMissingDoiForFileUpload)?;
+
+        let imprint: Imprint = context.load_current(&work.imprint_id)?;
+        let storage_config = StorageConfig::from_imprint(&imprint)?;
+
+        new_upload
+            .create_upload_response(&context.db, context.s3_client(), &storage_config, 30)
+            .await
+            .map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Start uploading a front cover image for a given work. Returns an upload session ID, a presigned S3 PUT URL, and required PUT headers."
+    )]
+    async fn init_frontcover_file_upload(
+        context: &Context,
+        #[graphql(description = "Input for starting a front cover upload")]
+        data: NewFrontcoverFileUpload,
+    ) -> FieldResult<FileUploadResponse> {
+        let work: Work = context.load_current(&data.work_id)?;
+
+        let new_upload: NewFileUpload = data.into();
+        FilePolicy::can_create(context, &new_upload, None)?;
+
+        work.doi.ok_or(ThothError::WorkMissingDoiForFileUpload)?;
+
+        let imprint: Imprint = context.load_current(&work.imprint_id)?;
+        let storage_config = StorageConfig::from_imprint(&imprint)?;
+
+        new_upload
+            .create_upload_response(&context.db, context.s3_client(), &storage_config, 30)
+            .await
+            .map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Complete a file upload, validate it, and promote it to its final DOI-based location."
+    )]
+    async fn complete_file_upload(
+        context: &Context,
+        #[graphql(description = "Input for completing a file upload")] data: CompleteFileUpload,
+    ) -> FieldResult<File> {
+        let file_upload: FileUpload = context.load_current(&data.file_upload_id)?;
+
+        let (work, publication) = file_upload.load_scope(context)?;
+        FilePolicy::can_complete_upload(
+            context,
+            &file_upload,
+            publication.as_ref().map(|pubn| pubn.publication_type),
+        )?;
+
+        let doi = work
+            .doi
+            .as_ref()
+            .ok_or(ThothError::WorkMissingDoiForFileUpload)?;
+
+        let imprint: Imprint = context.load_current(&work.imprint_id)?;
+        let storage_config = StorageConfig::from_imprint(&imprint)?;
+
+        let s3_client = context.s3_client();
+        let cloudfront_client = context.cloudfront_client();
+
+        let temp_key = temp_key(&file_upload.file_upload_id);
+        let (bytes, mime_type) =
+            head_object(s3_client, &storage_config.s3_bucket, &temp_key).await?;
+
+        let canonical_key = file_upload.canonical_key(doi);
+
+        copy_temp_object_to_final(
+            s3_client,
+            &storage_config.s3_bucket,
+            &temp_key,
+            &canonical_key,
+        )
+        .await?;
+
+        let cdn_url = build_cdn_url(&storage_config.cdn_domain, &canonical_key);
+        let (file, old_object_key) = file_upload.persist_file_record(
+            context,
+            &canonical_key,
+            &cdn_url,
+            &mime_type,
+            bytes,
+        )?;
+        file_upload.sync_related_metadata(context, &work, &cdn_url)?;
+
+        reconcile_replaced_object(
+            s3_client,
+            cloudfront_client,
+            &storage_config.s3_bucket,
+            &storage_config.cloudfront_dist_id,
+            old_object_key.as_deref(),
+            &canonical_key,
+        )
+        .await?;
+
+        file_upload.clone().delete(&context.db)?;
+
+        delete_object(s3_client, &storage_config.s3_bucket, &temp_key).await?;
+
+        Ok(file)
     }
 
     #[graphql(description = "Delete a single contact using its ID")]

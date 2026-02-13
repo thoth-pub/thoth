@@ -23,7 +23,10 @@ lazy_static! {
         .arg(arguments::keep_alive("GRAPHQL_API_KEEP_ALIVE"))
         .arg(arguments::gql_url())
         .arg(arguments::key())
-        .arg(arguments::zitadel_url());
+        .arg(arguments::zitadel_url())
+        .arg(arguments::aws_access_key_id())
+        .arg(arguments::aws_secret_access_key())
+        .arg(arguments::aws_region());
 }
 
 lazy_static! {

@@ -163,15 +163,3 @@ pub fn aws_region() -> Arg {
         .help("AWS region for S3/CloudFront")
         .num_args(1)
 }
-
-pub fn session() -> Arg {
-    Arg::new("duration")
-        .short('s')
-        .long("session-length")
-        .value_name("DURATION")
-        .env("SESSION_DURATION_SECONDS")
-        .default_value("3600")
-        .help("Authentication cookie session duration (seconds)")
-        .num_args(1)
-        .value_parser(value_parser!(i64))
-}

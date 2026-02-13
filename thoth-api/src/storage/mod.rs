@@ -1,45 +1,29 @@
-#[cfg(feature = "backend")]
-use aws_config::Region;
-#[cfg(feature = "backend")]
-use aws_sdk_cloudfront::Client as CloudFrontClient;
-#[cfg(feature = "backend")]
-use aws_sdk_s3::{
-    presigning::PresigningConfig,
-    types::ChecksumAlgorithm,
-    Client as S3Client,
-};
-#[cfg(feature = "backend")]
+pub use aws_sdk_cloudfront::Client as CloudFrontClient;
+pub use aws_sdk_s3::Client as S3Client;
+use aws_sdk_s3::{presigning::PresigningConfig, types::ChecksumAlgorithm};
 use std::time::Duration as StdDuration;
-#[cfg(feature = "backend")]
 use thoth_errors::{ThothError, ThothResult};
-#[cfg(feature = "backend")]
 use uuid::Uuid;
 
-#[cfg(feature = "backend")]
 use crate::model::imprint::Imprint;
 
 /// Storage configuration extracted from an imprint
-#[cfg(feature = "backend")]
 pub struct StorageConfig {
     pub s3_bucket: String,
-    pub s3_region: String,
     pub cdn_domain: String,
     pub cloudfront_dist_id: String,
 }
 
-#[cfg(feature = "backend")]
 impl StorageConfig {
     /// Extract storage configuration from an imprint
     pub fn from_imprint(imprint: &Imprint) -> ThothResult<Self> {
         match (
             &imprint.s3_bucket,
-            &imprint.s3_region,
             &imprint.cdn_domain,
             &imprint.cloudfront_dist_id,
         ) {
-            (Some(bucket), Some(region), Some(domain), Some(dist_id)) => Ok(StorageConfig {
+            (Some(bucket), Some(domain), Some(dist_id)) => Ok(StorageConfig {
                 s3_bucket: bucket.clone(),
-                s3_region: region.clone(),
                 cdn_domain: domain.clone(),
                 cloudfront_dist_id: dist_id.clone(),
             }),
@@ -50,20 +34,44 @@ impl StorageConfig {
     }
 }
 
-/// Create an S3 client configured for the given region
-#[cfg(feature = "backend")]
-pub async fn create_s3_client(region: &str) -> S3Client {
-    let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
-        .region(Region::new(region.to_string()))
+async fn load_aws_config(
+    access_key_id: &str,
+    secret_access_key: &str,
+    region: &str,
+) -> aws_config::SdkConfig {
+    let credentials = aws_credential_types::Credentials::new(
+        access_key_id,
+        secret_access_key,
+        None,
+        None,
+        "thoth-cli",
+    );
+
+    aws_config::ConfigLoader::default()
+        .behavior_version(aws_config::BehaviorVersion::latest())
+        .credentials_provider(credentials)
+        .region(aws_config::Region::new(region.to_string()))
         .load()
-        .await;
+        .await
+}
+
+/// Create an S3 client configured with explicit credentials and region.
+pub async fn create_s3_client(
+    access_key_id: &str,
+    secret_access_key: &str,
+    region: &str,
+) -> S3Client {
+    let config = load_aws_config(access_key_id, secret_access_key, region).await;
     S3Client::new(&config)
 }
 
-/// Create a CloudFront client
-#[cfg(feature = "backend")]
-pub async fn create_cloudfront_client() -> CloudFrontClient {
-    let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+/// Create a CloudFront client configured with explicit credentials and region.
+pub async fn create_cloudfront_client(
+    access_key_id: &str,
+    secret_access_key: &str,
+    region: &str,
+) -> CloudFrontClient {
+    let config = load_aws_config(access_key_id, secret_access_key, region).await;
     CloudFrontClient::new(&config)
 }
 
@@ -71,7 +79,7 @@ pub async fn create_cloudfront_client() -> CloudFrontClient {
 /// required headers:
 /// - Content-Type: from declared_mime_type
 /// - x-amz-checksum-sha256: base64-encoded SHA-256 checksum
-#[cfg(feature = "backend")]
+/// - x-amz-sdk-checksum-algorithm: SHA256
 pub async fn presign_put_for_upload(
     s3_client: &S3Client,
     bucket: &str,
@@ -89,15 +97,16 @@ pub async fn presign_put_for_upload(
 
     let expires_in = StdDuration::from_secs(expires_in_minutes * 60);
 
-    let presigning_config = PresigningConfig::expires_in(expires_in)
-        .map_err(|e| ThothError::InternalError(format!("Failed to create presigning config: {}", e)))?;
+    let presigning_config = PresigningConfig::expires_in(expires_in).map_err(|e| {
+        ThothError::InternalError(format!("Failed to create presigning config: {}", e))
+    })?;
 
     let request = s3_client
         .put_object()
         .bucket(bucket)
         .key(temp_key)
         .content_type(declared_mime_type)
-        .checksum_sha256(&sha256_base64)
+        .checksum_sha256(sha256_base64)
         .checksum_algorithm(ChecksumAlgorithm::Sha256);
 
     // Presign the request
@@ -110,7 +119,6 @@ pub async fn presign_put_for_upload(
 }
 
 /// Copy an object from temporary upload location to final canonical location
-#[cfg(feature = "backend")]
 pub async fn copy_temp_object_to_final(
     s3_client: &S3Client,
     bucket: &str,
@@ -131,17 +139,12 @@ pub async fn copy_temp_object_to_final(
     Ok(())
 }
 
-/// Delete a temporary upload object from S3
-#[cfg(feature = "backend")]
-pub async fn delete_temp_object(
-    s3_client: &S3Client,
-    bucket: &str,
-    temp_key: &str,
-) -> ThothResult<()> {
+/// Delete an object from S3
+pub async fn delete_object(s3_client: &S3Client, bucket: &str, key: &str) -> ThothResult<()> {
     s3_client
         .delete_object()
         .bucket(bucket)
-        .key(temp_key)
+        .key(key)
         .send()
         .await
         .map_err(|e| ThothError::InternalError(format!("Failed to delete object: {}", e)))?;
@@ -150,7 +153,6 @@ pub async fn delete_temp_object(
 }
 
 /// Get object metadata (HeadObject) from S3
-#[cfg(feature = "backend")]
 pub async fn head_object(
     s3_client: &S3Client,
     bucket: &str,
@@ -174,7 +176,6 @@ pub async fn head_object(
 }
 
 /// Invalidate CloudFront cache for a given path
-#[cfg(feature = "backend")]
 pub async fn invalidate_cloudfront(
     cloudfront_client: &CloudFrontClient,
     distribution_id: &str,
@@ -182,6 +183,11 @@ pub async fn invalidate_cloudfront(
 ) -> ThothResult<String> {
     use aws_sdk_cloudfront::types::Paths;
 
+    let path = if path.starts_with('/') {
+        path.to_string()
+    } else {
+        format!("/{}", path)
+    };
     let paths = Paths::builder()
         .quantity(1)
         .items(path)
@@ -196,7 +202,9 @@ pub async fn invalidate_cloudfront(
                 .paths(paths)
                 .caller_reference(format!("thoth-{}", Uuid::new_v4()))
                 .build()
-                .map_err(|e| ThothError::InternalError(format!("Failed to build invalidation batch: {}", e)))?,
+                .map_err(|e| {
+                    ThothError::InternalError(format!("Failed to build invalidation batch: {}", e))
+                })?,
         )
         .send()
         .await
@@ -210,17 +218,41 @@ pub async fn invalidate_cloudfront(
     Ok(invalidation_id)
 }
 
+/// Invalidate and clean up an existing canonical object, if one exists.
+///
+/// When replacing an existing object at a new key, the old object is deleted and both old and
+/// new paths are invalidated. When replacing in place (same key), only the canonical path is
+/// invalidated.
+pub async fn reconcile_replaced_object(
+    s3_client: &S3Client,
+    cloudfront_client: &CloudFrontClient,
+    bucket: &str,
+    distribution_id: &str,
+    old_object_key: Option<&str>,
+    canonical_key: &str,
+) -> ThothResult<()> {
+    let Some(old_key) = old_object_key else {
+        return Ok(());
+    };
+
+    if old_key != canonical_key {
+        delete_object(s3_client, bucket, old_key).await?;
+        invalidate_cloudfront(cloudfront_client, distribution_id, old_key).await?;
+    }
+
+    invalidate_cloudfront(cloudfront_client, distribution_id, canonical_key).await?;
+    Ok(())
+}
+
 /// Compute the temporary S3 key for an upload
-#[cfg(feature = "backend")]
 pub fn temp_key(file_upload_id: &Uuid) -> String {
     format!("uploads/{}", file_upload_id)
 }
 
 /// Compute the canonical object key for a publication file
-#[cfg(feature = "backend")]
 pub fn canonical_publication_key(doi_prefix: &str, doi_suffix: &str, extension: &str) -> String {
     format!(
-        "/{}/{}.{}",
+        "{}/{}.{}",
         doi_prefix.to_lowercase(),
         doi_suffix.to_lowercase(),
         extension.to_lowercase()
@@ -228,10 +260,9 @@ pub fn canonical_publication_key(doi_prefix: &str, doi_suffix: &str, extension: 
 }
 
 /// Compute the canonical object key for a frontcover file
-#[cfg(feature = "backend")]
 pub fn canonical_frontcover_key(doi_prefix: &str, doi_suffix: &str, extension: &str) -> String {
     format!(
-        "/{}/{}_frontcover.{}",
+        "{}/{}_frontcover.{}",
         doi_prefix.to_lowercase(),
         doi_suffix.to_lowercase(),
         extension.to_lowercase()
@@ -239,10 +270,16 @@ pub fn canonical_frontcover_key(doi_prefix: &str, doi_suffix: &str, extension: &
 }
 
 /// Build the full CDN URL from domain and object key
-#[cfg(feature = "backend")]
 pub fn build_cdn_url(cdn_domain: &str, object_key: &str) -> String {
-    // Ensure cdn_domain doesn't end with / and object_key starts with /
+    // Ensure cdn_domain doesn't end with / and object_key doesn't have a leading /
     let domain = cdn_domain.trim_end_matches('/');
-    format!("https://{}{}", domain, object_key)
+    let domain = domain
+        .strip_prefix("https://")
+        .or_else(|| domain.strip_prefix("http://"))
+        .unwrap_or(domain);
+    let key = object_key.trim_start_matches('/');
+    format!("https://{}/{}", domain, key)
 }
 
+#[cfg(test)]
+mod tests;

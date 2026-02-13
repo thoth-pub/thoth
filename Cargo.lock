@@ -5091,7 +5091,6 @@ name = "thoth-api"
 version = "0.13.15"
 dependencies = [
  "actix-web",
- "aes-gcm",
  "argon2rs",
  "aws-config",
  "aws-credential-types",
