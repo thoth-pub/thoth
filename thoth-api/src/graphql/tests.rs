@@ -218,6 +218,9 @@ fn make_new_imprint(publisher_id: Uuid) -> NewImprint {
         imprint_name: unique("Imprint"),
         imprint_url: Some("https://example.com/imprint".to_string()),
         crossmark_doi: None,
+        s3_bucket: None,
+        cdn_domain: None,
+        cloudfront_dist_id: None,
     }
 }
 
@@ -968,6 +971,9 @@ fn patch_imprint(imprint: &Imprint) -> PatchImprint {
         imprint_name: format!("{} Updated", imprint.imprint_name),
         imprint_url: imprint.imprint_url.clone(),
         crossmark_doi: imprint.crossmark_doi.clone(),
+        s3_bucket: imprint.s3_bucket.clone(),
+        cdn_domain: imprint.cdn_domain.clone(),
+        cloudfront_dist_id: imprint.cloudfront_dist_id.clone(),
     }
 }
 

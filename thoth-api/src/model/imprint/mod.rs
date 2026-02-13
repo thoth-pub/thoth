@@ -60,6 +60,9 @@ pub struct NewImprint {
     pub imprint_name: String,
     pub imprint_url: Option<String>,
     pub crossmark_doi: Option<Doi>,
+    pub s3_bucket: Option<String>,
+    pub cdn_domain: Option<String>,
+    pub cloudfront_dist_id: Option<String>,
 }
 
 #[cfg_attr(
@@ -74,6 +77,9 @@ pub struct PatchImprint {
     pub imprint_name: String,
     pub imprint_url: Option<String>,
     pub crossmark_doi: Option<Doi>,
+    pub s3_bucket: Option<String>,
+    pub cdn_domain: Option<String>,
+    pub cloudfront_dist_id: Option<String>,
 }
 
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]

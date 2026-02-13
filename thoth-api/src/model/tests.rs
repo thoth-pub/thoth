@@ -219,6 +219,9 @@ END $$;
             imprint_name: format!("DB Imprint {}", Uuid::new_v4()),
             imprint_url: None,
             crossmark_doi: None,
+            s3_bucket: None,
+            cdn_domain: None,
+            cloudfront_dist_id: None,
         };
 
         Imprint::create(pool, &new_imprint).expect("Failed to create imprint in DB")
