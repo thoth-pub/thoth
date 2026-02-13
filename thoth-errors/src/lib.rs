@@ -132,6 +132,12 @@ pub enum ThothError {
     MissingMarkupFormat,
     #[error("Invalid file extension")]
     InvalidFileExtension,
+    #[error("Invalid file MIME type")]
+    InvalidFileMimeType,
+    #[error("File size is below the minimum allowed")]
+    FileTooSmall,
+    #[error("File size exceeds the maximum allowed")]
+    FileTooLarge,
     #[error("File uploads not supported for publication type")]
     UnsupportedPublicationTypeForFileUpload,
     #[error("Publication type required for publication file validation")]

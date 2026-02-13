@@ -922,14 +922,9 @@ impl MutationRoot {
         #[graphql(description = "Input for completing a file upload")] data: CompleteFileUpload,
     ) -> FieldResult<File> {
         let file_upload: FileUpload = context.load_current(&data.file_upload_id)?;
+        FilePolicy::can_delete(context, &file_upload)?;
 
         let (work, publication) = file_upload.load_scope(context)?;
-        FilePolicy::can_complete_upload(
-            context,
-            &file_upload,
-            publication.as_ref().map(|pubn| pubn.publication_type),
-        )?;
-
         let doi = work
             .doi
             .as_ref()
@@ -944,6 +939,13 @@ impl MutationRoot {
         let temp_key = temp_key(&file_upload.file_upload_id);
         let (bytes, mime_type) =
             head_object(s3_client, &storage_config.s3_bucket, &temp_key).await?;
+        FilePolicy::can_complete_upload(
+            context,
+            &file_upload,
+            publication.as_ref().map(|pubn| pubn.publication_type),
+            bytes,
+            &mime_type,
+        )?;
 
         let canonical_key = file_upload.canonical_key(doi);
 

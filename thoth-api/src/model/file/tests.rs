@@ -259,6 +259,103 @@ mod validation {
     }
 
     #[test]
+    fn frontcover_requires_mime_to_match_extension() {
+        assert!(FilePolicy::validate_file_mime_type(
+            "jpg",
+            &FileType::Frontcover,
+            None,
+            "IMAGE/JPEG"
+        )
+        .is_ok());
+
+        assert_eq!(
+            FilePolicy::validate_file_mime_type("jpg", &FileType::Frontcover, None, "image/png")
+                .unwrap_err(),
+            ThothError::InvalidFileMimeType
+        );
+    }
+
+    #[test]
+    fn publication_mime_allows_accepted_aliases() {
+        assert!(FilePolicy::validate_file_mime_type(
+            "pdf",
+            &FileType::Publication,
+            Some(PublicationType::Pdf),
+            "application/octet-stream"
+        )
+        .is_ok());
+
+        assert!(FilePolicy::validate_file_mime_type(
+            "xml",
+            &FileType::Publication,
+            Some(PublicationType::Xml),
+            "text/xml"
+        )
+        .is_ok());
+
+        assert!(FilePolicy::validate_file_mime_type(
+            "mp3",
+            &FileType::Publication,
+            Some(PublicationType::Mp3),
+            "audio/mp3"
+        )
+        .is_ok());
+
+        assert!(FilePolicy::validate_file_mime_type(
+            "zip",
+            &FileType::Publication,
+            Some(PublicationType::Xml),
+            "application/zip"
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn publication_mime_rejects_invalid_values() {
+        assert_eq!(
+            FilePolicy::validate_file_mime_type(
+                "pdf",
+                &FileType::Publication,
+                Some(PublicationType::Pdf),
+                "application/epub+zip"
+            )
+            .unwrap_err(),
+            ThothError::InvalidFileMimeType
+        );
+    }
+
+    #[test]
+    fn publication_size_limits_are_enforced() {
+        let five_gib = 5 * 1024 * 1024 * 1024;
+        assert!(FilePolicy::validate_file_size(five_gib, &FileType::Publication).is_ok());
+
+        assert_eq!(
+            FilePolicy::validate_file_size(0, &FileType::Publication).unwrap_err(),
+            ThothError::FileTooSmall
+        );
+        assert_eq!(
+            FilePolicy::validate_file_size(five_gib + 1, &FileType::Publication).unwrap_err(),
+            ThothError::FileTooLarge
+        );
+    }
+
+    #[test]
+    fn frontcover_size_limits_are_enforced() {
+        let fifty_mib = 50 * 1024 * 1024;
+        assert!(FilePolicy::validate_file_size(1_000, &FileType::Frontcover).is_ok());
+        assert!(FilePolicy::validate_file_size(fifty_mib, &FileType::Frontcover).is_ok());
+
+        assert_eq!(
+            FilePolicy::validate_file_size(999, &FileType::Frontcover).unwrap_err(),
+            ThothError::FileTooSmall
+        );
+        assert_eq!(
+            FilePolicy::validate_file_size(fifty_mib + 1, &FileType::Frontcover).unwrap_err(),
+            ThothError::FileTooLarge
+        );
+    }
+
+    #[test]
     fn new_file_upload_from_publication_lowercases_extension() {
         let data = NewPublicationFileUpload {
             publication_id: Uuid::new_v4(),
@@ -346,7 +443,14 @@ mod policy {
         assert!(FilePolicy::can_create(&ctx, &new_upload, Some(PublicationType::Pdf)).is_ok());
         assert!(FilePolicy::can_delete(&ctx, &file).is_ok());
         assert!(FilePolicy::can_delete(&ctx, &upload).is_ok());
-        assert!(FilePolicy::can_complete_upload(&ctx, &upload, Some(PublicationType::Pdf)).is_ok());
+        assert!(FilePolicy::can_complete_upload(
+            &ctx,
+            &upload,
+            Some(PublicationType::Pdf),
+            2048,
+            "application/pdf"
+        )
+        .is_ok());
     }
 
     #[test]
@@ -375,9 +479,14 @@ mod policy {
         assert!(FilePolicy::can_create(&ctx, &new_upload, Some(PublicationType::Pdf)).is_err());
         assert!(FilePolicy::can_delete(&ctx, &file).is_err());
         assert!(FilePolicy::can_delete(&ctx, &upload).is_err());
-        assert!(
-            FilePolicy::can_complete_upload(&ctx, &upload, Some(PublicationType::Pdf)).is_err()
-        );
+        assert!(FilePolicy::can_complete_upload(
+            &ctx,
+            &upload,
+            Some(PublicationType::Pdf),
+            2048,
+            "application/pdf"
+        )
+        .is_err());
     }
 
     #[test]
@@ -402,10 +511,14 @@ mod policy {
         )
         .expect("Failed to create valid upload");
 
-        assert!(
-            FilePolicy::can_complete_upload(&ctx, &valid_upload, Some(PublicationType::Pdf))
-                .is_ok()
-        );
+        assert!(FilePolicy::can_complete_upload(
+            &ctx,
+            &valid_upload,
+            Some(PublicationType::Pdf),
+            2048,
+            "application/pdf"
+        )
+        .is_ok());
 
         let other_work = create_work(pool.as_ref(), &imprint);
         let other_publication = create_pdf_publication(pool.as_ref(), other_work.work_id);
@@ -417,12 +530,19 @@ mod policy {
         .expect("Failed to create invalid upload");
 
         assert_eq!(
-            FilePolicy::can_complete_upload(&ctx, &invalid_upload, Some(PublicationType::Pdf))
-                .unwrap_err(),
+            FilePolicy::can_complete_upload(
+                &ctx,
+                &invalid_upload,
+                Some(PublicationType::Pdf),
+                2048,
+                "application/pdf"
+            )
+            .unwrap_err(),
             ThothError::InvalidFileExtension
         );
         assert_eq!(
-            FilePolicy::can_complete_upload(&ctx, &valid_upload, None).unwrap_err(),
+            FilePolicy::can_complete_upload(&ctx, &valid_upload, None, 2048, "application/pdf")
+                .unwrap_err(),
             ThothError::PublicationTypeRequiredForFileValidation
         );
     }
