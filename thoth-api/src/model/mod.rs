@@ -22,6 +22,26 @@ pub const ROR_DOMAIN: &str = "https://ror.org/";
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Doi(String);
 
+impl Doi {
+    fn identifier(&self) -> &str {
+        self.0.strip_prefix(DOI_DOMAIN).unwrap_or(&self.0)
+    }
+
+    pub fn prefix(&self) -> &str {
+        self.identifier()
+            .split_once('/')
+            .map(|(prefix, _)| prefix)
+            .unwrap_or("")
+    }
+
+    pub fn suffix(&self) -> &str {
+        self.identifier()
+            .split_once('/')
+            .map(|(_, suffix)| suffix)
+            .unwrap_or("")
+    }
+}
+
 #[cfg_attr(
     feature = "backend",
     derive(diesel_derive_newtype::DieselNewType, juniper::GraphQLScalar),
@@ -823,6 +843,7 @@ pub mod biography;
 pub mod contact;
 pub mod contribution;
 pub mod contributor;
+pub mod file;
 pub mod funding;
 pub mod imprint;
 pub mod institution;

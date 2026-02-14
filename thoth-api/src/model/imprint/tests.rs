@@ -110,6 +110,9 @@ mod policy {
             imprint_name: "Policy Imprint".to_string(),
             imprint_url: None,
             crossmark_doi: None,
+            s3_bucket: None,
+            cdn_domain: None,
+            cloudfront_dist_id: None,
         };
 
         let imprint = Imprint::create(pool.as_ref(), &new_imprint).expect("Failed to create");
@@ -130,6 +133,9 @@ mod policy {
             imprint_name: "Updated Imprint".to_string(),
             imprint_url: imprint.imprint_url.clone(),
             crossmark_doi: imprint.crossmark_doi.clone(),
+            s3_bucket: imprint.s3_bucket.clone(),
+            cdn_domain: imprint.cdn_domain.clone(),
+            cloudfront_dist_id: imprint.cloudfront_dist_id.clone(),
         };
 
         let org_id = publisher
@@ -160,6 +166,9 @@ mod crud {
             imprint_name: name,
             imprint_url: None,
             crossmark_doi: None,
+            s3_bucket: None,
+            cdn_domain: None,
+            cloudfront_dist_id: None,
         };
 
         Imprint::create(pool, &new_imprint).expect("Failed to create imprint")
@@ -181,6 +190,9 @@ mod crud {
             imprint_name: format!("Updated {}", Uuid::new_v4()),
             imprint_url: Some("https://example.com".to_string()),
             crossmark_doi: imprint.crossmark_doi.clone(),
+            s3_bucket: imprint.s3_bucket.clone(),
+            cdn_domain: imprint.cdn_domain.clone(),
+            cloudfront_dist_id: imprint.cloudfront_dist_id.clone(),
         };
 
         let ctx = test_context(pool.clone(), "test-user");
@@ -474,6 +486,9 @@ mod crud {
                 imprint_name: "Imprint A".to_string(),
                 imprint_url: Some("https://example.com/imprint-a".to_string()),
                 crossmark_doi: None,
+                s3_bucket: None,
+                cdn_domain: None,
+                cloudfront_dist_id: None,
             },
         )
         .expect("Failed to create imprint");
@@ -484,6 +499,9 @@ mod crud {
                 imprint_name: "Imprint B".to_string(),
                 imprint_url: Some("https://example.com/imprint-b".to_string()),
                 crossmark_doi: None,
+                s3_bucket: None,
+                cdn_domain: None,
+                cloudfront_dist_id: None,
             },
         )
         .expect("Failed to create imprint");
@@ -514,6 +532,9 @@ mod crud {
                 imprint_name: "Imprint A".to_string(),
                 imprint_url: Some("https://example.com/a".to_string()),
                 crossmark_doi: Some(Doi("https://doi.org/10.1234/A".to_string())),
+                s3_bucket: None,
+                cdn_domain: None,
+                cloudfront_dist_id: None,
             },
         )
         .expect("Failed to create imprint");
@@ -524,6 +545,9 @@ mod crud {
                 imprint_name: "Imprint B".to_string(),
                 imprint_url: Some("https://example.com/b".to_string()),
                 crossmark_doi: Some(Doi("https://doi.org/10.1234/B".to_string())),
+                s3_bucket: None,
+                cdn_domain: None,
+                cloudfront_dist_id: None,
             },
         )
         .expect("Failed to create imprint");

@@ -14,6 +14,7 @@ use crate::model::{
     contact::{Contact, ContactOrderBy, ContactType},
     contribution::{Contribution, ContributionType},
     contributor::{Contributor, ContributorOrderBy},
+    file::File,
     funding::Funding,
     imprint::{Imprint, ImprintOrderBy},
     institution::{Institution, InstitutionOrderBy},
@@ -470,6 +471,14 @@ impl QueryRoot {
         #[graphql(description = "Thoth publication ID to search on")] publication_id: Uuid,
     ) -> FieldResult<Publication> {
         Publication::from_id(&context.db, &publication_id).map_err(Into::into)
+    }
+
+    #[graphql(description = "Query a single file using its ID")]
+    fn file(
+        context: &Context,
+        #[graphql(description = "Thoth file ID to search on")] file_id: Uuid,
+    ) -> FieldResult<File> {
+        File::from_id(&context.db, &file_id).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of publications")]

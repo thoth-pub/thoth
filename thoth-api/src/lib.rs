@@ -11,3 +11,5 @@ pub(crate) mod policy;
 pub mod redis;
 #[cfg(feature = "backend")]
 mod schema;
+#[cfg(feature = "backend")]
+pub mod storage;

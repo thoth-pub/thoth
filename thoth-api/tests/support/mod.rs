@@ -10,10 +10,12 @@ use fs2::FileExt;
 use serde_json::Value;
 use thoth_api::db::{init_pool, run_migrations, PgPool};
 use thoth_api::graphql::{create_schema, Context, GraphQLRequest};
+use thoth_api::storage::{create_cloudfront_client, create_s3_client, CloudFrontClient, S3Client};
 use zitadel::actix::introspection::IntrospectedUser;
 
 static MIGRATIONS: OnceLock<Result<(), String>> = OnceLock::new();
 static POOL: OnceLock<Arc<PgPool>> = OnceLock::new();
+static CLIENTS: OnceLock<(Arc<S3Client>, Arc<CloudFrontClient>)> = OnceLock::new();
 
 pub struct TestDbGuard {
     _file: std::fs::File,
@@ -49,6 +51,24 @@ pub fn db_pool() -> Arc<PgPool> {
     pool.clone()
 }
 
+fn test_clients() -> (Arc<S3Client>, Arc<CloudFrontClient>) {
+    let (s3_client, cloudfront_client) = CLIENTS.get_or_init(|| {
+        std::thread::spawn(|| {
+            let runtime = tokio::runtime::Runtime::new().expect("Failed to build Tokio runtime");
+            runtime.block_on(async {
+                let s3 = create_s3_client("test-access-key", "test-secret-key", "us-east-1").await;
+                let cloudfront =
+                    create_cloudfront_client("test-access-key", "test-secret-key", "us-east-1")
+                        .await;
+                (Arc::new(s3), Arc::new(cloudfront))
+            })
+        })
+        .join()
+        .expect("Failed to initialize AWS clients")
+    });
+    (Arc::clone(s3_client), Arc::clone(cloudfront_client))
+}
+
 pub fn reset_db(pool: &PgPool) -> Result<(), diesel::result::Error> {
     let mut connection = pool.get().expect("Failed to get DB connection");
     let sql = r#"
@@ -77,7 +97,8 @@ pub async fn execute_graphql(
     variables: Option<Value>,
 ) -> Value {
     let schema = create_schema();
-    let ctx = Context::new(pool, user);
+    let (s3_client, cloudfront_client) = test_clients();
+    let ctx = Context::new(pool, user, s3_client, cloudfront_client);
 
     let request_json = match variables {
         Some(vars) => serde_json::json!({ "query": query, "variables": vars }),

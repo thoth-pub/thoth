@@ -17,6 +17,7 @@ use serde::Serialize;
 use thoth_api::{
     db::{init_pool, PgPool},
     graphql::{create_schema, Context, GraphQLRequest, Schema},
+    storage::{create_cloudfront_client, create_s3_client, CloudFrontClient, S3Client},
 };
 use zitadel::{
     actix::introspection::{IntrospectedUser, IntrospectionConfigBuilder},
@@ -87,10 +88,17 @@ async fn graphql_schema(st: Data<Arc<Schema>>) -> HttpResponse {
 async fn graphql(
     st: Data<Arc<Schema>>,
     pool: Data<PgPool>,
+    s3_client: Data<S3Client>,
+    cloudfront_client: Data<CloudFrontClient>,
     user: Option<IntrospectedUser>,
     data: Json<GraphQLRequest>,
 ) -> Result<HttpResponse, Error> {
-    let ctx = Context::new(pool.into_inner(), user);
+    let ctx = Context::new(
+        pool.into_inner(),
+        user,
+        s3_client.into_inner(),
+        cloudfront_client.into_inner(),
+    );
     let result = data.execute(&st, &ctx).await;
     match result.is_ok() {
         true => Ok(HttpResponse::Ok().json(result)),
@@ -109,6 +117,9 @@ pub async fn start_server(
     public_url: String,
     private_key: String,
     zitadel_url: String,
+    aws_access_key_id: String,
+    aws_secret_access_key: String,
+    aws_region: String,
 ) -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
@@ -122,6 +133,10 @@ pub async fn start_server(
         .build()
         .await
         .unwrap();
+
+    let s3_client = create_s3_client(&aws_access_key_id, &aws_secret_access_key, &aws_region).await;
+    let cloudfront_client =
+        create_cloudfront_client(&aws_access_key_id, &aws_secret_access_key, &aws_region).await;
 
     HttpServer::new(move || {
         App::new()
@@ -139,6 +154,8 @@ pub async fn start_server(
             .app_data(auth.clone())
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
             .app_data(Data::new(init_pool(&database_url)))
+            .app_data(Data::new(s3_client.clone()))
+            .app_data(Data::new(cloudfront_client.clone()))
             .app_data(Data::new(Arc::new(create_schema())))
             .service(index)
             .service(graphql_index)

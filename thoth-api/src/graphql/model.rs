@@ -17,6 +17,7 @@ use crate::model::{
     contact::{Contact, ContactOrderBy, ContactType},
     contribution::{Contribution, ContributionType},
     contributor::Contributor,
+    file::{File, FileType},
     funding::Funding,
     imprint::{Imprint, ImprintField, ImprintOrderBy},
     institution::{CountryCode, Institution},
@@ -40,6 +41,7 @@ use crate::model::{
     Crud, Doi, Isbn, Orcid, Ror, Timestamp,
 };
 use crate::policy::PolicyContext;
+use crate::storage::{CloudFrontClient, S3Client};
 use thoth_errors::ThothError;
 
 impl juniper::Context for Context {}
@@ -47,11 +49,31 @@ impl juniper::Context for Context {}
 pub struct Context {
     pub db: Arc<PgPool>,
     pub user: Option<IntrospectedUser>,
+    pub s3_client: Arc<S3Client>,
+    pub cloudfront_client: Arc<CloudFrontClient>,
 }
 
 impl Context {
-    pub fn new(pool: Arc<PgPool>, user: Option<IntrospectedUser>) -> Self {
-        Self { db: pool, user }
+    pub fn new(
+        pool: Arc<PgPool>,
+        user: Option<IntrospectedUser>,
+        s3_client: Arc<S3Client>,
+        cloudfront_client: Arc<CloudFrontClient>,
+    ) -> Self {
+        Self {
+            db: pool,
+            user,
+            s3_client,
+            cloudfront_client,
+        }
+    }
+
+    pub fn s3_client(&self) -> &S3Client {
+        self.s3_client.as_ref()
+    }
+
+    pub fn cloudfront_client(&self) -> &CloudFrontClient {
+        self.cloudfront_client.as_ref()
     }
 }
 
@@ -667,6 +689,10 @@ impl Work {
         )
         .map_err(Into::into)
     }
+    #[graphql(description = "Get the front cover file for this work")]
+    pub fn frontcover(&self, context: &Context) -> FieldResult<Option<File>> {
+        File::from_work_id(&context.db, &self.work_id).map_err(Into::into)
+    }
     #[graphql(description = "Get references cited by this work")]
     pub fn references(
         &self,
@@ -907,9 +933,76 @@ impl Publication {
         .map_err(Into::into)
     }
 
+    #[graphql(description = "Get the publication file for this publication")]
+    pub fn file(&self, context: &Context) -> FieldResult<Option<File>> {
+        File::from_publication_id(&context.db, &self.publication_id).map_err(Into::into)
+    }
+
     #[graphql(description = "Get the work to which this publication belongs")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(Into::into)
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "A file stored in the system (publication file or front cover)."
+)]
+impl File {
+    #[graphql(description = "Thoth ID of the file")]
+    pub fn file_id(&self) -> &Uuid {
+        &self.file_id
+    }
+
+    #[graphql(description = "Type of file (publication or frontcover)")]
+    pub fn file_type(&self) -> &FileType {
+        &self.file_type
+    }
+
+    #[graphql(description = "Thoth ID of the work (for frontcovers)")]
+    pub fn work_id(&self) -> Option<&Uuid> {
+        self.work_id.as_ref()
+    }
+
+    #[graphql(description = "Thoth ID of the publication (for publication files)")]
+    pub fn publication_id(&self) -> Option<&Uuid> {
+        self.publication_id.as_ref()
+    }
+
+    #[graphql(description = "S3 object key (canonical DOI-based path)")]
+    pub fn object_key(&self) -> &String {
+        &self.object_key
+    }
+
+    #[graphql(description = "Public CDN URL")]
+    pub fn cdn_url(&self) -> &String {
+        &self.cdn_url
+    }
+
+    #[graphql(description = "MIME type used when serving the file")]
+    pub fn mime_type(&self) -> &String {
+        &self.mime_type
+    }
+
+    #[graphql(description = "Size of the file in bytes")]
+    pub fn bytes(&self) -> i32 {
+        // GraphQL does not support i64; files larger than 2GB will overflow.
+        self.bytes as i32
+    }
+
+    #[graphql(description = "SHA-256 checksum of the stored file")]
+    pub fn sha256(&self) -> &String {
+        &self.sha256
+    }
+
+    #[graphql(description = "Date and time at which the file record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the file record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
     }
 }
 

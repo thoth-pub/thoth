@@ -130,6 +130,28 @@ pub enum ThothError {
     TitleListItemError,
     #[error("Markup format was not provided.")]
     MissingMarkupFormat,
+    #[error("Invalid file extension")]
+    InvalidFileExtension,
+    #[error("Invalid file MIME type")]
+    InvalidFileMimeType,
+    #[error("File size is below the minimum allowed")]
+    FileTooSmall,
+    #[error("File size exceeds the maximum allowed")]
+    FileTooLarge,
+    #[error("File uploads not supported for publication type")]
+    UnsupportedPublicationTypeForFileUpload,
+    #[error("Publication type required for publication file validation")]
+    PublicationTypeRequiredForFileValidation,
+    #[error("File must have either work_id or publication_id")]
+    FileMissingWorkOrPublicationId,
+    #[error("FileUpload must have either work_id or publication_id")]
+    FileUploadMissingWorkOrPublicationId,
+    #[error("Work must have a DOI to upload files")]
+    WorkMissingDoiForFileUpload,
+    #[error("Publication file upload missing publication_id")]
+    PublicationFileUploadMissingPublicationId,
+    #[error("Frontcover file upload missing work_id")]
+    FrontcoverFileUploadMissingWorkId,
 }
 
 impl ThothError {

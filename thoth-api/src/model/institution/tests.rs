@@ -1006,12 +1006,11 @@ mod helpers {
 mod policy {
     use super::*;
 
-    use crate::graphql::Context;
     use crate::model::funding::{Funding, NewFunding};
     use crate::model::institution::policy::InstitutionPolicy;
     use crate::model::tests::db::{
         create_imprint, create_publisher, create_work, setup_test_db, test_context,
-        test_context_with_user, test_user_with_role,
+        test_context_anonymous, test_context_with_user, test_user_with_role,
     };
     use crate::model::Crud;
     use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
@@ -1020,7 +1019,7 @@ mod policy {
     fn crud_policy_requires_authentication_for_create_update() {
         let (_guard, pool) = setup_test_db();
 
-        let ctx = Context::new(pool.clone(), None);
+        let ctx = test_context_anonymous(pool.clone());
 
         let new_institution = NewInstitution {
             institution_name: "Institution Policy".to_string(),

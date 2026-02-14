@@ -18,7 +18,10 @@ lazy_static! {
                 .arg(arguments::keep_alive("GRAPHQL_API_KEEP_ALIVE"))
                 .arg(arguments::gql_url())
                 .arg(arguments::key())
-                .arg(arguments::zitadel_url()),
+                .arg(arguments::zitadel_url())
+                .arg(arguments::aws_access_key_id())
+                .arg(arguments::aws_secret_access_key())
+                .arg(arguments::aws_region()),
         )
         .subcommand(
             Command::new("export-api")
@@ -45,6 +48,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
         .get_one::<String>("zitadel-url")
         .unwrap()
         .to_owned();
+
     api_server(
         database_url,
         host,
@@ -54,6 +58,18 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
         url,
         private_key,
         zitadel_url,
+        arguments
+            .get_one::<String>("aws-access-key-id")
+            .unwrap()
+            .to_owned(),
+        arguments
+            .get_one::<String>("aws-secret-access-key")
+            .unwrap()
+            .to_owned(),
+        arguments
+            .get_one::<String>("aws-region")
+            .unwrap()
+            .to_owned(),
     )
     .map_err(|e| e.into())
 }
