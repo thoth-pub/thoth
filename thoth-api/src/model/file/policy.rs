@@ -3,11 +3,12 @@ use crate::model::publication::PublicationType;
 use crate::policy::{CreatePolicy, DeletePolicy, PolicyContext};
 use thoth_errors::{ThothError, ThothResult};
 
+const KIB: i64 = 1024;
 const MIB: i64 = 1024 * 1024;
 const GIB: i64 = 1024 * 1024 * 1024;
-const MIN_PUBLICATION_BYTES: i64 = 1;
+const MIN_PUBLICATION_BYTES: i64 = 50 * KIB;
 const MAX_PUBLICATION_BYTES: i64 = 5 * GIB;
-const MIN_FRONTCOVER_BYTES: i64 = 1_000;
+const MIN_FRONTCOVER_BYTES: i64 = 50 * KIB;
 const MAX_FRONTCOVER_BYTES: i64 = 50 * MIB;
 
 /// Write policies for `File` and `FileUpload`.
