@@ -326,11 +326,13 @@ mod validation {
 
     #[test]
     fn publication_size_limits_are_enforced() {
+        let fifty_kib = 50 * 1024;
         let five_gib = 5 * 1024 * 1024 * 1024;
+        assert!(FilePolicy::validate_file_size(fifty_kib, &FileType::Publication).is_ok());
         assert!(FilePolicy::validate_file_size(five_gib, &FileType::Publication).is_ok());
 
         assert_eq!(
-            FilePolicy::validate_file_size(0, &FileType::Publication).unwrap_err(),
+            FilePolicy::validate_file_size(fifty_kib - 1, &FileType::Publication).unwrap_err(),
             ThothError::FileTooSmall
         );
         assert_eq!(
@@ -341,12 +343,13 @@ mod validation {
 
     #[test]
     fn frontcover_size_limits_are_enforced() {
+        let fifty_kib = 50 * 1024;
         let fifty_mib = 50 * 1024 * 1024;
-        assert!(FilePolicy::validate_file_size(1_000, &FileType::Frontcover).is_ok());
+        assert!(FilePolicy::validate_file_size(fifty_kib, &FileType::Frontcover).is_ok());
         assert!(FilePolicy::validate_file_size(fifty_mib, &FileType::Frontcover).is_ok());
 
         assert_eq!(
-            FilePolicy::validate_file_size(999, &FileType::Frontcover).unwrap_err(),
+            FilePolicy::validate_file_size(fifty_kib - 1, &FileType::Frontcover).unwrap_err(),
             ThothError::FileTooSmall
         );
         assert_eq!(
@@ -447,7 +450,7 @@ mod policy {
             &ctx,
             &upload,
             Some(PublicationType::Pdf),
-            2048,
+            60 * 1024,
             "application/pdf"
         )
         .is_ok());
@@ -483,7 +486,7 @@ mod policy {
             &ctx,
             &upload,
             Some(PublicationType::Pdf),
-            2048,
+            60 * 1024,
             "application/pdf"
         )
         .is_err());
@@ -515,7 +518,7 @@ mod policy {
             &ctx,
             &valid_upload,
             Some(PublicationType::Pdf),
-            2048,
+            60 * 1024,
             "application/pdf"
         )
         .is_ok());
@@ -534,15 +537,21 @@ mod policy {
                 &ctx,
                 &invalid_upload,
                 Some(PublicationType::Pdf),
-                2048,
+                60 * 1024,
                 "application/pdf"
             )
             .unwrap_err(),
             ThothError::InvalidFileExtension
         );
         assert_eq!(
-            FilePolicy::can_complete_upload(&ctx, &valid_upload, None, 2048, "application/pdf")
-                .unwrap_err(),
+            FilePolicy::can_complete_upload(
+                &ctx,
+                &valid_upload,
+                None,
+                60 * 1024,
+                "application/pdf"
+            )
+            .unwrap_err(),
             ThothError::PublicationTypeRequiredForFileValidation
         );
     }
