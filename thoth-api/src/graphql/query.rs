@@ -9,11 +9,15 @@ use crate::graphql::types::me::{Me, ToMe};
 use crate::graphql::Context;
 use crate::markup::{convert_from_jats, ConversionLimit, MarkupFormat};
 use crate::model::{
+    additional_resource::{AdditionalResource, AdditionalResourceOrderBy},
     affiliation::{Affiliation, AffiliationOrderBy},
+    award::{Award, AwardOrderBy},
     biography::{Biography, BiographyOrderBy},
+    book_review::{BookReview, BookReviewOrderBy},
     contact::{Contact, ContactOrderBy, ContactType},
     contribution::{Contribution, ContributionType},
     contributor::{Contributor, ContributorOrderBy},
+    endorsement::{Endorsement, EndorsementOrderBy},
     file::File,
     funding::Funding,
     imprint::{Imprint, ImprintOrderBy},
@@ -31,6 +35,7 @@ use crate::model::{
     subject::{Subject, SubjectType},
     title::{Title, TitleOrderBy},
     work::{Work, WorkOrderBy, WorkStatus, WorkType},
+    work_featured_video::{WorkFeaturedVideo, WorkFeaturedVideoOrderBy},
     Crud, Doi,
 };
 use crate::policy::PolicyContext;
@@ -1401,6 +1406,241 @@ impl QueryRoot {
     #[graphql(description = "Get the total number of references")]
     fn reference_count(context: &Context) -> FieldResult<i32> {
         Reference::count(&context.db, None, vec![], vec![], vec![], None, None).map_err(Into::into)
+    }
+
+    #[graphql(description = "Query the full list of additional resources")]
+    fn additional_resources(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = AdditionalResourceOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<AdditionalResourceOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
+        publishers: Option<Vec<Uuid>>,
+    ) -> FieldResult<Vec<AdditionalResource>> {
+        AdditionalResource::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .map_err(Into::into)
+    }
+
+    #[graphql(description = "Query a single additional resource using its ID")]
+    fn additional_resource(
+        context: &Context,
+        #[graphql(description = "Thoth additional resource ID to search on")]
+        additional_resource_id: Uuid,
+    ) -> FieldResult<AdditionalResource> {
+        AdditionalResource::from_id(&context.db, &additional_resource_id).map_err(Into::into)
+    }
+
+    #[graphql(description = "Get the total number of additional resources")]
+    fn additional_resource_count(context: &Context) -> FieldResult<i32> {
+        AdditionalResource::count(&context.db, None, vec![], vec![], vec![], None, None)
+            .map_err(Into::into)
+    }
+
+    #[graphql(description = "Query the full list of awards")]
+    fn awards(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = AwardOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<AwardOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
+        publishers: Option<Vec<Uuid>>,
+    ) -> FieldResult<Vec<Award>> {
+        Award::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .map_err(Into::into)
+    }
+
+    #[graphql(description = "Query a single award using its ID")]
+    fn award(
+        context: &Context,
+        #[graphql(description = "Thoth award ID to search on")] award_id: Uuid,
+    ) -> FieldResult<Award> {
+        Award::from_id(&context.db, &award_id).map_err(Into::into)
+    }
+
+    #[graphql(description = "Get the total number of awards")]
+    fn award_count(context: &Context) -> FieldResult<i32> {
+        Award::count(&context.db, None, vec![], vec![], vec![], None, None).map_err(Into::into)
+    }
+
+    #[graphql(description = "Query the full list of endorsements")]
+    fn endorsements(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = EndorsementOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<EndorsementOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
+        publishers: Option<Vec<Uuid>>,
+    ) -> FieldResult<Vec<Endorsement>> {
+        Endorsement::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .map_err(Into::into)
+    }
+
+    #[graphql(description = "Query a single endorsement using its ID")]
+    fn endorsement(
+        context: &Context,
+        #[graphql(description = "Thoth endorsement ID to search on")] endorsement_id: Uuid,
+    ) -> FieldResult<Endorsement> {
+        Endorsement::from_id(&context.db, &endorsement_id).map_err(Into::into)
+    }
+
+    #[graphql(description = "Get the total number of endorsements")]
+    fn endorsement_count(context: &Context) -> FieldResult<i32> {
+        Endorsement::count(&context.db, None, vec![], vec![], vec![], None, None)
+            .map_err(Into::into)
+    }
+
+    #[graphql(description = "Query the full list of book reviews")]
+    fn book_reviews(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = BookReviewOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<BookReviewOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
+        publishers: Option<Vec<Uuid>>,
+    ) -> FieldResult<Vec<BookReview>> {
+        BookReview::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .map_err(Into::into)
+    }
+
+    #[graphql(description = "Query a single book review using its ID")]
+    fn book_review(
+        context: &Context,
+        #[graphql(description = "Thoth book review ID to search on")] book_review_id: Uuid,
+    ) -> FieldResult<BookReview> {
+        BookReview::from_id(&context.db, &book_review_id).map_err(Into::into)
+    }
+
+    #[graphql(description = "Get the total number of book reviews")]
+    fn book_review_count(context: &Context) -> FieldResult<i32> {
+        BookReview::count(&context.db, None, vec![], vec![], vec![], None, None)
+            .map_err(Into::into)
+    }
+
+    #[graphql(description = "Query the full list of featured videos")]
+    fn work_featured_videos(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = WorkFeaturedVideoOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: Option<WorkFeaturedVideoOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
+        publishers: Option<Vec<Uuid>>,
+    ) -> FieldResult<Vec<WorkFeaturedVideo>> {
+        WorkFeaturedVideo::all(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            None,
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .map_err(Into::into)
+    }
+
+    #[graphql(description = "Query a single featured video using its ID")]
+    fn work_featured_video(
+        context: &Context,
+        #[graphql(description = "Thoth featured video ID to search on")] work_featured_video_id: Uuid,
+    ) -> FieldResult<WorkFeaturedVideo> {
+        WorkFeaturedVideo::from_id(&context.db, &work_featured_video_id).map_err(Into::into)
+    }
+
+    #[graphql(description = "Get the total number of featured videos")]
+    fn work_featured_video_count(context: &Context) -> FieldResult<i32> {
+        WorkFeaturedVideo::count(&context.db, None, vec![], vec![], vec![], None, None)
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Query a title by its ID")]

@@ -28,6 +28,7 @@ fn make_work() -> Work {
         general_note: None,
         bibliography_note: None,
         toc: None,
+        resources_description: None,
         cover_url: Some("https://book.cover/image".to_string()),
         cover_caption: None,
         created_at: Default::default(),
@@ -120,6 +121,10 @@ mod display_and_parse {
             "BibliographyNote"
         );
         assert_eq!(format!("{}", WorkField::Toc), "TOC");
+        assert_eq!(
+            format!("{}", WorkField::ResourcesDescription),
+            "ResourcesDescription"
+        );
         assert_eq!(format!("{}", WorkField::CoverUrl), "CoverURL");
         assert_eq!(format!("{}", WorkField::CoverCaption), "CoverCaption");
         assert_eq!(format!("{}", WorkField::CreatedAt), "CreatedAt");
@@ -280,6 +285,10 @@ mod display_and_parse {
         );
         assert_eq!(WorkField::from_str("TOC").unwrap(), WorkField::Toc);
         assert_eq!(
+            WorkField::from_str("ResourcesDescription").unwrap(),
+            WorkField::ResourcesDescription
+        );
+        assert_eq!(
             WorkField::from_str("CoverURL").unwrap(),
             WorkField::CoverUrl
         );
@@ -349,6 +358,7 @@ mod conversions {
             general_note,
             bibliography_note,
             toc,
+            resources_description,
             cover_url,
             cover_caption,
             first_page,
@@ -590,6 +600,7 @@ mod policy {
             general_note: work.general_note.clone(),
             bibliography_note: work.bibliography_note.clone(),
             toc: work.toc.clone(),
+            resources_description: None,
             cover_url: work.cover_url.clone(),
             cover_caption: work.cover_caption.clone(),
             first_page: work.first_page.clone(),
@@ -623,6 +634,7 @@ mod policy {
             general_note: None,
             bibliography_note: None,
             toc: None,
+            resources_description: None,
             cover_url: None,
             cover_caption: None,
             first_page: None,
@@ -711,6 +723,7 @@ mod policy {
             general_note: None,
             bibliography_note: None,
             toc: None,
+            resources_description: None,
             cover_url: None,
             cover_caption: None,
             first_page: None,
@@ -894,6 +907,7 @@ mod policy {
             general_note: None,
             bibliography_note: None,
             toc: None,
+            resources_description: None,
             cover_url: None,
             cover_caption: None,
             first_page: None,
@@ -924,6 +938,7 @@ mod crud {
     use uuid::Uuid;
 
     use crate::graphql::types::inputs::{Expression, TimeExpression};
+    use crate::model::additional_resource::{AdditionalResource, NewAdditionalResource, ResourceType};
     use crate::model::issue::{Issue, NewIssue};
     use crate::model::locale::LocaleCode;
     use crate::model::publication::{NewPublication, Publication, PublicationType};
@@ -934,6 +949,7 @@ mod crud {
     use crate::model::title::{NewTitle, Title};
     use crate::model::work_relation::{NewWorkRelation, RelationType, WorkRelation};
     use crate::model::{Crud, Doi, Isbn, Timestamp};
+    use thoth_errors::ThothError;
 
     fn make_new_work(imprint_id: Uuid) -> NewWork {
         NewWork {
@@ -960,6 +976,7 @@ mod crud {
             general_note: None,
             bibliography_note: None,
             toc: None,
+            resources_description: None,
             cover_url: None,
             cover_caption: None,
             first_page: None,
@@ -1021,6 +1038,7 @@ mod crud {
             general_note: work.general_note.clone(),
             bibliography_note: work.bibliography_note.clone(),
             toc: work.toc.clone(),
+            resources_description: None,
             cover_url: work.cover_url.clone(),
             cover_caption: work.cover_caption.clone(),
             first_page: work.first_page.clone(),
@@ -1411,6 +1429,36 @@ mod crud {
         .expect("Failed to create publication");
 
         assert!(work.can_be_chapter(pool.as_ref()).is_err());
+    }
+
+    #[test]
+    fn crud_can_be_chapter_rejects_work_with_additional_resource() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+
+        assert!(work.can_be_chapter(pool.as_ref()).is_ok());
+
+        AdditionalResource::create(
+            pool.as_ref(),
+            &NewAdditionalResource {
+                work_id: work.work_id,
+                title: "Resource".to_string(),
+                description: Some("Description".to_string()),
+                attribution: Some("Attribution".to_string()),
+                resource_type: ResourceType::Website,
+                doi: None,
+                handle: None,
+                url: Some("https://example.com/resource".to_string()),
+                resource_ordinal: 1,
+            },
+        )
+        .expect("Failed to create additional resource");
+
+        let result = work.can_be_chapter(pool.as_ref());
+        assert!(matches!(result, Err(ThothError::ChapterBookMetadataError)));
     }
 
     #[test]

@@ -55,6 +55,16 @@ fn canonical_frontcover_key_lowercases_parts() {
 }
 
 #[test]
+fn canonical_resource_key_uses_resource_subpath() {
+    let resource_id = Uuid::parse_str("0f97fb46-4ed2-4bc0-98dd-f2f8ce0ebe11").unwrap();
+    let key = canonical_resource_key("10.1234", "AbC/Def", &resource_id, "MP4");
+    assert_eq!(
+        key,
+        "10.1234/abc/def/resources/0f97fb46-4ed2-4bc0-98dd-f2f8ce0ebe11.mp4"
+    );
+}
+
+#[test]
 fn build_cdn_url_normalizes_domain_and_key() {
     let https_url = build_cdn_url("https://cdn.example.org/", "/files/doc.pdf");
     assert_eq!(https_url, "https://cdn.example.org/files/doc.pdf");

@@ -10,6 +10,8 @@ fn make_new_frontcover_file(work_id: Uuid, object_key: impl Into<String>) -> New
         file_type: FileType::Frontcover,
         work_id: Some(work_id),
         publication_id: None,
+        additional_resource_id: None,
+        work_featured_video_id: None,
         object_key: object_key.clone(),
         cdn_url: format!("https://cdn.example.org/{object_key}"),
         mime_type: "image/jpeg".to_string(),
@@ -25,6 +27,8 @@ fn make_new_publication_file(publication_id: Uuid, object_key: impl Into<String>
         file_type: FileType::Publication,
         work_id: None,
         publication_id: Some(publication_id),
+        additional_resource_id: None,
+        work_featured_video_id: None,
         object_key: object_key.clone(),
         cdn_url: format!("https://cdn.example.org/{object_key}"),
         mime_type: "application/pdf".to_string(),
@@ -39,6 +43,8 @@ fn make_new_frontcover_upload(work_id: Uuid, extension: impl Into<String>) -> Ne
         file_type: FileType::Frontcover,
         work_id: Some(work_id),
         publication_id: None,
+        additional_resource_id: None,
+        work_featured_video_id: None,
         declared_mime_type: "image/jpeg".to_string(),
         declared_extension: extension.into(),
         declared_sha256: TEST_SHA256_HEX.to_string(),
@@ -54,6 +60,8 @@ fn make_new_publication_upload(
         file_type: FileType::Publication,
         work_id: None,
         publication_id: Some(publication_id),
+        additional_resource_id: None,
+        work_featured_video_id: None,
         declared_mime_type: "application/pdf".to_string(),
         declared_extension: extension.into(),
         declared_sha256: TEST_SHA256_HEX.to_string(),
@@ -96,6 +104,14 @@ mod display_and_parse {
     fn filetype_display_formats_expected_strings() {
         assert_eq!(format!("{}", FileType::Publication), "publication");
         assert_eq!(format!("{}", FileType::Frontcover), "frontcover");
+        assert_eq!(
+            format!("{}", FileType::AdditionalResource),
+            "additional_resource"
+        );
+        assert_eq!(
+            format!("{}", FileType::WorkFeaturedVideo),
+            "work_featured_video"
+        );
     }
 
     #[test]
@@ -109,6 +125,14 @@ mod display_and_parse {
         assert_eq!(
             FileType::from_str("frontcover").unwrap(),
             FileType::Frontcover
+        );
+        assert_eq!(
+            FileType::from_str("additional_resource").unwrap(),
+            FileType::AdditionalResource
+        );
+        assert_eq!(
+            FileType::from_str("work_featured_video").unwrap(),
+            FileType::WorkFeaturedVideo
         );
         assert!(FileType::from_str("Publication").is_err());
         assert!(FileType::from_str("cover").is_err());
@@ -125,6 +149,8 @@ mod conversions {
     fn filetype_graphql_roundtrip() {
         assert_graphql_enum_roundtrip(FileType::Publication);
         assert_graphql_enum_roundtrip(FileType::Frontcover);
+        assert_graphql_enum_roundtrip(FileType::AdditionalResource);
+        assert_graphql_enum_roundtrip(FileType::WorkFeaturedVideo);
     }
 
     #[test]
@@ -141,6 +167,16 @@ mod conversions {
             "'frontcover'::file_type",
             FileType::Frontcover,
         );
+        assert_db_enum_roundtrip::<FileType, crate::schema::sql_types::FileType>(
+            pool.as_ref(),
+            "'additional_resource'::file_type",
+            FileType::AdditionalResource,
+        );
+        assert_db_enum_roundtrip::<FileType, crate::schema::sql_types::FileType>(
+            pool.as_ref(),
+            "'work_featured_video'::file_type",
+            FileType::WorkFeaturedVideo,
+        );
     }
 }
 
@@ -156,6 +192,8 @@ mod helpers {
             file_type: FileType::Frontcover,
             work_id: None,
             publication_id: None,
+            additional_resource_id: None,
+            work_featured_video_id: None,
             object_key: "test/key".to_string(),
             cdn_url: "https://cdn.example.com/test.jpg".to_string(),
             mime_type: "image/jpeg".to_string(),
@@ -176,6 +214,8 @@ mod helpers {
             file_type: FileType::Frontcover,
             work_id: None,
             publication_id: None,
+            additional_resource_id: None,
+            work_featured_video_id: None,
             declared_mime_type: "image/jpeg".to_string(),
             declared_extension: "jpg".to_string(),
             declared_sha256: TEST_SHA256_HEX.to_string(),
@@ -190,6 +230,7 @@ mod helpers {
 #[cfg(feature = "backend")]
 mod validation {
     use super::*;
+    use crate::model::additional_resource::ResourceType;
     use crate::model::publication::PublicationType;
     use thoth_errors::ThothError;
 
@@ -384,6 +425,44 @@ mod validation {
         let upload: NewFileUpload = data.into();
         assert_eq!(upload.file_type, FileType::Frontcover);
         assert_eq!(upload.declared_extension, "jpg");
+    }
+
+    #[test]
+    fn new_file_upload_from_additional_resource_lowercases_extension() {
+        let data = NewAdditionalResourceFileUpload {
+            additional_resource_id: Uuid::new_v4(),
+            declared_mime_type: "image/png".to_string(),
+            declared_extension: "PNG".to_string(),
+            declared_sha256: TEST_SHA256_HEX.to_string(),
+        };
+
+        let upload: NewFileUpload = data.into();
+        assert_eq!(upload.file_type, FileType::AdditionalResource);
+        assert_eq!(upload.declared_extension, "png");
+    }
+
+    #[test]
+    fn resource_extension_and_mime_validation() {
+        assert!(
+            FilePolicy::validate_resource_file_extension("mp4", ResourceType::Video).is_ok()
+        );
+        assert!(
+            FilePolicy::validate_resource_file_mime_type(ResourceType::Video, "video/mp4")
+                .is_ok()
+        );
+        assert_eq!(
+            FilePolicy::validate_resource_file_extension("exe", ResourceType::Video).unwrap_err(),
+            ThothError::InvalidFileExtension
+        );
+        assert_eq!(
+            FilePolicy::validate_resource_file_extension("mp4", ResourceType::Blog).unwrap_err(),
+            ThothError::UnsupportedResourceTypeForFileUpload
+        );
+        assert_eq!(
+            FilePolicy::validate_resource_file_mime_type(ResourceType::Video, "image/png")
+                .unwrap_err(),
+            ThothError::InvalidFileMimeType
+        );
     }
 
     #[test]
@@ -716,6 +795,8 @@ mod crud {
             file_type: FileType::Frontcover,
             work_id: None,
             publication_id: None,
+            additional_resource_id: None,
+            work_featured_video_id: None,
             object_key: "invalid.jpg".to_string(),
             cdn_url: "https://cdn.example.org/invalid.jpg".to_string(),
             mime_type: "image/jpeg".to_string(),
@@ -731,6 +812,8 @@ mod crud {
             file_type: FileType::Publication,
             work_id: None,
             publication_id: None,
+            additional_resource_id: None,
+            work_featured_video_id: None,
             declared_mime_type: "application/pdf".to_string(),
             declared_extension: "pdf".to_string(),
             declared_sha256: TEST_SHA256_HEX.to_string(),
@@ -763,7 +846,8 @@ mod crud {
 
         let ctx = test_context(pool.clone(), "file-user");
 
-        let (loaded_work, loaded_publication) = publication_upload
+        let (loaded_work, loaded_publication, loaded_resource, loaded_featured_video) =
+            publication_upload
             .load_scope(&ctx)
             .expect("Failed to load publication upload scope");
         assert_eq!(loaded_work.work_id, work.work_id);
@@ -773,20 +857,25 @@ mod crud {
                 .publication_id,
             publication.publication_id
         );
+        assert!(loaded_resource.is_none());
+        assert!(loaded_featured_video.is_none());
 
-        let (loaded_work, loaded_publication) = frontcover_upload
+        let (loaded_work, loaded_publication, loaded_resource, loaded_featured_video) =
+            frontcover_upload
             .load_scope(&ctx)
             .expect("Failed to load frontcover upload scope");
         assert_eq!(loaded_work.work_id, work.work_id);
         assert!(loaded_publication.is_none());
+        assert!(loaded_resource.is_none());
+        assert!(loaded_featured_video.is_none());
 
         let doi = Doi::from_str("https://doi.org/10.1234/AbC/Def").expect("Failed to parse DOI");
         assert_eq!(
-            publication_upload.canonical_key(&doi),
+            publication_upload.canonical_key(&doi).unwrap(),
             "10.1234/abc/def.pdf"
         );
         assert_eq!(
-            frontcover_upload.canonical_key(&doi),
+            frontcover_upload.canonical_key(&doi).unwrap(),
             "10.1234/abc/def_frontcover.jpg"
         );
     }

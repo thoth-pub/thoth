@@ -269,6 +269,22 @@ pub fn canonical_frontcover_key(doi_prefix: &str, doi_suffix: &str, extension: &
     )
 }
 
+/// Compute the canonical object key for an additional resource or featured video file
+pub fn canonical_resource_key(
+    doi_prefix: &str,
+    doi_suffix: &str,
+    resource_id: &Uuid,
+    extension: &str,
+) -> String {
+    format!(
+        "{}/{}/resources/{}.{}",
+        doi_prefix.to_lowercase(),
+        doi_suffix.to_lowercase(),
+        resource_id,
+        extension.to_lowercase()
+    )
+}
+
 /// Build the full CDN URL from domain and object key
 pub fn build_cdn_url(cdn_domain: &str, object_key: &str) -> String {
     // Ensure cdn_domain doesn't end with / and object_key doesn't have a leading /

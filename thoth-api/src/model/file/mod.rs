@@ -34,6 +34,20 @@ pub enum FileType {
         graphql(description = "Front cover image")
     )]
     Frontcover,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "additional_resource",
+        graphql(description = "Additional resource file (audio, video, image, spreadsheet, etc.)")
+    )]
+    #[strum(serialize = "additional_resource")]
+    AdditionalResource,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "work_featured_video",
+        graphql(description = "Featured video file hosted on CDN")
+    )]
+    #[strum(serialize = "work_featured_video")]
+    WorkFeaturedVideo,
 }
 
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]
@@ -44,6 +58,8 @@ pub struct File {
     pub file_type: FileType,
     pub work_id: Option<Uuid>,
     pub publication_id: Option<Uuid>,
+    pub additional_resource_id: Option<Uuid>,
+    pub work_featured_video_id: Option<Uuid>,
     pub object_key: String,
     pub cdn_url: String,
     pub mime_type: String,
@@ -61,6 +77,8 @@ pub struct FileUpload {
     pub file_type: FileType,
     pub work_id: Option<Uuid>,
     pub publication_id: Option<Uuid>,
+    pub additional_resource_id: Option<Uuid>,
+    pub work_featured_video_id: Option<Uuid>,
     pub declared_mime_type: String,
     pub declared_extension: String,
     pub declared_sha256: String,
@@ -78,6 +96,8 @@ pub struct NewFileUpload {
     pub file_type: FileType,
     pub work_id: Option<Uuid>,
     pub publication_id: Option<Uuid>,
+    pub additional_resource_id: Option<Uuid>,
+    pub work_featured_video_id: Option<Uuid>,
     pub declared_mime_type: String,
     pub declared_extension: String,
     pub declared_sha256: String,
@@ -92,6 +112,8 @@ pub struct NewFile {
     pub file_type: FileType,
     pub work_id: Option<Uuid>,
     pub publication_id: Option<Uuid>,
+    pub additional_resource_id: Option<Uuid>,
+    pub work_featured_video_id: Option<Uuid>,
     pub object_key: String,
     pub cdn_url: String,
     pub mime_type: String,
@@ -127,6 +149,42 @@ pub struct NewFrontcoverFileUpload {
     pub declared_mime_type: String,
     #[graphql(
         description = "File extension to use in the final canonical key, e.g. 'jpg', 'png', 'webp'."
+    )]
+    pub declared_extension: String,
+    #[graphql(description = "SHA-256 checksum of the file, hex-encoded.")]
+    pub declared_sha256: String,
+}
+
+#[cfg(feature = "backend")]
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Input for starting an upload for an additional resource asset.")]
+pub struct NewAdditionalResourceFileUpload {
+    #[graphql(description = "Thoth ID of the additional resource linked to this file.")]
+    pub additional_resource_id: Uuid,
+    #[graphql(
+        description = "MIME type declared by the client (used for validation and in the presigned URL)."
+    )]
+    pub declared_mime_type: String,
+    #[graphql(
+        description = "File extension to use in the final canonical key, e.g. 'jpg', 'png', 'mp4', 'xlsx'."
+    )]
+    pub declared_extension: String,
+    #[graphql(description = "SHA-256 checksum of the file, hex-encoded.")]
+    pub declared_sha256: String,
+}
+
+#[cfg(feature = "backend")]
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Input for starting an upload for a work featured video.")]
+pub struct NewWorkFeaturedVideoFileUpload {
+    #[graphql(description = "Thoth ID of the work featured video linked to this file.")]
+    pub work_featured_video_id: Uuid,
+    #[graphql(
+        description = "MIME type declared by the client (used for validation and in the presigned URL)."
+    )]
+    pub declared_mime_type: String,
+    #[graphql(
+        description = "File extension to use in the final canonical key, e.g. 'mp4', 'webm', 'mov'."
     )]
     pub declared_extension: String,
     #[graphql(description = "SHA-256 checksum of the file, hex-encoded.")]
@@ -203,6 +261,8 @@ impl From<NewPublicationFileUpload> for NewFileUpload {
             file_type: FileType::Publication,
             work_id: None,
             publication_id: Some(data.publication_id),
+            additional_resource_id: None,
+            work_featured_video_id: None,
             declared_mime_type: data.declared_mime_type,
             declared_extension: data.declared_extension.to_lowercase(),
             declared_sha256: data.declared_sha256,
@@ -217,6 +277,40 @@ impl From<NewFrontcoverFileUpload> for NewFileUpload {
             file_type: FileType::Frontcover,
             work_id: Some(data.work_id),
             publication_id: None,
+            additional_resource_id: None,
+            work_featured_video_id: None,
+            declared_mime_type: data.declared_mime_type,
+            declared_extension: data.declared_extension.to_lowercase(),
+            declared_sha256: data.declared_sha256,
+        }
+    }
+}
+
+#[cfg(feature = "backend")]
+impl From<NewAdditionalResourceFileUpload> for NewFileUpload {
+    fn from(data: NewAdditionalResourceFileUpload) -> Self {
+        NewFileUpload {
+            file_type: FileType::AdditionalResource,
+            work_id: None,
+            publication_id: None,
+            additional_resource_id: Some(data.additional_resource_id),
+            work_featured_video_id: None,
+            declared_mime_type: data.declared_mime_type,
+            declared_extension: data.declared_extension.to_lowercase(),
+            declared_sha256: data.declared_sha256,
+        }
+    }
+}
+
+#[cfg(feature = "backend")]
+impl From<NewWorkFeaturedVideoFileUpload> for NewFileUpload {
+    fn from(data: NewWorkFeaturedVideoFileUpload) -> Self {
+        NewFileUpload {
+            file_type: FileType::WorkFeaturedVideo,
+            work_id: None,
+            publication_id: None,
+            additional_resource_id: None,
+            work_featured_video_id: Some(data.work_featured_video_id),
             declared_mime_type: data.declared_mime_type,
             declared_extension: data.declared_extension.to_lowercase(),
             declared_sha256: data.declared_sha256,

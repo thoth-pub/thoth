@@ -64,23 +64,68 @@ impl Work {
     }
 
     pub fn can_be_chapter(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        use crate::schema::publication::dsl::*;
+        use crate::schema::{
+            additional_resource, award, book_review, endorsement, publication, work,
+            work_featured_video,
+        };
         let mut connection = db.get()?;
-        let isbn_count = publication
-            .filter(work_id.eq(self.work_id))
-            .filter(isbn.is_not_null())
+
+        let isbn_count = publication::table
+            .filter(publication::work_id.eq(self.work_id))
+            .filter(publication::isbn.is_not_null())
             .count()
             .get_result::<i64>(&mut connection)
             .expect("Error loading publication ISBNs for work")
             .to_string()
             .parse::<i32>()
             .unwrap();
-        // If a work has any publications with ISBNs,
-        // its type cannot be changed to Book Chapter.
-        if isbn_count == 0 {
-            Ok(())
-        } else {
+
+        if isbn_count > 0 {
             Err(ThothError::ChapterIsbnError)
+        } else {
+            let additional_resource_count = additional_resource::table
+                .filter(additional_resource::work_id.eq(self.work_id))
+                .count()
+                .get_result::<i64>(&mut connection)
+                .expect("Error loading additional resources for work");
+            let award_count = award::table
+                .filter(award::work_id.eq(self.work_id))
+                .count()
+                .get_result::<i64>(&mut connection)
+                .expect("Error loading awards for work");
+            let endorsement_count = endorsement::table
+                .filter(endorsement::work_id.eq(self.work_id))
+                .count()
+                .get_result::<i64>(&mut connection)
+                .expect("Error loading endorsements for work");
+            let review_count = book_review::table
+                .filter(book_review::work_id.eq(self.work_id))
+                .count()
+                .get_result::<i64>(&mut connection)
+                .expect("Error loading reviews for work");
+            let featured_video_count = work_featured_video::table
+                .filter(work_featured_video::work_id.eq(self.work_id))
+                .count()
+                .get_result::<i64>(&mut connection)
+                .expect("Error loading featured videos for work");
+            let resources_description_count = work::table
+                .filter(work::work_id.eq(self.work_id))
+                .filter(work::resources_description.is_not_null())
+                .count()
+                .get_result::<i64>(&mut connection)
+                .expect("Error loading resources description for work");
+
+            if additional_resource_count > 0
+                || award_count > 0
+                || endorsement_count > 0
+                || review_count > 0
+                || featured_video_count > 0
+                || resources_description_count > 0
+            {
+                Err(ThothError::ChapterBookMetadataError)
+            } else {
+                Ok(())
+            }
         }
     }
 
@@ -300,6 +345,14 @@ impl Crud for Work {
                 Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::toc.asc())),
                 Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::toc.desc())),
             },
+            WorkField::ResourcesDescription => match order.direction {
+                Direction::Asc => {
+                    query.order_by((dsl::work_id.asc(), dsl::resources_description.asc()))
+                }
+                Direction::Desc => {
+                    query.order_by((dsl::work_id.asc(), dsl::resources_description.desc()))
+                }
+            },
             WorkField::CoverUrl => match order.direction {
                 Direction::Asc => query.order_by((dsl::work_id.asc(), dsl::cover_url.asc())),
                 Direction::Desc => query.order_by((dsl::work_id.asc(), dsl::cover_url.desc())),
@@ -368,6 +421,7 @@ impl Crud for Work {
                     .or(dsl::doi.ilike(format!("%{filter}%")))
                     .or(dsl::reference.ilike(format!("%{filter}%")))
                     .or(dsl::landing_page.ilike(format!("%{filter}%")))
+                    .or(dsl::resources_description.ilike(format!("%{filter}%")))
                     .or(dsl::work_id
                         .eq_any(title_work_ids)
                         .or(dsl::work_id.eq_any(abstract_work_ids))),
@@ -433,6 +487,7 @@ impl Crud for Work {
                     .ilike(format!("%{filter}%"))
                     .or(dsl::reference.ilike(format!("%{filter}%")))
                     .or(dsl::landing_page.ilike(format!("%{filter}%")))
+                    .or(dsl::resources_description.ilike(format!("%{filter}%")))
                     .or(dsl::work_id.eq_any(title_work_ids))
                     .or(dsl::work_id.eq_any(abstract_work_ids)),
             );

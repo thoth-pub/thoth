@@ -1,4 +1,5 @@
 use super::{File, FileType, FileUpload, NewFile, NewFileUpload};
+use crate::model::additional_resource::ResourceType;
 use crate::model::publication::PublicationType;
 use crate::policy::{CreatePolicy, DeletePolicy, PolicyContext};
 use thoth_errors::{ThothError, ThothResult};
@@ -10,6 +11,8 @@ const MIN_PUBLICATION_BYTES: i64 = 50 * KIB;
 const MAX_PUBLICATION_BYTES: i64 = 5 * GIB;
 const MIN_FRONTCOVER_BYTES: i64 = 50 * KIB;
 const MAX_FRONTCOVER_BYTES: i64 = 50 * MIB;
+const MIN_RESOURCE_BYTES: i64 = 1;
+const MAX_RESOURCE_BYTES: i64 = 5 * GIB;
 
 /// Write policies for `File` and `FileUpload`.
 ///
@@ -26,6 +29,114 @@ impl FilePolicy {
             .unwrap_or(mime_type)
             .trim()
             .to_ascii_lowercase()
+    }
+
+    fn resource_extensions(resource_type: ResourceType) -> ThothResult<&'static [&'static str]> {
+        match resource_type {
+            ResourceType::Audio => Ok(&["mp3", "wav", "ogg", "m4a", "flac"]),
+            ResourceType::Video => Ok(&["mp4", "webm", "mov", "m4v"]),
+            ResourceType::Image => {
+                Ok(&["jpg", "jpeg", "png", "webp", "gif", "svg", "tif", "tiff"])
+            }
+            ResourceType::Document => Ok(&["pdf", "doc", "docx", "txt", "rtf"]),
+            ResourceType::Dataset => Ok(&["csv", "tsv", "json", "zip", "parquet"]),
+            ResourceType::Spreadsheet => Ok(&["csv", "tsv", "xls", "xlsx", "ods"]),
+            _ => Err(ThothError::UnsupportedResourceTypeForFileUpload),
+        }
+    }
+
+    fn resource_mime_types(resource_type: ResourceType) -> ThothResult<&'static [&'static str]> {
+        match resource_type {
+            ResourceType::Audio => Ok(&[
+                "audio/mpeg",
+                "audio/mp3",
+                "audio/wav",
+                "audio/x-wav",
+                "audio/ogg",
+                "audio/flac",
+                "audio/mp4",
+                "application/octet-stream",
+            ]),
+            ResourceType::Video => Ok(&[
+                "video/mp4",
+                "video/webm",
+                "video/quicktime",
+                "video/x-msvideo",
+                "application/octet-stream",
+            ]),
+            ResourceType::Image => Ok(&[
+                "image/jpeg",
+                "image/png",
+                "image/webp",
+                "image/gif",
+                "image/svg+xml",
+                "image/tiff",
+                "application/octet-stream",
+            ]),
+            ResourceType::Document => Ok(&[
+                "application/pdf",
+                "application/msword",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "text/plain",
+                "application/rtf",
+                "application/octet-stream",
+            ]),
+            ResourceType::Dataset => Ok(&[
+                "text/csv",
+                "text/tab-separated-values",
+                "application/json",
+                "application/zip",
+                "application/x-parquet",
+                "application/octet-stream",
+            ]),
+            ResourceType::Spreadsheet => Ok(&[
+                "text/csv",
+                "text/tab-separated-values",
+                "application/vnd.ms-excel",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "application/vnd.oasis.opendocument.spreadsheet",
+                "application/octet-stream",
+            ]),
+            _ => Err(ThothError::UnsupportedResourceTypeForFileUpload),
+        }
+    }
+
+    /// Validate extension for additional-resource and featured-video uploads.
+    pub(crate) fn validate_resource_file_extension(
+        extension: &str,
+        resource_type: ResourceType,
+    ) -> ThothResult<()> {
+        let allowed = Self::resource_extensions(resource_type)?;
+        if allowed.contains(&extension.to_lowercase().as_str()) {
+            Ok(())
+        } else {
+            Err(ThothError::InvalidFileExtension)
+        }
+    }
+
+    /// Validate MIME type for additional-resource and featured-video uploads.
+    pub(crate) fn validate_resource_file_mime_type(
+        resource_type: ResourceType,
+        mime_type: &str,
+    ) -> ThothResult<()> {
+        let mime_type = Self::normalize_mime_type(mime_type);
+        let allowed = Self::resource_mime_types(resource_type)?;
+        if allowed.contains(&mime_type.as_str()) {
+            Ok(())
+        } else {
+            Err(ThothError::InvalidFileMimeType)
+        }
+    }
+
+    /// Validate uploaded size limits for additional-resource and featured-video uploads.
+    pub(crate) fn validate_resource_file_size(bytes: i64) -> ThothResult<()> {
+        if bytes < MIN_RESOURCE_BYTES {
+            return Err(ThothError::FileTooSmall);
+        }
+        if bytes > MAX_RESOURCE_BYTES {
+            return Err(ThothError::FileTooLarge);
+        }
+        Ok(())
     }
 
     /// Validate file extension matches the file type and publication type (if applicable).
@@ -72,6 +183,9 @@ impl FilePolicy {
                 } else {
                     return Err(ThothError::PublicationTypeRequiredForFileValidation);
                 }
+            }
+            FileType::AdditionalResource | FileType::WorkFeaturedVideo => {
+                return Err(ThothError::UnsupportedResourceTypeForFileUpload);
             }
         }
         Ok(())
@@ -150,6 +264,9 @@ impl FilePolicy {
                     Err(ThothError::InvalidFileMimeType)
                 }
             }
+            FileType::AdditionalResource | FileType::WorkFeaturedVideo => {
+                Err(ThothError::UnsupportedResourceTypeForFileUpload)
+            }
         }
     }
 
@@ -158,6 +275,9 @@ impl FilePolicy {
         let (min_bytes, max_bytes) = match file_type {
             FileType::Publication => (MIN_PUBLICATION_BYTES, MAX_PUBLICATION_BYTES),
             FileType::Frontcover => (MIN_FRONTCOVER_BYTES, MAX_FRONTCOVER_BYTES),
+            FileType::AdditionalResource | FileType::WorkFeaturedVideo => {
+                (MIN_RESOURCE_BYTES, MAX_RESOURCE_BYTES)
+            }
         };
 
         if bytes < min_bytes {
@@ -192,6 +312,21 @@ impl FilePolicy {
             mime_type,
         )?;
         Self::validate_file_size(bytes, &upload.file_type)?;
+        Ok(())
+    }
+
+    /// Authorisation and validation gate for completing additional-resource uploads.
+    pub(crate) fn can_complete_resource_upload<C: PolicyContext>(
+        ctx: &C,
+        upload: &FileUpload,
+        resource_type: ResourceType,
+        bytes: i64,
+        mime_type: &str,
+    ) -> ThothResult<()> {
+        Self::can_delete(ctx, upload)?;
+        Self::validate_resource_file_extension(&upload.declared_extension, resource_type)?;
+        Self::validate_resource_file_mime_type(resource_type, mime_type)?;
+        Self::validate_resource_file_size(bytes)?;
         Ok(())
     }
 }

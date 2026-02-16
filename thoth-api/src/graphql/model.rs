@@ -12,11 +12,15 @@ use super::types::inputs::{
 use crate::db::PgPool;
 use crate::markup::{convert_from_jats, ConversionLimit, MarkupFormat};
 use crate::model::{
+    additional_resource::{AdditionalResource, AdditionalResourceOrderBy},
     affiliation::{Affiliation, AffiliationOrderBy},
+    award::{Award, AwardOrderBy},
     biography::{Biography, BiographyOrderBy},
+    book_review::{BookReview, BookReviewOrderBy},
     contact::{Contact, ContactOrderBy, ContactType},
     contribution::{Contribution, ContributionType},
     contributor::Contributor,
+    endorsement::{Endorsement, EndorsementOrderBy},
     file::{File, FileType},
     funding::Funding,
     imprint::{Imprint, ImprintField, ImprintOrderBy},
@@ -37,6 +41,7 @@ use crate::model::{
     subject::{Subject, SubjectType},
     title::{Title, TitleOrderBy},
     work::{Work, WorkOrderBy, WorkStatus, WorkType},
+    work_featured_video::WorkFeaturedVideo,
     work_relation::{RelationType, WorkRelation, WorkRelationOrderBy},
     Crud, Doi, Isbn, Orcid, Ror, Timestamp,
 };
@@ -390,6 +395,30 @@ impl Work {
         self.toc.as_ref()
     }
 
+    #[graphql(
+        description = "Description of additional resources linked to this work",
+    )]
+    pub fn resources_description(
+        &self,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "Markup format used for rendering resources description",
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Option<String>> {
+        self.resources_description
+            .as_ref()
+            .map(|value| {
+                convert_from_jats(
+                    value,
+                    markup_format.ok_or(ThothError::MissingMarkupFormat)?,
+                    ConversionLimit::Abstract,
+                )
+            })
+            .transpose()
+            .map_err(Into::into)
+    }
+
     #[graphql(description = "URL of the work's cover image")]
     pub fn cover_url(&self) -> Option<&String> {
         self.cover_url.as_ref()
@@ -726,6 +755,112 @@ impl Work {
         )
         .map_err(Into::into)
     }
+
+    #[graphql(description = "Get additional resources linked to this work")]
+    pub fn additional_resources(
+        &self,
+        context: &Context,
+        #[graphql(default = 50, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "Markup format used for rendering textual fields"
+        )]
+        _markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Vec<AdditionalResource>> {
+        AdditionalResource::all(
+            &context.db,
+            limit.unwrap_or(50),
+            offset.unwrap_or_default(),
+            None,
+            AdditionalResourceOrderBy::default(),
+            vec![],
+            Some(self.work_id),
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .map_err(Into::into)
+    }
+
+    #[graphql(description = "Get awards linked to this work")]
+    pub fn awards(
+        &self,
+        context: &Context,
+        #[graphql(default = 50, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+    ) -> FieldResult<Vec<Award>> {
+        Award::all(
+            &context.db,
+            limit.unwrap_or(50),
+            offset.unwrap_or_default(),
+            None,
+            AwardOrderBy::default(),
+            vec![],
+            Some(self.work_id),
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .map_err(Into::into)
+    }
+
+    #[graphql(description = "Get endorsements linked to this work")]
+    pub fn endorsements(
+        &self,
+        context: &Context,
+        #[graphql(default = 50, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+    ) -> FieldResult<Vec<Endorsement>> {
+        Endorsement::all(
+            &context.db,
+            limit.unwrap_or(50),
+            offset.unwrap_or_default(),
+            None,
+            EndorsementOrderBy::default(),
+            vec![],
+            Some(self.work_id),
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .map_err(Into::into)
+    }
+
+    #[graphql(description = "Get book reviews linked to this work")]
+    pub fn book_reviews(
+        &self,
+        context: &Context,
+        #[graphql(default = 50, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+    ) -> FieldResult<Vec<BookReview>> {
+        BookReview::all(
+            &context.db,
+            limit.unwrap_or(50),
+            offset.unwrap_or_default(),
+            None,
+            BookReviewOrderBy::default(),
+            vec![],
+            Some(self.work_id),
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .map_err(Into::into)
+    }
+
+    #[graphql(description = "Get the featured video linked to this work")]
+    pub fn featured_video(&self, context: &Context) -> FieldResult<Option<WorkFeaturedVideo>> {
+        WorkFeaturedVideo::from_work_id(&context.db, &self.work_id).map_err(Into::into)
+    }
 }
 
 #[juniper::graphql_object(Context = Context, description = "A manifestation of a written text")]
@@ -946,7 +1081,7 @@ impl Publication {
 
 #[juniper::graphql_object(
     Context = Context,
-    description = "A file stored in the system (publication file or front cover)."
+    description = "A file stored in the system (publication file, front cover, additional resource, or featured video)."
 )]
 impl File {
     #[graphql(description = "Thoth ID of the file")]
@@ -954,7 +1089,7 @@ impl File {
         &self.file_id
     }
 
-    #[graphql(description = "Type of file (publication or frontcover)")]
+    #[graphql(description = "Type of file (publication, frontcover, additional_resource, or work_featured_video)")]
     pub fn file_type(&self) -> &FileType {
         &self.file_type
     }
@@ -967,6 +1102,16 @@ impl File {
     #[graphql(description = "Thoth ID of the publication (for publication files)")]
     pub fn publication_id(&self) -> Option<&Uuid> {
         self.publication_id.as_ref()
+    }
+
+    #[graphql(description = "Thoth ID of the additional resource (for additional resource files)")]
+    pub fn additional_resource_id(&self) -> Option<&Uuid> {
+        self.additional_resource_id.as_ref()
+    }
+
+    #[graphql(description = "Thoth ID of the featured video (for featured video files)")]
+    pub fn work_featured_video_id(&self) -> Option<&Uuid> {
+        self.work_featured_video_id.as_ref()
     }
 
     #[graphql(description = "S3 object key (canonical DOI-based path)")]
@@ -1972,6 +2117,443 @@ impl Funding {
     #[graphql(description = "Get the funding institution")]
     pub fn institution(&self, context: &Context) -> FieldResult<Institution> {
         Institution::from_id(&context.db, &self.institution_id).map_err(Into::into)
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    name = "WorkResource",
+    description = "A resource linked to a work but not embedded in the work text."
+)]
+impl AdditionalResource {
+    #[graphql(description = "Thoth ID of the work resource")]
+    pub fn work_resource_id(&self) -> Uuid {
+        self.additional_resource_id
+    }
+
+    #[graphql(description = "Thoth ID of the work to which this resource belongs")]
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
+    }
+
+    #[graphql(description = "Title of the additional resource")]
+    pub fn title(
+        &self,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "Markup format used for rendering title",
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<String> {
+        convert_from_jats(
+            &self.title,
+            markup_format.ok_or(ThothError::MissingMarkupFormat)?,
+            ConversionLimit::Title,
+        )
+        .map_err(Into::into)
+    }
+
+    #[graphql(description = "Description of the additional resource")]
+    pub fn description(
+        &self,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "Markup format used for rendering description",
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Option<String>> {
+        self.description
+            .as_ref()
+            .map(|description| {
+                convert_from_jats(
+                    description,
+                    markup_format.ok_or(ThothError::MissingMarkupFormat)?,
+                    ConversionLimit::Abstract,
+                )
+            })
+            .transpose()
+            .map_err(Into::into)
+    }
+
+    #[graphql(description = "Attribution for the resource source/author")]
+    pub fn attribution(&self) -> Option<&String> {
+        self.attribution.as_ref()
+    }
+
+    #[graphql(description = "Type of additional resource")]
+    pub fn resource_type(&self) -> String {
+        self.resource_type.to_string()
+    }
+
+    #[graphql(
+        description = "DOI of the resource as full URL, using the HTTPS scheme and the doi.org domain"
+    )]
+    pub fn doi(&self) -> Option<&Doi> {
+        self.doi.as_ref()
+    }
+
+    #[graphql(description = "Handle identifier of the resource")]
+    pub fn handle(&self) -> Option<&String> {
+        self.handle.as_ref()
+    }
+
+    #[graphql(description = "URL of the additional resource")]
+    pub fn url(&self) -> Option<&String> {
+        self.url.as_ref()
+    }
+
+    #[graphql(
+        description = "Number representing this resource's position in an ordered list of resources within the work"
+    )]
+    pub fn resource_ordinal(&self) -> i32 {
+        self.resource_ordinal
+    }
+
+    #[graphql(description = "Date and time at which the resource record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the resource record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+
+    #[graphql(description = "Get the work linked to this resource")]
+    pub fn work(&self, context: &Context) -> FieldResult<Work> {
+        Work::from_id(&context.db, &self.work_id).map_err(Into::into)
+    }
+
+    #[graphql(description = "Get the hosted file linked to this resource")]
+    pub fn file(&self, context: &Context) -> FieldResult<Option<File>> {
+        File::from_additional_resource_id(&context.db, &self.additional_resource_id)
+            .map_err(Into::into)
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "An award linked to a work."
+)]
+impl Award {
+    #[graphql(description = "Thoth ID of the award")]
+    pub fn award_id(&self) -> Uuid {
+        self.award_id
+    }
+
+    #[graphql(description = "Thoth ID of the work to which this award belongs")]
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
+    }
+
+    #[graphql(description = "Title of the award")]
+    pub fn title(
+        &self,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "Markup format used for rendering title",
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<String> {
+        convert_from_jats(
+            &self.title,
+            markup_format.ok_or(ThothError::MissingMarkupFormat)?,
+            ConversionLimit::Title,
+        )
+        .map_err(Into::into)
+    }
+
+    #[graphql(description = "URL of the award page")]
+    pub fn url(&self) -> Option<&String> {
+        self.url.as_ref()
+    }
+
+    #[graphql(description = "Category of the award")]
+    pub fn category(&self) -> Option<&String> {
+        self.category.as_ref()
+    }
+
+    #[graphql(description = "Additional note for this award")]
+    pub fn note(
+        &self,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "Markup format used for rendering note",
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Option<String>> {
+        self.note
+            .as_ref()
+            .map(|note| {
+                convert_from_jats(
+                    note,
+                    markup_format.ok_or(ThothError::MissingMarkupFormat)?,
+                    ConversionLimit::Abstract,
+                )
+            })
+            .transpose()
+            .map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Number representing this award's position in an ordered list of awards within the work"
+    )]
+    pub fn award_ordinal(&self) -> i32 {
+        self.award_ordinal
+    }
+
+    #[graphql(description = "Date and time at which the award record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the award record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+
+    #[graphql(description = "Get the work linked to this award")]
+    pub fn work(&self, context: &Context) -> FieldResult<Work> {
+        Work::from_id(&context.db, &self.work_id).map_err(Into::into)
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "An endorsement linked to a work."
+)]
+impl Endorsement {
+    #[graphql(description = "Thoth ID of the endorsement")]
+    pub fn endorsement_id(&self) -> Uuid {
+        self.endorsement_id
+    }
+
+    #[graphql(description = "Thoth ID of the work to which this endorsement belongs")]
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
+    }
+
+    #[graphql(description = "Name of the endorsement author")]
+    pub fn author_name(&self) -> Option<&String> {
+        self.author_name.as_ref()
+    }
+
+    #[graphql(description = "Role of the endorsement author")]
+    pub fn author_role(&self) -> Option<&String> {
+        self.author_role.as_ref()
+    }
+
+    #[graphql(description = "URL associated with this endorsement")]
+    pub fn url(&self) -> Option<&String> {
+        self.url.as_ref()
+    }
+
+    #[graphql(description = "Text of the endorsement")]
+    pub fn text(
+        &self,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "Markup format used for rendering endorsement text",
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Option<String>> {
+        self.text
+            .as_ref()
+            .map(|text| {
+                convert_from_jats(
+                    text,
+                    markup_format.ok_or(ThothError::MissingMarkupFormat)?,
+                    ConversionLimit::Abstract,
+                )
+            })
+            .transpose()
+            .map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Number representing this endorsement's position in an ordered list of endorsements within the work"
+    )]
+    pub fn endorsement_ordinal(&self) -> i32 {
+        self.endorsement_ordinal
+    }
+
+    #[graphql(description = "Date and time at which the endorsement record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the endorsement record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+
+    #[graphql(description = "Get the work linked to this endorsement")]
+    pub fn work(&self, context: &Context) -> FieldResult<Work> {
+        Work::from_id(&context.db, &self.work_id).map_err(Into::into)
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "A review of a work."
+)]
+impl BookReview {
+    #[graphql(description = "Thoth ID of the book review")]
+    pub fn book_review_id(&self) -> Uuid {
+        self.book_review_id
+    }
+
+    #[graphql(description = "Thoth ID of the work to which this review belongs")]
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
+    }
+
+    #[graphql(description = "Title of the review")]
+    pub fn title(&self) -> Option<&String> {
+        self.title.as_ref()
+    }
+
+    #[graphql(description = "Name of the review author")]
+    pub fn author_name(&self) -> Option<&String> {
+        self.author_name.as_ref()
+    }
+
+    #[graphql(description = "URL of the review publication")]
+    pub fn url(&self) -> Option<&String> {
+        self.url.as_ref()
+    }
+
+    #[graphql(
+        description = "DOI of the review as full URL, using the HTTPS scheme and the doi.org domain"
+    )]
+    pub fn doi(&self) -> Option<&Doi> {
+        self.doi.as_ref()
+    }
+
+    #[graphql(description = "Publication date of the review")]
+    pub fn review_date(&self) -> Option<NaiveDate> {
+        self.review_date
+    }
+
+    #[graphql(description = "Name of the journal where the review was published")]
+    pub fn journal_name(&self) -> Option<&String> {
+        self.journal_name.as_ref()
+    }
+
+    #[graphql(description = "Volume of the journal where the review was published")]
+    pub fn journal_volume(&self) -> Option<&String> {
+        self.journal_volume.as_ref()
+    }
+
+    #[graphql(description = "Number of the journal where the review was published")]
+    pub fn journal_number(&self) -> Option<&String> {
+        self.journal_number.as_ref()
+    }
+
+    #[graphql(description = "ISSN of the journal where the review was published")]
+    pub fn journal_issn(&self) -> Option<&String> {
+        self.journal_issn.as_ref()
+    }
+
+    #[graphql(description = "Text of the review")]
+    pub fn text(
+        &self,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "Markup format used for rendering review text",
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Option<String>> {
+        self.text
+            .as_ref()
+            .map(|text| {
+                convert_from_jats(
+                    text,
+                    markup_format.ok_or(ThothError::MissingMarkupFormat)?,
+                    ConversionLimit::Abstract,
+                )
+            })
+            .transpose()
+            .map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Number representing this review's position in an ordered list of reviews within the work"
+    )]
+    pub fn review_ordinal(&self) -> i32 {
+        self.review_ordinal
+    }
+
+    #[graphql(description = "Date and time at which the review record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the review record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+
+    #[graphql(description = "Get the work linked to this review")]
+    pub fn work(&self, context: &Context) -> FieldResult<Work> {
+        Work::from_id(&context.db, &self.work_id).map_err(Into::into)
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "A featured video linked to a work."
+)]
+impl WorkFeaturedVideo {
+    #[graphql(description = "Thoth ID of the featured video")]
+    pub fn work_featured_video_id(&self) -> Uuid {
+        self.work_featured_video_id
+    }
+
+    #[graphql(description = "Thoth ID of the work to which this featured video belongs")]
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
+    }
+
+    #[graphql(description = "Title or caption of the featured video")]
+    pub fn title(&self) -> Option<&String> {
+        self.title.as_ref()
+    }
+
+    #[graphql(description = "CDN URL of the featured video")]
+    pub fn url(&self) -> Option<&String> {
+        self.url.as_ref()
+    }
+
+    #[graphql(description = "Rendered width of the featured video embed")]
+    pub fn width(&self) -> i32 {
+        self.width
+    }
+
+    #[graphql(description = "Rendered height of the featured video embed")]
+    pub fn height(&self) -> i32 {
+        self.height
+    }
+
+    #[graphql(description = "Date and time at which the featured video record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the featured video record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+
+    #[graphql(description = "Get the work linked to this featured video")]
+    pub fn work(&self, context: &Context) -> FieldResult<Work> {
+        Work::from_id(&context.db, &self.work_id).map_err(Into::into)
+    }
+
+    #[graphql(description = "Get the hosted file linked to this featured video")]
+    pub fn file(&self, context: &Context) -> FieldResult<Option<File>> {
+        File::from_work_featured_video_id(&context.db, &self.work_featured_video_id)
+            .map_err(Into::into)
     }
 }
 
