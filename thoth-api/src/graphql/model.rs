@@ -395,9 +395,7 @@ impl Work {
         self.toc.as_ref()
     }
 
-    #[graphql(
-        description = "Description of additional resources linked to this work",
-    )]
+    #[graphql(description = "Description of additional resources linked to this work")]
     pub fn resources_description(
         &self,
         #[graphql(
@@ -766,9 +764,9 @@ impl Work {
             default = MarkupFormat::JatsXml,
             description = "Markup format used for rendering textual fields"
         )]
-        _markup_format: Option<MarkupFormat>,
+        markup_format: Option<MarkupFormat>,
     ) -> FieldResult<Vec<AdditionalResource>> {
-        AdditionalResource::all(
+        let mut additional_resources = AdditionalResource::all(
             &context.db,
             limit.unwrap_or(50),
             offset.unwrap_or_default(),
@@ -781,8 +779,22 @@ impl Work {
             vec![],
             None,
             None,
-        )
-        .map_err(Into::into)
+        )?;
+
+        let markup = markup_format.ok_or(ThothError::MissingMarkupFormat)?;
+        for additional_resource in &mut additional_resources {
+            additional_resource.title =
+                convert_from_jats(&additional_resource.title, markup, ConversionLimit::Title)?;
+            additional_resource.description = additional_resource
+                .description
+                .as_ref()
+                .map(|description| {
+                    convert_from_jats(description, markup, ConversionLimit::Abstract)
+                })
+                .transpose()?;
+        }
+
+        Ok(additional_resources)
     }
 
     #[graphql(description = "Get awards linked to this work")]
@@ -1089,7 +1101,9 @@ impl File {
         &self.file_id
     }
 
-    #[graphql(description = "Type of file (publication, frontcover, additional_resource, or work_featured_video)")]
+    #[graphql(
+        description = "Type of file (publication, frontcover, additional_resource, or work_featured_video)"
+    )]
     pub fn file_type(&self) -> &FileType {
         &self.file_type
     }
@@ -2139,40 +2153,33 @@ impl AdditionalResource {
     #[graphql(description = "Title of the additional resource")]
     pub fn title(
         &self,
-        #[graphql(
-            default = MarkupFormat::JatsXml,
-            description = "Markup format used for rendering title",
-        )]
-        markup_format: Option<MarkupFormat>,
+        #[graphql(description = "Markup format used for rendering title")] markup_format: Option<
+            MarkupFormat,
+        >,
     ) -> FieldResult<String> {
-        convert_from_jats(
-            &self.title,
-            markup_format.ok_or(ThothError::MissingMarkupFormat)?,
-            ConversionLimit::Title,
-        )
-        .map_err(Into::into)
+        match markup_format {
+            Some(markup) => {
+                convert_from_jats(&self.title, markup, ConversionLimit::Title).map_err(Into::into)
+            }
+            None => Ok(self.title.clone()),
+        }
     }
 
     #[graphql(description = "Description of the additional resource")]
     pub fn description(
         &self,
-        #[graphql(
-            default = MarkupFormat::JatsXml,
-            description = "Markup format used for rendering description",
-        )]
+        #[graphql(description = "Markup format used for rendering description")]
         markup_format: Option<MarkupFormat>,
     ) -> FieldResult<Option<String>> {
-        self.description
-            .as_ref()
-            .map(|description| {
-                convert_from_jats(
-                    description,
-                    markup_format.ok_or(ThothError::MissingMarkupFormat)?,
-                    ConversionLimit::Abstract,
-                )
-            })
-            .transpose()
-            .map_err(Into::into)
+        match (&self.description, markup_format) {
+            (Some(description), Some(markup)) => {
+                convert_from_jats(description, markup, ConversionLimit::Abstract)
+                    .map(Some)
+                    .map_err(Into::into)
+            }
+            (Some(description), None) => Ok(Some(description.clone())),
+            (None, _) => Ok(None),
+        }
     }
 
     #[graphql(description = "Attribution for the resource source/author")]

@@ -760,7 +760,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    
+
     work_featured_video (work_featured_video_id) {
         work_featured_video_id -> Uuid,
         work_id -> Uuid,

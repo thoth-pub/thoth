@@ -180,7 +180,10 @@ impl Reorder for Endorsement {
         connection: &mut diesel::PgConnection,
     ) -> ThothResult<Vec<(Uuid, i32)>> {
         endorsement::table
-            .select((endorsement::endorsement_id, endorsement::endorsement_ordinal))
+            .select((
+                endorsement::endorsement_id,
+                endorsement::endorsement_ordinal,
+            ))
             .filter(
                 endorsement::work_id
                     .eq(self.work_id)

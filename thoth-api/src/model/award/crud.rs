@@ -166,7 +166,11 @@ impl DbInsert for NewAwardHistory {
 }
 
 impl Reorder for Award {
-    db_change_ordinal!(award::table, award::award_ordinal, "award_award_ordinal_work_id_uniq");
+    db_change_ordinal!(
+        award::table,
+        award::award_ordinal,
+        "award_award_ordinal_work_id_uniq"
+    );
 
     fn get_other_objects(
         &self,

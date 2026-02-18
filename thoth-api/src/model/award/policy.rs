@@ -1,6 +1,6 @@
 use crate::model::award::{Award, NewAward, PatchAward};
-use crate::model::Crud;
 use crate::model::work::{Work, WorkType};
+use crate::model::Crud;
 use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, PolicyContext, UpdatePolicy};
 use thoth_errors::{ThothError, ThothResult};
 

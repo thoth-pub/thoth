@@ -140,8 +140,15 @@ ALTER TABLE file
   CHECK (
     (file_type = 'frontcover' AND work_id IS NOT NULL AND publication_id IS NULL AND additional_resource_id IS NULL AND work_featured_video_id IS NULL) OR
     (file_type = 'publication' AND publication_id IS NOT NULL AND work_id IS NULL AND additional_resource_id IS NULL AND work_featured_video_id IS NULL) OR
-    (file_type = 'additional_resource' AND additional_resource_id IS NOT NULL AND work_id IS NULL AND publication_id IS NULL AND work_featured_video_id IS NULL) OR
-    (file_type = 'work_featured_video' AND work_featured_video_id IS NOT NULL AND work_id IS NULL AND publication_id IS NULL AND additional_resource_id IS NULL)
+    (
+      file_type NOT IN ('frontcover', 'publication') AND
+      work_id IS NULL AND
+      publication_id IS NULL AND
+      (
+        (additional_resource_id IS NOT NULL AND work_featured_video_id IS NULL) OR
+        (work_featured_video_id IS NOT NULL AND additional_resource_id IS NULL)
+      )
+    )
   );
 
 ALTER TABLE file_upload
@@ -149,25 +156,32 @@ ALTER TABLE file_upload
   CHECK (
     (file_type = 'frontcover' AND work_id IS NOT NULL AND publication_id IS NULL AND additional_resource_id IS NULL AND work_featured_video_id IS NULL) OR
     (file_type = 'publication' AND publication_id IS NOT NULL AND work_id IS NULL AND additional_resource_id IS NULL AND work_featured_video_id IS NULL) OR
-    (file_type = 'additional_resource' AND additional_resource_id IS NOT NULL AND work_id IS NULL AND publication_id IS NULL AND work_featured_video_id IS NULL) OR
-    (file_type = 'work_featured_video' AND work_featured_video_id IS NOT NULL AND work_id IS NULL AND publication_id IS NULL AND additional_resource_id IS NULL)
+    (
+      file_type NOT IN ('frontcover', 'publication') AND
+      work_id IS NULL AND
+      publication_id IS NULL AND
+      (
+        (additional_resource_id IS NOT NULL AND work_featured_video_id IS NULL) OR
+        (work_featured_video_id IS NOT NULL AND additional_resource_id IS NULL)
+      )
+    )
   );
 
 CREATE UNIQUE INDEX file_additional_resource_unique_idx
   ON file (additional_resource_id)
-  WHERE file_type = 'additional_resource';
+  WHERE additional_resource_id IS NOT NULL;
 
 CREATE UNIQUE INDEX file_work_featured_video_unique_idx
   ON file (work_featured_video_id)
-  WHERE file_type = 'work_featured_video';
+  WHERE work_featured_video_id IS NOT NULL;
 
 CREATE INDEX file_upload_additional_resource_idx
   ON file_upload (additional_resource_id)
-  WHERE file_type = 'additional_resource';
+  WHERE additional_resource_id IS NOT NULL;
 
 CREATE INDEX file_upload_work_featured_video_idx
   ON file_upload (work_featured_video_id)
-  WHERE file_type = 'work_featured_video';
+  WHERE work_featured_video_id IS NOT NULL;
 
 CREATE TABLE additional_resource_history (
   additional_resource_history_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

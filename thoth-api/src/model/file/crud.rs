@@ -8,8 +8,8 @@ use crate::model::{
     additional_resource::{AdditionalResource, PatchAdditionalResource},
     location::{Location, LocationPlatform, NewLocation, PatchLocation},
     publication::Publication,
-    work_featured_video::{PatchWorkFeaturedVideo, WorkFeaturedVideo},
     work::{PatchWork, Work},
+    work_featured_video::{PatchWorkFeaturedVideo, WorkFeaturedVideo},
     Crud, Doi, PublisherId, Timestamp,
 };
 use crate::policy::{CreatePolicy, PolicyContext};
@@ -361,10 +361,7 @@ impl NewFileUpload {
 }
 
 impl FileUpload {
-    pub(crate) fn load_scope<C: PolicyContext>(
-        &self,
-        ctx: &C,
-    ) -> ThothResult<FileUploadScope> {
+    pub(crate) fn load_scope<C: PolicyContext>(&self, ctx: &C) -> ThothResult<FileUploadScope> {
         match self.file_type {
             FileType::Publication => {
                 let publication_id = self
@@ -385,7 +382,8 @@ impl FileUpload {
                 let additional_resource_id = self
                     .additional_resource_id
                     .ok_or(ThothError::AdditionalResourceFileUploadMissingAdditionalResourceId)?;
-                let additional_resource: AdditionalResource = ctx.load_current(&additional_resource_id)?;
+                let additional_resource: AdditionalResource =
+                    ctx.load_current(&additional_resource_id)?;
                 let work: Work = ctx.load_current(&additional_resource.work_id)?;
                 Ok((work, None, Some(additional_resource), None))
             }
@@ -393,7 +391,8 @@ impl FileUpload {
                 let work_featured_video_id = self
                     .work_featured_video_id
                     .ok_or(ThothError::WorkFeaturedVideoFileUploadMissingWorkFeaturedVideoId)?;
-                let work_featured_video: WorkFeaturedVideo = ctx.load_current(&work_featured_video_id)?;
+                let work_featured_video: WorkFeaturedVideo =
+                    ctx.load_current(&work_featured_video_id)?;
                 let work: Work = ctx.load_current(&work_featured_video.work_id)?;
                 Ok((work, None, None, Some(work_featured_video)))
             }
@@ -416,9 +415,9 @@ impl FileUpload {
                 &self.declared_extension,
             )),
             FileType::AdditionalResource => {
-                let additional_resource_id = self.additional_resource_id.ok_or(
-                    ThothError::AdditionalResourceFileUploadMissingAdditionalResourceId,
-                );
+                let additional_resource_id = self
+                    .additional_resource_id
+                    .ok_or(ThothError::AdditionalResourceFileUploadMissingAdditionalResourceId);
                 Ok(canonical_resource_key(
                     doi_prefix,
                     doi_suffix,
@@ -427,9 +426,9 @@ impl FileUpload {
                 ))
             }
             FileType::WorkFeaturedVideo => {
-                let work_featured_video_id = self.work_featured_video_id.ok_or(
-                    ThothError::WorkFeaturedVideoFileUploadMissingWorkFeaturedVideoId,
-                );
+                let work_featured_video_id = self
+                    .work_featured_video_id
+                    .ok_or(ThothError::WorkFeaturedVideoFileUploadMissingWorkFeaturedVideoId);
                 Ok(canonical_resource_key(
                     doi_prefix,
                     doi_suffix,
@@ -519,6 +518,7 @@ impl FileUpload {
         ctx: &C,
         work: &Work,
         cdn_url: &str,
+        featured_video_dimensions: Option<(i32, i32)>,
     ) -> ThothResult<()> {
         match self.file_type {
             FileType::Frontcover => {
@@ -541,7 +541,8 @@ impl FileUpload {
                 let additional_resource_id = self
                     .additional_resource_id
                     .ok_or(ThothError::AdditionalResourceFileUploadMissingAdditionalResourceId)?;
-                let additional_resource: AdditionalResource = ctx.load_current(&additional_resource_id)?;
+                let additional_resource: AdditionalResource =
+                    ctx.load_current(&additional_resource_id)?;
                 let patch = PatchAdditionalResource {
                     additional_resource_id: additional_resource.additional_resource_id,
                     work_id: additional_resource.work_id,
@@ -560,14 +561,17 @@ impl FileUpload {
                 let work_featured_video_id = self
                     .work_featured_video_id
                     .ok_or(ThothError::WorkFeaturedVideoFileUploadMissingWorkFeaturedVideoId)?;
-                let work_featured_video: WorkFeaturedVideo = ctx.load_current(&work_featured_video_id)?;
+                let work_featured_video: WorkFeaturedVideo =
+                    ctx.load_current(&work_featured_video_id)?;
+                let (width, height) = featured_video_dimensions
+                    .unwrap_or((work_featured_video.width, work_featured_video.height));
                 let patch = PatchWorkFeaturedVideo {
                     work_featured_video_id: work_featured_video.work_featured_video_id,
                     work_id: work_featured_video.work_id,
                     title: work_featured_video.title.clone(),
                     url: Some(cdn_url.to_string()),
-                    width: work_featured_video.width,
-                    height: work_featured_video.height,
+                    width,
+                    height,
                 };
                 work_featured_video.update(ctx, &patch)?;
             }

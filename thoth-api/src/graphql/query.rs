@@ -1592,8 +1592,7 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of book reviews")]
     fn book_review_count(context: &Context) -> FieldResult<i32> {
-        BookReview::count(&context.db, None, vec![], vec![], vec![], None, None)
-            .map_err(Into::into)
+        BookReview::count(&context.db, None, vec![], vec![], vec![], None, None).map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of featured videos")]
@@ -1632,7 +1631,8 @@ impl QueryRoot {
     #[graphql(description = "Query a single featured video using its ID")]
     fn work_featured_video(
         context: &Context,
-        #[graphql(description = "Thoth featured video ID to search on")] work_featured_video_id: Uuid,
+        #[graphql(description = "Thoth featured video ID to search on")]
+        work_featured_video_id: Uuid,
     ) -> FieldResult<WorkFeaturedVideo> {
         WorkFeaturedVideo::from_id(&context.db, &work_featured_video_id).map_err(Into::into)
     }

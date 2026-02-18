@@ -175,6 +175,174 @@ pub async fn head_object(
     Ok((bytes, mime_type))
 }
 
+async fn get_object_range_bytes(
+    s3_client: &S3Client,
+    bucket: &str,
+    key: &str,
+    byte_range: &str,
+) -> ThothResult<Vec<u8>> {
+    let response = s3_client
+        .get_object()
+        .bucket(bucket)
+        .key(key)
+        .range(byte_range)
+        .send()
+        .await
+        .map_err(|e| ThothError::InternalError(format!("Failed to get object range: {}", e)))?;
+
+    let bytes = response
+        .body
+        .collect()
+        .await
+        .map_err(|e| ThothError::InternalError(format!("Failed to read object body: {}", e)))?
+        .into_bytes()
+        .to_vec();
+
+    Ok(bytes)
+}
+
+fn read_u32_be(data: &[u8], offset: usize) -> Option<u32> {
+    let end = offset.checked_add(4)?;
+    let bytes: [u8; 4] = data.get(offset..end)?.try_into().ok()?;
+    Some(u32::from_be_bytes(bytes))
+}
+
+fn read_u64_be(data: &[u8], offset: usize) -> Option<u64> {
+    let end = offset.checked_add(8)?;
+    let bytes: [u8; 8] = data.get(offset..end)?.try_into().ok()?;
+    Some(u64::from_be_bytes(bytes))
+}
+
+// Parse `tkhd` atoms from ISO BMFF containers (mp4/m4v/mov) and extract width/height.
+fn parse_mp4_track_header_dimensions(data: &[u8]) -> Option<(i32, i32)> {
+    let mut best_dimensions: Option<(i32, i32)> = None;
+    let mut index = 4usize;
+
+    while index + 4 <= data.len() {
+        if data.get(index..index + 4) != Some(b"tkhd") {
+            index += 1;
+            continue;
+        }
+
+        let Some(box_start) = index.checked_sub(4) else {
+            break;
+        };
+        let Some(size32) = read_u32_be(data, box_start).map(|v| v as usize) else {
+            index += 1;
+            continue;
+        };
+
+        let (box_size, header_size) = if size32 == 1 {
+            let Some(large_size) =
+                read_u64_be(data, box_start + 8).and_then(|v| usize::try_from(v).ok())
+            else {
+                index += 1;
+                continue;
+            };
+            (large_size, 16usize)
+        } else if size32 == 0 {
+            (data.len().saturating_sub(box_start), 8usize)
+        } else {
+            (size32, 8usize)
+        };
+
+        let Some(box_end) = box_start.checked_add(box_size) else {
+            index += 1;
+            continue;
+        };
+        if box_end > data.len() || box_size < header_size + 4 {
+            index += 1;
+            continue;
+        }
+
+        let Some(version) = data.get(box_start + header_size).copied() else {
+            index += 1;
+            continue;
+        };
+        let width_offset = match version {
+            0 => header_size + 76,
+            1 => header_size + 88,
+            _ => {
+                index += 1;
+                continue;
+            }
+        };
+
+        if box_start + width_offset + 8 > box_end {
+            index += 1;
+            continue;
+        }
+
+        let Some(width_fixed) = read_u32_be(data, box_start + width_offset) else {
+            index += 1;
+            continue;
+        };
+        let Some(height_fixed) = read_u32_be(data, box_start + width_offset + 4) else {
+            index += 1;
+            continue;
+        };
+
+        let width = (width_fixed >> 16) as i32;
+        let height = (height_fixed >> 16) as i32;
+        if width > 0 && height > 0 {
+            let replace = match best_dimensions {
+                Some((best_width, best_height)) => {
+                    i64::from(width) * i64::from(height)
+                        > i64::from(best_width) * i64::from(best_height)
+                }
+                None => true,
+            };
+            if replace {
+                best_dimensions = Some((width, height));
+            }
+        }
+
+        index = box_end.max(index + 1);
+    }
+
+    best_dimensions
+}
+
+/// Best-effort probe of video dimensions from uploaded object bytes.
+///
+/// Currently parses mp4/m4v/mov track headers. For other formats (e.g. webm) this returns `None`.
+pub async fn probe_video_dimensions(
+    s3_client: &S3Client,
+    bucket: &str,
+    key: &str,
+    extension: &str,
+    content_length: i64,
+) -> Option<(i32, i32)> {
+    let extension = extension.to_ascii_lowercase();
+    if !matches!(extension.as_str(), "mp4" | "m4v" | "mov") || content_length <= 0 {
+        return None;
+    }
+
+    const PROBE_RANGE_BYTES: i64 = 8 * 1024 * 1024;
+
+    let first_chunk_end = content_length.min(PROBE_RANGE_BYTES) - 1;
+    if first_chunk_end >= 0 {
+        let range = format!("bytes=0-{first_chunk_end}");
+        if let Ok(bytes) = get_object_range_bytes(s3_client, bucket, key, &range).await {
+            if let Some(dimensions) = parse_mp4_track_header_dimensions(&bytes) {
+                return Some(dimensions);
+            }
+        }
+    }
+
+    if content_length > PROBE_RANGE_BYTES {
+        let tail_chunk_start = content_length - PROBE_RANGE_BYTES;
+        let range = format!("bytes={tail_chunk_start}-{}", content_length - 1);
+        if let Ok(bytes) = get_object_range_bytes(s3_client, bucket, key, &range).await {
+            if let Some(dimensions) = parse_mp4_track_header_dimensions(&bytes) {
+                return Some(dimensions);
+            }
+        }
+    }
+
+    None
+}
+
 /// Invalidate CloudFront cache for a given path
 pub async fn invalidate_cloudfront(
     cloudfront_client: &CloudFrontClient,

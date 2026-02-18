@@ -5,8 +5,8 @@ use crate::graphql::Context;
 use crate::markup::{convert_to_jats, ConversionLimit, MarkupFormat};
 use crate::model::{
     additional_resource::{
-        AdditionalResource, AdditionalResourcePolicy, NewAdditionalResource, PatchAdditionalResource,
-        ResourceType,
+        AdditionalResource, AdditionalResourcePolicy, NewAdditionalResource,
+        PatchAdditionalResource, ResourceType,
     },
     affiliation::{Affiliation, AffiliationPolicy, NewAffiliation, PatchAffiliation},
     award::{Award, AwardPolicy, NewAward, PatchAward},
@@ -17,9 +17,9 @@ use crate::model::{
     contributor::{Contributor, ContributorPolicy, NewContributor, PatchContributor},
     endorsement::{Endorsement, EndorsementPolicy, NewEndorsement, PatchEndorsement},
     file::{
-        CompleteFileUpload, File, FilePolicy, FileUpload, FileUploadResponse, NewFileUpload,
-        NewAdditionalResourceFileUpload, NewFrontcoverFileUpload, NewPublicationFileUpload,
-        NewWorkFeaturedVideoFileUpload,
+        CompleteFileUpload, File, FilePolicy, FileUpload, FileUploadResponse,
+        NewAdditionalResourceFileUpload, NewFileUpload, NewFrontcoverFileUpload,
+        NewPublicationFileUpload, NewWorkFeaturedVideoFileUpload,
     },
     funding::{Funding, FundingPolicy, NewFunding, PatchFunding},
     imprint::{Imprint, ImprintPolicy, NewImprint, PatchImprint},
@@ -44,7 +44,7 @@ use crate::model::{
 };
 use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, PolicyContext, UpdatePolicy};
 use crate::storage::{
-    build_cdn_url, copy_temp_object_to_final, delete_object, head_object,
+    build_cdn_url, copy_temp_object_to_final, delete_object, head_object, probe_video_dimensions,
     reconcile_replaced_object, temp_key, StorageConfig,
 };
 use thoth_errors::ThothError;
@@ -332,7 +332,8 @@ impl MutationRoot {
     #[graphql(description = "Create a new featured video with the specified values")]
     fn create_work_featured_video(
         context: &Context,
-        #[graphql(description = "Values for featured video to be created")] data: NewWorkFeaturedVideo,
+        #[graphql(description = "Values for featured video to be created")]
+        data: NewWorkFeaturedVideo,
     ) -> FieldResult<WorkFeaturedVideo> {
         WorkFeaturedVideoPolicy::can_create(context, &data, ())?;
         WorkFeaturedVideo::create(&context.db, &data).map_err(Into::into)
@@ -568,7 +569,9 @@ impl MutationRoot {
             .map(|description| convert_to_jats(description, markup, ConversionLimit::Abstract))
             .transpose()?;
 
-        additional_resource.update(context, &data).map_err(Into::into)
+        additional_resource
+            .update(context, &data)
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing award with the specified values")]
@@ -640,7 +643,9 @@ impl MutationRoot {
         let work_featured_video = context.load_current(&data.work_featured_video_id)?;
         WorkFeaturedVideoPolicy::can_update(context, &work_featured_video, &data, ())?;
 
-        work_featured_video.update(context, &data).map_err(Into::into)
+        work_featured_video
+            .update(context, &data)
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Update an existing contact with the specified values")]
@@ -1249,7 +1254,8 @@ impl MutationRoot {
         #[graphql(description = "Input for starting an additional resource upload")]
         data: NewAdditionalResourceFileUpload,
     ) -> FieldResult<FileUploadResponse> {
-        let additional_resource: AdditionalResource = context.load_current(&data.additional_resource_id)?;
+        let additional_resource: AdditionalResource =
+            context.load_current(&data.additional_resource_id)?;
         context.require_cdn_write_for(&additional_resource)?;
 
         let new_upload: NewFileUpload = data.into();
@@ -1334,42 +1340,46 @@ impl MutationRoot {
         let temp_key = temp_key(&file_upload.file_upload_id);
         let (bytes, mime_type) =
             head_object(s3_client, &storage_config.s3_bucket, &temp_key).await?;
-        match file_upload.file_type {
-            crate::model::file::FileType::Frontcover | crate::model::file::FileType::Publication => {
-                FilePolicy::can_complete_upload(
-                    context,
-                    &file_upload,
-                    publication.as_ref().map(|pubn| pubn.publication_type),
-                    bytes,
-                    &mime_type,
-                )?;
-            }
-            crate::model::file::FileType::AdditionalResource => {
-                let resource_type = additional_resource
+        let resource_type = match file_upload.file_type {
+            crate::model::file::FileType::AdditionalResource => Some(
+                additional_resource
                     .as_ref()
                     .map(|resource| resource.resource_type)
-                    .ok_or(ThothError::AdditionalResourceFileUploadMissingAdditionalResourceId)?;
-                FilePolicy::can_complete_resource_upload(
-                    context,
-                    &file_upload,
-                    resource_type,
-                    bytes,
-                    &mime_type,
-                )?;
-            }
+                    .ok_or(ThothError::AdditionalResourceFileUploadMissingAdditionalResourceId)?,
+            ),
             crate::model::file::FileType::WorkFeaturedVideo => {
                 work_featured_video
                     .as_ref()
                     .ok_or(ThothError::WorkFeaturedVideoFileUploadMissingWorkFeaturedVideoId)?;
-                FilePolicy::can_complete_resource_upload(
-                    context,
-                    &file_upload,
-                    ResourceType::Video,
-                    bytes,
-                    &mime_type,
-                )?;
+                Some(ResourceType::Video)
             }
-        }
+            crate::model::file::FileType::Frontcover
+            | crate::model::file::FileType::Publication => None,
+        };
+        FilePolicy::can_complete_upload(
+            context,
+            &file_upload,
+            publication.as_ref().map(|pubn| pubn.publication_type),
+            resource_type,
+            bytes,
+            &mime_type,
+        )?;
+
+        let featured_video_dimensions = if matches!(
+            file_upload.file_type,
+            crate::model::file::FileType::WorkFeaturedVideo
+        ) {
+            probe_video_dimensions(
+                s3_client,
+                &storage_config.s3_bucket,
+                &temp_key,
+                &file_upload.declared_extension,
+                bytes,
+            )
+            .await
+        } else {
+            None
+        };
 
         let canonical_key = file_upload.canonical_key(doi)?;
 
@@ -1389,7 +1399,7 @@ impl MutationRoot {
             &mime_type,
             bytes,
         )?;
-        file_upload.sync_related_metadata(context, &work, &cdn_url)?;
+        file_upload.sync_related_metadata(context, &work, &cdn_url, featured_video_dimensions)?;
 
         reconcile_replaced_object(
             s3_client,

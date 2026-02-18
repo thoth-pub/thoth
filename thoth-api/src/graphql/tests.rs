@@ -6,6 +6,7 @@ use crate::graphql::types::inputs::{Convert, LengthUnit, WeightUnit};
 use crate::markup::MarkupFormat;
 use crate::model::tests::db as test_db;
 use crate::model::{
+    additional_resource::{AdditionalResource, NewAdditionalResource, ResourceType},
     affiliation::{Affiliation, NewAffiliation, PatchAffiliation},
     biography::{Biography, NewBiography, PatchBiography},
     contact::{Contact, ContactType, NewContact, PatchContact},
@@ -1986,6 +1987,124 @@ query Root(
     assert_contact_resolvers(&contact, &context);
 
     assert_title_resolvers(&title, &context);
+}
+
+#[test]
+fn work_additional_resources_applies_markup_format_argument() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-additional-resources-markup");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let resource = AdditionalResource::create(
+        pool.as_ref(),
+        &NewAdditionalResource {
+            work_id: seed.book_work_id,
+            title: "<italic>Resource Title</italic>".to_string(),
+            description: Some("<p>Description <italic>markup</italic></p>".to_string()),
+            attribution: None,
+            resource_type: ResourceType::Video,
+            doi: None,
+            handle: None,
+            url: Some("https://example.com/resource.mp4".to_string()),
+            resource_ordinal: 1,
+        },
+    )
+    .expect("Failed to create additional resource");
+
+    let work = Work::from_id(pool.as_ref(), &seed.book_work_id).expect("Failed to load work");
+
+    let resources_plain = work
+        .additional_resources(&context, Some(10), Some(0), Some(MarkupFormat::PlainText))
+        .expect("Failed to fetch additional resources in plain text");
+    let plain = resources_plain
+        .iter()
+        .find(|item| item.additional_resource_id == resource.additional_resource_id)
+        .expect("Missing created additional resource in plain text results");
+    assert_eq!(plain.title, "Resource Title");
+    assert_eq!(plain.description.as_deref(), Some("Description markup"));
+    assert!(!plain.title.contains('<'));
+    assert!(!plain
+        .description
+        .as_deref()
+        .unwrap_or_default()
+        .contains('<'));
+
+    let resources_jats = work
+        .additional_resources(&context, Some(10), Some(0), Some(MarkupFormat::JatsXml))
+        .expect("Failed to fetch additional resources in JATS");
+    let jats = resources_jats
+        .iter()
+        .find(|item| item.additional_resource_id == resource.additional_resource_id)
+        .expect("Missing created additional resource in JATS results");
+    assert!(jats.title.contains("<italic>"));
+    assert!(jats
+        .description
+        .as_deref()
+        .unwrap_or_default()
+        .contains("<italic>"));
+}
+
+#[test]
+fn graphql_work_additional_resources_uses_parent_markup_when_nested_args_omitted() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-parent-markup");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let resource = AdditionalResource::create(
+        pool.as_ref(),
+        &NewAdditionalResource {
+            work_id: seed.book_work_id,
+            title: "<italic>Parent Title</italic>".to_string(),
+            description: Some("<p>Parent <italic>Description</italic></p>".to_string()),
+            attribution: Some("Attribution".to_string()),
+            resource_type: ResourceType::Video,
+            doi: None,
+            handle: None,
+            url: Some("https://example.com/parent-markup.mp4".to_string()),
+            resource_ordinal: 1,
+        },
+    )
+    .expect("Failed to create additional resource");
+
+    let query = r#"
+query ParentMarkup($id: Uuid!) {
+  work(workId: $id) {
+    additionalResources(markupFormat: MARKDOWN) {
+      workResourceId
+      title
+      description
+    }
+  }
+}
+"#;
+    let mut vars = Variables::new();
+    insert_var(&mut vars, "id", seed.book_work_id);
+    let data = execute_graphql(&schema, &context, query, Some(vars));
+
+    let resources = data["work"]["additionalResources"]
+        .as_array()
+        .expect("Expected additionalResources array");
+    let resource_id = resource.additional_resource_id.to_string();
+    let matching = resources
+        .iter()
+        .find(|item| item["workResourceId"].as_str() == Some(resource_id.as_str()))
+        .expect("Missing created additional resource in GraphQL response");
+
+    let title = matching["title"]
+        .as_str()
+        .expect("Expected title string in GraphQL response");
+    let description = matching["description"]
+        .as_str()
+        .expect("Expected description string in GraphQL response");
+
+    assert_ne!(title, "<italic>Parent Title</italic>");
+    assert_ne!(description, "<p>Parent <italic>Description</italic></p>");
+    assert!(!title.contains('<'));
+    assert!(!description.contains('<'));
 }
 
 #[test]

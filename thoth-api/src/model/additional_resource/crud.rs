@@ -1,6 +1,7 @@
 use super::{
-    AdditionalResource, AdditionalResourceField, AdditionalResourceHistory, AdditionalResourceOrderBy,
-    NewAdditionalResource, NewAdditionalResourceHistory, PatchAdditionalResource,
+    AdditionalResource, AdditionalResourceField, AdditionalResourceHistory,
+    AdditionalResourceOrderBy, NewAdditionalResource, NewAdditionalResourceHistory,
+    PatchAdditionalResource,
 };
 use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
@@ -159,12 +160,18 @@ impl Crud for AdditionalResource {
             .map_err(Into::into)
     }
 
-    crud_methods!(additional_resource::table, additional_resource::dsl::additional_resource);
+    crud_methods!(
+        additional_resource::table,
+        additional_resource::dsl::additional_resource
+    );
 }
 
-publisher_id_impls!(AdditionalResource, NewAdditionalResource, PatchAdditionalResource, |s, db| {
-    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
-});
+publisher_id_impls!(
+    AdditionalResource,
+    NewAdditionalResource,
+    PatchAdditionalResource,
+    |s, db| { crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db) }
+);
 
 impl HistoryEntry for AdditionalResource {
     type NewHistoryEntity = NewAdditionalResourceHistory;
@@ -201,9 +208,9 @@ impl Reorder for AdditionalResource {
                 additional_resource::resource_ordinal,
             ))
             .filter(
-                additional_resource::work_id
-                    .eq(self.work_id)
-                    .and(additional_resource::additional_resource_id.ne(self.additional_resource_id)),
+                additional_resource::work_id.eq(self.work_id).and(
+                    additional_resource::additional_resource_id.ne(self.additional_resource_id),
+                ),
             )
             .load::<(Uuid, i32)>(connection)
             .map_err(Into::into)

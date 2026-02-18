@@ -55,7 +55,10 @@ mod helpers {
         let resource: AdditionalResource = Default::default();
         let user_id = "123456".to_string();
         let history = resource.new_history_entry(&user_id);
-        assert_eq!(history.additional_resource_id, resource.additional_resource_id);
+        assert_eq!(
+            history.additional_resource_id,
+            resource.additional_resource_id
+        );
         assert_eq!(history.user_id, user_id);
         assert_eq!(
             history.data,
@@ -291,7 +294,10 @@ mod crud {
         let resource = AdditionalResource::create(pool.as_ref(), &data).expect("Failed to create");
         let fetched = AdditionalResource::from_id(pool.as_ref(), &resource.additional_resource_id)
             .expect("Failed to fetch");
-        assert_eq!(resource.additional_resource_id, fetched.additional_resource_id);
+        assert_eq!(
+            resource.additional_resource_id,
+            fetched.additional_resource_id
+        );
 
         let patch = PatchAdditionalResource {
             additional_resource_id: resource.additional_resource_id,
@@ -311,7 +317,9 @@ mod crud {
         assert_eq!(updated.title, patch.title);
 
         let deleted = updated.delete(pool.as_ref()).expect("Failed to delete");
-        assert!(AdditionalResource::from_id(pool.as_ref(), &deleted.additional_resource_id).is_err());
+        assert!(
+            AdditionalResource::from_id(pool.as_ref(), &deleted.additional_resource_id).is_err()
+        );
     }
 
     #[test]
@@ -365,7 +373,10 @@ mod crud {
 
         assert_eq!(first.len(), 1);
         assert_eq!(second.len(), 1);
-        assert_ne!(first[0].additional_resource_id, second[0].additional_resource_id);
+        assert_ne!(
+            first[0].additional_resource_id,
+            second[0].additional_resource_id
+        );
     }
 
     #[test]

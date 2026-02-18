@@ -72,3 +72,32 @@ fn build_cdn_url_normalizes_domain_and_key() {
     let http_url = build_cdn_url("http://cdn.example.org", "files/doc.pdf");
     assert_eq!(http_url, "https://cdn.example.org/files/doc.pdf");
 }
+
+fn build_tkhd_box_v0(width: u32, height: u32) -> Vec<u8> {
+    let mut tkhd = vec![0u8; 92];
+    tkhd[0..4].copy_from_slice(&(92u32).to_be_bytes());
+    tkhd[4..8].copy_from_slice(b"tkhd");
+    tkhd[8] = 0; // version 0
+    tkhd[9..12].copy_from_slice(&[0, 0, 7]); // flags
+    tkhd[84..88].copy_from_slice(&(width << 16).to_be_bytes());
+    tkhd[88..92].copy_from_slice(&(height << 16).to_be_bytes());
+    tkhd
+}
+
+#[test]
+fn parse_mp4_track_header_dimensions_extracts_size() {
+    let mut payload = vec![0u8; 32];
+    payload.extend_from_slice(&build_tkhd_box_v0(1280, 720));
+
+    let parsed = parse_mp4_track_header_dimensions(&payload);
+    assert_eq!(parsed, Some((1280, 720)));
+}
+
+#[test]
+fn parse_mp4_track_header_dimensions_prefers_non_zero_video_track() {
+    let mut payload = build_tkhd_box_v0(0, 0);
+    payload.extend_from_slice(&build_tkhd_box_v0(640, 360));
+
+    let parsed = parse_mp4_track_header_dimensions(&payload);
+    assert_eq!(parsed, Some((640, 360)));
+}

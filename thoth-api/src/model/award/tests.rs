@@ -266,8 +266,8 @@ mod crud {
         let moved = second
             .change_ordinal(&ctx, second.award_ordinal, 1)
             .expect("Failed to reorder award");
-        let shifted = Award::from_id(pool.as_ref(), &first.award_id)
-            .expect("Failed to fetch shifted award");
+        let shifted =
+            Award::from_id(pool.as_ref(), &first.award_id).expect("Failed to fetch shifted award");
 
         assert_eq!(moved.award_ordinal, 1);
         assert_eq!(shifted.award_ordinal, 2);

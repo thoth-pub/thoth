@@ -938,7 +938,9 @@ mod crud {
     use uuid::Uuid;
 
     use crate::graphql::types::inputs::{Expression, TimeExpression};
-    use crate::model::additional_resource::{AdditionalResource, NewAdditionalResource, ResourceType};
+    use crate::model::additional_resource::{
+        AdditionalResource, NewAdditionalResource, ResourceType,
+    };
     use crate::model::issue::{Issue, NewIssue};
     use crate::model::locale::LocaleCode;
     use crate::model::publication::{NewPublication, Publication, PublicationType};

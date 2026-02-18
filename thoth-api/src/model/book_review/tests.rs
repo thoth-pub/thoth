@@ -258,8 +258,8 @@ mod crud {
         let work = create_work(pool.as_ref(), &imprint);
 
         let review = make_book_review(pool.as_ref(), work.work_id, 1);
-        let fetched = BookReview::from_id(pool.as_ref(), &review.book_review_id)
-            .expect("Failed to fetch");
+        let fetched =
+            BookReview::from_id(pool.as_ref(), &review.book_review_id).expect("Failed to fetch");
         assert_eq!(review.book_review_id, fetched.book_review_id);
 
         let patch = PatchBookReview {

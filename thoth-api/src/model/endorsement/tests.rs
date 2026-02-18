@@ -113,12 +113,8 @@ mod policy {
         let publisher = create_publisher(pool.as_ref());
         let imprint = create_imprint(pool.as_ref(), &publisher);
         let work = create_work(pool.as_ref(), &imprint);
-        let endorsement = make_endorsement(
-            pool.as_ref(),
-            work.work_id,
-            1,
-            Some("Author".to_string()),
-        );
+        let endorsement =
+            make_endorsement(pool.as_ref(), work.work_id, 1, Some("Author".to_string()));
 
         let patch = PatchEndorsement {
             endorsement_id: endorsement.endorsement_id,
@@ -270,18 +266,8 @@ mod crud {
         let imprint = create_imprint(pool.as_ref(), &publisher);
         let work = create_work(pool.as_ref(), &imprint);
 
-        let first = make_endorsement(
-            pool.as_ref(),
-            work.work_id,
-            1,
-            Some("Author 1".to_string()),
-        );
-        let second = make_endorsement(
-            pool.as_ref(),
-            work.work_id,
-            2,
-            Some("Author 2".to_string()),
-        );
+        let first = make_endorsement(pool.as_ref(), work.work_id, 1, Some("Author 1".to_string()));
+        let second = make_endorsement(pool.as_ref(), work.work_id, 2, Some("Author 2".to_string()));
         let ctx = test_context(pool.clone(), "test-user");
 
         let moved = second

@@ -97,6 +97,25 @@ fn create_pdf_publication(
     Publication::create(pool, &new_publication).expect("Failed to create PDF publication")
 }
 
+#[cfg(feature = "backend")]
+fn create_work_featured_video(
+    pool: &crate::db::PgPool,
+    work_id: Uuid,
+) -> crate::model::work_featured_video::WorkFeaturedVideo {
+    use crate::model::work_featured_video::{NewWorkFeaturedVideo, WorkFeaturedVideo};
+    use crate::model::Crud;
+
+    let new_video = NewWorkFeaturedVideo {
+        work_id,
+        title: Some("Hosted video".to_string()),
+        url: None,
+        width: 560,
+        height: 315,
+    };
+
+    WorkFeaturedVideo::create(pool, &new_video).expect("Failed to create featured video")
+}
+
 mod display_and_parse {
     use super::*;
 
@@ -443,12 +462,9 @@ mod validation {
 
     #[test]
     fn resource_extension_and_mime_validation() {
+        assert!(FilePolicy::validate_resource_file_extension("mp4", ResourceType::Video).is_ok());
         assert!(
-            FilePolicy::validate_resource_file_extension("mp4", ResourceType::Video).is_ok()
-        );
-        assert!(
-            FilePolicy::validate_resource_file_mime_type(ResourceType::Video, "video/mp4")
-                .is_ok()
+            FilePolicy::validate_resource_file_mime_type(ResourceType::Video, "video/mp4").is_ok()
         );
         assert_eq!(
             FilePolicy::validate_resource_file_extension("exe", ResourceType::Video).unwrap_err(),
@@ -486,6 +502,7 @@ mod validation {
 #[cfg(feature = "backend")]
 mod policy {
     use super::*;
+    use crate::model::additional_resource::ResourceType;
     use crate::model::publication::PublicationType;
     use crate::model::tests::db::{
         create_imprint, create_publisher, create_work, setup_test_db, test_context_with_user,
@@ -529,6 +546,7 @@ mod policy {
             &ctx,
             &upload,
             Some(PublicationType::Pdf),
+            None,
             60 * 1024,
             "application/pdf"
         )
@@ -565,6 +583,7 @@ mod policy {
             &ctx,
             &upload,
             Some(PublicationType::Pdf),
+            None,
             60 * 1024,
             "application/pdf"
         )
@@ -597,6 +616,7 @@ mod policy {
             &ctx,
             &valid_upload,
             Some(PublicationType::Pdf),
+            None,
             60 * 1024,
             "application/pdf"
         )
@@ -616,6 +636,7 @@ mod policy {
                 &ctx,
                 &invalid_upload,
                 Some(PublicationType::Pdf),
+                None,
                 60 * 1024,
                 "application/pdf"
             )
@@ -627,11 +648,60 @@ mod policy {
                 &ctx,
                 &valid_upload,
                 None,
+                None,
                 60 * 1024,
                 "application/pdf"
             )
             .unwrap_err(),
             ThothError::PublicationTypeRequiredForFileValidation
+        );
+    }
+
+    #[test]
+    fn can_complete_upload_validates_resources_with_single_gate() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let featured_video = create_work_featured_video(pool.as_ref(), work.work_id);
+
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("file-user", Role::CdnWrite, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let upload = FileUpload::create(
+            pool.as_ref(),
+            &NewFileUpload {
+                file_type: FileType::WorkFeaturedVideo,
+                work_id: None,
+                publication_id: None,
+                additional_resource_id: None,
+                work_featured_video_id: Some(featured_video.work_featured_video_id),
+                declared_mime_type: "video/mp4".to_string(),
+                declared_extension: "mp4".to_string(),
+                declared_sha256: TEST_SHA256_HEX.to_string(),
+            },
+        )
+        .expect("Failed to create featured-video upload");
+
+        assert!(FilePolicy::can_complete_upload(
+            &ctx,
+            &upload,
+            None,
+            Some(ResourceType::Video),
+            1024,
+            "video/mp4"
+        )
+        .is_ok());
+
+        assert_eq!(
+            FilePolicy::can_complete_upload(&ctx, &upload, None, None, 1024, "video/mp4")
+                .unwrap_err(),
+            ThothError::UnsupportedResourceTypeForFileUpload
         );
     }
 }
@@ -848,8 +918,8 @@ mod crud {
 
         let (loaded_work, loaded_publication, loaded_resource, loaded_featured_video) =
             publication_upload
-            .load_scope(&ctx)
-            .expect("Failed to load publication upload scope");
+                .load_scope(&ctx)
+                .expect("Failed to load publication upload scope");
         assert_eq!(loaded_work.work_id, work.work_id);
         assert_eq!(
             loaded_publication
@@ -862,8 +932,8 @@ mod crud {
 
         let (loaded_work, loaded_publication, loaded_resource, loaded_featured_video) =
             frontcover_upload
-            .load_scope(&ctx)
-            .expect("Failed to load frontcover upload scope");
+                .load_scope(&ctx)
+                .expect("Failed to load frontcover upload scope");
         assert_eq!(loaded_work.work_id, work.work_id);
         assert!(loaded_publication.is_none());
         assert!(loaded_resource.is_none());
@@ -956,11 +1026,57 @@ mod crud {
 
         let cover_url = "https://cdn.example.org/10.1234/abc/def_frontcover.jpg";
         upload
-            .sync_related_metadata(&ctx, &work, cover_url)
+            .sync_related_metadata(&ctx, &work, cover_url, None)
             .expect("Failed to sync frontcover metadata");
 
         let refreshed_work = Work::from_id(pool.as_ref(), &work.work_id)
             .expect("Failed to reload work after metadata sync");
         assert_eq!(refreshed_work.cover_url.as_deref(), Some(cover_url));
+    }
+
+    #[test]
+    fn crud_sync_related_metadata_updates_featured_video_url_and_dimensions() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let featured_video = create_work_featured_video(pool.as_ref(), work.work_id);
+
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("file-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let upload = FileUpload::create(
+            pool.as_ref(),
+            &NewFileUpload {
+                file_type: FileType::WorkFeaturedVideo,
+                work_id: None,
+                publication_id: None,
+                additional_resource_id: None,
+                work_featured_video_id: Some(featured_video.work_featured_video_id),
+                declared_mime_type: "video/mp4".to_string(),
+                declared_extension: "mp4".to_string(),
+                declared_sha256: TEST_SHA256_HEX.to_string(),
+            },
+        )
+        .expect("Failed to create upload");
+
+        let video_url = "https://cdn.example.org/10.1234/abc/def/resources/video.mp4";
+        upload
+            .sync_related_metadata(&ctx, &work, video_url, Some((1280, 720)))
+            .expect("Failed to sync featured-video metadata");
+
+        let refreshed = crate::model::work_featured_video::WorkFeaturedVideo::from_id(
+            pool.as_ref(),
+            &featured_video.work_featured_video_id,
+        )
+        .expect("Failed to reload featured video after metadata sync");
+        assert_eq!(refreshed.url.as_deref(), Some(video_url));
+        assert_eq!(refreshed.width, 1280);
+        assert_eq!(refreshed.height, 720);
     }
 }

@@ -1,6 +1,6 @@
 use crate::model::book_review::{BookReview, NewBookReview, PatchBookReview};
-use crate::model::Crud;
 use crate::model::work::{Work, WorkType};
+use crate::model::Crud;
 use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, PolicyContext, UpdatePolicy};
 use thoth_errors::{ThothError, ThothResult};
 
@@ -19,11 +19,7 @@ fn ensure_work_is_book(db: &crate::db::PgPool, work_id: uuid::Uuid) -> ThothResu
 }
 
 impl CreatePolicy<NewBookReview> for BookReviewPolicy {
-    fn can_create<C: PolicyContext>(
-        ctx: &C,
-        data: &NewBookReview,
-        _params: (),
-    ) -> ThothResult<()> {
+    fn can_create<C: PolicyContext>(ctx: &C, data: &NewBookReview, _params: ()) -> ThothResult<()> {
         ctx.require_publisher_for(data)?;
         ensure_work_is_book(ctx.db(), data.work_id)
     }

@@ -89,7 +89,11 @@ impl Crud for WorkFeaturedVideo {
         }
         if let Some(filter) = filter {
             if !filter.is_empty() {
-                query = query.filter(title.ilike(format!("%{filter}%")).or(url.ilike(format!("%{filter}%"))));
+                query = query.filter(
+                    title
+                        .ilike(format!("%{filter}%"))
+                        .or(url.ilike(format!("%{filter}%"))),
+                );
             }
         }
 
@@ -120,7 +124,11 @@ impl Crud for WorkFeaturedVideo {
         }
         if let Some(filter) = filter {
             if !filter.is_empty() {
-                query = query.filter(title.ilike(format!("%{filter}%")).or(url.ilike(format!("%{filter}%"))));
+                query = query.filter(
+                    title
+                        .ilike(format!("%{filter}%"))
+                        .or(url.ilike(format!("%{filter}%"))),
+                );
             }
         }
 
@@ -141,9 +149,7 @@ publisher_id_impls!(
     WorkFeaturedVideo,
     NewWorkFeaturedVideo,
     PatchWorkFeaturedVideo,
-    |s, db| {
-        crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
-    }
+    |s, db| { crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db) }
 );
 
 impl WorkFeaturedVideo {

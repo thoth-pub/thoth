@@ -35,9 +35,7 @@ impl FilePolicy {
         match resource_type {
             ResourceType::Audio => Ok(&["mp3", "wav", "ogg", "m4a", "flac"]),
             ResourceType::Video => Ok(&["mp4", "webm", "mov", "m4v"]),
-            ResourceType::Image => {
-                Ok(&["jpg", "jpeg", "png", "webp", "gif", "svg", "tif", "tiff"])
-            }
+            ResourceType::Image => Ok(&["jpg", "jpeg", "png", "webp", "gif", "svg", "tif", "tiff"]),
             ResourceType::Document => Ok(&["pdf", "doc", "docx", "txt", "rtf"]),
             ResourceType::Dataset => Ok(&["csv", "tsv", "json", "zip", "parquet"]),
             ResourceType::Spreadsheet => Ok(&["csv", "tsv", "xls", "xlsx", "ods"]),
@@ -296,37 +294,34 @@ impl FilePolicy {
         ctx: &C,
         upload: &FileUpload,
         publication_type: Option<PublicationType>,
+        resource_type: Option<ResourceType>,
         bytes: i64,
         mime_type: &str,
     ) -> ThothResult<()> {
         Self::can_delete(ctx, upload)?;
-        Self::validate_file_extension(
-            &upload.declared_extension,
-            &upload.file_type,
-            publication_type,
-        )?;
-        Self::validate_file_mime_type(
-            &upload.declared_extension,
-            &upload.file_type,
-            publication_type,
-            mime_type,
-        )?;
-        Self::validate_file_size(bytes, &upload.file_type)?;
-        Ok(())
-    }
-
-    /// Authorisation and validation gate for completing additional-resource uploads.
-    pub(crate) fn can_complete_resource_upload<C: PolicyContext>(
-        ctx: &C,
-        upload: &FileUpload,
-        resource_type: ResourceType,
-        bytes: i64,
-        mime_type: &str,
-    ) -> ThothResult<()> {
-        Self::can_delete(ctx, upload)?;
-        Self::validate_resource_file_extension(&upload.declared_extension, resource_type)?;
-        Self::validate_resource_file_mime_type(resource_type, mime_type)?;
-        Self::validate_resource_file_size(bytes)?;
+        match upload.file_type {
+            FileType::Frontcover | FileType::Publication => {
+                Self::validate_file_extension(
+                    &upload.declared_extension,
+                    &upload.file_type,
+                    publication_type,
+                )?;
+                Self::validate_file_mime_type(
+                    &upload.declared_extension,
+                    &upload.file_type,
+                    publication_type,
+                    mime_type,
+                )?;
+                Self::validate_file_size(bytes, &upload.file_type)?;
+            }
+            FileType::AdditionalResource | FileType::WorkFeaturedVideo => {
+                let resource_type =
+                    resource_type.ok_or(ThothError::UnsupportedResourceTypeForFileUpload)?;
+                Self::validate_resource_file_extension(&upload.declared_extension, resource_type)?;
+                Self::validate_resource_file_mime_type(resource_type, mime_type)?;
+                Self::validate_resource_file_size(bytes)?;
+            }
+        }
         Ok(())
     }
 }
