@@ -368,14 +368,17 @@ mod validation {
 #[cfg(feature = "backend")]
 mod policy {
     use super::*;
+    use chrono::NaiveDate;
 
     use crate::model::publication::policy::PublicationPolicy;
     use crate::model::tests::db::{
         create_imprint, create_publication, create_publisher, create_work, setup_test_db,
-        test_context_with_user, test_user_with_role,
+        test_context_with_user, test_superuser, test_user_with_role,
     };
+    use crate::model::work::{NewWork, Work, WorkStatus, WorkType};
     use crate::model::Crud;
     use crate::policy::{CreatePolicy, DeletePolicy, Role, UpdatePolicy};
+    use thoth_errors::ThothError;
 
     #[test]
     fn crud_policy_allows_publisher_user_for_write() {
@@ -486,6 +489,109 @@ mod policy {
         assert!(PublicationPolicy::can_create(&ctx, &new_publication, ()).is_err());
         assert!(PublicationPolicy::can_update(&ctx, &publication, &patch, ()).is_err());
         assert!(PublicationPolicy::can_delete(&ctx, &publication).is_err());
+    }
+
+    #[test]
+    fn crud_policy_prevents_non_superuser_from_deleting_publication_on_published_work() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let published_work = Work::create(
+            pool.as_ref(),
+            &NewWork {
+                work_type: WorkType::Monograph,
+                work_status: WorkStatus::Active,
+                reference: None,
+                edition: Some(1),
+                imprint_id: imprint.imprint_id,
+                doi: None,
+                publication_date: NaiveDate::from_ymd_opt(2020, 1, 1),
+                withdrawn_date: None,
+                place: None,
+                page_count: None,
+                page_breakdown: None,
+                image_count: None,
+                table_count: None,
+                audio_count: None,
+                video_count: None,
+                license: None,
+                copyright_holder: None,
+                landing_page: None,
+                lccn: None,
+                oclc: None,
+                general_note: None,
+                bibliography_note: None,
+                toc: None,
+                resources_description: None,
+                cover_url: None,
+                cover_caption: None,
+                first_page: None,
+                last_page: None,
+                page_interval: None,
+            },
+        )
+        .expect("Failed to create published work");
+        let publication = create_publication(pool.as_ref(), &published_work);
+
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("publication-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        assert_eq!(
+            PublicationPolicy::can_delete(&ctx, &publication).unwrap_err(),
+            ThothError::ThothDeletePublicationError
+        );
+    }
+
+    #[test]
+    fn crud_policy_allows_superuser_to_delete_publication_on_published_work() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let published_work = Work::create(
+            pool.as_ref(),
+            &NewWork {
+                work_type: WorkType::Monograph,
+                work_status: WorkStatus::Active,
+                reference: None,
+                edition: Some(1),
+                imprint_id: imprint.imprint_id,
+                doi: None,
+                publication_date: NaiveDate::from_ymd_opt(2020, 1, 1),
+                withdrawn_date: None,
+                place: None,
+                page_count: None,
+                page_breakdown: None,
+                image_count: None,
+                table_count: None,
+                audio_count: None,
+                video_count: None,
+                license: None,
+                copyright_holder: None,
+                landing_page: None,
+                lccn: None,
+                oclc: None,
+                general_note: None,
+                bibliography_note: None,
+                toc: None,
+                resources_description: None,
+                cover_url: None,
+                cover_caption: None,
+                first_page: None,
+                last_page: None,
+                page_interval: None,
+            },
+        )
+        .expect("Failed to create published work");
+        let publication = create_publication(pool.as_ref(), &published_work);
+
+        let super_ctx = test_context_with_user(pool.clone(), test_superuser("publication-super"));
+        assert!(PublicationPolicy::can_delete(&super_ctx, &publication).is_ok());
     }
 }
 

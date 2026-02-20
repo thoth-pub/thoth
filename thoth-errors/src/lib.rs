@@ -112,6 +112,8 @@ pub enum ThothError {
     ThothSetWorkStatusError,
     #[error("Once a Work has been published, it cannot be deleted.")]
     ThothDeleteWorkError,
+    #[error("Publications belonging to a published Work cannot be deleted.")]
+    ThothDeletePublicationError,
     #[error("If canonical abstract already exists, other abstract can't be set as canonical.")]
     CanonicalAbstractExistsError,
     #[error("Short abstract must be less than 350 characters.")]

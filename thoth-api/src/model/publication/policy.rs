@@ -1,8 +1,10 @@
-use crate::model::publication::{
-    NewPublication, PatchPublication, Publication, PublicationProperties,
+use crate::model::{
+    publication::{NewPublication, PatchPublication, Publication, PublicationProperties},
+    work::{Work, WorkProperties},
+    Crud,
 };
-use crate::policy::{CreatePolicy, DeletePolicy, PolicyContext, UpdatePolicy};
-use thoth_errors::ThothResult;
+use crate::policy::{CreatePolicy, DeletePolicy, PolicyContext, UpdatePolicy, UserAccess};
+use thoth_errors::{ThothError, ThothResult};
 
 /// Write policies for `Publication`.
 ///
@@ -38,7 +40,11 @@ impl UpdatePolicy<Publication, PatchPublication> for PublicationPolicy {
 
 impl DeletePolicy<Publication> for PublicationPolicy {
     fn can_delete<C: PolicyContext>(ctx: &C, current: &Publication) -> ThothResult<()> {
-        ctx.require_publisher_for(current)?;
+        let user = ctx.require_publisher_for(current)?;
+        let work = Work::from_id(ctx.db(), &current.work_id)?;
+        if work.is_published() && !user.is_superuser() {
+            return Err(ThothError::ThothDeletePublicationError);
+        }
         Ok(())
     }
 }

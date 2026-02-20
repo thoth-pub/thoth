@@ -1,11 +1,18 @@
 pub use aws_sdk_cloudfront::Client as CloudFrontClient;
 pub use aws_sdk_s3::Client as S3Client;
 use aws_sdk_s3::{presigning::PresigningConfig, types::ChecksumAlgorithm};
+use log::warn;
 use std::time::Duration as StdDuration;
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 use crate::model::imprint::Imprint;
+
+pub mod cleanup;
+pub use cleanup::{
+    publication_cleanup_plan, run_cleanup_plan, run_cleanup_plan_sync, work_cleanup_plan,
+    FileCleanupPlan,
+};
 
 /// Storage configuration extracted from an imprint
 pub struct StorageConfig {
@@ -410,6 +417,31 @@ pub async fn reconcile_replaced_object(
 
     invalidate_cloudfront(cloudfront_client, distribution_id, canonical_key).await?;
     Ok(())
+}
+
+/// Best-effort object cleanup used by parent-entity delete flows.
+///
+/// This function never returns an error: it logs and reports success/failure.
+pub async fn cleanup_object_best_effort(
+    s3_client: &S3Client,
+    cloudfront_client: &CloudFrontClient,
+    bucket: &str,
+    distribution_id: &str,
+    object_key: &str,
+    log_context: &str,
+) -> bool {
+    if let Err(error) = delete_object(s3_client, bucket, object_key).await {
+        warn!("{log_context} phase=delete error=\"{error}\"");
+        return false;
+    }
+
+    if let Err(error) = invalidate_cloudfront(cloudfront_client, distribution_id, object_key).await
+    {
+        warn!("{log_context} phase=invalidate error=\"{error}\"");
+        return false;
+    }
+
+    true
 }
 
 /// Compute the temporary S3 key for an upload

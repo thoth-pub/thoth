@@ -45,7 +45,8 @@ use crate::model::{
 use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, PolicyContext, UpdatePolicy};
 use crate::storage::{
     build_cdn_url, copy_temp_object_to_final, delete_object, head_object, probe_video_dimensions,
-    reconcile_replaced_object, temp_key, StorageConfig,
+    publication_cleanup_plan, reconcile_replaced_object, run_cleanup_plan_sync, temp_key,
+    work_cleanup_plan, StorageConfig,
 };
 use thoth_errors::ThothError;
 
@@ -717,8 +718,14 @@ impl MutationRoot {
     ) -> FieldResult<Work> {
         let work = context.load_current(&work_id)?;
         WorkPolicy::can_delete(context, &work)?;
+        let cleanup_plan = work_cleanup_plan(context.db(), &work)?;
 
-        work.delete(&context.db).map_err(Into::into)
+        let deleted_work = work.delete(&context.db)?;
+        if let Some(plan) = cleanup_plan {
+            run_cleanup_plan_sync(context.s3_client(), context.cloudfront_client(), plan);
+        }
+
+        Ok(deleted_work)
     }
 
     #[graphql(description = "Delete a single publisher using its ID")]
@@ -772,8 +779,14 @@ impl MutationRoot {
     ) -> FieldResult<Publication> {
         let publication = context.load_current(&publication_id)?;
         PublicationPolicy::can_delete(context, &publication)?;
+        let cleanup_plan = publication_cleanup_plan(context.db(), &publication)?;
 
-        publication.delete(&context.db).map_err(Into::into)
+        let deleted_publication = publication.delete(&context.db)?;
+        if let Some(plan) = cleanup_plan {
+            run_cleanup_plan_sync(context.s3_client(), context.cloudfront_client(), plan);
+        }
+
+        Ok(deleted_publication)
     }
 
     #[graphql(description = "Delete a single series using its ID")]

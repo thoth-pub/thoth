@@ -1,7 +1,7 @@
 use super::FileType;
 use super::{
-    upload_request_headers, File, FilePolicy, FileUpload, FileUploadResponse, NewFile,
-    NewFileUpload,
+    upload_request_headers, File, FileCleanupCandidate, FilePolicy, FileUpload, FileUploadResponse,
+    NewFile, NewFileUpload,
 };
 use crate::db::PgPool;
 use crate::model::{
@@ -21,6 +21,7 @@ use crate::storage::{
 use chrono::{Duration, Utc};
 use diesel::prelude::*;
 use diesel::OptionalExtension;
+use std::collections::HashSet;
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
@@ -263,6 +264,118 @@ impl PublisherId for NewFileUpload {
 }
 
 impl File {
+    fn deduplicate_cleanup_candidates(
+        candidates: Vec<FileCleanupCandidate>,
+    ) -> Vec<FileCleanupCandidate> {
+        let mut seen = HashSet::new();
+        let mut deduplicated = Vec::new();
+
+        for candidate in candidates {
+            if seen.insert(candidate.object_key.clone()) {
+                deduplicated.push(candidate);
+            }
+        }
+
+        deduplicated.sort_by(|a, b| a.object_key.cmp(&b.object_key));
+        deduplicated
+    }
+
+    fn to_cleanup_candidates(files: Vec<File>) -> Vec<FileCleanupCandidate> {
+        files
+            .into_iter()
+            .map(|file| FileCleanupCandidate {
+                file_type: file.file_type,
+                object_key: file.object_key,
+            })
+            .collect()
+    }
+
+    pub fn cleanup_candidates_for_publication(
+        db: &PgPool,
+        publication_id: &Uuid,
+    ) -> ThothResult<Vec<FileCleanupCandidate>> {
+        use crate::schema::file::dsl as file_dsl;
+
+        let mut connection = db.get()?;
+        let files = file_dsl::file
+            .filter(file_dsl::publication_id.eq(Some(*publication_id)))
+            .load::<File>(&mut connection)
+            .map_err(ThothError::from)?;
+
+        Ok(Self::deduplicate_cleanup_candidates(
+            Self::to_cleanup_candidates(files),
+        ))
+    }
+
+    pub fn cleanup_candidates_for_work(
+        db: &PgPool,
+        work_id: &Uuid,
+    ) -> ThothResult<Vec<FileCleanupCandidate>> {
+        use crate::schema::additional_resource::dsl as additional_resource_dsl;
+        use crate::schema::publication::dsl as publication_dsl;
+        use crate::schema::work_featured_video::dsl as work_featured_video_dsl;
+
+        let mut connection = db.get()?;
+
+        let publication_ids = publication_dsl::publication
+            .filter(publication_dsl::work_id.eq(*work_id))
+            .select(publication_dsl::publication_id)
+            .load::<Uuid>(&mut connection)
+            .map_err(ThothError::from)?;
+
+        let additional_resource_ids = additional_resource_dsl::additional_resource
+            .filter(additional_resource_dsl::work_id.eq(*work_id))
+            .select(additional_resource_dsl::additional_resource_id)
+            .load::<Uuid>(&mut connection)
+            .map_err(ThothError::from)?;
+
+        let work_featured_video_ids = work_featured_video_dsl::work_featured_video
+            .filter(work_featured_video_dsl::work_id.eq(*work_id))
+            .select(work_featured_video_dsl::work_featured_video_id)
+            .load::<Uuid>(&mut connection)
+            .map_err(ThothError::from)?;
+
+        let mut candidates = Vec::new();
+
+        let direct_work_files = crate::schema::file::dsl::file
+            .filter(crate::schema::file::dsl::work_id.eq(Some(*work_id)))
+            .load::<File>(&mut connection)
+            .map_err(ThothError::from)?;
+        candidates.extend(Self::to_cleanup_candidates(direct_work_files));
+
+        if !publication_ids.is_empty() {
+            let publication_files = crate::schema::file::dsl::file
+                .filter(crate::schema::file::dsl::publication_id.eq_any(&publication_ids))
+                .load::<File>(&mut connection)
+                .map_err(ThothError::from)?;
+            candidates.extend(Self::to_cleanup_candidates(publication_files));
+        }
+
+        if !additional_resource_ids.is_empty() {
+            let additional_resource_files = crate::schema::file::dsl::file
+                .filter(
+                    crate::schema::file::dsl::additional_resource_id
+                        .eq_any(&additional_resource_ids),
+                )
+                .load::<File>(&mut connection)
+                .map_err(ThothError::from)?;
+            candidates.extend(Self::to_cleanup_candidates(additional_resource_files));
+        }
+
+        if !work_featured_video_ids.is_empty() {
+            let work_featured_video_files = crate::schema::file::dsl::file
+                .filter(
+                    crate::schema::file::dsl::work_featured_video_id
+                        .eq_any(&work_featured_video_ids),
+                )
+                .load::<File>(&mut connection)
+                .map_err(ThothError::from)?;
+            candidates.extend(Self::to_cleanup_candidates(work_featured_video_files));
+        }
+
+        Ok(Self::deduplicate_cleanup_candidates(candidates))
+    }
+
     pub fn from_object_key(db: &PgPool, object_key: &str) -> ThothResult<Self> {
         use crate::schema::file::dsl;
 

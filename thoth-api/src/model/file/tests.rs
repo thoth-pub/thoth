@@ -116,6 +116,71 @@ fn create_work_featured_video(
     WorkFeaturedVideo::create(pool, &new_video).expect("Failed to create featured video")
 }
 
+#[cfg(feature = "backend")]
+fn create_additional_resource(
+    pool: &crate::db::PgPool,
+    work_id: Uuid,
+) -> crate::model::additional_resource::AdditionalResource {
+    use crate::model::additional_resource::{
+        AdditionalResource, NewAdditionalResource, ResourceType,
+    };
+    use crate::model::Crud;
+
+    let new_resource = NewAdditionalResource {
+        work_id,
+        title: "Dataset".to_string(),
+        description: None,
+        attribution: None,
+        resource_type: ResourceType::Dataset,
+        doi: None,
+        handle: None,
+        url: None,
+        resource_ordinal: 1,
+    };
+
+    AdditionalResource::create(pool, &new_resource).expect("Failed to create additional resource")
+}
+
+#[cfg(feature = "backend")]
+fn make_new_additional_resource_file(
+    additional_resource_id: Uuid,
+    object_key: impl Into<String>,
+) -> NewFile {
+    let object_key = object_key.into();
+    NewFile {
+        file_type: FileType::AdditionalResource,
+        work_id: None,
+        publication_id: None,
+        additional_resource_id: Some(additional_resource_id),
+        work_featured_video_id: None,
+        object_key: object_key.clone(),
+        cdn_url: format!("https://cdn.example.org/{object_key}"),
+        mime_type: "application/json".to_string(),
+        bytes: 4096,
+        sha256: TEST_SHA256_HEX.to_string(),
+    }
+}
+
+#[cfg(feature = "backend")]
+fn make_new_work_featured_video_file(
+    work_featured_video_id: Uuid,
+    object_key: impl Into<String>,
+) -> NewFile {
+    let object_key = object_key.into();
+    NewFile {
+        file_type: FileType::WorkFeaturedVideo,
+        work_id: None,
+        publication_id: None,
+        additional_resource_id: None,
+        work_featured_video_id: Some(work_featured_video_id),
+        object_key: object_key.clone(),
+        cdn_url: format!("https://cdn.example.org/{object_key}"),
+        mime_type: "video/mp4".to_string(),
+        bytes: 8192,
+        sha256: TEST_SHA256_HEX.to_string(),
+    }
+}
+
 mod display_and_parse {
     use super::*;
 
@@ -1078,5 +1143,82 @@ mod crud {
         assert_eq!(refreshed.url.as_deref(), Some(video_url));
         assert_eq!(refreshed.width, 1280);
         assert_eq!(refreshed.height, 720);
+    }
+
+    #[test]
+    fn cleanup_candidates_for_publication_returns_publication_files() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_pdf_publication(pool.as_ref(), work.work_id);
+
+        let object_key = format!("10.1234/{}/publication.pdf", Uuid::new_v4());
+        File::create(
+            pool.as_ref(),
+            &make_new_publication_file(publication.publication_id, &object_key),
+        )
+        .expect("Failed to create publication file");
+
+        let candidates =
+            File::cleanup_candidates_for_publication(pool.as_ref(), &publication.publication_id)
+                .expect("Failed to load publication cleanup candidates");
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].file_type, FileType::Publication);
+        assert_eq!(candidates[0].object_key, object_key);
+    }
+
+    #[test]
+    fn cleanup_candidates_for_work_collects_all_linked_files() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_pdf_publication(pool.as_ref(), work.work_id);
+        let additional_resource = create_additional_resource(pool.as_ref(), work.work_id);
+        let featured_video = create_work_featured_video(pool.as_ref(), work.work_id);
+
+        let resource_key = format!("10.1234/{}/resources/resource.mp4", Uuid::new_v4());
+        let featured_video_key = format!("10.1234/{}/resources/featured.mp4", Uuid::new_v4());
+        let publication_key = format!("10.1234/{}/publication.pdf", Uuid::new_v4());
+        let cover_key = format!("10.1234/{}/cover.jpg", Uuid::new_v4());
+
+        File::create(
+            pool.as_ref(),
+            &make_new_frontcover_file(work.work_id, &cover_key),
+        )
+        .expect("Failed to create frontcover file");
+        File::create(
+            pool.as_ref(),
+            &make_new_publication_file(publication.publication_id, &publication_key),
+        )
+        .expect("Failed to create publication file");
+        File::create(
+            pool.as_ref(),
+            &make_new_additional_resource_file(
+                additional_resource.additional_resource_id,
+                &resource_key,
+            ),
+        )
+        .expect("Failed to create additional-resource file");
+        File::create(
+            pool.as_ref(),
+            &make_new_work_featured_video_file(
+                featured_video.work_featured_video_id,
+                &featured_video_key,
+            ),
+        )
+        .expect("Failed to create featured-video file");
+
+        let candidates = File::cleanup_candidates_for_work(pool.as_ref(), &work.work_id)
+            .expect("Failed to load");
+
+        assert_eq!(candidates.len(), 4);
+        assert!(candidates.iter().any(|c| c.object_key == cover_key));
+        assert!(candidates.iter().any(|c| c.object_key == publication_key));
+        assert!(candidates.iter().any(|c| c.object_key == resource_key));
+        assert!(candidates
+            .iter()
+            .any(|c| c.object_key == featured_video_key));
     }
 }

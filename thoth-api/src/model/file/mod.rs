@@ -69,6 +69,13 @@ pub struct File {
     pub updated_at: Timestamp,
 }
 
+#[cfg(feature = "backend")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FileCleanupCandidate {
+    pub file_type: FileType,
+    pub object_key: String,
+}
+
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
