@@ -84,6 +84,9 @@ fragment Work on Work {
         imprintName
         imprintUrl
         crossmarkDoi
+        defaultCurrency
+        defaultPlace
+        defaultLocale
         publisher {
             publisherName
             publisherShortname
