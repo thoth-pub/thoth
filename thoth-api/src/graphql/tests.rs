@@ -977,9 +977,9 @@ fn patch_imprint(imprint: &Imprint) -> PatchImprint {
         s3_bucket: imprint.s3_bucket.clone(),
         cdn_domain: imprint.cdn_domain.clone(),
         cloudfront_dist_id: imprint.cloudfront_dist_id.clone(),
-        default_currency: imprint.default_currency.clone(),
+        default_currency: imprint.default_currency,
         default_place: imprint.default_place.clone(),
-        default_locale: imprint.default_locale.clone(),
+        default_locale: imprint.default_locale,
     }
 }
 
