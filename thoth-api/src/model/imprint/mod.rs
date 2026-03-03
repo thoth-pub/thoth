@@ -1,4 +1,4 @@
-use crate::model::Doi;
+use crate::model::{locale::LocaleCode, price::CurrencyCode, Doi};
 use serde::Deserialize;
 use serde::Serialize;
 use strum::Display;
@@ -29,6 +29,9 @@ pub enum ImprintField {
     ImprintUrl,
     #[strum(serialize = "CrossmarkDOI")]
     CrossmarkDoi,
+    DefaultCurrency,
+    DefaultPlace,
+    DefaultLocale,
     CreatedAt,
     UpdatedAt,
 }
@@ -45,6 +48,9 @@ pub struct Imprint {
     pub s3_bucket: Option<String>,
     pub cdn_domain: Option<String>,
     pub cloudfront_dist_id: Option<String>,
+    pub default_currency: Option<CurrencyCode>,
+    pub default_place: Option<String>,
+    pub default_locale: Option<LocaleCode>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
 }
@@ -63,6 +69,9 @@ pub struct NewImprint {
     pub s3_bucket: Option<String>,
     pub cdn_domain: Option<String>,
     pub cloudfront_dist_id: Option<String>,
+    pub default_currency: Option<CurrencyCode>,
+    pub default_place: Option<String>,
+    pub default_locale: Option<LocaleCode>,
 }
 
 #[cfg_attr(
@@ -80,6 +89,9 @@ pub struct PatchImprint {
     pub s3_bucket: Option<String>,
     pub cdn_domain: Option<String>,
     pub cloudfront_dist_id: Option<String>,
+    pub default_currency: Option<CurrencyCode>,
+    pub default_place: Option<String>,
+    pub default_locale: Option<LocaleCode>,
 }
 
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]

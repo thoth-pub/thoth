@@ -247,6 +247,8 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::CurrencyCode;
+    use super::sql_types::LocaleCode;
 
     imprint (imprint_id) {
         imprint_id -> Uuid,
@@ -257,6 +259,9 @@ table! {
         s3_bucket -> Nullable<Text>,
         cdn_domain -> Nullable<Text>,
         cloudfront_dist_id -> Nullable<Text>,
+        default_currency -> Nullable<CurrencyCode>,
+        default_place -> Nullable<Text>,
+        default_locale -> Nullable<LocaleCode>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }

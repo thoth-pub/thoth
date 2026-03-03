@@ -59,6 +59,18 @@ impl Crud for Imprint {
                 Direction::Asc => query.order(crossmark_doi.asc()),
                 Direction::Desc => query.order(crossmark_doi.desc()),
             },
+            ImprintField::DefaultCurrency => match order.direction {
+                Direction::Asc => query.order(default_currency.asc()),
+                Direction::Desc => query.order(default_currency.desc()),
+            },
+            ImprintField::DefaultPlace => match order.direction {
+                Direction::Asc => query.order(default_place.asc()),
+                Direction::Desc => query.order(default_place.desc()),
+            },
+            ImprintField::DefaultLocale => match order.direction {
+                Direction::Asc => query.order(default_locale.asc()),
+                Direction::Desc => query.order(default_locale.desc()),
+            },
             ImprintField::CreatedAt => match order.direction {
                 Direction::Asc => query.order(created_at.asc()),
                 Direction::Desc => query.order(created_at.desc()),

@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
+  - [732](https://github.com/thoth-pub/thoth/pull/732) - Add default fields for common metadata values to `Imprint`
   - [697](https://github.com/thoth-pub/thoth/pull/697) - Migrated GraphQL API authentication to OIDC via Zitadel. Internal JWT handling has been replaced with introspection of Zitadel-issued tokens. Authorisation is now based entirely on token claims, removing the need for the internal `account` and `publisher_account` tables.
   - [697](https://github.com/thoth-pub/thoth/pull/697) - Improved and standardised backend model test coverage.
   - [689](https://github.com/thoth-pub/thoth/issues/689) - Move `Work.fullTitle`, `Work.title` and `Work.subtitle` into a dedicated `Title` table, supporting multilingual and rich text fields

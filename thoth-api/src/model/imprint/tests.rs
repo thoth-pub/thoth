@@ -20,6 +20,12 @@ mod display_and_parse {
         assert_eq!(format!("{}", ImprintField::ImprintName), "Imprint");
         assert_eq!(format!("{}", ImprintField::ImprintUrl), "ImprintURL");
         assert_eq!(format!("{}", ImprintField::CrossmarkDoi), "CrossmarkDOI");
+        assert_eq!(
+            format!("{}", ImprintField::DefaultCurrency),
+            "DefaultCurrency"
+        );
+        assert_eq!(format!("{}", ImprintField::DefaultPlace), "DefaultPlace");
+        assert_eq!(format!("{}", ImprintField::DefaultLocale), "DefaultLocale");
         assert_eq!(format!("{}", ImprintField::CreatedAt), "CreatedAt");
         assert_eq!(format!("{}", ImprintField::UpdatedAt), "UpdatedAt");
     }
@@ -42,6 +48,18 @@ mod display_and_parse {
         assert_eq!(
             ImprintField::from_str("CrossmarkDOI").unwrap(),
             ImprintField::CrossmarkDoi
+        );
+        assert_eq!(
+            ImprintField::from_str("DefaultCurrency").unwrap(),
+            ImprintField::DefaultCurrency
+        );
+        assert_eq!(
+            ImprintField::from_str("DefaultPlace").unwrap(),
+            ImprintField::DefaultPlace
+        );
+        assert_eq!(
+            ImprintField::from_str("DefaultLocale").unwrap(),
+            ImprintField::DefaultLocale
         );
         assert_eq!(
             ImprintField::from_str("CreatedAt").unwrap(),
@@ -113,6 +131,9 @@ mod policy {
             s3_bucket: None,
             cdn_domain: None,
             cloudfront_dist_id: None,
+            default_currency: None,
+            default_place: None,
+            default_locale: None,
         };
 
         let imprint = Imprint::create(pool.as_ref(), &new_imprint).expect("Failed to create");
@@ -136,6 +157,9 @@ mod policy {
             s3_bucket: imprint.s3_bucket.clone(),
             cdn_domain: imprint.cdn_domain.clone(),
             cloudfront_dist_id: imprint.cloudfront_dist_id.clone(),
+            default_currency: imprint.default_currency.clone(),
+            default_place: imprint.default_place.clone(),
+            default_locale: imprint.default_locale.clone(),
         };
 
         let org_id = publisher
@@ -169,6 +193,9 @@ mod crud {
             s3_bucket: None,
             cdn_domain: None,
             cloudfront_dist_id: None,
+            default_currency: None,
+            default_place: None,
+            default_locale: None,
         };
 
         Imprint::create(pool, &new_imprint).expect("Failed to create imprint")
@@ -193,6 +220,9 @@ mod crud {
             s3_bucket: imprint.s3_bucket.clone(),
             cdn_domain: imprint.cdn_domain.clone(),
             cloudfront_dist_id: imprint.cloudfront_dist_id.clone(),
+            default_currency: imprint.default_currency.clone(),
+            default_place: imprint.default_place.clone(),
+            default_locale: imprint.default_locale.clone(),
         };
 
         let ctx = test_context(pool.clone(), "test-user");
@@ -489,6 +519,9 @@ mod crud {
                 s3_bucket: None,
                 cdn_domain: None,
                 cloudfront_dist_id: None,
+                default_currency: None,
+                default_place: None,
+                default_locale: None,
             },
         )
         .expect("Failed to create imprint");
@@ -502,6 +535,9 @@ mod crud {
                 s3_bucket: None,
                 cdn_domain: None,
                 cloudfront_dist_id: None,
+                default_currency: None,
+                default_place: None,
+                default_locale: None,
             },
         )
         .expect("Failed to create imprint");
@@ -535,6 +571,9 @@ mod crud {
                 s3_bucket: None,
                 cdn_domain: None,
                 cloudfront_dist_id: None,
+                default_currency: None,
+                default_place: None,
+                default_locale: None,
             },
         )
         .expect("Failed to create imprint");
@@ -548,6 +587,9 @@ mod crud {
                 s3_bucket: None,
                 cdn_domain: None,
                 cloudfront_dist_id: None,
+                default_currency: None,
+                default_place: None,
+                default_locale: None,
             },
         )
         .expect("Failed to create imprint");

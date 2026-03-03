@@ -222,6 +222,9 @@ END $$;
             s3_bucket: None,
             cdn_domain: None,
             cloudfront_dist_id: None,
+            default_currency: None,
+            default_place: None,
+            default_locale: None,
         };
 
         Imprint::create(pool, &new_imprint).expect("Failed to create imprint in DB")
