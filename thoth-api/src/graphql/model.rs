@@ -1160,6 +1160,21 @@ impl Imprint {
         self.crossmark_doi.as_ref()
     }
 
+    #[graphql(description = "Default currency code for works under this imprint")]
+    pub fn default_currency(&self) -> Option<&CurrencyCode> {
+        self.default_currency.as_ref()
+    }
+
+    #[graphql(description = "Default publication place for works under this imprint")]
+    pub fn default_place(&self) -> Option<&String> {
+        self.default_place.as_ref()
+    }
+
+    #[graphql(description = "Default locale code for works under this imprint")]
+    pub fn default_locale(&self) -> Option<&LocaleCode> {
+        self.default_locale.as_ref()
+    }
+
     #[graphql(description = "Date and time at which the imprint record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at

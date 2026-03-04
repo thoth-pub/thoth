@@ -860,6 +860,9 @@ pub(crate) mod tests {
                 imprint_name: "OA Editions Imprint".to_string(),
                 imprint_url: None,
                 crossmark_doi: None,
+                default_currency: None,
+                default_place: None,
+                default_locale: None,
                 publisher: WorkImprintPublisher {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: None,

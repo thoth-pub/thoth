@@ -134,6 +134,9 @@ mod tests {
                 imprint_name: "OA Editions Imprint".to_string(),
                 imprint_url: None,
                 crossmark_doi: None,
+                default_currency: Some(thoth_client::CurrencyCode::EUR),
+                default_place: Some("Hull, England".to_string()),
+                default_locale: Some(thoth_client::LocaleCode::CY),
                 publisher: WorkImprintPublisher {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: Some("OAE".to_string()),
@@ -574,6 +577,9 @@ mod tests {
     "imprintName": "OA Editions Imprint",
     "imprintUrl": null,
     "crossmarkDoi": null,
+    "defaultCurrency": "EUR",
+    "defaultPlace": "Hull, England",
+    "defaultLocale": "CY",
     "publisher": {
       "publisherName": "OA Editions",
       "publisherShortname": "OAE",
