@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.13.16]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.16) - 2026-03-06
+### Changed
+  - [#731](https://github.com/thoth-pub/thoth/pull/731) - Ignore hyphens when filtering publications on ISBN
+
 ## [[0.13.15]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.15) - 2025-12-03
 ### Changed
   - [#717](https://github.com/thoth-pub/thoth/pull/717) - Update Thema codes to v1.6
