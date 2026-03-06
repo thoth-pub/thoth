@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[0.13.16]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.16) - 2026-03-06
 ### Changed
   - [#731](https://github.com/thoth-pub/thoth/pull/731) - Ignore hyphens when filtering publications on ISBN
 
