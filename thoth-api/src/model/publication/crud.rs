@@ -129,7 +129,11 @@ impl Crud for Publication {
         if let Some(filter) = filter {
             // ISBN field is nullable, so searching with an empty filter could fail
             if !filter.is_empty() {
-                query = query.filter(isbn.ilike(format!("%{filter}%")));
+                // Ignore ISBN hyphenation when searching
+                query = query.filter(
+                    sql::<Text>("replace(isbn, '-', '')")
+                        .ilike(format!("%{}%", filter.replace("-", ""))),
+                );
             }
         }
         query
@@ -162,7 +166,11 @@ impl Crud for Publication {
         if let Some(filter) = filter {
             // ISBN field is nullable, so searching with an empty filter could fail
             if !filter.is_empty() {
-                query = query.filter(isbn.ilike(format!("%{filter}%")));
+                // Ignore ISBN hyphenation when searching
+                query = query.filter(
+                    sql::<Text>("replace(isbn, '-', '')")
+                        .ilike(format!("%{}%", filter.replace("-", ""))),
+                );
             }
         }
 
