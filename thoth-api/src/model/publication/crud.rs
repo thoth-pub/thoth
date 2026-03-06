@@ -5,7 +5,9 @@ use super::{
 use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
-use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{
+    dsl::sql, sql_types::Text, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
+};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
 
