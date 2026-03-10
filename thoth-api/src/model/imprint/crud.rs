@@ -42,12 +42,33 @@ impl Crud for Imprint {
         let mut query = imprint.into_boxed();
 
         query = match order.field {
-            ImprintField::ImprintId => apply_directional_order!(query, order.direction, order, imprint_id),
-            ImprintField::ImprintName => apply_directional_order!(query, order.direction, order, imprint_name),
-            ImprintField::ImprintUrl => apply_directional_order!(query, order.direction, order, imprint_url),
-            ImprintField::CrossmarkDoi => apply_directional_order!(query, order.direction, order, crossmark_doi),
-            ImprintField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            ImprintField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            ImprintField::ImprintId => {
+                apply_directional_order!(query, order.direction, order, imprint_id)
+            }
+            ImprintField::ImprintName => {
+                apply_directional_order!(query, order.direction, order, imprint_name)
+            }
+            ImprintField::ImprintUrl => {
+                apply_directional_order!(query, order.direction, order, imprint_url)
+            }
+            ImprintField::CrossmarkDoi => {
+                apply_directional_order!(query, order.direction, order, crossmark_doi)
+            }
+            ImprintField::DefaultCurrency => {
+                apply_directional_order!(query, order.direction, order, default_currency)
+            }
+            ImprintField::DefaultPlace => {
+                apply_directional_order!(query, order.direction, order, default_place)
+            }
+            ImprintField::DefaultLocale => {
+                apply_directional_order!(query, order.direction, order, default_locale)
+            }
+            ImprintField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            ImprintField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(publisher_id.eq_any(publishers));

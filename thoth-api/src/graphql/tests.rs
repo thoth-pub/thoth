@@ -222,6 +222,9 @@ fn make_new_imprint(publisher_id: Uuid) -> NewImprint {
         s3_bucket: None,
         cdn_domain: None,
         cloudfront_dist_id: None,
+        default_currency: None,
+        default_place: None,
+        default_locale: None,
     }
 }
 
@@ -977,6 +980,9 @@ fn patch_imprint(imprint: &Imprint) -> PatchImprint {
         s3_bucket: imprint.s3_bucket.clone(),
         cdn_domain: imprint.cdn_domain.clone(),
         cloudfront_dist_id: imprint.cloudfront_dist_id.clone(),
+        default_currency: imprint.default_currency,
+        default_place: imprint.default_place.clone(),
+        default_locale: imprint.default_locale,
     }
 }
 
