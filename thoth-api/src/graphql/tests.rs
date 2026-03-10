@@ -1990,6 +1990,68 @@ query Root(
 }
 
 #[test]
+fn graphql_books_order_respects_field_and_direction() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-books-order");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+
+    let publisher = Publisher::create(pool.as_ref(), &make_new_publisher("org-books-order"))
+        .expect("Failed to create publisher");
+    let imprint = Imprint::create(pool.as_ref(), &make_new_imprint(publisher.publisher_id))
+        .expect("Failed to create imprint");
+
+    let first = Work::create(
+        pool.as_ref(),
+        &make_new_book_work(
+            imprint.imprint_id,
+            Doi::from_str("https://doi.org/10.1111/BOOK.ORDER.FIRST").unwrap(),
+        ),
+    )
+    .expect("Failed to create first book");
+    let second = Work::create(
+        pool.as_ref(),
+        &make_new_book_work(
+            imprint.imprint_id,
+            Doi::from_str("https://doi.org/10.1111/BOOK.ORDER.SECOND").unwrap(),
+        ),
+    )
+    .expect("Failed to create second book");
+
+    let mut by_id = [first, second];
+    by_id.sort_by_key(|work| work.work_id);
+
+    let mut newer_patch: PatchWork = by_id[0].clone().into();
+    newer_patch.publication_date = NaiveDate::from_ymd_opt(2025, 1, 1);
+    by_id[0]
+        .update(&context, &newer_patch)
+        .expect("Failed to update newer book");
+
+    let mut older_patch: PatchWork = by_id[1].clone().into();
+    older_patch.publication_date = NaiveDate::from_ymd_opt(2020, 1, 1);
+    by_id[1]
+        .update(&context, &older_patch)
+        .expect("Failed to update older book");
+
+    let query = r#"
+{
+  asc: books(limit: 10, order: {field: PUBLICATION_DATE, direction: ASC}) { workId }
+  desc: books(limit: 10, order: {field: PUBLICATION_DATE, direction: DESC}) { workId }
+}
+"#;
+
+    let data = execute_graphql(&schema, &context, query, None);
+    let asc = data["asc"].as_array().expect("Expected asc books array");
+    let desc = data["desc"].as_array().expect("Expected desc books array");
+
+    let asc_first_id = json_uuid(&asc[0]["workId"]);
+    let desc_first_id = json_uuid(&desc[0]["workId"]);
+
+    assert_eq!(asc_first_id, by_id[1].work_id);
+    assert_eq!(desc_first_id, by_id[0].work_id);
+}
+
+#[test]
 fn work_additional_resources_applies_markup_format_argument() {
     let (_guard, pool) = test_db::setup_test_db();
     let schema = create_schema();

@@ -1,8 +1,11 @@
+use aws_sdk_cloudfront::operation::create_invalidation::CreateInvalidationError;
+use aws_sdk_cloudfront::operation::RequestId as CloudFrontRequestId;
 pub use aws_sdk_cloudfront::Client as CloudFrontClient;
+use aws_sdk_s3::operation::delete_object::DeleteObjectError;
+use aws_sdk_s3::operation::RequestId as S3RequestId;
 pub use aws_sdk_s3::Client as S3Client;
 use aws_sdk_s3::{presigning::PresigningConfig, types::ChecksumAlgorithm};
-use log::warn;
-use std::time::Duration as StdDuration;
+use std::time::{Duration as StdDuration, Instant};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
@@ -13,6 +16,241 @@ pub use cleanup::{
     publication_cleanup_plan, run_cleanup_plan, run_cleanup_plan_sync, work_cleanup_plan,
     FileCleanupPlan,
 };
+
+const S3_EXTENDED_REQUEST_ID_META_KEY: &str = "s3_extended_request_id";
+const S3_EXTENDED_REQUEST_ID_HEADER: &str = "x-amz-id-2";
+const CLOUDFRONT_REQUEST_ID_HEADER: &str = "x-amz-cf-id";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CleanupObjectOutcome {
+    Deleted,
+    AlreadyAbsent,
+    Failed,
+}
+
+impl CleanupObjectOutcome {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CleanupObjectOutcome::Deleted => "deleted",
+            CleanupObjectOutcome::AlreadyAbsent => "already_absent",
+            CleanupObjectOutcome::Failed => "failed",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AwsErrorContext {
+    pub code: Option<String>,
+    pub message: Option<String>,
+    pub http_status: Option<u16>,
+    pub request_id: Option<String>,
+    pub extended_request_id: Option<String>,
+    pub retryable_classification: &'static str,
+}
+
+impl AwsErrorContext {
+    fn summary(&self) -> String {
+        format!(
+            "code={} message={} http_status={} request_id={} extended_request_id={} retryable_classification={}",
+            self.code.as_deref().unwrap_or(""),
+            self.message.as_deref().unwrap_or(""),
+            self.http_status
+                .map(|status| status.to_string())
+                .unwrap_or_default(),
+            self.request_id.as_deref().unwrap_or(""),
+            self.extended_request_id.as_deref().unwrap_or(""),
+            self.retryable_classification,
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CleanupObjectReport {
+    pub outcome: CleanupObjectOutcome,
+    pub delete_outcome: CleanupObjectOutcome,
+    pub delete_ms: u128,
+    pub invalidate_ms: Option<u128>,
+    pub delete_error: Option<AwsErrorContext>,
+    pub invalidate_error: Option<AwsErrorContext>,
+}
+
+pub fn classify_delete_error(error: &AwsErrorContext) -> CleanupObjectOutcome {
+    let is_absent_code = matches!(
+        error.code.as_deref(),
+        Some("NoSuchKey") | Some("NotFound") | Some("NoSuchObject")
+    );
+    if is_absent_code || error.http_status == Some(404) {
+        CleanupObjectOutcome::AlreadyAbsent
+    } else {
+        CleanupObjectOutcome::Failed
+    }
+}
+
+fn s3_retryable_classification(
+    error: &aws_sdk_s3::error::SdkError<DeleteObjectError>,
+) -> &'static str {
+    match error {
+        aws_sdk_s3::error::SdkError::ConstructionFailure(_) => "construction_failure",
+        aws_sdk_s3::error::SdkError::TimeoutError(_) => "timeout",
+        aws_sdk_s3::error::SdkError::DispatchFailure(dispatch) if dispatch.is_timeout() => {
+            "dispatch_timeout"
+        }
+        aws_sdk_s3::error::SdkError::DispatchFailure(dispatch) if dispatch.is_io() => "dispatch_io",
+        aws_sdk_s3::error::SdkError::DispatchFailure(dispatch) if dispatch.is_user() => {
+            "dispatch_user"
+        }
+        aws_sdk_s3::error::SdkError::DispatchFailure(_) => "dispatch_other",
+        aws_sdk_s3::error::SdkError::ResponseError(_) => "response_error",
+        aws_sdk_s3::error::SdkError::ServiceError(_) => "service_error",
+        _ => "unknown",
+    }
+}
+
+fn cloudfront_retryable_classification(
+    error: &aws_sdk_cloudfront::error::SdkError<CreateInvalidationError>,
+) -> &'static str {
+    match error {
+        aws_sdk_cloudfront::error::SdkError::ConstructionFailure(_) => "construction_failure",
+        aws_sdk_cloudfront::error::SdkError::TimeoutError(_) => "timeout",
+        aws_sdk_cloudfront::error::SdkError::DispatchFailure(dispatch) if dispatch.is_timeout() => {
+            "dispatch_timeout"
+        }
+        aws_sdk_cloudfront::error::SdkError::DispatchFailure(dispatch) if dispatch.is_io() => {
+            "dispatch_io"
+        }
+        aws_sdk_cloudfront::error::SdkError::DispatchFailure(dispatch) if dispatch.is_user() => {
+            "dispatch_user"
+        }
+        aws_sdk_cloudfront::error::SdkError::DispatchFailure(_) => "dispatch_other",
+        aws_sdk_cloudfront::error::SdkError::ResponseError(_) => "response_error",
+        aws_sdk_cloudfront::error::SdkError::ServiceError(_) => "service_error",
+        _ => "unknown",
+    }
+}
+
+fn s3_delete_error_context(
+    error: &aws_sdk_s3::error::SdkError<DeleteObjectError>,
+) -> AwsErrorContext {
+    let metadata = aws_sdk_s3::error::ProvideErrorMetadata::meta(error);
+    AwsErrorContext {
+        code: aws_sdk_s3::error::ProvideErrorMetadata::code(error).map(ToOwned::to_owned),
+        message: aws_sdk_s3::error::ProvideErrorMetadata::message(error).map(ToOwned::to_owned),
+        http_status: error
+            .raw_response()
+            .map(|response| response.status().as_u16()),
+        request_id: S3RequestId::request_id(metadata).map(ToOwned::to_owned),
+        extended_request_id: metadata
+            .extra(S3_EXTENDED_REQUEST_ID_META_KEY)
+            .map(ToOwned::to_owned)
+            .or_else(|| {
+                error
+                    .raw_response()
+                    .and_then(|response| response.headers().get(S3_EXTENDED_REQUEST_ID_HEADER))
+                    .map(ToOwned::to_owned)
+            }),
+        retryable_classification: s3_retryable_classification(error),
+    }
+}
+
+fn cloudfront_invalidation_error_context(
+    error: &aws_sdk_cloudfront::error::SdkError<CreateInvalidationError>,
+) -> AwsErrorContext {
+    let metadata = aws_sdk_cloudfront::error::ProvideErrorMetadata::meta(error);
+    AwsErrorContext {
+        code: aws_sdk_cloudfront::error::ProvideErrorMetadata::code(error).map(ToOwned::to_owned),
+        message: aws_sdk_cloudfront::error::ProvideErrorMetadata::message(error)
+            .map(ToOwned::to_owned),
+        http_status: error
+            .raw_response()
+            .map(|response| response.status().as_u16()),
+        request_id: CloudFrontRequestId::request_id(metadata).map(ToOwned::to_owned),
+        extended_request_id: error
+            .raw_response()
+            .and_then(|response| response.headers().get(CLOUDFRONT_REQUEST_ID_HEADER))
+            .map(ToOwned::to_owned),
+        retryable_classification: cloudfront_retryable_classification(error),
+    }
+}
+
+fn local_error_context(message: String) -> AwsErrorContext {
+    AwsErrorContext {
+        code: None,
+        message: Some(message),
+        http_status: None,
+        request_id: None,
+        extended_request_id: None,
+        retryable_classification: "non_service_error",
+    }
+}
+
+fn thoth_internal_error(operation: &str, context: &AwsErrorContext) -> ThothError {
+    ThothError::InternalError(format!("{operation}: {}", context.summary()))
+}
+
+async fn delete_object_with_outcome(
+    s3_client: &S3Client,
+    bucket: &str,
+    key: &str,
+) -> Result<CleanupObjectOutcome, AwsErrorContext> {
+    match s3_client
+        .delete_object()
+        .bucket(bucket)
+        .key(key)
+        .send()
+        .await
+    {
+        Ok(_) => Ok(CleanupObjectOutcome::Deleted),
+        Err(error) => {
+            let context = s3_delete_error_context(&error);
+            match classify_delete_error(&context) {
+                CleanupObjectOutcome::AlreadyAbsent => Ok(CleanupObjectOutcome::AlreadyAbsent),
+                CleanupObjectOutcome::Deleted => Ok(CleanupObjectOutcome::Deleted),
+                CleanupObjectOutcome::Failed => Err(context),
+            }
+        }
+    }
+}
+
+async fn invalidate_cloudfront_with_context(
+    cloudfront_client: &CloudFrontClient,
+    distribution_id: &str,
+    path: &str,
+) -> Result<String, AwsErrorContext> {
+    use aws_sdk_cloudfront::types::Paths;
+
+    let path = if path.starts_with('/') {
+        path.to_string()
+    } else {
+        format!("/{}", path)
+    };
+
+    let paths = Paths::builder()
+        .quantity(1)
+        .items(path)
+        .build()
+        .map_err(|error| local_error_context(format!("Failed to build paths: {error}")))?;
+
+    let invalidation_batch = aws_sdk_cloudfront::types::InvalidationBatch::builder()
+        .paths(paths)
+        .caller_reference(format!("thoth-{}", Uuid::new_v4()))
+        .build()
+        .map_err(|error| {
+            local_error_context(format!("Failed to build invalidation batch: {error}"))
+        })?;
+
+    let response = cloudfront_client
+        .create_invalidation()
+        .distribution_id(distribution_id)
+        .invalidation_batch(invalidation_batch)
+        .send()
+        .await
+        .map_err(|error| cloudfront_invalidation_error_context(&error))?;
+
+    response
+        .invalidation()
+        .map(|invalidation| invalidation.id().to_string())
+        .ok_or_else(|| local_error_context("No invalidation ID returned".to_string()))
+}
 
 /// Storage configuration extracted from an imprint
 pub struct StorageConfig {
@@ -148,15 +386,10 @@ pub async fn copy_temp_object_to_final(
 
 /// Delete an object from S3
 pub async fn delete_object(s3_client: &S3Client, bucket: &str, key: &str) -> ThothResult<()> {
-    s3_client
-        .delete_object()
-        .bucket(bucket)
-        .key(key)
-        .send()
+    delete_object_with_outcome(s3_client, bucket, key)
         .await
-        .map_err(|e| ThothError::InternalError(format!("Failed to delete object: {}", e)))?;
-
-    Ok(())
+        .map(|_| ())
+        .map_err(|context| thoth_internal_error("Failed to delete object", &context))
 }
 
 /// Get object metadata (HeadObject) from S3
@@ -356,41 +589,9 @@ pub async fn invalidate_cloudfront(
     distribution_id: &str,
     path: &str,
 ) -> ThothResult<String> {
-    use aws_sdk_cloudfront::types::Paths;
-
-    let path = if path.starts_with('/') {
-        path.to_string()
-    } else {
-        format!("/{}", path)
-    };
-    let paths = Paths::builder()
-        .quantity(1)
-        .items(path)
-        .build()
-        .map_err(|e| ThothError::InternalError(format!("Failed to build paths: {}", e)))?;
-
-    let response = cloudfront_client
-        .create_invalidation()
-        .distribution_id(distribution_id)
-        .invalidation_batch(
-            aws_sdk_cloudfront::types::InvalidationBatch::builder()
-                .paths(paths)
-                .caller_reference(format!("thoth-{}", Uuid::new_v4()))
-                .build()
-                .map_err(|e| {
-                    ThothError::InternalError(format!("Failed to build invalidation batch: {}", e))
-                })?,
-        )
-        .send()
+    invalidate_cloudfront_with_context(cloudfront_client, distribution_id, path)
         .await
-        .map_err(|e| ThothError::InternalError(format!("Failed to create invalidation: {}", e)))?;
-
-    let invalidation_id = response
-        .invalidation()
-        .map(|inv| inv.id().to_string())
-        .ok_or_else(|| ThothError::InternalError("No invalidation ID returned".to_string()))?;
-
-    Ok(invalidation_id)
+        .map_err(|context| thoth_internal_error("Failed to create invalidation", &context))
 }
 
 /// Invalidate and clean up an existing canonical object, if one exists.
@@ -421,27 +622,51 @@ pub async fn reconcile_replaced_object(
 
 /// Best-effort object cleanup used by parent-entity delete flows.
 ///
-/// This function never returns an error: it logs and reports success/failure.
+/// This function never returns an error; instead it returns a structured outcome report.
 pub async fn cleanup_object_best_effort(
     s3_client: &S3Client,
     cloudfront_client: &CloudFrontClient,
     bucket: &str,
     distribution_id: &str,
     object_key: &str,
-    log_context: &str,
-) -> bool {
-    if let Err(error) = delete_object(s3_client, bucket, object_key).await {
-        warn!("{log_context} phase=delete error=\"{error}\"");
-        return false;
-    }
+) -> CleanupObjectReport {
+    let delete_started = Instant::now();
+    let delete_result = delete_object_with_outcome(s3_client, bucket, object_key).await;
+    let delete_ms = delete_started.elapsed().as_millis();
 
-    if let Err(error) = invalidate_cloudfront(cloudfront_client, distribution_id, object_key).await
-    {
-        warn!("{log_context} phase=invalidate error=\"{error}\"");
-        return false;
-    }
+    let delete_outcome = match delete_result {
+        Ok(outcome) => outcome,
+        Err(error) => {
+            return CleanupObjectReport {
+                outcome: CleanupObjectOutcome::Failed,
+                delete_outcome: CleanupObjectOutcome::Failed,
+                delete_ms,
+                invalidate_ms: None,
+                delete_error: Some(error),
+                invalidate_error: None,
+            };
+        }
+    };
 
-    true
+    let invalidate_started = Instant::now();
+    match invalidate_cloudfront_with_context(cloudfront_client, distribution_id, object_key).await {
+        Ok(_) => CleanupObjectReport {
+            outcome: delete_outcome,
+            delete_outcome,
+            delete_ms,
+            invalidate_ms: Some(invalidate_started.elapsed().as_millis()),
+            delete_error: None,
+            invalidate_error: None,
+        },
+        Err(error) => CleanupObjectReport {
+            outcome: CleanupObjectOutcome::Failed,
+            delete_outcome,
+            delete_ms,
+            invalidate_ms: Some(invalidate_started.elapsed().as_millis()),
+            delete_error: None,
+            invalidate_error: Some(error),
+        },
+    }
 }
 
 /// Compute the temporary S3 key for an upload
