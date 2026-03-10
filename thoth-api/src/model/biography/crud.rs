@@ -3,7 +3,6 @@ use super::{
     Biography, BiographyField, BiographyHistory, BiographyOrderBy, NewBiography,
     NewBiographyHistory, PatchBiography,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{biography, biography_history};
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
@@ -65,26 +64,11 @@ impl Crud for Biography {
             .into_boxed();
 
         query = match order.field {
-            BiographyField::BiographyId => match order.direction {
-                Direction::Asc => query.order(biography_id.asc()),
-                Direction::Desc => query.order(biography_id.desc()),
-            },
-            BiographyField::ContributionId => match order.direction {
-                Direction::Asc => query.order(contribution_id.asc()),
-                Direction::Desc => query.order(contribution_id.desc()),
-            },
-            BiographyField::Content => match order.direction {
-                Direction::Asc => query.order(content.asc()),
-                Direction::Desc => query.order(content.desc()),
-            },
-            BiographyField::Canonical => match order.direction {
-                Direction::Asc => query.order(canonical.asc()),
-                Direction::Desc => query.order(canonical.desc()),
-            },
-            BiographyField::LocaleCode => match order.direction {
-                Direction::Asc => query.order(locale_code.asc()),
-                Direction::Desc => query.order(locale_code.desc()),
-            },
+            BiographyField::BiographyId => apply_directional_order!(query, order.direction, order, biography_id),
+            BiographyField::ContributionId => apply_directional_order!(query, order.direction, order, contribution_id),
+            BiographyField::Content => apply_directional_order!(query, order.direction, order, content),
+            BiographyField::Canonical => apply_directional_order!(query, order.direction, order, canonical),
+            BiographyField::LocaleCode => apply_directional_order!(query, order.direction, order, locale_code),
         };
 
         if let Some(filter) = filter {

@@ -3,7 +3,6 @@ use super::{
     AdditionalResourceOrderBy, NewAdditionalResource, NewAdditionalResourceHistory,
     PatchAdditionalResource,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{additional_resource, additional_resource_history};
 use diesel::{
@@ -48,50 +47,17 @@ impl Crud for AdditionalResource {
             .into_boxed();
 
         query = match order.field {
-            AdditionalResourceField::AdditionalResourceId => match order.direction {
-                Direction::Asc => query.order(additional_resource_id.asc()),
-                Direction::Desc => query.order(additional_resource_id.desc()),
-            },
-            AdditionalResourceField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
-            },
-            AdditionalResourceField::ResourceOrdinal => match order.direction {
-                Direction::Asc => query.order(resource_ordinal.asc()),
-                Direction::Desc => query.order(resource_ordinal.desc()),
-            },
-            AdditionalResourceField::Title => match order.direction {
-                Direction::Asc => query.order(title.asc()),
-                Direction::Desc => query.order(title.desc()),
-            },
-            AdditionalResourceField::Attribution => match order.direction {
-                Direction::Asc => query.order(attribution.asc()),
-                Direction::Desc => query.order(attribution.desc()),
-            },
-            AdditionalResourceField::ResourceType => match order.direction {
-                Direction::Asc => query.order(resource_type.asc()),
-                Direction::Desc => query.order(resource_type.desc()),
-            },
-            AdditionalResourceField::Doi => match order.direction {
-                Direction::Asc => query.order(doi.asc()),
-                Direction::Desc => query.order(doi.desc()),
-            },
-            AdditionalResourceField::Handle => match order.direction {
-                Direction::Asc => query.order(handle.asc()),
-                Direction::Desc => query.order(handle.desc()),
-            },
-            AdditionalResourceField::Url => match order.direction {
-                Direction::Asc => query.order(url.asc()),
-                Direction::Desc => query.order(url.desc()),
-            },
-            AdditionalResourceField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            AdditionalResourceField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            AdditionalResourceField::AdditionalResourceId => apply_directional_order!(query, order.direction, order, additional_resource_id),
+            AdditionalResourceField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
+            AdditionalResourceField::ResourceOrdinal => apply_directional_order!(query, order.direction, order, resource_ordinal),
+            AdditionalResourceField::Title => apply_directional_order!(query, order.direction, order, title),
+            AdditionalResourceField::Attribution => apply_directional_order!(query, order.direction, order, attribution),
+            AdditionalResourceField::ResourceType => apply_directional_order!(query, order.direction, order, resource_type),
+            AdditionalResourceField::Doi => apply_directional_order!(query, order.direction, order, doi),
+            AdditionalResourceField::Handle => apply_directional_order!(query, order.direction, order, handle),
+            AdditionalResourceField::Url => apply_directional_order!(query, order.direction, order, url),
+            AdditionalResourceField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
+            AdditionalResourceField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
         };
 
         if !publishers.is_empty() {

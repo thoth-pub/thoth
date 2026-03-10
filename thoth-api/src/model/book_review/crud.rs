@@ -2,7 +2,6 @@ use super::{
     BookReview, BookReviewField, BookReviewHistory, BookReviewOrderBy, NewBookReview,
     NewBookReviewHistory, PatchBookReview,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{book_review, book_review_history};
 use diesel::{
@@ -47,42 +46,15 @@ impl Crud for BookReview {
             .into_boxed();
 
         query = match order.field {
-            BookReviewField::BookReviewId => match order.direction {
-                Direction::Asc => query.order(book_review_id.asc()),
-                Direction::Desc => query.order(book_review_id.desc()),
-            },
-            BookReviewField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
-            },
-            BookReviewField::ReviewOrdinal => match order.direction {
-                Direction::Asc => query.order(review_ordinal.asc()),
-                Direction::Desc => query.order(review_ordinal.desc()),
-            },
-            BookReviewField::Title => match order.direction {
-                Direction::Asc => query.order(title.asc()),
-                Direction::Desc => query.order(title.desc()),
-            },
-            BookReviewField::AuthorName => match order.direction {
-                Direction::Asc => query.order(author_name.asc()),
-                Direction::Desc => query.order(author_name.desc()),
-            },
-            BookReviewField::JournalName => match order.direction {
-                Direction::Asc => query.order(journal_name.asc()),
-                Direction::Desc => query.order(journal_name.desc()),
-            },
-            BookReviewField::ReviewDate => match order.direction {
-                Direction::Asc => query.order(review_date.asc()),
-                Direction::Desc => query.order(review_date.desc()),
-            },
-            BookReviewField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            BookReviewField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            BookReviewField::BookReviewId => apply_directional_order!(query, order.direction, order, book_review_id),
+            BookReviewField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
+            BookReviewField::ReviewOrdinal => apply_directional_order!(query, order.direction, order, review_ordinal),
+            BookReviewField::Title => apply_directional_order!(query, order.direction, order, title),
+            BookReviewField::AuthorName => apply_directional_order!(query, order.direction, order, author_name),
+            BookReviewField::JournalName => apply_directional_order!(query, order.direction, order, journal_name),
+            BookReviewField::ReviewDate => apply_directional_order!(query, order.direction, order, review_date),
+            BookReviewField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
+            BookReviewField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
         };
 
         if !publishers.is_empty() {

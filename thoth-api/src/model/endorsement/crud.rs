@@ -2,7 +2,6 @@ use super::{
     Endorsement, EndorsementField, EndorsementHistory, EndorsementOrderBy, NewEndorsement,
     NewEndorsementHistory, PatchEndorsement,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{endorsement, endorsement_history};
 use diesel::{
@@ -47,38 +46,14 @@ impl Crud for Endorsement {
             .into_boxed();
 
         query = match order.field {
-            EndorsementField::EndorsementId => match order.direction {
-                Direction::Asc => query.order(endorsement_id.asc()),
-                Direction::Desc => query.order(endorsement_id.desc()),
-            },
-            EndorsementField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
-            },
-            EndorsementField::EndorsementOrdinal => match order.direction {
-                Direction::Asc => query.order(endorsement_ordinal.asc()),
-                Direction::Desc => query.order(endorsement_ordinal.desc()),
-            },
-            EndorsementField::AuthorName => match order.direction {
-                Direction::Asc => query.order(author_name.asc()),
-                Direction::Desc => query.order(author_name.desc()),
-            },
-            EndorsementField::AuthorRole => match order.direction {
-                Direction::Asc => query.order(author_role.asc()),
-                Direction::Desc => query.order(author_role.desc()),
-            },
-            EndorsementField::Url => match order.direction {
-                Direction::Asc => query.order(url.asc()),
-                Direction::Desc => query.order(url.desc()),
-            },
-            EndorsementField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            EndorsementField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            EndorsementField::EndorsementId => apply_directional_order!(query, order.direction, order, endorsement_id),
+            EndorsementField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
+            EndorsementField::EndorsementOrdinal => apply_directional_order!(query, order.direction, order, endorsement_ordinal),
+            EndorsementField::AuthorName => apply_directional_order!(query, order.direction, order, author_name),
+            EndorsementField::AuthorRole => apply_directional_order!(query, order.direction, order, author_role),
+            EndorsementField::Url => apply_directional_order!(query, order.direction, order, url),
+            EndorsementField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
+            EndorsementField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
         };
 
         if !publishers.is_empty() {

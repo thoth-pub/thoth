@@ -2,7 +2,6 @@ use super::{
     NewSeries, NewSeriesHistory, PatchSeries, Series, SeriesField, SeriesHistory, SeriesOrderBy,
     SeriesType,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{series, series_history};
 use diesel::{
@@ -46,46 +45,16 @@ impl Crud for Series {
             .into_boxed();
 
         query = match order.field {
-            SeriesField::SeriesId => match order.direction {
-                Direction::Asc => query.order(series_id.asc()),
-                Direction::Desc => query.order(series_id.desc()),
-            },
-            SeriesField::SeriesType => match order.direction {
-                Direction::Asc => query.order(series_type.asc()),
-                Direction::Desc => query.order(series_type.desc()),
-            },
-            SeriesField::SeriesName => match order.direction {
-                Direction::Asc => query.order(series_name.asc()),
-                Direction::Desc => query.order(series_name.desc()),
-            },
-            SeriesField::IssnPrint => match order.direction {
-                Direction::Asc => query.order(issn_print.asc()),
-                Direction::Desc => query.order(issn_print.desc()),
-            },
-            SeriesField::IssnDigital => match order.direction {
-                Direction::Asc => query.order(issn_digital.asc()),
-                Direction::Desc => query.order(issn_digital.desc()),
-            },
-            SeriesField::SeriesUrl => match order.direction {
-                Direction::Asc => query.order(series_url.asc()),
-                Direction::Desc => query.order(series_url.desc()),
-            },
-            SeriesField::SeriesDescription => match order.direction {
-                Direction::Asc => query.order(series_description.asc()),
-                Direction::Desc => query.order(series_description.desc()),
-            },
-            SeriesField::SeriesCfpUrl => match order.direction {
-                Direction::Asc => query.order(series_cfp_url.asc()),
-                Direction::Desc => query.order(series_cfp_url.desc()),
-            },
-            SeriesField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            SeriesField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            SeriesField::SeriesId => apply_directional_order!(query, order.direction, order, series_id),
+            SeriesField::SeriesType => apply_directional_order!(query, order.direction, order, series_type),
+            SeriesField::SeriesName => apply_directional_order!(query, order.direction, order, series_name),
+            SeriesField::IssnPrint => apply_directional_order!(query, order.direction, order, issn_print),
+            SeriesField::IssnDigital => apply_directional_order!(query, order.direction, order, issn_digital),
+            SeriesField::SeriesUrl => apply_directional_order!(query, order.direction, order, series_url),
+            SeriesField::SeriesDescription => apply_directional_order!(query, order.direction, order, series_description),
+            SeriesField::SeriesCfpUrl => apply_directional_order!(query, order.direction, order, series_cfp_url),
+            SeriesField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
+            SeriesField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

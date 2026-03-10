@@ -2,7 +2,6 @@ use super::{
     LocaleCode, NewTitle, NewTitleHistory, PatchTitle, Title, TitleField, TitleHistory,
     TitleOrderBy,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{title_history, work_title};
 use diesel::{
@@ -60,34 +59,13 @@ impl Crud for Title {
             .into_boxed();
 
         query = match order.field {
-            TitleField::TitleId => match order.direction {
-                Direction::Asc => query.order(title_id.asc()),
-                Direction::Desc => query.order(title_id.desc()),
-            },
-            TitleField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
-            },
-            TitleField::LocaleCode => match order.direction {
-                Direction::Asc => query.order(locale_code.asc()),
-                Direction::Desc => query.order(locale_code.desc()),
-            },
-            TitleField::FullTitle => match order.direction {
-                Direction::Asc => query.order(full_title.asc()),
-                Direction::Desc => query.order(full_title.desc()),
-            },
-            TitleField::Title => match order.direction {
-                Direction::Asc => query.order(title.asc()),
-                Direction::Desc => query.order(title.desc()),
-            },
-            TitleField::Subtitle => match order.direction {
-                Direction::Asc => query.order(subtitle.asc()),
-                Direction::Desc => query.order(subtitle.desc()),
-            },
-            TitleField::Canonical => match order.direction {
-                Direction::Asc => query.order(canonical.asc()),
-                Direction::Desc => query.order(canonical.desc()),
-            },
+            TitleField::TitleId => apply_directional_order!(query, order.direction, order, title_id),
+            TitleField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
+            TitleField::LocaleCode => apply_directional_order!(query, order.direction, order, locale_code),
+            TitleField::FullTitle => apply_directional_order!(query, order.direction, order, full_title),
+            TitleField::Title => apply_directional_order!(query, order.direction, order, title),
+            TitleField::Subtitle => apply_directional_order!(query, order.direction, order, subtitle),
+            TitleField::Canonical => apply_directional_order!(query, order.direction, order, canonical),
         };
 
         if let Some(filter) = filter {

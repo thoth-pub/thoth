@@ -2,7 +2,6 @@ use super::{
     Location, LocationField, LocationHistory, LocationOrderBy, LocationPlatform, NewLocation,
     NewLocationHistory, PatchLocation,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{location, location_history};
 use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
@@ -47,38 +46,14 @@ impl Crud for Location {
                 .into_boxed();
 
         query = match order.field {
-            LocationField::LocationId => match order.direction {
-                Direction::Asc => query.order(location_id.asc()),
-                Direction::Desc => query.order(location_id.desc()),
-            },
-            LocationField::PublicationId => match order.direction {
-                Direction::Asc => query.order(publication_id.asc()),
-                Direction::Desc => query.order(publication_id.desc()),
-            },
-            LocationField::LandingPage => match order.direction {
-                Direction::Asc => query.order(landing_page.asc()),
-                Direction::Desc => query.order(landing_page.desc()),
-            },
-            LocationField::FullTextUrl => match order.direction {
-                Direction::Asc => query.order(full_text_url.asc()),
-                Direction::Desc => query.order(full_text_url.desc()),
-            },
-            LocationField::LocationPlatform => match order.direction {
-                Direction::Asc => query.order(location_platform.asc()),
-                Direction::Desc => query.order(location_platform.desc()),
-            },
-            LocationField::Canonical => match order.direction {
-                Direction::Asc => query.order(canonical.asc()),
-                Direction::Desc => query.order(canonical.desc()),
-            },
-            LocationField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            LocationField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            LocationField::LocationId => apply_directional_order!(query, order.direction, order, location_id),
+            LocationField::PublicationId => apply_directional_order!(query, order.direction, order, publication_id),
+            LocationField::LandingPage => apply_directional_order!(query, order.direction, order, landing_page),
+            LocationField::FullTextUrl => apply_directional_order!(query, order.direction, order, full_text_url),
+            LocationField::LocationPlatform => apply_directional_order!(query, order.direction, order, location_platform),
+            LocationField::Canonical => apply_directional_order!(query, order.direction, order, canonical),
+            LocationField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
+            LocationField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

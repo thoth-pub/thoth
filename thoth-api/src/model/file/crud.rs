@@ -290,21 +290,36 @@ impl File {
             .collect()
     }
 
+    fn to_pending_upload_cleanup_candidates(uploads: Vec<FileUpload>) -> Vec<FileCleanupCandidate> {
+        uploads
+            .into_iter()
+            .map(|upload| FileCleanupCandidate {
+                file_type: upload.file_type,
+                object_key: temp_key(&upload.file_upload_id),
+            })
+            .collect()
+    }
+
     pub fn cleanup_candidates_for_publication(
         db: &PgPool,
         publication_id: &Uuid,
     ) -> ThothResult<Vec<FileCleanupCandidate>> {
-        use crate::schema::file::dsl as file_dsl;
+        use crate::schema::{file::dsl as file_dsl, file_upload::dsl as file_upload_dsl};
 
         let mut connection = db.get()?;
         let files = file_dsl::file
             .filter(file_dsl::publication_id.eq(Some(*publication_id)))
             .load::<File>(&mut connection)
             .map_err(ThothError::from)?;
+        let uploads = file_upload_dsl::file_upload
+            .filter(file_upload_dsl::publication_id.eq(Some(*publication_id)))
+            .load::<FileUpload>(&mut connection)
+            .map_err(ThothError::from)?;
 
-        Ok(Self::deduplicate_cleanup_candidates(
-            Self::to_cleanup_candidates(files),
-        ))
+        let mut candidates = Self::to_cleanup_candidates(files);
+        candidates.extend(Self::to_pending_upload_cleanup_candidates(uploads));
+
+        Ok(Self::deduplicate_cleanup_candidates(candidates))
     }
 
     pub fn cleanup_candidates_for_work(
@@ -342,6 +357,13 @@ impl File {
             .load::<File>(&mut connection)
             .map_err(ThothError::from)?;
         candidates.extend(Self::to_cleanup_candidates(direct_work_files));
+        let direct_work_uploads = crate::schema::file_upload::dsl::file_upload
+            .filter(crate::schema::file_upload::dsl::work_id.eq(Some(*work_id)))
+            .load::<FileUpload>(&mut connection)
+            .map_err(ThothError::from)?;
+        candidates.extend(Self::to_pending_upload_cleanup_candidates(
+            direct_work_uploads,
+        ));
 
         if !publication_ids.is_empty() {
             let publication_files = crate::schema::file::dsl::file
@@ -349,6 +371,13 @@ impl File {
                 .load::<File>(&mut connection)
                 .map_err(ThothError::from)?;
             candidates.extend(Self::to_cleanup_candidates(publication_files));
+            let publication_uploads = crate::schema::file_upload::dsl::file_upload
+                .filter(crate::schema::file_upload::dsl::publication_id.eq_any(&publication_ids))
+                .load::<FileUpload>(&mut connection)
+                .map_err(ThothError::from)?;
+            candidates.extend(Self::to_pending_upload_cleanup_candidates(
+                publication_uploads,
+            ));
         }
 
         if !additional_resource_ids.is_empty() {
@@ -360,6 +389,16 @@ impl File {
                 .load::<File>(&mut connection)
                 .map_err(ThothError::from)?;
             candidates.extend(Self::to_cleanup_candidates(additional_resource_files));
+            let additional_resource_uploads = crate::schema::file_upload::dsl::file_upload
+                .filter(
+                    crate::schema::file_upload::dsl::additional_resource_id
+                        .eq_any(&additional_resource_ids),
+                )
+                .load::<FileUpload>(&mut connection)
+                .map_err(ThothError::from)?;
+            candidates.extend(Self::to_pending_upload_cleanup_candidates(
+                additional_resource_uploads,
+            ));
         }
 
         if !work_featured_video_ids.is_empty() {
@@ -371,6 +410,16 @@ impl File {
                 .load::<File>(&mut connection)
                 .map_err(ThothError::from)?;
             candidates.extend(Self::to_cleanup_candidates(work_featured_video_files));
+            let work_featured_video_uploads = crate::schema::file_upload::dsl::file_upload
+                .filter(
+                    crate::schema::file_upload::dsl::work_featured_video_id
+                        .eq_any(&work_featured_video_ids),
+                )
+                .load::<FileUpload>(&mut connection)
+                .map_err(ThothError::from)?;
+            candidates.extend(Self::to_pending_upload_cleanup_candidates(
+                work_featured_video_uploads,
+            ));
         }
 
         Ok(Self::deduplicate_cleanup_candidates(candidates))

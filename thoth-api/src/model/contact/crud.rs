@@ -2,7 +2,6 @@ use super::{
     Contact, ContactField, ContactHistory, ContactOrderBy, ContactType, NewContact,
     NewContactHistory, PatchContact,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{contact, contact_history};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
@@ -41,30 +40,12 @@ impl Crud for Contact {
         let mut query = contact.into_boxed();
 
         query = match order.field {
-            ContactField::ContactId => match order.direction {
-                Direction::Asc => query.order(contact_id.asc()),
-                Direction::Desc => query.order(contact_id.desc()),
-            },
-            ContactField::PublisherId => match order.direction {
-                Direction::Asc => query.order(publisher_id.asc()),
-                Direction::Desc => query.order(publisher_id.desc()),
-            },
-            ContactField::ContactType => match order.direction {
-                Direction::Asc => query.order(contact_type.asc()),
-                Direction::Desc => query.order(contact_type.desc()),
-            },
-            ContactField::Email => match order.direction {
-                Direction::Asc => query.order(email.asc()),
-                Direction::Desc => query.order(email.desc()),
-            },
-            ContactField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            ContactField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            ContactField::ContactId => apply_directional_order!(query, order.direction, order, contact_id),
+            ContactField::PublisherId => apply_directional_order!(query, order.direction, order, publisher_id),
+            ContactField::ContactType => apply_directional_order!(query, order.direction, order, contact_type),
+            ContactField::Email => apply_directional_order!(query, order.direction, order, email),
+            ContactField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
+            ContactField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
         };
         if !publishers.is_empty() {
             query = query.filter(publisher_id.eq_any(publishers));

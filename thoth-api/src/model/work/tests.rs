@@ -1349,6 +1349,161 @@ mod crud {
     }
 
     #[test]
+    fn crud_ordering_by_publication_date_respects_direction() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let context = test_context(pool.clone(), "work-order-user");
+
+        let first = Work::create(pool.as_ref(), &make_new_work(imprint.imprint_id))
+            .expect("Failed to create first work");
+        let second = Work::create(pool.as_ref(), &make_new_work(imprint.imprint_id))
+            .expect("Failed to create second work");
+
+        let mut by_id = [first, second];
+        by_id.sort_by_key(|work| work.work_id);
+
+        let mut newer_patch: PatchWork = by_id[0].clone().into();
+        newer_patch.work_status = WorkStatus::Active;
+        newer_patch.publication_date = NaiveDate::from_ymd_opt(2025, 1, 1);
+        by_id[0]
+            .update(&context, &newer_patch)
+            .expect("Failed to update newer work");
+
+        let mut older_patch: PatchWork = by_id[1].clone().into();
+        older_patch.work_status = WorkStatus::Active;
+        older_patch.publication_date = NaiveDate::from_ymd_opt(2020, 1, 1);
+        by_id[1]
+            .update(&context, &older_patch)
+            .expect("Failed to update older work");
+
+        let asc = Work::all(
+            pool.as_ref(),
+            2,
+            0,
+            None,
+            WorkOrderBy {
+                field: WorkField::PublicationDate,
+                direction: Direction::Asc,
+            },
+            vec![],
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to order works by publication date (asc)");
+
+        let desc = Work::all(
+            pool.as_ref(),
+            2,
+            0,
+            None,
+            WorkOrderBy {
+                field: WorkField::PublicationDate,
+                direction: Direction::Desc,
+            },
+            vec![],
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to order works by publication date (desc)");
+
+        assert_eq!(asc[0].work_id, by_id[1].work_id);
+        assert_eq!(desc[0].work_id, by_id[0].work_id);
+    }
+
+    #[test]
+    fn crud_ordering_by_full_title_respects_direction() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+
+        let first = Work::create(pool.as_ref(), &make_new_work(imprint.imprint_id))
+            .expect("Failed to create first work");
+        let second = Work::create(pool.as_ref(), &make_new_work(imprint.imprint_id))
+            .expect("Failed to create second work");
+
+        let mut by_id = [first, second];
+        by_id.sort_by_key(|work| work.work_id);
+
+        Title::create(
+            pool.as_ref(),
+            &NewTitle {
+                work_id: by_id[0].work_id,
+                locale_code: LocaleCode::En,
+                full_title: "Zulu".to_string(),
+                title: "Zulu".to_string(),
+                subtitle: None,
+                canonical: true,
+            },
+        )
+        .expect("Failed to create first title");
+
+        Title::create(
+            pool.as_ref(),
+            &NewTitle {
+                work_id: by_id[1].work_id,
+                locale_code: LocaleCode::En,
+                full_title: "Alpha".to_string(),
+                title: "Alpha".to_string(),
+                subtitle: None,
+                canonical: true,
+            },
+        )
+        .expect("Failed to create second title");
+
+        let asc = Work::all(
+            pool.as_ref(),
+            2,
+            0,
+            None,
+            WorkOrderBy {
+                field: WorkField::FullTitle,
+                direction: Direction::Asc,
+            },
+            vec![],
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to order works by full title (asc)");
+
+        let desc = Work::all(
+            pool.as_ref(),
+            2,
+            0,
+            None,
+            WorkOrderBy {
+                field: WorkField::FullTitle,
+                direction: Direction::Desc,
+            },
+            vec![],
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to order works by full title (desc)");
+
+        assert_eq!(asc[0].work_id, by_id[1].work_id);
+        assert_eq!(desc[0].work_id, by_id[0].work_id);
+    }
+
+    #[test]
     fn crud_from_doi_respects_case_and_type_filter() {
         let (_guard, pool) = setup_test_db();
 
@@ -1685,6 +1840,76 @@ mod crud {
         .expect("Failed to count works by title/abstract");
 
         assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn crud_filter_by_title_does_not_duplicate_rows() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let marker = format!("Duplicate Marker {}", Uuid::new_v4());
+        let work = create_work(pool.as_ref(), &imprint);
+
+        Title::create(
+            pool.as_ref(),
+            &NewTitle {
+                work_id: work.work_id,
+                locale_code: LocaleCode::En,
+                full_title: format!("Title {marker} canonical"),
+                title: "Canonical".to_string(),
+                subtitle: None,
+                canonical: true,
+            },
+        )
+        .expect("Failed to create canonical title");
+        Title::create(
+            pool.as_ref(),
+            &NewTitle {
+                work_id: work.work_id,
+                locale_code: LocaleCode::Fr,
+                full_title: format!("Title {marker} alternate"),
+                title: "Alternate".to_string(),
+                subtitle: None,
+                canonical: false,
+            },
+        )
+        .expect("Failed to create alternate title");
+
+        let filtered = Work::all(
+            pool.as_ref(),
+            10,
+            0,
+            Some(marker.clone()),
+            WorkOrderBy {
+                field: WorkField::WorkId,
+                direction: Direction::Asc,
+            },
+            vec![],
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to filter works by title");
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].work_id, work.work_id);
+
+        let count = Work::count(
+            pool.as_ref(),
+            Some(marker),
+            vec![],
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to count works by title");
+
+        assert_eq!(count, 1);
     }
 
     #[test]

@@ -644,6 +644,44 @@ macro_rules! crud_methods {
     };
 }
 
+/// Helper macro to apply an `order`/`order_by` clause based on `Direction`.
+///
+/// This supports both plain ordering by a single expression and ordering by a
+/// primary expression with a stable secondary tie-breaker.
+///
+/// # Parameters
+/// - `$query`: mutable Diesel query builder identifier
+/// - `$direction`: a `Direction` value (`Asc` or `Desc`)
+/// - `$method`: either `order` or `order_by`
+/// - `$primary`: primary Diesel expression to sort by
+/// - `$secondary`: optional secondary Diesel expression; always sorted ascending
+///
+/// # Examples
+/// ```ignore
+/// apply_directional_order!(query, order.direction, order, dsl::publisher_name);
+/// apply_directional_order!(query, order.direction, order_by, dsl::work_type, dsl::work_id);
+/// ```
+#[cfg(feature = "backend")]
+#[macro_export]
+macro_rules! apply_directional_order {
+    ($query:ident, $direction:expr, $method:ident, $primary:expr) => {
+        match $direction {
+            $crate::graphql::types::inputs::Direction::Asc => $query.$method($primary.asc()),
+            $crate::graphql::types::inputs::Direction::Desc => $query.$method($primary.desc()),
+        }
+    };
+    ($query:ident, $direction:expr, $method:ident, $primary:expr, $secondary:expr) => {
+        match $direction {
+            $crate::graphql::types::inputs::Direction::Asc => {
+                $query.$method(($primary.asc(), $secondary.asc()))
+            }
+            $crate::graphql::types::inputs::Direction::Desc => {
+                $query.$method(($primary.desc(), $secondary.asc()))
+            }
+        }
+    };
+}
+
 /// Helper macro to apply an optional `TimeExpression` filter to a Diesel query.
 ///
 /// This variant accepts a **converter** so you can adapt your internal timestamp

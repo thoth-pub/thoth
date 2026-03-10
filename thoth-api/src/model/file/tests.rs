@@ -69,6 +69,40 @@ fn make_new_publication_upload(
 }
 
 #[cfg(feature = "backend")]
+fn make_new_additional_resource_upload(
+    additional_resource_id: Uuid,
+    extension: impl Into<String>,
+) -> NewFileUpload {
+    NewFileUpload {
+        file_type: FileType::AdditionalResource,
+        work_id: None,
+        publication_id: None,
+        additional_resource_id: Some(additional_resource_id),
+        work_featured_video_id: None,
+        declared_mime_type: "application/json".to_string(),
+        declared_extension: extension.into(),
+        declared_sha256: TEST_SHA256_HEX.to_string(),
+    }
+}
+
+#[cfg(feature = "backend")]
+fn make_new_work_featured_video_upload(
+    work_featured_video_id: Uuid,
+    extension: impl Into<String>,
+) -> NewFileUpload {
+    NewFileUpload {
+        file_type: FileType::WorkFeaturedVideo,
+        work_id: None,
+        publication_id: None,
+        additional_resource_id: None,
+        work_featured_video_id: Some(work_featured_video_id),
+        declared_mime_type: "video/mp4".to_string(),
+        declared_extension: extension.into(),
+        declared_sha256: TEST_SHA256_HEX.to_string(),
+    }
+}
+
+#[cfg(feature = "backend")]
 fn create_pdf_publication(
     pool: &crate::db::PgPool,
     work_id: Uuid,
@@ -774,6 +808,7 @@ mod policy {
 #[cfg(feature = "backend")]
 mod crud {
     use super::*;
+    use crate::model::publication::Publication;
     use crate::model::tests::db::{
         create_imprint, create_publisher, create_work, setup_test_db, test_context,
         test_context_with_user, test_user_with_role,
@@ -781,6 +816,7 @@ mod crud {
     use crate::model::work::Work;
     use crate::model::{Crud, Doi, PublisherId};
     use crate::policy::Role;
+    use crate::storage::temp_key;
     use std::str::FromStr;
     use thoth_errors::ThothError;
 
@@ -827,6 +863,121 @@ mod crud {
             .delete(pool.as_ref())
             .expect("Failed to delete file upload");
         assert!(FileUpload::from_id(pool.as_ref(), &deleted.file_upload_id).is_err());
+    }
+
+    #[test]
+    fn delete_publication_cascades_associated_file_and_upload_rows() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_pdf_publication(pool.as_ref(), work.work_id);
+        let publication_id = publication.publication_id;
+
+        let file = File::create(
+            pool.as_ref(),
+            &make_new_publication_file(
+                publication.publication_id,
+                format!("10.1234/{}/publication.pdf", Uuid::new_v4()),
+            ),
+        )
+        .expect("Failed to create publication file");
+        let upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_publication_upload(publication.publication_id, "pdf"),
+        )
+        .expect("Failed to create publication file upload");
+
+        publication
+            .delete(pool.as_ref())
+            .expect("Failed to delete publication");
+
+        assert!(Publication::from_id(pool.as_ref(), &publication_id).is_err());
+        assert!(File::from_id(pool.as_ref(), &file.file_id).is_err());
+        assert!(FileUpload::from_id(pool.as_ref(), &upload.file_upload_id).is_err());
+    }
+
+    #[test]
+    fn delete_work_cascades_all_associated_file_and_upload_rows() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let work_id = work.work_id;
+        let publication = create_pdf_publication(pool.as_ref(), work.work_id);
+        let additional_resource = create_additional_resource(pool.as_ref(), work.work_id);
+        let featured_video = create_work_featured_video(pool.as_ref(), work.work_id);
+
+        let cover_file = File::create(
+            pool.as_ref(),
+            &make_new_frontcover_file(
+                work.work_id,
+                format!("10.1234/{}/cover.jpg", Uuid::new_v4()),
+            ),
+        )
+        .expect("Failed to create frontcover file");
+        let publication_file = File::create(
+            pool.as_ref(),
+            &make_new_publication_file(
+                publication.publication_id,
+                format!("10.1234/{}/publication.pdf", Uuid::new_v4()),
+            ),
+        )
+        .expect("Failed to create publication file");
+        let resource_file = File::create(
+            pool.as_ref(),
+            &make_new_additional_resource_file(
+                additional_resource.additional_resource_id,
+                format!("10.1234/{}/resources/data.json", Uuid::new_v4()),
+            ),
+        )
+        .expect("Failed to create additional-resource file");
+        let featured_file = File::create(
+            pool.as_ref(),
+            &make_new_work_featured_video_file(
+                featured_video.work_featured_video_id,
+                format!("10.1234/{}/resources/featured.mp4", Uuid::new_v4()),
+            ),
+        )
+        .expect("Failed to create featured-video file");
+
+        let cover_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_frontcover_upload(work.work_id, "jpg"),
+        )
+        .expect("Failed to create frontcover upload");
+        let publication_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_publication_upload(publication.publication_id, "pdf"),
+        )
+        .expect("Failed to create publication upload");
+        let resource_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_additional_resource_upload(
+                additional_resource.additional_resource_id,
+                "json",
+            ),
+        )
+        .expect("Failed to create additional-resource upload");
+        let featured_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_work_featured_video_upload(featured_video.work_featured_video_id, "mp4"),
+        )
+        .expect("Failed to create featured-video upload");
+
+        work.delete(pool.as_ref()).expect("Failed to delete work");
+
+        assert!(Work::from_id(pool.as_ref(), &work_id).is_err());
+        assert!(File::from_id(pool.as_ref(), &cover_file.file_id).is_err());
+        assert!(File::from_id(pool.as_ref(), &publication_file.file_id).is_err());
+        assert!(File::from_id(pool.as_ref(), &resource_file.file_id).is_err());
+        assert!(File::from_id(pool.as_ref(), &featured_file.file_id).is_err());
+        assert!(FileUpload::from_id(pool.as_ref(), &cover_upload.file_upload_id).is_err());
+        assert!(FileUpload::from_id(pool.as_ref(), &publication_upload.file_upload_id).is_err());
+        assert!(FileUpload::from_id(pool.as_ref(), &resource_upload.file_upload_id).is_err());
+        assert!(FileUpload::from_id(pool.as_ref(), &featured_upload.file_upload_id).is_err());
     }
 
     #[test]
@@ -1146,7 +1297,7 @@ mod crud {
     }
 
     #[test]
-    fn cleanup_candidates_for_publication_returns_publication_files() {
+    fn cleanup_candidates_for_publication_includes_file_and_pending_upload() {
         let (_guard, pool) = setup_test_db();
         let publisher = create_publisher(pool.as_ref());
         let imprint = create_imprint(pool.as_ref(), &publisher);
@@ -1159,17 +1310,27 @@ mod crud {
             &make_new_publication_file(publication.publication_id, &object_key),
         )
         .expect("Failed to create publication file");
+        let upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_publication_upload(publication.publication_id, "pdf"),
+        )
+        .expect("Failed to create publication upload");
 
         let candidates =
             File::cleanup_candidates_for_publication(pool.as_ref(), &publication.publication_id)
                 .expect("Failed to load publication cleanup candidates");
-        assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].file_type, FileType::Publication);
-        assert_eq!(candidates[0].object_key, object_key);
+        assert_eq!(candidates.len(), 2);
+        assert!(candidates
+            .iter()
+            .any(|c| c.file_type == FileType::Publication && c.object_key == object_key));
+        assert!(candidates
+            .iter()
+            .any(|c| c.file_type == FileType::Publication
+                && c.object_key == temp_key(&upload.file_upload_id)));
     }
 
     #[test]
-    fn cleanup_candidates_for_work_collects_all_linked_files() {
+    fn cleanup_candidates_for_work_collects_all_linked_files_and_pending_uploads() {
         let (_guard, pool) = setup_test_db();
         let publisher = create_publisher(pool.as_ref());
         let imprint = create_imprint(pool.as_ref(), &publisher);
@@ -1209,16 +1370,51 @@ mod crud {
             ),
         )
         .expect("Failed to create featured-video file");
+        let cover_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_frontcover_upload(work.work_id, "jpg"),
+        )
+        .expect("Failed to create frontcover upload");
+        let publication_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_publication_upload(publication.publication_id, "pdf"),
+        )
+        .expect("Failed to create publication upload");
+        let resource_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_additional_resource_upload(
+                additional_resource.additional_resource_id,
+                "json",
+            ),
+        )
+        .expect("Failed to create additional-resource upload");
+        let featured_video_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_work_featured_video_upload(featured_video.work_featured_video_id, "mp4"),
+        )
+        .expect("Failed to create featured-video upload");
 
         let candidates = File::cleanup_candidates_for_work(pool.as_ref(), &work.work_id)
             .expect("Failed to load");
 
-        assert_eq!(candidates.len(), 4);
+        assert_eq!(candidates.len(), 8);
         assert!(candidates.iter().any(|c| c.object_key == cover_key));
         assert!(candidates.iter().any(|c| c.object_key == publication_key));
         assert!(candidates.iter().any(|c| c.object_key == resource_key));
         assert!(candidates
             .iter()
             .any(|c| c.object_key == featured_video_key));
+        assert!(candidates
+            .iter()
+            .any(|c| c.object_key == temp_key(&cover_upload.file_upload_id)));
+        assert!(candidates
+            .iter()
+            .any(|c| c.object_key == temp_key(&publication_upload.file_upload_id)));
+        assert!(candidates
+            .iter()
+            .any(|c| c.object_key == temp_key(&resource_upload.file_upload_id)));
+        assert!(candidates
+            .iter()
+            .any(|c| c.object_key == temp_key(&featured_video_upload.file_upload_id)));
     }
 }

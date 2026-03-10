@@ -2,7 +2,6 @@ use super::{
     Language, LanguageCode, LanguageField, LanguageHistory, LanguageRelation, NewLanguage,
     NewLanguageHistory, PatchLanguage,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::graphql::types::inputs::LanguageOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{language, language_history};
@@ -45,34 +44,13 @@ impl Crud for Language {
             .into_boxed();
 
         query = match order.field {
-            LanguageField::LanguageId => match order.direction {
-                Direction::Asc => query.order(dsl::language_id.asc()),
-                Direction::Desc => query.order(dsl::language_id.desc()),
-            },
-            LanguageField::WorkId => match order.direction {
-                Direction::Asc => query.order(dsl::work_id.asc()),
-                Direction::Desc => query.order(dsl::work_id.desc()),
-            },
-            LanguageField::LanguageCode => match order.direction {
-                Direction::Asc => query.order(dsl::language_code.asc()),
-                Direction::Desc => query.order(dsl::language_code.desc()),
-            },
-            LanguageField::LanguageRelation => match order.direction {
-                Direction::Asc => query.order(dsl::language_relation.asc()),
-                Direction::Desc => query.order(dsl::language_relation.desc()),
-            },
-            LanguageField::MainLanguage => match order.direction {
-                Direction::Asc => query.order(dsl::main_language.asc()),
-                Direction::Desc => query.order(dsl::main_language.desc()),
-            },
-            LanguageField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(dsl::created_at.asc()),
-                Direction::Desc => query.order(dsl::created_at.desc()),
-            },
-            LanguageField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(dsl::updated_at.asc()),
-                Direction::Desc => query.order(dsl::updated_at.desc()),
-            },
+            LanguageField::LanguageId => apply_directional_order!(query, order.direction, order, dsl::language_id),
+            LanguageField::WorkId => apply_directional_order!(query, order.direction, order, dsl::work_id),
+            LanguageField::LanguageCode => apply_directional_order!(query, order.direction, order, dsl::language_code),
+            LanguageField::LanguageRelation => apply_directional_order!(query, order.direction, order, dsl::language_relation),
+            LanguageField::MainLanguage => apply_directional_order!(query, order.direction, order, dsl::main_language),
+            LanguageField::CreatedAt => apply_directional_order!(query, order.direction, order, dsl::created_at),
+            LanguageField::UpdatedAt => apply_directional_order!(query, order.direction, order, dsl::updated_at),
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

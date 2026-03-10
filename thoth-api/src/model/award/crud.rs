@@ -1,5 +1,4 @@
 use super::{Award, AwardField, AwardHistory, AwardOrderBy, NewAward, NewAwardHistory, PatchAward};
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{award, award_history};
 use diesel::{
@@ -44,38 +43,14 @@ impl Crud for Award {
             .into_boxed();
 
         query = match order.field {
-            AwardField::AwardId => match order.direction {
-                Direction::Asc => query.order(award_id.asc()),
-                Direction::Desc => query.order(award_id.desc()),
-            },
-            AwardField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
-            },
-            AwardField::AwardOrdinal => match order.direction {
-                Direction::Asc => query.order(award_ordinal.asc()),
-                Direction::Desc => query.order(award_ordinal.desc()),
-            },
-            AwardField::Title => match order.direction {
-                Direction::Asc => query.order(title.asc()),
-                Direction::Desc => query.order(title.desc()),
-            },
-            AwardField::Category => match order.direction {
-                Direction::Asc => query.order(category.asc()),
-                Direction::Desc => query.order(category.desc()),
-            },
-            AwardField::Url => match order.direction {
-                Direction::Asc => query.order(url.asc()),
-                Direction::Desc => query.order(url.desc()),
-            },
-            AwardField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            AwardField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            AwardField::AwardId => apply_directional_order!(query, order.direction, order, award_id),
+            AwardField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
+            AwardField::AwardOrdinal => apply_directional_order!(query, order.direction, order, award_ordinal),
+            AwardField::Title => apply_directional_order!(query, order.direction, order, title),
+            AwardField::Category => apply_directional_order!(query, order.direction, order, category),
+            AwardField::Url => apply_directional_order!(query, order.direction, order, url),
+            AwardField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
+            AwardField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
         };
 
         if !publishers.is_empty() {

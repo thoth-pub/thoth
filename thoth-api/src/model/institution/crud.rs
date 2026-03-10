@@ -3,7 +3,6 @@ use super::{
     NewInstitutionHistory, PatchInstitution,
 };
 use crate::db::PgPool;
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherIds};
 use crate::schema::{institution, institution_history};
 use diesel::{
@@ -44,34 +43,13 @@ impl Crud for Institution {
         let mut query = institution.into_boxed();
 
         query = match order.field {
-            InstitutionField::InstitutionId => match order.direction {
-                Direction::Asc => query.order(institution_id.asc()),
-                Direction::Desc => query.order(institution_id.desc()),
-            },
-            InstitutionField::InstitutionName => match order.direction {
-                Direction::Asc => query.order(institution_name.asc()),
-                Direction::Desc => query.order(institution_name.desc()),
-            },
-            InstitutionField::InstitutionDoi => match order.direction {
-                Direction::Asc => query.order(institution_doi.asc()),
-                Direction::Desc => query.order(institution_doi.desc()),
-            },
-            InstitutionField::Ror => match order.direction {
-                Direction::Asc => query.order(ror.asc()),
-                Direction::Desc => query.order(ror.desc()),
-            },
-            InstitutionField::CountryCode => match order.direction {
-                Direction::Asc => query.order(country_code.asc()),
-                Direction::Desc => query.order(country_code.desc()),
-            },
-            InstitutionField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            InstitutionField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            InstitutionField::InstitutionId => apply_directional_order!(query, order.direction, order, institution_id),
+            InstitutionField::InstitutionName => apply_directional_order!(query, order.direction, order, institution_name),
+            InstitutionField::InstitutionDoi => apply_directional_order!(query, order.direction, order, institution_doi),
+            InstitutionField::Ror => apply_directional_order!(query, order.direction, order, ror),
+            InstitutionField::CountryCode => apply_directional_order!(query, order.direction, order, country_code),
+            InstitutionField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
+            InstitutionField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
         };
         if let Some(filter) = filter {
             query = query.filter(

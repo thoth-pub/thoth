@@ -2,7 +2,6 @@ use super::{
     NewWorkFeaturedVideo, NewWorkFeaturedVideoHistory, PatchWorkFeaturedVideo, WorkFeaturedVideo,
     WorkFeaturedVideoField, WorkFeaturedVideoHistory, WorkFeaturedVideoOrderBy,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{work_featured_video, work_featured_video_history};
 use diesel::{
@@ -47,38 +46,14 @@ impl Crud for WorkFeaturedVideo {
             .into_boxed();
 
         query = match order.field {
-            WorkFeaturedVideoField::WorkFeaturedVideoId => match order.direction {
-                Direction::Asc => query.order(work_featured_video_id.asc()),
-                Direction::Desc => query.order(work_featured_video_id.desc()),
-            },
-            WorkFeaturedVideoField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
-            },
-            WorkFeaturedVideoField::Title => match order.direction {
-                Direction::Asc => query.order(title.asc()),
-                Direction::Desc => query.order(title.desc()),
-            },
-            WorkFeaturedVideoField::Url => match order.direction {
-                Direction::Asc => query.order(url.asc()),
-                Direction::Desc => query.order(url.desc()),
-            },
-            WorkFeaturedVideoField::Width => match order.direction {
-                Direction::Asc => query.order(width.asc()),
-                Direction::Desc => query.order(width.desc()),
-            },
-            WorkFeaturedVideoField::Height => match order.direction {
-                Direction::Asc => query.order(height.asc()),
-                Direction::Desc => query.order(height.desc()),
-            },
-            WorkFeaturedVideoField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            WorkFeaturedVideoField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            WorkFeaturedVideoField::WorkFeaturedVideoId => apply_directional_order!(query, order.direction, order, work_featured_video_id),
+            WorkFeaturedVideoField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
+            WorkFeaturedVideoField::Title => apply_directional_order!(query, order.direction, order, title),
+            WorkFeaturedVideoField::Url => apply_directional_order!(query, order.direction, order, url),
+            WorkFeaturedVideoField::Width => apply_directional_order!(query, order.direction, order, width),
+            WorkFeaturedVideoField::Height => apply_directional_order!(query, order.direction, order, height),
+            WorkFeaturedVideoField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
+            WorkFeaturedVideoField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
         };
 
         if !publishers.is_empty() {

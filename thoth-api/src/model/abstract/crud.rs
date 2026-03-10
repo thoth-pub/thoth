@@ -3,7 +3,6 @@ use super::{
     Abstract, AbstractField, AbstractHistory, AbstractOrderBy, AbstractType, NewAbstract,
     NewAbstractHistory, PatchAbstract,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::work_abstract::dsl;
 use crate::schema::{abstract_history, work_abstract};
@@ -74,30 +73,12 @@ impl Crud for Abstract {
             .into_boxed();
 
         query = match order.field {
-            AbstractField::AbstractId => match order.direction {
-                Direction::Asc => query.order(dsl::abstract_id.asc()),
-                Direction::Desc => query.order(dsl::abstract_id.desc()),
-            },
-            AbstractField::WorkId => match order.direction {
-                Direction::Asc => query.order(dsl::work_id.asc()),
-                Direction::Desc => query.order(dsl::work_id.desc()),
-            },
-            AbstractField::LocaleCode => match order.direction {
-                Direction::Asc => query.order(dsl::locale_code.asc()),
-                Direction::Desc => query.order(dsl::locale_code.desc()),
-            },
-            AbstractField::AbstractType => match order.direction {
-                Direction::Asc => query.order(dsl::abstract_type.asc()),
-                Direction::Desc => query.order(dsl::abstract_type.desc()),
-            },
-            AbstractField::Content => match order.direction {
-                Direction::Asc => query.order(dsl::content.asc()),
-                Direction::Desc => query.order(dsl::content.desc()),
-            },
-            AbstractField::Canonical => match order.direction {
-                Direction::Asc => query.order(dsl::canonical.asc()),
-                Direction::Desc => query.order(dsl::canonical.desc()),
-            },
+            AbstractField::AbstractId => apply_directional_order!(query, order.direction, order, dsl::abstract_id),
+            AbstractField::WorkId => apply_directional_order!(query, order.direction, order, dsl::work_id),
+            AbstractField::LocaleCode => apply_directional_order!(query, order.direction, order, dsl::locale_code),
+            AbstractField::AbstractType => apply_directional_order!(query, order.direction, order, dsl::abstract_type),
+            AbstractField::Content => apply_directional_order!(query, order.direction, order, dsl::content),
+            AbstractField::Canonical => apply_directional_order!(query, order.direction, order, dsl::canonical),
         };
 
         if let Some(filter) = filter {

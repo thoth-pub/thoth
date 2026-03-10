@@ -1,5 +1,4 @@
 use super::{Issue, IssueField, IssueHistory, NewIssue, NewIssueHistory, PatchIssue};
-use crate::graphql::types::inputs::Direction;
 use crate::graphql::types::inputs::IssueOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{issue, issue_history};
@@ -42,30 +41,12 @@ impl Crud for Issue {
             .into_boxed();
 
         query = match order.field {
-            IssueField::IssueId => match order.direction {
-                Direction::Asc => query.order(issue_id.asc()),
-                Direction::Desc => query.order(issue_id.desc()),
-            },
-            IssueField::SeriesId => match order.direction {
-                Direction::Asc => query.order(series_id.asc()),
-                Direction::Desc => query.order(series_id.desc()),
-            },
-            IssueField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
-            },
-            IssueField::IssueOrdinal => match order.direction {
-                Direction::Asc => query.order(issue_ordinal.asc()),
-                Direction::Desc => query.order(issue_ordinal.desc()),
-            },
-            IssueField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            IssueField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            IssueField::IssueId => apply_directional_order!(query, order.direction, order, issue_id),
+            IssueField::SeriesId => apply_directional_order!(query, order.direction, order, series_id),
+            IssueField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
+            IssueField::IssueOrdinal => apply_directional_order!(query, order.direction, order, issue_ordinal),
+            IssueField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
+            IssueField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

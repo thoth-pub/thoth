@@ -3,11 +3,12 @@ use super::{
     NewContributionHistory, PatchContribution,
 };
 use crate::graphql::types::inputs::ContributionOrderBy;
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{contribution, contribution_history};
-use diesel::JoinOnDsl;
-use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{
+    BoolExpressionMethods, Connection, ExpressionMethods, NullableExpressionMethods, QueryDsl,
+    RunQueryDsl,
+};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
 
@@ -39,72 +40,37 @@ impl Crud for Contribution {
         _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Contribution>> {
         use crate::schema::contribution::dsl::*;
+
         let mut connection = db.get()?;
-        let mut query = diesel::query_dsl::methods::DistinctOnDsl::distinct_on(
-            contribution
-                .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
-                .left_join(
-                    crate::schema::biography::table
-                        .on(crate::schema::biography::contribution_id.eq(contribution_id)),
-                )
-                .select(crate::schema::contribution::all_columns),
-            contribution_id,
-        )
-        .into_boxed();
+        let mut query = contribution
+            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
+            .select(crate::schema::contribution::all_columns)
+            .into_boxed();
 
         query = match order.field {
-            ContributionField::ContributionId => match order.direction {
-                Direction::Asc => query.order(contribution_id.asc()),
-                Direction::Desc => query.order(contribution_id.desc()),
-            },
-            ContributionField::WorkId => match order.direction {
-                Direction::Asc => query.order((contribution_id, work_id.asc())),
-                Direction::Desc => query.order((contribution_id, work_id.desc())),
-            },
-            ContributionField::ContributorId => match order.direction {
-                Direction::Asc => query.order((contribution_id, contributor_id.asc())),
-                Direction::Desc => query.order((contribution_id, contributor_id.desc())),
-            },
-            ContributionField::ContributionType => match order.direction {
-                Direction::Asc => query.order((contribution_id, contribution_type.asc())),
-                Direction::Desc => query.order((contribution_id, contribution_type.desc())),
-            },
-            ContributionField::MainContribution => match order.direction {
-                Direction::Asc => query.order((contribution_id, main_contribution.asc())),
-                Direction::Desc => query.order((contribution_id, main_contribution.desc())),
-            },
-            ContributionField::Biography => match order.direction {
-                Direction::Asc => {
-                    query.order((contribution_id, crate::schema::biography::content.asc()))
-                }
-                Direction::Desc => {
-                    query.order((contribution_id, crate::schema::biography::content.desc()))
-                }
-            },
-            ContributionField::CreatedAt => match order.direction {
-                Direction::Asc => query.order((contribution_id, created_at.asc())),
-                Direction::Desc => query.order((contribution_id, created_at.desc())),
-            },
-            ContributionField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order((contribution_id, updated_at.asc())),
-                Direction::Desc => query.order((contribution_id, updated_at.desc())),
-            },
-            ContributionField::FirstName => match order.direction {
-                Direction::Asc => query.order((contribution_id, first_name.asc())),
-                Direction::Desc => query.order((contribution_id, first_name.desc())),
-            },
-            ContributionField::LastName => match order.direction {
-                Direction::Asc => query.order((contribution_id, last_name.asc())),
-                Direction::Desc => query.order((contribution_id, last_name.desc())),
-            },
-            ContributionField::FullName => match order.direction {
-                Direction::Asc => query.order((contribution_id, full_name.asc())),
-                Direction::Desc => query.order((contribution_id, full_name.desc())),
-            },
-            ContributionField::ContributionOrdinal => match order.direction {
-                Direction::Asc => query.order((contribution_id, contribution_ordinal.asc())),
-                Direction::Desc => query.order((contribution_id, contribution_ordinal.desc())),
-            },
+            ContributionField::ContributionId => apply_directional_order!(query, order.direction, order_by, contribution_id),
+            ContributionField::WorkId => apply_directional_order!(query, order.direction, order_by, work_id, contribution_id),
+            ContributionField::ContributorId => apply_directional_order!(query, order.direction, order_by, contributor_id, contribution_id),
+            ContributionField::ContributionType => apply_directional_order!(query, order.direction, order_by, contribution_type, contribution_id),
+            ContributionField::MainContribution => apply_directional_order!(query, order.direction, order_by, main_contribution, contribution_id),
+            ContributionField::Biography => {
+                let biography_content = crate::schema::biography::table
+                    .select(crate::schema::biography::content.nullable())
+                    .filter(crate::schema::biography::contribution_id.eq(contribution_id))
+                    .order((
+                        crate::schema::biography::canonical.desc(),
+                        crate::schema::biography::biography_id.asc(),
+                    ))
+                    .limit(1)
+                    .single_value();
+                apply_directional_order!(query, order.direction, order_by, biography_content, contribution_id)
+            }
+            ContributionField::CreatedAt => apply_directional_order!(query, order.direction, order_by, created_at, contribution_id),
+            ContributionField::UpdatedAt => apply_directional_order!(query, order.direction, order_by, updated_at, contribution_id),
+            ContributionField::FirstName => apply_directional_order!(query, order.direction, order_by, first_name, contribution_id),
+            ContributionField::LastName => apply_directional_order!(query, order.direction, order_by, last_name, contribution_id),
+            ContributionField::FullName => apply_directional_order!(query, order.direction, order_by, full_name, contribution_id),
+            ContributionField::ContributionOrdinal => apply_directional_order!(query, order.direction, order_by, contribution_ordinal, contribution_id),
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
