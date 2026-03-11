@@ -4,14 +4,22 @@ use uuid::Uuid;
 use crate::graphql::Context;
 use crate::markup::{convert_to_jats, ConversionLimit, MarkupFormat};
 use crate::model::{
+    additional_resource::{
+        AdditionalResource, AdditionalResourcePolicy, NewAdditionalResource,
+        PatchAdditionalResource, ResourceType,
+    },
     affiliation::{Affiliation, AffiliationPolicy, NewAffiliation, PatchAffiliation},
+    award::{Award, AwardPolicy, NewAward, PatchAward},
     biography::{Biography, BiographyPolicy, NewBiography, PatchBiography},
+    book_review::{BookReview, BookReviewPolicy, NewBookReview, PatchBookReview},
     contact::{Contact, ContactPolicy, NewContact, PatchContact},
     contribution::{Contribution, ContributionPolicy, NewContribution, PatchContribution},
     contributor::{Contributor, ContributorPolicy, NewContributor, PatchContributor},
+    endorsement::{Endorsement, EndorsementPolicy, NewEndorsement, PatchEndorsement},
     file::{
-        CompleteFileUpload, File, FilePolicy, FileUpload, FileUploadResponse, NewFileUpload,
-        NewFrontcoverFileUpload, NewPublicationFileUpload,
+        CompleteFileUpload, File, FilePolicy, FileUpload, FileUploadResponse,
+        NewAdditionalResourceFileUpload, NewFileUpload, NewFrontcoverFileUpload,
+        NewPublicationFileUpload, NewWorkFeaturedVideoFileUpload,
     },
     funding::{Funding, FundingPolicy, NewFunding, PatchFunding},
     imprint::{Imprint, ImprintPolicy, NewImprint, PatchImprint},
@@ -28,13 +36,18 @@ use crate::model::{
     subject::{NewSubject, PatchSubject, Subject, SubjectPolicy},
     title::{convert_title_to_jats, NewTitle, PatchTitle, Title, TitlePolicy},
     work::{NewWork, PatchWork, Work, WorkPolicy},
+    work_featured_video::{
+        NewWorkFeaturedVideo, PatchWorkFeaturedVideo, WorkFeaturedVideo, WorkFeaturedVideoPolicy,
+    },
     work_relation::{NewWorkRelation, PatchWorkRelation, WorkRelation, WorkRelationPolicy},
     Crud, Reorder,
 };
 use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, PolicyContext, UpdatePolicy};
 use crate::storage::{
-    build_cdn_url, copy_temp_object_to_final, delete_object, head_object,
-    reconcile_replaced_object, temp_key, StorageConfig,
+    additional_resource_cleanup_plan, build_cdn_url, copy_temp_object_to_final, delete_object,
+    head_object, probe_video_dimensions, publication_cleanup_plan, reconcile_replaced_object,
+    run_cleanup_plan_sync, temp_key, work_cleanup_plan, work_featured_video_cleanup_plan,
+    StorageConfig,
 };
 use thoth_errors::ThothError;
 
@@ -241,6 +254,91 @@ impl MutationRoot {
     ) -> FieldResult<Reference> {
         ReferencePolicy::can_create(context, &data, ())?;
         Reference::create(&context.db, &data).map_err(Into::into)
+    }
+
+    #[graphql(description = "Create a new additional resource with the specified values")]
+    fn create_additional_resource(
+        context: &Context,
+        #[graphql(description = "The markup format of the additional resource text fields")]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(description = "Values for additional resource to be created")]
+        mut data: NewAdditionalResource,
+    ) -> FieldResult<AdditionalResource> {
+        AdditionalResourcePolicy::can_create(context, &data, ())?;
+
+        let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
+        data.description = data
+            .description
+            .map(|description| convert_to_jats(description, markup, ConversionLimit::Abstract))
+            .transpose()?;
+
+        AdditionalResource::create(&context.db, &data).map_err(Into::into)
+    }
+
+    #[graphql(description = "Create a new award with the specified values")]
+    fn create_award(
+        context: &Context,
+        #[graphql(description = "The markup format of the award text fields")]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(description = "Values for award to be created")] mut data: NewAward,
+    ) -> FieldResult<Award> {
+        AwardPolicy::can_create(context, &data, ())?;
+
+        let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
+        data.note = data
+            .note
+            .map(|note| convert_to_jats(note, markup, ConversionLimit::Abstract))
+            .transpose()?;
+
+        Award::create(&context.db, &data).map_err(Into::into)
+    }
+
+    #[graphql(description = "Create a new endorsement with the specified values")]
+    fn create_endorsement(
+        context: &Context,
+        #[graphql(description = "The markup format of the endorsement text field")]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(description = "Values for endorsement to be created")] mut data: NewEndorsement,
+    ) -> FieldResult<Endorsement> {
+        EndorsementPolicy::can_create(context, &data, ())?;
+
+        let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        data.text = data
+            .text
+            .map(|text| convert_to_jats(text, markup, ConversionLimit::Abstract))
+            .transpose()?;
+
+        Endorsement::create(&context.db, &data).map_err(Into::into)
+    }
+
+    #[graphql(description = "Create a new book review with the specified values")]
+    fn create_book_review(
+        context: &Context,
+        #[graphql(description = "The markup format of the book review text field")]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(description = "Values for book review to be created")] mut data: NewBookReview,
+    ) -> FieldResult<BookReview> {
+        BookReviewPolicy::can_create(context, &data, ())?;
+
+        let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        data.text = data
+            .text
+            .map(|text| convert_to_jats(text, markup, ConversionLimit::Abstract))
+            .transpose()?;
+
+        BookReview::create(&context.db, &data).map_err(Into::into)
+    }
+
+    #[graphql(description = "Create a new featured video with the specified values")]
+    fn create_work_featured_video(
+        context: &Context,
+        #[graphql(description = "Values for featured video to be created")]
+        data: NewWorkFeaturedVideo,
+    ) -> FieldResult<WorkFeaturedVideo> {
+        WorkFeaturedVideoPolicy::can_create(context, &data, ())?;
+        WorkFeaturedVideo::create(&context.db, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new contact with the specified values")]
@@ -455,6 +553,103 @@ impl MutationRoot {
         reference.update(context, &data).map_err(Into::into)
     }
 
+    #[graphql(description = "Update an existing additional resource with the specified values")]
+    fn update_additional_resource(
+        context: &Context,
+        #[graphql(description = "The markup format of the additional resource text fields")]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(description = "Values to apply to existing additional resource")]
+        mut data: PatchAdditionalResource,
+    ) -> FieldResult<AdditionalResource> {
+        let additional_resource = context.load_current(&data.additional_resource_id)?;
+        AdditionalResourcePolicy::can_update(context, &additional_resource, &data, ())?;
+
+        let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
+        data.description = data
+            .description
+            .map(|description| convert_to_jats(description, markup, ConversionLimit::Abstract))
+            .transpose()?;
+
+        additional_resource
+            .update(context, &data)
+            .map_err(Into::into)
+    }
+
+    #[graphql(description = "Update an existing award with the specified values")]
+    fn update_award(
+        context: &Context,
+        #[graphql(description = "The markup format of the award text fields")]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(description = "Values to apply to existing award")] mut data: PatchAward,
+    ) -> FieldResult<Award> {
+        let award = context.load_current(&data.award_id)?;
+        AwardPolicy::can_update(context, &award, &data, ())?;
+
+        let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
+        data.note = data
+            .note
+            .map(|note| convert_to_jats(note, markup, ConversionLimit::Abstract))
+            .transpose()?;
+
+        award.update(context, &data).map_err(Into::into)
+    }
+
+    #[graphql(description = "Update an existing endorsement with the specified values")]
+    fn update_endorsement(
+        context: &Context,
+        #[graphql(description = "The markup format of the endorsement text field")]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(description = "Values to apply to existing endorsement")]
+        mut data: PatchEndorsement,
+    ) -> FieldResult<Endorsement> {
+        let endorsement = context.load_current(&data.endorsement_id)?;
+        EndorsementPolicy::can_update(context, &endorsement, &data, ())?;
+
+        let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        data.text = data
+            .text
+            .map(|text| convert_to_jats(text, markup, ConversionLimit::Abstract))
+            .transpose()?;
+
+        endorsement.update(context, &data).map_err(Into::into)
+    }
+
+    #[graphql(description = "Update an existing book review with the specified values")]
+    fn update_book_review(
+        context: &Context,
+        #[graphql(description = "The markup format of the book review text field")]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(description = "Values to apply to existing book review")]
+        mut data: PatchBookReview,
+    ) -> FieldResult<BookReview> {
+        let book_review = context.load_current(&data.book_review_id)?;
+        BookReviewPolicy::can_update(context, &book_review, &data, ())?;
+
+        let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        data.text = data
+            .text
+            .map(|text| convert_to_jats(text, markup, ConversionLimit::Abstract))
+            .transpose()?;
+
+        book_review.update(context, &data).map_err(Into::into)
+    }
+
+    #[graphql(description = "Update an existing featured video with the specified values")]
+    fn update_work_featured_video(
+        context: &Context,
+        #[graphql(description = "Values to apply to existing featured video")]
+        data: PatchWorkFeaturedVideo,
+    ) -> FieldResult<WorkFeaturedVideo> {
+        let work_featured_video = context.load_current(&data.work_featured_video_id)?;
+        WorkFeaturedVideoPolicy::can_update(context, &work_featured_video, &data, ())?;
+
+        work_featured_video
+            .update(context, &data)
+            .map_err(Into::into)
+    }
+
     #[graphql(description = "Update an existing contact with the specified values")]
     fn update_contact(
         context: &Context,
@@ -524,8 +719,14 @@ impl MutationRoot {
     ) -> FieldResult<Work> {
         let work = context.load_current(&work_id)?;
         WorkPolicy::can_delete(context, &work)?;
+        let cleanup_plan = work_cleanup_plan(context.db(), &work)?;
 
-        work.delete(&context.db).map_err(Into::into)
+        let deleted_work = work.delete(&context.db)?;
+        if let Some(plan) = cleanup_plan {
+            run_cleanup_plan_sync(context.s3_client(), context.cloudfront_client(), plan);
+        }
+
+        Ok(deleted_work)
     }
 
     #[graphql(description = "Delete a single publisher using its ID")]
@@ -579,8 +780,14 @@ impl MutationRoot {
     ) -> FieldResult<Publication> {
         let publication = context.load_current(&publication_id)?;
         PublicationPolicy::can_delete(context, &publication)?;
+        let cleanup_plan = publication_cleanup_plan(context.db(), &publication)?;
 
-        publication.delete(&context.db).map_err(Into::into)
+        let deleted_publication = publication.delete(&context.db)?;
+        if let Some(plan) = cleanup_plan {
+            run_cleanup_plan_sync(context.s3_client(), context.cloudfront_client(), plan);
+        }
+
+        Ok(deleted_publication)
     }
 
     #[graphql(description = "Delete a single series using its ID")]
@@ -715,6 +922,74 @@ impl MutationRoot {
         reference.delete(&context.db).map_err(Into::into)
     }
 
+    #[graphql(description = "Delete a single additional resource using its ID")]
+    fn delete_additional_resource(
+        context: &Context,
+        #[graphql(description = "Thoth ID of additional resource to be deleted")]
+        additional_resource_id: Uuid,
+    ) -> FieldResult<AdditionalResource> {
+        let additional_resource = context.load_current(&additional_resource_id)?;
+        AdditionalResourcePolicy::can_delete(context, &additional_resource)?;
+
+        let cleanup_plan = additional_resource_cleanup_plan(context.db(), &additional_resource)?;
+        let deleted_additional_resource = additional_resource.delete(&context.db)?;
+        if let Some(plan) = cleanup_plan {
+            run_cleanup_plan_sync(context.s3_client(), context.cloudfront_client(), plan);
+        }
+
+        Ok(deleted_additional_resource)
+    }
+
+    #[graphql(description = "Delete a single award using its ID")]
+    fn delete_award(
+        context: &Context,
+        #[graphql(description = "Thoth ID of award to be deleted")] award_id: Uuid,
+    ) -> FieldResult<Award> {
+        let award = context.load_current(&award_id)?;
+        AwardPolicy::can_delete(context, &award)?;
+
+        award.delete(&context.db).map_err(Into::into)
+    }
+
+    #[graphql(description = "Delete a single endorsement using its ID")]
+    fn delete_endorsement(
+        context: &Context,
+        #[graphql(description = "Thoth ID of endorsement to be deleted")] endorsement_id: Uuid,
+    ) -> FieldResult<Endorsement> {
+        let endorsement = context.load_current(&endorsement_id)?;
+        EndorsementPolicy::can_delete(context, &endorsement)?;
+
+        endorsement.delete(&context.db).map_err(Into::into)
+    }
+
+    #[graphql(description = "Delete a single book review using its ID")]
+    fn delete_book_review(
+        context: &Context,
+        #[graphql(description = "Thoth ID of book review to be deleted")] book_review_id: Uuid,
+    ) -> FieldResult<BookReview> {
+        let book_review = context.load_current(&book_review_id)?;
+        BookReviewPolicy::can_delete(context, &book_review)?;
+
+        book_review.delete(&context.db).map_err(Into::into)
+    }
+
+    #[graphql(description = "Delete a single featured video using its ID")]
+    fn delete_work_featured_video(
+        context: &Context,
+        #[graphql(description = "Thoth ID of featured video to be deleted")] work_featured_video_id: Uuid,
+    ) -> FieldResult<WorkFeaturedVideo> {
+        let work_featured_video = context.load_current(&work_featured_video_id)?;
+        WorkFeaturedVideoPolicy::can_delete(context, &work_featured_video)?;
+
+        let cleanup_plan = work_featured_video_cleanup_plan(context.db(), &work_featured_video)?;
+        let deleted_work_featured_video = work_featured_video.delete(&context.db)?;
+        if let Some(plan) = cleanup_plan {
+            run_cleanup_plan_sync(context.s3_client(), context.cloudfront_client(), plan);
+        }
+
+        Ok(deleted_work_featured_video)
+    }
+
     #[graphql(description = "Delete a single abstract using its ID")]
     fn delete_abstract(
         context: &Context,
@@ -823,6 +1098,89 @@ impl MutationRoot {
             .map_err(Into::into)
     }
 
+    #[graphql(description = "Change the ordering of an additional resource within a work")]
+    fn move_additional_resource(
+        context: &Context,
+        #[graphql(description = "Thoth ID of additional resource to be moved")]
+        additional_resource_id: Uuid,
+        #[graphql(
+            description = "Ordinal representing position to which additional resource should be moved"
+        )]
+        new_ordinal: i32,
+    ) -> FieldResult<AdditionalResource> {
+        let additional_resource = context.load_current(&additional_resource_id)?;
+        AdditionalResourcePolicy::can_move(context, &additional_resource)?;
+
+        if new_ordinal == additional_resource.resource_ordinal {
+            return Ok(additional_resource);
+        }
+
+        additional_resource
+            .change_ordinal(context, additional_resource.resource_ordinal, new_ordinal)
+            .map_err(Into::into)
+    }
+
+    #[graphql(description = "Change the ordering of an award within a work")]
+    fn move_award(
+        context: &Context,
+        #[graphql(description = "Thoth ID of award to be moved")] award_id: Uuid,
+        #[graphql(description = "Ordinal representing position to which award should be moved")]
+        new_ordinal: i32,
+    ) -> FieldResult<Award> {
+        let award = context.load_current(&award_id)?;
+        AwardPolicy::can_move(context, &award)?;
+
+        if new_ordinal == award.award_ordinal {
+            return Ok(award);
+        }
+
+        award
+            .change_ordinal(context, award.award_ordinal, new_ordinal)
+            .map_err(Into::into)
+    }
+
+    #[graphql(description = "Change the ordering of an endorsement within a work")]
+    fn move_endorsement(
+        context: &Context,
+        #[graphql(description = "Thoth ID of endorsement to be moved")] endorsement_id: Uuid,
+        #[graphql(
+            description = "Ordinal representing position to which endorsement should be moved"
+        )]
+        new_ordinal: i32,
+    ) -> FieldResult<Endorsement> {
+        let endorsement = context.load_current(&endorsement_id)?;
+        EndorsementPolicy::can_move(context, &endorsement)?;
+
+        if new_ordinal == endorsement.endorsement_ordinal {
+            return Ok(endorsement);
+        }
+
+        endorsement
+            .change_ordinal(context, endorsement.endorsement_ordinal, new_ordinal)
+            .map_err(Into::into)
+    }
+
+    #[graphql(description = "Change the ordering of a book review within a work")]
+    fn move_book_review(
+        context: &Context,
+        #[graphql(description = "Thoth ID of book review to be moved")] book_review_id: Uuid,
+        #[graphql(
+            description = "Ordinal representing position to which book review should be moved"
+        )]
+        new_ordinal: i32,
+    ) -> FieldResult<BookReview> {
+        let book_review = context.load_current(&book_review_id)?;
+        BookReviewPolicy::can_move(context, &book_review)?;
+
+        if new_ordinal == book_review.review_ordinal {
+            return Ok(book_review);
+        }
+
+        book_review
+            .change_ordinal(context, book_review.review_ordinal, new_ordinal)
+            .map_err(Into::into)
+    }
+
     #[graphql(description = "Change the ordering of a subject within a work")]
     fn move_subject(
         context: &Context,
@@ -915,6 +1273,74 @@ impl MutationRoot {
     }
 
     #[graphql(
+        description = "Start uploading a file for an additional resource. Supported resource types include AUDIO, VIDEO, IMAGE, DOCUMENT, DATASET, and SPREADSHEET."
+    )]
+    async fn init_additional_resource_file_upload(
+        context: &Context,
+        #[graphql(description = "Input for starting an additional resource upload")]
+        data: NewAdditionalResourceFileUpload,
+    ) -> FieldResult<FileUploadResponse> {
+        let additional_resource: AdditionalResource =
+            context.load_current(&data.additional_resource_id)?;
+        context.require_cdn_write_for(&additional_resource)?;
+
+        let new_upload: NewFileUpload = data.into();
+        FilePolicy::validate_resource_file_extension(
+            &new_upload.declared_extension,
+            additional_resource.resource_type,
+        )?;
+        FilePolicy::validate_resource_file_mime_type(
+            additional_resource.resource_type,
+            &new_upload.declared_mime_type,
+        )?;
+
+        let work: Work = context.load_current(&additional_resource.work_id)?;
+        work.doi.ok_or(ThothError::WorkMissingDoiForFileUpload)?;
+
+        let imprint: Imprint = context.load_current(&work.imprint_id)?;
+        let storage_config = StorageConfig::from_imprint(&imprint)?;
+
+        new_upload
+            .create_upload_response(&context.db, context.s3_client(), &storage_config, 30)
+            .await
+            .map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Start uploading a hosted featured video for a work. The uploaded file is promoted to a DOI-scoped resource path."
+    )]
+    async fn init_work_featured_video_file_upload(
+        context: &Context,
+        #[graphql(description = "Input for starting a featured video upload")]
+        data: NewWorkFeaturedVideoFileUpload,
+    ) -> FieldResult<FileUploadResponse> {
+        let work_featured_video: WorkFeaturedVideo =
+            context.load_current(&data.work_featured_video_id)?;
+        context.require_cdn_write_for(&work_featured_video)?;
+
+        let new_upload: NewFileUpload = data.into();
+        FilePolicy::validate_resource_file_extension(
+            &new_upload.declared_extension,
+            ResourceType::Video,
+        )?;
+        FilePolicy::validate_resource_file_mime_type(
+            ResourceType::Video,
+            &new_upload.declared_mime_type,
+        )?;
+
+        let work: Work = context.load_current(&work_featured_video.work_id)?;
+        work.doi.ok_or(ThothError::WorkMissingDoiForFileUpload)?;
+
+        let imprint: Imprint = context.load_current(&work.imprint_id)?;
+        let storage_config = StorageConfig::from_imprint(&imprint)?;
+
+        new_upload
+            .create_upload_response(&context.db, context.s3_client(), &storage_config, 30)
+            .await
+            .map_err(Into::into)
+    }
+
+    #[graphql(
         description = "Complete a file upload, validate it, and promote it to its final DOI-based location."
     )]
     async fn complete_file_upload(
@@ -924,7 +1350,8 @@ impl MutationRoot {
         let file_upload: FileUpload = context.load_current(&data.file_upload_id)?;
         FilePolicy::can_delete(context, &file_upload)?;
 
-        let (work, publication) = file_upload.load_scope(context)?;
+        let (work, publication, additional_resource, work_featured_video) =
+            file_upload.load_scope(context)?;
         let doi = work
             .doi
             .as_ref()
@@ -939,15 +1366,48 @@ impl MutationRoot {
         let temp_key = temp_key(&file_upload.file_upload_id);
         let (bytes, mime_type) =
             head_object(s3_client, &storage_config.s3_bucket, &temp_key).await?;
+        let resource_type = match file_upload.file_type {
+            crate::model::file::FileType::AdditionalResource => Some(
+                additional_resource
+                    .as_ref()
+                    .map(|resource| resource.resource_type)
+                    .ok_or(ThothError::AdditionalResourceFileUploadMissingAdditionalResourceId)?,
+            ),
+            crate::model::file::FileType::WorkFeaturedVideo => {
+                work_featured_video
+                    .as_ref()
+                    .ok_or(ThothError::WorkFeaturedVideoFileUploadMissingWorkFeaturedVideoId)?;
+                Some(ResourceType::Video)
+            }
+            crate::model::file::FileType::Frontcover
+            | crate::model::file::FileType::Publication => None,
+        };
         FilePolicy::can_complete_upload(
             context,
             &file_upload,
             publication.as_ref().map(|pubn| pubn.publication_type),
+            resource_type,
             bytes,
             &mime_type,
         )?;
 
-        let canonical_key = file_upload.canonical_key(doi);
+        let featured_video_dimensions = if matches!(
+            file_upload.file_type,
+            crate::model::file::FileType::WorkFeaturedVideo
+        ) {
+            probe_video_dimensions(
+                s3_client,
+                &storage_config.s3_bucket,
+                &temp_key,
+                &file_upload.declared_extension,
+                bytes,
+            )
+            .await
+        } else {
+            None
+        };
+
+        let canonical_key = file_upload.canonical_key(doi)?;
 
         copy_temp_object_to_final(
             s3_client,
@@ -965,7 +1425,7 @@ impl MutationRoot {
             &mime_type,
             bytes,
         )?;
-        file_upload.sync_related_metadata(context, &work, &cdn_url)?;
+        file_upload.sync_related_metadata(context, &work, &cdn_url, featured_video_dimensions)?;
 
         reconcile_replaced_object(
             s3_client,

@@ -2,7 +2,6 @@ use super::{
     NewWorkRelation, NewWorkRelationHistory, PatchWorkRelation, RelationType, WorkRelation,
     WorkRelationField, WorkRelationHistory, WorkRelationOrderBy,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId, Reorder};
 use crate::schema::{work_relation, work_relation_history};
 use diesel::{
@@ -46,34 +45,27 @@ impl Crud for WorkRelation {
             .into_boxed();
 
         query = match order.field {
-            WorkRelationField::WorkRelationId => match order.direction {
-                Direction::Asc => query.order(work_relation_id.asc()),
-                Direction::Desc => query.order(work_relation_id.desc()),
-            },
-            WorkRelationField::RelatorWorkId => match order.direction {
-                Direction::Asc => query.order(relator_work_id.asc()),
-                Direction::Desc => query.order(relator_work_id.desc()),
-            },
-            WorkRelationField::RelatedWorkId => match order.direction {
-                Direction::Asc => query.order(related_work_id.asc()),
-                Direction::Desc => query.order(related_work_id.desc()),
-            },
-            WorkRelationField::RelationType => match order.direction {
-                Direction::Asc => query.order(relation_type.asc()),
-                Direction::Desc => query.order(relation_type.desc()),
-            },
-            WorkRelationField::RelationOrdinal => match order.direction {
-                Direction::Asc => query.order(relation_ordinal.asc()),
-                Direction::Desc => query.order(relation_ordinal.desc()),
-            },
-            WorkRelationField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            WorkRelationField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            WorkRelationField::WorkRelationId => {
+                apply_directional_order!(query, order.direction, order, work_relation_id)
+            }
+            WorkRelationField::RelatorWorkId => {
+                apply_directional_order!(query, order.direction, order, relator_work_id)
+            }
+            WorkRelationField::RelatedWorkId => {
+                apply_directional_order!(query, order.direction, order, related_work_id)
+            }
+            WorkRelationField::RelationType => {
+                apply_directional_order!(query, order.direction, order, relation_type)
+            }
+            WorkRelationField::RelationOrdinal => {
+                apply_directional_order!(query, order.direction, order, relation_ordinal)
+            }
+            WorkRelationField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            WorkRelationField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if let Some(pid) = parent_id_1 {
             query = query.filter(relator_work_id.eq(pid));

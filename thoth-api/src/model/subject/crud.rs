@@ -1,7 +1,6 @@
 use super::{
     NewSubject, NewSubjectHistory, PatchSubject, Subject, SubjectField, SubjectHistory, SubjectType,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::graphql::types::inputs::SubjectOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{subject, subject_history};
@@ -47,34 +46,27 @@ impl Crud for Subject {
             .into_boxed();
 
         query = match order.field {
-            SubjectField::SubjectId => match order.direction {
-                Direction::Asc => query.order(subject_id.asc()),
-                Direction::Desc => query.order(subject_id.desc()),
-            },
-            SubjectField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
-            },
-            SubjectField::SubjectType => match order.direction {
-                Direction::Asc => query.order(subject_type.asc()),
-                Direction::Desc => query.order(subject_type.desc()),
-            },
-            SubjectField::SubjectCode => match order.direction {
-                Direction::Asc => query.order(subject_code.asc()),
-                Direction::Desc => query.order(subject_code.desc()),
-            },
-            SubjectField::SubjectOrdinal => match order.direction {
-                Direction::Asc => query.order(subject_ordinal.asc()),
-                Direction::Desc => query.order(subject_ordinal.desc()),
-            },
-            SubjectField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            SubjectField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            SubjectField::SubjectId => {
+                apply_directional_order!(query, order.direction, order, subject_id)
+            }
+            SubjectField::WorkId => {
+                apply_directional_order!(query, order.direction, order, work_id)
+            }
+            SubjectField::SubjectType => {
+                apply_directional_order!(query, order.direction, order, subject_type)
+            }
+            SubjectField::SubjectCode => {
+                apply_directional_order!(query, order.direction, order, subject_code)
+            }
+            SubjectField::SubjectOrdinal => {
+                apply_directional_order!(query, order.direction, order, subject_ordinal)
+            }
+            SubjectField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            SubjectField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

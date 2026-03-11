@@ -2,7 +2,6 @@ use super::{
     NewPublication, NewPublicationHistory, PatchPublication, Publication, PublicationField,
     PublicationHistory, PublicationOrderBy, PublicationType,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
 use diesel::{
@@ -46,78 +45,61 @@ impl Crud for Publication {
             .into_boxed();
 
         query = match order.field {
-            PublicationField::PublicationId => match order.direction {
-                Direction::Asc => query.order(publication_id.asc()),
-                Direction::Desc => query.order(publication_id.desc()),
-            },
-            PublicationField::PublicationType => match order.direction {
-                Direction::Asc => query.order(publication_type.asc()),
-                Direction::Desc => query.order(publication_type.desc()),
-            },
-            PublicationField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
-            },
-            PublicationField::Isbn => match order.direction {
-                Direction::Asc => query.order(isbn.asc()),
-                Direction::Desc => query.order(isbn.desc()),
-            },
-            PublicationField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            PublicationField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
-            PublicationField::WidthMm => match order.direction {
-                Direction::Asc => query.order(width_mm.asc()),
-                Direction::Desc => query.order(width_mm.desc()),
-            },
-            PublicationField::WidthIn => match order.direction {
-                Direction::Asc => query.order(width_in.asc()),
-                Direction::Desc => query.order(width_in.desc()),
-            },
-            PublicationField::HeightMm => match order.direction {
-                Direction::Asc => query.order(height_mm.asc()),
-                Direction::Desc => query.order(height_mm.desc()),
-            },
-            PublicationField::HeightIn => match order.direction {
-                Direction::Asc => query.order(height_in.asc()),
-                Direction::Desc => query.order(height_in.desc()),
-            },
-            PublicationField::DepthMm => match order.direction {
-                Direction::Asc => query.order(depth_mm.asc()),
-                Direction::Desc => query.order(depth_mm.desc()),
-            },
-            PublicationField::DepthIn => match order.direction {
-                Direction::Asc => query.order(depth_in.asc()),
-                Direction::Desc => query.order(depth_in.desc()),
-            },
-            PublicationField::WeightG => match order.direction {
-                Direction::Asc => query.order(weight_g.asc()),
-                Direction::Desc => query.order(weight_g.desc()),
-            },
-            PublicationField::WeightOz => match order.direction {
-                Direction::Asc => query.order(weight_oz.asc()),
-                Direction::Desc => query.order(weight_oz.desc()),
-            },
-            PublicationField::AccessibilityStandard => match order.direction {
-                Direction::Asc => query.order(accessibility_standard.asc()),
-                Direction::Desc => query.order(accessibility_standard.desc()),
-            },
-            PublicationField::AccessibilityAdditionalStandard => match order.direction {
-                Direction::Asc => query.order(accessibility_additional_standard.asc()),
-                Direction::Desc => query.order(accessibility_additional_standard.desc()),
-            },
-            PublicationField::AccessibilityException => match order.direction {
-                Direction::Asc => query.order(accessibility_exception.asc()),
-                Direction::Desc => query.order(accessibility_exception.desc()),
-            },
-            PublicationField::AccessibilityReportUrl => match order.direction {
-                Direction::Asc => query.order(accessibility_report_url.asc()),
-                Direction::Desc => query.order(accessibility_report_url.desc()),
-            },
+            PublicationField::PublicationId => {
+                apply_directional_order!(query, order.direction, order, publication_id)
+            }
+            PublicationField::PublicationType => {
+                apply_directional_order!(query, order.direction, order, publication_type)
+            }
+            PublicationField::WorkId => {
+                apply_directional_order!(query, order.direction, order, work_id)
+            }
+            PublicationField::Isbn => apply_directional_order!(query, order.direction, order, isbn),
+            PublicationField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            PublicationField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
+            PublicationField::WidthMm => {
+                apply_directional_order!(query, order.direction, order, width_mm)
+            }
+            PublicationField::WidthIn => {
+                apply_directional_order!(query, order.direction, order, width_in)
+            }
+            PublicationField::HeightMm => {
+                apply_directional_order!(query, order.direction, order, height_mm)
+            }
+            PublicationField::HeightIn => {
+                apply_directional_order!(query, order.direction, order, height_in)
+            }
+            PublicationField::DepthMm => {
+                apply_directional_order!(query, order.direction, order, depth_mm)
+            }
+            PublicationField::DepthIn => {
+                apply_directional_order!(query, order.direction, order, depth_in)
+            }
+            PublicationField::WeightG => {
+                apply_directional_order!(query, order.direction, order, weight_g)
+            }
+            PublicationField::WeightOz => {
+                apply_directional_order!(query, order.direction, order, weight_oz)
+            }
+            PublicationField::AccessibilityStandard => {
+                apply_directional_order!(query, order.direction, order, accessibility_standard)
+            }
+            PublicationField::AccessibilityAdditionalStandard => apply_directional_order!(
+                query,
+                order.direction,
+                order,
+                accessibility_additional_standard
+            ),
+            PublicationField::AccessibilityException => {
+                apply_directional_order!(query, order.direction, order, accessibility_exception)
+            }
+            PublicationField::AccessibilityReportUrl => {
+                apply_directional_order!(query, order.direction, order, accessibility_report_url)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

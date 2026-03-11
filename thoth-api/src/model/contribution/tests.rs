@@ -606,6 +606,106 @@ mod crud {
     }
 
     #[test]
+    fn crud_ordering_by_ordinal_respects_direction() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let contributor = create_contributor(pool.as_ref());
+        let ctx = test_context(pool.clone(), "contribution-order-user");
+
+        let first = make_contribution(
+            pool.as_ref(),
+            work.work_id,
+            contributor.contributor_id,
+            ContributionType::Author,
+            1,
+        );
+        let second = make_contribution(
+            pool.as_ref(),
+            work.work_id,
+            contributor.contributor_id,
+            ContributionType::Editor,
+            2,
+        );
+
+        let mut by_id = [first, second];
+        by_id.sort_by_key(|contribution| contribution.contribution_id);
+
+        let high_ordinal_patch = make_patch_contribution(
+            &by_id[0],
+            by_id[0].contribution_type,
+            format!("{}-high", by_id[0].full_name),
+            3,
+        );
+        by_id[0]
+            .update(&ctx, &high_ordinal_patch)
+            .expect("Failed to raise first contribution ordinal");
+
+        let low_ordinal_patch = make_patch_contribution(
+            &by_id[1],
+            by_id[1].contribution_type,
+            format!("{}-low", by_id[1].full_name),
+            1,
+        );
+        by_id[1]
+            .update(&ctx, &low_ordinal_patch)
+            .expect("Failed to lower second contribution ordinal");
+
+        let mid_ordinal_patch = make_patch_contribution(
+            &by_id[0],
+            by_id[0].contribution_type,
+            format!("{}-mid", by_id[0].full_name),
+            2,
+        );
+        by_id[0]
+            .update(&ctx, &mid_ordinal_patch)
+            .expect("Failed to set first contribution ordinal");
+
+        let asc = Contribution::all(
+            pool.as_ref(),
+            2,
+            0,
+            None,
+            ContributionOrderBy {
+                field: ContributionField::ContributionOrdinal,
+                direction: Direction::Asc,
+            },
+            vec![],
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to order contributions by ordinal (asc)");
+
+        let desc = Contribution::all(
+            pool.as_ref(),
+            2,
+            0,
+            None,
+            ContributionOrderBy {
+                field: ContributionField::ContributionOrdinal,
+                direction: Direction::Desc,
+            },
+            vec![],
+            None,
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+        )
+        .expect("Failed to order contributions by ordinal (desc)");
+
+        assert_eq!(asc[0].contribution_id, by_id[1].contribution_id);
+        assert_eq!(desc[0].contribution_id, by_id[0].contribution_id);
+    }
+
+    #[test]
     fn crud_filter_parent_work_id_limits_results() {
         let (_guard, pool) = setup_test_db();
 

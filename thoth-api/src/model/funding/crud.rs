@@ -1,5 +1,4 @@
 use super::{Funding, FundingField, FundingHistory, NewFunding, NewFundingHistory, PatchFunding};
-use crate::graphql::types::inputs::Direction;
 use crate::graphql::types::inputs::FundingOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{funding, funding_history};
@@ -42,46 +41,36 @@ impl Crud for Funding {
             .into_boxed();
 
         query = match order.field {
-            FundingField::FundingId => match order.direction {
-                Direction::Asc => query.order(funding_id.asc()),
-                Direction::Desc => query.order(funding_id.desc()),
-            },
-            FundingField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
-            },
-            FundingField::InstitutionId => match order.direction {
-                Direction::Asc => query.order(institution_id.asc()),
-                Direction::Desc => query.order(institution_id.desc()),
-            },
-            FundingField::Program => match order.direction {
-                Direction::Asc => query.order(program.asc()),
-                Direction::Desc => query.order(program.desc()),
-            },
-            FundingField::ProjectName => match order.direction {
-                Direction::Asc => query.order(project_name.asc()),
-                Direction::Desc => query.order(project_name.desc()),
-            },
-            FundingField::ProjectShortname => match order.direction {
-                Direction::Asc => query.order(project_shortname.asc()),
-                Direction::Desc => query.order(project_shortname.desc()),
-            },
-            FundingField::GrantNumber => match order.direction {
-                Direction::Asc => query.order(grant_number.asc()),
-                Direction::Desc => query.order(grant_number.desc()),
-            },
-            FundingField::Jurisdiction => match order.direction {
-                Direction::Asc => query.order(jurisdiction.asc()),
-                Direction::Desc => query.order(jurisdiction.desc()),
-            },
-            FundingField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            FundingField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            FundingField::FundingId => {
+                apply_directional_order!(query, order.direction, order, funding_id)
+            }
+            FundingField::WorkId => {
+                apply_directional_order!(query, order.direction, order, work_id)
+            }
+            FundingField::InstitutionId => {
+                apply_directional_order!(query, order.direction, order, institution_id)
+            }
+            FundingField::Program => {
+                apply_directional_order!(query, order.direction, order, program)
+            }
+            FundingField::ProjectName => {
+                apply_directional_order!(query, order.direction, order, project_name)
+            }
+            FundingField::ProjectShortname => {
+                apply_directional_order!(query, order.direction, order, project_shortname)
+            }
+            FundingField::GrantNumber => {
+                apply_directional_order!(query, order.direction, order, grant_number)
+            }
+            FundingField::Jurisdiction => {
+                apply_directional_order!(query, order.direction, order, jurisdiction)
+            }
+            FundingField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            FundingField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

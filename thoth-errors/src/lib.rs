@@ -64,6 +64,8 @@ pub enum ThothError {
     RorEmptyError,
     #[error("Works of type Book Chapter cannot have ISBNs in their Publications.")]
     ChapterIsbnError,
+    #[error("Works of type Book Chapter cannot have book-level metadata records.")]
+    ChapterBookMetadataError,
     #[error(
         "Works of type Book Chapter cannot have Width, Height, Depth or Weight in their Publications."
     )]
@@ -110,6 +112,8 @@ pub enum ThothError {
     ThothSetWorkStatusError,
     #[error("Once a Work has been published, it cannot be deleted.")]
     ThothDeleteWorkError,
+    #[error("Publications belonging to a published Work cannot be deleted.")]
+    ThothDeletePublicationError,
     #[error("If canonical abstract already exists, other abstract can't be set as canonical.")]
     CanonicalAbstractExistsError,
     #[error("Short abstract must be less than 350 characters.")]
@@ -140,11 +144,13 @@ pub enum ThothError {
     FileTooLarge,
     #[error("File uploads not supported for publication type")]
     UnsupportedPublicationTypeForFileUpload,
+    #[error("File uploads not supported for this additional resource type")]
+    UnsupportedResourceTypeForFileUpload,
     #[error("Publication type required for publication file validation")]
     PublicationTypeRequiredForFileValidation,
-    #[error("File must have either work_id or publication_id")]
+    #[error("File must reference exactly one scope: work_id, publication_id, additional_resource_id, or work_featured_video_id")]
     FileMissingWorkOrPublicationId,
-    #[error("FileUpload must have either work_id or publication_id")]
+    #[error("FileUpload must reference exactly one scope: work_id, publication_id, additional_resource_id, or work_featured_video_id")]
     FileUploadMissingWorkOrPublicationId,
     #[error("Work must have a DOI to upload files")]
     WorkMissingDoiForFileUpload,
@@ -152,6 +158,10 @@ pub enum ThothError {
     PublicationFileUploadMissingPublicationId,
     #[error("Frontcover file upload missing work_id")]
     FrontcoverFileUploadMissingWorkId,
+    #[error("Additional resource file upload missing additional_resource_id")]
+    AdditionalResourceFileUploadMissingAdditionalResourceId,
+    #[error("Work featured video file upload missing work_featured_video_id")]
+    WorkFeaturedVideoFileUploadMissingWorkFeaturedVideoId,
 }
 
 impl ThothError {

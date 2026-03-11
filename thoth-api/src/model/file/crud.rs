@@ -1,26 +1,36 @@
 use super::FileType;
 use super::{
-    upload_request_headers, File, FilePolicy, FileUpload, FileUploadResponse, NewFile,
-    NewFileUpload,
+    upload_request_headers, File, FileCleanupCandidate, FilePolicy, FileUpload, FileUploadResponse,
+    NewFile, NewFileUpload,
 };
 use crate::db::PgPool;
 use crate::model::{
+    additional_resource::{AdditionalResource, PatchAdditionalResource},
     location::{Location, LocationPlatform, NewLocation, PatchLocation},
     publication::Publication,
     work::{PatchWork, Work},
+    work_featured_video::{PatchWorkFeaturedVideo, WorkFeaturedVideo},
     Crud, Doi, PublisherId, Timestamp,
 };
 use crate::policy::{CreatePolicy, PolicyContext};
 use crate::schema::{file, file_upload};
 use crate::storage::{
-    canonical_frontcover_key, canonical_publication_key, presign_put_for_upload, temp_key,
-    S3Client, StorageConfig,
+    canonical_frontcover_key, canonical_publication_key, canonical_resource_key,
+    presign_put_for_upload, temp_key, S3Client, StorageConfig,
 };
 use chrono::{Duration, Utc};
 use diesel::prelude::*;
 use diesel::OptionalExtension;
+use std::collections::HashSet;
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
+
+type FileUploadScope = (
+    Work,
+    Option<Publication>,
+    Option<AdditionalResource>,
+    Option<WorkFeaturedVideo>,
+);
 
 fn upload_expires_at(minutes: i64) -> ThothResult<Timestamp> {
     let expires_at = Utc::now()
@@ -35,11 +45,26 @@ fn publisher_id_from_scope(
     db: &PgPool,
     work_id: Option<Uuid>,
     publication_id: Option<Uuid>,
+    additional_resource_id: Option<Uuid>,
+    work_featured_video_id: Option<Uuid>,
     missing_scope_error: ThothError,
 ) -> ThothResult<Uuid> {
-    match (work_id, publication_id) {
-        (Some(work_id), None) => Work::from_id(db, &work_id)?.publisher_id(db),
-        (None, Some(publication_id)) => Publication::from_id(db, &publication_id)?.publisher_id(db),
+    match (
+        work_id,
+        publication_id,
+        additional_resource_id,
+        work_featured_video_id,
+    ) {
+        (Some(work_id), None, None, None) => Work::from_id(db, &work_id)?.publisher_id(db),
+        (None, Some(publication_id), None, None) => {
+            Publication::from_id(db, &publication_id)?.publisher_id(db)
+        }
+        (None, None, Some(additional_resource_id), None) => {
+            AdditionalResource::from_id(db, &additional_resource_id)?.publisher_id(db)
+        }
+        (None, None, None, Some(work_featured_video_id)) => {
+            WorkFeaturedVideo::from_id(db, &work_featured_video_id)?.publisher_id(db)
+        }
         _ => Err(missing_scope_error),
     }
 }
@@ -192,6 +217,8 @@ impl PublisherId for File {
             db,
             self.work_id,
             self.publication_id,
+            self.additional_resource_id,
+            self.work_featured_video_id,
             ThothError::FileMissingWorkOrPublicationId,
         )
     }
@@ -203,6 +230,8 @@ impl PublisherId for NewFile {
             db,
             self.work_id,
             self.publication_id,
+            self.additional_resource_id,
+            self.work_featured_video_id,
             ThothError::FileMissingWorkOrPublicationId,
         )
     }
@@ -214,6 +243,8 @@ impl PublisherId for FileUpload {
             db,
             self.work_id,
             self.publication_id,
+            self.additional_resource_id,
+            self.work_featured_video_id,
             ThothError::FileUploadMissingWorkOrPublicationId,
         )
     }
@@ -225,12 +256,219 @@ impl PublisherId for NewFileUpload {
             db,
             self.work_id,
             self.publication_id,
+            self.additional_resource_id,
+            self.work_featured_video_id,
             ThothError::FileUploadMissingWorkOrPublicationId,
         )
     }
 }
 
 impl File {
+    fn deduplicate_cleanup_candidates(
+        candidates: Vec<FileCleanupCandidate>,
+    ) -> Vec<FileCleanupCandidate> {
+        let mut seen = HashSet::new();
+        let mut deduplicated = Vec::new();
+
+        for candidate in candidates {
+            if seen.insert(candidate.object_key.clone()) {
+                deduplicated.push(candidate);
+            }
+        }
+
+        deduplicated.sort_by(|a, b| a.object_key.cmp(&b.object_key));
+        deduplicated
+    }
+
+    fn to_cleanup_candidates(files: Vec<File>) -> Vec<FileCleanupCandidate> {
+        files
+            .into_iter()
+            .map(|file| FileCleanupCandidate {
+                file_type: file.file_type,
+                object_key: file.object_key,
+            })
+            .collect()
+    }
+
+    fn to_pending_upload_cleanup_candidates(uploads: Vec<FileUpload>) -> Vec<FileCleanupCandidate> {
+        uploads
+            .into_iter()
+            .map(|upload| FileCleanupCandidate {
+                file_type: upload.file_type,
+                object_key: temp_key(&upload.file_upload_id),
+            })
+            .collect()
+    }
+
+    pub fn cleanup_candidates_for_publication(
+        db: &PgPool,
+        publication_id: &Uuid,
+    ) -> ThothResult<Vec<FileCleanupCandidate>> {
+        use crate::schema::{file::dsl as file_dsl, file_upload::dsl as file_upload_dsl};
+
+        let mut connection = db.get()?;
+        let files = file_dsl::file
+            .filter(file_dsl::publication_id.eq(Some(*publication_id)))
+            .load::<File>(&mut connection)
+            .map_err(ThothError::from)?;
+        let uploads = file_upload_dsl::file_upload
+            .filter(file_upload_dsl::publication_id.eq(Some(*publication_id)))
+            .load::<FileUpload>(&mut connection)
+            .map_err(ThothError::from)?;
+
+        let mut candidates = Self::to_cleanup_candidates(files);
+        candidates.extend(Self::to_pending_upload_cleanup_candidates(uploads));
+
+        Ok(Self::deduplicate_cleanup_candidates(candidates))
+    }
+
+    pub fn cleanup_candidates_for_additional_resource(
+        db: &PgPool,
+        additional_resource_id: &Uuid,
+    ) -> ThothResult<Vec<FileCleanupCandidate>> {
+        use crate::schema::{file::dsl as file_dsl, file_upload::dsl as file_upload_dsl};
+
+        let mut connection = db.get()?;
+        let files = file_dsl::file
+            .filter(file_dsl::additional_resource_id.eq(Some(*additional_resource_id)))
+            .load::<File>(&mut connection)
+            .map_err(ThothError::from)?;
+        let uploads = file_upload_dsl::file_upload
+            .filter(file_upload_dsl::additional_resource_id.eq(Some(*additional_resource_id)))
+            .load::<FileUpload>(&mut connection)
+            .map_err(ThothError::from)?;
+
+        let mut candidates = Self::to_cleanup_candidates(files);
+        candidates.extend(Self::to_pending_upload_cleanup_candidates(uploads));
+
+        Ok(Self::deduplicate_cleanup_candidates(candidates))
+    }
+
+    pub fn cleanup_candidates_for_work_featured_video(
+        db: &PgPool,
+        work_featured_video_id: &Uuid,
+    ) -> ThothResult<Vec<FileCleanupCandidate>> {
+        use crate::schema::{file::dsl as file_dsl, file_upload::dsl as file_upload_dsl};
+
+        let mut connection = db.get()?;
+        let files = file_dsl::file
+            .filter(file_dsl::work_featured_video_id.eq(Some(*work_featured_video_id)))
+            .load::<File>(&mut connection)
+            .map_err(ThothError::from)?;
+        let uploads = file_upload_dsl::file_upload
+            .filter(file_upload_dsl::work_featured_video_id.eq(Some(*work_featured_video_id)))
+            .load::<FileUpload>(&mut connection)
+            .map_err(ThothError::from)?;
+
+        let mut candidates = Self::to_cleanup_candidates(files);
+        candidates.extend(Self::to_pending_upload_cleanup_candidates(uploads));
+
+        Ok(Self::deduplicate_cleanup_candidates(candidates))
+    }
+
+    pub fn cleanup_candidates_for_work(
+        db: &PgPool,
+        work_id: &Uuid,
+    ) -> ThothResult<Vec<FileCleanupCandidate>> {
+        use crate::schema::additional_resource::dsl as additional_resource_dsl;
+        use crate::schema::publication::dsl as publication_dsl;
+        use crate::schema::work_featured_video::dsl as work_featured_video_dsl;
+
+        let mut connection = db.get()?;
+
+        let publication_ids = publication_dsl::publication
+            .filter(publication_dsl::work_id.eq(*work_id))
+            .select(publication_dsl::publication_id)
+            .load::<Uuid>(&mut connection)
+            .map_err(ThothError::from)?;
+
+        let additional_resource_ids = additional_resource_dsl::additional_resource
+            .filter(additional_resource_dsl::work_id.eq(*work_id))
+            .select(additional_resource_dsl::additional_resource_id)
+            .load::<Uuid>(&mut connection)
+            .map_err(ThothError::from)?;
+
+        let work_featured_video_ids = work_featured_video_dsl::work_featured_video
+            .filter(work_featured_video_dsl::work_id.eq(*work_id))
+            .select(work_featured_video_dsl::work_featured_video_id)
+            .load::<Uuid>(&mut connection)
+            .map_err(ThothError::from)?;
+
+        let mut candidates = Vec::new();
+
+        let direct_work_files = crate::schema::file::dsl::file
+            .filter(crate::schema::file::dsl::work_id.eq(Some(*work_id)))
+            .load::<File>(&mut connection)
+            .map_err(ThothError::from)?;
+        candidates.extend(Self::to_cleanup_candidates(direct_work_files));
+        let direct_work_uploads = crate::schema::file_upload::dsl::file_upload
+            .filter(crate::schema::file_upload::dsl::work_id.eq(Some(*work_id)))
+            .load::<FileUpload>(&mut connection)
+            .map_err(ThothError::from)?;
+        candidates.extend(Self::to_pending_upload_cleanup_candidates(
+            direct_work_uploads,
+        ));
+
+        if !publication_ids.is_empty() {
+            let publication_files = crate::schema::file::dsl::file
+                .filter(crate::schema::file::dsl::publication_id.eq_any(&publication_ids))
+                .load::<File>(&mut connection)
+                .map_err(ThothError::from)?;
+            candidates.extend(Self::to_cleanup_candidates(publication_files));
+            let publication_uploads = crate::schema::file_upload::dsl::file_upload
+                .filter(crate::schema::file_upload::dsl::publication_id.eq_any(&publication_ids))
+                .load::<FileUpload>(&mut connection)
+                .map_err(ThothError::from)?;
+            candidates.extend(Self::to_pending_upload_cleanup_candidates(
+                publication_uploads,
+            ));
+        }
+
+        if !additional_resource_ids.is_empty() {
+            let additional_resource_files = crate::schema::file::dsl::file
+                .filter(
+                    crate::schema::file::dsl::additional_resource_id
+                        .eq_any(&additional_resource_ids),
+                )
+                .load::<File>(&mut connection)
+                .map_err(ThothError::from)?;
+            candidates.extend(Self::to_cleanup_candidates(additional_resource_files));
+            let additional_resource_uploads = crate::schema::file_upload::dsl::file_upload
+                .filter(
+                    crate::schema::file_upload::dsl::additional_resource_id
+                        .eq_any(&additional_resource_ids),
+                )
+                .load::<FileUpload>(&mut connection)
+                .map_err(ThothError::from)?;
+            candidates.extend(Self::to_pending_upload_cleanup_candidates(
+                additional_resource_uploads,
+            ));
+        }
+
+        if !work_featured_video_ids.is_empty() {
+            let work_featured_video_files = crate::schema::file::dsl::file
+                .filter(
+                    crate::schema::file::dsl::work_featured_video_id
+                        .eq_any(&work_featured_video_ids),
+                )
+                .load::<File>(&mut connection)
+                .map_err(ThothError::from)?;
+            candidates.extend(Self::to_cleanup_candidates(work_featured_video_files));
+            let work_featured_video_uploads = crate::schema::file_upload::dsl::file_upload
+                .filter(
+                    crate::schema::file_upload::dsl::work_featured_video_id
+                        .eq_any(&work_featured_video_ids),
+                )
+                .load::<FileUpload>(&mut connection)
+                .map_err(ThothError::from)?;
+            candidates.extend(Self::to_pending_upload_cleanup_candidates(
+                work_featured_video_uploads,
+            ));
+        }
+
+        Ok(Self::deduplicate_cleanup_candidates(candidates))
+    }
+
     pub fn from_object_key(db: &PgPool, object_key: &str) -> ThothResult<Self> {
         use crate::schema::file::dsl;
 
@@ -260,6 +498,36 @@ impl File {
         dsl::file
             .filter(dsl::publication_id.eq(publication_id))
             .filter(dsl::file_type.eq(FileType::Publication))
+            .first::<File>(&mut connection)
+            .optional()
+            .map_err(ThothError::from)
+    }
+
+    pub fn from_additional_resource_id(
+        db: &PgPool,
+        additional_resource_id: &Uuid,
+    ) -> ThothResult<Option<Self>> {
+        use crate::schema::file::dsl;
+
+        let mut connection = db.get()?;
+        dsl::file
+            .filter(dsl::additional_resource_id.eq(additional_resource_id))
+            .filter(dsl::file_type.eq(FileType::AdditionalResource))
+            .first::<File>(&mut connection)
+            .optional()
+            .map_err(ThothError::from)
+    }
+
+    pub fn from_work_featured_video_id(
+        db: &PgPool,
+        work_featured_video_id: &Uuid,
+    ) -> ThothResult<Option<Self>> {
+        use crate::schema::file::dsl;
+
+        let mut connection = db.get()?;
+        dsl::file
+            .filter(dsl::work_featured_video_id.eq(work_featured_video_id))
+            .filter(dsl::file_type.eq(FileType::WorkFeaturedVideo))
             .first::<File>(&mut connection)
             .optional()
             .map_err(ThothError::from)
@@ -299,10 +567,7 @@ impl NewFileUpload {
 }
 
 impl FileUpload {
-    pub(crate) fn load_scope<C: PolicyContext>(
-        &self,
-        ctx: &C,
-    ) -> ThothResult<(Work, Option<Publication>)> {
+    pub(crate) fn load_scope<C: PolicyContext>(&self, ctx: &C) -> ThothResult<FileUploadScope> {
         match self.file_type {
             FileType::Publication => {
                 let publication_id = self
@@ -310,28 +575,72 @@ impl FileUpload {
                     .ok_or(ThothError::PublicationFileUploadMissingPublicationId)?;
                 let publication: Publication = ctx.load_current(&publication_id)?;
                 let work: Work = ctx.load_current(&publication.work_id)?;
-                Ok((work, Some(publication)))
+                Ok((work, Some(publication), None, None))
             }
             FileType::Frontcover => {
                 let work_id = self
                     .work_id
                     .ok_or(ThothError::FrontcoverFileUploadMissingWorkId)?;
                 let work: Work = ctx.load_current(&work_id)?;
-                Ok((work, None))
+                Ok((work, None, None, None))
+            }
+            FileType::AdditionalResource => {
+                let additional_resource_id = self
+                    .additional_resource_id
+                    .ok_or(ThothError::AdditionalResourceFileUploadMissingAdditionalResourceId)?;
+                let additional_resource: AdditionalResource =
+                    ctx.load_current(&additional_resource_id)?;
+                let work: Work = ctx.load_current(&additional_resource.work_id)?;
+                Ok((work, None, Some(additional_resource), None))
+            }
+            FileType::WorkFeaturedVideo => {
+                let work_featured_video_id = self
+                    .work_featured_video_id
+                    .ok_or(ThothError::WorkFeaturedVideoFileUploadMissingWorkFeaturedVideoId)?;
+                let work_featured_video: WorkFeaturedVideo =
+                    ctx.load_current(&work_featured_video_id)?;
+                let work: Work = ctx.load_current(&work_featured_video.work_id)?;
+                Ok((work, None, None, Some(work_featured_video)))
             }
         }
     }
 
-    pub(crate) fn canonical_key(&self, doi: &Doi) -> String {
+    pub(crate) fn canonical_key(&self, doi: &Doi) -> ThothResult<String> {
         let doi_prefix = doi.prefix();
         let doi_suffix = doi.suffix();
 
         match self.file_type {
-            FileType::Publication => {
-                canonical_publication_key(doi_prefix, doi_suffix, &self.declared_extension)
+            FileType::Publication => Ok(canonical_publication_key(
+                doi_prefix,
+                doi_suffix,
+                &self.declared_extension,
+            )),
+            FileType::Frontcover => Ok(canonical_frontcover_key(
+                doi_prefix,
+                doi_suffix,
+                &self.declared_extension,
+            )),
+            FileType::AdditionalResource => {
+                let additional_resource_id = self
+                    .additional_resource_id
+                    .ok_or(ThothError::AdditionalResourceFileUploadMissingAdditionalResourceId);
+                Ok(canonical_resource_key(
+                    doi_prefix,
+                    doi_suffix,
+                    &additional_resource_id?,
+                    &self.declared_extension,
+                ))
             }
-            FileType::Frontcover => {
-                canonical_frontcover_key(doi_prefix, doi_suffix, &self.declared_extension)
+            FileType::WorkFeaturedVideo => {
+                let work_featured_video_id = self
+                    .work_featured_video_id
+                    .ok_or(ThothError::WorkFeaturedVideoFileUploadMissingWorkFeaturedVideoId);
+                Ok(canonical_resource_key(
+                    doi_prefix,
+                    doi_suffix,
+                    &work_featured_video_id?,
+                    &self.declared_extension,
+                ))
             }
         }
     }
@@ -349,6 +658,18 @@ impl FileUpload {
                     .work_id
                     .ok_or(ThothError::FrontcoverFileUploadMissingWorkId)?;
                 File::from_work_id(db, &work_id)
+            }
+            FileType::AdditionalResource => {
+                let additional_resource_id = self
+                    .additional_resource_id
+                    .ok_or(ThothError::AdditionalResourceFileUploadMissingAdditionalResourceId)?;
+                File::from_additional_resource_id(db, &additional_resource_id)
+            }
+            FileType::WorkFeaturedVideo => {
+                let work_featured_video_id = self
+                    .work_featured_video_id
+                    .ok_or(ThothError::WorkFeaturedVideoFileUploadMissingWorkFeaturedVideoId)?;
+                File::from_work_featured_video_id(db, &work_featured_video_id)
             }
         }
     }
@@ -383,6 +704,8 @@ impl FileUpload {
                 file_type: self.file_type,
                 work_id: self.work_id,
                 publication_id: self.publication_id,
+                additional_resource_id: self.additional_resource_id,
+                work_featured_video_id: self.work_featured_video_id,
                 object_key: canonical_key.to_string(),
                 cdn_url: cdn_url.to_string(),
                 mime_type: mime_type.to_string(),
@@ -401,6 +724,7 @@ impl FileUpload {
         ctx: &C,
         work: &Work,
         cdn_url: &str,
+        featured_video_dimensions: Option<(i32, i32)>,
     ) -> ThothResult<()> {
         match self.file_type {
             FileType::Frontcover => {
@@ -418,6 +742,44 @@ impl FileUpload {
                     work.landing_page.clone(),
                     cdn_url,
                 )?;
+            }
+            FileType::AdditionalResource => {
+                let additional_resource_id = self
+                    .additional_resource_id
+                    .ok_or(ThothError::AdditionalResourceFileUploadMissingAdditionalResourceId)?;
+                let additional_resource: AdditionalResource =
+                    ctx.load_current(&additional_resource_id)?;
+                let patch = PatchAdditionalResource {
+                    additional_resource_id: additional_resource.additional_resource_id,
+                    work_id: additional_resource.work_id,
+                    title: additional_resource.title.clone(),
+                    description: additional_resource.description.clone(),
+                    attribution: additional_resource.attribution.clone(),
+                    resource_type: additional_resource.resource_type,
+                    doi: additional_resource.doi.clone(),
+                    handle: additional_resource.handle.clone(),
+                    url: Some(cdn_url.to_string()),
+                    resource_ordinal: additional_resource.resource_ordinal,
+                };
+                additional_resource.update(ctx, &patch)?;
+            }
+            FileType::WorkFeaturedVideo => {
+                let work_featured_video_id = self
+                    .work_featured_video_id
+                    .ok_or(ThothError::WorkFeaturedVideoFileUploadMissingWorkFeaturedVideoId)?;
+                let work_featured_video: WorkFeaturedVideo =
+                    ctx.load_current(&work_featured_video_id)?;
+                let (width, height) = featured_video_dimensions
+                    .unwrap_or((work_featured_video.width, work_featured_video.height));
+                let patch = PatchWorkFeaturedVideo {
+                    work_featured_video_id: work_featured_video.work_featured_video_id,
+                    work_id: work_featured_video.work_id,
+                    title: work_featured_video.title.clone(),
+                    url: Some(cdn_url.to_string()),
+                    width,
+                    height,
+                };
+                work_featured_video.update(ctx, &patch)?;
             }
         }
 

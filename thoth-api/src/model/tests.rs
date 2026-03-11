@@ -294,6 +294,7 @@ END $$;
             general_note: None,
             bibliography_note: None,
             toc: None,
+            resources_description: None,
             cover_url: None,
             cover_caption: None,
             first_page: None,

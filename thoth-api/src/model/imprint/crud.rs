@@ -2,7 +2,6 @@ use super::{
     Imprint, ImprintField, ImprintHistory, ImprintOrderBy, NewImprint, NewImprintHistory,
     PatchImprint,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{imprint, imprint_history};
 use diesel::{
@@ -43,42 +42,33 @@ impl Crud for Imprint {
         let mut query = imprint.into_boxed();
 
         query = match order.field {
-            ImprintField::ImprintId => match order.direction {
-                Direction::Asc => query.order(imprint_id.asc()),
-                Direction::Desc => query.order(imprint_id.desc()),
-            },
-            ImprintField::ImprintName => match order.direction {
-                Direction::Asc => query.order(imprint_name.asc()),
-                Direction::Desc => query.order(imprint_name.desc()),
-            },
-            ImprintField::ImprintUrl => match order.direction {
-                Direction::Asc => query.order(imprint_url.asc()),
-                Direction::Desc => query.order(imprint_url.desc()),
-            },
-            ImprintField::CrossmarkDoi => match order.direction {
-                Direction::Asc => query.order(crossmark_doi.asc()),
-                Direction::Desc => query.order(crossmark_doi.desc()),
-            },
-            ImprintField::DefaultCurrency => match order.direction {
-                Direction::Asc => query.order(default_currency.asc()),
-                Direction::Desc => query.order(default_currency.desc()),
-            },
-            ImprintField::DefaultPlace => match order.direction {
-                Direction::Asc => query.order(default_place.asc()),
-                Direction::Desc => query.order(default_place.desc()),
-            },
-            ImprintField::DefaultLocale => match order.direction {
-                Direction::Asc => query.order(default_locale.asc()),
-                Direction::Desc => query.order(default_locale.desc()),
-            },
-            ImprintField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            ImprintField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            ImprintField::ImprintId => {
+                apply_directional_order!(query, order.direction, order, imprint_id)
+            }
+            ImprintField::ImprintName => {
+                apply_directional_order!(query, order.direction, order, imprint_name)
+            }
+            ImprintField::ImprintUrl => {
+                apply_directional_order!(query, order.direction, order, imprint_url)
+            }
+            ImprintField::CrossmarkDoi => {
+                apply_directional_order!(query, order.direction, order, crossmark_doi)
+            }
+            ImprintField::DefaultCurrency => {
+                apply_directional_order!(query, order.direction, order, default_currency)
+            }
+            ImprintField::DefaultPlace => {
+                apply_directional_order!(query, order.direction, order, default_place)
+            }
+            ImprintField::DefaultLocale => {
+                apply_directional_order!(query, order.direction, order, default_locale)
+            }
+            ImprintField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            ImprintField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(publisher_id.eq_any(publishers));

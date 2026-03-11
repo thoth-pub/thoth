@@ -3,7 +3,6 @@ use super::{
     NewContributorHistory, PatchContributor,
 };
 use crate::db::PgPool;
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherIds};
 use crate::schema::{contributor, contributor_history};
 use diesel::{
@@ -44,38 +43,30 @@ impl Crud for Contributor {
         let mut query = contributor.into_boxed();
 
         query = match order.field {
-            ContributorField::ContributorId => match order.direction {
-                Direction::Asc => query.order(contributor_id.asc()),
-                Direction::Desc => query.order(contributor_id.desc()),
-            },
-            ContributorField::FirstName => match order.direction {
-                Direction::Asc => query.order(first_name.asc()),
-                Direction::Desc => query.order(first_name.desc()),
-            },
-            ContributorField::LastName => match order.direction {
-                Direction::Asc => query.order(last_name.asc()),
-                Direction::Desc => query.order(last_name.desc()),
-            },
-            ContributorField::FullName => match order.direction {
-                Direction::Asc => query.order(full_name.asc()),
-                Direction::Desc => query.order(full_name.desc()),
-            },
-            ContributorField::Orcid => match order.direction {
-                Direction::Asc => query.order(orcid.asc()),
-                Direction::Desc => query.order(orcid.desc()),
-            },
-            ContributorField::Website => match order.direction {
-                Direction::Asc => query.order(website.asc()),
-                Direction::Desc => query.order(website.desc()),
-            },
-            ContributorField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            ContributorField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            ContributorField::ContributorId => {
+                apply_directional_order!(query, order.direction, order, contributor_id)
+            }
+            ContributorField::FirstName => {
+                apply_directional_order!(query, order.direction, order, first_name)
+            }
+            ContributorField::LastName => {
+                apply_directional_order!(query, order.direction, order, last_name)
+            }
+            ContributorField::FullName => {
+                apply_directional_order!(query, order.direction, order, full_name)
+            }
+            ContributorField::Orcid => {
+                apply_directional_order!(query, order.direction, order, orcid)
+            }
+            ContributorField::Website => {
+                apply_directional_order!(query, order.direction, order, website)
+            }
+            ContributorField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            ContributorField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if let Some(filter) = filter {
             query = query.filter(

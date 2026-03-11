@@ -3,7 +3,6 @@ use super::{
     PublisherOrderBy,
 };
 use crate::db::PgPool;
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{publisher, publisher_history};
 use diesel::{
@@ -44,42 +43,33 @@ impl Crud for Publisher {
         let mut query = publisher.into_boxed();
 
         query = match order.field {
-            PublisherField::PublisherId => match order.direction {
-                Direction::Asc => query.order(publisher_id.asc()),
-                Direction::Desc => query.order(publisher_id.desc()),
-            },
-            PublisherField::PublisherName => match order.direction {
-                Direction::Asc => query.order(publisher_name.asc()),
-                Direction::Desc => query.order(publisher_name.desc()),
-            },
-            PublisherField::PublisherShortname => match order.direction {
-                Direction::Asc => query.order(publisher_shortname.asc()),
-                Direction::Desc => query.order(publisher_shortname.desc()),
-            },
-            PublisherField::PublisherUrl => match order.direction {
-                Direction::Asc => query.order(publisher_url.asc()),
-                Direction::Desc => query.order(publisher_url.desc()),
-            },
-            PublisherField::ZitadelId => match order.direction {
-                Direction::Asc => query.order(zitadel_id.asc()),
-                Direction::Desc => query.order(zitadel_id.desc()),
-            },
-            PublisherField::AccessibilityStatement => match order.direction {
-                Direction::Asc => query.order(accessibility_statement.asc()),
-                Direction::Desc => query.order(accessibility_statement.desc()),
-            },
-            PublisherField::AccessibilityReportUrl => match order.direction {
-                Direction::Asc => query.order(accessibility_report_url.asc()),
-                Direction::Desc => query.order(accessibility_report_url.desc()),
-            },
-            PublisherField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            PublisherField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            PublisherField::PublisherId => {
+                apply_directional_order!(query, order.direction, order, publisher_id)
+            }
+            PublisherField::PublisherName => {
+                apply_directional_order!(query, order.direction, order, publisher_name)
+            }
+            PublisherField::PublisherShortname => {
+                apply_directional_order!(query, order.direction, order, publisher_shortname)
+            }
+            PublisherField::PublisherUrl => {
+                apply_directional_order!(query, order.direction, order, publisher_url)
+            }
+            PublisherField::ZitadelId => {
+                apply_directional_order!(query, order.direction, order, zitadel_id)
+            }
+            PublisherField::AccessibilityStatement => {
+                apply_directional_order!(query, order.direction, order, accessibility_statement)
+            }
+            PublisherField::AccessibilityReportUrl => {
+                apply_directional_order!(query, order.direction, order, accessibility_report_url)
+            }
+            PublisherField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            PublisherField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(publisher_id.eq_any(publishers));

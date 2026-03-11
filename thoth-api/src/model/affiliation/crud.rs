@@ -2,7 +2,6 @@ use super::{
     Affiliation, AffiliationField, AffiliationHistory, AffiliationOrderBy, NewAffiliation,
     NewAffiliationHistory, PatchAffiliation,
 };
-use crate::graphql::types::inputs::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{affiliation, affiliation_history};
 use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
@@ -47,34 +46,27 @@ impl Crud for Affiliation {
                 .into_boxed();
 
         query = match order.field {
-            AffiliationField::AffiliationId => match order.direction {
-                Direction::Asc => query.order(affiliation_id.asc()),
-                Direction::Desc => query.order(affiliation_id.desc()),
-            },
-            AffiliationField::ContributionId => match order.direction {
-                Direction::Asc => query.order(contribution_id.asc()),
-                Direction::Desc => query.order(contribution_id.desc()),
-            },
-            AffiliationField::InstitutionId => match order.direction {
-                Direction::Asc => query.order(institution_id.asc()),
-                Direction::Desc => query.order(institution_id.desc()),
-            },
-            AffiliationField::AffiliationOrdinal => match order.direction {
-                Direction::Asc => query.order(affiliation_ordinal.asc()),
-                Direction::Desc => query.order(affiliation_ordinal.desc()),
-            },
-            AffiliationField::Position => match order.direction {
-                Direction::Asc => query.order(position.asc()),
-                Direction::Desc => query.order(position.desc()),
-            },
-            AffiliationField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            AffiliationField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            AffiliationField::AffiliationId => {
+                apply_directional_order!(query, order.direction, order, affiliation_id)
+            }
+            AffiliationField::ContributionId => {
+                apply_directional_order!(query, order.direction, order, contribution_id)
+            }
+            AffiliationField::InstitutionId => {
+                apply_directional_order!(query, order.direction, order, institution_id)
+            }
+            AffiliationField::AffiliationOrdinal => {
+                apply_directional_order!(query, order.direction, order, affiliation_ordinal)
+            }
+            AffiliationField::Position => {
+                apply_directional_order!(query, order.direction, order, position)
+            }
+            AffiliationField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            AffiliationField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

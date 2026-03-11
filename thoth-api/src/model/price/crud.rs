@@ -1,5 +1,4 @@
 use super::{CurrencyCode, NewPrice, NewPriceHistory, PatchPrice, Price, PriceField, PriceHistory};
-use crate::graphql::types::inputs::Direction;
 use crate::graphql::types::inputs::PriceOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{price, price_history};
@@ -45,30 +44,24 @@ impl Crud for Price {
                 .into_boxed();
 
         query = match order.field {
-            PriceField::PriceId => match order.direction {
-                Direction::Asc => query.order(price_id.asc()),
-                Direction::Desc => query.order(price_id.desc()),
-            },
-            PriceField::PublicationId => match order.direction {
-                Direction::Asc => query.order(publication_id.asc()),
-                Direction::Desc => query.order(publication_id.desc()),
-            },
-            PriceField::CurrencyCode => match order.direction {
-                Direction::Asc => query.order(currency_code.asc()),
-                Direction::Desc => query.order(currency_code.desc()),
-            },
-            PriceField::UnitPrice => match order.direction {
-                Direction::Asc => query.order(unit_price.asc()),
-                Direction::Desc => query.order(unit_price.desc()),
-            },
-            PriceField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            PriceField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            PriceField::PriceId => {
+                apply_directional_order!(query, order.direction, order, price_id)
+            }
+            PriceField::PublicationId => {
+                apply_directional_order!(query, order.direction, order, publication_id)
+            }
+            PriceField::CurrencyCode => {
+                apply_directional_order!(query, order.direction, order, currency_code)
+            }
+            PriceField::UnitPrice => {
+                apply_directional_order!(query, order.direction, order, unit_price)
+            }
+            PriceField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            PriceField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
