@@ -44,9 +44,10 @@ use crate::model::{
 };
 use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, PolicyContext, UpdatePolicy};
 use crate::storage::{
-    build_cdn_url, copy_temp_object_to_final, delete_object, head_object, probe_video_dimensions,
-    publication_cleanup_plan, reconcile_replaced_object, run_cleanup_plan_sync, temp_key,
-    work_cleanup_plan, StorageConfig,
+    additional_resource_cleanup_plan, build_cdn_url, copy_temp_object_to_final, delete_object,
+    head_object, probe_video_dimensions, publication_cleanup_plan, reconcile_replaced_object,
+    run_cleanup_plan_sync, temp_key, work_cleanup_plan, work_featured_video_cleanup_plan,
+    StorageConfig,
 };
 use thoth_errors::ThothError;
 
@@ -930,7 +931,13 @@ impl MutationRoot {
         let additional_resource = context.load_current(&additional_resource_id)?;
         AdditionalResourcePolicy::can_delete(context, &additional_resource)?;
 
-        additional_resource.delete(&context.db).map_err(Into::into)
+        let cleanup_plan = additional_resource_cleanup_plan(context.db(), &additional_resource)?;
+        let deleted_additional_resource = additional_resource.delete(&context.db)?;
+        if let Some(plan) = cleanup_plan {
+            run_cleanup_plan_sync(context.s3_client(), context.cloudfront_client(), plan);
+        }
+
+        Ok(deleted_additional_resource)
     }
 
     #[graphql(description = "Delete a single award using its ID")]
@@ -974,7 +981,13 @@ impl MutationRoot {
         let work_featured_video = context.load_current(&work_featured_video_id)?;
         WorkFeaturedVideoPolicy::can_delete(context, &work_featured_video)?;
 
-        work_featured_video.delete(&context.db).map_err(Into::into)
+        let cleanup_plan = work_featured_video_cleanup_plan(context.db(), &work_featured_video)?;
+        let deleted_work_featured_video = work_featured_video.delete(&context.db)?;
+        if let Some(plan) = cleanup_plan {
+            run_cleanup_plan_sync(context.s3_client(), context.cloudfront_client(), plan);
+        }
+
+        Ok(deleted_work_featured_video)
     }
 
     #[graphql(description = "Delete a single abstract using its ID")]

@@ -125,9 +125,56 @@ fn create_hosting_imprint(
             s3_bucket: Some("bucket-example".to_string()),
             cdn_domain: Some("cdn.example.org".to_string()),
             cloudfront_dist_id: Some("dist-example".to_string()),
+            default_currency: None,
+            default_place: None,
+            default_locale: None,
         },
     )
     .expect("Failed to create hosting imprint")
+}
+
+fn create_additional_resource(
+    pool: &PgPool,
+    work_id: Uuid,
+) -> crate::model::additional_resource::AdditionalResource {
+    use crate::model::additional_resource::{
+        AdditionalResource, NewAdditionalResource, ResourceType,
+    };
+
+    AdditionalResource::create(
+        pool,
+        &NewAdditionalResource {
+            work_id,
+            title: format!("Resource {}", Uuid::new_v4()),
+            description: None,
+            attribution: None,
+            resource_type: ResourceType::Dataset,
+            doi: None,
+            handle: None,
+            url: None,
+            resource_ordinal: 1,
+        },
+    )
+    .expect("Failed to create additional resource")
+}
+
+fn create_work_featured_video(
+    pool: &PgPool,
+    work_id: Uuid,
+) -> crate::model::work_featured_video::WorkFeaturedVideo {
+    use crate::model::work_featured_video::{NewWorkFeaturedVideo, WorkFeaturedVideo};
+
+    WorkFeaturedVideo::create(
+        pool,
+        &NewWorkFeaturedVideo {
+            work_id,
+            title: Some("Featured video".to_string()),
+            url: None,
+            width: 560,
+            height: 315,
+        },
+    )
+    .expect("Failed to create featured video")
 }
 
 #[test]
@@ -241,6 +288,82 @@ fn publication_cleanup_plan_includes_pending_upload_candidate() {
 
     assert_eq!(plan.entity_type, "publication");
     assert_eq!(plan.entity_id, publication.publication_id);
+    assert_eq!(plan.storage_config.s3_bucket, "bucket-example");
+    assert_eq!(plan.storage_config.cloudfront_dist_id, "dist-example");
+    assert_eq!(plan.candidates.len(), 1);
+    assert_eq!(
+        plan.candidates[0].object_key,
+        temp_key(&pending_upload.file_upload_id)
+    );
+}
+
+#[test]
+fn additional_resource_cleanup_plan_includes_pending_upload_candidate() {
+    let (_guard, pool) = setup_test_db();
+    let publisher = create_publisher(pool.as_ref());
+    let imprint = create_hosting_imprint(pool.as_ref(), &publisher);
+    let work = create_work(pool.as_ref(), &imprint);
+    let additional_resource = create_additional_resource(pool.as_ref(), work.work_id);
+
+    let pending_upload = crate::model::file::FileUpload::create(
+        pool.as_ref(),
+        &NewFileUpload {
+            file_type: FileType::AdditionalResource,
+            work_id: None,
+            publication_id: None,
+            additional_resource_id: Some(additional_resource.additional_resource_id),
+            work_featured_video_id: None,
+            declared_mime_type: "application/json".to_string(),
+            declared_extension: "json".to_string(),
+            declared_sha256: TEST_SHA256_HEX.to_string(),
+        },
+    )
+    .expect("Failed to create pending additional-resource upload");
+
+    let plan = additional_resource_cleanup_plan(pool.as_ref(), &additional_resource)
+        .expect("Failed to build additional-resource cleanup plan")
+        .expect("Expected cleanup plan");
+
+    assert_eq!(plan.entity_type, "additional_resource");
+    assert_eq!(plan.entity_id, additional_resource.additional_resource_id);
+    assert_eq!(plan.storage_config.s3_bucket, "bucket-example");
+    assert_eq!(plan.storage_config.cloudfront_dist_id, "dist-example");
+    assert_eq!(plan.candidates.len(), 1);
+    assert_eq!(
+        plan.candidates[0].object_key,
+        temp_key(&pending_upload.file_upload_id)
+    );
+}
+
+#[test]
+fn work_featured_video_cleanup_plan_includes_pending_upload_candidate() {
+    let (_guard, pool) = setup_test_db();
+    let publisher = create_publisher(pool.as_ref());
+    let imprint = create_hosting_imprint(pool.as_ref(), &publisher);
+    let work = create_work(pool.as_ref(), &imprint);
+    let featured_video = create_work_featured_video(pool.as_ref(), work.work_id);
+
+    let pending_upload = crate::model::file::FileUpload::create(
+        pool.as_ref(),
+        &NewFileUpload {
+            file_type: FileType::WorkFeaturedVideo,
+            work_id: None,
+            publication_id: None,
+            additional_resource_id: None,
+            work_featured_video_id: Some(featured_video.work_featured_video_id),
+            declared_mime_type: "video/mp4".to_string(),
+            declared_extension: "mp4".to_string(),
+            declared_sha256: TEST_SHA256_HEX.to_string(),
+        },
+    )
+    .expect("Failed to create pending featured-video upload");
+
+    let plan = work_featured_video_cleanup_plan(pool.as_ref(), &featured_video)
+        .expect("Failed to build featured-video cleanup plan")
+        .expect("Expected cleanup plan");
+
+    assert_eq!(plan.entity_type, "work_featured_video");
+    assert_eq!(plan.entity_id, featured_video.work_featured_video_id);
     assert_eq!(plan.storage_config.s3_bucket, "bucket-example");
     assert_eq!(plan.storage_config.cloudfront_dist_id, "dist-example");
     assert_eq!(plan.candidates.len(), 1);

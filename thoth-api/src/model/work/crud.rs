@@ -2,14 +2,14 @@ use super::{
     NewWork, NewWorkHistory, PatchWork, Work, WorkField, WorkHistory, WorkOrderBy, WorkStatus,
     WorkType,
 };
-use crate::graphql::types::inputs::TimeExpression;
 use crate::graphql::types::inputs::Expression;
+use crate::graphql::types::inputs::TimeExpression;
 use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderBy};
 use crate::model::{Crud, DbInsert, Doi, HistoryEntry, PublisherId};
 use crate::schema::{work, work_abstract, work_history, work_title};
 use diesel::{
-    BoolExpressionMethods, ExpressionMethods, NullableExpressionMethods,
-    PgTextExpressionMethods, QueryDsl, RunQueryDsl,
+    BoolExpressionMethods, ExpressionMethods, NullableExpressionMethods, PgTextExpressionMethods,
+    QueryDsl, RunQueryDsl,
 };
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -187,9 +187,23 @@ impl Crud for Work {
             .into_boxed();
 
         query = match order.field {
-            WorkField::WorkId => apply_directional_order!(query, order.direction, order_by, dsl::work_id),
-            WorkField::WorkType => apply_directional_order!(query, order.direction, order_by, dsl::work_type, dsl::work_id),
-            WorkField::WorkStatus => apply_directional_order!(query, order.direction, order_by, dsl::work_status, dsl::work_id),
+            WorkField::WorkId => {
+                apply_directional_order!(query, order.direction, order_by, dsl::work_id)
+            }
+            WorkField::WorkType => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::work_type,
+                dsl::work_id
+            ),
+            WorkField::WorkStatus => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::work_status,
+                dsl::work_id
+            ),
             WorkField::FullTitle => {
                 let canonical_full_title = work_title::table
                     .select(work_title::full_title.nullable())
@@ -198,7 +212,13 @@ impl Crud for Work {
                     .order(work_title::title_id.asc())
                     .limit(1)
                     .single_value();
-                apply_directional_order!(query, order.direction, order_by, canonical_full_title, dsl::work_id)
+                apply_directional_order!(
+                    query,
+                    order.direction,
+                    order_by,
+                    canonical_full_title,
+                    dsl::work_id
+                )
             }
             WorkField::Title => {
                 let canonical_title = work_title::table
@@ -208,7 +228,13 @@ impl Crud for Work {
                     .order(work_title::title_id.asc())
                     .limit(1)
                     .single_value();
-                apply_directional_order!(query, order.direction, order_by, canonical_title, dsl::work_id)
+                apply_directional_order!(
+                    query,
+                    order.direction,
+                    order_by,
+                    canonical_title,
+                    dsl::work_id
+                )
             }
             WorkField::Subtitle => {
                 let canonical_subtitle = work_title::table
@@ -218,28 +244,138 @@ impl Crud for Work {
                     .order(work_title::title_id.asc())
                     .limit(1)
                     .single_value();
-                apply_directional_order!(query, order.direction, order_by, canonical_subtitle, dsl::work_id)
+                apply_directional_order!(
+                    query,
+                    order.direction,
+                    order_by,
+                    canonical_subtitle,
+                    dsl::work_id
+                )
             }
-            WorkField::Reference => apply_directional_order!(query, order.direction, order_by, dsl::reference, dsl::work_id),
-            WorkField::Edition => apply_directional_order!(query, order.direction, order_by, dsl::edition, dsl::work_id),
-            WorkField::Doi => apply_directional_order!(query, order.direction, order_by, dsl::doi, dsl::work_id),
-            WorkField::PublicationDate => apply_directional_order!(query, order.direction, order_by, dsl::publication_date, dsl::work_id),
-            WorkField::WithdrawnDate => apply_directional_order!(query, order.direction, order_by, dsl::withdrawn_date, dsl::work_id),
-            WorkField::Place => apply_directional_order!(query, order.direction, order_by, dsl::place, dsl::work_id),
-            WorkField::PageCount => apply_directional_order!(query, order.direction, order_by, dsl::page_count, dsl::work_id),
-            WorkField::PageBreakdown => apply_directional_order!(query, order.direction, order_by, dsl::page_breakdown, dsl::work_id),
-            WorkField::FirstPage => apply_directional_order!(query, order.direction, order_by, dsl::first_page, dsl::work_id),
-            WorkField::LastPage => apply_directional_order!(query, order.direction, order_by, dsl::last_page, dsl::work_id),
-            WorkField::PageInterval => apply_directional_order!(query, order.direction, order_by, dsl::page_interval, dsl::work_id),
-            WorkField::ImageCount => apply_directional_order!(query, order.direction, order_by, dsl::image_count, dsl::work_id),
-            WorkField::TableCount => apply_directional_order!(query, order.direction, order_by, dsl::table_count, dsl::work_id),
-            WorkField::AudioCount => apply_directional_order!(query, order.direction, order_by, dsl::audio_count, dsl::work_id),
-            WorkField::VideoCount => apply_directional_order!(query, order.direction, order_by, dsl::video_count, dsl::work_id),
-            WorkField::License => apply_directional_order!(query, order.direction, order_by, dsl::license, dsl::work_id),
-            WorkField::CopyrightHolder => apply_directional_order!(query, order.direction, order_by, dsl::copyright_holder, dsl::work_id),
-            WorkField::LandingPage => apply_directional_order!(query, order.direction, order_by, dsl::landing_page, dsl::work_id),
-            WorkField::Lccn => apply_directional_order!(query, order.direction, order_by, dsl::lccn, dsl::work_id),
-            WorkField::Oclc => apply_directional_order!(query, order.direction, order_by, dsl::oclc, dsl::work_id),
+            WorkField::Reference => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::reference,
+                dsl::work_id
+            ),
+            WorkField::Edition => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::edition,
+                dsl::work_id
+            ),
+            WorkField::Doi => {
+                apply_directional_order!(query, order.direction, order_by, dsl::doi, dsl::work_id)
+            }
+            WorkField::PublicationDate => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::publication_date,
+                dsl::work_id
+            ),
+            WorkField::WithdrawnDate => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::withdrawn_date,
+                dsl::work_id
+            ),
+            WorkField::Place => {
+                apply_directional_order!(query, order.direction, order_by, dsl::place, dsl::work_id)
+            }
+            WorkField::PageCount => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::page_count,
+                dsl::work_id
+            ),
+            WorkField::PageBreakdown => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::page_breakdown,
+                dsl::work_id
+            ),
+            WorkField::FirstPage => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::first_page,
+                dsl::work_id
+            ),
+            WorkField::LastPage => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::last_page,
+                dsl::work_id
+            ),
+            WorkField::PageInterval => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::page_interval,
+                dsl::work_id
+            ),
+            WorkField::ImageCount => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::image_count,
+                dsl::work_id
+            ),
+            WorkField::TableCount => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::table_count,
+                dsl::work_id
+            ),
+            WorkField::AudioCount => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::audio_count,
+                dsl::work_id
+            ),
+            WorkField::VideoCount => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::video_count,
+                dsl::work_id
+            ),
+            WorkField::License => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::license,
+                dsl::work_id
+            ),
+            WorkField::CopyrightHolder => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::copyright_holder,
+                dsl::work_id
+            ),
+            WorkField::LandingPage => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::landing_page,
+                dsl::work_id
+            ),
+            WorkField::Lccn => {
+                apply_directional_order!(query, order.direction, order_by, dsl::lccn, dsl::work_id)
+            }
+            WorkField::Oclc => {
+                apply_directional_order!(query, order.direction, order_by, dsl::oclc, dsl::work_id)
+            }
             WorkField::ShortAbstract | WorkField::LongAbstract => {
                 let canonical_abstract = work_abstract::table
                     .select(work_abstract::content.nullable())
@@ -248,17 +384,73 @@ impl Crud for Work {
                     .order(work_abstract::abstract_id.asc())
                     .limit(1)
                     .single_value();
-                apply_directional_order!(query, order.direction, order_by, canonical_abstract, dsl::work_id)
+                apply_directional_order!(
+                    query,
+                    order.direction,
+                    order_by,
+                    canonical_abstract,
+                    dsl::work_id
+                )
             }
-            WorkField::GeneralNote => apply_directional_order!(query, order.direction, order_by, dsl::general_note, dsl::work_id),
-            WorkField::BibliographyNote => apply_directional_order!(query, order.direction, order_by, dsl::bibliography_note, dsl::work_id),
-            WorkField::Toc => apply_directional_order!(query, order.direction, order_by, dsl::toc, dsl::work_id),
-            WorkField::ResourcesDescription => apply_directional_order!(query, order.direction, order_by, dsl::resources_description, dsl::work_id),
-            WorkField::CoverUrl => apply_directional_order!(query, order.direction, order_by, dsl::cover_url, dsl::work_id),
-            WorkField::CoverCaption => apply_directional_order!(query, order.direction, order_by, dsl::cover_caption, dsl::work_id),
-            WorkField::CreatedAt => apply_directional_order!(query, order.direction, order_by, dsl::created_at, dsl::work_id),
-            WorkField::UpdatedAt => apply_directional_order!(query, order.direction, order_by, dsl::updated_at, dsl::work_id),
-            WorkField::UpdatedAtWithRelations => apply_directional_order!(query, order.direction, order_by, dsl::updated_at_with_relations, dsl::work_id),
+            WorkField::GeneralNote => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::general_note,
+                dsl::work_id
+            ),
+            WorkField::BibliographyNote => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::bibliography_note,
+                dsl::work_id
+            ),
+            WorkField::Toc => {
+                apply_directional_order!(query, order.direction, order_by, dsl::toc, dsl::work_id)
+            }
+            WorkField::ResourcesDescription => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::resources_description,
+                dsl::work_id
+            ),
+            WorkField::CoverUrl => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::cover_url,
+                dsl::work_id
+            ),
+            WorkField::CoverCaption => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::cover_caption,
+                dsl::work_id
+            ),
+            WorkField::CreatedAt => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::created_at,
+                dsl::work_id
+            ),
+            WorkField::UpdatedAt => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::updated_at,
+                dsl::work_id
+            ),
+            WorkField::UpdatedAtWithRelations => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                dsl::updated_at_with_relations,
+                dsl::work_id
+            ),
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

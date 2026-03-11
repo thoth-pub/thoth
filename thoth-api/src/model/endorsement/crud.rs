@@ -46,14 +46,28 @@ impl Crud for Endorsement {
             .into_boxed();
 
         query = match order.field {
-            EndorsementField::EndorsementId => apply_directional_order!(query, order.direction, order, endorsement_id),
-            EndorsementField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
-            EndorsementField::EndorsementOrdinal => apply_directional_order!(query, order.direction, order, endorsement_ordinal),
-            EndorsementField::AuthorName => apply_directional_order!(query, order.direction, order, author_name),
-            EndorsementField::AuthorRole => apply_directional_order!(query, order.direction, order, author_role),
+            EndorsementField::EndorsementId => {
+                apply_directional_order!(query, order.direction, order, endorsement_id)
+            }
+            EndorsementField::WorkId => {
+                apply_directional_order!(query, order.direction, order, work_id)
+            }
+            EndorsementField::EndorsementOrdinal => {
+                apply_directional_order!(query, order.direction, order, endorsement_ordinal)
+            }
+            EndorsementField::AuthorName => {
+                apply_directional_order!(query, order.direction, order, author_name)
+            }
+            EndorsementField::AuthorRole => {
+                apply_directional_order!(query, order.direction, order, author_role)
+            }
             EndorsementField::Url => apply_directional_order!(query, order.direction, order, url),
-            EndorsementField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            EndorsementField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            EndorsementField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            EndorsementField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
 
         if !publishers.is_empty() {

@@ -73,12 +73,24 @@ impl Crud for Abstract {
             .into_boxed();
 
         query = match order.field {
-            AbstractField::AbstractId => apply_directional_order!(query, order.direction, order, dsl::abstract_id),
-            AbstractField::WorkId => apply_directional_order!(query, order.direction, order, dsl::work_id),
-            AbstractField::LocaleCode => apply_directional_order!(query, order.direction, order, dsl::locale_code),
-            AbstractField::AbstractType => apply_directional_order!(query, order.direction, order, dsl::abstract_type),
-            AbstractField::Content => apply_directional_order!(query, order.direction, order, dsl::content),
-            AbstractField::Canonical => apply_directional_order!(query, order.direction, order, dsl::canonical),
+            AbstractField::AbstractId => {
+                apply_directional_order!(query, order.direction, order, dsl::abstract_id)
+            }
+            AbstractField::WorkId => {
+                apply_directional_order!(query, order.direction, order, dsl::work_id)
+            }
+            AbstractField::LocaleCode => {
+                apply_directional_order!(query, order.direction, order, dsl::locale_code)
+            }
+            AbstractField::AbstractType => {
+                apply_directional_order!(query, order.direction, order, dsl::abstract_type)
+            }
+            AbstractField::Content => {
+                apply_directional_order!(query, order.direction, order, dsl::content)
+            }
+            AbstractField::Canonical => {
+                apply_directional_order!(query, order.direction, order, dsl::canonical)
+            }
         };
 
         if let Some(filter) = filter {

@@ -46,31 +46,71 @@ impl Crud for Reference {
             .into_boxed();
 
         query = match order.field {
-            ReferenceField::ReferenceId => apply_directional_order!(query, order.direction, order, reference_id),
-            ReferenceField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
-            ReferenceField::ReferenceOrdinal => apply_directional_order!(query, order.direction, order, reference_ordinal),
+            ReferenceField::ReferenceId => {
+                apply_directional_order!(query, order.direction, order, reference_id)
+            }
+            ReferenceField::WorkId => {
+                apply_directional_order!(query, order.direction, order, work_id)
+            }
+            ReferenceField::ReferenceOrdinal => {
+                apply_directional_order!(query, order.direction, order, reference_ordinal)
+            }
             ReferenceField::Doi => apply_directional_order!(query, order.direction, order, doi),
-            ReferenceField::UnstructuredCitation => apply_directional_order!(query, order.direction, order, unstructured_citation),
+            ReferenceField::UnstructuredCitation => {
+                apply_directional_order!(query, order.direction, order, unstructured_citation)
+            }
             ReferenceField::Issn => apply_directional_order!(query, order.direction, order, issn),
             ReferenceField::Isbn => apply_directional_order!(query, order.direction, order, isbn),
-            ReferenceField::JournalTitle => apply_directional_order!(query, order.direction, order, journal_title),
-            ReferenceField::ArticleTitle => apply_directional_order!(query, order.direction, order, article_title),
-            ReferenceField::SeriesTitle => apply_directional_order!(query, order.direction, order, series_title),
-            ReferenceField::VolumeTitle => apply_directional_order!(query, order.direction, order, volume_title),
-            ReferenceField::Edition => apply_directional_order!(query, order.direction, order, edition),
-            ReferenceField::Author => apply_directional_order!(query, order.direction, order, author),
-            ReferenceField::Volume => apply_directional_order!(query, order.direction, order, volume),
+            ReferenceField::JournalTitle => {
+                apply_directional_order!(query, order.direction, order, journal_title)
+            }
+            ReferenceField::ArticleTitle => {
+                apply_directional_order!(query, order.direction, order, article_title)
+            }
+            ReferenceField::SeriesTitle => {
+                apply_directional_order!(query, order.direction, order, series_title)
+            }
+            ReferenceField::VolumeTitle => {
+                apply_directional_order!(query, order.direction, order, volume_title)
+            }
+            ReferenceField::Edition => {
+                apply_directional_order!(query, order.direction, order, edition)
+            }
+            ReferenceField::Author => {
+                apply_directional_order!(query, order.direction, order, author)
+            }
+            ReferenceField::Volume => {
+                apply_directional_order!(query, order.direction, order, volume)
+            }
             ReferenceField::Issue => apply_directional_order!(query, order.direction, order, issue),
-            ReferenceField::FirstPage => apply_directional_order!(query, order.direction, order, first_page),
-            ReferenceField::ComponentNumber => apply_directional_order!(query, order.direction, order, component_number),
-            ReferenceField::StandardDesignator => apply_directional_order!(query, order.direction, order, standard_designator),
-            ReferenceField::StandardsBodyName => apply_directional_order!(query, order.direction, order, standards_body_name),
-            ReferenceField::StandardsBodyAcronym => apply_directional_order!(query, order.direction, order, standards_body_acronym),
+            ReferenceField::FirstPage => {
+                apply_directional_order!(query, order.direction, order, first_page)
+            }
+            ReferenceField::ComponentNumber => {
+                apply_directional_order!(query, order.direction, order, component_number)
+            }
+            ReferenceField::StandardDesignator => {
+                apply_directional_order!(query, order.direction, order, standard_designator)
+            }
+            ReferenceField::StandardsBodyName => {
+                apply_directional_order!(query, order.direction, order, standards_body_name)
+            }
+            ReferenceField::StandardsBodyAcronym => {
+                apply_directional_order!(query, order.direction, order, standards_body_acronym)
+            }
             ReferenceField::Url => apply_directional_order!(query, order.direction, order, url),
-            ReferenceField::PublicationDate => apply_directional_order!(query, order.direction, order, publication_date),
-            ReferenceField::RetrievalDate => apply_directional_order!(query, order.direction, order, retrieval_date),
-            ReferenceField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            ReferenceField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            ReferenceField::PublicationDate => {
+                apply_directional_order!(query, order.direction, order, publication_date)
+            }
+            ReferenceField::RetrievalDate => {
+                apply_directional_order!(query, order.direction, order, retrieval_date)
+            }
+            ReferenceField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            ReferenceField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

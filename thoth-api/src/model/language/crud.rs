@@ -44,13 +44,27 @@ impl Crud for Language {
             .into_boxed();
 
         query = match order.field {
-            LanguageField::LanguageId => apply_directional_order!(query, order.direction, order, dsl::language_id),
-            LanguageField::WorkId => apply_directional_order!(query, order.direction, order, dsl::work_id),
-            LanguageField::LanguageCode => apply_directional_order!(query, order.direction, order, dsl::language_code),
-            LanguageField::LanguageRelation => apply_directional_order!(query, order.direction, order, dsl::language_relation),
-            LanguageField::MainLanguage => apply_directional_order!(query, order.direction, order, dsl::main_language),
-            LanguageField::CreatedAt => apply_directional_order!(query, order.direction, order, dsl::created_at),
-            LanguageField::UpdatedAt => apply_directional_order!(query, order.direction, order, dsl::updated_at),
+            LanguageField::LanguageId => {
+                apply_directional_order!(query, order.direction, order, dsl::language_id)
+            }
+            LanguageField::WorkId => {
+                apply_directional_order!(query, order.direction, order, dsl::work_id)
+            }
+            LanguageField::LanguageCode => {
+                apply_directional_order!(query, order.direction, order, dsl::language_code)
+            }
+            LanguageField::LanguageRelation => {
+                apply_directional_order!(query, order.direction, order, dsl::language_relation)
+            }
+            LanguageField::MainLanguage => {
+                apply_directional_order!(query, order.direction, order, dsl::main_language)
+            }
+            LanguageField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, dsl::created_at)
+            }
+            LanguageField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, dsl::updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

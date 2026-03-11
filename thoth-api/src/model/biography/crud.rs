@@ -64,11 +64,21 @@ impl Crud for Biography {
             .into_boxed();
 
         query = match order.field {
-            BiographyField::BiographyId => apply_directional_order!(query, order.direction, order, biography_id),
-            BiographyField::ContributionId => apply_directional_order!(query, order.direction, order, contribution_id),
-            BiographyField::Content => apply_directional_order!(query, order.direction, order, content),
-            BiographyField::Canonical => apply_directional_order!(query, order.direction, order, canonical),
-            BiographyField::LocaleCode => apply_directional_order!(query, order.direction, order, locale_code),
+            BiographyField::BiographyId => {
+                apply_directional_order!(query, order.direction, order, biography_id)
+            }
+            BiographyField::ContributionId => {
+                apply_directional_order!(query, order.direction, order, contribution_id)
+            }
+            BiographyField::Content => {
+                apply_directional_order!(query, order.direction, order, content)
+            }
+            BiographyField::Canonical => {
+                apply_directional_order!(query, order.direction, order, canonical)
+            }
+            BiographyField::LocaleCode => {
+                apply_directional_order!(query, order.direction, order, locale_code)
+            }
         };
 
         if let Some(filter) = filter {

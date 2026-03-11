@@ -43,13 +43,25 @@ impl Crud for Institution {
         let mut query = institution.into_boxed();
 
         query = match order.field {
-            InstitutionField::InstitutionId => apply_directional_order!(query, order.direction, order, institution_id),
-            InstitutionField::InstitutionName => apply_directional_order!(query, order.direction, order, institution_name),
-            InstitutionField::InstitutionDoi => apply_directional_order!(query, order.direction, order, institution_doi),
+            InstitutionField::InstitutionId => {
+                apply_directional_order!(query, order.direction, order, institution_id)
+            }
+            InstitutionField::InstitutionName => {
+                apply_directional_order!(query, order.direction, order, institution_name)
+            }
+            InstitutionField::InstitutionDoi => {
+                apply_directional_order!(query, order.direction, order, institution_doi)
+            }
             InstitutionField::Ror => apply_directional_order!(query, order.direction, order, ror),
-            InstitutionField::CountryCode => apply_directional_order!(query, order.direction, order, country_code),
-            InstitutionField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            InstitutionField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            InstitutionField::CountryCode => {
+                apply_directional_order!(query, order.direction, order, country_code)
+            }
+            InstitutionField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            InstitutionField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if let Some(filter) = filter {
             query = query.filter(

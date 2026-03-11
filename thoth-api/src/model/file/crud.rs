@@ -322,6 +322,50 @@ impl File {
         Ok(Self::deduplicate_cleanup_candidates(candidates))
     }
 
+    pub fn cleanup_candidates_for_additional_resource(
+        db: &PgPool,
+        additional_resource_id: &Uuid,
+    ) -> ThothResult<Vec<FileCleanupCandidate>> {
+        use crate::schema::{file::dsl as file_dsl, file_upload::dsl as file_upload_dsl};
+
+        let mut connection = db.get()?;
+        let files = file_dsl::file
+            .filter(file_dsl::additional_resource_id.eq(Some(*additional_resource_id)))
+            .load::<File>(&mut connection)
+            .map_err(ThothError::from)?;
+        let uploads = file_upload_dsl::file_upload
+            .filter(file_upload_dsl::additional_resource_id.eq(Some(*additional_resource_id)))
+            .load::<FileUpload>(&mut connection)
+            .map_err(ThothError::from)?;
+
+        let mut candidates = Self::to_cleanup_candidates(files);
+        candidates.extend(Self::to_pending_upload_cleanup_candidates(uploads));
+
+        Ok(Self::deduplicate_cleanup_candidates(candidates))
+    }
+
+    pub fn cleanup_candidates_for_work_featured_video(
+        db: &PgPool,
+        work_featured_video_id: &Uuid,
+    ) -> ThothResult<Vec<FileCleanupCandidate>> {
+        use crate::schema::{file::dsl as file_dsl, file_upload::dsl as file_upload_dsl};
+
+        let mut connection = db.get()?;
+        let files = file_dsl::file
+            .filter(file_dsl::work_featured_video_id.eq(Some(*work_featured_video_id)))
+            .load::<File>(&mut connection)
+            .map_err(ThothError::from)?;
+        let uploads = file_upload_dsl::file_upload
+            .filter(file_upload_dsl::work_featured_video_id.eq(Some(*work_featured_video_id)))
+            .load::<FileUpload>(&mut connection)
+            .map_err(ThothError::from)?;
+
+        let mut candidates = Self::to_cleanup_candidates(files);
+        candidates.extend(Self::to_pending_upload_cleanup_candidates(uploads));
+
+        Ok(Self::deduplicate_cleanup_candidates(candidates))
+    }
+
     pub fn cleanup_candidates_for_work(
         db: &PgPool,
         work_id: &Uuid,

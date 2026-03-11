@@ -43,14 +43,30 @@ impl Crud for Contributor {
         let mut query = contributor.into_boxed();
 
         query = match order.field {
-            ContributorField::ContributorId => apply_directional_order!(query, order.direction, order, contributor_id),
-            ContributorField::FirstName => apply_directional_order!(query, order.direction, order, first_name),
-            ContributorField::LastName => apply_directional_order!(query, order.direction, order, last_name),
-            ContributorField::FullName => apply_directional_order!(query, order.direction, order, full_name),
-            ContributorField::Orcid => apply_directional_order!(query, order.direction, order, orcid),
-            ContributorField::Website => apply_directional_order!(query, order.direction, order, website),
-            ContributorField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            ContributorField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            ContributorField::ContributorId => {
+                apply_directional_order!(query, order.direction, order, contributor_id)
+            }
+            ContributorField::FirstName => {
+                apply_directional_order!(query, order.direction, order, first_name)
+            }
+            ContributorField::LastName => {
+                apply_directional_order!(query, order.direction, order, last_name)
+            }
+            ContributorField::FullName => {
+                apply_directional_order!(query, order.direction, order, full_name)
+            }
+            ContributorField::Orcid => {
+                apply_directional_order!(query, order.direction, order, orcid)
+            }
+            ContributorField::Website => {
+                apply_directional_order!(query, order.direction, order, website)
+            }
+            ContributorField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            ContributorField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if let Some(filter) = filter {
             query = query.filter(

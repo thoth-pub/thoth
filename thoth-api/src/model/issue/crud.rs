@@ -41,12 +41,22 @@ impl Crud for Issue {
             .into_boxed();
 
         query = match order.field {
-            IssueField::IssueId => apply_directional_order!(query, order.direction, order, issue_id),
-            IssueField::SeriesId => apply_directional_order!(query, order.direction, order, series_id),
+            IssueField::IssueId => {
+                apply_directional_order!(query, order.direction, order, issue_id)
+            }
+            IssueField::SeriesId => {
+                apply_directional_order!(query, order.direction, order, series_id)
+            }
             IssueField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
-            IssueField::IssueOrdinal => apply_directional_order!(query, order.direction, order, issue_ordinal),
-            IssueField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            IssueField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            IssueField::IssueOrdinal => {
+                apply_directional_order!(query, order.direction, order, issue_ordinal)
+            }
+            IssueField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            IssueField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

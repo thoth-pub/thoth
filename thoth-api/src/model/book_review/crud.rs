@@ -46,15 +46,33 @@ impl Crud for BookReview {
             .into_boxed();
 
         query = match order.field {
-            BookReviewField::BookReviewId => apply_directional_order!(query, order.direction, order, book_review_id),
-            BookReviewField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
-            BookReviewField::ReviewOrdinal => apply_directional_order!(query, order.direction, order, review_ordinal),
-            BookReviewField::Title => apply_directional_order!(query, order.direction, order, title),
-            BookReviewField::AuthorName => apply_directional_order!(query, order.direction, order, author_name),
-            BookReviewField::JournalName => apply_directional_order!(query, order.direction, order, journal_name),
-            BookReviewField::ReviewDate => apply_directional_order!(query, order.direction, order, review_date),
-            BookReviewField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            BookReviewField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            BookReviewField::BookReviewId => {
+                apply_directional_order!(query, order.direction, order, book_review_id)
+            }
+            BookReviewField::WorkId => {
+                apply_directional_order!(query, order.direction, order, work_id)
+            }
+            BookReviewField::ReviewOrdinal => {
+                apply_directional_order!(query, order.direction, order, review_ordinal)
+            }
+            BookReviewField::Title => {
+                apply_directional_order!(query, order.direction, order, title)
+            }
+            BookReviewField::AuthorName => {
+                apply_directional_order!(query, order.direction, order, author_name)
+            }
+            BookReviewField::JournalName => {
+                apply_directional_order!(query, order.direction, order, journal_name)
+            }
+            BookReviewField::ReviewDate => {
+                apply_directional_order!(query, order.direction, order, review_date)
+            }
+            BookReviewField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            BookReviewField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
 
         if !publishers.is_empty() {

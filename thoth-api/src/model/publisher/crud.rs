@@ -43,15 +43,33 @@ impl Crud for Publisher {
         let mut query = publisher.into_boxed();
 
         query = match order.field {
-            PublisherField::PublisherId => apply_directional_order!(query, order.direction, order, publisher_id),
-            PublisherField::PublisherName => apply_directional_order!(query, order.direction, order, publisher_name),
-            PublisherField::PublisherShortname => apply_directional_order!(query, order.direction, order, publisher_shortname),
-            PublisherField::PublisherUrl => apply_directional_order!(query, order.direction, order, publisher_url),
-            PublisherField::ZitadelId => apply_directional_order!(query, order.direction, order, zitadel_id),
-            PublisherField::AccessibilityStatement => apply_directional_order!(query, order.direction, order, accessibility_statement),
-            PublisherField::AccessibilityReportUrl => apply_directional_order!(query, order.direction, order, accessibility_report_url),
-            PublisherField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            PublisherField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            PublisherField::PublisherId => {
+                apply_directional_order!(query, order.direction, order, publisher_id)
+            }
+            PublisherField::PublisherName => {
+                apply_directional_order!(query, order.direction, order, publisher_name)
+            }
+            PublisherField::PublisherShortname => {
+                apply_directional_order!(query, order.direction, order, publisher_shortname)
+            }
+            PublisherField::PublisherUrl => {
+                apply_directional_order!(query, order.direction, order, publisher_url)
+            }
+            PublisherField::ZitadelId => {
+                apply_directional_order!(query, order.direction, order, zitadel_id)
+            }
+            PublisherField::AccessibilityStatement => {
+                apply_directional_order!(query, order.direction, order, accessibility_statement)
+            }
+            PublisherField::AccessibilityReportUrl => {
+                apply_directional_order!(query, order.direction, order, accessibility_report_url)
+            }
+            PublisherField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            PublisherField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(publisher_id.eq_any(publishers));

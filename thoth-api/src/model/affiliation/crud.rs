@@ -46,13 +46,27 @@ impl Crud for Affiliation {
                 .into_boxed();
 
         query = match order.field {
-            AffiliationField::AffiliationId => apply_directional_order!(query, order.direction, order, affiliation_id),
-            AffiliationField::ContributionId => apply_directional_order!(query, order.direction, order, contribution_id),
-            AffiliationField::InstitutionId => apply_directional_order!(query, order.direction, order, institution_id),
-            AffiliationField::AffiliationOrdinal => apply_directional_order!(query, order.direction, order, affiliation_ordinal),
-            AffiliationField::Position => apply_directional_order!(query, order.direction, order, position),
-            AffiliationField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            AffiliationField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            AffiliationField::AffiliationId => {
+                apply_directional_order!(query, order.direction, order, affiliation_id)
+            }
+            AffiliationField::ContributionId => {
+                apply_directional_order!(query, order.direction, order, contribution_id)
+            }
+            AffiliationField::InstitutionId => {
+                apply_directional_order!(query, order.direction, order, institution_id)
+            }
+            AffiliationField::AffiliationOrdinal => {
+                apply_directional_order!(query, order.direction, order, affiliation_ordinal)
+            }
+            AffiliationField::Position => {
+                apply_directional_order!(query, order.direction, order, position)
+            }
+            AffiliationField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            AffiliationField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

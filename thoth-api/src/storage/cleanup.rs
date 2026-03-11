@@ -5,10 +5,12 @@ use uuid::Uuid;
 
 use crate::db::PgPool;
 use crate::model::{
+    additional_resource::AdditionalResource,
     file::{File, FileCleanupCandidate},
     imprint::Imprint,
     publication::Publication,
     work::Work,
+    work_featured_video::WorkFeaturedVideo,
     Crud,
 };
 
@@ -134,6 +136,68 @@ pub fn publication_cleanup_plan(
     Ok(Some(FileCleanupPlan {
         entity_type: "publication",
         entity_id: publication.publication_id,
+        storage_config,
+        candidates,
+    }))
+}
+
+pub fn additional_resource_cleanup_plan(
+    db: &PgPool,
+    additional_resource: &AdditionalResource,
+) -> ThothResult<Option<FileCleanupPlan>> {
+    let candidates = File::cleanup_candidates_for_additional_resource(
+        db,
+        &additional_resource.additional_resource_id,
+    )?;
+    if candidates.is_empty() {
+        return Ok(None);
+    }
+
+    let work = Work::from_id(db, &additional_resource.work_id)?;
+    let Some(storage_config) = resolve_storage_config(
+        db,
+        &work,
+        "additional_resource",
+        additional_resource.additional_resource_id,
+    )?
+    else {
+        return Ok(None);
+    };
+
+    Ok(Some(FileCleanupPlan {
+        entity_type: "additional_resource",
+        entity_id: additional_resource.additional_resource_id,
+        storage_config,
+        candidates,
+    }))
+}
+
+pub fn work_featured_video_cleanup_plan(
+    db: &PgPool,
+    work_featured_video: &WorkFeaturedVideo,
+) -> ThothResult<Option<FileCleanupPlan>> {
+    let candidates = File::cleanup_candidates_for_work_featured_video(
+        db,
+        &work_featured_video.work_featured_video_id,
+    )?;
+    if candidates.is_empty() {
+        return Ok(None);
+    }
+
+    let work = Work::from_id(db, &work_featured_video.work_id)?;
+    let Some(storage_config) = resolve_storage_config(
+        db,
+        &work,
+        "work_featured_video",
+        work_featured_video.work_featured_video_id,
+    )?
+    else {
+        return Ok(None);
+    };
+
+    Ok(Some(FileCleanupPlan {
+        entity_type: "work_featured_video",
+        entity_id: work_featured_video.work_featured_video_id,
         storage_config,
         candidates,
     }))

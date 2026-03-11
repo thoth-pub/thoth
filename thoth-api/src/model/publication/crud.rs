@@ -45,24 +45,61 @@ impl Crud for Publication {
             .into_boxed();
 
         query = match order.field {
-            PublicationField::PublicationId => apply_directional_order!(query, order.direction, order, publication_id),
-            PublicationField::PublicationType => apply_directional_order!(query, order.direction, order, publication_type),
-            PublicationField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
+            PublicationField::PublicationId => {
+                apply_directional_order!(query, order.direction, order, publication_id)
+            }
+            PublicationField::PublicationType => {
+                apply_directional_order!(query, order.direction, order, publication_type)
+            }
+            PublicationField::WorkId => {
+                apply_directional_order!(query, order.direction, order, work_id)
+            }
             PublicationField::Isbn => apply_directional_order!(query, order.direction, order, isbn),
-            PublicationField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            PublicationField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
-            PublicationField::WidthMm => apply_directional_order!(query, order.direction, order, width_mm),
-            PublicationField::WidthIn => apply_directional_order!(query, order.direction, order, width_in),
-            PublicationField::HeightMm => apply_directional_order!(query, order.direction, order, height_mm),
-            PublicationField::HeightIn => apply_directional_order!(query, order.direction, order, height_in),
-            PublicationField::DepthMm => apply_directional_order!(query, order.direction, order, depth_mm),
-            PublicationField::DepthIn => apply_directional_order!(query, order.direction, order, depth_in),
-            PublicationField::WeightG => apply_directional_order!(query, order.direction, order, weight_g),
-            PublicationField::WeightOz => apply_directional_order!(query, order.direction, order, weight_oz),
-            PublicationField::AccessibilityStandard => apply_directional_order!(query, order.direction, order, accessibility_standard),
-            PublicationField::AccessibilityAdditionalStandard => apply_directional_order!(query, order.direction, order, accessibility_additional_standard),
-            PublicationField::AccessibilityException => apply_directional_order!(query, order.direction, order, accessibility_exception),
-            PublicationField::AccessibilityReportUrl => apply_directional_order!(query, order.direction, order, accessibility_report_url),
+            PublicationField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            PublicationField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
+            PublicationField::WidthMm => {
+                apply_directional_order!(query, order.direction, order, width_mm)
+            }
+            PublicationField::WidthIn => {
+                apply_directional_order!(query, order.direction, order, width_in)
+            }
+            PublicationField::HeightMm => {
+                apply_directional_order!(query, order.direction, order, height_mm)
+            }
+            PublicationField::HeightIn => {
+                apply_directional_order!(query, order.direction, order, height_in)
+            }
+            PublicationField::DepthMm => {
+                apply_directional_order!(query, order.direction, order, depth_mm)
+            }
+            PublicationField::DepthIn => {
+                apply_directional_order!(query, order.direction, order, depth_in)
+            }
+            PublicationField::WeightG => {
+                apply_directional_order!(query, order.direction, order, weight_g)
+            }
+            PublicationField::WeightOz => {
+                apply_directional_order!(query, order.direction, order, weight_oz)
+            }
+            PublicationField::AccessibilityStandard => {
+                apply_directional_order!(query, order.direction, order, accessibility_standard)
+            }
+            PublicationField::AccessibilityAdditionalStandard => apply_directional_order!(
+                query,
+                order.direction,
+                order,
+                accessibility_additional_standard
+            ),
+            PublicationField::AccessibilityException => {
+                apply_directional_order!(query, order.direction, order, accessibility_exception)
+            }
+            PublicationField::AccessibilityReportUrl => {
+                apply_directional_order!(query, order.direction, order, accessibility_report_url)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

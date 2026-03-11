@@ -48,11 +48,33 @@ impl Crud for Contribution {
             .into_boxed();
 
         query = match order.field {
-            ContributionField::ContributionId => apply_directional_order!(query, order.direction, order_by, contribution_id),
-            ContributionField::WorkId => apply_directional_order!(query, order.direction, order_by, work_id, contribution_id),
-            ContributionField::ContributorId => apply_directional_order!(query, order.direction, order_by, contributor_id, contribution_id),
-            ContributionField::ContributionType => apply_directional_order!(query, order.direction, order_by, contribution_type, contribution_id),
-            ContributionField::MainContribution => apply_directional_order!(query, order.direction, order_by, main_contribution, contribution_id),
+            ContributionField::ContributionId => {
+                apply_directional_order!(query, order.direction, order_by, contribution_id)
+            }
+            ContributionField::WorkId => {
+                apply_directional_order!(query, order.direction, order_by, work_id, contribution_id)
+            }
+            ContributionField::ContributorId => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                contributor_id,
+                contribution_id
+            ),
+            ContributionField::ContributionType => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                contribution_type,
+                contribution_id
+            ),
+            ContributionField::MainContribution => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                main_contribution,
+                contribution_id
+            ),
             ContributionField::Biography => {
                 let biography_content = crate::schema::biography::table
                     .select(crate::schema::biography::content.nullable())
@@ -63,14 +85,56 @@ impl Crud for Contribution {
                     ))
                     .limit(1)
                     .single_value();
-                apply_directional_order!(query, order.direction, order_by, biography_content, contribution_id)
+                apply_directional_order!(
+                    query,
+                    order.direction,
+                    order_by,
+                    biography_content,
+                    contribution_id
+                )
             }
-            ContributionField::CreatedAt => apply_directional_order!(query, order.direction, order_by, created_at, contribution_id),
-            ContributionField::UpdatedAt => apply_directional_order!(query, order.direction, order_by, updated_at, contribution_id),
-            ContributionField::FirstName => apply_directional_order!(query, order.direction, order_by, first_name, contribution_id),
-            ContributionField::LastName => apply_directional_order!(query, order.direction, order_by, last_name, contribution_id),
-            ContributionField::FullName => apply_directional_order!(query, order.direction, order_by, full_name, contribution_id),
-            ContributionField::ContributionOrdinal => apply_directional_order!(query, order.direction, order_by, contribution_ordinal, contribution_id),
+            ContributionField::CreatedAt => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                created_at,
+                contribution_id
+            ),
+            ContributionField::UpdatedAt => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                updated_at,
+                contribution_id
+            ),
+            ContributionField::FirstName => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                first_name,
+                contribution_id
+            ),
+            ContributionField::LastName => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                last_name,
+                contribution_id
+            ),
+            ContributionField::FullName => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                full_name,
+                contribution_id
+            ),
+            ContributionField::ContributionOrdinal => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                contribution_ordinal,
+                contribution_id
+            ),
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

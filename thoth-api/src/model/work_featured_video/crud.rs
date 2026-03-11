@@ -46,14 +46,30 @@ impl Crud for WorkFeaturedVideo {
             .into_boxed();
 
         query = match order.field {
-            WorkFeaturedVideoField::WorkFeaturedVideoId => apply_directional_order!(query, order.direction, order, work_featured_video_id),
-            WorkFeaturedVideoField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
-            WorkFeaturedVideoField::Title => apply_directional_order!(query, order.direction, order, title),
-            WorkFeaturedVideoField::Url => apply_directional_order!(query, order.direction, order, url),
-            WorkFeaturedVideoField::Width => apply_directional_order!(query, order.direction, order, width),
-            WorkFeaturedVideoField::Height => apply_directional_order!(query, order.direction, order, height),
-            WorkFeaturedVideoField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            WorkFeaturedVideoField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            WorkFeaturedVideoField::WorkFeaturedVideoId => {
+                apply_directional_order!(query, order.direction, order, work_featured_video_id)
+            }
+            WorkFeaturedVideoField::WorkId => {
+                apply_directional_order!(query, order.direction, order, work_id)
+            }
+            WorkFeaturedVideoField::Title => {
+                apply_directional_order!(query, order.direction, order, title)
+            }
+            WorkFeaturedVideoField::Url => {
+                apply_directional_order!(query, order.direction, order, url)
+            }
+            WorkFeaturedVideoField::Width => {
+                apply_directional_order!(query, order.direction, order, width)
+            }
+            WorkFeaturedVideoField::Height => {
+                apply_directional_order!(query, order.direction, order, height)
+            }
+            WorkFeaturedVideoField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            WorkFeaturedVideoField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
 
         if !publishers.is_empty() {

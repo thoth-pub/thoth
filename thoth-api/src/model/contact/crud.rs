@@ -40,12 +40,22 @@ impl Crud for Contact {
         let mut query = contact.into_boxed();
 
         query = match order.field {
-            ContactField::ContactId => apply_directional_order!(query, order.direction, order, contact_id),
-            ContactField::PublisherId => apply_directional_order!(query, order.direction, order, publisher_id),
-            ContactField::ContactType => apply_directional_order!(query, order.direction, order, contact_type),
+            ContactField::ContactId => {
+                apply_directional_order!(query, order.direction, order, contact_id)
+            }
+            ContactField::PublisherId => {
+                apply_directional_order!(query, order.direction, order, publisher_id)
+            }
+            ContactField::ContactType => {
+                apply_directional_order!(query, order.direction, order, contact_type)
+            }
             ContactField::Email => apply_directional_order!(query, order.direction, order, email),
-            ContactField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            ContactField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            ContactField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            ContactField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(publisher_id.eq_any(publishers));

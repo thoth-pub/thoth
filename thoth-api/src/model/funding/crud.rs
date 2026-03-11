@@ -41,16 +41,36 @@ impl Crud for Funding {
             .into_boxed();
 
         query = match order.field {
-            FundingField::FundingId => apply_directional_order!(query, order.direction, order, funding_id),
-            FundingField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
-            FundingField::InstitutionId => apply_directional_order!(query, order.direction, order, institution_id),
-            FundingField::Program => apply_directional_order!(query, order.direction, order, program),
-            FundingField::ProjectName => apply_directional_order!(query, order.direction, order, project_name),
-            FundingField::ProjectShortname => apply_directional_order!(query, order.direction, order, project_shortname),
-            FundingField::GrantNumber => apply_directional_order!(query, order.direction, order, grant_number),
-            FundingField::Jurisdiction => apply_directional_order!(query, order.direction, order, jurisdiction),
-            FundingField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            FundingField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            FundingField::FundingId => {
+                apply_directional_order!(query, order.direction, order, funding_id)
+            }
+            FundingField::WorkId => {
+                apply_directional_order!(query, order.direction, order, work_id)
+            }
+            FundingField::InstitutionId => {
+                apply_directional_order!(query, order.direction, order, institution_id)
+            }
+            FundingField::Program => {
+                apply_directional_order!(query, order.direction, order, program)
+            }
+            FundingField::ProjectName => {
+                apply_directional_order!(query, order.direction, order, project_name)
+            }
+            FundingField::ProjectShortname => {
+                apply_directional_order!(query, order.direction, order, project_shortname)
+            }
+            FundingField::GrantNumber => {
+                apply_directional_order!(query, order.direction, order, grant_number)
+            }
+            FundingField::Jurisdiction => {
+                apply_directional_order!(query, order.direction, order, jurisdiction)
+            }
+            FundingField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            FundingField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

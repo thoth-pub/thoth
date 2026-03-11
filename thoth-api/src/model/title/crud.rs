@@ -59,13 +59,23 @@ impl Crud for Title {
             .into_boxed();
 
         query = match order.field {
-            TitleField::TitleId => apply_directional_order!(query, order.direction, order, title_id),
+            TitleField::TitleId => {
+                apply_directional_order!(query, order.direction, order, title_id)
+            }
             TitleField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
-            TitleField::LocaleCode => apply_directional_order!(query, order.direction, order, locale_code),
-            TitleField::FullTitle => apply_directional_order!(query, order.direction, order, full_title),
+            TitleField::LocaleCode => {
+                apply_directional_order!(query, order.direction, order, locale_code)
+            }
+            TitleField::FullTitle => {
+                apply_directional_order!(query, order.direction, order, full_title)
+            }
             TitleField::Title => apply_directional_order!(query, order.direction, order, title),
-            TitleField::Subtitle => apply_directional_order!(query, order.direction, order, subtitle),
-            TitleField::Canonical => apply_directional_order!(query, order.direction, order, canonical),
+            TitleField::Subtitle => {
+                apply_directional_order!(query, order.direction, order, subtitle)
+            }
+            TitleField::Canonical => {
+                apply_directional_order!(query, order.direction, order, canonical)
+            }
         };
 
         if let Some(filter) = filter {

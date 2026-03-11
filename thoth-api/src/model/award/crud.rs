@@ -43,14 +43,24 @@ impl Crud for Award {
             .into_boxed();
 
         query = match order.field {
-            AwardField::AwardId => apply_directional_order!(query, order.direction, order, award_id),
+            AwardField::AwardId => {
+                apply_directional_order!(query, order.direction, order, award_id)
+            }
             AwardField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
-            AwardField::AwardOrdinal => apply_directional_order!(query, order.direction, order, award_ordinal),
+            AwardField::AwardOrdinal => {
+                apply_directional_order!(query, order.direction, order, award_ordinal)
+            }
             AwardField::Title => apply_directional_order!(query, order.direction, order, title),
-            AwardField::Category => apply_directional_order!(query, order.direction, order, category),
+            AwardField::Category => {
+                apply_directional_order!(query, order.direction, order, category)
+            }
             AwardField::Url => apply_directional_order!(query, order.direction, order, url),
-            AwardField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            AwardField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            AwardField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            AwardField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
 
         if !publishers.is_empty() {

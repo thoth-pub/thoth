@@ -1330,6 +1330,110 @@ mod crud {
     }
 
     #[test]
+    fn cleanup_candidates_for_additional_resource_limits_to_target_resource() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let other_work = create_work(pool.as_ref(), &imprint);
+        let target_resource = create_additional_resource(pool.as_ref(), work.work_id);
+        let other_resource = create_additional_resource(pool.as_ref(), other_work.work_id);
+
+        let target_key = format!("10.1234/{}/resources/target.json", Uuid::new_v4());
+        let other_key = format!("10.1234/{}/resources/other.json", Uuid::new_v4());
+
+        File::create(
+            pool.as_ref(),
+            &make_new_additional_resource_file(target_resource.additional_resource_id, &target_key),
+        )
+        .expect("Failed to create target additional-resource file");
+        File::create(
+            pool.as_ref(),
+            &make_new_additional_resource_file(other_resource.additional_resource_id, &other_key),
+        )
+        .expect("Failed to create non-target additional-resource file");
+
+        let target_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_additional_resource_upload(target_resource.additional_resource_id, "json"),
+        )
+        .expect("Failed to create target additional-resource upload");
+        let other_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_additional_resource_upload(other_resource.additional_resource_id, "json"),
+        )
+        .expect("Failed to create non-target additional-resource upload");
+
+        let candidates = File::cleanup_candidates_for_additional_resource(
+            pool.as_ref(),
+            &target_resource.additional_resource_id,
+        )
+        .expect("Failed to load additional-resource cleanup candidates");
+
+        assert_eq!(candidates.len(), 2);
+        assert!(candidates.iter().any(|c| c.object_key == target_key));
+        assert!(candidates
+            .iter()
+            .any(|c| c.object_key == temp_key(&target_upload.file_upload_id)));
+        assert!(!candidates.iter().any(|c| c.object_key == other_key));
+        assert!(!candidates
+            .iter()
+            .any(|c| c.object_key == temp_key(&other_upload.file_upload_id)));
+    }
+
+    #[test]
+    fn cleanup_candidates_for_work_featured_video_limits_to_target_video() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let other_work = create_work(pool.as_ref(), &imprint);
+        let target_video = create_work_featured_video(pool.as_ref(), work.work_id);
+        let other_video = create_work_featured_video(pool.as_ref(), other_work.work_id);
+
+        let target_key = format!("10.1234/{}/resources/target.mp4", Uuid::new_v4());
+        let other_key = format!("10.1234/{}/resources/other.mp4", Uuid::new_v4());
+
+        File::create(
+            pool.as_ref(),
+            &make_new_work_featured_video_file(target_video.work_featured_video_id, &target_key),
+        )
+        .expect("Failed to create target featured-video file");
+        File::create(
+            pool.as_ref(),
+            &make_new_work_featured_video_file(other_video.work_featured_video_id, &other_key),
+        )
+        .expect("Failed to create non-target featured-video file");
+
+        let target_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_work_featured_video_upload(target_video.work_featured_video_id, "mp4"),
+        )
+        .expect("Failed to create target featured-video upload");
+        let other_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_work_featured_video_upload(other_video.work_featured_video_id, "mp4"),
+        )
+        .expect("Failed to create non-target featured-video upload");
+
+        let candidates = File::cleanup_candidates_for_work_featured_video(
+            pool.as_ref(),
+            &target_video.work_featured_video_id,
+        )
+        .expect("Failed to load featured-video cleanup candidates");
+
+        assert_eq!(candidates.len(), 2);
+        assert!(candidates.iter().any(|c| c.object_key == target_key));
+        assert!(candidates
+            .iter()
+            .any(|c| c.object_key == temp_key(&target_upload.file_upload_id)));
+        assert!(!candidates.iter().any(|c| c.object_key == other_key));
+        assert!(!candidates
+            .iter()
+            .any(|c| c.object_key == temp_key(&other_upload.file_upload_id)));
+    }
+
+    #[test]
     fn cleanup_candidates_for_work_collects_all_linked_files_and_pending_uploads() {
         let (_guard, pool) = setup_test_db();
         let publisher = create_publisher(pool.as_ref());

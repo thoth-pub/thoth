@@ -13,8 +13,8 @@ use crate::model::imprint::Imprint;
 
 pub mod cleanup;
 pub use cleanup::{
-    publication_cleanup_plan, run_cleanup_plan, run_cleanup_plan_sync, work_cleanup_plan,
-    FileCleanupPlan,
+    additional_resource_cleanup_plan, publication_cleanup_plan, run_cleanup_plan,
+    run_cleanup_plan_sync, work_cleanup_plan, work_featured_video_cleanup_plan, FileCleanupPlan,
 };
 
 const S3_EXTENDED_REQUEST_ID_META_KEY: &str = "s3_extended_request_id";

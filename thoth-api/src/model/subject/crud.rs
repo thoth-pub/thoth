@@ -46,13 +46,27 @@ impl Crud for Subject {
             .into_boxed();
 
         query = match order.field {
-            SubjectField::SubjectId => apply_directional_order!(query, order.direction, order, subject_id),
-            SubjectField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
-            SubjectField::SubjectType => apply_directional_order!(query, order.direction, order, subject_type),
-            SubjectField::SubjectCode => apply_directional_order!(query, order.direction, order, subject_code),
-            SubjectField::SubjectOrdinal => apply_directional_order!(query, order.direction, order, subject_ordinal),
-            SubjectField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            SubjectField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            SubjectField::SubjectId => {
+                apply_directional_order!(query, order.direction, order, subject_id)
+            }
+            SubjectField::WorkId => {
+                apply_directional_order!(query, order.direction, order, work_id)
+            }
+            SubjectField::SubjectType => {
+                apply_directional_order!(query, order.direction, order, subject_type)
+            }
+            SubjectField::SubjectCode => {
+                apply_directional_order!(query, order.direction, order, subject_code)
+            }
+            SubjectField::SubjectOrdinal => {
+                apply_directional_order!(query, order.direction, order, subject_ordinal)
+            }
+            SubjectField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            SubjectField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

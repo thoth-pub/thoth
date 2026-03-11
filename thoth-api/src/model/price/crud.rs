@@ -44,12 +44,24 @@ impl Crud for Price {
                 .into_boxed();
 
         query = match order.field {
-            PriceField::PriceId => apply_directional_order!(query, order.direction, order, price_id),
-            PriceField::PublicationId => apply_directional_order!(query, order.direction, order, publication_id),
-            PriceField::CurrencyCode => apply_directional_order!(query, order.direction, order, currency_code),
-            PriceField::UnitPrice => apply_directional_order!(query, order.direction, order, unit_price),
-            PriceField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            PriceField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            PriceField::PriceId => {
+                apply_directional_order!(query, order.direction, order, price_id)
+            }
+            PriceField::PublicationId => {
+                apply_directional_order!(query, order.direction, order, publication_id)
+            }
+            PriceField::CurrencyCode => {
+                apply_directional_order!(query, order.direction, order, currency_code)
+            }
+            PriceField::UnitPrice => {
+                apply_directional_order!(query, order.direction, order, unit_price)
+            }
+            PriceField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            PriceField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

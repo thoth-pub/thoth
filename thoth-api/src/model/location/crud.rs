@@ -46,14 +46,30 @@ impl Crud for Location {
                 .into_boxed();
 
         query = match order.field {
-            LocationField::LocationId => apply_directional_order!(query, order.direction, order, location_id),
-            LocationField::PublicationId => apply_directional_order!(query, order.direction, order, publication_id),
-            LocationField::LandingPage => apply_directional_order!(query, order.direction, order, landing_page),
-            LocationField::FullTextUrl => apply_directional_order!(query, order.direction, order, full_text_url),
-            LocationField::LocationPlatform => apply_directional_order!(query, order.direction, order, location_platform),
-            LocationField::Canonical => apply_directional_order!(query, order.direction, order, canonical),
-            LocationField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            LocationField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            LocationField::LocationId => {
+                apply_directional_order!(query, order.direction, order, location_id)
+            }
+            LocationField::PublicationId => {
+                apply_directional_order!(query, order.direction, order, publication_id)
+            }
+            LocationField::LandingPage => {
+                apply_directional_order!(query, order.direction, order, landing_page)
+            }
+            LocationField::FullTextUrl => {
+                apply_directional_order!(query, order.direction, order, full_text_url)
+            }
+            LocationField::LocationPlatform => {
+                apply_directional_order!(query, order.direction, order, location_platform)
+            }
+            LocationField::Canonical => {
+                apply_directional_order!(query, order.direction, order, canonical)
+            }
+            LocationField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            LocationField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

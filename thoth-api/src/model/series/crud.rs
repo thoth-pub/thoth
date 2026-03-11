@@ -45,16 +45,36 @@ impl Crud for Series {
             .into_boxed();
 
         query = match order.field {
-            SeriesField::SeriesId => apply_directional_order!(query, order.direction, order, series_id),
-            SeriesField::SeriesType => apply_directional_order!(query, order.direction, order, series_type),
-            SeriesField::SeriesName => apply_directional_order!(query, order.direction, order, series_name),
-            SeriesField::IssnPrint => apply_directional_order!(query, order.direction, order, issn_print),
-            SeriesField::IssnDigital => apply_directional_order!(query, order.direction, order, issn_digital),
-            SeriesField::SeriesUrl => apply_directional_order!(query, order.direction, order, series_url),
-            SeriesField::SeriesDescription => apply_directional_order!(query, order.direction, order, series_description),
-            SeriesField::SeriesCfpUrl => apply_directional_order!(query, order.direction, order, series_cfp_url),
-            SeriesField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            SeriesField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            SeriesField::SeriesId => {
+                apply_directional_order!(query, order.direction, order, series_id)
+            }
+            SeriesField::SeriesType => {
+                apply_directional_order!(query, order.direction, order, series_type)
+            }
+            SeriesField::SeriesName => {
+                apply_directional_order!(query, order.direction, order, series_name)
+            }
+            SeriesField::IssnPrint => {
+                apply_directional_order!(query, order.direction, order, issn_print)
+            }
+            SeriesField::IssnDigital => {
+                apply_directional_order!(query, order.direction, order, issn_digital)
+            }
+            SeriesField::SeriesUrl => {
+                apply_directional_order!(query, order.direction, order, series_url)
+            }
+            SeriesField::SeriesDescription => {
+                apply_directional_order!(query, order.direction, order, series_description)
+            }
+            SeriesField::SeriesCfpUrl => {
+                apply_directional_order!(query, order.direction, order, series_cfp_url)
+            }
+            SeriesField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            SeriesField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));

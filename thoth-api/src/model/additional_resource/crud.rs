@@ -47,17 +47,39 @@ impl Crud for AdditionalResource {
             .into_boxed();
 
         query = match order.field {
-            AdditionalResourceField::AdditionalResourceId => apply_directional_order!(query, order.direction, order, additional_resource_id),
-            AdditionalResourceField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
-            AdditionalResourceField::ResourceOrdinal => apply_directional_order!(query, order.direction, order, resource_ordinal),
-            AdditionalResourceField::Title => apply_directional_order!(query, order.direction, order, title),
-            AdditionalResourceField::Attribution => apply_directional_order!(query, order.direction, order, attribution),
-            AdditionalResourceField::ResourceType => apply_directional_order!(query, order.direction, order, resource_type),
-            AdditionalResourceField::Doi => apply_directional_order!(query, order.direction, order, doi),
-            AdditionalResourceField::Handle => apply_directional_order!(query, order.direction, order, handle),
-            AdditionalResourceField::Url => apply_directional_order!(query, order.direction, order, url),
-            AdditionalResourceField::CreatedAt => apply_directional_order!(query, order.direction, order, created_at),
-            AdditionalResourceField::UpdatedAt => apply_directional_order!(query, order.direction, order, updated_at),
+            AdditionalResourceField::AdditionalResourceId => {
+                apply_directional_order!(query, order.direction, order, additional_resource_id)
+            }
+            AdditionalResourceField::WorkId => {
+                apply_directional_order!(query, order.direction, order, work_id)
+            }
+            AdditionalResourceField::ResourceOrdinal => {
+                apply_directional_order!(query, order.direction, order, resource_ordinal)
+            }
+            AdditionalResourceField::Title => {
+                apply_directional_order!(query, order.direction, order, title)
+            }
+            AdditionalResourceField::Attribution => {
+                apply_directional_order!(query, order.direction, order, attribution)
+            }
+            AdditionalResourceField::ResourceType => {
+                apply_directional_order!(query, order.direction, order, resource_type)
+            }
+            AdditionalResourceField::Doi => {
+                apply_directional_order!(query, order.direction, order, doi)
+            }
+            AdditionalResourceField::Handle => {
+                apply_directional_order!(query, order.direction, order, handle)
+            }
+            AdditionalResourceField::Url => {
+                apply_directional_order!(query, order.direction, order, url)
+            }
+            AdditionalResourceField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            AdditionalResourceField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
 
         if !publishers.is_empty() {
