@@ -353,7 +353,6 @@ table! {
         project_name -> Nullable<Text>,
         project_shortname -> Nullable<Text>,
         grant_number -> Nullable<Text>,
-        jurisdiction -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
@@ -440,6 +439,7 @@ table! {
         series_id -> Uuid,
         work_id -> Uuid,
         issue_ordinal -> Int4,
+        issue_number -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
@@ -467,7 +467,6 @@ table! {
         work_id -> Uuid,
         language_code -> LanguageCode,
         language_relation -> LanguageRelation,
-        main_language -> Bool,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }

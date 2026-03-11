@@ -1546,6 +1546,7 @@ mod crud {
                 series_id: series.series_id,
                 work_id: work.work_id,
                 issue_ordinal: 1,
+                issue_number: None,
             },
         )
         .expect("Failed to create issue");

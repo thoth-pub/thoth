@@ -20,7 +20,6 @@ pub enum FundingField {
     ProjectName,
     ProjectShortname,
     GrantNumber,
-    Jurisdiction,
     CreatedAt,
     UpdatedAt,
 }
@@ -36,7 +35,6 @@ pub struct Funding {
     pub project_name: Option<String>,
     pub project_shortname: Option<String>,
     pub grant_number: Option<String>,
-    pub jurisdiction: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
 }
@@ -54,7 +52,6 @@ pub struct NewFunding {
     pub project_name: Option<String>,
     pub project_shortname: Option<String>,
     pub grant_number: Option<String>,
-    pub jurisdiction: Option<String>,
 }
 
 #[cfg_attr(
@@ -71,7 +68,6 @@ pub struct PatchFunding {
     pub project_name: Option<String>,
     pub project_shortname: Option<String>,
     pub grant_number: Option<String>,
-    pub jurisdiction: Option<String>,
 }
 
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]

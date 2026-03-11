@@ -53,20 +53,18 @@ pub enum LanguageField {
     WorkId,
     LanguageCode,
     LanguageRelation,
-    MainLanguage,
     CreatedAt,
     UpdatedAt,
 }
 
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Language {
     pub language_id: Uuid,
     pub work_id: Uuid,
     pub language_code: LanguageCode,
     pub language_relation: LanguageRelation,
-    pub main_language: bool,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
 }
@@ -81,7 +79,6 @@ pub struct NewLanguage {
     pub work_id: Uuid,
     pub language_code: LanguageCode,
     pub language_relation: LanguageRelation,
-    pub main_language: bool,
 }
 
 #[cfg_attr(
@@ -95,7 +92,6 @@ pub struct PatchLanguage {
     pub work_id: Uuid,
     pub language_code: LanguageCode,
     pub language_relation: LanguageRelation,
-    pub main_language: bool,
 }
 
 #[cfg_attr(
@@ -1165,20 +1161,6 @@ pub struct NewLanguageHistory {
     pub language_id: Uuid,
     pub user_id: String,
     pub data: serde_json::Value,
-}
-
-impl Default for Language {
-    fn default() -> Language {
-        Language {
-            language_id: Default::default(),
-            work_id: Default::default(),
-            language_code: Default::default(),
-            language_relation: Default::default(),
-            main_language: true,
-            created_at: Default::default(),
-            updated_at: Default::default(),
-        }
-    }
 }
 
 #[cfg(feature = "backend")]

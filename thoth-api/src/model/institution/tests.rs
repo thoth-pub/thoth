@@ -1086,7 +1086,6 @@ mod policy {
             project_name: None,
             project_shortname: None,
             grant_number: None,
-            jurisdiction: None,
         };
         Funding::create(pool.as_ref(), &new_funding).expect("Failed to create funding");
 

@@ -15,7 +15,6 @@ fn make_funding(
         project_name: Some("Project Name".to_string()),
         project_shortname: Some("PRJ".to_string()),
         grant_number: Some("GRANT-1".to_string()),
-        jurisdiction: Some("UK".to_string()),
     };
 
     Funding::create(pool, &new_funding).expect("Failed to create funding")
@@ -79,7 +78,6 @@ mod policy {
             project_name: Some("Project Name".to_string()),
             project_shortname: Some("PRJ".to_string()),
             grant_number: Some("GRANT-1".to_string()),
-            jurisdiction: Some("UK".to_string()),
         };
 
         let funding = Funding::create(pool.as_ref(), &new_funding).expect("Failed to create");
@@ -91,7 +89,6 @@ mod policy {
             project_name: funding.project_name.clone(),
             project_shortname: funding.project_shortname.clone(),
             grant_number: funding.grant_number.clone(),
-            jurisdiction: funding.jurisdiction.clone(),
         };
 
         assert!(FundingPolicy::can_create(&ctx, &new_funding, ()).is_ok());
@@ -121,7 +118,6 @@ mod policy {
             project_name: funding.project_name.clone(),
             project_shortname: funding.project_shortname.clone(),
             grant_number: funding.grant_number.clone(),
-            jurisdiction: funding.jurisdiction.clone(),
         };
 
         let user = test_user_with_role("funding-user", Role::PublisherUser, "org-other");
@@ -134,7 +130,6 @@ mod policy {
             project_name: Some("Project Name".to_string()),
             project_shortname: Some("PRJ".to_string()),
             grant_number: Some("GRANT-1".to_string()),
-            jurisdiction: Some("UK".to_string()),
         };
 
         assert!(FundingPolicy::can_create(&ctx, &new_funding, ()).is_err());
@@ -170,7 +165,6 @@ mod crud {
             project_name: Some("Project Name".to_string()),
             project_shortname: Some("PRJ".to_string()),
             grant_number: Some("GRANT-1".to_string()),
-            jurisdiction: Some("UK".to_string()),
         };
 
         let funding = Funding::create(pool.as_ref(), &new_funding).expect("Failed to create");
@@ -186,7 +180,6 @@ mod crud {
             project_name: funding.project_name.clone(),
             project_shortname: funding.project_shortname.clone(),
             grant_number: Some("GRANT-2".to_string()),
-            jurisdiction: funding.jurisdiction.clone(),
         };
 
         let ctx = test_context(pool.clone(), "test-user");
@@ -515,7 +508,6 @@ mod crud {
                 project_name: Some("Project A".to_string()),
                 project_shortname: Some("PA".to_string()),
                 grant_number: Some("GRANT-A".to_string()),
-                jurisdiction: Some("UK".to_string()),
             },
         )
         .expect("Failed to create funding");
@@ -528,7 +520,6 @@ mod crud {
                 project_name: Some("Project B".to_string()),
                 project_shortname: Some("PB".to_string()),
                 grant_number: Some("GRANT-B".to_string()),
-                jurisdiction: Some("US".to_string()),
             },
         )
         .expect("Failed to create funding");
@@ -541,7 +532,6 @@ mod crud {
             || FundingField::ProjectName,
             || FundingField::ProjectShortname,
             || FundingField::GrantNumber,
-            || FundingField::Jurisdiction,
             || FundingField::CreatedAt,
             || FundingField::UpdatedAt,
         ];

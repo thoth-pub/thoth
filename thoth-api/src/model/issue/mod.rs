@@ -17,6 +17,7 @@ pub enum IssueField {
     SeriesId,
     WorkId,
     IssueOrdinal,
+    IssueNumber,
     CreatedAt,
     UpdatedAt,
 }
@@ -29,6 +30,7 @@ pub struct Issue {
     pub series_id: Uuid,
     pub work_id: Uuid,
     pub issue_ordinal: i32,
+    pub issue_number: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
 }
@@ -43,6 +45,7 @@ pub struct NewIssue {
     pub series_id: Uuid,
     pub work_id: Uuid,
     pub issue_ordinal: i32,
+    pub issue_number: Option<String>,
 }
 
 #[cfg_attr(
@@ -56,6 +59,7 @@ pub struct PatchIssue {
     pub series_id: Uuid,
     pub work_id: Uuid,
     pub issue_ordinal: i32,
+    pub issue_number: Option<String>,
 }
 
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]
