@@ -2235,7 +2235,7 @@ mod tests {
             r#"
   <CollectionSequence>
     <CollectionSequenceType>03</CollectionSequenceType>
-    <CollectionSequenceNumber>1</CollectionSequenceNumber>
+    <CollectionSequenceNumber>11</CollectionSequenceNumber>
   </CollectionSequence>
   <TitleDetail>
     <TitleType>01</TitleType>
@@ -2406,31 +2406,6 @@ mod tests {
         assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
 
         test_funding.grant_number = None;
-        let output = generate_test_output(true, &test_funding);
-        assert!(output.contains(r#"<Publisher>"#));
-        assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
-        assert!(!output.contains(r#"  <PublisherIdentifier>"#));
-        assert!(!output.contains(r#"    <PublisherIDType>40</PublisherIDType>"#));
-        assert!(!output.contains(r#"    <IDValue>0aaaaaa00</IDValue>"#));
-        assert!(!output.contains(r#"    <PublisherIDType>32</PublisherIDType>"#));
-        assert!(!output.contains(r#"    <IDValue>10.00001/INSTITUTION.0001</IDValue>"#));
-        assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
-        assert!(output.contains(r#"  <Funding>"#));
-        assert!(output.contains(r#"    <FundingIdentifier>"#));
-        assert!(output.contains(r#"      <FundingIDType>01</FundingIDType>"#));
-        // No program supplied
-        assert!(!output.contains(r#"      <IDTypeName>programname</IDTypeName>"#));
-        assert!(!output.contains(r#"      <IDValue>Name of program</IDValue>"#));
-        // No project supplied
-        assert!(!output.contains(r#"      <IDTypeName>projectname</IDTypeName>"#));
-        assert!(!output.contains(r#"      <IDValue>Name of project</IDValue>"#));
-        // No short name supplied
-        assert!(!output.contains(r#"      <IDTypeName>projectshortname</IDTypeName>"#));
-        assert!(!output.contains(r#"      <IDValue>Nop</IDValue>"#));
-        // No grant supplied
-        assert!(!output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
-        assert!(!output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
-
         let output = generate_test_output(true, &test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));

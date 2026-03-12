@@ -662,7 +662,7 @@ mod tests {
   "languages": [
     {
       "languageCode": "SPA",
-      "languageRelation": "ORIGINAL",
+      "languageRelation": "ORIGINAL"
     }
   ],
   "publications": [

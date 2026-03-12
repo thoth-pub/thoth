@@ -110,20 +110,19 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
             write_full_element_block("book", Some(vec![("book_type", work_type)]), w, |w| {
                 write_full_element_block(element_name, Some(vec![("language", "en")]), w, |w| {
                     // Only one series can be listed, so we select the first one found (if any).
-                    let mut ordinal = None;
-                    if let Some((series, ord)) =
-                        self.issues.first().map(|i| (&i.series, i.issue_ordinal))
+                    let mut number = None;
+                    if let Some((series, num)) =
+                        self.issues.first().map(|i| (&i.series, i.issue_number))
                     {
                         XmlElementBlock::<DoiDepositCrossref>::xml_element(series, w)?;
-                        ordinal = Some(ord);
+                        number = num;
                     }
                     write_work_contributions(self, w)?;
                     write_work_title(self, w)?;
                     write_work_abstract(self, w)?;
 
-                    if ordinal.is_some() {
-                        let ordinal_i64 = ordinal.unwrap_or(0);
-                        write_work_volume(ordinal_i64, w)?;
+                    if let Some(issue_number) = number {
+                        write_work_volume(issue_number, w)?;
                     }
 
                     write_work_edition(self, w)?;

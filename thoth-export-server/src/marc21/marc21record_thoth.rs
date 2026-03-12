@@ -869,8 +869,8 @@ pub(crate) mod tests {
                 },
             },
             issues: vec![WorkIssues {
-                issue_ordinal: 11,
-                issue_number: Some(10),
+                issue_ordinal: 12,
+                issue_number: Some(11),
                 series: WorkIssuesSeries {
                     series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     series_type: SeriesType::BOOK_SERIES,
