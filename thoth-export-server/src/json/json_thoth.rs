@@ -218,7 +218,6 @@ mod tests {
                 WorkLanguages {
                     language_code: LanguageCode::SPA,
                     language_relation: LanguageRelation::ORIGINAL,
-                    main_language: true,
                 },
             ],
             publications: vec![
@@ -434,7 +433,6 @@ mod tests {
                 project_name: Some("Name of project".to_string()),
                 project_shortname: None,
                 grant_number: Some("Number of grant".to_string()),
-                jurisdiction: Some("Funding jurisdiction".to_string()),
                 institution: FundingInstitution {
                     institution_name: "Name of institution".to_string(),
                     institution_doi: Some(Doi::from_str("https://doi.org/10.00001/INSTITUTION.0001").unwrap()),
@@ -663,7 +661,6 @@ mod tests {
     {
       "languageCode": "SPA",
       "languageRelation": "ORIGINAL",
-      "mainLanguage": true
     }
   ],
   "publications": [
@@ -884,7 +881,6 @@ mod tests {
       "projectName": "Name of project",
       "projectShortname": null,
       "grantNumber": "Number of grant",
-      "jurisdiction": "Funding jurisdiction",
       "institution": {
         "institutionName": "Name of institution",
         "institutionDoi": "https://doi.org/10.00001/INSTITUTION.0001",

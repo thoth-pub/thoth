@@ -1548,7 +1548,6 @@ impl XmlElementBlock<Onix3Thoth> for WorkFundings {
                     self.project_shortname.as_deref().to_owned(),
                 ),
                 ("grantnumber", self.grant_number.as_deref().to_owned()),
-                ("jurisdiction", self.jurisdiction.as_deref().to_owned()),
             ];
             if identifiers.iter().any(|(_, i)| i.is_some()) {
                 write_element_block("Funding", w, |w| {
@@ -1904,7 +1903,6 @@ mod tests {
         let mut test_language = WorkLanguages {
             language_code: LanguageCode::SPA,
             language_relation: LanguageRelation::TRANSLATED_FROM,
-            main_language: true,
         };
 
         // Test standard output
@@ -2044,7 +2042,6 @@ mod tests {
             project_name: Some("Name of project".to_string()),
             project_shortname: Some("Nop".to_string()),
             grant_number: Some("Number of grant".to_string()),
-            jurisdiction: Some("Republic of Moldova".to_string()),
             institution: FundingInstitution {
                 institution_name: "Name of institution".to_string(),
                 institution_doi: Some(
@@ -2077,8 +2074,6 @@ mod tests {
         assert!(output.contains(r#"      <IDValue>Nop</IDValue>"#));
         assert!(output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
         assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
-        assert!(output.contains(r#"      <IDTypeName>jurisdiction</IDTypeName>"#));
-        assert!(output.contains(r#"      <IDValue>Republic of Moldova</IDValue>"#));
 
         // Change all possible values to test that output is updated
         test_funding.institution.institution_name = "Different institution".to_string();
@@ -2106,8 +2101,6 @@ mod tests {
         assert!(output.contains(r#"      <IDValue>Nop</IDValue>"#));
         assert!(output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
         assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
-        assert!(output.contains(r#"      <IDTypeName>jurisdiction</IDTypeName>"#));
-        assert!(output.contains(r#"      <IDValue>Republic of Moldova</IDValue>"#));
 
         test_funding.project_name = None;
         test_funding.institution.ror = None;
@@ -2134,8 +2127,6 @@ mod tests {
         assert!(output.contains(r#"      <IDValue>Nop</IDValue>"#));
         assert!(output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
         assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
-        assert!(output.contains(r#"      <IDTypeName>jurisdiction</IDTypeName>"#));
-        assert!(output.contains(r#"      <IDValue>Republic of Moldova</IDValue>"#));
 
         test_funding.project_shortname = None;
         let output = generate_test_output(true, &test_funding);
@@ -2161,8 +2152,6 @@ mod tests {
         assert!(!output.contains(r#"      <IDValue>Nop</IDValue>"#));
         assert!(output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
         assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
-        assert!(output.contains(r#"      <IDTypeName>jurisdiction</IDTypeName>"#));
-        assert!(output.contains(r#"      <IDValue>Republic of Moldova</IDValue>"#));
 
         test_funding.grant_number = None;
         let output = generate_test_output(true, &test_funding);
@@ -2189,10 +2178,7 @@ mod tests {
         // No grant supplied
         assert!(!output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
         assert!(!output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
-        assert!(output.contains(r#"      <IDTypeName>jurisdiction</IDTypeName>"#));
-        assert!(output.contains(r#"      <IDValue>Republic of Moldova</IDValue>"#));
 
-        test_funding.jurisdiction = None;
         let output = generate_test_output(true, &test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
@@ -2202,7 +2188,7 @@ mod tests {
         assert!(!output.contains(r#"    <PublisherIDType>32</PublisherIDType>"#));
         assert!(!output.contains(r#"    <IDValue>10.00001/INSTITUTION.0001</IDValue>"#));
         assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
-        // No program, project, short name, grant or jurisdiction supplied,
+        // No program, project, short name or grant supplied,
         // so Funding block is omitted completely
         assert!(!output.contains(r#"  <Funding>"#));
         assert!(!output.contains(r#"    <FundingIdentifier>"#));
@@ -2215,7 +2201,6 @@ mod tests {
         assert!(!output.contains(r#"      <IDValue>Nop</IDValue>"#));
         assert!(!output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
         assert!(!output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
-        assert!(!output.contains(r#"      <IDTypeName>jurisdiction</IDTypeName>"#));
         assert!(!output.contains(r#"      <IDValue>Republic of Moldova</IDValue>"#));
     }
 

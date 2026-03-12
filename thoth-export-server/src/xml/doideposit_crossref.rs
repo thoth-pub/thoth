@@ -1876,7 +1876,6 @@ mod tests {
                     project_name: None,
                     project_shortname: None,
                     grant_number: Some("12345".to_string()),
-                    jurisdiction: None,
                     institution: FundingInstitution {
                         institution_name: "Funding Body".to_string(),
                         institution_doi: None,
@@ -1889,7 +1888,6 @@ mod tests {
                     project_name: None,
                     project_shortname: None,
                     grant_number: None,
-                    jurisdiction: None,
                     institution: FundingInstitution {
                         institution_name: "Some Funder".to_string(),
                         institution_doi: Some(

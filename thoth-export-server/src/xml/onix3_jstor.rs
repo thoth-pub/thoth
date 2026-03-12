@@ -853,7 +853,6 @@ mod tests {
         let mut test_language = WorkLanguages {
             language_code: LanguageCode::SPA,
             language_relation: LanguageRelation::TRANSLATED_FROM,
-            main_language: true,
         };
 
         // Test standard output
@@ -1053,7 +1052,6 @@ mod tests {
                 project_name: Some("Name of project".to_string()),
                 project_shortname: None,
                 grant_number: Some("Number of grant".to_string()),
-                jurisdiction: None,
                 institution: thoth_client::FundingInstitution {
                     institution_name: "Name of institution".to_string(),
                     institution_doi: None,
