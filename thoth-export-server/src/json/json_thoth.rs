@@ -146,7 +146,8 @@ mod tests {
                 },
             },
             issues: vec![WorkIssues {
-                issue_ordinal: 1,
+                issue_ordinal: 2,
+                issue_number: Some(1),
                 series: WorkIssuesSeries {
                     series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     series_type: SeriesType::JOURNAL,
@@ -588,7 +589,8 @@ mod tests {
   },
   "issues": [
     {
-      "issueOrdinal": 1,
+      "issueOrdinal": 2,
+      "issueNumber": 1,
       "series": {
         "seriesId": "00000000-0000-0000-bbbb-000000000002",
         "seriesType": "JOURNAL",

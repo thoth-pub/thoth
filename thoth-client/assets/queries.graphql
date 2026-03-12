@@ -99,6 +99,7 @@ fragment Work on Work {
     }
     issues(limit: $issuesLimit, order: {field: ISSUE_ORDINAL, direction: ASC}) {
         issueOrdinal
+        issueNumber
         series {
             seriesId
             seriesType

@@ -180,7 +180,11 @@ impl TryFrom<Work> for BibtexThothEntry {
                 .issues
                 .first()
                 .map(|i| i.series.series_name.to_string()),
-            volume: work.issues.first().map(|i| i.issue_ordinal),
+            volume: work
+                .issues
+                .first()
+                .and_then(|i| i.issue_number.as_ref())
+                .copied(),
             booktitle,
             chapter,
             pages,
@@ -356,7 +360,8 @@ mod tests {
                 },
             },
             issues: vec![WorkIssues {
-                issue_ordinal: 5,
+                issue_ordinal: 6,
+                issue_number: Some(5),
                 series: WorkIssuesSeries {
                     series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     series_type: SeriesType::JOURNAL,
@@ -666,7 +671,7 @@ mod tests {
         let mut test_work = test_work();
         // Remove subtitle field: shorttitle is removed (as it would duplicate title)
         test_work.titles[0].subtitle = None;
-        // We need to manually update the   full title to remove the subtitle
+        // We need to manually update the full title to remove the subtitle
         // in this test framework, but within the Thoth database this is automatic
         test_work.titles[0].full_title = "Work Title".to_string();
         let to_test = BibtexThoth.generate(&[test_work.clone()]);

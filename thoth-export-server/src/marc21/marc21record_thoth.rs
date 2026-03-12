@@ -638,7 +638,12 @@ impl Marc21Field<Marc21RecordThoth> for WorkIssues {
             FieldRepr::from((field, indicator))
                 .add_subfield(b"a", format!("{} ;", self.series.series_name).as_bytes())
                 .and_then(|f| {
-                    f.add_subfield(b"v", format!("vol. {}.", self.issue_ordinal).as_bytes())
+                    self.issue_number
+                        .as_ref()
+                        .map(|issue_number| {
+                            f.add_subfield(b"v", format!("vol. {}.", issue_number).as_bytes())
+                        })
+                        .unwrap_or(Ok(f))
                 })
                 .and_then(|f| {
                     self.series
@@ -865,6 +870,7 @@ pub(crate) mod tests {
             },
             issues: vec![WorkIssues {
                 issue_ordinal: 11,
+                issue_number: Some(10),
                 series: WorkIssuesSeries {
                     series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     series_type: SeriesType::BOOK_SERIES,

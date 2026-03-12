@@ -604,6 +604,7 @@ mod tests {
             },
             issues: vec![WorkIssues {
                 issue_ordinal: 1,
+                issue_number: None,
                 series: WorkIssuesSeries {
                     series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     series_type: SeriesType::JOURNAL,
@@ -1149,6 +1150,7 @@ mod tests {
     fn test_csv_thoth_issues() {
         let mut issue = WorkIssues {
             issue_ordinal: 1,
+            issue_number: None,
             series: WorkIssuesSeries {
                 series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                 series_type: SeriesType::JOURNAL,
