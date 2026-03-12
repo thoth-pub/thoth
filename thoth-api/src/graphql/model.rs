@@ -1784,7 +1784,7 @@ impl Issue {
     }
 
     #[graphql(description = "Published issue number given to this issue within the series, if any")]
-    pub fn issue_number(&self) -> Option<&String> {
+    pub fn issue_number(&self) -> Option<&i32> {
         self.issue_number.as_ref()
     }
 

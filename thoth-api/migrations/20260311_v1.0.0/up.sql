@@ -5,4 +5,4 @@ ALTER TABLE public.funding
   DROP COLUMN IF EXISTS jurisdiction;
 
 ALTER TABLE public.issue
-  ADD COLUMN issue_number   text;
+  ADD COLUMN issue_number   integer;

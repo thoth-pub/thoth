@@ -55,7 +55,7 @@ mod policy {
             series_id: series.series_id,
             work_id: work.work_id,
             issue_ordinal: 1,
-            issue_number: Some("1".to_string()),
+            issue_number: Some(1),
         };
 
         let issue = Issue::create(pool.as_ref(), &new_issue).expect("Failed to create");
@@ -64,7 +64,7 @@ mod policy {
             series_id: issue.series_id,
             work_id: issue.work_id,
             issue_ordinal: 2,
-            issue_number: Some("2".to_string()),
+            issue_number: Some(2),
         };
 
         assert!(IssuePolicy::can_create(&ctx, &new_issue, ()).is_ok());
@@ -95,7 +95,7 @@ mod policy {
             series_id: series.series_id,
             work_id: work.work_id,
             issue_ordinal: 1,
-            issue_number: Some("1".to_string()),
+            issue_number: Some(1),
         };
 
         assert!(IssuePolicy::can_create(&ctx, &new_issue, ()).is_err());
@@ -114,7 +114,7 @@ mod policy {
             series_id: series.series_id,
             work_id: work.work_id,
             issue_ordinal: 1,
-            issue_number: Some("1".to_string()),
+            issue_number: Some(1),
         };
 
         let issue = Issue::create(pool.as_ref(), &new_issue).expect("Failed to create");
@@ -123,7 +123,7 @@ mod policy {
             series_id: issue.series_id,
             work_id: issue.work_id,
             issue_ordinal: 2,
-            issue_number: Some("2".to_string()),
+            issue_number: Some(2),
         };
 
         let user = test_user_with_role("issue-user", Role::PublisherUser, "org-other");
@@ -152,7 +152,7 @@ mod crud {
         series_id: Uuid,
         work_id: Uuid,
         issue_ordinal: i32,
-        issue_number: Option<String>,
+        issue_number: Option<i32>,
     ) -> Issue {
         let new_issue = NewIssue {
             series_id,
@@ -177,7 +177,7 @@ mod crud {
             series_id: series.series_id,
             work_id: work.work_id,
             issue_ordinal: 1,
-            issue_number: Some("1".to_string()),
+            issue_number: Some(1),
         };
 
         let issue = Issue::create(pool.as_ref(), &new_issue).expect("Failed to create");
@@ -189,7 +189,7 @@ mod crud {
             series_id: issue.series_id,
             work_id: issue.work_id,
             issue_ordinal: 2,
-            issue_number: Some("2".to_string()),
+            issue_number: Some(2),
         };
 
         let ctx = test_context(pool.clone(), "test-user");
@@ -459,19 +459,13 @@ mod crud {
         let work = create_work(pool.as_ref(), &imprint);
         let other_work = create_work(pool.as_ref(), &imprint);
 
-        make_issue(
-            pool.as_ref(),
-            series.series_id,
-            work.work_id,
-            1,
-            Some("1".to_string()),
-        );
+        make_issue(pool.as_ref(), series.series_id, work.work_id, 1, Some(1));
         make_issue(
             pool.as_ref(),
             series.series_id,
             other_work.work_id,
             2,
-            Some("2".to_string()),
+            Some(2),
         );
 
         let fields: Vec<fn() -> IssueField> = vec![

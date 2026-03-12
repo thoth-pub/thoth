@@ -439,7 +439,7 @@ table! {
         series_id -> Uuid,
         work_id -> Uuid,
         issue_ordinal -> Int4,
-        issue_number -> Nullable<Text>,
+        issue_number -> Nullable<Int4>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }

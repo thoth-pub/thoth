@@ -1051,7 +1051,7 @@ fn patch_issue(issue: &Issue) -> PatchIssue {
         series_id: issue.series_id,
         work_id: issue.work_id,
         issue_ordinal: issue.issue_ordinal,
-        issue_number: issue.issue_number.clone(),
+        issue_number: issue.issue_number,
     }
 }
 
