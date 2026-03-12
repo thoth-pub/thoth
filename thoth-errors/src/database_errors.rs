@@ -50,7 +50,6 @@ static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "email_uniq_idx" => "An account with this email already exists.",
     "endorsement_endorsement_ordinal_work_id_uniq" => "An endorsement with this ordinal number already exists.",
     "funding_grant_number_check" => "Grant number must not be an empty string.",
-    "funding_jurisdiction_check" => "Jurisdiction must not be an empty string.",
     "funding_program_check" => "Program must not be an empty string.",
     "funding_project_name_check" => "Project name must not be an empty string.",
     "funding_project_shortname_check" => "Project shortname must not be an empty string.",
