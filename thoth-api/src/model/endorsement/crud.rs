@@ -82,6 +82,7 @@ impl Crud for Endorsement {
                     author_name
                         .ilike(format!("%{filter}%"))
                         .or(author_role.ilike(format!("%{filter}%")))
+                        .or(author_orcid.ilike(format!("%{filter}%")))
                         .or(text.ilike(format!("%{filter}%")))
                         .or(url.ilike(format!("%{filter}%"))),
                 );
@@ -119,6 +120,7 @@ impl Crud for Endorsement {
                     author_name
                         .ilike(format!("%{filter}%"))
                         .or(author_role.ilike(format!("%{filter}%")))
+                        .or(author_orcid.ilike(format!("%{filter}%")))
                         .or(text.ilike(format!("%{filter}%")))
                         .or(url.ilike(format!("%{filter}%"))),
                 );

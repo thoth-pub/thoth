@@ -87,10 +87,12 @@ impl Crud for BookReview {
                     title
                         .ilike(format!("%{filter}%"))
                         .or(author_name.ilike(format!("%{filter}%")))
+                        .or(reviewer_orcid.ilike(format!("%{filter}%")))
                         .or(journal_name.ilike(format!("%{filter}%")))
                         .or(journal_volume.ilike(format!("%{filter}%")))
                         .or(journal_number.ilike(format!("%{filter}%")))
                         .or(journal_issn.ilike(format!("%{filter}%")))
+                        .or(page_range.ilike(format!("%{filter}%")))
                         .or(text.ilike(format!("%{filter}%")))
                         .or(doi.ilike(format!("%{filter}%")))
                         .or(url.ilike(format!("%{filter}%"))),
@@ -129,10 +131,12 @@ impl Crud for BookReview {
                     title
                         .ilike(format!("%{filter}%"))
                         .or(author_name.ilike(format!("%{filter}%")))
+                        .or(reviewer_orcid.ilike(format!("%{filter}%")))
                         .or(journal_name.ilike(format!("%{filter}%")))
                         .or(journal_volume.ilike(format!("%{filter}%")))
                         .or(journal_number.ilike(format!("%{filter}%")))
                         .or(journal_issn.ilike(format!("%{filter}%")))
+                        .or(page_range.ilike(format!("%{filter}%")))
                         .or(text.ilike(format!("%{filter}%")))
                         .or(doi.ilike(format!("%{filter}%")))
                         .or(url.ilike(format!("%{filter}%"))),

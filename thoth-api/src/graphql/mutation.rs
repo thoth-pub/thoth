@@ -287,9 +287,11 @@ impl MutationRoot {
 
         let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
         data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
-        data.note = data
-            .note
-            .map(|note| convert_to_jats(note, markup, ConversionLimit::Abstract))
+        data.prize_statement = data
+            .prize_statement
+            .map(|prize_statement| {
+                convert_to_jats(prize_statement, markup, ConversionLimit::Abstract)
+            })
             .transpose()?;
 
         Award::create(&context.db, &data).map_err(Into::into)
@@ -323,6 +325,10 @@ impl MutationRoot {
         BookReviewPolicy::can_create(context, &data, ())?;
 
         let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        data.title = data
+            .title
+            .map(|title| convert_to_jats(title, markup, ConversionLimit::Title))
+            .transpose()?;
         data.text = data
             .text
             .map(|text| convert_to_jats(text, markup, ConversionLimit::Abstract))
@@ -588,9 +594,11 @@ impl MutationRoot {
 
         let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
         data.title = convert_to_jats(data.title, markup, ConversionLimit::Title)?;
-        data.note = data
-            .note
-            .map(|note| convert_to_jats(note, markup, ConversionLimit::Abstract))
+        data.prize_statement = data
+            .prize_statement
+            .map(|prize_statement| {
+                convert_to_jats(prize_statement, markup, ConversionLimit::Abstract)
+            })
             .transpose()?;
 
         award.update(context, &data).map_err(Into::into)
@@ -628,6 +636,10 @@ impl MutationRoot {
         BookReviewPolicy::can_update(context, &book_review, &data, ())?;
 
         let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        data.title = data
+            .title
+            .map(|title| convert_to_jats(title, markup, ConversionLimit::Title))
+            .transpose()?;
         data.text = data
             .text
             .map(|text| convert_to_jats(text, markup, ConversionLimit::Abstract))

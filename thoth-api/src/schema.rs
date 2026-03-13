@@ -1,5 +1,9 @@
 pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "award_role"))]
+    pub struct AwardRole;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "contribution_type"))]
     pub struct ContributionType;
 
@@ -111,6 +115,7 @@ table! {
         doi -> Nullable<Text>,
         handle -> Nullable<Text>,
         url -> Nullable<Text>,
+        date -> Nullable<Date>,
         resource_ordinal -> Int4,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
@@ -158,6 +163,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::AwardRole;
 
     award (award_id) {
         award_id -> Uuid,
@@ -165,7 +171,8 @@ table! {
         title -> Text,
         url -> Nullable<Text>,
         category -> Nullable<Text>,
-        note -> Nullable<Text>,
+        prize_statement -> Nullable<Text>,
+        role -> Nullable<AwardRole>,
         award_ordinal -> Int4,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
@@ -288,6 +295,8 @@ table! {
         work_id -> Uuid,
         title -> Nullable<Text>,
         author_name -> Nullable<Text>,
+        reviewer_orcid -> Nullable<Text>,
+        reviewer_institution_id -> Nullable<Uuid>,
         url -> Nullable<Text>,
         doi -> Nullable<Text>,
         review_date -> Nullable<Date>,
@@ -295,6 +304,7 @@ table! {
         journal_volume -> Nullable<Text>,
         journal_number -> Nullable<Text>,
         journal_issn -> Nullable<Text>,
+        page_range -> Nullable<Text>,
         text -> Nullable<Text>,
         review_ordinal -> Int4,
         created_at -> Timestamptz,
@@ -322,6 +332,8 @@ table! {
         work_id -> Uuid,
         author_name -> Nullable<Text>,
         author_role -> Nullable<Text>,
+        author_orcid -> Nullable<Text>,
+        author_institution_id -> Nullable<Uuid>,
         url -> Nullable<Text>,
         text -> Nullable<Text>,
         endorsement_ordinal -> Int4,
@@ -919,6 +931,7 @@ joinable!(affiliation_history -> affiliation (affiliation_id));
 joinable!(award -> work (work_id));
 joinable!(award_history -> award (award_id));
 joinable!(biography_history -> biography (biography_id));
+joinable!(book_review -> institution (reviewer_institution_id));
 joinable!(book_review -> work (work_id));
 joinable!(book_review_history -> book_review (book_review_id));
 joinable!(contact -> publisher (publisher_id));
@@ -927,6 +940,7 @@ joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
 joinable!(contribution_history -> contribution (contribution_id));
 joinable!(contributor_history -> contributor (contributor_id));
+joinable!(endorsement -> institution (author_institution_id));
 joinable!(endorsement -> work (work_id));
 joinable!(endorsement_history -> endorsement (endorsement_id));
 joinable!(file -> work (work_id));

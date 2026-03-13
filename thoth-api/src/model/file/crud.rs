@@ -759,6 +759,7 @@ impl FileUpload {
                     doi: additional_resource.doi.clone(),
                     handle: additional_resource.handle.clone(),
                     url: Some(cdn_url.to_string()),
+                    date: additional_resource.date,
                     resource_ordinal: additional_resource.resource_ordinal,
                 };
                 additional_resource.update(ctx, &patch)?;

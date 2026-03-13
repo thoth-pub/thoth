@@ -8,6 +8,10 @@ fn make_book_review(pool: &crate::db::PgPool, work_id: Uuid, review_ordinal: i32
         work_id,
         title: Some("Review title".to_string()),
         author_name: Some("Reviewer".to_string()),
+        reviewer_orcid: Some(
+            crate::model::Orcid::from_str("https://orcid.org/0000-0002-1234-5678").unwrap(),
+        ),
+        reviewer_institution_id: None,
         url: Some("https://example.com/review".to_string()),
         doi: Some(crate::model::Doi::from_str("https://doi.org/10.1234/REVIEW.1").unwrap()),
         review_date: chrono::NaiveDate::from_ymd_opt(2025, 1, 1),
@@ -15,6 +19,7 @@ fn make_book_review(pool: &crate::db::PgPool, work_id: Uuid, review_ordinal: i32
         journal_volume: Some("12".to_string()),
         journal_number: Some("3".to_string()),
         journal_issn: Some("1234-5678".to_string()),
+        page_range: Some("10-12".to_string()),
         text: Some("Review text".to_string()),
         review_ordinal,
     };
@@ -86,6 +91,8 @@ mod policy {
             work_id: work.work_id,
             title: Some("Review title".to_string()),
             author_name: Some("Reviewer".to_string()),
+            reviewer_orcid: None,
+            reviewer_institution_id: None,
             url: Some("https://example.com/review".to_string()),
             doi: None,
             review_date: chrono::NaiveDate::from_ymd_opt(2025, 1, 1),
@@ -93,6 +100,7 @@ mod policy {
             journal_volume: Some("12".to_string()),
             journal_number: Some("3".to_string()),
             journal_issn: Some("1234-5678".to_string()),
+            page_range: None,
             text: Some("Review text".to_string()),
             review_ordinal: 1,
         };
@@ -103,6 +111,8 @@ mod policy {
             work_id: review.work_id,
             title: review.title.clone(),
             author_name: review.author_name.clone(),
+            reviewer_orcid: review.reviewer_orcid.clone(),
+            reviewer_institution_id: review.reviewer_institution_id,
             url: review.url.clone(),
             doi: review.doi.clone(),
             review_date: review.review_date,
@@ -110,6 +120,7 @@ mod policy {
             journal_volume: review.journal_volume.clone(),
             journal_number: review.journal_number.clone(),
             journal_issn: review.journal_issn.clone(),
+            page_range: review.page_range.clone(),
             text: Some("Updated review text".to_string()),
             review_ordinal: 1,
         };
@@ -134,6 +145,8 @@ mod policy {
             work_id: review.work_id,
             title: review.title.clone(),
             author_name: review.author_name.clone(),
+            reviewer_orcid: review.reviewer_orcid.clone(),
+            reviewer_institution_id: review.reviewer_institution_id,
             url: review.url.clone(),
             doi: review.doi.clone(),
             review_date: review.review_date,
@@ -141,6 +154,7 @@ mod policy {
             journal_volume: review.journal_volume.clone(),
             journal_number: review.journal_number.clone(),
             journal_issn: review.journal_issn.clone(),
+            page_range: review.page_range.clone(),
             text: Some("Updated review text".to_string()),
             review_ordinal: 2,
         };
@@ -152,6 +166,8 @@ mod policy {
             work_id: work.work_id,
             title: Some("Review title".to_string()),
             author_name: Some("Reviewer".to_string()),
+            reviewer_orcid: None,
+            reviewer_institution_id: None,
             url: Some("https://example.com/review".to_string()),
             doi: None,
             review_date: chrono::NaiveDate::from_ymd_opt(2025, 1, 1),
@@ -159,6 +175,7 @@ mod policy {
             journal_volume: Some("12".to_string()),
             journal_number: Some("3".to_string()),
             journal_issn: Some("1234-5678".to_string()),
+            page_range: None,
             text: Some("Review text".to_string()),
             review_ordinal: 1,
         };
@@ -222,6 +239,8 @@ mod policy {
             work_id: chapter.work_id,
             title: Some("Review title".to_string()),
             author_name: Some("Reviewer".to_string()),
+            reviewer_orcid: None,
+            reviewer_institution_id: None,
             url: Some("https://example.com/review".to_string()),
             doi: None,
             review_date: chrono::NaiveDate::from_ymd_opt(2025, 1, 1),
@@ -229,6 +248,7 @@ mod policy {
             journal_volume: Some("12".to_string()),
             journal_number: Some("3".to_string()),
             journal_issn: Some("1234-5678".to_string()),
+            page_range: None,
             text: Some("Review text".to_string()),
             review_ordinal: 1,
         };
@@ -245,7 +265,8 @@ mod crud {
     use super::*;
 
     use crate::model::tests::db::{
-        create_imprint, create_publisher, create_work, setup_test_db, test_context,
+        create_imprint, create_institution, create_publisher, create_work, setup_test_db,
+        test_context,
     };
     use crate::model::Reorder;
 
@@ -267,6 +288,8 @@ mod crud {
             work_id: review.work_id,
             title: review.title.clone(),
             author_name: review.author_name.clone(),
+            reviewer_orcid: review.reviewer_orcid.clone(),
+            reviewer_institution_id: review.reviewer_institution_id,
             url: review.url.clone(),
             doi: review.doi.clone(),
             review_date: review.review_date,
@@ -274,6 +297,7 @@ mod crud {
             journal_volume: review.journal_volume.clone(),
             journal_number: review.journal_number.clone(),
             journal_issn: review.journal_issn.clone(),
+            page_range: review.page_range.clone(),
             text: Some("Updated review text".to_string()),
             review_ordinal: 1,
         };
@@ -284,6 +308,49 @@ mod crud {
 
         let deleted = updated.delete(pool.as_ref()).expect("Failed to delete");
         assert!(BookReview::from_id(pool.as_ref(), &deleted.book_review_id).is_err());
+    }
+
+    #[test]
+    fn deleting_reviewer_institution_nulls_relation() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let institution = create_institution(pool.as_ref());
+
+        let review = BookReview::create(
+            pool.as_ref(),
+            &NewBookReview {
+                work_id: work.work_id,
+                title: Some("Review title".to_string()),
+                author_name: Some("Reviewer".to_string()),
+                reviewer_orcid: Some(
+                    crate::model::Orcid::from_str("https://orcid.org/0000-0002-1234-5678").unwrap(),
+                ),
+                reviewer_institution_id: Some(institution.institution_id),
+                url: Some("https://example.com/review".to_string()),
+                doi: None,
+                review_date: chrono::NaiveDate::from_ymd_opt(2025, 1, 1),
+                journal_name: Some("Journal".to_string()),
+                journal_volume: Some("12".to_string()),
+                journal_number: Some("3".to_string()),
+                journal_issn: Some("1234-5678".to_string()),
+                page_range: Some("10-12".to_string()),
+                text: Some("Review text".to_string()),
+                review_ordinal: 1,
+            },
+        )
+        .expect("Failed to create review");
+
+        institution
+            .delete(pool.as_ref())
+            .expect("Failed to delete institution");
+
+        let fetched = BookReview::from_id(pool.as_ref(), &review.book_review_id)
+            .expect("Failed to fetch review after deleting institution");
+        assert_eq!(fetched.book_review_id, review.book_review_id);
+        assert!(fetched.reviewer_institution_id.is_none());
     }
 
     #[test]

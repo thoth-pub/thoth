@@ -8,10 +8,13 @@ use crate::model::tests::db as test_db;
 use crate::model::{
     additional_resource::{AdditionalResource, NewAdditionalResource, ResourceType},
     affiliation::{Affiliation, NewAffiliation, PatchAffiliation},
+    award::{Award, AwardRole, NewAward},
     biography::{Biography, NewBiography, PatchBiography},
+    book_review::{BookReview, NewBookReview},
     contact::{Contact, ContactType, NewContact, PatchContact},
     contribution::{Contribution, ContributionType, NewContribution, PatchContribution},
     contributor::{Contributor, NewContributor, PatchContributor},
+    endorsement::{Endorsement, NewEndorsement},
     funding::{Funding, NewFunding, PatchFunding},
     imprint::{Imprint, NewImprint, PatchImprint},
     institution::{CountryCode, Institution, NewInstitution, PatchInstitution},
@@ -29,7 +32,7 @@ use crate::model::{
     title::{NewTitle, PatchTitle, Title},
     work::{NewWork, PatchWork, Work, WorkStatus, WorkType},
     work_relation::{NewWorkRelation, PatchWorkRelation, RelationType, WorkRelation},
-    Crud, Doi, Isbn,
+    Crud, Doi, Isbn, Orcid, Ror,
 };
 use crate::policy::{PolicyContext, Role};
 use chrono::NaiveDate;
@@ -2076,6 +2079,7 @@ fn work_additional_resources_applies_markup_format_argument() {
             doi: None,
             handle: None,
             url: Some("https://example.com/resource.mp4".to_string()),
+            date: None,
             resource_ordinal: 1,
         },
     )
@@ -2133,6 +2137,7 @@ fn graphql_work_additional_resources_uses_parent_markup_when_nested_args_omitted
             doi: None,
             handle: None,
             url: Some("https://example.com/parent-markup.mp4".to_string()),
+            date: None,
             resource_ordinal: 1,
         },
     )
@@ -2173,6 +2178,301 @@ query ParentMarkup($id: Uuid!) {
     assert_ne!(description, "<p>Parent <italic>Description</italic></p>");
     assert!(!title.contains('<'));
     assert!(!description.contains('<'));
+}
+
+#[test]
+fn graphql_award_supports_role_and_prize_statement_markup() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-award-markup");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let award = create_with_data_and_markup(
+        &schema,
+        &context,
+        "createAward",
+        "NewAward",
+        "awardId role title(markupFormat: PLAIN_TEXT) prizeStatement(markupFormat: PLAIN_TEXT)",
+        NewAward {
+            work_id: seed.book_work_id,
+            title: "*Award*".to_string(),
+            url: Some("https://example.com/award".to_string()),
+            category: Some("Prize".to_string()),
+            prize_statement: Some("**Prize** statement".to_string()),
+            role: Some(AwardRole::JointWinner),
+            award_ordinal: 1,
+        },
+        MarkupFormat::Markdown,
+    );
+
+    assert_eq!(award["role"].as_str(), Some("JOINT_WINNER"));
+    assert_eq!(award["title"].as_str(), Some("Award"));
+    assert_eq!(award["prizeStatement"].as_str(), Some("Prize statement"));
+
+    let award_id = json_uuid(&award["awardId"]);
+    let stored = Award::from_id(pool.as_ref(), &award_id).expect("Failed to fetch stored award");
+    assert_eq!(stored.role, Some(AwardRole::JointWinner));
+    assert!(stored.title.contains("<italic>"));
+    assert!(stored
+        .prize_statement
+        .as_deref()
+        .unwrap_or_default()
+        .contains("<bold>"));
+}
+
+#[test]
+fn graphql_additional_resource_exposes_date() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-resource-date");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+    let resource_date = NaiveDate::from_ymd_opt(2025, 3, 1).unwrap();
+
+    let resource = create_with_data_and_markup(
+        &schema,
+        &context,
+        "createAdditionalResource",
+        "NewAdditionalResource",
+        "workResourceId date title(markupFormat: PLAIN_TEXT) description(markupFormat: PLAIN_TEXT)",
+        NewAdditionalResource {
+            work_id: seed.book_work_id,
+            title: "*Resource*".to_string(),
+            description: Some("**Description**".to_string()),
+            attribution: Some("Attribution".to_string()),
+            resource_type: ResourceType::Dataset,
+            doi: None,
+            handle: None,
+            url: Some("https://example.com/resource".to_string()),
+            date: Some(resource_date),
+            resource_ordinal: 1,
+        },
+        MarkupFormat::Markdown,
+    );
+
+    assert_eq!(resource["date"].as_str(), Some("2025-03-01"));
+    assert_eq!(resource["title"].as_str(), Some("Resource"));
+    assert_eq!(resource["description"].as_str(), Some("Description"));
+
+    let resource_id = json_uuid(&resource["workResourceId"]);
+    let stored = AdditionalResource::from_id(pool.as_ref(), &resource_id)
+        .expect("Failed to fetch stored resource");
+    assert_eq!(stored.date, Some(resource_date));
+}
+
+#[test]
+fn graphql_book_review_supports_reviewer_fields_and_title_markup() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-book-review-fields");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+    let institution = Institution::create(
+        pool.as_ref(),
+        &NewInstitution {
+            institution_name: unique("Reviewer Institution"),
+            institution_doi: None,
+            ror: Some(Ror::from_str("https://ror.org/051z6e826").unwrap()),
+            country_code: Some(CountryCode::Gbr),
+        },
+    )
+    .expect("Failed to create reviewer institution");
+
+    let review = create_with_data_and_markup(
+        &schema,
+        &context,
+        "createBookReview",
+        "NewBookReview",
+        "bookReviewId title(markupFormat: PLAIN_TEXT) reviewerOrcid reviewerInstitutionId reviewerInstitution { institutionId ror } pageRange text(markupFormat: PLAIN_TEXT)",
+        NewBookReview {
+            work_id: seed.book_work_id,
+            title: Some("*Review* Title".to_string()),
+            author_name: Some("Reviewer".to_string()),
+            reviewer_orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-1234-5678").unwrap()),
+            reviewer_institution_id: Some(institution.institution_id),
+            url: Some("https://example.com/review".to_string()),
+            doi: None,
+            review_date: Some(NaiveDate::from_ymd_opt(2025, 2, 1).unwrap()),
+            journal_name: Some("Journal".to_string()),
+            journal_volume: Some("12".to_string()),
+            journal_number: Some("3".to_string()),
+            journal_issn: Some("1234-5678".to_string()),
+            page_range: Some("10-12".to_string()),
+            text: Some("**Review** text".to_string()),
+            review_ordinal: 1,
+        },
+        MarkupFormat::Markdown,
+    );
+    let reviewer_institution_id = institution.institution_id.to_string();
+
+    assert_eq!(review["title"].as_str(), Some("Review Title"));
+    assert_eq!(
+        review["reviewerOrcid"].as_str(),
+        Some("https://orcid.org/0000-0002-1234-5678")
+    );
+    assert_eq!(
+        review["reviewerInstitutionId"].as_str(),
+        Some(reviewer_institution_id.as_str())
+    );
+    assert_eq!(review["pageRange"].as_str(), Some("10-12"));
+    assert_eq!(review["text"].as_str(), Some("Review text"));
+    assert_eq!(
+        review["reviewerInstitution"]["ror"].as_str(),
+        Some("https://ror.org/051z6e826")
+    );
+
+    let review_id = json_uuid(&review["bookReviewId"]);
+    let stored =
+        BookReview::from_id(pool.as_ref(), &review_id).expect("Failed to fetch stored review");
+    assert!(stored
+        .title
+        .as_deref()
+        .unwrap_or_default()
+        .contains("<italic>"));
+}
+
+#[test]
+fn graphql_endorsement_supports_author_identity_fields() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-endorsement-fields");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+    let institution = Institution::create(
+        pool.as_ref(),
+        &NewInstitution {
+            institution_name: unique("Author Institution"),
+            institution_doi: None,
+            ror: Some(Ror::from_str("https://ror.org/03yrm5c26").unwrap()),
+            country_code: Some(CountryCode::Gbr),
+        },
+    )
+    .expect("Failed to create author institution");
+
+    let endorsement = create_with_data_and_markup(
+        &schema,
+        &context,
+        "createEndorsement",
+        "NewEndorsement",
+        "endorsementId authorOrcid authorInstitutionId authorInstitution { institutionId ror } text(markupFormat: PLAIN_TEXT)",
+        NewEndorsement {
+            work_id: seed.book_work_id,
+            author_name: Some("Author".to_string()),
+            author_role: Some("Scholar".to_string()),
+            author_orcid: Some(Orcid::from_str("https://orcid.org/0000-0001-2345-6789").unwrap()),
+            author_institution_id: Some(institution.institution_id),
+            url: Some("https://example.com/endorsement".to_string()),
+            text: Some("*Excellent* book".to_string()),
+            endorsement_ordinal: 1,
+        },
+        MarkupFormat::Markdown,
+    );
+    let author_institution_id = institution.institution_id.to_string();
+
+    assert_eq!(
+        endorsement["authorOrcid"].as_str(),
+        Some("https://orcid.org/0000-0001-2345-6789")
+    );
+    assert_eq!(
+        endorsement["authorInstitutionId"].as_str(),
+        Some(author_institution_id.as_str())
+    );
+    assert_eq!(endorsement["text"].as_str(), Some("Excellent book"));
+    assert_eq!(
+        endorsement["authorInstitution"]["ror"].as_str(),
+        Some("https://ror.org/03yrm5c26")
+    );
+
+    let endorsement_id = json_uuid(&endorsement["endorsementId"]);
+    let stored = Endorsement::from_id(pool.as_ref(), &endorsement_id)
+        .expect("Failed to fetch stored endorsement");
+    assert_eq!(
+        stored.author_orcid,
+        Some(Orcid::from_str("https://orcid.org/0000-0001-2345-6789").unwrap())
+    );
+}
+
+#[test]
+fn graphql_review_and_endorsement_relations_null_after_institution_delete() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-institution-null-relations");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+    let institution = Institution::create(
+        pool.as_ref(),
+        &NewInstitution {
+            institution_name: unique("Linked Institution"),
+            institution_doi: None,
+            ror: Some(Ror::from_str("https://ror.org/04wxnsj81").unwrap()),
+            country_code: Some(CountryCode::Gbr),
+        },
+    )
+    .expect("Failed to create institution");
+
+    let review = BookReview::create(
+        pool.as_ref(),
+        &NewBookReview {
+            work_id: seed.book_work_id,
+            title: Some("Review title".to_string()),
+            author_name: Some("Reviewer".to_string()),
+            reviewer_orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-1234-5678").unwrap()),
+            reviewer_institution_id: Some(institution.institution_id),
+            url: Some("https://example.com/review".to_string()),
+            doi: None,
+            review_date: Some(NaiveDate::from_ymd_opt(2025, 2, 1).unwrap()),
+            journal_name: Some("Journal".to_string()),
+            journal_volume: Some("12".to_string()),
+            journal_number: Some("3".to_string()),
+            journal_issn: Some("1234-5678".to_string()),
+            page_range: Some("10-12".to_string()),
+            text: Some("Review text".to_string()),
+            review_ordinal: 1,
+        },
+    )
+    .expect("Failed to create review");
+
+    let endorsement = Endorsement::create(
+        pool.as_ref(),
+        &NewEndorsement {
+            work_id: seed.book_work_id,
+            author_name: Some("Author".to_string()),
+            author_role: Some("Scholar".to_string()),
+            author_orcid: Some(Orcid::from_str("https://orcid.org/0000-0001-2345-6789").unwrap()),
+            author_institution_id: Some(institution.institution_id),
+            url: Some("https://example.com/endorsement".to_string()),
+            text: Some("Endorsement text".to_string()),
+            endorsement_ordinal: 1,
+        },
+    )
+    .expect("Failed to create endorsement");
+
+    institution
+        .delete(pool.as_ref())
+        .expect("Failed to delete linked institution");
+
+    let query = r#"
+query LinkedRelations($reviewId: Uuid!, $endorsementId: Uuid!) {
+  bookReview(bookReviewId: $reviewId) {
+    reviewerInstitutionId
+    reviewerInstitution { institutionId }
+  }
+  endorsement(endorsementId: $endorsementId) {
+    authorInstitutionId
+    authorInstitution { institutionId }
+  }
+}
+"#;
+    let mut vars = Variables::new();
+    insert_var(&mut vars, "reviewId", review.book_review_id);
+    insert_var(&mut vars, "endorsementId", endorsement.endorsement_id);
+    let data = execute_graphql(&schema, &context, query, Some(vars));
+
+    assert!(data["bookReview"]["reviewerInstitutionId"].is_null());
+    assert!(data["bookReview"]["reviewerInstitution"].is_null());
+    assert!(data["endorsement"]["authorInstitutionId"].is_null());
+    assert!(data["endorsement"]["authorInstitution"].is_null());
 }
 
 #[test]

@@ -18,6 +18,7 @@ fn make_additional_resource(
         doi: Some(crate::model::Doi::from_str("https://doi.org/10.1234/RESOURCE.1").unwrap()),
         handle: Some("hdl:1234/5678".to_string()),
         url: Some("https://example.com/resource".to_string()),
+        date: chrono::NaiveDate::from_ymd_opt(2025, 1, 1),
         resource_ordinal,
     };
 
@@ -128,6 +129,7 @@ mod policy {
             doi: None,
             handle: None,
             url: Some("https://example.com".to_string()),
+            date: None,
             resource_ordinal: 1,
         };
 
@@ -142,6 +144,7 @@ mod policy {
             doi: resource.doi.clone(),
             handle: resource.handle.clone(),
             url: resource.url.clone(),
+            date: resource.date,
             resource_ordinal: 1,
         };
 
@@ -170,6 +173,7 @@ mod policy {
             doi: resource.doi.clone(),
             handle: resource.handle.clone(),
             url: resource.url.clone(),
+            date: resource.date,
             resource_ordinal: 2,
         };
 
@@ -185,6 +189,7 @@ mod policy {
             doi: None,
             handle: None,
             url: Some("https://example.com".to_string()),
+            date: None,
             resource_ordinal: 1,
         };
 
@@ -252,6 +257,7 @@ mod policy {
             doi: None,
             handle: None,
             url: Some("https://example.com".to_string()),
+            date: None,
             resource_ordinal: 1,
         };
 
@@ -288,6 +294,7 @@ mod crud {
             doi: None,
             handle: None,
             url: Some("https://example.com".to_string()),
+            date: chrono::NaiveDate::from_ymd_opt(2025, 2, 1),
             resource_ordinal: 1,
         };
 
@@ -309,12 +316,14 @@ mod crud {
             doi: resource.doi.clone(),
             handle: resource.handle.clone(),
             url: resource.url.clone(),
+            date: chrono::NaiveDate::from_ymd_opt(2025, 3, 1),
             resource_ordinal: 1,
         };
 
         let ctx = test_context(pool.clone(), "test-user");
         let updated = resource.update(&ctx, &patch).expect("Failed to update");
         assert_eq!(updated.title, patch.title);
+        assert_eq!(updated.date, patch.date);
 
         let deleted = updated.delete(pool.as_ref()).expect("Failed to delete");
         assert!(

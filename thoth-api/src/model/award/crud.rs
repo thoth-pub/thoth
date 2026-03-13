@@ -54,6 +54,7 @@ impl Crud for Award {
             AwardField::Category => {
                 apply_directional_order!(query, order.direction, order, category)
             }
+            AwardField::Role => apply_directional_order!(query, order.direction, order, role),
             AwardField::Url => apply_directional_order!(query, order.direction, order, url),
             AwardField::CreatedAt => {
                 apply_directional_order!(query, order.direction, order, created_at)
@@ -75,7 +76,7 @@ impl Crud for Award {
                     title
                         .ilike(format!("%{filter}%"))
                         .or(category.ilike(format!("%{filter}%")))
-                        .or(note.ilike(format!("%{filter}%")))
+                        .or(prize_statement.ilike(format!("%{filter}%")))
                         .or(url.ilike(format!("%{filter}%"))),
                 );
             }
@@ -112,7 +113,7 @@ impl Crud for Award {
                     title
                         .ilike(format!("%{filter}%"))
                         .or(category.ilike(format!("%{filter}%")))
-                        .or(note.ilike(format!("%{filter}%")))
+                        .or(prize_statement.ilike(format!("%{filter}%")))
                         .or(url.ilike(format!("%{filter}%"))),
                 );
             }
