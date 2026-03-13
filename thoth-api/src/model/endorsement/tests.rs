@@ -1,5 +1,6 @@
 use super::*;
 use crate::model::Crud;
+use std::str::FromStr;
 use uuid::Uuid;
 
 fn make_endorsement(
@@ -12,6 +13,10 @@ fn make_endorsement(
         work_id,
         author_name,
         author_role: Some("Author".to_string()),
+        author_orcid: Some(
+            crate::model::Orcid::from_str("https://orcid.org/0000-0002-1234-5678").unwrap(),
+        ),
+        author_institution_id: None,
         url: Some("https://example.com/endorsement".to_string()),
         text: Some("Endorsement text".to_string()),
         endorsement_ordinal,
@@ -84,6 +89,8 @@ mod policy {
             work_id: work.work_id,
             author_name: Some("Author".to_string()),
             author_role: Some("Role".to_string()),
+            author_orcid: None,
+            author_institution_id: None,
             url: Some("https://example.com/endorsement".to_string()),
             text: Some("Endorsement text".to_string()),
             endorsement_ordinal: 1,
@@ -95,6 +102,8 @@ mod policy {
             work_id: endorsement.work_id,
             author_name: endorsement.author_name.clone(),
             author_role: endorsement.author_role.clone(),
+            author_orcid: endorsement.author_orcid.clone(),
+            author_institution_id: endorsement.author_institution_id,
             url: endorsement.url.clone(),
             text: Some("Updated endorsement text".to_string()),
             endorsement_ordinal: 1,
@@ -121,6 +130,8 @@ mod policy {
             work_id: endorsement.work_id,
             author_name: endorsement.author_name.clone(),
             author_role: endorsement.author_role.clone(),
+            author_orcid: endorsement.author_orcid.clone(),
+            author_institution_id: endorsement.author_institution_id,
             url: endorsement.url.clone(),
             text: Some("Updated endorsement text".to_string()),
             endorsement_ordinal: 2,
@@ -133,6 +144,8 @@ mod policy {
             work_id: work.work_id,
             author_name: Some("Author".to_string()),
             author_role: Some("Role".to_string()),
+            author_orcid: None,
+            author_institution_id: None,
             url: Some("https://example.com/endorsement".to_string()),
             text: Some("Endorsement text".to_string()),
             endorsement_ordinal: 1,
@@ -197,6 +210,8 @@ mod policy {
             work_id: chapter.work_id,
             author_name: Some("Author".to_string()),
             author_role: Some("Role".to_string()),
+            author_orcid: None,
+            author_institution_id: None,
             url: Some("https://example.com/endorsement".to_string()),
             text: Some("Endorsement text".to_string()),
             endorsement_ordinal: 1,
@@ -214,7 +229,8 @@ mod crud {
     use super::*;
 
     use crate::model::tests::db::{
-        create_imprint, create_publisher, create_work, setup_test_db, test_context,
+        create_imprint, create_institution, create_publisher, create_work, setup_test_db,
+        test_context,
     };
     use crate::model::Reorder;
 
@@ -230,6 +246,10 @@ mod crud {
             work_id: work.work_id,
             author_name: Some("Author".to_string()),
             author_role: Some("Role".to_string()),
+            author_orcid: Some(
+                crate::model::Orcid::from_str("https://orcid.org/0000-0002-1234-5678").unwrap(),
+            ),
+            author_institution_id: None,
             url: Some("https://example.com/endorsement".to_string()),
             text: Some("Endorsement text".to_string()),
             endorsement_ordinal: 1,
@@ -245,6 +265,8 @@ mod crud {
             work_id: endorsement.work_id,
             author_name: endorsement.author_name.clone(),
             author_role: endorsement.author_role.clone(),
+            author_orcid: endorsement.author_orcid.clone(),
+            author_institution_id: endorsement.author_institution_id,
             url: endorsement.url.clone(),
             text: Some("Updated endorsement text".to_string()),
             endorsement_ordinal: 1,
@@ -256,6 +278,43 @@ mod crud {
 
         let deleted = updated.delete(pool.as_ref()).expect("Failed to delete");
         assert!(Endorsement::from_id(pool.as_ref(), &deleted.endorsement_id).is_err());
+    }
+
+    #[test]
+    fn deleting_author_institution_nulls_relation() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let institution = create_institution(pool.as_ref());
+
+        let endorsement = Endorsement::create(
+            pool.as_ref(),
+            &NewEndorsement {
+                work_id: work.work_id,
+                author_name: Some("Author".to_string()),
+                author_role: Some("Role".to_string()),
+                author_orcid: Some(
+                    crate::model::Orcid::from_str("https://orcid.org/0000-0002-1234-5678")
+                        .unwrap(),
+                ),
+                author_institution_id: Some(institution.institution_id),
+                url: Some("https://example.com/endorsement".to_string()),
+                text: Some("Endorsement text".to_string()),
+                endorsement_ordinal: 1,
+            },
+        )
+        .expect("Failed to create endorsement");
+
+        institution
+            .delete(pool.as_ref())
+            .expect("Failed to delete institution");
+
+        let fetched = Endorsement::from_id(pool.as_ref(), &endorsement.endorsement_id)
+            .expect("Failed to fetch endorsement after deleting institution");
+        assert_eq!(fetched.endorsement_id, endorsement.endorsement_id);
+        assert!(fetched.author_institution_id.is_none());
     }
 
     #[test]

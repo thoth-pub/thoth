@@ -14,7 +14,7 @@ use crate::markup::{convert_from_jats, ConversionLimit, MarkupFormat};
 use crate::model::{
     additional_resource::{AdditionalResource, AdditionalResourceOrderBy},
     affiliation::{Affiliation, AffiliationOrderBy},
-    award::{Award, AwardOrderBy},
+    award::{Award, AwardOrderBy, AwardRole},
     biography::{Biography, BiographyOrderBy},
     book_review::{BookReview, BookReviewOrderBy},
     contact::{Contact, ContactOrderBy, ContactType},
@@ -2224,6 +2224,11 @@ impl AdditionalResource {
         self.url.as_ref()
     }
 
+    #[graphql(description = "Date associated with the additional resource")]
+    pub fn date(&self) -> Option<NaiveDate> {
+        self.date
+    }
+
     #[graphql(
         description = "Number representing this resource's position in an ordered list of resources within the work"
     )]
@@ -2295,20 +2300,25 @@ impl Award {
         self.category.as_ref()
     }
 
-    #[graphql(description = "Additional note for this award")]
-    pub fn note(
+    #[graphql(description = "Role of the work in this award")]
+    pub fn role(&self) -> Option<AwardRole> {
+        self.role
+    }
+
+    #[graphql(description = "Prize statement for this award")]
+    pub fn prize_statement(
         &self,
         #[graphql(
             default = MarkupFormat::JatsXml,
-            description = "Markup format used for rendering note",
+            description = "Markup format used for rendering prize statement",
         )]
         markup_format: Option<MarkupFormat>,
     ) -> FieldResult<Option<String>> {
-        self.note
+        self.prize_statement
             .as_ref()
-            .map(|note| {
+            .map(|prize_statement| {
                 convert_from_jats(
-                    note,
+                    prize_statement,
                     markup_format.ok_or(ThothError::MissingMarkupFormat)?,
                     ConversionLimit::Abstract,
                 )
@@ -2365,6 +2375,18 @@ impl Endorsement {
         self.author_role.as_ref()
     }
 
+    #[graphql(
+        description = "ORCID (Open Researcher and Contributor ID) of the endorsement author as full URL, using the HTTPS scheme and the orcid.org domain"
+    )]
+    pub fn author_orcid(&self) -> Option<&Orcid> {
+        self.author_orcid.as_ref()
+    }
+
+    #[graphql(description = "Thoth ID of the endorsement author's institution")]
+    pub fn author_institution_id(&self) -> Option<&Uuid> {
+        self.author_institution_id.as_ref()
+    }
+
     #[graphql(description = "URL associated with this endorsement")]
     pub fn url(&self) -> Option<&String> {
         self.url.as_ref()
@@ -2413,6 +2435,15 @@ impl Endorsement {
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(Into::into)
     }
+
+    #[graphql(description = "Get the endorsement author's institution")]
+    pub fn author_institution(&self, context: &Context) -> FieldResult<Option<Institution>> {
+        self.author_institution_id
+            .as_ref()
+            .map(|institution_id| Institution::from_id(&context.db, institution_id))
+            .transpose()
+            .map_err(Into::into)
+    }
 }
 
 #[juniper::graphql_object(
@@ -2431,13 +2462,42 @@ impl BookReview {
     }
 
     #[graphql(description = "Title of the review")]
-    pub fn title(&self) -> Option<&String> {
-        self.title.as_ref()
+    pub fn title(
+        &self,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "Markup format used for rendering review title",
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Option<String>> {
+        self.title
+            .as_ref()
+            .map(|title| {
+                convert_from_jats(
+                    title,
+                    markup_format.ok_or(ThothError::MissingMarkupFormat)?,
+                    ConversionLimit::Title,
+                )
+            })
+            .transpose()
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Name of the review author")]
     pub fn author_name(&self) -> Option<&String> {
         self.author_name.as_ref()
+    }
+
+    #[graphql(
+        description = "ORCID (Open Researcher and Contributor ID) of the reviewer as full URL, using the HTTPS scheme and the orcid.org domain"
+    )]
+    pub fn reviewer_orcid(&self) -> Option<&Orcid> {
+        self.reviewer_orcid.as_ref()
+    }
+
+    #[graphql(description = "Thoth ID of the reviewer's institution")]
+    pub fn reviewer_institution_id(&self) -> Option<&Uuid> {
+        self.reviewer_institution_id.as_ref()
     }
 
     #[graphql(description = "URL of the review publication")]
@@ -2475,6 +2535,11 @@ impl BookReview {
     #[graphql(description = "ISSN of the journal where the review was published")]
     pub fn journal_issn(&self) -> Option<&String> {
         self.journal_issn.as_ref()
+    }
+
+    #[graphql(description = "Page range of the review")]
+    pub fn page_range(&self) -> Option<&String> {
+        self.page_range.as_ref()
     }
 
     #[graphql(description = "Text of the review")]
@@ -2519,6 +2584,15 @@ impl BookReview {
     #[graphql(description = "Get the work linked to this review")]
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(Into::into)
+    }
+
+    #[graphql(description = "Get the reviewer's institution")]
+    pub fn reviewer_institution(&self, context: &Context) -> FieldResult<Option<Institution>> {
+        self.reviewer_institution_id
+            .as_ref()
+            .map(|institution_id| Institution::from_id(&context.db, institution_id))
+            .transpose()
+            .map_err(Into::into)
     }
 }
 

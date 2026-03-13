@@ -538,6 +538,9 @@ pub fn ast_to_html(node: &Node) -> String {
 pub fn ast_to_markdown(node: &Node) -> String {
     match node {
         Node::Document(children) => {
+            if children.iter().all(is_inline_node) {
+                return children.iter().map(ast_to_markdown).collect();
+            }
             let mut result = String::new();
             for (i, child) in children.iter().enumerate() {
                 if i > 0 {
@@ -598,6 +601,9 @@ pub fn ast_to_markdown(node: &Node) -> String {
 pub fn ast_to_plain_text(node: &Node) -> String {
     match node {
         Node::Document(children) => {
+            if children.iter().all(is_inline_node) {
+                return children.iter().map(ast_to_plain_text).collect();
+            }
             let mut result = String::new();
             for (i, child) in children.iter().enumerate() {
                 if i > 0 {
@@ -640,6 +646,20 @@ pub fn ast_to_plain_text(node: &Node) -> String {
         }
         Node::Text(text) => text.clone(),
     }
+}
+
+fn is_inline_node(node: &Node) -> bool {
+    matches!(
+        node,
+        Node::Bold(_)
+            | Node::Italic(_)
+            | Node::Code(_)
+            | Node::Superscript(_)
+            | Node::Subscript(_)
+            | Node::SmallCaps(_)
+            | Node::Link { .. }
+            | Node::Text(_)
+    )
 }
 
 /// Strip structural elements from AST for title conversion (preserves paragraphs with inline content)

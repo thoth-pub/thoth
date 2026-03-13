@@ -169,6 +169,7 @@ fn create_additional_resource(
         doi: None,
         handle: None,
         url: None,
+        date: None,
         resource_ordinal: 1,
     };
 

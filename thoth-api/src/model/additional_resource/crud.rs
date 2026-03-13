@@ -74,6 +74,9 @@ impl Crud for AdditionalResource {
             AdditionalResourceField::Url => {
                 apply_directional_order!(query, order.direction, order, url)
             }
+            AdditionalResourceField::Date => {
+                apply_directional_order!(query, order.direction, order, date)
+            }
             AdditionalResourceField::CreatedAt => {
                 apply_directional_order!(query, order.direction, order, created_at)
             }

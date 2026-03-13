@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::graphql::types::inputs::Direction;
-use crate::model::Timestamp;
+use crate::model::{Orcid, Timestamp};
 #[cfg(feature = "backend")]
 use crate::schema::endorsement;
 #[cfg(feature = "backend")]
@@ -35,6 +35,8 @@ pub struct Endorsement {
     pub work_id: Uuid,
     pub author_name: Option<String>,
     pub author_role: Option<String>,
+    pub author_orcid: Option<Orcid>,
+    pub author_institution_id: Option<Uuid>,
     pub url: Option<String>,
     pub text: Option<String>,
     pub endorsement_ordinal: i32,
@@ -52,6 +54,8 @@ pub struct NewEndorsement {
     pub work_id: Uuid,
     pub author_name: Option<String>,
     pub author_role: Option<String>,
+    pub author_orcid: Option<Orcid>,
+    pub author_institution_id: Option<Uuid>,
     pub url: Option<String>,
     pub text: Option<String>,
     pub endorsement_ordinal: i32,
@@ -68,6 +72,8 @@ pub struct PatchEndorsement {
     pub work_id: Uuid,
     pub author_name: Option<String>,
     pub author_role: Option<String>,
+    pub author_orcid: Option<Orcid>,
+    pub author_institution_id: Option<Uuid>,
     pub url: Option<String>,
     pub text: Option<String>,
     pub endorsement_ordinal: i32,

@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use uuid::Uuid;
@@ -66,6 +67,7 @@ pub enum AdditionalResourceField {
     Doi,
     Handle,
     Url,
+    Date,
     CreatedAt,
     UpdatedAt,
 }
@@ -83,6 +85,7 @@ pub struct AdditionalResource {
     pub doi: Option<Doi>,
     pub handle: Option<String>,
     pub url: Option<String>,
+    pub date: Option<NaiveDate>,
     pub resource_ordinal: i32,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
@@ -103,6 +106,7 @@ pub struct NewAdditionalResource {
     pub doi: Option<Doi>,
     pub handle: Option<String>,
     pub url: Option<String>,
+    pub date: Option<NaiveDate>,
     pub resource_ordinal: i32,
 }
 
@@ -122,6 +126,7 @@ pub struct PatchAdditionalResource {
     pub doi: Option<Doi>,
     pub handle: Option<String>,
     pub url: Option<String>,
+    pub date: Option<NaiveDate>,
     pub resource_ordinal: i32,
 }
 

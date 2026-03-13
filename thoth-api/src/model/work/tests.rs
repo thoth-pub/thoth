@@ -1609,6 +1609,7 @@ mod crud {
                 doi: None,
                 handle: None,
                 url: Some("https://example.com/resource".to_string()),
+                date: None,
                 resource_ordinal: 1,
             },
         )

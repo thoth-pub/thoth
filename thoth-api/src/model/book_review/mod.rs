@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::graphql::types::inputs::Direction;
-use crate::model::Doi;
-use crate::model::Timestamp;
+use crate::model::{Doi, Orcid, Timestamp};
 #[cfg(feature = "backend")]
 use crate::schema::book_review;
 #[cfg(feature = "backend")]
@@ -38,6 +37,8 @@ pub struct BookReview {
     pub work_id: Uuid,
     pub title: Option<String>,
     pub author_name: Option<String>,
+    pub reviewer_orcid: Option<Orcid>,
+    pub reviewer_institution_id: Option<Uuid>,
     pub url: Option<String>,
     pub doi: Option<Doi>,
     pub review_date: Option<NaiveDate>,
@@ -45,6 +46,7 @@ pub struct BookReview {
     pub journal_volume: Option<String>,
     pub journal_number: Option<String>,
     pub journal_issn: Option<String>,
+    pub page_range: Option<String>,
     pub text: Option<String>,
     pub review_ordinal: i32,
     pub created_at: Timestamp,
@@ -61,6 +63,8 @@ pub struct NewBookReview {
     pub work_id: Uuid,
     pub title: Option<String>,
     pub author_name: Option<String>,
+    pub reviewer_orcid: Option<Orcid>,
+    pub reviewer_institution_id: Option<Uuid>,
     pub url: Option<String>,
     pub doi: Option<Doi>,
     pub review_date: Option<NaiveDate>,
@@ -68,6 +72,7 @@ pub struct NewBookReview {
     pub journal_volume: Option<String>,
     pub journal_number: Option<String>,
     pub journal_issn: Option<String>,
+    pub page_range: Option<String>,
     pub text: Option<String>,
     pub review_ordinal: i32,
 }
@@ -83,6 +88,8 @@ pub struct PatchBookReview {
     pub work_id: Uuid,
     pub title: Option<String>,
     pub author_name: Option<String>,
+    pub reviewer_orcid: Option<Orcid>,
+    pub reviewer_institution_id: Option<Uuid>,
     pub url: Option<String>,
     pub doi: Option<Doi>,
     pub review_date: Option<NaiveDate>,
@@ -90,6 +97,7 @@ pub struct PatchBookReview {
     pub journal_volume: Option<String>,
     pub journal_number: Option<String>,
     pub journal_issn: Option<String>,
+    pub page_range: Option<String>,
     pub text: Option<String>,
     pub review_ordinal: i32,
 }

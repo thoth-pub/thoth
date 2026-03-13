@@ -8,11 +8,38 @@ fn make_award(pool: &crate::db::PgPool, work_id: Uuid, award_ordinal: i32, title
         title: title.to_string(),
         url: Some("https://example.com/award".to_string()),
         category: Some("Prize".to_string()),
-        note: Some("Award note".to_string()),
+        prize_statement: Some("Award note".to_string()),
+        role: Some(AwardRole::Winner),
         award_ordinal,
     };
 
     Award::create(pool, &data).expect("Failed to create award")
+}
+
+mod conversions {
+    use super::*;
+    #[cfg(feature = "backend")]
+    use crate::model::tests::db::setup_test_db;
+    #[cfg(feature = "backend")]
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
+
+    #[cfg(feature = "backend")]
+    #[test]
+    fn awardrole_graphql_roundtrip() {
+        assert_graphql_enum_roundtrip(AwardRole::JointWinner);
+    }
+
+    #[cfg(feature = "backend")]
+    #[test]
+    fn awardrole_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+
+        assert_db_enum_roundtrip::<AwardRole, crate::schema::sql_types::AwardRole>(
+            pool.as_ref(),
+            "'JOINT_WINNER'::award_role",
+            AwardRole::JointWinner,
+        );
+    }
 }
 
 mod defaults {
@@ -80,7 +107,8 @@ mod policy {
             title: "Award".to_string(),
             url: Some("https://example.com/award".to_string()),
             category: Some("Prize".to_string()),
-            note: Some("Award note".to_string()),
+            prize_statement: Some("Award note".to_string()),
+            role: Some(AwardRole::Winner),
             award_ordinal: 1,
         };
 
@@ -91,7 +119,8 @@ mod policy {
             title: "Award Updated".to_string(),
             url: award.url.clone(),
             category: award.category.clone(),
-            note: award.note.clone(),
+            prize_statement: award.prize_statement.clone(),
+            role: award.role,
             award_ordinal: 1,
         };
 
@@ -116,7 +145,8 @@ mod policy {
             title: "Award Updated".to_string(),
             url: award.url.clone(),
             category: award.category.clone(),
-            note: award.note.clone(),
+            prize_statement: award.prize_statement.clone(),
+            role: award.role,
             award_ordinal: 2,
         };
 
@@ -128,7 +158,8 @@ mod policy {
             title: "Award".to_string(),
             url: Some("https://example.com/award".to_string()),
             category: Some("Prize".to_string()),
-            note: Some("Award note".to_string()),
+            prize_statement: Some("Award note".to_string()),
+            role: Some(AwardRole::Winner),
             award_ordinal: 1,
         };
 
@@ -192,7 +223,8 @@ mod policy {
             title: "Award".to_string(),
             url: Some("https://example.com/award".to_string()),
             category: Some("Prize".to_string()),
-            note: Some("Award note".to_string()),
+            prize_statement: Some("Award note".to_string()),
+            role: Some(AwardRole::Winner),
             award_ordinal: 1,
         };
 
@@ -225,7 +257,8 @@ mod crud {
             title: "Award".to_string(),
             url: Some("https://example.com/award".to_string()),
             category: Some("Prize".to_string()),
-            note: Some("Award note".to_string()),
+            prize_statement: Some("Award note".to_string()),
+            role: Some(AwardRole::Winner),
             award_ordinal: 1,
         };
 
@@ -239,13 +272,15 @@ mod crud {
             title: "Award Updated".to_string(),
             url: award.url.clone(),
             category: award.category.clone(),
-            note: Some("Updated award note".to_string()),
+            prize_statement: Some("Updated award note".to_string()),
+            role: Some(AwardRole::JointWinner),
             award_ordinal: 1,
         };
 
         let ctx = test_context(pool.clone(), "test-user");
         let updated = award.update(&ctx, &patch).expect("Failed to update");
         assert_eq!(updated.title, patch.title);
+        assert_eq!(updated.role, patch.role);
 
         let deleted = updated.delete(pool.as_ref()).expect("Failed to delete");
         assert!(Award::from_id(pool.as_ref(), &deleted.award_id).is_err());

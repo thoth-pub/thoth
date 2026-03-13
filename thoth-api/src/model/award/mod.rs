@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 use uuid::Uuid;
 
 use crate::graphql::types::inputs::Direction;
@@ -7,6 +8,32 @@ use crate::model::Timestamp;
 use crate::schema::award;
 #[cfg(feature = "backend")]
 use crate::schema::award_history;
+
+#[cfg_attr(
+    feature = "backend",
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Role of the work in an award"),
+    ExistingTypePath = "crate::schema::sql_types::AwardRole"
+)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
+pub enum AwardRole {
+    #[cfg_attr(feature = "backend", db_rename = "SHORT_LISTED")]
+    ShortListed,
+    #[cfg_attr(feature = "backend", db_rename = "WINNER")]
+    Winner,
+    #[cfg_attr(feature = "backend", db_rename = "LONG_LISTED")]
+    LongListed,
+    #[cfg_attr(feature = "backend", db_rename = "COMMENDED")]
+    Commended,
+    #[cfg_attr(feature = "backend", db_rename = "RUNNER_UP")]
+    RunnerUp,
+    #[cfg_attr(feature = "backend", db_rename = "JOINT_WINNER")]
+    JointWinner,
+    #[cfg_attr(feature = "backend", db_rename = "NOMINATED")]
+    Nominated,
+}
 
 #[cfg_attr(
     feature = "backend",
@@ -22,6 +49,7 @@ pub enum AwardField {
     AwardOrdinal,
     Title,
     Category,
+    Role,
     Url,
     CreatedAt,
     UpdatedAt,
@@ -36,7 +64,8 @@ pub struct Award {
     pub title: String,
     pub url: Option<String>,
     pub category: Option<String>,
-    pub note: Option<String>,
+    pub prize_statement: Option<String>,
+    pub role: Option<AwardRole>,
     pub award_ordinal: i32,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
@@ -53,7 +82,8 @@ pub struct NewAward {
     pub title: String,
     pub url: Option<String>,
     pub category: Option<String>,
-    pub note: Option<String>,
+    pub prize_statement: Option<String>,
+    pub role: Option<AwardRole>,
     pub award_ordinal: i32,
 }
 
@@ -69,7 +99,8 @@ pub struct PatchAward {
     pub title: String,
     pub url: Option<String>,
     pub category: Option<String>,
-    pub note: Option<String>,
+    pub prize_statement: Option<String>,
+    pub role: Option<AwardRole>,
     pub award_ordinal: i32,
 }
 
