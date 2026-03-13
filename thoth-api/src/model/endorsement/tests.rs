@@ -296,8 +296,7 @@ mod crud {
                 author_name: Some("Author".to_string()),
                 author_role: Some("Role".to_string()),
                 author_orcid: Some(
-                    crate::model::Orcid::from_str("https://orcid.org/0000-0002-1234-5678")
-                        .unwrap(),
+                    crate::model::Orcid::from_str("https://orcid.org/0000-0002-1234-5678").unwrap(),
                 ),
                 author_institution_id: Some(institution.institution_id),
                 url: Some("https://example.com/endorsement".to_string()),

@@ -326,8 +326,7 @@ mod crud {
                 title: Some("Review title".to_string()),
                 author_name: Some("Reviewer".to_string()),
                 reviewer_orcid: Some(
-                    crate::model::Orcid::from_str("https://orcid.org/0000-0002-1234-5678")
-                        .unwrap(),
+                    crate::model::Orcid::from_str("https://orcid.org/0000-0002-1234-5678").unwrap(),
                 ),
                 reviewer_institution_id: Some(institution.institution_id),
                 url: Some("https://example.com/review".to_string()),

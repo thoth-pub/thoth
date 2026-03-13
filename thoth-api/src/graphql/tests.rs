@@ -2325,7 +2325,11 @@ fn graphql_book_review_supports_reviewer_fields_and_title_markup() {
     let review_id = json_uuid(&review["bookReviewId"]);
     let stored =
         BookReview::from_id(pool.as_ref(), &review_id).expect("Failed to fetch stored review");
-    assert!(stored.title.as_deref().unwrap_or_default().contains("<italic>"));
+    assert!(stored
+        .title
+        .as_deref()
+        .unwrap_or_default()
+        .contains("<italic>"));
 }
 
 #[test]
