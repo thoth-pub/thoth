@@ -51,6 +51,9 @@ impl Crud for Issue {
             IssueField::IssueOrdinal => {
                 apply_directional_order!(query, order.direction, order, issue_ordinal)
             }
+            IssueField::IssueNumber => {
+                apply_directional_order!(query, order.direction, order, issue_number)
+            }
             IssueField::CreatedAt => {
                 apply_directional_order!(query, order.direction, order, created_at)
             }

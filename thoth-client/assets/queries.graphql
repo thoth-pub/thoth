@@ -26,7 +26,6 @@ fragment Funding on Funding {
     projectName
     projectShortname
     grantNumber
-    jurisdiction
     institution {
         institutionName
         institutionDoi
@@ -100,6 +99,7 @@ fragment Work on Work {
     }
     issues(limit: $issuesLimit, order: {field: ISSUE_ORDINAL, direction: ASC}) {
         issueOrdinal
+        issueNumber
         series {
             seriesId
             seriesType
@@ -143,7 +143,6 @@ fragment Work on Work {
     languages(limit: $languagesLimit) {
         languageCode
         languageRelation
-        mainLanguage
     }
     publications(limit: $publicationsLimit) {
         publicationId
@@ -252,7 +251,6 @@ fragment Work on Work {
             languages {
                 languageCode
                 languageRelation
-                mainLanguage
             }
             publications {
                 publicationType

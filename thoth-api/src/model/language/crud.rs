@@ -56,9 +56,6 @@ impl Crud for Language {
             LanguageField::LanguageRelation => {
                 apply_directional_order!(query, order.direction, order, dsl::language_relation)
             }
-            LanguageField::MainLanguage => {
-                apply_directional_order!(query, order.direction, order, dsl::main_language)
-            }
             LanguageField::CreatedAt => {
                 apply_directional_order!(query, order.direction, order, dsl::created_at)
             }

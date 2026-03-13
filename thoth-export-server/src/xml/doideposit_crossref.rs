@@ -110,20 +110,19 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
             write_full_element_block("book", Some(vec![("book_type", work_type)]), w, |w| {
                 write_full_element_block(element_name, Some(vec![("language", "en")]), w, |w| {
                     // Only one series can be listed, so we select the first one found (if any).
-                    let mut ordinal = None;
-                    if let Some((series, ord)) =
-                        self.issues.first().map(|i| (&i.series, i.issue_ordinal))
+                    let mut number = None;
+                    if let Some((series, num)) =
+                        self.issues.first().map(|i| (&i.series, i.issue_number))
                     {
                         XmlElementBlock::<DoiDepositCrossref>::xml_element(series, w)?;
-                        ordinal = Some(ord);
+                        number = num;
                     }
                     write_work_contributions(self, w)?;
                     write_work_title(self, w)?;
                     write_work_abstract(self, w)?;
 
-                    if ordinal.is_some() {
-                        let ordinal_i64 = ordinal.unwrap_or(0);
-                        write_work_volume(ordinal_i64, w)?;
+                    if let Some(issue_number) = number {
+                        write_work_volume(issue_number, w)?;
                     }
 
                     write_work_edition(self, w)?;
@@ -1682,7 +1681,8 @@ mod tests {
             },
             issues: vec![
                 WorkIssues {
-                    issue_ordinal: 11,
+                    issue_ordinal: 12,
+                    issue_number: Some(11),
                     series: WorkIssuesSeries {
                         series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                         series_type: SeriesType::BOOK_SERIES,
@@ -1695,7 +1695,8 @@ mod tests {
                     },
                 },
                 WorkIssues {
-                    issue_ordinal: 22,
+                    issue_ordinal: 23,
+                    issue_number: Some(22),
                     series: WorkIssuesSeries {
                         series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                         series_type: SeriesType::BOOK_SERIES,
@@ -1876,7 +1877,6 @@ mod tests {
                     project_name: None,
                     project_shortname: None,
                     grant_number: Some("12345".to_string()),
-                    jurisdiction: None,
                     institution: FundingInstitution {
                         institution_name: "Funding Body".to_string(),
                         institution_doi: None,
@@ -1889,7 +1889,6 @@ mod tests {
                     project_name: None,
                     project_shortname: None,
                     grant_number: None,
-                    jurisdiction: None,
                     institution: FundingInstitution {
                         institution_name: "Some Funder".to_string(),
                         institution_doi: Some(

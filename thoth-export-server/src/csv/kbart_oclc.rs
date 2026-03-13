@@ -167,7 +167,11 @@ impl TryFrom<Work> for KbartOclcRow {
             date_monograph_published_online,
             // Note that it is possible for a work to belong to more than one series.
             // Only one series can be listed in KBART, so we select the first one found (if any).
-            monograph_volume: work.issues.first().map(|i| i.issue_ordinal),
+            monograph_volume: work
+                .issues
+                .first()
+                .and_then(|i| i.issue_number.as_ref())
+                .copied(),
             monograph_edition: work.edition,
             first_editor,
             // This should match the series' `title_id` if also provided in the KBART.
@@ -315,7 +319,8 @@ mod tests {
             },
             issues: vec![
                 WorkIssues {
-                    issue_ordinal: 20,
+                    issue_ordinal: 21,
+                    issue_number: Some(20),
                     series: WorkIssuesSeries {
                         series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                         series_type: thoth_client::SeriesType::BOOK_SERIES,
@@ -328,7 +333,8 @@ mod tests {
                     },
                 },
                 WorkIssues {
-                    issue_ordinal: 50,
+                    issue_ordinal: 51,
+                    issue_number: Some(50),
                     series: WorkIssuesSeries {
                         series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                         series_type: thoth_client::SeriesType::BOOK_SERIES,

@@ -695,10 +695,13 @@ impl XmlElementBlock<Onix21ProquestEbrary> for WorkIssues {
                 w.write(XmlEvent::Characters(&self.series.series_name))
                     .map_err(|e| e.into())
             })?;
-            write_element_block("NumberWithinSeries", w, |w| {
-                w.write(XmlEvent::Characters(&self.issue_ordinal.to_string()))
-                    .map_err(|e| e.into())
-            })
+            if let Some(issue_number) = &self.issue_number {
+                write_element_block("NumberWithinSeries", w, |w| {
+                    w.write(XmlEvent::Characters(&issue_number.to_string()))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            Ok(())
         })
     }
 }
@@ -857,7 +860,6 @@ mod tests {
         let mut test_language = WorkLanguages {
             language_code: LanguageCode::SPA,
             language_relation: LanguageRelation::TRANSLATED_FROM,
-            main_language: true,
         };
 
         // Test standard output
@@ -883,7 +885,8 @@ mod tests {
     #[test]
     fn test_onix21_proquest_ebrary_issues() {
         let mut test_issue = WorkIssues {
-            issue_ordinal: 1,
+            issue_ordinal: 11,
+            issue_number: Some(1),
             series: WorkIssuesSeries {
                 series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                 series_type: thoth_client::SeriesType::JOURNAL,
@@ -903,7 +906,7 @@ mod tests {
         assert!(output.contains(r#"  <NumberWithinSeries>1</NumberWithinSeries>"#));
 
         // Change all possible values to test that output is updated
-        test_issue.issue_ordinal = 2;
+        test_issue.issue_number = Some(2);
         test_issue.series.series_name = "Different series".to_string();
         let output = generate_test_output(true, &test_issue);
         assert!(output.contains(r#"<Series>"#));

@@ -393,7 +393,6 @@ fn make_new_funding(work_id: Uuid, institution_id: Uuid) -> NewFunding {
         project_name: Some("Project".to_string()),
         project_shortname: Some("Proj".to_string()),
         grant_number: Some("Grant".to_string()),
-        jurisdiction: Some("UK".to_string()),
     }
 }
 
@@ -428,6 +427,7 @@ fn make_new_issue(series_id: Uuid, work_id: Uuid, issue_ordinal: i32) -> NewIssu
         series_id,
         work_id,
         issue_ordinal,
+        issue_number: None,
     }
 }
 
@@ -436,7 +436,6 @@ fn make_new_language(work_id: Uuid) -> NewLanguage {
         work_id,
         language_code: LanguageCode::Eng,
         language_relation: LanguageRelation::Original,
-        main_language: true,
     }
 }
 
@@ -1055,6 +1054,7 @@ fn patch_issue(issue: &Issue) -> PatchIssue {
         series_id: issue.series_id,
         work_id: issue.work_id,
         issue_ordinal: issue.issue_ordinal,
+        issue_number: issue.issue_number,
     }
 }
 
@@ -1064,7 +1064,6 @@ fn patch_language(language: &Language) -> PatchLanguage {
         work_id: language.work_id,
         language_code: language.language_code,
         language_relation: language.language_relation,
-        main_language: language.main_language,
     }
 }
 
@@ -1087,7 +1086,6 @@ fn patch_funding(funding: &Funding) -> PatchFunding {
         project_name: funding.project_name.clone(),
         project_shortname: funding.project_shortname.clone(),
         grant_number: funding.grant_number.clone(),
-        jurisdiction: funding.jurisdiction.clone(),
     }
 }
 
@@ -1519,6 +1517,7 @@ fn assert_issue_resolvers(issue: &Issue, context: &Context) {
     assert_eq!(issue.work_id(), issue.work_id);
     assert_eq!(issue.series_id(), issue.series_id);
     assert_eq!(issue.issue_ordinal(), &issue.issue_ordinal);
+    assert_eq!(issue.issue_number(), issue.issue_number.as_ref());
     assert_eq!(issue.created_at(), issue.created_at);
     assert_eq!(issue.updated_at(), issue.updated_at);
     let series = issue.series(context).unwrap();
@@ -1532,7 +1531,6 @@ fn assert_language_resolvers(language: &Language, context: &Context) {
     assert_eq!(language.work_id(), language.work_id);
     assert_eq!(language.language_code(), &language.language_code);
     assert_eq!(language.language_relation(), &language.language_relation);
-    assert_eq!(language.main_language(), language.main_language);
     assert_eq!(language.created_at(), language.created_at);
     assert_eq!(language.updated_at(), language.updated_at);
     let work = language.work(context).unwrap();
@@ -1613,7 +1611,6 @@ fn assert_funding_resolvers(funding: &Funding, context: &Context) {
         funding.project_shortname.as_ref()
     );
     assert_eq!(funding.grant_number(), funding.grant_number.as_ref());
-    assert_eq!(funding.jurisdiction(), funding.jurisdiction.as_ref());
     assert_eq!(funding.created_at(), funding.created_at);
     assert_eq!(funding.updated_at(), funding.updated_at);
     let work = funding.work(context).unwrap();

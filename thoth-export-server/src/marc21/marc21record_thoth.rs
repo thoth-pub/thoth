@@ -84,15 +84,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         // 008 - fixed-length data elements
         let date = Utc::now().format("%y%m%d").to_string();
         let pub_year = publication_date.year().to_string();
-        let language = main_language(
-            &self
-                .languages
-                .iter()
-                .filter(|l| l.main_language)
-                .cloned()
-                .collect::<Vec<WorkLanguages>>(),
-        )
-        .ok_or_else(|| {
+        let language = main_language(&self.languages.to_vec()).ok_or_else(|| {
             ThothError::IncompleteMetadataRecord(
                 MARC_ERROR.to_string(),
                 "Missing Main Language".to_string(),
@@ -646,7 +638,12 @@ impl Marc21Field<Marc21RecordThoth> for WorkIssues {
             FieldRepr::from((field, indicator))
                 .add_subfield(b"a", format!("{} ;", self.series.series_name).as_bytes())
                 .and_then(|f| {
-                    f.add_subfield(b"v", format!("vol. {}.", self.issue_ordinal).as_bytes())
+                    self.issue_number
+                        .as_ref()
+                        .map(|issue_number| {
+                            f.add_subfield(b"v", format!("vol. {}.", issue_number).as_bytes())
+                        })
+                        .unwrap_or(Ok(f))
                 })
                 .and_then(|f| {
                     self.series
@@ -872,7 +869,8 @@ pub(crate) mod tests {
                 },
             },
             issues: vec![WorkIssues {
-                issue_ordinal: 11,
+                issue_ordinal: 12,
+                issue_number: Some(11),
                 series: WorkIssuesSeries {
                     series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     series_type: SeriesType::BOOK_SERIES,
@@ -954,12 +952,10 @@ pub(crate) mod tests {
                 WorkLanguages {
                     language_code: LanguageCode::ENG,
                     language_relation: LanguageRelation::TRANSLATED_INTO,
-                    main_language: true,
                 },
                 WorkLanguages {
                     language_code: LanguageCode::SPA,
                     language_relation: LanguageRelation::TRANSLATED_FROM,
-                    main_language: true,
                 },
             ],
             publications: vec![
@@ -1072,7 +1068,6 @@ pub(crate) mod tests {
                 project_name: Some("Funding Project".to_string()),
                 project_shortname: None,
                 grant_number: Some("JA0001".to_string()),
-                jurisdiction: None,
                 institution: FundingInstitution {
                     institution_name: "Funding Institution".to_string(),
                     institution_doi: None,
@@ -1418,7 +1413,6 @@ pub(crate) mod tests {
         let languages = vec![WorkLanguages {
             language_code: LanguageCode::ENG,
             language_relation: LanguageRelation::ORIGINAL,
-            main_language: true,
         }];
         assert_eq!(language_field(&languages), None);
     }
@@ -1429,12 +1423,10 @@ pub(crate) mod tests {
             WorkLanguages {
                 language_code: LanguageCode::FRE,
                 language_relation: LanguageRelation::TRANSLATED_INTO,
-                main_language: true,
             },
             WorkLanguages {
                 language_code: LanguageCode::SPA,
                 language_relation: LanguageRelation::TRANSLATED_INTO,
-                main_language: true,
             },
         ];
         assert_eq!(
@@ -1449,12 +1441,10 @@ pub(crate) mod tests {
             WorkLanguages {
                 language_code: LanguageCode::GER,
                 language_relation: LanguageRelation::TRANSLATED_FROM,
-                main_language: true,
             },
             WorkLanguages {
                 language_code: LanguageCode::ITA,
                 language_relation: LanguageRelation::TRANSLATED_FROM,
-                main_language: true,
             },
         ];
         assert_eq!(language_field(&languages), None);
@@ -1466,17 +1456,14 @@ pub(crate) mod tests {
             WorkLanguages {
                 language_code: LanguageCode::ENG,
                 language_relation: LanguageRelation::ORIGINAL,
-                main_language: true,
             },
             WorkLanguages {
                 language_code: LanguageCode::FRE,
                 language_relation: LanguageRelation::TRANSLATED_INTO,
-                main_language: true,
             },
             WorkLanguages {
                 language_code: LanguageCode::SPA,
                 language_relation: LanguageRelation::TRANSLATED_INTO,
-                main_language: true,
             },
         ];
         assert_eq!(
@@ -1491,17 +1478,14 @@ pub(crate) mod tests {
             WorkLanguages {
                 language_code: LanguageCode::ENG,
                 language_relation: LanguageRelation::ORIGINAL,
-                main_language: true,
             },
             WorkLanguages {
                 language_code: LanguageCode::GER,
                 language_relation: LanguageRelation::TRANSLATED_FROM,
-                main_language: true,
             },
             WorkLanguages {
                 language_code: LanguageCode::ITA,
                 language_relation: LanguageRelation::TRANSLATED_FROM,
-                main_language: true,
             },
         ];
         assert_eq!(
@@ -1522,12 +1506,10 @@ pub(crate) mod tests {
             WorkLanguages {
                 language_relation: LanguageRelation::ORIGINAL,
                 language_code: LanguageCode::ENG,
-                main_language: true,
             },
             WorkLanguages {
                 language_relation: LanguageRelation::TRANSLATED_INTO,
                 language_code: LanguageCode::FRE,
-                main_language: true,
             },
         ];
         assert_eq!(
@@ -1542,12 +1524,10 @@ pub(crate) mod tests {
             WorkLanguages {
                 language_relation: LanguageRelation::ORIGINAL,
                 language_code: LanguageCode::ENG,
-                main_language: true,
             },
             WorkLanguages {
                 language_relation: LanguageRelation::TRANSLATED_FROM,
                 language_code: LanguageCode::FRE,
-                main_language: true,
             },
         ];
         assert_eq!(
@@ -1562,12 +1542,10 @@ pub(crate) mod tests {
             WorkLanguages {
                 language_relation: LanguageRelation::TRANSLATED_INTO,
                 language_code: LanguageCode::FRE,
-                main_language: true,
             },
             WorkLanguages {
                 language_relation: LanguageRelation::TRANSLATED_FROM,
                 language_code: LanguageCode::GER,
-                main_language: true,
             },
         ];
         assert_eq!(
@@ -1582,18 +1560,15 @@ pub(crate) mod tests {
             WorkLanguages {
                 language_relation: LanguageRelation::ORIGINAL,
                 language_code: LanguageCode::ENG,
-                main_language: true,
             },
             WorkLanguages {
                 language_relation: LanguageRelation::TRANSLATED_INTO,
                 language_code: LanguageCode::FRE,
-                main_language: true,
             },
             WorkLanguages {
                 language_relation: LanguageRelation::TRANSLATED_FROM,
 
                 language_code: LanguageCode::GER,
-                main_language: true,
             },
         ];
         assert_eq!(

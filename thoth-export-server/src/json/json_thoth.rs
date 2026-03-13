@@ -146,7 +146,8 @@ mod tests {
                 },
             },
             issues: vec![WorkIssues {
-                issue_ordinal: 1,
+                issue_ordinal: 2,
+                issue_number: Some(1),
                 series: WorkIssuesSeries {
                     series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     series_type: SeriesType::JOURNAL,
@@ -218,7 +219,6 @@ mod tests {
                 WorkLanguages {
                     language_code: LanguageCode::SPA,
                     language_relation: LanguageRelation::ORIGINAL,
-                    main_language: true,
                 },
             ],
             publications: vec![
@@ -434,7 +434,6 @@ mod tests {
                 project_name: Some("Name of project".to_string()),
                 project_shortname: None,
                 grant_number: Some("Number of grant".to_string()),
-                jurisdiction: Some("Funding jurisdiction".to_string()),
                 institution: FundingInstitution {
                     institution_name: "Name of institution".to_string(),
                     institution_doi: Some(Doi::from_str("https://doi.org/10.00001/INSTITUTION.0001").unwrap()),
@@ -590,7 +589,8 @@ mod tests {
   },
   "issues": [
     {
-      "issueOrdinal": 1,
+      "issueOrdinal": 2,
+      "issueNumber": 1,
       "series": {
         "seriesId": "00000000-0000-0000-bbbb-000000000002",
         "seriesType": "JOURNAL",
@@ -662,8 +662,7 @@ mod tests {
   "languages": [
     {
       "languageCode": "SPA",
-      "languageRelation": "ORIGINAL",
-      "mainLanguage": true
+      "languageRelation": "ORIGINAL"
     }
   ],
   "publications": [
@@ -884,7 +883,6 @@ mod tests {
       "projectName": "Name of project",
       "projectShortname": null,
       "grantNumber": "Number of grant",
-      "jurisdiction": "Funding jurisdiction",
       "institution": {
         "institutionName": "Name of institution",
         "institutionDoi": "https://doi.org/10.00001/INSTITUTION.0001",

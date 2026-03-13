@@ -1783,6 +1783,11 @@ impl Issue {
         &self.issue_ordinal
     }
 
+    #[graphql(description = "Published issue number given to this issue within the series, if any")]
+    pub fn issue_number(&self) -> Option<&i32> {
+        self.issue_number.as_ref()
+    }
+
     #[graphql(description = "Date and time at which the issue record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at
@@ -1824,13 +1829,6 @@ impl Language {
     #[graphql(description = "Relation between this language and the original language of the text")]
     pub fn language_relation(&self) -> &LanguageRelation {
         &self.language_relation
-    }
-
-    #[graphql(
-        description = "Whether this is a main language of the work (e.g. used for large sections of the text rather than just isolated quotations)"
-    )]
-    pub fn main_language(&self) -> bool {
-        self.main_language
     }
 
     #[graphql(description = "Date and time at which the language record was created")]
@@ -2121,11 +2119,6 @@ impl Funding {
     #[graphql(description = "Grant number of the award")]
     pub fn grant_number(&self) -> Option<&String> {
         self.grant_number.as_ref()
-    }
-
-    #[graphql(description = "Jurisdiction of the award")]
-    pub fn jurisdiction(&self) -> Option<&String> {
-        self.jurisdiction.as_ref()
     }
 
     #[graphql(description = "Date and time at which the funding record was created")]

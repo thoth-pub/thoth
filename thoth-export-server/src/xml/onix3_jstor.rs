@@ -853,7 +853,6 @@ mod tests {
         let mut test_language = WorkLanguages {
             language_code: LanguageCode::SPA,
             language_relation: LanguageRelation::TRANSLATED_FROM,
-            main_language: true,
         };
 
         // Test standard output
@@ -942,7 +941,8 @@ mod tests {
                 },
             },
             issues: vec![WorkIssues {
-                issue_ordinal: 1,
+                issue_ordinal: 11,
+                issue_number: Some(1),
                 series: WorkIssuesSeries {
                     series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     series_type: thoth_client::SeriesType::JOURNAL,
@@ -1053,7 +1053,6 @@ mod tests {
                 project_name: Some("Name of project".to_string()),
                 project_shortname: None,
                 grant_number: Some("Number of grant".to_string()),
-                jurisdiction: None,
                 institution: thoth_client::FundingInstitution {
                     institution_name: "Name of institution".to_string(),
                     institution_doi: None,

@@ -7,13 +7,11 @@ fn make_language(
     work_id: Uuid,
     language_code: LanguageCode,
     language_relation: LanguageRelation,
-    main_language: bool,
 ) -> Language {
     let new_language = NewLanguage {
         work_id,
         language_code,
         language_relation,
-        main_language,
     };
 
     Language::create(pool, &new_language).expect("Failed to create language")
@@ -1150,7 +1148,6 @@ mod policy {
             work_id: work.work_id,
             language_code: LanguageCode::Eng,
             language_relation: LanguageRelation::Original,
-            main_language: true,
         };
 
         let language = Language::create(pool.as_ref(), &new_language).expect("Failed to create");
@@ -1159,7 +1156,6 @@ mod policy {
             work_id: language.work_id,
             language_code: LanguageCode::Spa,
             language_relation: LanguageRelation::TranslatedFrom,
-            main_language: false,
         };
 
         assert!(LanguagePolicy::can_create(&ctx, &new_language, ()).is_ok());
@@ -1179,14 +1175,12 @@ mod policy {
             work.work_id,
             LanguageCode::Eng,
             LanguageRelation::Original,
-            true,
         );
         let patch = PatchLanguage {
             language_id: language.language_id,
             work_id: language.work_id,
             language_code: LanguageCode::Spa,
             language_relation: LanguageRelation::TranslatedFrom,
-            main_language: false,
         };
 
         let user = test_user_with_role("language-user", Role::PublisherUser, "org-other");
@@ -1196,7 +1190,6 @@ mod policy {
             work_id: work.work_id,
             language_code: LanguageCode::Eng,
             language_relation: LanguageRelation::Original,
-            main_language: true,
         };
 
         assert!(LanguagePolicy::can_create(&ctx, &new_language, ()).is_err());
@@ -1227,7 +1220,6 @@ mod crud {
             work_id: work.work_id,
             language_code: LanguageCode::Eng,
             language_relation: LanguageRelation::Original,
-            main_language: true,
         };
 
         let language = Language::create(pool.as_ref(), &new_language).expect("Failed to create");
@@ -1240,7 +1232,6 @@ mod crud {
             work_id: language.work_id,
             language_code: LanguageCode::Spa,
             language_relation: LanguageRelation::TranslatedFrom,
-            main_language: false,
         };
 
         let ctx = test_context(pool.clone(), "test-user");
@@ -1264,14 +1255,12 @@ mod crud {
             work.work_id,
             LanguageCode::Eng,
             LanguageRelation::Original,
-            true,
         );
         make_language(
             pool.as_ref(),
             work.work_id,
             LanguageCode::Spa,
             LanguageRelation::TranslatedFrom,
-            false,
         );
 
         let order = LanguageOrderBy {
@@ -1331,14 +1320,12 @@ mod crud {
             work.work_id,
             LanguageCode::Eng,
             LanguageRelation::Original,
-            true,
         );
         make_language(
             pool.as_ref(),
             work.work_id,
             LanguageCode::Spa,
             LanguageRelation::TranslatedFrom,
-            false,
         );
 
         let count = Language::count(pool.as_ref(), None, vec![], vec![], vec![], None, None)
@@ -1359,14 +1346,12 @@ mod crud {
             work.work_id,
             LanguageCode::Eng,
             LanguageRelation::Original,
-            true,
         );
         make_language(
             pool.as_ref(),
             work.work_id,
             LanguageCode::Spa,
             LanguageRelation::TranslatedFrom,
-            false,
         );
 
         let count = Language::count(
@@ -1395,14 +1380,12 @@ mod crud {
             work.work_id,
             LanguageCode::Eng,
             LanguageRelation::Original,
-            true,
         );
         make_language(
             pool.as_ref(),
             work.work_id,
             LanguageCode::Spa,
             LanguageRelation::TranslatedFrom,
-            false,
         );
 
         let count = Language::count(
@@ -1432,14 +1415,12 @@ mod crud {
             work.work_id,
             LanguageCode::Eng,
             LanguageRelation::Original,
-            true,
         );
         make_language(
             pool.as_ref(),
             work.work_id,
             LanguageCode::Spa,
             LanguageRelation::Original,
-            false,
         );
 
         let filtered = Language::all(
@@ -1478,14 +1459,12 @@ mod crud {
             work.work_id,
             LanguageCode::Eng,
             LanguageRelation::Original,
-            true,
         );
         make_language(
             pool.as_ref(),
             work.work_id,
             LanguageCode::Spa,
             LanguageRelation::TranslatedFrom,
-            false,
         );
 
         let filtered = Language::all(
@@ -1525,14 +1504,12 @@ mod crud {
             work.work_id,
             LanguageCode::Eng,
             LanguageRelation::Original,
-            true,
         );
         make_language(
             pool.as_ref(),
             other_work.work_id,
             LanguageCode::Spa,
             LanguageRelation::TranslatedFrom,
-            false,
         );
 
         let filtered = Language::all(
@@ -1570,7 +1547,6 @@ mod crud {
             work.work_id,
             LanguageCode::Eng,
             LanguageRelation::Original,
-            true,
         );
 
         let other_publisher = create_publisher(pool.as_ref());
@@ -1581,7 +1557,6 @@ mod crud {
             other_work.work_id,
             LanguageCode::Spa,
             LanguageRelation::TranslatedFrom,
-            false,
         );
 
         let filtered = Language::all(
@@ -1619,14 +1594,12 @@ mod crud {
             work.work_id,
             LanguageCode::Eng,
             LanguageRelation::Original,
-            true,
         );
         let second = make_language(
             pool.as_ref(),
             work.work_id,
             LanguageCode::Spa,
             LanguageRelation::TranslatedFrom,
-            false,
         );
         let mut ids = [first.language_id, second.language_id];
         ids.sort();
@@ -1686,14 +1659,12 @@ mod crud {
             work.work_id,
             LanguageCode::Eng,
             LanguageRelation::Original,
-            true,
         );
         make_language(
             pool.as_ref(),
             work.work_id,
             LanguageCode::Spa,
             LanguageRelation::TranslatedFrom,
-            false,
         );
 
         let fields: Vec<fn() -> LanguageField> = vec![
@@ -1701,7 +1672,6 @@ mod crud {
             || LanguageField::WorkId,
             || LanguageField::LanguageCode,
             || LanguageField::LanguageRelation,
-            || LanguageField::MainLanguage,
             || LanguageField::CreatedAt,
             || LanguageField::UpdatedAt,
         ];

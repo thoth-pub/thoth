@@ -62,9 +62,6 @@ impl Crud for Funding {
             FundingField::GrantNumber => {
                 apply_directional_order!(query, order.direction, order, grant_number)
             }
-            FundingField::Jurisdiction => {
-                apply_directional_order!(query, order.direction, order, jurisdiction)
-            }
             FundingField::CreatedAt => {
                 apply_directional_order!(query, order.direction, order, created_at)
             }
