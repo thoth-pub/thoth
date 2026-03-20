@@ -1319,6 +1319,24 @@ impl Imprint {
         self.crossmark_doi.as_ref()
     }
 
+    #[graphql(description = "S3 bucket used for files belonging to this imprint")]
+    pub fn s3_bucket(&self, context: &Context) -> FieldResult<Option<&str>> {
+        context.require_superuser()?;
+        Ok(self.s3_bucket.as_deref())
+    }
+
+    #[graphql(description = "CDN domain used for files belonging to this imprint")]
+    pub fn cdn_domain(&self, context: &Context) -> FieldResult<Option<&str>> {
+        context.require_superuser()?;
+        Ok(self.cdn_domain.as_deref())
+    }
+
+    #[graphql(description = "CloudFront distribution ID used for files belonging to this imprint")]
+    pub fn cloudfront_dist_id(&self, context: &Context) -> FieldResult<Option<&str>> {
+        context.require_superuser()?;
+        Ok(self.cloudfront_dist_id.as_deref())
+    }
+
     #[graphql(description = "Default currency code for works under this imprint")]
     pub fn default_currency(&self) -> Option<&CurrencyCode> {
         self.default_currency.as_ref()
