@@ -58,6 +58,7 @@ pub async fn start_server(
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     log::info!("Setting Thoth GraphQL endpoint to {}", gql_endpoint);
     let redis_pool = Data::new(init_pool(&redis_url));
+    let thoth_client = Data::new(ThothClient::new(gql_endpoint.clone()));
 
     HttpServer::new(move || {
         // extract hostname and protocol from public URL
@@ -116,7 +117,7 @@ pub async fn start_server(
         App::new()
             .wrap(Logger::new(LOG_FORMAT))
             .wrap(Cors::default().allowed_methods(vec!["GET", "OPTIONS"]))
-            .app_data(Data::new(ThothClient::new(gql_endpoint.clone())))
+            .app_data(thoth_client.clone())
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
             .app_data(redis_pool.clone())
             .service(actix_web::web::resource("/").route(actix_web::web::get().to(index)))
