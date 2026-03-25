@@ -24,7 +24,7 @@ use crate::model::{
     file::{File, FileType},
     funding::Funding,
     imprint::{Imprint, ImprintField, ImprintOrderBy},
-    institution::{CountryCode, Institution},
+    institution::Institution,
     issue::Issue,
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
@@ -43,7 +43,7 @@ use crate::model::{
     work::{Work, WorkOrderBy, WorkStatus, WorkType},
     work_featured_video::WorkFeaturedVideo,
     work_relation::{RelationType, WorkRelation, WorkRelationOrderBy},
-    Crud, Doi, Isbn, Orcid, Ror, Timestamp,
+    CountryCode, Crud, Doi, Isbn, Orcid, Ror, Timestamp,
 };
 use crate::policy::PolicyContext;
 use crate::storage::{CloudFrontClient, S3Client};
@@ -2309,6 +2309,21 @@ impl Award {
     #[graphql(description = "Category of the award")]
     pub fn category(&self) -> Option<&String> {
         self.category.as_ref()
+    }
+
+    #[graphql(description = "Year or year span associated with the award")]
+    pub fn year(&self) -> Option<&String> {
+        self.year.as_ref()
+    }
+
+    #[graphql(description = "Jury associated with the award")]
+    pub fn jury(&self) -> Option<&String> {
+        self.jury.as_ref()
+    }
+
+    #[graphql(description = "Country associated with the award")]
+    pub fn country(&self) -> Option<CountryCode> {
+        self.country
     }
 
     #[graphql(description = "Role of the work in this award")]

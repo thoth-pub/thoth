@@ -17,7 +17,7 @@ use crate::model::{
     endorsement::{Endorsement, NewEndorsement},
     funding::{Funding, NewFunding, PatchFunding},
     imprint::{Imprint, NewImprint, PatchImprint},
-    institution::{CountryCode, Institution, NewInstitution, PatchInstitution},
+    institution::{Institution, NewInstitution, PatchInstitution},
     issue::{Issue, NewIssue, PatchIssue},
     language::{Language, LanguageCode, LanguageRelation, NewLanguage, PatchLanguage},
     locale::LocaleCode,
@@ -32,7 +32,7 @@ use crate::model::{
     title::{NewTitle, PatchTitle, Title},
     work::{NewWork, PatchWork, Work, WorkStatus, WorkType},
     work_relation::{NewWorkRelation, PatchWorkRelation, RelationType, WorkRelation},
-    Crud, Doi, Isbn, Orcid, Ror,
+    CountryCode, Crud, Doi, Isbn, Orcid, Ror,
 };
 use crate::policy::{PolicyContext, Role};
 use chrono::NaiveDate;
@@ -2178,7 +2178,7 @@ query ParentMarkup($id: Uuid!) {
 }
 
 #[test]
-fn graphql_award_supports_role_and_prize_statement_markup() {
+fn graphql_award_supports_role_prize_statement_and_new_fields() {
     let (_guard, pool) = test_db::setup_test_db();
     let schema = create_schema();
     let superuser = test_db::test_superuser("user-award-markup");
@@ -2190,12 +2190,15 @@ fn graphql_award_supports_role_and_prize_statement_markup() {
         &context,
         "createAward",
         "NewAward",
-        "awardId role title(markupFormat: PLAIN_TEXT) prizeStatement(markupFormat: PLAIN_TEXT)",
+        "awardId role year jury country title(markupFormat: PLAIN_TEXT) prizeStatement(markupFormat: PLAIN_TEXT)",
         NewAward {
             work_id: seed.book_work_id,
             title: "*Award*".to_string(),
             url: Some("https://example.com/award".to_string()),
             category: Some("Prize".to_string()),
+            year: Some("2025-2026".to_string()),
+            jury: Some("International Jury".to_string()),
+            country: Some(CountryCode::Gbr),
             prize_statement: Some("**Prize** statement".to_string()),
             role: Some(AwardRole::JointWinner),
             award_ordinal: 1,
@@ -2204,12 +2207,18 @@ fn graphql_award_supports_role_and_prize_statement_markup() {
     );
 
     assert_eq!(award["role"].as_str(), Some("JOINT_WINNER"));
+    assert_eq!(award["year"].as_str(), Some("2025-2026"));
+    assert_eq!(award["jury"].as_str(), Some("International Jury"));
+    assert_eq!(award["country"].as_str(), Some("GBR"));
     assert_eq!(award["title"].as_str(), Some("Award"));
     assert_eq!(award["prizeStatement"].as_str(), Some("Prize statement"));
 
     let award_id = json_uuid(&award["awardId"]);
     let stored = Award::from_id(pool.as_ref(), &award_id).expect("Failed to fetch stored award");
     assert_eq!(stored.role, Some(AwardRole::JointWinner));
+    assert_eq!(stored.year.as_deref(), Some("2025-2026"));
+    assert_eq!(stored.jury.as_deref(), Some("International Jury"));
+    assert_eq!(stored.country, Some(CountryCode::Gbr));
     assert!(stored.title.contains("<italic>"));
     assert!(stored
         .prize_statement

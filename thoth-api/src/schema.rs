@@ -163,7 +163,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use super::sql_types::AwardRole;
+    use super::sql_types::{AwardRole, CountryCode};
 
     award (award_id) {
         award_id -> Uuid,
@@ -171,6 +171,9 @@ table! {
         title -> Text,
         url -> Nullable<Text>,
         category -> Nullable<Text>,
+        year -> Nullable<Text>,
+        jury -> Nullable<Text>,
+        country -> Nullable<CountryCode>,
         prize_statement -> Nullable<Text>,
         role -> Nullable<AwardRole>,
         award_ordinal -> Int4,

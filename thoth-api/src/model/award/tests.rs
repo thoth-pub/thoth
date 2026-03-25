@@ -1,5 +1,5 @@
 use super::*;
-use crate::model::Crud;
+use crate::model::{CountryCode, Crud};
 use uuid::Uuid;
 
 fn make_award(pool: &crate::db::PgPool, work_id: Uuid, award_ordinal: i32, title: &str) -> Award {
@@ -8,6 +8,9 @@ fn make_award(pool: &crate::db::PgPool, work_id: Uuid, award_ordinal: i32, title
         title: title.to_string(),
         url: Some("https://example.com/award".to_string()),
         category: Some("Prize".to_string()),
+        year: Some("2025".to_string()),
+        jury: Some("Main Jury".to_string()),
+        country: Some(CountryCode::Gbr),
         prize_statement: Some("Award note".to_string()),
         role: Some(AwardRole::Winner),
         award_ordinal,
@@ -107,6 +110,9 @@ mod policy {
             title: "Award".to_string(),
             url: Some("https://example.com/award".to_string()),
             category: Some("Prize".to_string()),
+            year: Some("2025".to_string()),
+            jury: Some("Main Jury".to_string()),
+            country: Some(CountryCode::Gbr),
             prize_statement: Some("Award note".to_string()),
             role: Some(AwardRole::Winner),
             award_ordinal: 1,
@@ -119,6 +125,9 @@ mod policy {
             title: "Award Updated".to_string(),
             url: award.url.clone(),
             category: award.category.clone(),
+            year: award.year.clone(),
+            jury: award.jury.clone(),
+            country: award.country,
             prize_statement: award.prize_statement.clone(),
             role: award.role,
             award_ordinal: 1,
@@ -145,6 +154,9 @@ mod policy {
             title: "Award Updated".to_string(),
             url: award.url.clone(),
             category: award.category.clone(),
+            year: award.year.clone(),
+            jury: award.jury.clone(),
+            country: award.country,
             prize_statement: award.prize_statement.clone(),
             role: award.role,
             award_ordinal: 2,
@@ -158,6 +170,9 @@ mod policy {
             title: "Award".to_string(),
             url: Some("https://example.com/award".to_string()),
             category: Some("Prize".to_string()),
+            year: Some("2025".to_string()),
+            jury: Some("Main Jury".to_string()),
+            country: Some(CountryCode::Gbr),
             prize_statement: Some("Award note".to_string()),
             role: Some(AwardRole::Winner),
             award_ordinal: 1,
@@ -223,6 +238,9 @@ mod policy {
             title: "Award".to_string(),
             url: Some("https://example.com/award".to_string()),
             category: Some("Prize".to_string()),
+            year: Some("2025".to_string()),
+            jury: Some("Main Jury".to_string()),
+            country: Some(CountryCode::Gbr),
             prize_statement: Some("Award note".to_string()),
             role: Some(AwardRole::Winner),
             award_ordinal: 1,
@@ -257,6 +275,9 @@ mod crud {
             title: "Award".to_string(),
             url: Some("https://example.com/award".to_string()),
             category: Some("Prize".to_string()),
+            year: Some("2025-2026".to_string()),
+            jury: Some("Main Jury".to_string()),
+            country: Some(CountryCode::Gbr),
             prize_statement: Some("Award note".to_string()),
             role: Some(AwardRole::Winner),
             award_ordinal: 1,
@@ -265,6 +286,9 @@ mod crud {
         let award = Award::create(pool.as_ref(), &data).expect("Failed to create");
         let fetched = Award::from_id(pool.as_ref(), &award.award_id).expect("Failed to fetch");
         assert_eq!(award.award_id, fetched.award_id);
+        assert_eq!(fetched.year.as_deref(), Some("2025-2026"));
+        assert_eq!(fetched.jury.as_deref(), Some("Main Jury"));
+        assert_eq!(fetched.country, Some(CountryCode::Gbr));
 
         let patch = PatchAward {
             award_id: award.award_id,
@@ -272,6 +296,9 @@ mod crud {
             title: "Award Updated".to_string(),
             url: award.url.clone(),
             category: award.category.clone(),
+            year: Some("2026".to_string()),
+            jury: Some("Updated Jury".to_string()),
+            country: Some(CountryCode::Fra),
             prize_statement: Some("Updated award note".to_string()),
             role: Some(AwardRole::JointWinner),
             award_ordinal: 1,
@@ -280,6 +307,9 @@ mod crud {
         let ctx = test_context(pool.clone(), "test-user");
         let updated = award.update(&ctx, &patch).expect("Failed to update");
         assert_eq!(updated.title, patch.title);
+        assert_eq!(updated.year, patch.year);
+        assert_eq!(updated.jury, patch.jury);
+        assert_eq!(updated.country, patch.country);
         assert_eq!(updated.role, patch.role);
 
         let deleted = updated.delete(pool.as_ref()).expect("Failed to delete");
