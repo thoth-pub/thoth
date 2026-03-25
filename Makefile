@@ -6,6 +6,7 @@
 	run-zitadel \
 	run-graphql-api \
 	run-export-api \
+	run-oai-api \
 	build \
 	test \
 	check \
@@ -31,6 +32,7 @@ help:
 	@echo "  run-zitadel       Start Zitadel (docker)"
 	@echo "  run-graphql-api   Run GraphQL API (cargo)"
 	@echo "  run-export-api    Run export API (cargo)"
+	@echo "  run-oai-api       Run OAI-PMH API (cargo)"
 	@echo "  build             Build the workspace"
 	@echo "  test              Run tests"
 	@echo "  coverage          Run test coverage (cargo llvm-cov)"
@@ -58,6 +60,9 @@ run-graphql-api: build
 
 run-export-api: build
 	RUST_BACKTRACE=1 cargo run start export-api
+
+run-oai-api: build
+	RUST_BACKTRACE=1 cargo run start oai-api
 
 build:
 	cargo build -vv
@@ -89,4 +94,3 @@ migration:
 	mkdir -p $$dir; \
 	touch $$dir/up.sql; \
 	touch $$dir/down.sql;
-

@@ -1619,6 +1619,7 @@ mod tests {
     fn test_doideposit_crossref_works() {
         let mut test_work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            updated_at_with_relations: thoth_api::model::Timestamp::parse_from_rfc3339("2024-01-01T00:00:00Z").unwrap(),
             work_status: WorkStatus::ACTIVE,
             titles: vec![thoth_client::WorkTitles {
                 title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
@@ -2458,6 +2459,7 @@ mod tests {
     fn test_doideposit_crossref_isbns_workaround() {
         let mut test_work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            updated_at_with_relations: thoth_api::model::Timestamp::parse_from_rfc3339("2024-01-01T00:00:00Z").unwrap(),
             work_status: WorkStatus::ACTIVE,
             titles: vec![thoth_client::WorkTitles {
                 title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),

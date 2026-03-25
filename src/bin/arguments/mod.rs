@@ -85,6 +85,17 @@ pub fn export_url() -> Arg {
         .num_args(1)
 }
 
+pub fn oai_url() -> Arg {
+    Arg::new("oai-url")
+        .short('o')
+        .long("oai-url")
+        .value_name("THOTH_OAI_API")
+        .env("THOTH_OAI_API")
+        .default_value("http://localhost:8383")
+        .help("Thoth OAI-PMH API's, public facing, root URL.")
+        .num_args(1)
+}
+
 pub fn zitadel_url() -> Arg {
     Arg::new("zitadel-url")
         .short('z')

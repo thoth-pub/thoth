@@ -34,8 +34,14 @@ fragment Funding on Funding {
     }
 }
 
+fragment PublisherFields on Publisher {
+    publisherId
+    publisherName
+}
+
 fragment Work on Work {
     workId
+    updatedAtWithRelations
     workStatus
     workType
     reference
@@ -332,5 +338,93 @@ query WorksLastUpdatedQuery(
         order: {field: UPDATED_AT_WITH_RELATIONS, direction: DESC}
     ) {
         updatedAtWithRelations
+    }
+}
+
+query OaiWorksQuery(
+    $limit: Int!,
+    $offset: Int!,
+    $publishers: [Uuid!],
+    $abstractsLimit: Int!,
+    $issuesLimit: Int!,
+    $languagesLimit: Int!,
+    $publicationsLimit: Int!,
+    $subjectsLimit: Int!,
+    $titlesLimit: Int!,
+    $fundingsLimit: Int!,
+    $relationsLimit: Int!,
+    $referencesLimit: Int!
+) {
+    works(
+        limit: $limit,
+        offset: $offset,
+        publishers: $publishers,
+        workStatuses: [ACTIVE],
+        order: {field: UPDATED_AT_WITH_RELATIONS, direction: DESC}
+    ) {
+        ...Work
+    }
+}
+
+query OaiBooksQuery(
+    $limit: Int!,
+    $offset: Int!,
+    $publishers: [Uuid!],
+    $abstractsLimit: Int!,
+    $issuesLimit: Int!,
+    $languagesLimit: Int!,
+    $publicationsLimit: Int!,
+    $subjectsLimit: Int!,
+    $titlesLimit: Int!,
+    $fundingsLimit: Int!,
+    $relationsLimit: Int!,
+    $referencesLimit: Int!
+) {
+    books(
+        limit: $limit,
+        offset: $offset,
+        publishers: $publishers,
+        workStatuses: [ACTIVE],
+        order: {field: UPDATED_AT_WITH_RELATIONS, direction: DESC}
+    ) {
+        ...Work
+    }
+}
+
+query OaiWorkCountQuery(
+    $publishers: [Uuid!]
+) {
+    workCount(publishers: $publishers, workStatuses: [ACTIVE])
+}
+
+query OaiBookCountQuery(
+    $publishers: [Uuid!]
+) {
+    bookCount(publishers: $publishers, workStatuses: [ACTIVE])
+}
+
+query OaiLatestWorksUpdatedQuery {
+    works(
+        workStatuses: [ACTIVE],
+        limit: 1,
+        order: {field: UPDATED_AT_WITH_RELATIONS, direction: DESC}
+    ) {
+        updatedAtWithRelations
+    }
+}
+
+query OaiEarliestWorksUpdatedQuery {
+    works(
+        workStatuses: [ACTIVE],
+        limit: 1,
+        order: {field: UPDATED_AT_WITH_RELATIONS, direction: ASC}
+    ) {
+        updatedAtWithRelations
+    }
+}
+
+query PublishersQuery {
+    publishers(limit: 10000) {
+        ...PublisherFields
     }
 }

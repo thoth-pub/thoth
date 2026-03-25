@@ -247,6 +247,10 @@ mod tests {
     fn test_kbart_oclc() {
         let mut test_work: Work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            updated_at_with_relations: thoth_api::model::Timestamp::parse_from_rfc3339(
+                "2024-01-01T00:00:00Z",
+            )
+            .unwrap(),
             work_status: WorkStatus::ACTIVE,
             // We must manually set full_title within this test framework, but
             // Thoth UI compiles it automatically from title + (optional) subtitle

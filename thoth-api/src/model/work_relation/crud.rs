@@ -5,8 +5,8 @@ use super::{
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId, Reorder};
 use crate::schema::{work_relation, work_relation_history};
 use diesel::{
-    dsl::max, sql_query, sql_types::Text, BoolExpressionMethods, Connection, ExpressionMethods,
-    QueryDsl, RunQueryDsl,
+    sql_query, sql_types::Text, BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl,
+    RunQueryDsl,
 };
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -142,7 +142,7 @@ impl Crud for WorkRelation {
             // This will return `None` if no records with this work and type already exist.
             let max_inverse_ordinal =
                 work_relation::table
-                    .select(max(work_relation::relation_ordinal))
+                    .select(diesel::dsl::max(work_relation::relation_ordinal))
                     .filter(work_relation::relator_work_id.eq(data.related_work_id).and(
                         work_relation::relation_type.eq(data.relation_type.convert_to_inverse()),
                     ))

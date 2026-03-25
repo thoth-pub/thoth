@@ -98,10 +98,87 @@ pub struct WorkLastUpdatedQuery;
 )]
 pub struct WorksLastUpdatedQuery;
 
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "assets/schema.graphql",
+    query_path = "assets/queries.graphql",
+    response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq",
+    variables_derives = "Debug,PartialEq"
+)]
+pub struct OaiWorksQuery;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "assets/schema.graphql",
+    query_path = "assets/queries.graphql",
+    response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq",
+    variables_derives = "Debug,PartialEq"
+)]
+pub struct OaiBooksQuery;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "assets/schema.graphql",
+    query_path = "assets/queries.graphql",
+    response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq",
+    variables_derives = "Debug,PartialEq"
+)]
+pub struct OaiWorkCountQuery;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "assets/schema.graphql",
+    query_path = "assets/queries.graphql",
+    response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq",
+    variables_derives = "Debug,PartialEq"
+)]
+pub struct OaiBookCountQuery;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "assets/schema.graphql",
+    query_path = "assets/queries.graphql",
+    response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq",
+    variables_derives = "Debug,PartialEq"
+)]
+pub struct OaiLatestWorksUpdatedQuery;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "assets/schema.graphql",
+    query_path = "assets/queries.graphql",
+    response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq",
+    variables_derives = "Debug,PartialEq"
+)]
+pub struct OaiEarliestWorksUpdatedQuery;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "assets/schema.graphql",
+    query_path = "assets/queries.graphql",
+    response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq",
+    variables_derives = "Debug,PartialEq"
+)]
+pub struct PublishersQuery;
+
 // Needed to set work_query::Work as the canonical struct for the shared fragment in the two queries
 // until https://github.com/graphql-rust/graphql-client/issues/312 gets fixed
 impl From<works_query::Work> for work_query::Work {
     fn from(w: works_query::Work) -> Self {
+        let se = serde_json::to_string(&w).unwrap();
+        serde_json::from_str(&se).unwrap()
+    }
+}
+
+impl From<oai_works_query::Work> for work_query::Work {
+    fn from(w: oai_works_query::Work) -> Self {
+        let se = serde_json::to_string(&w).unwrap();
+        serde_json::from_str(&se).unwrap()
+    }
+}
+
+impl From<oai_books_query::Work> for work_query::Work {
+    fn from(w: oai_books_query::Work) -> Self {
         let se = serde_json::to_string(&w).unwrap();
         serde_json::from_str(&se).unwrap()
     }

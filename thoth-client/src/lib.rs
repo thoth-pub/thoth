@@ -7,8 +7,12 @@ pub use crate::parameters::QueryParameters;
 use crate::parameters::{WorkQueryVariables, WorksQueryVariables};
 pub use crate::queries::work_query::*;
 use crate::queries::{
+    oai_book_count_query, oai_books_query, oai_earliest_works_updated_query,
+    oai_latest_works_updated_query, oai_work_count_query, oai_works_query, publishers_query,
     work_count_query, work_last_updated_query, work_query, works_last_updated_query, works_query,
-    WorkCountQuery, WorkLastUpdatedQuery, WorkQuery, WorksLastUpdatedQuery, WorksQuery,
+    OaiBookCountQuery, OaiBooksQuery, OaiEarliestWorksUpdatedQuery, OaiLatestWorksUpdatedQuery,
+    OaiWorkCountQuery, OaiWorksQuery, PublishersQuery, WorkCountQuery, WorkLastUpdatedQuery,
+    WorkQuery, WorksLastUpdatedQuery, WorksQuery,
 };
 pub use chrono::NaiveDate;
 use graphql_client::GraphQLQuery;
@@ -22,6 +26,12 @@ use std::future::Future;
 use thoth_api::model::Timestamp;
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Publisher {
+    pub publisher_id: Uuid,
+    pub publisher_name: String,
+}
 
 /// Maximum number of allowed request retries attempts.
 const MAX_REQUEST_RETRIES: u32 = 5;
@@ -265,6 +275,119 @@ impl ThothClient {
                     Err(ThothError::EntityNotFound)
                 }
             }
+            None => Err(ThothError::EntityNotFound),
+        }
+    }
+
+    pub async fn get_oai_works(
+        &self,
+        publishers: Option<Vec<Uuid>>,
+        limit: i64,
+        offset: i64,
+        parameters: QueryParameters,
+    ) -> ThothResult<Vec<Work>> {
+        let variables: oai_works_query::Variables =
+            WorksQueryVariables::new(publishers, limit, offset, parameters).into();
+        let request_body = OaiWorksQuery::build_query(variables);
+        let res = self.post_request(&request_body).await.await?;
+        let response_body: Response<oai_works_query::ResponseData> =
+            self.parse_graphql_response(res).await?;
+        match response_body.data {
+            Some(data) => Ok(data.works.into_iter().map(Into::into).collect()),
+            None => Err(ThothError::EntityNotFound),
+        }
+    }
+
+    pub async fn get_oai_books(
+        &self,
+        publishers: Option<Vec<Uuid>>,
+        limit: i64,
+        offset: i64,
+        parameters: QueryParameters,
+    ) -> ThothResult<Vec<Work>> {
+        let variables: oai_books_query::Variables =
+            WorksQueryVariables::new(publishers, limit, offset, parameters).into();
+        let request_body = OaiBooksQuery::build_query(variables);
+        let res = self.post_request(&request_body).await.await?;
+        let response_body: Response<oai_books_query::ResponseData> =
+            self.parse_graphql_response(res).await?;
+        match response_body.data {
+            Some(data) => Ok(data.books.into_iter().map(Into::into).collect()),
+            None => Err(ThothError::EntityNotFound),
+        }
+    }
+
+    pub async fn get_oai_work_count(&self, publishers: Option<Vec<Uuid>>) -> ThothResult<i64> {
+        let variables = oai_work_count_query::Variables { publishers };
+        let request_body = OaiWorkCountQuery::build_query(variables);
+        let res = self.post_request(&request_body).await.await?;
+        let response_body: Response<oai_work_count_query::ResponseData> =
+            self.parse_graphql_response(res).await?;
+        match response_body.data {
+            Some(data) => Ok(data.work_count),
+            None => Err(ThothError::EntityNotFound),
+        }
+    }
+
+    pub async fn get_oai_book_count(&self, publishers: Option<Vec<Uuid>>) -> ThothResult<i64> {
+        let variables = oai_book_count_query::Variables { publishers };
+        let request_body = OaiBookCountQuery::build_query(variables);
+        let res = self.post_request(&request_body).await.await?;
+        let response_body: Response<oai_book_count_query::ResponseData> =
+            self.parse_graphql_response(res).await?;
+        match response_body.data {
+            Some(data) => Ok(data.book_count),
+            None => Err(ThothError::EntityNotFound),
+        }
+    }
+
+    pub async fn get_oai_latest_works_updated(&self) -> ThothResult<Timestamp> {
+        let request_body =
+            OaiLatestWorksUpdatedQuery::build_query(oai_latest_works_updated_query::Variables {});
+        let res = self.post_request(&request_body).await.await?;
+        let response_body: Response<oai_latest_works_updated_query::ResponseData> =
+            self.parse_graphql_response(res).await?;
+        match response_body.data {
+            Some(data) => data
+                .works
+                .first()
+                .map(|work| work.updated_at_with_relations)
+                .ok_or(ThothError::EntityNotFound),
+            None => Err(ThothError::EntityNotFound),
+        }
+    }
+
+    pub async fn get_oai_earliest_works_updated(&self) -> ThothResult<Timestamp> {
+        let request_body = OaiEarliestWorksUpdatedQuery::build_query(
+            oai_earliest_works_updated_query::Variables {},
+        );
+        let res = self.post_request(&request_body).await.await?;
+        let response_body: Response<oai_earliest_works_updated_query::ResponseData> =
+            self.parse_graphql_response(res).await?;
+        match response_body.data {
+            Some(data) => data
+                .works
+                .first()
+                .map(|work| work.updated_at_with_relations)
+                .ok_or(ThothError::EntityNotFound),
+            None => Err(ThothError::EntityNotFound),
+        }
+    }
+
+    pub async fn get_publishers(&self) -> ThothResult<Vec<Publisher>> {
+        let request_body = PublishersQuery::build_query(publishers_query::Variables {});
+        let res = self.post_request(&request_body).await.await?;
+        let response_body: Response<publishers_query::ResponseData> =
+            self.parse_graphql_response(res).await?;
+        match response_body.data {
+            Some(data) => Ok(data
+                .publishers
+                .into_iter()
+                .map(|publisher| Publisher {
+                    publisher_id: publisher.publisher_id,
+                    publisher_name: publisher.publisher_name,
+                })
+                .collect()),
             None => Err(ThothError::EntityNotFound),
         }
     }

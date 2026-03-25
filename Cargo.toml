@@ -12,13 +12,21 @@ readme = "README.md"
 maintenance = { status = "actively-developed" }
 
 [workspace]
-members = ["thoth-api", "thoth-api-server", "thoth-client", "thoth-errors", "thoth-export-server"]
+members = [
+    "thoth-api",
+    "thoth-api-server",
+    "thoth-client",
+    "thoth-errors",
+    "thoth-export-server",
+    "thoth-oai-server",
+]
 
 [dependencies]
 thoth-api = { version = "=0.13.16", path = "thoth-api", features = ["backend"] }
 thoth-api-server = { version = "=0.13.16", path = "thoth-api-server" }
 thoth-errors = { version = "=0.13.16", path = "thoth-errors" }
 thoth-export-server = { version = "=0.13.16", path = "thoth-export-server" }
+thoth-oai-server = { version = "=0.13.16", path = "thoth-oai-server" }
 base64 = "0.22.1"
 clap = { version = "4.5.32", features = ["cargo", "env"] }
 dialoguer = { version = "0.11.0", features = ["password"] }

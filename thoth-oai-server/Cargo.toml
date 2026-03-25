@@ -1,38 +1,26 @@
 [package]
-name = "thoth-export-server"
+name = "thoth-oai-server"
 version = "0.13.16"
 authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
 edition = "2021"
 license = "Apache-2.0"
-description = "Actix instance serving Thoth's metadata export endpoints"
+description = "Actix instance serving Thoth's OAI-PMH endpoints"
 repository = "https://github.com/thoth-pub/thoth"
 readme = "README.md"
-build = "build.rs"
 
 [dependencies]
 thoth-api = { version = "=0.13.16", path = "../thoth-api", features = ["backend"] }
 thoth-errors = { version = "=0.13.16", path = "../thoth-errors" }
 thoth-client = { version = "=0.13.16", path = "../thoth-client" }
-actix-web = "4.10"
 actix-cors = "0.7.1"
-cc_license = "0.1.0"
+actix-web = "4.10"
+base64 = "0.22.1"
 chrono = { version = "0.4.40", features = ["serde"] }
-csv = "1.3.0"
 env_logger = "0.11.7"
-futures = "0.3.31"
-lazy_static = "1.5.0"
 log = "0.4.26"
-marc = { version = "3.1.1", features = ["xml"] }
-paperclip = { version = "0.9.5", features = ["actix4", "uuid1", "v3"] }
+quick-xml = "0.36"
+reqwest = { version = "0.12", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 uuid = { version = "1.16.0", features = ["serde"] }
 xml-rs = "0.8.25"
-quick-xml = "0.36"
-regex = "1.11.1"
-
-[dev-dependencies]
-regex = "1.11.1"
-
-[build-dependencies]
-dotenv = "0.15.0"

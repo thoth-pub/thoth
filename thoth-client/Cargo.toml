@@ -10,7 +10,7 @@ readme = "README.md"
 build = "build.rs"
 
 [dependencies]
-thoth-api = {version = "=0.13.16", path = "../thoth-api" }
+thoth-api = {version = "=0.13.16", path = "../thoth-api", features = ["backend"] }
 thoth-errors = {version = "=0.13.16", path = "../thoth-errors" }
 graphql_client = "0.14.0"
 chrono = { version = "0.4.40", features = ["serde"] }

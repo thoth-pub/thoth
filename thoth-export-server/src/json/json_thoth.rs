@@ -77,6 +77,7 @@ mod tests {
     lazy_static! {
         static ref TEST_WORK: Work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-aaaa-000000000001").unwrap(),
+            updated_at_with_relations: thoth_api::model::Timestamp::parse_from_rfc3339("2024-01-01T00:00:00Z").unwrap(),
             work_status: WorkStatus::ACTIVE,
             titles: vec![thoth_client::WorkTitles {
               title_id: Uuid::from_str("00000000-0000-0000-cccc-000000000001").unwrap(),
@@ -517,6 +518,7 @@ mod tests {
 
     const TEST_RESULT: &str = r#"
   "workId": "00000000-0000-0000-aaaa-000000000001",
+  "updatedAtWithRelations": "2024-01-01T00:00:00Z",
   "workStatus": "ACTIVE",
   "workType": "MONOGRAPH",
   "reference": null,
