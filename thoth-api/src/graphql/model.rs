@@ -2397,8 +2397,25 @@ impl Endorsement {
     }
 
     #[graphql(description = "Role of the endorsement author")]
-    pub fn author_role(&self) -> Option<&String> {
-        self.author_role.as_ref()
+    pub fn author_role(
+        &self,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "Markup format used for rendering endorsement author role",
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Option<String>> {
+        self.author_role
+            .as_ref()
+            .map(|author_role| {
+                convert_from_jats(
+                    author_role,
+                    markup_format.ok_or(ThothError::MissingMarkupFormat)?,
+                    ConversionLimit::Abstract,
+                )
+            })
+            .transpose()
+            .map_err(Into::into)
     }
 
     #[graphql(

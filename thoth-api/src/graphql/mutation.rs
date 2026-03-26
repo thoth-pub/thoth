@@ -300,13 +300,17 @@ impl MutationRoot {
     #[graphql(description = "Create a new endorsement with the specified values")]
     fn create_endorsement(
         context: &Context,
-        #[graphql(description = "The markup format of the endorsement text field")]
+        #[graphql(description = "The markup format of the endorsement rich-text fields")]
         markup_format: Option<MarkupFormat>,
         #[graphql(description = "Values for endorsement to be created")] mut data: NewEndorsement,
     ) -> FieldResult<Endorsement> {
         EndorsementPolicy::can_create(context, &data, ())?;
 
         let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        data.author_role = data
+            .author_role
+            .map(|author_role| convert_to_jats(author_role, markup, ConversionLimit::Abstract))
+            .transpose()?;
         data.text = data
             .text
             .map(|text| convert_to_jats(text, markup, ConversionLimit::Abstract))
@@ -607,7 +611,7 @@ impl MutationRoot {
     #[graphql(description = "Update an existing endorsement with the specified values")]
     fn update_endorsement(
         context: &Context,
-        #[graphql(description = "The markup format of the endorsement text field")]
+        #[graphql(description = "The markup format of the endorsement rich-text fields")]
         markup_format: Option<MarkupFormat>,
         #[graphql(description = "Values to apply to existing endorsement")]
         mut data: PatchEndorsement,
@@ -616,6 +620,10 @@ impl MutationRoot {
         EndorsementPolicy::can_update(context, &endorsement, &data, ())?;
 
         let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        data.author_role = data
+            .author_role
+            .map(|author_role| convert_to_jats(author_role, markup, ConversionLimit::Abstract))
+            .transpose()?;
         data.text = data
             .text
             .map(|text| convert_to_jats(text, markup, ConversionLimit::Abstract))

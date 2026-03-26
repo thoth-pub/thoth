@@ -14,7 +14,7 @@ use crate::model::{
     contact::{Contact, ContactType, NewContact, PatchContact},
     contribution::{Contribution, ContributionType, NewContribution, PatchContribution},
     contributor::{Contributor, NewContributor, PatchContributor},
-    endorsement::{Endorsement, NewEndorsement},
+    endorsement::{Endorsement, NewEndorsement, PatchEndorsement},
     funding::{Funding, NewFunding, PatchFunding},
     imprint::{Imprint, NewImprint, PatchImprint},
     institution::{Institution, NewInstitution, PatchInstitution},
@@ -2361,11 +2361,11 @@ fn graphql_endorsement_supports_author_identity_fields() {
         &context,
         "createEndorsement",
         "NewEndorsement",
-        "endorsementId authorOrcid authorInstitutionId authorInstitution { institutionId ror } text(markupFormat: PLAIN_TEXT)",
+        "endorsementId authorRole(markupFormat: PLAIN_TEXT) authorOrcid authorInstitutionId authorInstitution { institutionId ror } text(markupFormat: PLAIN_TEXT)",
         NewEndorsement {
             work_id: seed.book_work_id,
             author_name: Some("Author".to_string()),
-            author_role: Some("Scholar".to_string()),
+            author_role: Some("*Visiting Scholar*".to_string()),
             author_orcid: Some(Orcid::from_str("https://orcid.org/0000-0001-2345-6789").unwrap()),
             author_institution_id: Some(institution.institution_id),
             url: Some("https://example.com/endorsement".to_string()),
@@ -2384,6 +2384,7 @@ fn graphql_endorsement_supports_author_identity_fields() {
         endorsement["authorInstitutionId"].as_str(),
         Some(author_institution_id.as_str())
     );
+    assert_eq!(endorsement["authorRole"].as_str(), Some("Visiting Scholar"));
     assert_eq!(endorsement["text"].as_str(), Some("Excellent book"));
     assert_eq!(
         endorsement["authorInstitution"]["ror"].as_str(),
@@ -2397,6 +2398,70 @@ fn graphql_endorsement_supports_author_identity_fields() {
         stored.author_orcid,
         Some(Orcid::from_str("https://orcid.org/0000-0001-2345-6789").unwrap())
     );
+    assert!(stored
+        .author_role
+        .as_deref()
+        .unwrap_or_default()
+        .contains("<italic>"));
+}
+
+#[test]
+fn graphql_update_endorsement_supports_author_role_markup() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-endorsement-author-role-markup");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let endorsement = create_with_data_and_markup(
+        &schema,
+        &context,
+        "createEndorsement",
+        "NewEndorsement",
+        "endorsementId authorRole(markupFormat: PLAIN_TEXT)",
+        NewEndorsement {
+            work_id: seed.book_work_id,
+            author_name: Some("Author".to_string()),
+            author_role: Some("Scholar".to_string()),
+            author_orcid: None,
+            author_institution_id: None,
+            url: Some("https://example.com/endorsement".to_string()),
+            text: Some("Excellent book".to_string()),
+            endorsement_ordinal: 1,
+        },
+        MarkupFormat::PlainText,
+    );
+
+    let endorsement_id = json_uuid(&endorsement["endorsementId"]);
+    let updated = update_with_data_and_markup(
+        &schema,
+        &context,
+        "updateEndorsement",
+        "PatchEndorsement",
+        "endorsementId authorRole(markupFormat: PLAIN_TEXT)",
+        PatchEndorsement {
+            endorsement_id,
+            work_id: seed.book_work_id,
+            author_name: Some("Author".to_string()),
+            author_role: Some("*Lead Editor*".to_string()),
+            author_orcid: None,
+            author_institution_id: None,
+            url: Some("https://example.com/endorsement".to_string()),
+            text: Some("Excellent book".to_string()),
+            endorsement_ordinal: 1,
+        },
+        MarkupFormat::Markdown,
+    );
+
+    assert_eq!(updated["authorRole"].as_str(), Some("Lead Editor"));
+
+    let stored = Endorsement::from_id(pool.as_ref(), &endorsement_id)
+        .expect("Failed to fetch stored endorsement");
+    assert!(stored
+        .author_role
+        .as_deref()
+        .unwrap_or_default()
+        .contains("<italic>"));
 }
 
 #[test]
