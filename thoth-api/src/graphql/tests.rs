@@ -2565,10 +2565,12 @@ fn graphql_markup_mutations_accept_plain_text_when_markup_is_jats_xml() {
             title_id: title.title_id,
             work_id: title.work_id,
             locale_code: title.locale_code,
-            full_title: "Foundations for Moral <italic>Relativism</italic> Second Expanded Edition"
+            full_title: "Foundations for Moral <italic>Relativism</italic> <underline>Second</underline> <strike>Expanded</strike> <inline-formula><tex-math>E=mc^2</tex-math></inline-formula> <email>editor@example.org</email> <uri>https://example.org</uri> Edition"
                 .to_string(),
-            title: "Foundations for Moral <italic>Relativism</italic>".to_string(),
-            subtitle: Some("Second Expanded Edition".to_string()),
+            title: "Foundations for Moral <italic>Relativism</italic> <inline-formula><tex-math>E=mc^2</tex-math></inline-formula>".to_string(),
+            subtitle: Some(
+                "<underline>Second</underline> <strike>Expanded</strike> <email>editor@example.org</email> <uri>https://example.org</uri> Edition".to_string(),
+            ),
             canonical: title.canonical,
         },
         MarkupFormat::JatsXml,
@@ -2577,15 +2579,17 @@ fn graphql_markup_mutations_accept_plain_text_when_markup_is_jats_xml() {
     let stored_title = Title::from_id(pool.as_ref(), &seed.title_id).unwrap();
     assert_eq!(
         stored_title.full_title,
-        "Foundations for Moral <italic>Relativism</italic> Second Expanded Edition"
+        "Foundations for Moral <italic>Relativism</italic> <underline>Second</underline> <strike>Expanded</strike> <inline-formula><tex-math>E=mc^2</tex-math></inline-formula> <email>editor@example.org</email> <uri>https://example.org</uri> Edition"
     );
     assert_eq!(
         stored_title.title,
-        "Foundations for Moral <italic>Relativism</italic>"
+        "Foundations for Moral <italic>Relativism</italic> <inline-formula><tex-math>E=mc^2</tex-math></inline-formula>"
     );
     assert_eq!(
         stored_title.subtitle.as_deref(),
-        Some("Second Expanded Edition")
+        Some(
+            "<underline>Second</underline> <strike>Expanded</strike> <email>editor@example.org</email> <uri>https://example.org</uri> Edition"
+        )
     );
 
     let abstract_item = Abstract::from_id(pool.as_ref(), &seed.abstract_short_id).unwrap();
@@ -2598,19 +2602,82 @@ fn graphql_markup_mutations_accept_plain_text_when_markup_is_jats_xml() {
         PatchAbstract {
             abstract_id: abstract_item.abstract_id,
             work_id: abstract_item.work_id,
-            content: "Plain abstract content updated".to_string(),
+            content:
+                "First line\nSecond line with $E=mc^2$ and user@example.org and https://example.org"
+                    .to_string(),
             locale_code: abstract_item.locale_code,
             abstract_type: abstract_item.abstract_type,
             canonical: abstract_item.canonical,
         },
-        MarkupFormat::JatsXml,
+        MarkupFormat::PlainText,
     );
 
     let stored_abstract = Abstract::from_id(pool.as_ref(), &seed.abstract_short_id).unwrap();
     assert_eq!(
         stored_abstract.content,
-        "<p>Plain abstract content updated</p>"
+        "<p>First line<break/>Second line with <inline-formula><tex-math>E=mc^2</tex-math></inline-formula> and <email>user@example.org</email> and <uri>https://example.org</uri></p>"
     );
+
+    let biography = Biography::from_id(pool.as_ref(), &seed.biography_id).unwrap();
+    update_with_data_and_markup(
+        &schema,
+        &context,
+        "updateBiography",
+        "PatchBiography",
+        "biographyId",
+        PatchBiography {
+            biography_id: biography.biography_id,
+            contribution_id: biography.contribution_id,
+            content: "<p>Bio line<break/><inline-formula><tex-math>x^2</tex-math></inline-formula> <email>bio@example.org</email> <uri>https://bio.example.org</uri></p>".to_string(),
+            canonical: biography.canonical,
+            locale_code: biography.locale_code,
+        },
+        MarkupFormat::JatsXml,
+    );
+
+    let stored_biography = Biography::from_id(pool.as_ref(), &seed.biography_id).unwrap();
+    assert_eq!(
+        stored_biography.content,
+        "<p>Bio line<break/><inline-formula><tex-math>x^2</tex-math></inline-formula> <email>bio@example.org</email> <uri>https://bio.example.org</uri></p>"
+    );
+}
+
+#[test]
+fn graphql_update_title_rejects_break_elements_for_jats_xml() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-jats-title-break-rejection");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+    let title = Title::from_id(pool.as_ref(), &seed.title_id).unwrap();
+
+    let query = r#"
+        mutation UpdateTitle($data: PatchTitle!, $markup: MarkupFormat!) {
+            updateTitle(data: $data, markupFormat: $markup) {
+                titleId
+            }
+        }
+    "#;
+    let mut vars = Variables::new();
+    insert_var(
+        &mut vars,
+        "data",
+        PatchTitle {
+            title_id: title.title_id,
+            work_id: title.work_id,
+            locale_code: title.locale_code,
+            full_title: "Broken<break/>Title".to_string(),
+            title: "Broken<break/>Title".to_string(),
+            subtitle: title.subtitle.clone(),
+            canonical: title.canonical,
+        },
+    );
+    insert_var(&mut vars, "markup", MarkupFormat::JatsXml);
+
+    let (_, errors) = juniper::execute_sync(query, None, &schema, &vars, &context)
+        .expect("GraphQL execution should succeed with validation errors");
+    assert!(!errors.is_empty(), "Expected GraphQL validation error");
+    assert!(!errors[0].error().message().is_empty());
 }
 
 #[test]

@@ -47,19 +47,106 @@ pub enum ConversionLimit {
     Title,
 }
 
+fn looks_like_markup(content: &str) -> bool {
+    regex::Regex::new(r"</?[A-Za-z][^>]*>")
+        .unwrap()
+        .is_match(content)
+}
+
+fn validate_jats_subset(content: &str) -> ThothResult<()> {
+    let allowed_tags = [
+        "p",
+        "break",
+        "bold",
+        "italic",
+        "underline",
+        "strike",
+        "monospace",
+        "sup",
+        "sub",
+        "sc",
+        "list",
+        "list-item",
+        "ext-link",
+        "inline-formula",
+        "tex-math",
+        "email",
+        "uri",
+        "article",
+        "body",
+        "sec",
+        "div",
+    ];
+
+    let tag_pattern = regex::Regex::new(r"</?\s*([A-Za-z][A-Za-z0-9:-]*)\b").unwrap();
+    for captures in tag_pattern.captures_iter(content) {
+        let tag_name = captures.get(1).unwrap().as_str();
+        if !allowed_tags.contains(&tag_name) {
+            return Err(ThothError::RequestError(format!(
+                "Unsupported JATS element: <{}>",
+                tag_name
+            )));
+        }
+    }
+
+    let email_pattern = regex::Regex::new(r"(?s)<email>(.*?)</email>").unwrap();
+    let bare_email_pattern =
+        regex::Regex::new(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$").unwrap();
+    for captures in email_pattern.captures_iter(content) {
+        let inner = captures.get(1).unwrap().as_str().trim();
+        if inner.contains('<') || !bare_email_pattern.is_match(inner) {
+            return Err(ThothError::RequestError(
+                "Email elements must contain a bare email address.".to_string(),
+            ));
+        }
+    }
+
+    let uri_pattern = regex::Regex::new(r"(?s)<uri>(.*?)</uri>").unwrap();
+    let bare_uri_pattern = regex::Regex::new(r"^https?://\S+$").unwrap();
+    for captures in uri_pattern.captures_iter(content) {
+        let inner = captures.get(1).unwrap().as_str().trim();
+        if inner.contains('<') || !bare_uri_pattern.is_match(inner) {
+            return Err(ThothError::RequestError(
+                "URI elements must contain a bare URI.".to_string(),
+            ));
+        }
+    }
+
+    let inline_formula_pattern =
+        regex::Regex::new(r"(?s)<inline-formula>(.*?)</inline-formula>").unwrap();
+    let tex_math_pattern = regex::Regex::new(r"(?s)^\s*<tex-math>(.*?)</tex-math>\s*$").unwrap();
+    let nested_tag_pattern = regex::Regex::new(r"</?[A-Za-z!/]").unwrap();
+    for captures in inline_formula_pattern.captures_iter(content) {
+        let inner = captures.get(1).unwrap().as_str();
+        let Some(tex_captures) = tex_math_pattern.captures(inner) else {
+            return Err(ThothError::RequestError(
+                "Inline formulas must use a single <tex-math> child.".to_string(),
+            ));
+        };
+        let tex = tex_captures.get(1).unwrap().as_str();
+        if nested_tag_pattern.is_match(tex) {
+            return Err(ThothError::RequestError(
+                "Inline formulas must contain TeX text only.".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 /// Validate content format based on markup format
 pub fn validate_format(content: &str, format: &MarkupFormat) -> ThothResult<()> {
     match format {
         MarkupFormat::Html | MarkupFormat::JatsXml => {
             // Basic HTML validation - check for opening and closing tags
-            if !content.contains('<') || !content.contains('>') || !content.contains("</") {
+            if !looks_like_markup(content) {
                 return Err(ThothError::UnsupportedFileFormatError);
             }
         }
         MarkupFormat::Markdown => {
-            // Basic Markdown validation - check for markdown syntax
-            if content.contains('<') && content.contains('>') {
-                // At least one markdown element should be present
+            let html_tag_pattern =
+                regex::Regex::new(r"</?[A-Za-z][A-Za-z0-9-]*(\s[^>]*)?>").unwrap();
+            if html_tag_pattern.is_match(content) {
                 return Err(ThothError::UnsupportedFileFormatError);
             }
         }
@@ -75,8 +162,9 @@ pub fn convert_to_jats(
     conversion_limit: ConversionLimit,
 ) -> ThothResult<String> {
     if format == MarkupFormat::JatsXml {
-        let content_looks_like_jats = content.contains('<') && content.contains("</");
+        let content_looks_like_jats = looks_like_markup(&content);
         let ast = if content_looks_like_jats {
+            validate_jats_subset(&content)?;
             jats_to_ast(&content)
         } else {
             plain_text_to_ast(&content)
@@ -163,7 +251,7 @@ pub fn convert_from_jats(
     conversion_limit: ConversionLimit,
 ) -> ThothResult<String> {
     // Allow plain-text content that was stored without JATS markup for titles.
-    if !jats_xml.contains('<') || !jats_xml.contains("</") {
+    if !looks_like_markup(jats_xml) {
         let ast = plain_text_to_ast(jats_xml);
         let processed_ast = if conversion_limit == ConversionLimit::Title {
             strip_structural_elements_from_ast_for_conversion(&ast)
@@ -186,6 +274,7 @@ pub fn convert_from_jats(
     }
 
     validate_format(jats_xml, &MarkupFormat::JatsXml)?;
+    validate_jats_subset(jats_xml)?;
 
     // Parse JATS to AST first for better handling
     let ast = jats_to_ast(jats_xml);
@@ -239,7 +328,10 @@ mod tests {
             ConversionLimit::Biography,
         )
         .unwrap();
-        assert_eq!(output, "<italic>Italic</italic> and <bold>Bold</bold>");
+        assert_eq!(
+            output,
+            "<p><italic>Italic</italic> and <bold>Bold</bold></p>"
+        );
     }
 
     #[test]
@@ -253,7 +345,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             output,
-            r#"<ext-link xlink:href="https://example.com">Link</ext-link>"#
+            r#"<p><ext-link xlink:href="https://example.com">Link</ext-link></p>"#
         );
     }
 
@@ -352,10 +444,7 @@ mod tests {
             ConversionLimit::Biography,
         )
         .unwrap();
-        assert_eq!(
-        output,
-        "<p>Hello </p><ext-link xlink:href=\"https://example.com\"><p>https://example.com</p></ext-link><p> world</p>"
-    );
+        assert_eq!(output, "<p>Hello <uri>https://example.com</uri> world</p>");
     }
 
     #[test]
@@ -392,6 +481,80 @@ mod tests {
         )
         .unwrap();
         assert_eq!(output, "<p>Plain abstract content.</p>");
+    }
+
+    #[test]
+    fn test_markdown_formula_email_uri_and_break_conversion() {
+        let input = "Formula $E=mc^2$  \n<user@example.org> <https://example.org>";
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::Markdown,
+            ConversionLimit::Abstract,
+        )
+        .unwrap();
+        assert!(output.contains("<inline-formula><tex-math>E=mc^2</tex-math></inline-formula>"));
+        assert!(output.contains("<email>user@example.org</email>"));
+        assert!(output.contains("<uri>https://example.org</uri>"));
+        assert!(output.contains("<break/>"));
+    }
+
+    #[test]
+    fn test_html_break_formula_email_and_uri_conversion() {
+        let input = r#"<p>Line<br/><span class="inline-formula">E=mc^2</span> <a href="mailto:user@example.org">user@example.org</a> <a href="https://example.org">https://example.org</a></p>"#;
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::Html,
+            ConversionLimit::Biography,
+        )
+        .unwrap();
+        assert_eq!(
+            output,
+            "<p>Line<break/><inline-formula><tex-math>E=mc^2</tex-math></inline-formula> <email>user@example.org</email> <uri>https://example.org</uri></p>"
+        );
+    }
+
+    #[test]
+    fn test_jatsxml_title_rejects_breaks() {
+        let input = "Title<break/>Subtitle";
+        assert!(convert_to_jats(
+            input.to_string(),
+            MarkupFormat::JatsXml,
+            ConversionLimit::Title,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_jatsxml_rejects_non_tex_inline_formula() {
+        let input = "<inline-formula><mml:math/></inline-formula>";
+        assert!(convert_to_jats(
+            input.to_string(),
+            MarkupFormat::JatsXml,
+            ConversionLimit::Abstract,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_jatsxml_rejects_nested_email_markup() {
+        let input = "<email><bold>user@example.org</bold></email>";
+        assert!(convert_to_jats(
+            input.to_string(),
+            MarkupFormat::JatsXml,
+            ConversionLimit::Abstract,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_jatsxml_rejects_nested_uri_markup() {
+        let input = "<uri><italic>https://example.org</italic></uri>";
+        assert!(convert_to_jats(
+            input.to_string(),
+            MarkupFormat::JatsXml,
+            ConversionLimit::Abstract,
+        )
+        .is_err());
     }
     // --- convert_to_jats tests end   ---
 
@@ -493,6 +656,28 @@ mod tests {
         let output =
             convert_from_jats(input, MarkupFormat::JatsXml, ConversionLimit::Biography).unwrap();
         assert_eq!(input, output);
+    }
+
+    #[test]
+    fn test_convert_from_jats_markdown_formula_email_uri_and_break() {
+        let input = "<p>Line<break/><inline-formula><tex-math>E=mc^2</tex-math></inline-formula> <email>user@example.org</email> <uri>https://example.org</uri></p>";
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Biography).unwrap();
+        assert_eq!(
+            output,
+            "Line  \n$E=mc^2$ <user@example.org> <https://example.org>"
+        );
+    }
+
+    #[test]
+    fn test_convert_from_jats_html_formula_email_uri_and_break() {
+        let input = "<p>Line<break/><inline-formula><tex-math>E=mc^2</tex-math></inline-formula> <email>user@example.org</email> <uri>https://example.org</uri></p>";
+        let output =
+            convert_from_jats(input, MarkupFormat::Html, ConversionLimit::Biography).unwrap();
+        assert_eq!(
+            output,
+            r#"<p>Line<br/><span class="inline-formula">E=mc^2</span> <a href="mailto:user@example.org">user@example.org</a> <a href="https://example.org">https://example.org</a></p>"#
+        );
     }
 
     #[test]

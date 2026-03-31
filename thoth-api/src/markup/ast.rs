@@ -8,8 +8,11 @@ use thoth_errors::{ThothError, ThothResult};
 pub enum Node {
     Document(Vec<Node>),
     Paragraph(Vec<Node>),
+    Break,
     Bold(Vec<Node>),
     Italic(Vec<Node>),
+    Underline(Vec<Node>),
+    Strikethrough(Vec<Node>),
     Code(Vec<Node>),
     Superscript(Vec<Node>),
     Subscript(Vec<Node>),
@@ -17,7 +20,190 @@ pub enum Node {
     List(Vec<Node>),
     ListItem(Vec<Node>),
     Link { url: String, text: Vec<Node> },
+    InlineFormula(String),
+    Email(String),
+    Uri(String),
     Text(String),
+}
+
+fn inline_text_to_plain_text(nodes: &[Node]) -> String {
+    nodes.iter().map(ast_to_plain_text).collect()
+}
+
+fn looks_like_email(text: &str) -> bool {
+    regex::Regex::new(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+        .unwrap()
+        .is_match(text)
+}
+
+fn push_node_to_top(stack: &mut [Node], node: Node) {
+    if let Some(top) = stack.last_mut() {
+        match top {
+            Node::Document(children)
+            | Node::Paragraph(children)
+            | Node::Bold(children)
+            | Node::Italic(children)
+            | Node::Underline(children)
+            | Node::Strikethrough(children)
+            | Node::Code(children)
+            | Node::Superscript(children)
+            | Node::Subscript(children)
+            | Node::SmallCaps(children)
+            | Node::List(children)
+            | Node::ListItem(children) => children.push(node),
+            Node::Text(_)
+            | Node::Break
+            | Node::InlineFormula(_)
+            | Node::Email(_)
+            | Node::Uri(_) => {}
+            Node::Link { text, .. } => text.push(node),
+        }
+    }
+}
+
+fn normalize_text_segments(text: &str) -> Vec<Node> {
+    let pattern = regex::Regex::new(
+        r"(?x)
+        (?P<formula>\$[^$\n]+\$)
+        |(?P<uri>https?://[^\s<>()]+)
+        |(?P<email>\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b)
+    ",
+    )
+    .unwrap();
+
+    let mut result = Vec::new();
+    let mut current_pos = 0;
+
+    for captures in pattern.captures_iter(text) {
+        let mat = captures.get(0).unwrap();
+        if mat.start() > current_pos {
+            let before = &text[current_pos..mat.start()];
+            if !before.is_empty() {
+                result.push(Node::Text(before.to_string()));
+            }
+        }
+
+        if let Some(formula) = captures.name("formula") {
+            result.push(Node::InlineFormula(
+                formula
+                    .as_str()
+                    .trim_start_matches('$')
+                    .trim_end_matches('$')
+                    .to_string(),
+            ));
+        } else if let Some(uri) = captures.name("uri") {
+            result.push(Node::Uri(uri.as_str().to_string()));
+        } else if let Some(email) = captures.name("email") {
+            result.push(Node::Email(email.as_str().to_string()));
+        }
+
+        current_pos = mat.end();
+    }
+
+    if current_pos < text.len() {
+        let remaining = &text[current_pos..];
+        if !remaining.is_empty() {
+            result.push(Node::Text(remaining.to_string()));
+        }
+    }
+
+    if result.is_empty() {
+        result.push(Node::Text(text.to_string()));
+    }
+
+    result
+}
+
+fn normalize_node(node: Node) -> Node {
+    match node {
+        Node::Document(children) => Node::Document(normalize_children(children)),
+        Node::Paragraph(children) => Node::Paragraph(normalize_children(children)),
+        Node::Bold(children) => Node::Bold(normalize_children(children)),
+        Node::Italic(children) => Node::Italic(normalize_children(children)),
+        Node::Underline(children) => Node::Underline(normalize_children(children)),
+        Node::Strikethrough(children) => Node::Strikethrough(normalize_children(children)),
+        Node::Code(children) => Node::Code(normalize_children(children)),
+        Node::Superscript(children) => Node::Superscript(normalize_children(children)),
+        Node::Subscript(children) => Node::Subscript(normalize_children(children)),
+        Node::SmallCaps(children) => Node::SmallCaps(normalize_children(children)),
+        Node::List(children) => Node::List(normalize_children(children)),
+        Node::ListItem(children) => Node::ListItem(normalize_children(children)),
+        Node::Link { url, text } => {
+            let text = normalize_children(text);
+            let plain = inline_text_to_plain_text(&text);
+            if url.starts_with("mailto:") {
+                let email = url.trim_start_matches("mailto:");
+                if plain == email {
+                    Node::Email(email.to_string())
+                } else {
+                    Node::Link { url, text }
+                }
+            } else if plain == url && looks_like_email(&url) {
+                Node::Email(url)
+            } else if plain == url {
+                Node::Uri(url)
+            } else {
+                Node::Link { url, text }
+            }
+        }
+        Node::Text(text) => {
+            let segments = normalize_text_segments(&text);
+            if segments.len() == 1 {
+                segments.into_iter().next().unwrap()
+            } else {
+                Node::Document(segments)
+            }
+        }
+        node => node,
+    }
+}
+
+fn normalize_children(children: Vec<Node>) -> Vec<Node> {
+    let mut normalized = Vec::new();
+
+    for child in children {
+        match normalize_node(child) {
+            Node::Document(grandchildren) => normalized.extend(grandchildren),
+            node => normalized.push(node),
+        }
+    }
+
+    normalized
+}
+
+fn normalize_inline_root(result: Node) -> Node {
+    match normalize_node(result) {
+        Node::Document(children) => {
+            if children.len() > 1 {
+                let all_inline = children.iter().all(is_inline_node);
+                if all_inline {
+                    Node::Document(vec![Node::Paragraph(children)])
+                } else {
+                    Node::Document(children)
+                }
+            } else if children.len() == 1 {
+                match &children[0] {
+                    Node::Link { .. }
+                    | Node::Text(_)
+                    | Node::Bold(_)
+                    | Node::Italic(_)
+                    | Node::Underline(_)
+                    | Node::Strikethrough(_)
+                    | Node::Code(_)
+                    | Node::Superscript(_)
+                    | Node::Subscript(_)
+                    | Node::SmallCaps(_)
+                    | Node::InlineFormula(_)
+                    | Node::Email(_)
+                    | Node::Uri(_) => Node::Document(vec![Node::Paragraph(children)]),
+                    _ => Node::Document(children),
+                }
+            } else {
+                Node::Document(children)
+            }
+        }
+        other => other,
+    }
 }
 
 // Convert Markdown string to AST
@@ -31,123 +217,37 @@ pub fn markdown_to_ast(markdown: &str) -> Node {
                 Tag::Paragraph => stack.push(Node::Paragraph(vec![])),
                 Tag::Strong => stack.push(Node::Bold(vec![])),
                 Tag::Emphasis => stack.push(Node::Italic(vec![])),
+                Tag::Strikethrough => stack.push(Node::Strikethrough(vec![])),
                 Tag::List(_) => stack.push(Node::List(vec![])),
                 Tag::Item => stack.push(Node::ListItem(vec![])),
-                Tag::Link {
-                    dest_url, title, ..
-                } => stack.push(Node::Link {
+                Tag::Link { dest_url, .. } => stack.push(Node::Link {
                     url: dest_url.to_string(),
-                    text: vec![Node::Text(title.to_string())],
+                    text: vec![],
                 }),
                 _ => {}
             },
             Event::End(_tag) => {
                 if let Some(node) = stack.pop() {
-                    if let Some(top) = stack.last_mut() {
-                        match top {
-                            Node::Document(children)
-                            | Node::Paragraph(children)
-                            | Node::Bold(children)
-                            | Node::Italic(children)
-                            | Node::Code(children)
-                            | Node::Superscript(children)
-                            | Node::Subscript(children)
-                            | Node::SmallCaps(children)
-                            | Node::List(children)
-                            | Node::ListItem(children) => children.push(node),
-                            Node::Text(_) => {}
-                            Node::Link { text, .. } => text.push(node),
-                        }
-                    }
+                    push_node_to_top(&mut stack, node);
                 }
             }
             Event::Text(text) => {
-                if let Some(
-                    Node::Document(children)
-                    | Node::Paragraph(children)
-                    | Node::Bold(children)
-                    | Node::Italic(children)
-                    | Node::Code(children)
-                    | Node::Superscript(children)
-                    | Node::Subscript(children)
-                    | Node::SmallCaps(children)
-                    | Node::List(children)
-                    | Node::ListItem(children),
-                ) = stack.last_mut()
-                {
-                    children.push(Node::Text(text.to_string()));
-                } else if let Some(Node::Link {
-                    text: link_text, ..
-                }) = stack.last_mut()
-                {
-                    link_text.push(Node::Text(text.to_string()));
-                }
+                push_node_to_top(&mut stack, Node::Text(text.to_string()));
             }
             Event::Code(code_text) => {
-                if let Some(
-                    Node::Document(children)
-                    | Node::Paragraph(children)
-                    | Node::Bold(children)
-                    | Node::Italic(children)
-                    | Node::Code(children)
-                    | Node::Superscript(children)
-                    | Node::Subscript(children)
-                    | Node::SmallCaps(children)
-                    | Node::List(children)
-                    | Node::ListItem(children),
-                ) = stack.last_mut()
-                {
-                    children.push(Node::Code(vec![Node::Text(code_text.to_string())]));
-                } else if let Some(Node::Link {
-                    text: link_text, ..
-                }) = stack.last_mut()
-                {
-                    link_text.push(Node::Code(vec![Node::Text(code_text.to_string())]));
-                }
+                push_node_to_top(
+                    &mut stack,
+                    Node::Code(vec![Node::Text(code_text.to_string())]),
+                );
             }
+            Event::HardBreak => push_node_to_top(&mut stack, Node::Break),
+            Event::SoftBreak => push_node_to_top(&mut stack, Node::Text("\n".to_string())),
             _ => {}
         }
     }
 
     let result = stack.pop().unwrap_or_else(|| Node::Document(vec![]));
-
-    // Post-process to wrap standalone inline elements in paragraphs
-    match result {
-        Node::Document(children) => {
-            if children.len() > 1 {
-                let all_inline = children.iter().all(|child| {
-                    matches!(
-                        child,
-                        Node::Bold(_)
-                            | Node::Italic(_)
-                            | Node::Code(_)
-                            | Node::Superscript(_)
-                            | Node::Subscript(_)
-                            | Node::SmallCaps(_)
-                            | Node::Text(_)
-                            | Node::Link { .. }
-                    )
-                });
-                if all_inline {
-                    Node::Document(vec![Node::Paragraph(children)])
-                } else {
-                    Node::Document(children)
-                }
-            } else if children.len() == 1 {
-                // If we have only one child, check if it should be wrapped in a paragraph
-                match &children[0] {
-                    Node::Link { .. } | Node::Text(_) => {
-                        // Wrap standalone links and text in paragraphs
-                        Node::Document(vec![Node::Paragraph(children)])
-                    }
-                    _ => Node::Document(children),
-                }
-            } else {
-                Node::Document(children)
-            }
-        }
-        _ => result,
-    }
+    normalize_inline_root(result)
 }
 
 // Convert HTML string to AST
@@ -174,14 +274,30 @@ pub fn html_to_ast(html: &str) -> Node {
         match tag_name {
             "html" | "body" | "div" => Node::Document(children),
             "p" => Node::Paragraph(children),
+            "br" => Node::Break,
             "strong" | "b" => Node::Bold(children),
             "em" | "i" => Node::Italic(children),
+            "u" | "underline" => Node::Underline(children),
+            "s" | "strike" | "del" | "strikethrough" => Node::Strikethrough(children),
             "code" => Node::Code(children),
             "sup" => Node::Superscript(children),
             "sub" => Node::Subscript(children),
             "text" => Node::SmallCaps(children),
             "ul" | "ol" => Node::List(children),
             "li" => Node::ListItem(children),
+            "span" => {
+                if element
+                    .value()
+                    .attr("class")
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .any(|class_name| class_name == "inline-formula")
+                {
+                    Node::InlineFormula(inline_text_to_plain_text(&children))
+                } else {
+                    Node::Document(children)
+                }
+            }
             "a" => {
                 // Extract href attribute for links
                 let url = element.value().attr("href").unwrap_or("").to_string();
@@ -206,7 +322,7 @@ pub fn html_to_ast(html: &str) -> Node {
 
     // If there's a body tag, parse its contents, otherwise parse the whole document
     if let Some(body_element) = document.select(&body_selector).next() {
-        parse_element_to_node(body_element)
+        normalize_inline_root(parse_element_to_node(body_element))
     } else {
         // If no body tag, create a document node with all top-level elements
         let mut children = Vec::new();
@@ -217,122 +333,105 @@ pub fn html_to_ast(html: &str) -> Node {
         }
         let result = Node::Document(children);
 
-        // Post-process to wrap standalone inline elements in paragraphs
-        match result {
-            Node::Document(children) => {
-                if children.len() > 1 {
-                    let all_inline = children.iter().all(|child| {
-                        matches!(
-                            child,
-                            Node::Bold(_)
-                                | Node::Italic(_)
-                                | Node::Code(_)
-                                | Node::Superscript(_)
-                                | Node::Subscript(_)
-                                | Node::SmallCaps(_)
-                                | Node::Text(_)
-                                | Node::Link { .. }
-                        )
-                    });
-                    if all_inline {
-                        Node::Document(vec![Node::Paragraph(children)])
-                    } else {
-                        Node::Document(children)
-                    }
-                } else if children.len() == 1 {
-                    // If we have only one child, check if it should be wrapped in a paragraph
-                    match &children[0] {
-                        Node::Link { .. }
-                        | Node::Text(_)
-                        | Node::Bold(_)
-                        | Node::Italic(_)
-                        | Node::Code(_)
-                        | Node::Superscript(_)
-                        | Node::Subscript(_)
-                        | Node::SmallCaps(_) => {
-                            // Wrap standalone inline elements in paragraphs
-                            Node::Document(vec![Node::Paragraph(children)])
-                        }
-                        _ => Node::Document(children),
-                    }
-                } else {
-                    Node::Document(children)
-                }
-            }
-            _ => result,
-        }
+        normalize_inline_root(result)
     }
-}
-
-// Helper function to parse text and detect URLs
-fn parse_text_with_urls(text: &str) -> Vec<Node> {
-    let mut result = Vec::new();
-    let mut current_pos = 0;
-
-    // Simple URL regex pattern - matches http/https URLs
-    let url_pattern = regex::Regex::new(r"(https?://[^\s]+)").unwrap();
-
-    for mat in url_pattern.find_iter(text) {
-        if mat.start() > current_pos {
-            let before_text = &text[current_pos..mat.start()];
-            if !before_text.is_empty() {
-                result.push(Node::Text(before_text.to_string()));
-            }
-        }
-
-        let url = mat.as_str();
-        result.push(Node::Link {
-            url: url.to_string(),
-            text: vec![Node::Text(url.to_string())],
-        });
-
-        current_pos = mat.end();
-    }
-
-    if current_pos < text.len() {
-        let remaining_text = &text[current_pos..];
-        if !remaining_text.is_empty() {
-            result.push(Node::Text(remaining_text.to_string()));
-        }
-    }
-
-    if result.is_empty() {
-        result.push(Node::Text(text.to_string()));
-    }
-
-    result
 }
 
 // Convert plain text string to AST
 pub fn plain_text_to_ast(text: &str) -> Node {
-    let parsed_nodes = parse_text_with_urls(text.trim());
+    let text = text.trim();
+    if text.is_empty() {
+        return Node::Document(vec![]);
+    }
 
-    if parsed_nodes.len() == 1 {
-        parsed_nodes[0].clone()
+    let paragraphs: Vec<&str> = regex::Regex::new(r"\n\s*\n")
+        .unwrap()
+        .split(text)
+        .filter(|paragraph| !paragraph.trim().is_empty())
+        .collect();
+
+    if paragraphs.len() == 1 {
+        let lines: Vec<&str> = paragraphs[0].split('\n').collect();
+        if lines.len() == 1 {
+            let parsed_nodes = normalize_text_segments(lines[0]);
+            if parsed_nodes.len() == 1 {
+                parsed_nodes[0].clone()
+            } else {
+                Node::Document(parsed_nodes)
+            }
+        } else {
+            let mut children = Vec::new();
+            for (index, line) in lines.iter().enumerate() {
+                children.extend(normalize_text_segments(line));
+                if index + 1 < lines.len() {
+                    children.push(Node::Break);
+                }
+            }
+            Node::Document(vec![Node::Paragraph(children)])
+        }
     } else {
-        Node::Document(parsed_nodes)
+        let mut document_children = Vec::new();
+        for paragraph in paragraphs {
+            let lines: Vec<&str> = paragraph.split('\n').collect();
+            let mut children = Vec::new();
+            for (index, line) in lines.iter().enumerate() {
+                children.extend(normalize_text_segments(line));
+                if index + 1 < lines.len() {
+                    children.push(Node::Break);
+                }
+            }
+            document_children.push(Node::Paragraph(children));
+        }
+        Node::Document(document_children)
     }
 }
 
 // Special function to convert plain text AST to JATS with proper <sc> wrapping
 pub fn plain_text_ast_to_jats(node: &Node) -> String {
+    fn render_plain_text_inline(node: &Node) -> String {
+        match node {
+            Node::Text(text) => text.clone(),
+            Node::Break => "<break/>".to_string(),
+            Node::InlineFormula(tex) => {
+                format!(
+                    "<inline-formula><tex-math>{}</tex-math></inline-formula>",
+                    tex
+                )
+            }
+            Node::Email(email) => format!("<email>{}</email>", email),
+            Node::Uri(uri) => format!("<uri>{}</uri>", uri),
+            other => ast_to_jats(other),
+        }
+    }
+
     match node {
         Node::Document(children) => {
-            let inner: String = children.iter().map(plain_text_ast_to_jats).collect();
-            inner
+            if children.is_empty() {
+                String::new()
+            } else if children
+                .iter()
+                .all(|child| matches!(child, Node::Break) || is_inline_node(child))
+            {
+                let inner: String = children.iter().map(render_plain_text_inline).collect();
+                format!("<p>{}</p>", inner)
+            } else {
+                children.iter().map(plain_text_ast_to_jats).collect()
+            }
         }
         Node::Paragraph(children) => {
-            let inner: String = children.iter().map(plain_text_ast_to_jats).collect();
+            let inner: String = children.iter().map(render_plain_text_inline).collect();
             format!("<p>{}</p>", inner)
         }
-        Node::Text(text) => {
-            // For plain text, wrap in <sc> tags only
-            format!("<p>{}</p>", text)
+        Node::Text(text) => format!("<p>{}</p>", text),
+        Node::Break => "<p><break/></p>".to_string(),
+        Node::InlineFormula(tex) => {
+            format!(
+                "<p><inline-formula><tex-math>{}</tex-math></inline-formula></p>",
+                tex
+            )
         }
-        Node::Link { url, text } => {
-            let inner: String = text.iter().map(plain_text_ast_to_jats).collect();
-            format!(r#"<ext-link xlink:href="{}">{}</ext-link>"#, url, inner)
-        }
+        Node::Email(email) => format!("<p><email>{}</email></p>", email),
+        Node::Uri(uri) => format!("<p><uri>{}</uri></p>", uri),
         _ => {
             // For other nodes, use regular ast_to_jats
             ast_to_jats(node)
@@ -348,6 +447,7 @@ pub fn ast_to_jats(node: &Node) -> String {
             let inner: String = children.iter().map(ast_to_jats).collect();
             format!("<p>{}</p>", inner)
         }
+        Node::Break => "<break/>".to_string(),
         Node::Bold(children) => {
             let inner: String = children.iter().map(ast_to_jats).collect();
             format!("<bold>{}</bold>", inner)
@@ -355,6 +455,14 @@ pub fn ast_to_jats(node: &Node) -> String {
         Node::Italic(children) => {
             let inner: String = children.iter().map(ast_to_jats).collect();
             format!("<italic>{}</italic>", inner)
+        }
+        Node::Underline(children) => {
+            let inner: String = children.iter().map(ast_to_jats).collect();
+            format!("<underline>{}</underline>", inner)
+        }
+        Node::Strikethrough(children) => {
+            let inner: String = children.iter().map(ast_to_jats).collect();
+            format!("<strike>{}</strike>", inner)
         }
         Node::Code(children) => {
             let inner: String = children.iter().map(ast_to_jats).collect();
@@ -384,12 +492,40 @@ pub fn ast_to_jats(node: &Node) -> String {
             let inner: String = text.iter().map(ast_to_jats).collect();
             format!(r#"<ext-link xlink:href="{}">{}</ext-link>"#, url, inner)
         }
+        Node::InlineFormula(tex) => {
+            format!(
+                "<inline-formula><tex-math>{}</tex-math></inline-formula>",
+                tex
+            )
+        }
+        Node::Email(email) => format!("<email>{}</email>", email),
+        Node::Uri(uri) => format!("<uri>{}</uri>", uri),
         Node::Text(text) => text.clone(),
     }
 }
 
 // Convert JATS XML string to AST
 pub fn jats_to_ast(jats: &str) -> Node {
+    let inline_formula_pattern =
+        regex::Regex::new(r"(?s)<inline-formula>\s*<tex-math>(.*?)</tex-math>\s*</inline-formula>")
+            .unwrap();
+    let email_pattern = regex::Regex::new(r"(?s)<email>(.*?)</email>").unwrap();
+    let uri_pattern = regex::Regex::new(r"(?s)<uri>(.*?)</uri>").unwrap();
+    let normalized_jats = uri_pattern
+        .replace_all(
+            &email_pattern.replace_all(
+                &inline_formula_pattern.replace_all(
+                    &jats
+                        .replace("<break/>", "<br/>")
+                        .replace("<break />", "<br/>"),
+                    r#"<span class="inline-formula">$1</span>"#,
+                ),
+                r#"<a href="mailto:$1">$1</a>"#,
+            ),
+            r#"<a href="$1">$1</a>"#,
+        )
+        .to_string();
+
     // Helper function to parse a JATS element to AST node
     fn parse_jats_element_to_node(element: ElementRef) -> Node {
         let tag_name = element.value().name();
@@ -412,14 +548,47 @@ pub fn jats_to_ast(jats: &str) -> Node {
         match tag_name {
             "article" | "body" | "sec" | "div" => Node::Document(children),
             "p" => Node::Paragraph(children),
+            "break" | "br" => Node::Break,
             "bold" => Node::Bold(children),
             "italic" => Node::Italic(children),
+            "underline" => Node::Underline(children),
+            "strike" => Node::Strikethrough(children),
             "monospace" => Node::Code(children),
             "sup" => Node::Superscript(children),
             "sub" => Node::Subscript(children),
             "sc" => Node::SmallCaps(children),
             "list" => Node::List(children),
             "list-item" => Node::ListItem(children),
+            "span" => {
+                if element
+                    .value()
+                    .attr("class")
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .any(|class_name| class_name == "inline-formula")
+                {
+                    Node::InlineFormula(inline_text_to_plain_text(&children))
+                } else {
+                    Node::Document(children)
+                }
+            }
+            "a" => {
+                let url = element.value().attr("href").unwrap_or("").to_string();
+                Node::Link {
+                    url,
+                    text: children,
+                }
+            }
+            "inline-formula" => Node::InlineFormula(
+                element
+                    .children()
+                    .filter_map(ElementRef::wrap)
+                    .find(|child| child.value().name() == "tex-math")
+                    .map(|tex_math| tex_math.text().collect::<String>())
+                    .unwrap_or_else(|| inline_text_to_plain_text(&children)),
+            ),
+            "email" => Node::Email(inline_text_to_plain_text(&children)),
+            "uri" => Node::Uri(inline_text_to_plain_text(&children)),
             "ext-link" => {
                 // Extract xlink:href attribute for links
                 let url = element.value().attr("xlink:href").unwrap_or("").to_string();
@@ -439,12 +608,12 @@ pub fn jats_to_ast(jats: &str) -> Node {
         }
     }
 
-    let document = Html::parse_document(jats);
+    let document = Html::parse_document(&normalized_jats);
     let body_selector = Selector::parse("body").unwrap();
 
     // If there's a body tag, parse its contents, otherwise parse the whole document
     if let Some(body_element) = document.select(&body_selector).next() {
-        parse_jats_element_to_node(body_element)
+        normalize_inline_root(parse_jats_element_to_node(body_element))
     } else {
         // If no body tag, create a document node with all top-level elements
         let mut children = Vec::new();
@@ -454,34 +623,15 @@ pub fn jats_to_ast(jats: &str) -> Node {
             }
         }
 
-        // If we have multiple inline elements, wrap them in a paragraph
-        if children.len() > 1 {
-            let all_inline = children.iter().all(|child| {
-                matches!(
-                    child,
-                    Node::Bold(_)
-                        | Node::Italic(_)
-                        | Node::Code(_)
-                        | Node::Superscript(_)
-                        | Node::Subscript(_)
-                        | Node::Text(_)
-                        | Node::Link { .. }
-                )
-            });
-            if all_inline {
-                Node::Document(vec![Node::Paragraph(children)])
-            } else {
-                Node::Document(children)
-            }
-        } else if children.len() == 1 {
+        if children.len() == 1 {
             // Special case: if the single child is a text node, return it directly
             // Otherwise, wrap in document
             match &children[0] {
                 Node::Text(_) => children.into_iter().next().unwrap(),
-                _ => Node::Document(children),
+                _ => normalize_inline_root(Node::Document(children)),
             }
         } else {
-            Node::Document(children)
+            normalize_inline_root(Node::Document(children))
         }
     }
 }
@@ -494,6 +644,7 @@ pub fn ast_to_html(node: &Node) -> String {
             let inner: String = children.iter().map(ast_to_html).collect();
             format!("<p>{}</p>", inner)
         }
+        Node::Break => "<br/>".to_string(),
         Node::Bold(children) => {
             let inner: String = children.iter().map(ast_to_html).collect();
             format!("<strong>{}</strong>", inner)
@@ -501,6 +652,14 @@ pub fn ast_to_html(node: &Node) -> String {
         Node::Italic(children) => {
             let inner: String = children.iter().map(ast_to_html).collect();
             format!("<em>{}</em>", inner)
+        }
+        Node::Underline(children) => {
+            let inner: String = children.iter().map(ast_to_html).collect();
+            format!("<u>{}</u>", inner)
+        }
+        Node::Strikethrough(children) => {
+            let inner: String = children.iter().map(ast_to_html).collect();
+            format!("<s>{}</s>", inner)
         }
         Node::Code(children) => {
             let inner: String = children.iter().map(ast_to_html).collect();
@@ -530,6 +689,11 @@ pub fn ast_to_html(node: &Node) -> String {
             let inner: String = text.iter().map(ast_to_html).collect();
             format!(r#"<a href="{}">{}</a>"#, url, inner)
         }
+        Node::InlineFormula(tex) => {
+            format!(r#"<span class="inline-formula">{}</span>"#, tex)
+        }
+        Node::Email(email) => format!(r#"<a href="mailto:{}">{}</a>"#, email, email),
+        Node::Uri(uri) => format!(r#"<a href="{}">{}</a>"#, uri, uri),
         Node::Text(text) => text.clone(),
     }
 }
@@ -554,6 +718,7 @@ pub fn ast_to_markdown(node: &Node) -> String {
             let inner: String = children.iter().map(ast_to_markdown).collect();
             inner
         }
+        Node::Break => "  \n".to_string(),
         Node::Bold(children) => {
             let inner: String = children.iter().map(ast_to_markdown).collect();
             format!("**{}**", inner)
@@ -561,6 +726,14 @@ pub fn ast_to_markdown(node: &Node) -> String {
         Node::Italic(children) => {
             let inner: String = children.iter().map(ast_to_markdown).collect();
             format!("*{}*", inner)
+        }
+        Node::Underline(children) => {
+            let inner: String = children.iter().map(ast_to_markdown).collect();
+            format!("<u>{}</u>", inner)
+        }
+        Node::Strikethrough(children) => {
+            let inner: String = children.iter().map(ast_to_markdown).collect();
+            format!("~~{}~~", inner)
         }
         Node::Code(children) => {
             let inner: String = children.iter().map(ast_to_markdown).collect();
@@ -593,6 +766,9 @@ pub fn ast_to_markdown(node: &Node) -> String {
             let inner: String = text.iter().map(ast_to_markdown).collect();
             format!("[{}]({})", inner, url)
         }
+        Node::InlineFormula(tex) => format!("${}$", tex),
+        Node::Email(email) => format!("<{}>", email),
+        Node::Uri(uri) => format!("<{}>", uri),
         Node::Text(text) => text.clone(),
     }
 }
@@ -617,8 +793,11 @@ pub fn ast_to_plain_text(node: &Node) -> String {
             let inner: String = children.iter().map(ast_to_plain_text).collect();
             inner
         }
+        Node::Break => "\n".to_string(),
         Node::Bold(children)
         | Node::Italic(children)
+        | Node::Underline(children)
+        | Node::Strikethrough(children)
         | Node::Code(children)
         | Node::Superscript(children)
         | Node::Subscript(children) => {
@@ -644,6 +823,9 @@ pub fn ast_to_plain_text(node: &Node) -> String {
             let inner: String = text.iter().map(ast_to_plain_text).collect();
             format!("{} ({})", inner, url)
         }
+        Node::InlineFormula(tex) => tex.clone(),
+        Node::Email(email) => email.clone(),
+        Node::Uri(uri) => uri.clone(),
         Node::Text(text) => text.clone(),
     }
 }
@@ -653,11 +835,16 @@ fn is_inline_node(node: &Node) -> bool {
         node,
         Node::Bold(_)
             | Node::Italic(_)
+            | Node::Underline(_)
+            | Node::Strikethrough(_)
             | Node::Code(_)
             | Node::Superscript(_)
             | Node::Subscript(_)
             | Node::SmallCaps(_)
             | Node::Link { .. }
+            | Node::InlineFormula(_)
+            | Node::Email(_)
+            | Node::Uri(_)
             | Node::Text(_)
     )
 }
@@ -685,9 +872,14 @@ pub fn strip_structural_elements_from_ast(node: &Node) -> Node {
                     child,
                     Node::Bold(_)
                         | Node::Italic(_)
+                        | Node::Underline(_)
+                        | Node::Strikethrough(_)
                         | Node::Code(_)
                         | Node::Superscript(_)
                         | Node::Subscript(_)
+                        | Node::InlineFormula(_)
+                        | Node::Email(_)
+                        | Node::Uri(_)
                         | Node::Text(_)
                         | Node::Link { .. }
                 )
@@ -761,6 +953,20 @@ pub fn strip_structural_elements_from_ast(node: &Node) -> Node {
                 .collect();
             Node::Italic(processed_children)
         }
+        Node::Underline(children) => {
+            let processed_children: Vec<Node> = children
+                .iter()
+                .map(strip_structural_elements_from_ast)
+                .collect();
+            Node::Underline(processed_children)
+        }
+        Node::Strikethrough(children) => {
+            let processed_children: Vec<Node> = children
+                .iter()
+                .map(strip_structural_elements_from_ast)
+                .collect();
+            Node::Strikethrough(processed_children)
+        }
         Node::Code(children) => {
             let processed_children: Vec<Node> = children
                 .iter()
@@ -799,6 +1005,10 @@ pub fn strip_structural_elements_from_ast(node: &Node) -> Node {
                 text: processed_text,
             }
         }
+        Node::Break => Node::Break,
+        Node::InlineFormula(tex) => Node::InlineFormula(tex.clone()),
+        Node::Email(email) => Node::Email(email.clone()),
+        Node::Uri(uri) => Node::Uri(uri.clone()),
         Node::Text(text) => Node::Text(text.clone()),
     }
 }
@@ -879,6 +1089,20 @@ pub fn strip_structural_elements_from_ast_for_conversion(node: &Node) -> Node {
                 .collect();
             Node::Italic(processed_children)
         }
+        Node::Underline(children) => {
+            let processed_children: Vec<Node> = children
+                .iter()
+                .map(strip_structural_elements_from_ast_for_conversion)
+                .collect();
+            Node::Underline(processed_children)
+        }
+        Node::Strikethrough(children) => {
+            let processed_children: Vec<Node> = children
+                .iter()
+                .map(strip_structural_elements_from_ast_for_conversion)
+                .collect();
+            Node::Strikethrough(processed_children)
+        }
         Node::Code(children) => {
             let processed_children: Vec<Node> = children
                 .iter()
@@ -917,6 +1141,10 @@ pub fn strip_structural_elements_from_ast_for_conversion(node: &Node) -> Node {
                 text: processed_text,
             }
         }
+        Node::Break => Node::Break,
+        Node::InlineFormula(tex) => Node::InlineFormula(tex.clone()),
+        Node::Email(email) => Node::Email(email.clone()),
+        Node::Uri(uri) => Node::Uri(uri.clone()),
         Node::Text(text) => Node::Text(text.clone()),
     }
 }
@@ -941,10 +1169,15 @@ fn validate_title_content(node: &Node) -> ThothResult<()> {
                         child,
                         Node::Bold(_)
                             | Node::Italic(_)
+                            | Node::Underline(_)
+                            | Node::Strikethrough(_)
                             | Node::Code(_)
                             | Node::Superscript(_)
                             | Node::Subscript(_)
                             | Node::SmallCaps(_)
+                            | Node::InlineFormula(_)
+                            | Node::Email(_)
+                            | Node::Uri(_)
                             | Node::Text(_)
                             | Node::Link { .. }
                     )
@@ -965,6 +1198,8 @@ fn validate_title_content(node: &Node) -> ThothResult<()> {
         }
         Node::Bold(children)
         | Node::Italic(children)
+        | Node::Underline(children)
+        | Node::Strikethrough(children)
         | Node::Code(children)
         | Node::Superscript(children)
         | Node::Subscript(children)
@@ -974,11 +1209,17 @@ fn validate_title_content(node: &Node) -> ThothResult<()> {
                 validate_title_content(child)?;
             }
         }
+        Node::InlineFormula(_) | Node::Email(_) | Node::Uri(_) => {}
         Node::Link { text, .. } => {
             // Links are allowed
             for child in text {
                 validate_title_content(child)?;
             }
+        }
+        Node::Break => {
+            return Err(ThothError::RequestError(
+                "Line breaks are not allowed in titles.".to_string(),
+            ));
         }
         Node::Text(_) => {
             // Text nodes are allowed
@@ -1004,6 +1245,8 @@ fn validate_abstract_content(node: &Node) -> ThothResult<()> {
         Node::Paragraph(children)
         | Node::Bold(children)
         | Node::Italic(children)
+        | Node::Underline(children)
+        | Node::Strikethrough(children)
         | Node::Code(children)
         | Node::Superscript(children)
         | Node::Subscript(children)
@@ -1012,6 +1255,7 @@ fn validate_abstract_content(node: &Node) -> ThothResult<()> {
                 validate_abstract_content(child)?;
             }
         }
+        Node::Break | Node::InlineFormula(_) | Node::Email(_) | Node::Uri(_) => {}
         Node::List(children) | Node::ListItem(children) => {
             for child in children {
                 validate_abstract_content(child)?;
@@ -1186,6 +1430,27 @@ mod tests {
     }
 
     #[test]
+    fn test_html_to_ast_underline_and_strikethrough() {
+        let html = "<p><u>Underlined</u> and <s>struck</s></p>";
+        let ast = html_to_ast(html);
+
+        match ast {
+            Node::Document(children) => match &children[0] {
+                Node::Paragraph(para_children) => {
+                    assert!(para_children
+                        .iter()
+                        .any(|child| matches!(child, Node::Underline(_))));
+                    assert!(para_children
+                        .iter()
+                        .any(|child| matches!(child, Node::Strikethrough(_))));
+                }
+                _ => panic!("Expected paragraph node"),
+            },
+            _ => panic!("Expected document node"),
+        }
+    }
+
+    #[test]
     fn test_html_to_ast_small_caps() {
         let html = "<text>Small caps text</text>";
         let ast = html_to_ast(html);
@@ -1265,22 +1530,22 @@ mod tests {
         let html = r#"<a href="https://example.com">Link text</a>"#;
         let ast = html_to_ast(html);
 
-        match ast {
-            Node::Document(children) => {
-                assert_eq!(children.len(), 1);
-                match &children[0] {
-                    Node::Link { url, text } => {
-                        assert_eq!(url, "https://example.com");
-                        assert_eq!(text.len(), 1);
-                        match &text[0] {
-                            Node::Text(content) => assert_eq!(content, "Link text"),
-                            _ => panic!("Expected text node"),
-                        }
-                    }
-                    _ => panic!("Expected link node"),
+        fn find_link(node: &Node) -> Option<(&str, &[Node])> {
+            match node {
+                Node::Link { url, text } => Some((url.as_str(), text.as_slice())),
+                Node::Document(children) | Node::Paragraph(children) => {
+                    children.iter().find_map(find_link)
                 }
+                _ => None,
             }
-            _ => panic!("Expected document node"),
+        }
+
+        let (url, text) = find_link(&ast).expect("Expected link node");
+        assert_eq!(url, "https://example.com");
+        assert_eq!(text.len(), 1);
+        match &text[0] {
+            Node::Text(content) => assert_eq!(content, "Link text"),
+            _ => panic!("Expected text node"),
         }
     }
 
@@ -1303,13 +1568,13 @@ mod tests {
         let ast = plain_text_to_ast(text);
 
         match ast {
-            Node::Text(content) => {
-                assert_eq!(
-                    content,
-                    "First paragraph.\n\nSecond paragraph.\n\nThird paragraph."
-                );
+            Node::Document(children) => {
+                assert_eq!(children.len(), 3);
+                assert!(children
+                    .iter()
+                    .all(|child| matches!(child, Node::Paragraph(_))));
             }
-            _ => panic!("Expected text node"),
+            _ => panic!("Expected document node"),
         }
     }
 
@@ -1319,10 +1584,13 @@ mod tests {
         let ast = plain_text_to_ast(text);
 
         match ast {
-            Node::Text(content) => {
-                assert_eq!(content, "First paragraph.\n\n\n\nSecond paragraph.");
+            Node::Document(children) => {
+                assert_eq!(children.len(), 2);
+                assert!(children
+                    .iter()
+                    .all(|child| matches!(child, Node::Paragraph(_))));
             }
-            _ => panic!("Expected text node"),
+            _ => panic!("Expected document node"),
         }
     }
 
@@ -1392,6 +1660,20 @@ mod tests {
     }
 
     #[test]
+    fn test_ast_to_jats_underline() {
+        let ast = Node::Underline(vec![Node::Text("Underlined text".to_string())]);
+        let jats = ast_to_jats(&ast);
+        assert_eq!(jats, "<underline>Underlined text</underline>");
+    }
+
+    #[test]
+    fn test_ast_to_jats_strikethrough() {
+        let ast = Node::Strikethrough(vec![Node::Text("Struck text".to_string())]);
+        let jats = ast_to_jats(&ast);
+        assert_eq!(jats, "<strike>Struck text</strike>");
+    }
+
+    #[test]
     fn test_ast_to_jats_list_item() {
         let ast = Node::ListItem(vec![Node::Text("List item text".to_string())]);
         let jats = ast_to_jats(&ast);
@@ -1408,6 +1690,24 @@ mod tests {
         assert_eq!(
             jats,
             r#"<ext-link xlink:href="https://example.com">Link text</ext-link>"#
+        );
+    }
+
+    #[test]
+    fn test_ast_to_jats_break_formula_email_and_uri() {
+        let ast = Node::Paragraph(vec![
+            Node::Text("Line".to_string()),
+            Node::Break,
+            Node::InlineFormula("E=mc^2".to_string()),
+            Node::Text(" ".to_string()),
+            Node::Email("user@example.org".to_string()),
+            Node::Text(" ".to_string()),
+            Node::Uri("https://example.org".to_string()),
+        ]);
+        let jats = ast_to_jats(&ast);
+        assert_eq!(
+            jats,
+            "<p>Line<break/><inline-formula><tex-math>E=mc^2</tex-math></inline-formula> <email>user@example.org</email> <uri>https://example.org</uri></p>"
         );
     }
 
@@ -1445,10 +1745,9 @@ mod tests {
         let ast = plain_text_to_ast(text);
         let jats = plain_text_ast_to_jats(&ast);
 
-        // Should wrap plain text in <p><sc> tags
         assert_eq!(
             jats,
-            "<p>First paragraph.\n\nSecond paragraph with multiple lines.\nIt continues here.</p>"
+            "<p>First paragraph.</p><p>Second paragraph with multiple lines.<break/>It continues here.</p>"
         );
     }
 
@@ -1589,11 +1888,8 @@ mod tests {
 
         match ast {
             Node::Document(children) => {
-                assert_eq!(children.len(), 3); // Text, Link, Text
-                let has_link = children
-                    .iter()
-                    .any(|child| matches!(child, Node::Link { .. }));
-                assert!(has_link);
+                assert_eq!(children.len(), 3);
+                assert!(children.iter().any(|child| matches!(child, Node::Uri(_))));
             }
             _ => panic!("Expected document node"),
         }
@@ -1605,8 +1901,8 @@ mod tests {
         let ast = plain_text_to_ast(text);
         let jats = ast_to_jats(&ast);
 
-        assert!(jats.contains(r#"<ext-link xlink:href="https://example.com">"#));
-        assert!(jats.contains(r#"<ext-link xlink:href="https://docs.rs">"#));
+        assert!(jats.contains("<uri>https://example.com</uri>"));
+        assert!(jats.contains("<uri>https://docs.rs</uri>"));
     }
 
     #[test]
@@ -1629,10 +1925,39 @@ mod tests {
         let jats = ast_to_jats(&ast);
 
         assert!(jats.contains("Visit "));
-        assert!(jats.contains(
-            r#"<ext-link xlink:href="https://example.com">https://example.com</ext-link>"#
-        ));
+        assert!(jats.contains("<uri>https://example.com</uri>"));
         assert!(jats.contains(" for more information"));
+    }
+
+    #[test]
+    fn test_plain_text_to_ast_parses_formula_email_uri_and_breaks() {
+        let text = "Formula $E=mc^2$\nuser@example.org\nhttps://example.org";
+        let ast = plain_text_to_ast(text);
+
+        match ast {
+            Node::Document(children) => match &children[0] {
+                Node::Paragraph(para_children) => {
+                    assert!(para_children
+                        .iter()
+                        .any(|child| matches!(child, Node::InlineFormula(tex) if tex == "E=mc^2")));
+                    assert!(para_children.iter().any(
+                        |child| matches!(child, Node::Email(email) if email == "user@example.org")
+                    ));
+                    assert!(para_children.iter().any(
+                        |child| matches!(child, Node::Uri(uri) if uri == "https://example.org")
+                    ));
+                    assert_eq!(
+                        para_children
+                            .iter()
+                            .filter(|child| matches!(child, Node::Break))
+                            .count(),
+                        2
+                    );
+                }
+                _ => panic!("Expected paragraph node"),
+            },
+            _ => panic!("Expected document node"),
+        }
     }
 
     // Validation tests
@@ -1650,6 +1975,10 @@ mod tests {
             Node::Bold(vec![Node::Text("Bold".to_string())]),
             Node::Text(" and ".to_string()),
             Node::Italic(vec![Node::Text("italic".to_string())]),
+            Node::Text(", ".to_string()),
+            Node::Underline(vec![Node::Text("underlined".to_string())]),
+            Node::Text(", and ".to_string()),
+            Node::Strikethrough(vec![Node::Text("struck".to_string())]),
             Node::Text(" text".to_string()),
         ])]);
         assert!(validate_ast_content(&ast, ConversionLimit::Title).is_ok());
@@ -1668,6 +1997,18 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_title_content_allows_formula_email_and_uri() {
+        let ast = Node::Document(vec![Node::Paragraph(vec![
+            Node::InlineFormula("x^2".to_string()),
+            Node::Text(" ".to_string()),
+            Node::Email("user@example.org".to_string()),
+            Node::Text(" ".to_string()),
+            Node::Uri("https://example.org".to_string()),
+        ])]);
+        assert!(validate_ast_content(&ast, ConversionLimit::Title).is_ok());
+    }
+
+    #[test]
     fn test_validate_title_content_disallows_lists() {
         let ast = Node::Document(vec![Node::List(vec![Node::ListItem(vec![Node::Text(
             "Item 1".to_string(),
@@ -1681,6 +2022,16 @@ mod tests {
             Node::Paragraph(vec![Node::Text("First".to_string())]),
             Node::Paragraph(vec![Node::Text("Second".to_string())]),
         ]);
+        assert!(validate_ast_content(&ast, ConversionLimit::Title).is_err());
+    }
+
+    #[test]
+    fn test_validate_title_content_disallows_breaks() {
+        let ast = Node::Document(vec![Node::Paragraph(vec![
+            Node::Text("Line 1".to_string()),
+            Node::Break,
+            Node::Text("Line 2".to_string()),
+        ])]);
         assert!(validate_ast_content(&ast, ConversionLimit::Title).is_err());
     }
 
@@ -1777,51 +2128,45 @@ mod tests {
         let jats = "<bold>Bold text</bold> and <italic>italic text</italic>";
         let ast = jats_to_ast(jats);
 
-        // Debug: let's see what we actually get
-        match ast {
-            Node::Document(children) => {
-                // For now, let's just check that we have the expected elements
-                // regardless of whether they're wrapped in a paragraph
-                let has_bold = children.iter().any(|child| matches!(child, Node::Bold(_)));
-                let has_italic = children
-                    .iter()
-                    .any(|child| matches!(child, Node::Italic(_)));
-                let has_text = children.iter().any(|child| matches!(child, Node::Text(_)));
-                assert!(has_bold);
-                assert!(has_italic);
-                assert!(has_text);
-
-                // If we have exactly 3 children, they should be wrapped in a paragraph
-                if children.len() == 3 {
-                    // This means the paragraph wrapping didn't work
-                    // Let's check if all children are inline elements
-                    let all_inline = children.iter().all(|child| {
-                        matches!(
-                            child,
-                            Node::Bold(_)
-                                | Node::Italic(_)
-                                | Node::Code(_)
-                                | Node::Superscript(_)
-                                | Node::Subscript(_)
-                                | Node::Text(_)
-                                | Node::Link { .. }
-                        )
-                    });
-                    assert!(all_inline, "All children should be inline elements");
-                } else if children.len() == 1 {
-                    // This means they were wrapped in a paragraph
-                    match &children[0] {
-                        Node::Paragraph(para_children) => {
-                            assert_eq!(para_children.len(), 3);
-                        }
-                        _ => panic!("Expected paragraph node"),
-                    }
-                } else {
-                    panic!("Unexpected number of children: {}", children.len());
-                }
+        fn has_kind(node: &Node, predicate: &dyn Fn(&Node) -> bool) -> bool {
+            if predicate(node) {
+                return true;
             }
-            _ => panic!("Expected document node"),
+            match node {
+                Node::Document(children) | Node::Paragraph(children) => {
+                    children.iter().any(|child| has_kind(child, predicate))
+                }
+                _ => false,
+            }
         }
+
+        assert!(has_kind(&ast, &|node| matches!(node, Node::Bold(_))));
+        assert!(has_kind(&ast, &|node| matches!(node, Node::Italic(_))));
+        assert!(has_kind(&ast, &|node| matches!(node, Node::Text(_))));
+    }
+
+    #[test]
+    fn test_jats_to_ast_underline_and_strikethrough() {
+        let jats = "<underline>Underlined</underline> and <strike>struck</strike>";
+        let ast = jats_to_ast(jats);
+
+        fn has_kind(node: &Node, predicate: &dyn Fn(&Node) -> bool) -> bool {
+            if predicate(node) {
+                return true;
+            }
+            match node {
+                Node::Document(children) | Node::Paragraph(children) => {
+                    children.iter().any(|child| has_kind(child, predicate))
+                }
+                _ => false,
+            }
+        }
+
+        assert!(has_kind(&ast, &|node| matches!(node, Node::Underline(_))));
+        assert!(has_kind(&ast, &|node| matches!(
+            node,
+            Node::Strikethrough(_)
+        )));
     }
 
     #[test]
@@ -1829,21 +2174,48 @@ mod tests {
         let jats = r#"<ext-link xlink:href="https://example.com">Link text</ext-link>"#;
         let ast = jats_to_ast(jats);
 
-        match ast {
-            Node::Document(children) => {
-                assert_eq!(children.len(), 1);
-                match &children[0] {
-                    Node::Link { url, text } => {
-                        assert_eq!(url, "https://example.com");
-                        assert_eq!(text.len(), 1);
-                        match &text[0] {
-                            Node::Text(content) => assert_eq!(content, "Link text"),
-                            _ => panic!("Expected text node"),
-                        }
-                    }
-                    _ => panic!("Expected link node"),
+        fn find_link(node: &Node) -> Option<(&str, &[Node])> {
+            match node {
+                Node::Link { url, text } => Some((url.as_str(), text.as_slice())),
+                Node::Document(children) | Node::Paragraph(children) => {
+                    children.iter().find_map(find_link)
                 }
+                _ => None,
             }
+        }
+
+        let (url, text) = find_link(&ast).expect("Expected link node");
+        assert_eq!(url, "https://example.com");
+        assert_eq!(text.len(), 1);
+        match &text[0] {
+            Node::Text(content) => assert_eq!(content, "Link text"),
+            _ => panic!("Expected text node"),
+        }
+    }
+
+    #[test]
+    fn test_jats_to_ast_break_formula_email_and_uri() {
+        let jats = "<p>Line<break/><inline-formula><tex-math>E=mc^2</tex-math></inline-formula><email>user@example.org</email><uri>https://example.org</uri></p>";
+        let ast = jats_to_ast(jats);
+
+        match ast {
+            Node::Document(children) => match &children[0] {
+                Node::Paragraph(para_children) => {
+                    assert!(para_children
+                        .iter()
+                        .any(|child| matches!(child, Node::Break)));
+                    assert!(para_children
+                        .iter()
+                        .any(|child| matches!(child, Node::InlineFormula(tex) if tex == "E=mc^2")));
+                    assert!(para_children.iter().any(
+                        |child| matches!(child, Node::Email(email) if email == "user@example.org")
+                    ));
+                    assert!(para_children.iter().any(
+                        |child| matches!(child, Node::Uri(uri) if uri == "https://example.org")
+                    ));
+                }
+                _ => panic!("Expected paragraph node"),
+            },
             _ => panic!("Expected document node"),
         }
     }
@@ -1921,47 +2293,21 @@ mod tests {
         let jats = "<sc>Small caps text</sc>";
         let ast = jats_to_ast(jats);
 
-        // Debug: let's see what we actually get
-        match ast {
-            Node::SmallCaps(children) => {
-                assert_eq!(children.len(), 1);
-                match &children[0] {
-                    Node::Text(content) => {
-                        assert_eq!(content, "Small caps text");
-                    }
-                    _ => panic!("Expected text node as child of SmallCaps"),
+        fn find_small_caps(node: &Node) -> Option<&[Node]> {
+            match node {
+                Node::SmallCaps(children) => Some(children.as_slice()),
+                Node::Document(children) | Node::Paragraph(children) => {
+                    children.iter().find_map(find_small_caps)
                 }
+                _ => None,
             }
-            Node::Document(children) => {
-                // If it's a document, check if it has one child that's a SmallCaps node
-                if children.len() == 1 {
-                    match &children[0] {
-                        Node::SmallCaps(sc_children) => {
-                            assert_eq!(sc_children.len(), 1);
-                            match &sc_children[0] {
-                                Node::Text(content) => {
-                                    assert_eq!(content, "Small caps text");
-                                }
-                                _ => panic!("Expected text node as child of SmallCaps"),
-                            }
-                        }
-                        _ => panic!(
-                            "Expected SmallCaps node as single child, got: {:?}",
-                            children[0]
-                        ),
-                    }
-                } else {
-                    panic!(
-                        "Expected single child in document, got {} children: {:?}",
-                        children.len(),
-                        children
-                    );
-                }
-            }
-            _ => panic!(
-                "Expected SmallCaps node or document with SmallCaps child, got: {:?}",
-                ast
-            ),
+        }
+
+        let children = find_small_caps(&ast).expect("Expected small caps node");
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            Node::Text(content) => assert_eq!(content, "Small caps text"),
+            _ => panic!("Expected text node as child of SmallCaps"),
         }
     }
 
@@ -1991,6 +2337,17 @@ mod tests {
     }
 
     #[test]
+    fn test_ast_to_html_underline_and_strikethrough() {
+        let ast = Node::Document(vec![Node::Paragraph(vec![
+            Node::Underline(vec![Node::Text("Underlined".to_string())]),
+            Node::Text(" and ".to_string()),
+            Node::Strikethrough(vec![Node::Text("struck".to_string())]),
+        ])]);
+        let html = ast_to_html(&ast);
+        assert_eq!(html, "<p><u>Underlined</u> and <s>struck</s></p>");
+    }
+
+    #[test]
     fn test_ast_to_html_small_caps() {
         let ast = Node::SmallCaps(vec![Node::Text("Small caps text".to_string())]);
         let html = ast_to_html(&ast);
@@ -2017,6 +2374,24 @@ mod tests {
         assert_eq!(html, r#"<a href="https://example.com">Link text</a>"#);
     }
 
+    #[test]
+    fn test_ast_to_html_break_formula_email_and_uri() {
+        let ast = Node::Paragraph(vec![
+            Node::Text("Line".to_string()),
+            Node::Break,
+            Node::InlineFormula("E=mc^2".to_string()),
+            Node::Text(" ".to_string()),
+            Node::Email("user@example.org".to_string()),
+            Node::Text(" ".to_string()),
+            Node::Uri("https://example.org".to_string()),
+        ]);
+        let html = ast_to_html(&ast);
+        assert_eq!(
+            html,
+            r#"<p>Line<br/><span class="inline-formula">E=mc^2</span> <a href="mailto:user@example.org">user@example.org</a> <a href="https://example.org">https://example.org</a></p>"#
+        );
+    }
+
     // AST to Markdown tests
     #[test]
     fn test_ast_to_markdown_basic() {
@@ -2027,6 +2402,13 @@ mod tests {
         ])]);
         let markdown = ast_to_markdown(&ast);
         assert_eq!(markdown, "**Bold** and *italic*");
+    }
+
+    #[test]
+    fn test_ast_to_markdown_strikethrough() {
+        let ast = Node::Strikethrough(vec![Node::Text("struck".to_string())]);
+        let markdown = ast_to_markdown(&ast);
+        assert_eq!(markdown, "~~struck~~");
     }
 
     #[test]
@@ -2054,6 +2436,24 @@ mod tests {
         let ast = Node::Code(vec![Node::Text("code".to_string())]);
         let markdown = ast_to_markdown(&ast);
         assert_eq!(markdown, "`code`");
+    }
+
+    #[test]
+    fn test_ast_to_markdown_break_formula_email_and_uri() {
+        let ast = Node::Paragraph(vec![
+            Node::Text("Line".to_string()),
+            Node::Break,
+            Node::InlineFormula("E=mc^2".to_string()),
+            Node::Text(" ".to_string()),
+            Node::Email("user@example.org".to_string()),
+            Node::Text(" ".to_string()),
+            Node::Uri("https://example.org".to_string()),
+        ]);
+        let markdown = ast_to_markdown(&ast);
+        assert_eq!(
+            markdown,
+            "Line  \n$E=mc^2$ <user@example.org> <https://example.org>"
+        );
     }
 
     // AST to plain text tests
@@ -2086,6 +2486,21 @@ mod tests {
         };
         let plain = ast_to_plain_text(&ast);
         assert_eq!(plain, "Link text (https://example.com)");
+    }
+
+    #[test]
+    fn test_ast_to_plain_text_break_formula_email_and_uri() {
+        let ast = Node::Paragraph(vec![
+            Node::Text("Line".to_string()),
+            Node::Break,
+            Node::InlineFormula("E=mc^2".to_string()),
+            Node::Text(" ".to_string()),
+            Node::Email("user@example.org".to_string()),
+            Node::Text(" ".to_string()),
+            Node::Uri("https://example.org".to_string()),
+        ]);
+        let plain = ast_to_plain_text(&ast);
+        assert_eq!(plain, "Line\nE=mc^2 user@example.org https://example.org");
     }
 
     #[test]
@@ -2124,5 +2539,22 @@ mod tests {
         let converted_jats = ast_to_jats(&ast);
         assert!(converted_jats.contains("<bold>Bold</bold>"));
         assert!(converted_jats.contains("<italic>italic</italic>"));
+    }
+
+    #[test]
+    fn test_round_trip_jats_underline_and_strikethrough() {
+        let original_jats = "<underline>Underlined</underline> and <strike>struck</strike>";
+        let ast = jats_to_ast(original_jats);
+        let converted_jats = ast_to_jats(&ast);
+        assert!(converted_jats.contains("<underline>Underlined</underline>"));
+        assert!(converted_jats.contains("<strike>struck</strike>"));
+    }
+
+    #[test]
+    fn test_round_trip_jats_break_formula_email_and_uri() {
+        let original_jats = "<p>Line<break/><inline-formula><tex-math>E=mc^2</tex-math></inline-formula><email>user@example.org</email><uri>https://example.org</uri></p>";
+        let ast = jats_to_ast(original_jats);
+        let converted_jats = ast_to_jats(&ast);
+        assert_eq!(converted_jats, original_jats);
     }
 }
