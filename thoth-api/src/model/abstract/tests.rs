@@ -222,6 +222,46 @@ mod policy {
     }
 
     #[test]
+    fn crud_policy_allows_canonical_short_and_long_abstracts_for_same_work() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("abstract-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let canonical_short_abstract = NewAbstract {
+            work_id: work.work_id,
+            content: "Canonical Short Abstract".to_string(),
+            locale_code: LocaleCode::En,
+            abstract_type: AbstractType::Short,
+            canonical: true,
+        };
+        Abstract::create(pool.as_ref(), &canonical_short_abstract)
+            .expect("Failed to create short canonical abstract");
+
+        let canonical_long_abstract = NewAbstract {
+            work_id: work.work_id,
+            content: "Canonical Long Abstract".to_string(),
+            locale_code: LocaleCode::En,
+            abstract_type: AbstractType::Long,
+            canonical: true,
+        };
+
+        assert!(AbstractPolicy::can_create(
+            &ctx,
+            &canonical_long_abstract,
+            Some(MarkupFormat::Html)
+        )
+        .is_ok());
+    }
+
+    #[test]
     fn crud_policy_rejects_short_abstract_over_limit() {
         let (_guard, pool) = setup_test_db();
 
@@ -293,6 +333,65 @@ mod policy {
             result,
             Err(ThothError::ShortAbstractLimitExceedError)
         ));
+    }
+
+    #[test]
+    fn crud_policy_rejects_duplicate_canonical_abstract_update_for_same_type() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("abstract-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+
+        let canonical_abstract = Abstract::create(
+            pool.as_ref(),
+            &NewAbstract {
+                work_id: work.work_id,
+                content: "Canonical Long Abstract".to_string(),
+                locale_code: LocaleCode::En,
+                abstract_type: AbstractType::Long,
+                canonical: true,
+            },
+        )
+        .expect("Failed to create canonical abstract");
+
+        let other_abstract = Abstract::create(
+            pool.as_ref(),
+            &NewAbstract {
+                work_id: work.work_id,
+                content: "Other Long Abstract".to_string(),
+                locale_code: LocaleCode::Fr,
+                abstract_type: AbstractType::Long,
+                canonical: false,
+            },
+        )
+        .expect("Failed to create other abstract");
+
+        let patch = PatchAbstract {
+            abstract_id: other_abstract.abstract_id,
+            work_id: other_abstract.work_id,
+            content: other_abstract.content.clone(),
+            locale_code: other_abstract.locale_code,
+            abstract_type: other_abstract.abstract_type,
+            canonical: true,
+        };
+
+        let result =
+            AbstractPolicy::can_update(&ctx, &other_abstract, &patch, Some(MarkupFormat::Html));
+        assert!(matches!(
+            result,
+            Err(ThothError::CanonicalAbstractExistsError)
+        ));
+
+        // Keep the first abstract referenced so the compiler doesn't optimize away setup intent.
+        assert!(canonical_abstract.canonical);
     }
 
     #[test]

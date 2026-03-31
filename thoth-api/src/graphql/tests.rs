@@ -2614,6 +2614,65 @@ fn graphql_markup_mutations_accept_plain_text_when_markup_is_jats_xml() {
 }
 
 #[test]
+fn graphql_create_abstract_allows_canonical_short_and_long_for_same_work() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-canonical-abstract-types");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let doi = Doi::from_str(&format!(
+        "https://doi.org/10.1234/{}",
+        unique("canonical-abstract-types")
+    ))
+    .expect("Failed to build DOI");
+    let work = create_with_data(
+        &schema,
+        &context,
+        "createWork",
+        "NewWork",
+        "workId",
+        make_new_work(seed.imprint_id, WorkType::Monograph, doi),
+    );
+    let work_id = json_uuid(&work["workId"]);
+
+    let short_abstract = create_with_data_and_markup(
+        &schema,
+        &context,
+        "createAbstract",
+        "NewAbstract",
+        "abstractId canonical abstractType",
+        make_new_abstract(
+            work_id,
+            AbstractType::Short,
+            true,
+            "Canonical short abstract",
+        ),
+        MarkupFormat::PlainText,
+    );
+    assert_eq!(short_abstract["canonical"], JsonValue::Bool(true));
+    assert_eq!(
+        short_abstract["abstractType"],
+        JsonValue::String("SHORT".to_string())
+    );
+
+    let long_abstract = create_with_data_and_markup(
+        &schema,
+        &context,
+        "createAbstract",
+        "NewAbstract",
+        "abstractId canonical abstractType",
+        make_new_abstract(work_id, AbstractType::Long, true, "Canonical long abstract"),
+        MarkupFormat::PlainText,
+    );
+    assert_eq!(long_abstract["canonical"], JsonValue::Bool(true));
+    assert_eq!(
+        long_abstract["abstractType"],
+        JsonValue::String("LONG".to_string())
+    );
+}
+
+#[test]
 fn graphql_mutations_cover_all() {
     let (_guard, pool) = test_db::setup_test_db();
     let schema = create_schema();
