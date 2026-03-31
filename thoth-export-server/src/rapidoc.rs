@@ -24,16 +24,16 @@ pub fn rapidoc_source(openapi_spec: &str) -> String {
         <link rel="icon" type="image/png" sizes="96x96" href="https://cdn.thoth.pub/favicon-96x96.png">
         <link rel="icon" type="image/png" sizes="16x16" href="https://cdn.thoth.pub/favicon-16x16.png">
         <link rel="manifest" href="https://cdn.thoth.pub/manifest.json">
-        <meta name="msapplication-TileColor" content="#FFDD57">
+        <meta name="msapplication-TileColor" content="#fff3dc">
         <meta name="msapplication-TileImage" content="https://cdn.thoth.pub/ms-icon-144x144.png">
-        <meta name="theme-color" content="#FFDD57">
+        <meta name="theme-color" content="#fff3dc">
         <script src="https://unpkg.com/rapidoc/dist/rapidoc-min.js"></script>
         <style>
-            rapi-doc::part(anchor){{ color: #7b377b; }}
-            rapi-doc::part(section-overview-title){{ color: #007944; }}
-            rapi-doc::part(section-tag-title){{ color: #007944; }}
-            rapi-doc::part(label-operation-method){{ color: #007944; }}
-            rapi-doc::part(section-navbar-tag){{ color: #007944; }}
+            rapi-doc::part(anchor){{ color: #6e4f7f; }}
+            rapi-doc::part(section-overview-title){{ color: #3c3c3b; }}
+            rapi-doc::part(section-tag-title){{ color: #3c3c3b; }}
+            rapi-doc::part(label-operation-method){{ color: #52a46a; }}
+            rapi-doc::part(section-navbar-tag){{ color: #52a46a; }}
         </style>
     </head>
     <body>
@@ -44,16 +44,16 @@ pub fn rapidoc_source(openapi_spec: &str) -> String {
         show-header = "false"
         allow-authentication = "false"
         allow-server-selection = "false"
-        primary-color = "#8c3f8d"
-        nav-bg-color = "#ffdd57"
+        primary-color = "#6e4f7f"
+        nav-bg-color = "#fff3dc"
         bg-color = "#fffcf2"
-        text-color = "#111827"
+        text-color = "#3c3c3b"
         font-size = "large"
       >
         <img
             slot="nav-logo"
-            style="width:6em"
-            src="https://cdn.thoth.pub/thoth_logo.png"
+            style="width:3.5em"
+            src="https://cdn.thoth.pub/THOTH_Head.png"
           />
       </rapi-doc>
     </body>

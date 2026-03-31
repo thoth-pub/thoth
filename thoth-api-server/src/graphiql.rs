@@ -152,10 +152,10 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
           React.createElement('div', {{ style: {{ display: 'flex', alignItems: 'center' }}}},
             React.createElement('span', null, 'Thoth GraphQL API'),
             React.createElement('img', {{
-              src: 'https://cdn.thoth.pub/thoth_logo.png',
-              height: 38,
+              src: 'https://cdn.thoth.pub/THOTH_Head.png',
+              height: 40,
               alt: 'Thoth Logo',
-              style: {{ marginLeft: '10px', marginTop: '-5px' }}
+              style: {{ marginLeft: '10px' }}
             }}),
           )
         ),
