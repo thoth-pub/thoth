@@ -2,6 +2,7 @@
 
 /// Generate the HTML source to show a RapiDoc interface
 pub fn rapidoc_source(openapi_spec: &str) -> String {
+    let favicon_base_url = "https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent";
     format!(
         r##"
 <!DOCTYPE html>
@@ -9,23 +10,23 @@ pub fn rapidoc_source(openapi_spec: &str) -> String {
     <head>
         <title>Thoth Metadata Export API Documentation</title>
         <meta charset="utf-8">
-        <link rel="shortcut icon" href="https://cdn.thoth.pub/favicon.ico" />
-        <link rel="apple-touch-icon" sizes="57x57" href="https://cdn.thoth.pub/apple-icon-57x57.png">
-        <link rel="apple-touch-icon" sizes="60x60" href="https://cdn.thoth.pub/apple-icon-60x60.png">
-        <link rel="apple-touch-icon" sizes="72x72" href="https://cdn.thoth.pub/apple-icon-72x72.png">
-        <link rel="apple-touch-icon" sizes="76x76" href="https://cdn.thoth.pub/apple-icon-76x76.png">
-        <link rel="apple-touch-icon" sizes="114x114" href="https://cdn.thoth.pub/apple-icon-114x114.png">
-        <link rel="apple-touch-icon" sizes="120x120" href="https://cdn.thoth.pub/apple-icon-120x120.png">
-        <link rel="apple-touch-icon" sizes="144x144" href="https://cdn.thoth.pub/apple-icon-144x144.png">
-        <link rel="apple-touch-icon" sizes="152x152" href="https://cdn.thoth.pub/apple-icon-152x152.png">
-        <link rel="apple-touch-icon" sizes="180x180" href="https://cdn.thoth.pub/apple-icon-180x180.png">
-        <link rel="icon" type="image/png" sizes="192x192"  href="https://cdn.thoth.pub/android-icon-192x192.png">
-        <link rel="icon" type="image/png" sizes="32x32" href="https://cdn.thoth.pub/favicon-32x32.png">
-        <link rel="icon" type="image/png" sizes="96x96" href="https://cdn.thoth.pub/favicon-96x96.png">
-        <link rel="icon" type="image/png" sizes="16x16" href="https://cdn.thoth.pub/favicon-16x16.png">
-        <link rel="manifest" href="https://cdn.thoth.pub/manifest.json">
+        <link rel="shortcut icon" href="{favicon_base_url}/favicon.ico" />
+        <link rel="apple-touch-icon" sizes="57x57" href="{favicon_base_url}/apple-icon-57x57.png">
+        <link rel="apple-touch-icon" sizes="60x60" href="{favicon_base_url}/apple-icon-60x60.png">
+        <link rel="apple-touch-icon" sizes="72x72" href="{favicon_base_url}/apple-icon-72x72.png">
+        <link rel="apple-touch-icon" sizes="76x76" href="{favicon_base_url}/apple-icon-76x76.png">
+        <link rel="apple-touch-icon" sizes="114x114" href="{favicon_base_url}/apple-icon-114x114.png">
+        <link rel="apple-touch-icon" sizes="120x120" href="{favicon_base_url}/apple-icon-120x120.png">
+        <link rel="apple-touch-icon" sizes="144x144" href="{favicon_base_url}/apple-icon-144x144.png">
+        <link rel="apple-touch-icon" sizes="152x152" href="{favicon_base_url}/apple-icon-152x152.png">
+        <link rel="apple-touch-icon" sizes="180x180" href="{favicon_base_url}/apple-icon-180x180.png">
+        <link rel="icon" type="image/png" sizes="192x192"  href="{favicon_base_url}/android-icon-192x192.png">
+        <link rel="icon" type="image/png" sizes="32x32" href="{favicon_base_url}/favicon-32x32.png">
+        <link rel="icon" type="image/png" sizes="96x96" href="{favicon_base_url}/favicon-96x96.png">
+        <link rel="icon" type="image/png" sizes="16x16" href="{favicon_base_url}/favicon-16x16.png">
+        <link rel="manifest" href="{favicon_base_url}/manifest.json">
         <meta name="msapplication-TileColor" content="#fff3dc">
-        <meta name="msapplication-TileImage" content="https://cdn.thoth.pub/ms-icon-144x144.png">
+        <meta name="msapplication-TileImage" content="{favicon_base_url}/ms-icon-144x144.png">
         <meta name="theme-color" content="#fff3dc">
         <script src="https://unpkg.com/rapidoc/dist/rapidoc-min.js"></script>
         <style>

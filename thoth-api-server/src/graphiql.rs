@@ -3,6 +3,7 @@
 /// Generate the HTML source to show a GraphiQL interface
 pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
     let version = env!("CARGO_PKG_VERSION");
+    let favicon_base_url = "https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent";
     let default_query = r##"# Welcome to Thoth's GraphQL API explorer (GraphiQL).
 #
 # GraphiQL is an in-browser tool for writing, validating, and
@@ -50,23 +51,23 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Thoth GraphQL API Documentation</title>
-    <link rel="shortcut icon" href="https://cdn.thoth.pub/favicon.ico" />
-    <link rel="apple-touch-icon" sizes="57x57" href="https://cdn.thoth.pub/apple-icon-57x57.png">
-    <link rel="apple-touch-icon" sizes="60x60" href="https://cdn.thoth.pub/apple-icon-60x60.png">
-    <link rel="apple-touch-icon" sizes="72x72" href="https://cdn.thoth.pub/apple-icon-72x72.png">
-    <link rel="apple-touch-icon" sizes="76x76" href="https://cdn.thoth.pub/apple-icon-76x76.png">
-    <link rel="apple-touch-icon" sizes="114x114" href="https://cdn.thoth.pub/apple-icon-114x114.png">
-    <link rel="apple-touch-icon" sizes="120x120" href="https://cdn.thoth.pub/apple-icon-120x120.png">
-    <link rel="apple-touch-icon" sizes="144x144" href="https://cdn.thoth.pub/apple-icon-144x144.png">
-    <link rel="apple-touch-icon" sizes="152x152" href="https://cdn.thoth.pub/apple-icon-152x152.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="https://cdn.thoth.pub/apple-icon-180x180.png">
-    <link rel="icon" type="image/png" sizes="192x192"  href="https://cdn.thoth.pub/android-icon-192x192.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="https://cdn.thoth.pub/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="96x96" href="https://cdn.thoth.pub/favicon-96x96.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="https://cdn.thoth.pub/favicon-16x16.png">
-    <link rel="manifest" href="https://cdn.thoth.pub/manifest.json">
+    <link rel="shortcut icon" href="{favicon_base_url}/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="57x57" href="{favicon_base_url}/apple-icon-57x57.png">
+    <link rel="apple-touch-icon" sizes="60x60" href="{favicon_base_url}/apple-icon-60x60.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="{favicon_base_url}/apple-icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="76x76" href="{favicon_base_url}/apple-icon-76x76.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="{favicon_base_url}/apple-icon-114x114.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="{favicon_base_url}/apple-icon-120x120.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="{favicon_base_url}/apple-icon-144x144.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="{favicon_base_url}/apple-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="{favicon_base_url}/apple-icon-180x180.png">
+    <link rel="icon" type="image/png" sizes="192x192"  href="{favicon_base_url}/android-icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="{favicon_base_url}/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="{favicon_base_url}/favicon-96x96.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="{favicon_base_url}/favicon-16x16.png">
+    <link rel="manifest" href="{favicon_base_url}/manifest.json">
     <meta name="msapplication-TileColor" content="#FFDD57">
-    <meta name="msapplication-TileImage" content="https://cdn.thoth.pub/ms-icon-144x144.png">
+    <meta name="msapplication-TileImage" content="{favicon_base_url}/ms-icon-144x144.png">
     <meta name="theme-color" content="#FFDD57">
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
