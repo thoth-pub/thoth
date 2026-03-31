@@ -13,6 +13,69 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
 
 
 --
+-- Name: abstract_type; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.abstract_type AS ENUM (
+    'short',
+    'long'
+);
+
+
+--
+-- Name: accessibility_exception; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.accessibility_exception AS ENUM (
+    'micro-enterprises',
+    'disproportionate-burden',
+    'fundamental-alteration'
+);
+
+
+--
+-- Name: accessibility_standard; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.accessibility_standard AS ENUM (
+    'wcag-21-aa',
+    'wcag-21-aaa',
+    'wcag-22-aa',
+    'wcag-22-aaa',
+    'epub-a11y-10-aa',
+    'epub-a11y-10-aaa',
+    'epub-a11y-11-aa',
+    'epub-a11y-11-aaa',
+    'pdf-ua-1',
+    'pdf-ua-2'
+);
+
+
+--
+-- Name: award_role; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.award_role AS ENUM (
+    'SHORT_LISTED',
+    'WINNER',
+    'LONG_LISTED',
+    'COMMENDED',
+    'RUNNER_UP',
+    'JOINT_WINNER',
+    'NOMINATED'
+);
+
+
+--
+-- Name: contact_type; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.contact_type AS ENUM (
+    'Accessibility'
+);
+
+
+--
 -- Name: contribution_type; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -602,6 +665,18 @@ CREATE TYPE public.currency_code AS ENUM (
 
 
 --
+-- Name: file_type; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.file_type AS ENUM (
+    'publication',
+    'frontcover',
+    'additional_resource',
+    'work_featured_video'
+);
+
+
+--
 -- Name: language_code; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -1108,6 +1183,618 @@ CREATE TYPE public.language_relation AS ENUM (
 
 
 --
+-- Name: locale_code; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.locale_code AS ENUM (
+    'af',
+    'af_na',
+    'af_za',
+    'agq',
+    'agq_cm',
+    'ak',
+    'ak_gh',
+    'sq',
+    'sq_al',
+    'am',
+    'am_et',
+    'aig',
+    'ar',
+    'ar_dz',
+    'ar_bh',
+    'ar_eg',
+    'ar_iq',
+    'ar_jo',
+    'ar_kw',
+    'ar_lb',
+    'ar_ly',
+    'ar_ma',
+    'ar_om',
+    'ar_qa',
+    'ar_sa',
+    'ar_sd',
+    'ar_sy',
+    'ar_tn',
+    'ar_ae',
+    'ar_001',
+    'ar_ye',
+    'hy',
+    'hy_am',
+    'as',
+    'as_in',
+    'ast',
+    'ast_es',
+    'asa',
+    'asa_tz',
+    'az',
+    'az_cyrl',
+    'az_cyrl_az',
+    'az_latn',
+    'az_latn_az',
+    'ksf',
+    'ksf_cm',
+    'bah',
+    'bm',
+    'bm_ml',
+    'bas',
+    'bas_cm',
+    'eu',
+    'eu_es',
+    'be',
+    'be_by',
+    'bem',
+    'bem_zm',
+    'bez',
+    'bez_tz',
+    'bn',
+    'bn_bd',
+    'bn_in',
+    'brx',
+    'brx_in',
+    'bs',
+    'bs_ba',
+    'br',
+    'br_fr',
+    'bg',
+    'bg_bg',
+    'my',
+    'my_mm',
+    'ca',
+    'ca_es',
+    'ckb',
+    'kmr',
+    'sdh',
+    'tzm',
+    'tzm_latn',
+    'tzm_latn_ma',
+    'chr',
+    'chr_us',
+    'cgg',
+    'cgg_ug',
+    'zh',
+    'zh_hans',
+    'zh_cn',
+    'zh_hans_cn',
+    'zh_hans_hk',
+    'zh_hans_mo',
+    'zh_hans_sg',
+    'zh_hant',
+    'zh_hant_hk',
+    'zh_hant_mo',
+    'zh_hant_tw',
+    'swc',
+    'swc_cd',
+    'kw',
+    'kw_gb',
+    'hr',
+    'hr_hr',
+    'cs',
+    'cs_cz',
+    'da',
+    'da_dk',
+    'dua',
+    'dua_cm',
+    'dv',
+    'nl',
+    'nl_aw',
+    'nl_be',
+    'nl_cw',
+    'nl_nl',
+    'nl_sx',
+    'ebu',
+    'ebu_ke',
+    'en',
+    'en_ai',
+    'en_as',
+    'en_au',
+    'en_at',
+    'en_bb',
+    'en_be',
+    'en_bz',
+    'en_bm',
+    'en_bw',
+    'en_io',
+    'en_bi',
+    'en_cm',
+    'en_ca',
+    'en_ky',
+    'en_cx',
+    'en_cc',
+    'en_ck',
+    'en_cy',
+    'en_dk',
+    'en_dg',
+    'en_dm',
+    'en_eg',
+    'en_er',
+    'en_eu',
+    'en_fk',
+    'en_fj',
+    'en_fi',
+    'en_gm',
+    'en_de',
+    'en_gh',
+    'en_gi',
+    'en_gd',
+    'en_gu',
+    'en_gg',
+    'en_gy',
+    'en_hk',
+    'en_in',
+    'en_ie',
+    'en_im',
+    'en_il',
+    'en_jm',
+    'en_je',
+    'en_ke',
+    'en_ki',
+    'en_kw',
+    'en_ls',
+    'en_mo',
+    'en_mg',
+    'en_mw',
+    'en_my',
+    'en_mt',
+    'en_mh',
+    'en_mu',
+    'en_fm',
+    'en_ms',
+    'en_na',
+    'en_nr',
+    'en_nl',
+    'en_nz',
+    'en_ng',
+    'en_nu',
+    'en_nf',
+    'en_mp',
+    'en_no',
+    'en_pa',
+    'en_pk',
+    'en_pw',
+    'en_pg',
+    'en_ph',
+    'en_pn',
+    'en_pr',
+    'en_rw',
+    'en_ws',
+    'en_sa',
+    'en_sc',
+    'en_sl',
+    'en_sg',
+    'en_sx',
+    'en_si',
+    'en_sb',
+    'en_ss',
+    'en_sh',
+    'en_kn',
+    'en_lc',
+    'svc',
+    'vic',
+    'en_sd',
+    'en_sz',
+    'en_se',
+    'en_ch',
+    'en_tz',
+    'en_tk',
+    'en_to',
+    'en_tt',
+    'en_tv',
+    'en_za',
+    'en_ae',
+    'en_um',
+    'en_vi',
+    'en_us_posix',
+    'en_ug',
+    'en_gb',
+    'en_us',
+    'en_vu',
+    'en_zm',
+    'en_zw',
+    'eo',
+    'et',
+    'et_ee',
+    'ee',
+    'ee_gh',
+    'ee_tg',
+    'ewo',
+    'ewo_cm',
+    'fo',
+    'fo_fo',
+    'fil',
+    'fil_ph',
+    'fi',
+    'fi_fi',
+    'fr',
+    'fr_be',
+    'fr_bj',
+    'fr_bf',
+    'fr_bi',
+    'fr_cm',
+    'fr_ca',
+    'fr_cf',
+    'fr_td',
+    'fr_km',
+    'fr_cg',
+    'fr_cd',
+    'fr_ci',
+    'fr_dj',
+    'fr_gq',
+    'fr_fr',
+    'fr_gf',
+    'fr_ga',
+    'fr_gp',
+    'fr_gn',
+    'fr_lu',
+    'fr_mg',
+    'fr_ml',
+    'fr_mq',
+    'fr_yt',
+    'fr_mc',
+    'fr_ne',
+    'fr_rw',
+    'fr_re',
+    'fr_bl',
+    'fr_mf',
+    'fr_mu',
+    'fr_sn',
+    'fr_ch',
+    'fr_tg',
+    'ff',
+    'ff_sn',
+    'gl',
+    'gl_es',
+    'lao',
+    'lg',
+    'lg_ug',
+    'ka',
+    'ka_ge',
+    'de',
+    'de_at',
+    'de_be',
+    'de_de',
+    'de_li',
+    'de_lu',
+    'de_ch',
+    'el',
+    'el_cy',
+    'el_gr',
+    'gu',
+    'gu_in',
+    'guz',
+    'guz_ke',
+    'ha',
+    'ha_latn',
+    'ha_latn_gh',
+    'ha_latn_ne',
+    'ha_latn_ng',
+    'haw',
+    'haw_us',
+    'he',
+    'he_il',
+    'hi',
+    'hi_in',
+    'hu',
+    'hu_hu',
+    'is',
+    'is_is',
+    'ig',
+    'ig_ng',
+    'smn',
+    'smn_fi',
+    'id',
+    'id_id',
+    'ga',
+    'ga_ie',
+    'it',
+    'it_it',
+    'it_ch',
+    'ja',
+    'ja_jp',
+    'dyo',
+    'dyo_sn',
+    'kea',
+    'kea_cv',
+    'kab',
+    'kab_dz',
+    'kl',
+    'kl_gl',
+    'kln',
+    'kln_ke',
+    'kam',
+    'kam_ke',
+    'kn',
+    'kn_in',
+    'kaa',
+    'kk',
+    'kk_cyrl',
+    'kk_cyrl_kz',
+    'km',
+    'km_kh',
+    'ki',
+    'ki_ke',
+    'rw',
+    'rw_rw',
+    'kok',
+    'kok_in',
+    'ko',
+    'ko_kr',
+    'khq',
+    'khq_ml',
+    'ses',
+    'ses_ml',
+    'nmg',
+    'nmg_cm',
+    'ky',
+    'lag',
+    'lag_tz',
+    'lv',
+    'lv_lv',
+    'lir',
+    'ln',
+    'ln_cg',
+    'ln_cd',
+    'lt',
+    'lt_lt',
+    'lu',
+    'lu_cd',
+    'luo',
+    'luo_ke',
+    'luy',
+    'luy_ke',
+    'mk',
+    'mk_mk',
+    'jmc',
+    'jmc_tz',
+    'mgh',
+    'mgh_mz',
+    'kde',
+    'kde_tz',
+    'mg',
+    'mg_mg',
+    'ms',
+    'ms_bn',
+    'ms_my',
+    'ml',
+    'ml_in',
+    'mt',
+    'mt_mt',
+    'gv',
+    'gv_gb',
+    'mr',
+    'mr_in',
+    'mas',
+    'mas_ke',
+    'mas_tz',
+    'mer',
+    'mer_ke',
+    'mn',
+    'mfe',
+    'mfe_mu',
+    'mua',
+    'mua_cm',
+    'naq',
+    'naq_na',
+    'ne',
+    'ne_in',
+    'ne_np',
+    'se',
+    'se_fi',
+    'se_no',
+    'se_se',
+    'nd',
+    'nd_zw',
+    'nb',
+    'nb_no',
+    'nn',
+    'nn_no',
+    'nus',
+    'nus_sd',
+    'nyn',
+    'nyn_ug',
+    'or',
+    'or_in',
+    'om',
+    'om_et',
+    'om_ke',
+    'ps',
+    'ps_af',
+    'fa',
+    'fa_af',
+    'fa_ir',
+    'pl',
+    'pl_pl',
+    'pt',
+    'pt_ao',
+    'pt_br',
+    'pt_gw',
+    'pt_mz',
+    'pt_pt',
+    'pt_st',
+    'pa',
+    'pa_arab',
+    'pa_arab_pk',
+    'pa_guru',
+    'pa_guru_in',
+    'ro',
+    'ro_md',
+    'ro_ro',
+    'rm',
+    'rm_ch',
+    'rof',
+    'rof_tz',
+    'rn',
+    'rn_bi',
+    'ru',
+    'ru_md',
+    'ru_ru',
+    'ru_ua',
+    'rwk',
+    'rwk_tz',
+    'saq',
+    'saq_ke',
+    'sg',
+    'sg_cf',
+    'sbp',
+    'sbp_tz',
+    'sa',
+    'gd',
+    'gd_gb',
+    'seh',
+    'seh_mz',
+    'sr',
+    'sr_cyrl',
+    'sr_cyrl_ba',
+    'sr_cyrl_me',
+    'sr_cyrl_rs',
+    'sr_latn',
+    'sr_latn_ba',
+    'sr_latn_me',
+    'sr_latn_rs',
+    'ksb',
+    'ksb_tz',
+    'sn',
+    'sn_zw',
+    'ii',
+    'ii_cn',
+    'si',
+    'si_lk',
+    'sk',
+    'sk_sk',
+    'sl',
+    'sl_si',
+    'xog',
+    'xog_ug',
+    'so',
+    'so_dj',
+    'so_et',
+    'so_ke',
+    'so_so',
+    'es',
+    'es_ar',
+    'es_bo',
+    'es_cl',
+    'es_co',
+    'es_cr',
+    'es_do',
+    'es_ec',
+    'es_sv',
+    'es_gq',
+    'es_gt',
+    'es_hn',
+    'es_419',
+    'es_mx',
+    'es_ni',
+    'es_pa',
+    'es_py',
+    'es_pe',
+    'es_pr',
+    'es_es',
+    'es_us',
+    'es_uy',
+    'es_ve',
+    'sw',
+    'sw_ke',
+    'sw_tz',
+    'sv',
+    'sv_fi',
+    'sv_se',
+    'gsw',
+    'gsw_ch',
+    'shi',
+    'shi_latn',
+    'shi_latn_ma',
+    'shi_tfng',
+    'shi_tfng_ma',
+    'dav',
+    'dav_ke',
+    'tg',
+    'ta',
+    'ta_in',
+    'ta_lk',
+    'twq',
+    'twq_ne',
+    'mi',
+    'te',
+    'te_in',
+    'teo',
+    'teo_ke',
+    'teo_ug',
+    'th',
+    'th_th',
+    'bo',
+    'bo_cn',
+    'bo_in',
+    'ti',
+    'ti_er',
+    'ti_et',
+    'to',
+    'to_to',
+    'tr',
+    'tk',
+    'tr_tr',
+    'tch',
+    'uk',
+    'uk_ua',
+    'ur',
+    'ur_in',
+    'ur_pk',
+    'ug',
+    'ug_cn',
+    'uz',
+    'uz_arab',
+    'uz_arab_af',
+    'uz_cyrl',
+    'uz_cyrl_uz',
+    'uz_latn',
+    'uz_latn_uz',
+    'vai',
+    'vai_latn',
+    'vai_latn_lr',
+    'vai_vaii',
+    'vai_vaii_lr',
+    'val',
+    'val_es',
+    'ca_es_valencia',
+    'vi',
+    'vi_vn',
+    'vun',
+    'vun_tz',
+    'cy',
+    'cy_gb',
+    'wo',
+    'xh',
+    'yav',
+    'yav_cm',
+    'yo',
+    'yo_ng',
+    'dje',
+    'dje_ne',
+    'zu',
+    'zu_za'
+);
+
+
+--
 -- Name: location_platform; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -1166,6 +1853,27 @@ CREATE TYPE public.relation_type AS ENUM (
     'is-translation-of',
     'is-part-of',
     'is-child-of'
+);
+
+
+--
+-- Name: resource_type; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.resource_type AS ENUM (
+    'AUDIO',
+    'VIDEO',
+    'IMAGE',
+    'BLOG',
+    'WEBSITE',
+    'DOCUMENT',
+    'BOOK',
+    'ARTICLE',
+    'MAP',
+    'SOURCE',
+    'DATASET',
+    'SPREADSHEET',
+    'OTHER'
 );
 
 
@@ -1244,6 +1952,28 @@ $$;
 
 
 --
+-- Name: biography_work_updated_at_with_relations(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.biography_work_updated_at_with_relations() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF (
+        NEW IS DISTINCT FROM OLD
+        ) THEN
+        UPDATE work
+        SET updated_at_with_relations = current_timestamp
+        FROM contribution
+        WHERE work.work_id = contribution.work_id AND contribution.contribution_id = OLD.contribution_id
+           OR work.work_id = contribution.work_id AND contribution.contribution_id = NEW.contribution_id;
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+
+--
 -- Name: contributor_work_updated_at_with_relations(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1295,6 +2025,58 @@ BEGIN
         NEW.updated_at := current_timestamp;
     END IF;
     RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: file_upload_work_updated_at_with_relations(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_upload_work_updated_at_with_relations() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF (
+        NEW IS DISTINCT FROM OLD
+    ) THEN
+        UPDATE work
+        SET updated_at_with_relations = current_timestamp
+        WHERE work_id = OLD.work_id OR work_id = NEW.work_id;
+
+        UPDATE work
+        SET updated_at_with_relations = current_timestamp
+        FROM publication
+        WHERE work.work_id = publication.work_id
+            AND (publication.publication_id = OLD.publication_id OR publication.publication_id = NEW.publication_id);
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: file_work_updated_at_with_relations(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_work_updated_at_with_relations() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF (
+        NEW IS DISTINCT FROM OLD
+    ) THEN
+        UPDATE work
+        SET updated_at_with_relations = current_timestamp
+        WHERE work_id = OLD.work_id OR work_id = NEW.work_id;
+
+        UPDATE work
+        SET updated_at_with_relations = current_timestamp
+        FROM publication
+        WHERE work.work_id = publication.work_id
+            AND (publication.publication_id = OLD.publication_id OR publication.publication_id = NEW.publication_id);
+    END IF;
+    RETURN NULL;
 END;
 $$;
 
@@ -1494,15 +2276,35 @@ $$;
 CREATE FUNCTION public.work_relation_work_updated_at_with_relations() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
+DECLARE
+    w1 uuid;  -- smaller work_id
+    w2 uuid;  -- larger work_id
 BEGIN
-    IF (
-        NEW IS DISTINCT FROM OLD
-    ) THEN
+    -- If nothing really changed, skip
+    IF NEW IS NOT DISTINCT FROM OLD THEN
+        RETURN NULL;
+    END IF;
+
+    -- Determine the two work IDs involved in this relation
+    IF TG_OP = 'DELETE' THEN
+        w1 := LEAST(OLD.relator_work_id, OLD.related_work_id);
+        w2 := GREATEST(OLD.relator_work_id, OLD.related_work_id);
+    ELSE
+        w1 := LEAST(NEW.relator_work_id, NEW.related_work_id);
+        w2 := GREATEST(NEW.relator_work_id, NEW.related_work_id);
+    END IF;
+
+    -- Always lock/update in deterministic order: smaller ID first, then larger
+    UPDATE work
+    SET updated_at_with_relations = current_timestamp
+    WHERE work_id = w1;
+
+    IF w2 IS DISTINCT FROM w1 THEN
         UPDATE work
         SET updated_at_with_relations = current_timestamp
-        WHERE work_id = OLD.relator_work_id OR work_id = NEW.relator_work_id
-            OR work_id = OLD.related_work_id OR work_id = NEW.related_work_id;
+        WHERE work_id = w2;
     END IF;
+
     RETURN NULL;
 END;
 $$;
@@ -1549,55 +2351,71 @@ END;
 $$;
 
 
---
--- Name: work_work_updated_at_with_relations(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.work_work_updated_at_with_relations() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    IF (
-        NEW IS DISTINCT FROM OLD
-    ) THEN
-        UPDATE work
-        SET updated_at_with_relations = current_timestamp
-        FROM work_relation
-        -- The positions of relator/related IDs in this statement don't matter, as
-        -- every work_relation record has a mirrored record with relator/related IDs swapped
-        WHERE work.work_id = work_relation.relator_work_id AND work_relation.related_work_id = NEW.work_id;
-    END IF;
-    RETURN NULL;
-END;
-$$;
-
-
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
 
 --
--- Name: account; Type: TABLE; Schema: public; Owner: -
+-- Name: abstract; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.account (
-    account_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
-    name text NOT NULL,
-    surname text NOT NULL,
-    email text NOT NULL,
-    hash bytea NOT NULL,
-    salt text NOT NULL,
-    is_superuser boolean DEFAULT false NOT NULL,
-    is_bot boolean DEFAULT false NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    token text,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT account_email_check CHECK ((octet_length(email) >= 1)),
-    CONSTRAINT account_name_check CHECK ((octet_length(name) >= 1)),
-    CONSTRAINT account_salt_check CHECK ((octet_length(salt) >= 1)),
-    CONSTRAINT account_surname_check CHECK ((octet_length(surname) >= 1)),
-    CONSTRAINT account_token_check CHECK ((octet_length(token) >= 1))
+CREATE TABLE public.abstract (
+    abstract_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    work_id uuid NOT NULL,
+    content text NOT NULL,
+    locale_code public.locale_code NOT NULL,
+    abstract_type public.abstract_type DEFAULT 'short'::public.abstract_type NOT NULL,
+    canonical boolean DEFAULT false NOT NULL,
+    CONSTRAINT abstract_content_check CHECK ((octet_length(content) >= 1))
+);
+
+
+--
+-- Name: abstract_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.abstract_history (
+    abstract_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    abstract_id uuid NOT NULL,
+    user_id text NOT NULL,
+    data jsonb NOT NULL,
+    "timestamp" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: additional_resource; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.additional_resource (
+    additional_resource_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    work_id uuid NOT NULL,
+    title text NOT NULL,
+    description text,
+    attribution text,
+    resource_type public.resource_type NOT NULL,
+    doi text,
+    handle text,
+    url text,
+    resource_ordinal integer DEFAULT 1 NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    date date,
+    CONSTRAINT additional_resource_resource_ordinal_check CHECK ((resource_ordinal > 0)),
+    CONSTRAINT additional_resource_title_check CHECK ((octet_length(title) >= 1))
+);
+
+
+--
+-- Name: additional_resource_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.additional_resource_history (
+    additional_resource_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    additional_resource_id uuid NOT NULL,
+    user_id text NOT NULL,
+    data jsonb NOT NULL,
+    "timestamp" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 
@@ -1625,7 +2443,138 @@ CREATE TABLE public.affiliation (
 CREATE TABLE public.affiliation_history (
     affiliation_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     affiliation_id uuid NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
+    data jsonb NOT NULL,
+    "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: award; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.award (
+    award_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    work_id uuid NOT NULL,
+    title text NOT NULL,
+    url text,
+    category text,
+    prize_statement text,
+    award_ordinal integer DEFAULT 1 NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    role public.award_role,
+    year text,
+    jury text,
+    country public.country_code,
+    CONSTRAINT award_award_ordinal_check CHECK ((award_ordinal > 0)),
+    CONSTRAINT award_title_check CHECK ((octet_length(title) >= 1))
+);
+
+
+--
+-- Name: award_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.award_history (
+    award_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    award_id uuid NOT NULL,
+    user_id text NOT NULL,
+    data jsonb NOT NULL,
+    "timestamp" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: biography; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.biography (
+    biography_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    contribution_id uuid NOT NULL,
+    content text NOT NULL,
+    canonical boolean DEFAULT false NOT NULL,
+    locale_code public.locale_code NOT NULL,
+    CONSTRAINT biography_content_check CHECK ((octet_length(content) >= 1))
+);
+
+
+--
+-- Name: biography_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.biography_history (
+    biography_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    biography_id uuid NOT NULL,
+    user_id text NOT NULL,
+    data jsonb NOT NULL,
+    "timestamp" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: book_review; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.book_review (
+    book_review_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    work_id uuid NOT NULL,
+    title text,
+    author_name text,
+    url text,
+    doi text,
+    review_date date,
+    journal_name text,
+    journal_volume text,
+    journal_number text,
+    journal_issn text,
+    text text,
+    review_ordinal integer DEFAULT 1 NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    reviewer_orcid text,
+    reviewer_institution_id uuid,
+    page_range text,
+    CONSTRAINT book_review_review_ordinal_check CHECK ((review_ordinal > 0))
+);
+
+
+--
+-- Name: book_review_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.book_review_history (
+    book_review_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    book_review_id uuid NOT NULL,
+    user_id text NOT NULL,
+    data jsonb NOT NULL,
+    "timestamp" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: contact; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.contact (
+    contact_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    publisher_id uuid NOT NULL,
+    contact_type public.contact_type DEFAULT 'Accessibility'::public.contact_type NOT NULL,
+    email text NOT NULL,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT contact_email_check CHECK ((octet_length(email) >= 1))
+);
+
+
+--
+-- Name: contact_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.contact_history (
+    contact_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    contact_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -1640,7 +2589,6 @@ CREATE TABLE public.contribution (
     contributor_id uuid NOT NULL,
     contribution_type public.contribution_type NOT NULL,
     main_contribution boolean DEFAULT true NOT NULL,
-    biography text,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     first_name text,
@@ -1648,7 +2596,6 @@ CREATE TABLE public.contribution (
     full_name text NOT NULL,
     contribution_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     contribution_ordinal integer NOT NULL,
-    CONSTRAINT contribution_biography_check CHECK ((octet_length(biography) >= 1)),
     CONSTRAINT contribution_contribution_ordinal_check CHECK ((contribution_ordinal > 0)),
     CONSTRAINT contribution_first_name_check CHECK ((octet_length(first_name) >= 1)),
     CONSTRAINT contribution_full_name_check CHECK ((octet_length(full_name) >= 1)),
@@ -1662,7 +2609,7 @@ CREATE TABLE public.contribution (
 
 CREATE TABLE public.contribution_history (
     contribution_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     contribution_id uuid NOT NULL
@@ -1697,9 +2644,84 @@ CREATE TABLE public.contributor (
 CREATE TABLE public.contributor_history (
     contributor_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     contributor_id uuid NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: endorsement; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.endorsement (
+    endorsement_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    work_id uuid NOT NULL,
+    author_name text,
+    author_role text,
+    url text,
+    text text,
+    endorsement_ordinal integer DEFAULT 1 NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    author_orcid text,
+    author_institution_id uuid,
+    CONSTRAINT endorsement_endorsement_ordinal_check CHECK ((endorsement_ordinal > 0))
+);
+
+
+--
+-- Name: endorsement_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.endorsement_history (
+    endorsement_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    endorsement_id uuid NOT NULL,
+    user_id text NOT NULL,
+    data jsonb NOT NULL,
+    "timestamp" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: file; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.file (
+    file_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    file_type public.file_type NOT NULL,
+    work_id uuid,
+    publication_id uuid,
+    object_key text NOT NULL,
+    cdn_url text NOT NULL,
+    mime_type text NOT NULL,
+    bytes bigint NOT NULL,
+    sha256 text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    additional_resource_id uuid,
+    work_featured_video_id uuid,
+    CONSTRAINT file_type_check CHECK ((((file_type = 'frontcover'::public.file_type) AND (work_id IS NOT NULL) AND (publication_id IS NULL) AND (additional_resource_id IS NULL) AND (work_featured_video_id IS NULL)) OR ((file_type = 'publication'::public.file_type) AND (publication_id IS NOT NULL) AND (work_id IS NULL) AND (additional_resource_id IS NULL) AND (work_featured_video_id IS NULL)) OR ((file_type <> ALL (ARRAY['frontcover'::public.file_type, 'publication'::public.file_type])) AND (work_id IS NULL) AND (publication_id IS NULL) AND (((additional_resource_id IS NOT NULL) AND (work_featured_video_id IS NULL)) OR ((work_featured_video_id IS NOT NULL) AND (additional_resource_id IS NULL))))))
+);
+
+
+--
+-- Name: file_upload; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.file_upload (
+    file_upload_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    file_type public.file_type NOT NULL,
+    work_id uuid,
+    publication_id uuid,
+    declared_mime_type text NOT NULL,
+    declared_extension text NOT NULL,
+    declared_sha256 text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    additional_resource_id uuid,
+    work_featured_video_id uuid,
+    CONSTRAINT file_upload_type_check CHECK ((((file_type = 'frontcover'::public.file_type) AND (work_id IS NOT NULL) AND (publication_id IS NULL) AND (additional_resource_id IS NULL) AND (work_featured_video_id IS NULL)) OR ((file_type = 'publication'::public.file_type) AND (publication_id IS NOT NULL) AND (work_id IS NULL) AND (additional_resource_id IS NULL) AND (work_featured_video_id IS NULL)) OR ((file_type <> ALL (ARRAY['frontcover'::public.file_type, 'publication'::public.file_type])) AND (work_id IS NULL) AND (publication_id IS NULL) AND (((additional_resource_id IS NOT NULL) AND (work_featured_video_id IS NULL)) OR ((work_featured_video_id IS NOT NULL) AND (additional_resource_id IS NULL))))))
 );
 
 
@@ -1715,11 +2737,9 @@ CREATE TABLE public.funding (
     project_name text,
     project_shortname text,
     grant_number text,
-    jurisdiction text,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT funding_grant_number_check CHECK ((octet_length(grant_number) >= 1)),
-    CONSTRAINT funding_jurisdiction_check CHECK ((octet_length(jurisdiction) >= 1)),
     CONSTRAINT funding_program_check CHECK ((octet_length(program) >= 1)),
     CONSTRAINT funding_project_name_check CHECK ((octet_length(project_name) >= 1)),
     CONSTRAINT funding_project_shortname_check CHECK ((octet_length(project_shortname) >= 1))
@@ -1733,7 +2753,7 @@ CREATE TABLE public.funding (
 CREATE TABLE public.funding_history (
     funding_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     funding_id uuid NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -1751,9 +2771,16 @@ CREATE TABLE public.imprint (
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     crossmark_doi text,
+    s3_bucket text,
+    cdn_domain text,
+    cloudfront_dist_id text,
+    default_currency public.currency_code,
+    default_place text,
+    default_locale public.locale_code,
     CONSTRAINT imprint_crossmark_doi_check CHECK ((crossmark_doi ~* 'https:\/\/doi.org\/10.\d{4,9}\/[-._\;\(\)\/:a-zA-Z0-9]+$'::text)),
     CONSTRAINT imprint_imprint_name_check CHECK ((octet_length(imprint_name) >= 1)),
-    CONSTRAINT imprint_imprint_url_check CHECK ((imprint_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'::text))
+    CONSTRAINT imprint_imprint_url_check CHECK ((imprint_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'::text)),
+    CONSTRAINT imprint_storage_cfg_all_or_none CHECK ((((s3_bucket IS NULL) AND (cdn_domain IS NULL) AND (cloudfront_dist_id IS NULL)) OR ((s3_bucket IS NOT NULL) AND (cdn_domain IS NOT NULL) AND (cloudfront_dist_id IS NOT NULL))))
 );
 
 
@@ -1764,7 +2791,7 @@ CREATE TABLE public.imprint (
 CREATE TABLE public.imprint_history (
     imprint_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     imprint_id uuid NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -1795,7 +2822,7 @@ CREATE TABLE public.institution (
 CREATE TABLE public.institution_history (
     institution_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     institution_id uuid NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -1812,6 +2839,7 @@ CREATE TABLE public.issue (
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     issue_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    issue_number integer,
     CONSTRAINT issue_issue_ordinal_check CHECK ((issue_ordinal > 0))
 );
 
@@ -1822,7 +2850,7 @@ CREATE TABLE public.issue (
 
 CREATE TABLE public.issue_history (
     issue_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     issue_id uuid NOT NULL
@@ -1838,7 +2866,6 @@ CREATE TABLE public.language (
     work_id uuid NOT NULL,
     language_code public.language_code NOT NULL,
     language_relation public.language_relation NOT NULL,
-    main_language boolean DEFAULT false NOT NULL,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -1851,7 +2878,7 @@ CREATE TABLE public.language (
 CREATE TABLE public.language_history (
     language_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     language_id uuid NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -1883,7 +2910,7 @@ CREATE TABLE public.location (
 CREATE TABLE public.location_history (
     location_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     location_id uuid NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -1911,7 +2938,7 @@ CREATE TABLE public.price (
 CREATE TABLE public.price_history (
     price_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     price_id uuid NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -1936,6 +2963,22 @@ CREATE TABLE public.publication (
     depth_in double precision,
     weight_g double precision,
     weight_oz double precision,
+    accessibility_standard public.accessibility_standard,
+    accessibility_additional_standard public.accessibility_standard,
+    accessibility_exception public.accessibility_exception,
+    accessibility_report_url text,
+    CONSTRAINT check_accessibility_standard_rules CHECK (
+CASE publication_type
+    WHEN 'Paperback'::public.publication_type THEN ((accessibility_standard IS NULL) AND (accessibility_additional_standard IS NULL) AND (accessibility_exception IS NULL))
+    WHEN 'Hardback'::public.publication_type THEN ((accessibility_standard IS NULL) AND (accessibility_additional_standard IS NULL) AND (accessibility_exception IS NULL))
+    WHEN 'MP3'::public.publication_type THEN ((accessibility_standard IS NULL) AND (accessibility_additional_standard IS NULL) AND (accessibility_exception IS NULL))
+    WHEN 'WAV'::public.publication_type THEN ((accessibility_standard IS NULL) AND (accessibility_additional_standard IS NULL) AND (accessibility_exception IS NULL))
+    WHEN 'PDF'::public.publication_type THEN (((accessibility_standard IS NULL) OR (accessibility_standard = ANY (ARRAY['wcag-21-aa'::public.accessibility_standard, 'wcag-21-aaa'::public.accessibility_standard, 'wcag-22-aa'::public.accessibility_standard, 'wcag-22-aaa'::public.accessibility_standard]))) AND ((accessibility_additional_standard IS NULL) OR (accessibility_additional_standard = ANY (ARRAY['pdf-ua-1'::public.accessibility_standard, 'pdf-ua-2'::public.accessibility_standard]))))
+    WHEN 'Epub'::public.publication_type THEN (((accessibility_standard IS NULL) OR (accessibility_standard = ANY (ARRAY['wcag-21-aa'::public.accessibility_standard, 'wcag-21-aaa'::public.accessibility_standard, 'wcag-22-aa'::public.accessibility_standard, 'wcag-22-aaa'::public.accessibility_standard]))) AND ((accessibility_additional_standard IS NULL) OR (accessibility_additional_standard = ANY (ARRAY['epub-a11y-10-aa'::public.accessibility_standard, 'epub-a11y-10-aaa'::public.accessibility_standard, 'epub-a11y-11-aa'::public.accessibility_standard, 'epub-a11y-11-aaa'::public.accessibility_standard]))))
+    ELSE (((accessibility_standard IS NULL) OR (accessibility_standard = ANY (ARRAY['wcag-21-aa'::public.accessibility_standard, 'wcag-21-aaa'::public.accessibility_standard, 'wcag-22-aa'::public.accessibility_standard, 'wcag-22-aaa'::public.accessibility_standard]))) AND (accessibility_additional_standard IS NULL))
+END),
+    CONSTRAINT check_additional_standard_pdf_epub CHECK (((accessibility_additional_standard IS NULL) OR (publication_type = ANY (ARRAY['PDF'::public.publication_type, 'Epub'::public.publication_type])))),
+    CONSTRAINT check_standard_or_exception CHECK ((((accessibility_exception IS NULL) AND (accessibility_standard IS NOT NULL)) OR ((accessibility_exception IS NOT NULL) AND (accessibility_standard IS NULL) AND (accessibility_additional_standard IS NULL)) OR ((accessibility_exception IS NULL) AND (accessibility_standard IS NULL) AND (accessibility_additional_standard IS NULL)))),
     CONSTRAINT publication_depth_in_check CHECK ((depth_in > (0.0)::double precision)),
     CONSTRAINT publication_depth_in_not_missing CHECK (((depth_in IS NOT NULL) OR (depth_mm IS NULL))),
     CONSTRAINT publication_depth_mm_check CHECK ((depth_mm > (0.0)::double precision)),
@@ -1964,7 +3007,7 @@ CREATE TABLE public.publication (
 CREATE TABLE public.publication_history (
     publication_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     publication_id uuid NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -1981,22 +3024,14 @@ CREATE TABLE public.publisher (
     publisher_url text,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    accessibility_statement text,
+    accessibility_report_url text,
+    zitadel_id text,
+    CONSTRAINT publisher_accessibility_report_url_check CHECK ((octet_length(accessibility_report_url) >= 1)),
+    CONSTRAINT publisher_accessibility_statement_check CHECK ((octet_length(accessibility_statement) >= 1)),
     CONSTRAINT publisher_publisher_name_check CHECK ((octet_length(publisher_name) >= 1)),
     CONSTRAINT publisher_publisher_shortname_check CHECK ((octet_length(publisher_shortname) >= 1)),
     CONSTRAINT publisher_publisher_url_check CHECK ((publisher_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'::text))
-);
-
-
---
--- Name: publisher_account; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.publisher_account (
-    account_id uuid NOT NULL,
-    publisher_id uuid NOT NULL,
-    is_admin boolean DEFAULT false NOT NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 
@@ -2007,7 +3042,7 @@ CREATE TABLE public.publisher_account (
 CREATE TABLE public.publisher_history (
     publisher_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     publisher_id uuid NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -2074,7 +3109,7 @@ CREATE TABLE public.reference (
 CREATE TABLE public.reference_history (
     reference_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     reference_id uuid NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -2112,7 +3147,7 @@ CREATE TABLE public.series (
 CREATE TABLE public.series_history (
     series_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     series_id uuid NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -2142,9 +3177,40 @@ CREATE TABLE public.subject (
 CREATE TABLE public.subject_history (
     subject_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     subject_id uuid NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: title; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.title (
+    title_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    work_id uuid NOT NULL,
+    locale_code public.locale_code NOT NULL,
+    full_title text NOT NULL,
+    title text NOT NULL,
+    subtitle text,
+    canonical boolean DEFAULT false NOT NULL,
+    CONSTRAINT title_full_title_check CHECK ((octet_length(full_title) >= 1)),
+    CONSTRAINT title_subtitle_check CHECK ((octet_length(subtitle) >= 1)),
+    CONSTRAINT title_title_check CHECK ((octet_length(title) >= 1))
+);
+
+
+--
+-- Name: title_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.title_history (
+    title_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    title_id uuid NOT NULL,
+    user_id text NOT NULL,
+    data jsonb NOT NULL,
+    "timestamp" timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -2156,9 +3222,6 @@ CREATE TABLE public.work (
     work_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     work_type public.work_type NOT NULL,
     work_status public.work_status NOT NULL,
-    full_title text NOT NULL,
-    title text NOT NULL,
-    subtitle text,
     reference text,
     edition integer,
     imprint_id uuid NOT NULL,
@@ -2176,8 +3239,6 @@ CREATE TABLE public.work (
     landing_page text,
     lccn text,
     oclc text,
-    short_abstract text,
-    long_abstract text,
     general_note text,
     toc text,
     cover_url text,
@@ -2190,6 +3251,7 @@ CREATE TABLE public.work (
     updated_at_with_relations timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     bibliography_note text,
     withdrawn_date date,
+    resources_description text,
     CONSTRAINT work_active_publication_date_check CHECK ((((work_status = ANY (ARRAY['active'::public.work_status, 'withdrawn'::public.work_status, 'superseded'::public.work_status])) AND (publication_date IS NOT NULL)) OR (work_status <> ALL (ARRAY['active'::public.work_status, 'withdrawn'::public.work_status, 'superseded'::public.work_status])))),
     CONSTRAINT work_active_withdrawn_date_check CHECK (((work_status = 'withdrawn'::public.work_status) OR (work_status = 'superseded'::public.work_status) OR ((work_status <> ALL (ARRAY['withdrawn'::public.work_status, 'superseded'::public.work_status])) AND (withdrawn_date IS NULL)))),
     CONSTRAINT work_audio_count_check CHECK ((audio_count >= 0)),
@@ -2204,7 +3266,6 @@ CREATE TABLE public.work (
     CONSTRAINT work_doi_check CHECK ((doi ~ '^https:\/\/doi\.org\/10\.\d{4,9}\/[-._;()\/:a-zA-Z0-9<>+[\]]+$'::text)),
     CONSTRAINT work_edition_check CHECK ((edition > 0)),
     CONSTRAINT work_first_page_check CHECK ((octet_length(first_page) >= 1)),
-    CONSTRAINT work_full_title_check CHECK ((octet_length(full_title) >= 1)),
     CONSTRAINT work_general_note_check CHECK ((octet_length(general_note) >= 1)),
     CONSTRAINT work_image_count_check CHECK ((image_count >= 0)),
     CONSTRAINT work_inactive_no_withdrawn_date_check CHECK (((((work_status = 'withdrawn'::public.work_status) OR (work_status = 'superseded'::public.work_status)) AND (withdrawn_date IS NOT NULL)) OR (work_status <> ALL (ARRAY['withdrawn'::public.work_status, 'superseded'::public.work_status])))),
@@ -2212,7 +3273,6 @@ CREATE TABLE public.work (
     CONSTRAINT work_last_page_check CHECK ((octet_length(last_page) >= 1)),
     CONSTRAINT work_lccn_check CHECK ((octet_length(lccn) >= 1)),
     CONSTRAINT work_license_check CHECK ((license ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'::text)),
-    CONSTRAINT work_long_abstract_check CHECK ((octet_length(long_abstract) >= 1)),
     CONSTRAINT work_non_chapter_has_edition CHECK (((edition IS NOT NULL) OR (work_type = 'book-chapter'::public.work_type))),
     CONSTRAINT work_non_chapter_no_first_page CHECK (((first_page IS NULL) OR (work_type = 'book-chapter'::public.work_type))),
     CONSTRAINT work_non_chapter_no_last_page CHECK (((last_page IS NULL) OR (work_type = 'book-chapter'::public.work_type))),
@@ -2223,13 +3283,41 @@ CREATE TABLE public.work (
     CONSTRAINT work_page_interval_check CHECK ((octet_length(page_interval) >= 1)),
     CONSTRAINT work_place_check CHECK ((octet_length(place) >= 1)),
     CONSTRAINT work_reference_check CHECK ((octet_length(reference) >= 1)),
-    CONSTRAINT work_short_abstract_check CHECK ((octet_length(short_abstract) >= 1)),
-    CONSTRAINT work_subtitle_check CHECK ((octet_length(subtitle) >= 1)),
     CONSTRAINT work_table_count_check CHECK ((table_count >= 0)),
-    CONSTRAINT work_title_check CHECK ((octet_length(title) >= 1)),
     CONSTRAINT work_toc_check CHECK ((octet_length(toc) >= 1)),
     CONSTRAINT work_video_count_check CHECK ((video_count >= 0)),
     CONSTRAINT work_withdrawn_date_after_publication_date_check CHECK (((withdrawn_date IS NULL) OR (publication_date < withdrawn_date)))
+);
+
+
+--
+-- Name: work_featured_video; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.work_featured_video (
+    work_featured_video_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    work_id uuid NOT NULL,
+    title text,
+    url text,
+    width integer DEFAULT 560 NOT NULL,
+    height integer DEFAULT 315 NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT work_featured_video_height_check CHECK ((height > 0)),
+    CONSTRAINT work_featured_video_width_check CHECK ((width > 0))
+);
+
+
+--
+-- Name: work_featured_video_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.work_featured_video_history (
+    work_featured_video_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    work_featured_video_id uuid NOT NULL,
+    user_id text NOT NULL,
+    data jsonb NOT NULL,
+    "timestamp" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 
@@ -2240,7 +3328,7 @@ CREATE TABLE public.work (
 CREATE TABLE public.work_history (
     work_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     work_id uuid NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -2270,18 +3358,58 @@ CREATE TABLE public.work_relation (
 CREATE TABLE public.work_relation_history (
     work_relation_history_id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     work_relation_id uuid NOT NULL,
-    account_id uuid NOT NULL,
+    user_id text NOT NULL,
     data jsonb NOT NULL,
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 
 --
--- Name: account account_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: abstract_history abstract_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.account
-    ADD CONSTRAINT account_pkey PRIMARY KEY (account_id);
+ALTER TABLE ONLY public.abstract_history
+    ADD CONSTRAINT abstract_history_pkey PRIMARY KEY (abstract_history_id);
+
+
+--
+-- Name: abstract abstract_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.abstract
+    ADD CONSTRAINT abstract_pkey PRIMARY KEY (abstract_id);
+
+
+--
+-- Name: additional_resource_history additional_resource_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.additional_resource_history
+    ADD CONSTRAINT additional_resource_history_pkey PRIMARY KEY (additional_resource_history_id);
+
+
+--
+-- Name: additional_resource additional_resource_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.additional_resource
+    ADD CONSTRAINT additional_resource_pkey PRIMARY KEY (additional_resource_id);
+
+
+--
+-- Name: additional_resource additional_resource_resource_ordinal_work_id_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.additional_resource
+    ADD CONSTRAINT additional_resource_resource_ordinal_work_id_uniq UNIQUE (work_id, resource_ordinal) DEFERRABLE;
+
+
+--
+-- Name: affiliation affiliation_affiliation_ordinal_contribution_id_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.affiliation
+    ADD CONSTRAINT affiliation_affiliation_ordinal_contribution_id_uniq UNIQUE (contribution_id, affiliation_ordinal) DEFERRABLE;
 
 
 --
@@ -2301,11 +3429,99 @@ ALTER TABLE ONLY public.affiliation
 
 
 --
+-- Name: award award_award_ordinal_work_id_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.award
+    ADD CONSTRAINT award_award_ordinal_work_id_uniq UNIQUE (work_id, award_ordinal) DEFERRABLE;
+
+
+--
+-- Name: award_history award_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.award_history
+    ADD CONSTRAINT award_history_pkey PRIMARY KEY (award_history_id);
+
+
+--
+-- Name: award award_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.award
+    ADD CONSTRAINT award_pkey PRIMARY KEY (award_id);
+
+
+--
+-- Name: biography_history biography_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.biography_history
+    ADD CONSTRAINT biography_history_pkey PRIMARY KEY (biography_history_id);
+
+
+--
+-- Name: biography biography_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.biography
+    ADD CONSTRAINT biography_pkey PRIMARY KEY (biography_id);
+
+
+--
+-- Name: book_review_history book_review_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.book_review_history
+    ADD CONSTRAINT book_review_history_pkey PRIMARY KEY (book_review_history_id);
+
+
+--
+-- Name: book_review book_review_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.book_review
+    ADD CONSTRAINT book_review_pkey PRIMARY KEY (book_review_id);
+
+
+--
+-- Name: book_review book_review_review_ordinal_work_id_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.book_review
+    ADD CONSTRAINT book_review_review_ordinal_work_id_uniq UNIQUE (work_id, review_ordinal) DEFERRABLE;
+
+
+--
+-- Name: contact contact_contact_type_publisher_id_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contact
+    ADD CONSTRAINT contact_contact_type_publisher_id_uniq UNIQUE (publisher_id, contact_type);
+
+
+--
+-- Name: contact_history contact_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contact_history
+    ADD CONSTRAINT contact_history_pkey PRIMARY KEY (contact_history_id);
+
+
+--
+-- Name: contact contact_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contact
+    ADD CONSTRAINT contact_pkey PRIMARY KEY (contact_id);
+
+
+--
 -- Name: contribution contribution_contribution_ordinal_work_id_uniq; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.contribution
-    ADD CONSTRAINT contribution_contribution_ordinal_work_id_uniq UNIQUE (contribution_ordinal, work_id);
+    ADD CONSTRAINT contribution_contribution_ordinal_work_id_uniq UNIQUE (work_id, contribution_ordinal) DEFERRABLE;
 
 
 --
@@ -2346,6 +3562,46 @@ ALTER TABLE ONLY public.contributor_history
 
 ALTER TABLE ONLY public.contributor
     ADD CONSTRAINT contributor_pkey PRIMARY KEY (contributor_id);
+
+
+--
+-- Name: endorsement endorsement_endorsement_ordinal_work_id_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.endorsement
+    ADD CONSTRAINT endorsement_endorsement_ordinal_work_id_uniq UNIQUE (work_id, endorsement_ordinal) DEFERRABLE;
+
+
+--
+-- Name: endorsement_history endorsement_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.endorsement_history
+    ADD CONSTRAINT endorsement_history_pkey PRIMARY KEY (endorsement_history_id);
+
+
+--
+-- Name: endorsement endorsement_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.endorsement
+    ADD CONSTRAINT endorsement_pkey PRIMARY KEY (endorsement_id);
+
+
+--
+-- Name: file file_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file
+    ADD CONSTRAINT file_pkey PRIMARY KEY (file_id);
+
+
+--
+-- Name: file_upload file_upload_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_upload
+    ADD CONSTRAINT file_upload_pkey PRIMARY KEY (file_upload_id);
 
 
 --
@@ -2402,6 +3658,14 @@ ALTER TABLE ONLY public.institution
 
 ALTER TABLE ONLY public.issue_history
     ADD CONSTRAINT issue_history_pkey PRIMARY KEY (issue_history_id);
+
+
+--
+-- Name: issue issue_issue_ordinal_series_id_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.issue
+    ADD CONSTRAINT issue_issue_ordinal_series_id_uniq UNIQUE (series_id, issue_ordinal) DEFERRABLE;
 
 
 --
@@ -2501,14 +3765,6 @@ ALTER TABLE ONLY public.publication
 
 
 --
--- Name: publisher_account publisher_account_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.publisher_account
-    ADD CONSTRAINT publisher_account_pkey PRIMARY KEY (account_id, publisher_id);
-
-
---
 -- Name: publisher_history publisher_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2545,7 +3801,7 @@ ALTER TABLE ONLY public.reference
 --
 
 ALTER TABLE ONLY public.reference
-    ADD CONSTRAINT reference_reference_ordinal_work_id_uniq UNIQUE (work_id, reference_ordinal);
+    ADD CONSTRAINT reference_reference_ordinal_work_id_uniq UNIQUE (work_id, reference_ordinal) DEFERRABLE;
 
 
 --
@@ -2573,11 +3829,59 @@ ALTER TABLE ONLY public.subject_history
 
 
 --
+-- Name: subject subject_ordinal_type_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.subject
+    ADD CONSTRAINT subject_ordinal_type_uniq UNIQUE (work_id, subject_ordinal, subject_type) DEFERRABLE;
+
+
+--
 -- Name: subject subject_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.subject
     ADD CONSTRAINT subject_pkey PRIMARY KEY (subject_id);
+
+
+--
+-- Name: title_history title_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.title_history
+    ADD CONSTRAINT title_history_pkey PRIMARY KEY (title_history_id);
+
+
+--
+-- Name: title title_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.title
+    ADD CONSTRAINT title_pkey PRIMARY KEY (title_id);
+
+
+--
+-- Name: work_featured_video_history work_featured_video_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.work_featured_video_history
+    ADD CONSTRAINT work_featured_video_history_pkey PRIMARY KEY (work_featured_video_history_id);
+
+
+--
+-- Name: work_featured_video work_featured_video_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.work_featured_video
+    ADD CONSTRAINT work_featured_video_pkey PRIMARY KEY (work_featured_video_id);
+
+
+--
+-- Name: work_featured_video work_featured_video_work_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.work_featured_video
+    ADD CONSTRAINT work_featured_video_work_id_key UNIQUE (work_id);
 
 
 --
@@ -2609,7 +3913,7 @@ ALTER TABLE ONLY public.work_relation_history
 --
 
 ALTER TABLE ONLY public.work_relation
-    ADD CONSTRAINT work_relation_ordinal_type_uniq UNIQUE (relation_ordinal, relator_work_id, relation_type);
+    ADD CONSTRAINT work_relation_ordinal_type_uniq UNIQUE (relator_work_id, relation_ordinal, relation_type) DEFERRABLE;
 
 
 --
@@ -2629,10 +3933,38 @@ ALTER TABLE ONLY public.work_relation
 
 
 --
--- Name: affiliation_uniq_ord_in_contribution_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: abstract_uniq_locale_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX affiliation_uniq_ord_in_contribution_idx ON public.affiliation USING btree (contribution_id, affiliation_ordinal);
+CREATE UNIQUE INDEX abstract_uniq_locale_idx ON public.abstract USING btree (work_id, locale_code, abstract_type);
+
+
+--
+-- Name: abstract_unique_canonical_true_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX abstract_unique_canonical_true_idx ON public.abstract USING btree (work_id, abstract_type) WHERE canonical;
+
+
+--
+-- Name: biography_uniq_locale_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX biography_uniq_locale_idx ON public.biography USING btree (contribution_id, locale_code);
+
+
+--
+-- Name: biography_unique_canonical_true_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX biography_unique_canonical_true_idx ON public.biography USING btree (contribution_id) WHERE canonical;
+
+
+--
+-- Name: book_review_reviewer_institution_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX book_review_reviewer_institution_idx ON public.book_review USING btree (reviewer_institution_id) WHERE (reviewer_institution_id IS NOT NULL);
 
 
 --
@@ -2643,17 +3975,73 @@ CREATE UNIQUE INDEX doi_uniq_idx ON public.work USING btree (lower(doi));
 
 
 --
--- Name: email_uniq_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: endorsement_author_institution_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX email_uniq_idx ON public.account USING btree (lower(email));
+CREATE INDEX endorsement_author_institution_idx ON public.endorsement USING btree (author_institution_id) WHERE (author_institution_id IS NOT NULL);
 
 
 --
--- Name: idx_account_email; Type: INDEX; Schema: public; Owner: -
+-- Name: file_additional_resource_unique_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_account_email ON public.account USING btree (email);
+CREATE UNIQUE INDEX file_additional_resource_unique_idx ON public.file USING btree (additional_resource_id) WHERE (additional_resource_id IS NOT NULL);
+
+
+--
+-- Name: file_frontcover_work_unique_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX file_frontcover_work_unique_idx ON public.file USING btree (work_id) WHERE (file_type = 'frontcover'::public.file_type);
+
+
+--
+-- Name: file_object_key_unique_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX file_object_key_unique_idx ON public.file USING btree (object_key);
+
+
+--
+-- Name: file_publication_unique_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX file_publication_unique_idx ON public.file USING btree (publication_id) WHERE (file_type = 'publication'::public.file_type);
+
+
+--
+-- Name: file_upload_additional_resource_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX file_upload_additional_resource_idx ON public.file_upload USING btree (additional_resource_id) WHERE (additional_resource_id IS NOT NULL);
+
+
+--
+-- Name: file_upload_publication_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX file_upload_publication_idx ON public.file_upload USING btree (publication_id) WHERE (file_type = 'publication'::public.file_type);
+
+
+--
+-- Name: file_upload_work_featured_video_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX file_upload_work_featured_video_idx ON public.file_upload USING btree (work_featured_video_id) WHERE (work_featured_video_id IS NOT NULL);
+
+
+--
+-- Name: file_upload_work_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX file_upload_work_idx ON public.file_upload USING btree (work_id) WHERE (file_type = 'frontcover'::public.file_type);
+
+
+--
+-- Name: file_work_featured_video_unique_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX file_work_featured_video_unique_idx ON public.file USING btree (work_featured_video_id) WHERE (work_featured_video_id IS NOT NULL);
 
 
 --
@@ -2668,6 +4056,13 @@ CREATE INDEX idx_affiliation_contribution_id ON public.affiliation USING btree (
 --
 
 CREATE INDEX idx_affiliation_ordinal_asc ON public.affiliation USING btree (affiliation_ordinal, contribution_id);
+
+
+--
+-- Name: idx_contact_email; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_contact_email ON public.contact USING btree (email);
 
 
 --
@@ -2822,13 +4217,6 @@ CREATE INDEX idx_publication_publication_type ON public.publication USING btree 
 --
 
 CREATE INDEX idx_publication_work_id ON public.publication USING btree (work_id);
-
-
---
--- Name: idx_publisher_account_account_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_publisher_account_account_id ON public.publisher_account USING btree (account_id);
 
 
 --
@@ -3007,13 +4395,6 @@ CREATE INDEX idx_work_doi ON public.work USING btree (doi);
 
 
 --
--- Name: idx_work_full_title_asc; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_work_full_title_asc ON public.work USING btree (full_title, work_id);
-
-
---
 -- Name: idx_work_imprint_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3025,13 +4406,6 @@ CREATE INDEX idx_work_imprint_id ON public.work USING btree (imprint_id);
 --
 
 CREATE INDEX idx_work_landing_page ON public.work USING btree (landing_page);
-
-
---
--- Name: idx_work_long_abstract_substr; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_work_long_abstract_substr ON public.work USING btree ("substring"(long_abstract, 1, 255));
 
 
 --
@@ -3070,13 +4444,6 @@ CREATE INDEX idx_work_relation_relation_ordinal_relator_relation_type_asc ON pub
 
 
 --
--- Name: idx_work_short_abstract_substr; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_work_short_abstract_substr ON public.work USING btree ("substring"(short_abstract, 1, 255));
-
-
---
 -- Name: idx_work_type_status_pub_date_desc; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3102,13 +4469,6 @@ CREATE UNIQUE INDEX imprint_uniq_idx ON public.imprint USING btree (lower(imprin
 --
 
 CREATE UNIQUE INDEX institution_doi_uniq_idx ON public.institution USING btree (lower(institution_doi));
-
-
---
--- Name: issue_uniq_ord_in_series_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX issue_uniq_ord_in_series_idx ON public.issue USING btree (series_id, issue_ordinal);
 
 
 --
@@ -3154,6 +4514,13 @@ CREATE UNIQUE INDEX publisher_uniq_idx ON public.publisher USING btree (lower(pu
 
 
 --
+-- Name: publisher_zitadel_id_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX publisher_zitadel_id_key ON public.publisher USING btree (zitadel_id) WHERE (zitadel_id IS NOT NULL);
+
+
+--
 -- Name: series_issn_digital_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3165,6 +4532,20 @@ CREATE UNIQUE INDEX series_issn_digital_idx ON public.series USING btree (issn_d
 --
 
 CREATE UNIQUE INDEX series_issn_print_idx ON public.series USING btree (issn_print);
+
+
+--
+-- Name: title_uniq_locale_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX title_uniq_locale_idx ON public.title USING btree (work_id, locale_code);
+
+
+--
+-- Name: title_unique_canonical_true_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX title_unique_canonical_true_idx ON public.title USING btree (work_id) WHERE canonical;
 
 
 --
@@ -3182,10 +4563,10 @@ CREATE TRIGGER publication_location_canonical_urls_check BEFORE UPDATE ON public
 
 
 --
--- Name: account set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+-- Name: additional_resource set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.account FOR EACH ROW EXECUTE FUNCTION public.diesel_set_updated_at();
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.additional_resource FOR EACH ROW EXECUTE FUNCTION public.diesel_set_updated_at();
 
 
 --
@@ -3193,6 +4574,27 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.account FOR EACH ROW EXECU
 --
 
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.affiliation FOR EACH ROW EXECUTE FUNCTION public.diesel_set_updated_at();
+
+
+--
+-- Name: award set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.award FOR EACH ROW EXECUTE FUNCTION public.diesel_set_updated_at();
+
+
+--
+-- Name: book_review set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.book_review FOR EACH ROW EXECUTE FUNCTION public.diesel_set_updated_at();
+
+
+--
+-- Name: contact set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.contact FOR EACH ROW EXECUTE FUNCTION public.diesel_set_updated_at();
 
 
 --
@@ -3207,6 +4609,27 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.contribution FOR EACH ROW 
 --
 
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.contributor FOR EACH ROW EXECUTE FUNCTION public.diesel_set_updated_at();
+
+
+--
+-- Name: endorsement set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.endorsement FOR EACH ROW EXECUTE FUNCTION public.diesel_set_updated_at();
+
+
+--
+-- Name: file set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.file FOR EACH ROW EXECUTE FUNCTION public.diesel_set_updated_at();
+
+
+--
+-- Name: file_upload set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.file_upload FOR EACH ROW EXECUTE FUNCTION public.diesel_set_updated_at();
 
 
 --
@@ -3273,13 +4696,6 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.publisher FOR EACH ROW EXE
 
 
 --
--- Name: publisher_account set_updated_at; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.publisher_account FOR EACH ROW EXECUTE FUNCTION public.diesel_set_updated_at();
-
-
---
 -- Name: reference set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -3308,6 +4724,13 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.work FOR EACH ROW EXECUTE 
 
 
 --
+-- Name: work_featured_video set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.work_featured_video FOR EACH ROW EXECUTE FUNCTION public.diesel_set_updated_at();
+
+
+--
 -- Name: work_relation set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -3315,10 +4738,52 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.work_relation FOR EACH ROW
 
 
 --
+-- Name: work_relation set_work_relation_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_work_relation_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.work_relation FOR EACH ROW EXECUTE FUNCTION public.work_relation_work_updated_at_with_relations();
+
+
+--
+-- Name: abstract set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.abstract FOR EACH ROW EXECUTE FUNCTION public.work_updated_at_with_relations();
+
+
+--
+-- Name: additional_resource set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.additional_resource FOR EACH ROW EXECUTE FUNCTION public.work_updated_at_with_relations();
+
+
+--
 -- Name: affiliation set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.affiliation FOR EACH ROW EXECUTE FUNCTION public.affiliation_work_updated_at_with_relations();
+
+
+--
+-- Name: award set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.award FOR EACH ROW EXECUTE FUNCTION public.work_updated_at_with_relations();
+
+
+--
+-- Name: biography set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.biography FOR EACH ROW EXECUTE FUNCTION public.biography_work_updated_at_with_relations();
+
+
+--
+-- Name: book_review set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.book_review FOR EACH ROW EXECUTE FUNCTION public.work_updated_at_with_relations();
 
 
 --
@@ -3333,6 +4798,27 @@ CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDA
 --
 
 CREATE TRIGGER set_work_updated_at_with_relations AFTER UPDATE ON public.contributor FOR EACH ROW EXECUTE FUNCTION public.contributor_work_updated_at_with_relations();
+
+
+--
+-- Name: endorsement set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.endorsement FOR EACH ROW EXECUTE FUNCTION public.work_updated_at_with_relations();
+
+
+--
+-- Name: file set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.file FOR EACH ROW EXECUTE FUNCTION public.file_work_updated_at_with_relations();
+
+
+--
+-- Name: file_upload set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.file_upload FOR EACH ROW EXECUTE FUNCTION public.file_upload_work_updated_at_with_relations();
 
 
 --
@@ -3420,17 +4906,49 @@ CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDA
 
 
 --
--- Name: work set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
+-- Name: title set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER set_work_updated_at_with_relations AFTER UPDATE ON public.work FOR EACH ROW EXECUTE FUNCTION public.work_work_updated_at_with_relations();
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.title FOR EACH ROW EXECUTE FUNCTION public.work_updated_at_with_relations();
 
 
 --
--- Name: work_relation set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
+-- Name: work_featured_video set_work_updated_at_with_relations; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.work_relation FOR EACH ROW EXECUTE FUNCTION public.work_relation_work_updated_at_with_relations();
+CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDATE ON public.work_featured_video FOR EACH ROW EXECUTE FUNCTION public.work_updated_at_with_relations();
+
+
+--
+-- Name: abstract_history abstract_history_abstract_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.abstract_history
+    ADD CONSTRAINT abstract_history_abstract_id_fkey FOREIGN KEY (abstract_id) REFERENCES public.abstract(abstract_id) ON DELETE CASCADE;
+
+
+--
+-- Name: abstract abstract_work_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.abstract
+    ADD CONSTRAINT abstract_work_id_fkey FOREIGN KEY (work_id) REFERENCES public.work(work_id) ON DELETE CASCADE;
+
+
+--
+-- Name: additional_resource_history additional_resource_history_additional_resource_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.additional_resource_history
+    ADD CONSTRAINT additional_resource_history_additional_resource_id_fkey FOREIGN KEY (additional_resource_id) REFERENCES public.additional_resource(additional_resource_id) ON DELETE CASCADE;
+
+
+--
+-- Name: additional_resource additional_resource_work_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.additional_resource
+    ADD CONSTRAINT additional_resource_work_id_fkey FOREIGN KEY (work_id) REFERENCES public.work(work_id) ON DELETE CASCADE;
 
 
 --
@@ -3439,14 +4957,6 @@ CREATE TRIGGER set_work_updated_at_with_relations AFTER INSERT OR DELETE OR UPDA
 
 ALTER TABLE ONLY public.affiliation
     ADD CONSTRAINT affiliation_contribution_id_fkey FOREIGN KEY (contribution_id) REFERENCES public.contribution(contribution_id) ON DELETE CASCADE;
-
-
---
--- Name: affiliation_history affiliation_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.affiliation_history
-    ADD CONSTRAINT affiliation_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
 
 
 --
@@ -3466,19 +4976,83 @@ ALTER TABLE ONLY public.affiliation
 
 
 --
+-- Name: award_history award_history_award_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.award_history
+    ADD CONSTRAINT award_history_award_id_fkey FOREIGN KEY (award_id) REFERENCES public.award(award_id) ON DELETE CASCADE;
+
+
+--
+-- Name: award award_work_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.award
+    ADD CONSTRAINT award_work_id_fkey FOREIGN KEY (work_id) REFERENCES public.work(work_id) ON DELETE CASCADE;
+
+
+--
+-- Name: biography biography_contribution_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.biography
+    ADD CONSTRAINT biography_contribution_id_fkey FOREIGN KEY (contribution_id) REFERENCES public.contribution(contribution_id) ON DELETE CASCADE;
+
+
+--
+-- Name: biography_history biography_history_biography_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.biography_history
+    ADD CONSTRAINT biography_history_biography_id_fkey FOREIGN KEY (biography_id) REFERENCES public.biography(biography_id) ON DELETE CASCADE;
+
+
+--
+-- Name: book_review_history book_review_history_book_review_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.book_review_history
+    ADD CONSTRAINT book_review_history_book_review_id_fkey FOREIGN KEY (book_review_id) REFERENCES public.book_review(book_review_id) ON DELETE CASCADE;
+
+
+--
+-- Name: book_review book_review_reviewer_institution_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.book_review
+    ADD CONSTRAINT book_review_reviewer_institution_id_fkey FOREIGN KEY (reviewer_institution_id) REFERENCES public.institution(institution_id) ON DELETE SET NULL;
+
+
+--
+-- Name: book_review book_review_work_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.book_review
+    ADD CONSTRAINT book_review_work_id_fkey FOREIGN KEY (work_id) REFERENCES public.work(work_id) ON DELETE CASCADE;
+
+
+--
+-- Name: contact_history contact_history_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contact_history
+    ADD CONSTRAINT contact_history_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contact(contact_id) ON DELETE CASCADE;
+
+
+--
+-- Name: contact contact_publisher_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contact
+    ADD CONSTRAINT contact_publisher_id_fkey FOREIGN KEY (publisher_id) REFERENCES public.publisher(publisher_id) ON DELETE CASCADE;
+
+
+--
 -- Name: contribution contribution_contributor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.contribution
     ADD CONSTRAINT contribution_contributor_id_fkey FOREIGN KEY (contributor_id) REFERENCES public.contributor(contributor_id) ON DELETE CASCADE;
-
-
---
--- Name: contribution_history contribution_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.contribution_history
-    ADD CONSTRAINT contribution_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
 
 
 --
@@ -3498,14 +5072,6 @@ ALTER TABLE ONLY public.contribution
 
 
 --
--- Name: contributor_history contributor_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.contributor_history
-    ADD CONSTRAINT contributor_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
-
-
---
 -- Name: contributor_history contributor_history_contributor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3514,11 +5080,91 @@ ALTER TABLE ONLY public.contributor_history
 
 
 --
--- Name: institution_history funder_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: endorsement endorsement_author_institution_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.institution_history
-    ADD CONSTRAINT funder_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
+ALTER TABLE ONLY public.endorsement
+    ADD CONSTRAINT endorsement_author_institution_id_fkey FOREIGN KEY (author_institution_id) REFERENCES public.institution(institution_id) ON DELETE SET NULL;
+
+
+--
+-- Name: endorsement_history endorsement_history_endorsement_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.endorsement_history
+    ADD CONSTRAINT endorsement_history_endorsement_id_fkey FOREIGN KEY (endorsement_id) REFERENCES public.endorsement(endorsement_id) ON DELETE CASCADE;
+
+
+--
+-- Name: endorsement endorsement_work_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.endorsement
+    ADD CONSTRAINT endorsement_work_id_fkey FOREIGN KEY (work_id) REFERENCES public.work(work_id) ON DELETE CASCADE;
+
+
+--
+-- Name: file file_additional_resource_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file
+    ADD CONSTRAINT file_additional_resource_id_fkey FOREIGN KEY (additional_resource_id) REFERENCES public.additional_resource(additional_resource_id) ON DELETE CASCADE;
+
+
+--
+-- Name: file file_publication_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file
+    ADD CONSTRAINT file_publication_id_fkey FOREIGN KEY (publication_id) REFERENCES public.publication(publication_id) ON DELETE CASCADE;
+
+
+--
+-- Name: file_upload file_upload_additional_resource_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_upload
+    ADD CONSTRAINT file_upload_additional_resource_id_fkey FOREIGN KEY (additional_resource_id) REFERENCES public.additional_resource(additional_resource_id) ON DELETE CASCADE;
+
+
+--
+-- Name: file_upload file_upload_publication_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_upload
+    ADD CONSTRAINT file_upload_publication_id_fkey FOREIGN KEY (publication_id) REFERENCES public.publication(publication_id) ON DELETE CASCADE;
+
+
+--
+-- Name: file_upload file_upload_work_featured_video_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_upload
+    ADD CONSTRAINT file_upload_work_featured_video_id_fkey FOREIGN KEY (work_featured_video_id) REFERENCES public.work_featured_video(work_featured_video_id) ON DELETE CASCADE;
+
+
+--
+-- Name: file_upload file_upload_work_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file_upload
+    ADD CONSTRAINT file_upload_work_id_fkey FOREIGN KEY (work_id) REFERENCES public.work(work_id) ON DELETE CASCADE;
+
+
+--
+-- Name: file file_work_featured_video_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file
+    ADD CONSTRAINT file_work_featured_video_id_fkey FOREIGN KEY (work_featured_video_id) REFERENCES public.work_featured_video(work_featured_video_id) ON DELETE CASCADE;
+
+
+--
+-- Name: file file_work_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file
+    ADD CONSTRAINT file_work_id_fkey FOREIGN KEY (work_id) REFERENCES public.work(work_id) ON DELETE CASCADE;
 
 
 --
@@ -3538,14 +5184,6 @@ ALTER TABLE ONLY public.funding
 
 
 --
--- Name: funding_history funding_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.funding_history
-    ADD CONSTRAINT funding_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
-
-
---
 -- Name: funding_history funding_history_funding_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3562,14 +5200,6 @@ ALTER TABLE ONLY public.funding
 
 
 --
--- Name: imprint_history imprint_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.imprint_history
-    ADD CONSTRAINT imprint_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
-
-
---
 -- Name: imprint_history imprint_history_imprint_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3583,14 +5213,6 @@ ALTER TABLE ONLY public.imprint_history
 
 ALTER TABLE ONLY public.imprint
     ADD CONSTRAINT imprint_publisher_id_fkey FOREIGN KEY (publisher_id) REFERENCES public.publisher(publisher_id) ON DELETE CASCADE;
-
-
---
--- Name: issue_history issue_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.issue_history
-    ADD CONSTRAINT issue_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
 
 
 --
@@ -3618,14 +5240,6 @@ ALTER TABLE ONLY public.issue
 
 
 --
--- Name: language_history language_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.language_history
-    ADD CONSTRAINT language_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
-
-
---
 -- Name: language_history language_history_language_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3639,14 +5253,6 @@ ALTER TABLE ONLY public.language_history
 
 ALTER TABLE ONLY public.language
     ADD CONSTRAINT language_work_id_fkey FOREIGN KEY (work_id) REFERENCES public.work(work_id) ON DELETE CASCADE;
-
-
---
--- Name: location_history location_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.location_history
-    ADD CONSTRAINT location_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
 
 
 --
@@ -3666,14 +5272,6 @@ ALTER TABLE ONLY public.location
 
 
 --
--- Name: price_history price_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.price_history
-    ADD CONSTRAINT price_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
-
-
---
 -- Name: price_history price_history_price_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3687,14 +5285,6 @@ ALTER TABLE ONLY public.price_history
 
 ALTER TABLE ONLY public.price
     ADD CONSTRAINT price_publication_id_fkey FOREIGN KEY (publication_id) REFERENCES public.publication(publication_id) ON DELETE CASCADE;
-
-
---
--- Name: publication_history publication_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.publication_history
-    ADD CONSTRAINT publication_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
 
 
 --
@@ -3714,43 +5304,11 @@ ALTER TABLE ONLY public.publication
 
 
 --
--- Name: publisher_account publisher_account_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.publisher_account
-    ADD CONSTRAINT publisher_account_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id) ON DELETE CASCADE;
-
-
---
--- Name: publisher_account publisher_account_publisher_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.publisher_account
-    ADD CONSTRAINT publisher_account_publisher_id_fkey FOREIGN KEY (publisher_id) REFERENCES public.publisher(publisher_id) ON DELETE CASCADE;
-
-
---
--- Name: publisher_history publisher_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.publisher_history
-    ADD CONSTRAINT publisher_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
-
-
---
 -- Name: publisher_history publisher_history_publisher_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.publisher_history
     ADD CONSTRAINT publisher_history_publisher_id_fkey FOREIGN KEY (publisher_id) REFERENCES public.publisher(publisher_id) ON DELETE CASCADE;
-
-
---
--- Name: reference_history reference_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.reference_history
-    ADD CONSTRAINT reference_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
 
 
 --
@@ -3770,14 +5328,6 @@ ALTER TABLE ONLY public.reference
 
 
 --
--- Name: series_history series_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.series_history
-    ADD CONSTRAINT series_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
-
-
---
 -- Name: series_history series_history_series_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3791,14 +5341,6 @@ ALTER TABLE ONLY public.series_history
 
 ALTER TABLE ONLY public.series
     ADD CONSTRAINT series_imprint_id_fkey FOREIGN KEY (imprint_id) REFERENCES public.imprint(imprint_id) ON DELETE CASCADE;
-
-
---
--- Name: subject_history subject_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.subject_history
-    ADD CONSTRAINT subject_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
 
 
 --
@@ -3818,11 +5360,35 @@ ALTER TABLE ONLY public.subject
 
 
 --
--- Name: work_history work_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: title_history title_history_title_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.work_history
-    ADD CONSTRAINT work_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
+ALTER TABLE ONLY public.title_history
+    ADD CONSTRAINT title_history_title_id_fkey FOREIGN KEY (title_id) REFERENCES public.title(title_id) ON DELETE CASCADE;
+
+
+--
+-- Name: title title_work_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.title
+    ADD CONSTRAINT title_work_id_fkey FOREIGN KEY (work_id) REFERENCES public.work(work_id) ON DELETE CASCADE;
+
+
+--
+-- Name: work_featured_video_history work_featured_video_history_work_featured_video_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.work_featured_video_history
+    ADD CONSTRAINT work_featured_video_history_work_featured_video_id_fkey FOREIGN KEY (work_featured_video_id) REFERENCES public.work_featured_video(work_featured_video_id) ON DELETE CASCADE;
+
+
+--
+-- Name: work_featured_video work_featured_video_work_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.work_featured_video
+    ADD CONSTRAINT work_featured_video_work_id_fkey FOREIGN KEY (work_id) REFERENCES public.work(work_id) ON DELETE CASCADE;
 
 
 --
@@ -3850,14 +5416,6 @@ ALTER TABLE ONLY public.work_relation
 
 
 --
--- Name: work_relation_history work_relation_history_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.work_relation_history
-    ADD CONSTRAINT work_relation_history_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.account(account_id);
-
-
---
 -- Name: work_relation_history work_relation_history_work_relation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3880,3 +5438,5 @@ ALTER TABLE ONLY public.work_relation
 ALTER TABLE ONLY public.work_relation
     ADD CONSTRAINT work_relation_relator_work_id_fkey FOREIGN KEY (relator_work_id) REFERENCES public.work(work_id) ON DELETE CASCADE;
 
+
+--
