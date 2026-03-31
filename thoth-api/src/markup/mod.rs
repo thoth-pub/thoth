@@ -74,8 +74,32 @@ pub fn convert_to_jats(
     format: MarkupFormat,
     conversion_limit: ConversionLimit,
 ) -> ThothResult<String> {
+    if format == MarkupFormat::JatsXml {
+        let content_looks_like_jats = content.contains('<') && content.contains("</");
+        let ast = if content_looks_like_jats {
+            jats_to_ast(&content)
+        } else {
+            plain_text_to_ast(&content)
+        };
+
+        let processed_ast = if conversion_limit == ConversionLimit::Title {
+            strip_structural_elements_from_ast_for_conversion(&ast)
+        } else {
+            ast
+        };
+
+        validate_ast_content(&processed_ast, conversion_limit)?;
+
+        return Ok(
+            if content_looks_like_jats || conversion_limit == ConversionLimit::Title {
+                ast_to_jats(&processed_ast)
+            } else {
+                plain_text_ast_to_jats(&processed_ast)
+            },
+        );
+    }
+
     validate_format(&content, &format)?;
-    let mut output = content.clone();
 
     match format {
         MarkupFormat::Html => {
@@ -90,7 +114,7 @@ pub fn convert_to_jats(
             };
 
             validate_ast_content(&processed_ast, conversion_limit)?;
-            output = ast_to_jats(&processed_ast);
+            Ok(ast_to_jats(&processed_ast))
         }
 
         MarkupFormat::Markdown => {
@@ -105,7 +129,7 @@ pub fn convert_to_jats(
             };
 
             validate_ast_content(&processed_ast, conversion_limit)?;
-            output = ast_to_jats(&processed_ast);
+            Ok(ast_to_jats(&processed_ast))
         }
 
         MarkupFormat::PlainText => {
@@ -120,18 +144,16 @@ pub fn convert_to_jats(
             };
 
             validate_ast_content(&processed_ast, conversion_limit)?;
-            output = if conversion_limit == ConversionLimit::Title {
+            Ok(if conversion_limit == ConversionLimit::Title {
                 // Title JATS should remain inline (no paragraph wrapper)
                 ast_to_jats(&processed_ast)
             } else {
                 plain_text_ast_to_jats(&processed_ast)
-            };
+            })
         }
 
-        MarkupFormat::JatsXml => {}
+        MarkupFormat::JatsXml => unreachable!("handled above"),
     }
-
-    Ok(output)
 }
 
 /// Convert from JATS XML to specified format using a specific tag name
@@ -346,6 +368,30 @@ mod tests {
         )
         .unwrap();
         assert_eq!(output, "Just plain text.");
+    }
+
+    #[test]
+    fn test_jatsxml_plain_text_title_is_accepted() {
+        let input = "Second Expanded Edition";
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::JatsXml,
+            ConversionLimit::Title,
+        )
+        .unwrap();
+        assert_eq!(output, input);
+    }
+
+    #[test]
+    fn test_jatsxml_plain_text_abstract_is_wrapped() {
+        let input = "Plain abstract content.";
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::JatsXml,
+            ConversionLimit::Abstract,
+        )
+        .unwrap();
+        assert_eq!(output, "<p>Plain abstract content.</p>");
     }
     // --- convert_to_jats tests end   ---
 

@@ -2547,6 +2547,73 @@ query LinkedRelations($reviewId: Uuid!, $endorsementId: Uuid!) {
 }
 
 #[test]
+fn graphql_markup_mutations_accept_plain_text_when_markup_is_jats_xml() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-jats-xml-mutations");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let title = Title::from_id(pool.as_ref(), &seed.title_id).unwrap();
+    update_with_data_and_markup(
+        &schema,
+        &context,
+        "updateTitle",
+        "PatchTitle",
+        "titleId",
+        PatchTitle {
+            title_id: title.title_id,
+            work_id: title.work_id,
+            locale_code: title.locale_code,
+            full_title: "Foundations for Moral <italic>Relativism</italic> Second Expanded Edition"
+                .to_string(),
+            title: "Foundations for Moral <italic>Relativism</italic>".to_string(),
+            subtitle: Some("Second Expanded Edition".to_string()),
+            canonical: title.canonical,
+        },
+        MarkupFormat::JatsXml,
+    );
+
+    let stored_title = Title::from_id(pool.as_ref(), &seed.title_id).unwrap();
+    assert_eq!(
+        stored_title.full_title,
+        "Foundations for Moral <italic>Relativism</italic> Second Expanded Edition"
+    );
+    assert_eq!(
+        stored_title.title,
+        "Foundations for Moral <italic>Relativism</italic>"
+    );
+    assert_eq!(
+        stored_title.subtitle.as_deref(),
+        Some("Second Expanded Edition")
+    );
+
+    let abstract_item = Abstract::from_id(pool.as_ref(), &seed.abstract_short_id).unwrap();
+    update_with_data_and_markup(
+        &schema,
+        &context,
+        "updateAbstract",
+        "PatchAbstract",
+        "abstractId",
+        PatchAbstract {
+            abstract_id: abstract_item.abstract_id,
+            work_id: abstract_item.work_id,
+            content: "Plain abstract content updated".to_string(),
+            locale_code: abstract_item.locale_code,
+            abstract_type: abstract_item.abstract_type,
+            canonical: abstract_item.canonical,
+        },
+        MarkupFormat::JatsXml,
+    );
+
+    let stored_abstract = Abstract::from_id(pool.as_ref(), &seed.abstract_short_id).unwrap();
+    assert_eq!(
+        stored_abstract.content,
+        "<p>Plain abstract content updated</p>"
+    );
+}
+
+#[test]
 fn graphql_mutations_cover_all() {
     let (_guard, pool) = test_db::setup_test_db();
     let schema = create_schema();
