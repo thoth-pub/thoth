@@ -55,18 +55,34 @@ fn looks_like_markup(content: &str) -> bool {
 
 fn validate_jats_subset(content: &str) -> ThothResult<()> {
     let allowed_tags = [
+        "html",
         "p",
         "break",
+        "br",
         "bold",
+        "strong",
+        "b",
         "italic",
+        "em",
+        "i",
         "underline",
+        "u",
         "strike",
+        "s",
+        "del",
+        "strikethrough",
         "monospace",
+        "code",
         "sup",
         "sub",
         "sc",
+        "text",
         "list",
+        "ul",
+        "ol",
         "list-item",
+        "li",
+        "a",
         "ext-link",
         "inline-formula",
         "tex-math",
@@ -250,6 +266,10 @@ pub fn convert_from_jats(
     format: MarkupFormat,
     conversion_limit: ConversionLimit,
 ) -> ThothResult<String> {
+    if format == MarkupFormat::JatsXml {
+        return Ok(jats_xml.to_string());
+    }
+
     // Allow plain-text content that was stored without JATS markup for titles.
     if !looks_like_markup(jats_xml) {
         let ast = plain_text_to_ast(jats_xml);
@@ -273,10 +293,7 @@ pub fn convert_from_jats(
         });
     }
 
-    validate_format(jats_xml, &MarkupFormat::JatsXml)?;
-    validate_jats_subset(jats_xml)?;
-
-    // Parse JATS to AST first for better handling
+    // Read paths need to tolerate legacy stored markup and normalize it on the fly.
     let ast = jats_to_ast(jats_xml);
 
     // For title conversion, strip structural elements before validation
@@ -285,9 +302,6 @@ pub fn convert_from_jats(
     } else {
         ast
     };
-
-    // Validate the AST content based on conversion limit
-    validate_ast_content(&processed_ast, conversion_limit)?;
 
     let output = match format {
         MarkupFormat::Html => {
@@ -305,10 +319,7 @@ pub fn convert_from_jats(
             ast_to_plain_text(&processed_ast)
         }
 
-        MarkupFormat::JatsXml => {
-            // Return the AST converted back to JATS (should be identical)
-            jats_xml.to_string()
-        }
+        MarkupFormat::JatsXml => unreachable!("handled above"),
     };
 
     Ok(output)
@@ -499,6 +510,21 @@ mod tests {
     }
 
     #[test]
+    fn test_jatsxml_legacy_inline_html_is_normalized_on_write() {
+        let input = r#"<p><i>Italic</i> <u>Underline</u> <a href="https://example.org">Link</a></p>"#;
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::JatsXml,
+            ConversionLimit::Abstract,
+        )
+        .unwrap();
+
+        assert!(output.contains("<italic>Italic</italic>"));
+        assert!(output.contains("<underline>Underline</underline>"));
+        assert!(output.contains(r#"<ext-link xlink:href="https://example.org">Link</ext-link>"#));
+    }
+
+    #[test]
     fn test_html_break_formula_email_and_uri_conversion() {
         let input = r#"<p>Line<br/><span class="inline-formula">E=mc^2</span> <a href="mailto:user@example.org">user@example.org</a> <a href="https://example.org">https://example.org</a></p>"#;
         let output = convert_to_jats(
@@ -656,6 +682,33 @@ mod tests {
         let output =
             convert_from_jats(input, MarkupFormat::JatsXml, ConversionLimit::Biography).unwrap();
         assert_eq!(input, output);
+    }
+
+    #[test]
+    fn test_convert_from_jats_jatsxml_passes_through_legacy_markup() {
+        let input = r#"<p><i>Italic</i> <u>Underline</u> <a href="https://example.org">Link</a></p>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::JatsXml, ConversionLimit::Abstract).unwrap();
+        assert_eq!(input, output);
+    }
+
+    #[test]
+    fn test_convert_from_jats_html_accepts_legacy_inline_html_tags() {
+        let input = r#"<p><i>Italic</i> <u>Underline</u> <a href="https://example.org">Link</a></p>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Html, ConversionLimit::Abstract).unwrap();
+
+        assert!(output.contains("<em>Italic</em>"));
+        assert!(output.contains("<u>Underline</u>"));
+        assert!(output.contains(r#"<a href="https://example.org">Link</a>"#));
+    }
+
+    #[test]
+    fn test_convert_from_jats_html_title_flattens_multiple_top_level_nodes() {
+        let input = r#"<p>Legacy Title</p><i> Supplement</i>"#;
+        let output = convert_from_jats(input, MarkupFormat::Html, ConversionLimit::Title).unwrap();
+
+        assert_eq!(output, "Legacy Title<em> Supplement</em>");
     }
 
     #[test]
