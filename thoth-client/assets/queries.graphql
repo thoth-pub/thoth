@@ -26,7 +26,6 @@ fragment Funding on Funding {
     projectName
     projectShortname
     grantNumber
-    jurisdiction
     institution {
         institutionName
         institutionDoi
@@ -38,9 +37,6 @@ fragment Funding on Funding {
 fragment Work on Work {
     workId
     workStatus
-    fullTitle
-    title
-    subtitle
     workType
     reference
     edition
@@ -49,8 +45,6 @@ fragment Work on Work {
     withdrawnDate
     license
     copyrightHolder
-    shortAbstract
-    longAbstract
     generalNote
     bibliographyNote
     place
@@ -69,18 +63,43 @@ fragment Work on Work {
     oclc
     coverUrl
     coverCaption
+    titles(limit: $titlesLimit, markupFormat: PLAIN_TEXT) {
+        titleId
+        localeCode
+        fullTitle
+        title
+        subtitle
+        canonical
+    }
+    abstracts(limit: $abstractsLimit, markupFormat: JATS_XML) {
+        abstractId
+        workId
+        content
+        localeCode
+        abstractType
+        canonical
+    }
     imprint {
         imprintName
         imprintUrl
         crossmarkDoi
+        defaultCurrency
+        defaultPlace
+        defaultLocale
         publisher {
             publisherName
             publisherShortname
             publisherUrl
+            accessibilityStatement
+            contacts {
+                contactType
+                email
+            }
         }
     }
     issues(limit: $issuesLimit, order: {field: ISSUE_ORDINAL, direction: ASC}) {
         issueOrdinal
+        issueNumber
         series {
             seriesId
             seriesType
@@ -98,7 +117,13 @@ fragment Work on Work {
         lastName
         fullName
         mainContribution
-        biography
+        biographies(limit: 1, markupFormat: JATS_XML) {
+            biographyId
+            contributionId
+            content
+            canonical
+            localeCode
+        }
         contributionOrdinal
         contributor {
             orcid
@@ -118,7 +143,6 @@ fragment Work on Work {
     languages(limit: $languagesLimit) {
         languageCode
         languageRelation
-        mainLanguage
     }
     publications(limit: $publicationsLimit) {
         publicationId
@@ -135,6 +159,10 @@ fragment Work on Work {
         depthMm: depth(units: MM)
         depthCm: depth(units: CM)
         depthIn: depth(units: IN)
+        accessibilityStandard
+        accessibilityAdditionalStandard
+        accessibilityException
+        accessibilityReportUrl
         prices {
             currencyCode
             unitPrice
@@ -158,9 +186,6 @@ fragment Work on Work {
         relationType
         relationOrdinal
         relatedWork {
-            fullTitle
-            title
-            subtitle
             edition
             doi
             publicationDate
@@ -168,8 +193,6 @@ fragment Work on Work {
             workStatus
             license
             copyrightHolder
-            shortAbstract
-            longAbstract
             generalNote
             place
             firstPage
@@ -177,6 +200,22 @@ fragment Work on Work {
             pageCount
             pageInterval
             landingPage
+            titles(limit: $titlesLimit, markupFormat: PLAIN_TEXT) {
+                titleId
+                localeCode
+                fullTitle
+                title
+                subtitle
+                canonical
+            }
+            abstracts(limit: $abstractsLimit, markupFormat: JATS_XML) {
+                abstractId
+                workId
+                content
+                localeCode
+                abstractType
+                canonical
+            }
             imprint {
                 crossmarkDoi
                 publisher {
@@ -188,7 +227,13 @@ fragment Work on Work {
                 firstName
                 lastName
                 fullName
-                biography
+                biographies(limit: 1) {
+                    biographyId
+                    contributionId
+                    content
+                    canonical
+                    localeCode
+                }
                 contributionOrdinal
                 contributor {
                     orcid
@@ -206,7 +251,6 @@ fragment Work on Work {
             languages {
                 languageCode
                 languageRelation
-                mainLanguage
             }
             publications {
                 publicationType
@@ -231,10 +275,12 @@ fragment Work on Work {
 
 query WorkQuery(
     $workId: Uuid!,
+    $abstractsLimit: Int!,
     $issuesLimit: Int!,
     $languagesLimit: Int!,
     $publicationsLimit: Int!,
     $subjectsLimit: Int!,
+    $titlesLimit: Int!,
     $fundingsLimit: Int!,
     $relationsLimit: Int!,
     $referencesLimit: Int!
@@ -247,10 +293,12 @@ query WorksQuery(
     $limit: Int!,
     $offset: Int!,
     $publishers: [Uuid!],
+    $abstractsLimit: Int!,
     $issuesLimit: Int!,
     $languagesLimit: Int!,
     $publicationsLimit: Int!,
     $subjectsLimit: Int!,
+    $titlesLimit: Int!,
     $fundingsLimit: Int!,
     $relationsLimit: Int!,
     $referencesLimit: Int!

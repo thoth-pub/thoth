@@ -110,7 +110,7 @@ fn password_input() -> ThothResult<String> {
 
 fn is_admin_input(publisher_name: &str) -> ThothResult<bool> {
     Input::with_theme(&ColorfulTheme::default())
-        .with_prompt(format!("Make user an admin of '{}'?", publisher_name))
+        .with_prompt(format!("Make user an admin of '{publisher_name}'?"))
         .default(false)
         .interact_on(&Term::stdout())
         .map_err(Into::into)

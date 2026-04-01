@@ -21,7 +21,14 @@ backend = [
     "jsonwebtoken",
     "deadpool-redis",
     "rand",
-    "argon2rs"
+    "argon2rs",
+    "zitadel",
+    "aws-sdk-s3",
+    "aws-sdk-cloudfront",
+    "aws-config",
+    "aws-credential-types",
+    "base64",
+    "hex"
 ]
 
 [dependencies]
@@ -40,12 +47,23 @@ futures = { version  = "0.3.31", optional = true }
 jsonwebtoken = { version = "9.3.1", optional = true }
 juniper = { version = "0.16.1", features = ["chrono", "schema-language", "uuid"] }
 lazy_static = "1.5.0"
+pulldown-cmark = "0.13.0"
 rand =  { version = "0.9.0", optional = true }
 regex = "1.11.1"
+scraper = "0.20.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 strum = { version = "0.27.1", features = ["derive"] }
 uuid = { version = "1.16.0", features = ["serde", "v4"] }
+zitadel = { version = "5.5.1", features = ["actix"], optional = true }
+aws-sdk-s3 = { version = "1", optional = true }
+aws-sdk-cloudfront = { version = "1", optional = true }
+aws-config = { version = "1", optional = true }
+aws-credential-types = { version = "1", optional = true }
+base64 = { version = "0.22", optional = true }
+hex = { version = "0.4", optional = true }
+log = "0.4.26"
 
 [dev-dependencies]
-tokio = { version = "1.44", features = ["macros"] }
+fs2 = "0.4.3"
+tokio = { version = "1.44", features = ["macros", "rt"] }

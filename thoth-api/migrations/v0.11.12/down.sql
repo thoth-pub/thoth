@@ -1,1 +1,0 @@
-ALTER TABLE price DROP CONSTRAINT price_publication_id_currency_code_uniq;

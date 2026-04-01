@@ -2,10 +2,8 @@ use super::{
     Imprint, ImprintField, ImprintHistory, ImprintOrderBy, NewImprint, NewImprintHistory,
     PatchImprint,
 };
-use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{imprint, imprint_history};
-use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -19,6 +17,7 @@ impl Crud for Imprint {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.imprint_id
@@ -36,36 +35,40 @@ impl Crud for Imprint {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Imprint>> {
         use crate::schema::imprint::dsl::*;
         let mut connection = db.get()?;
         let mut query = imprint.into_boxed();
 
         query = match order.field {
-            ImprintField::ImprintId => match order.direction {
-                Direction::Asc => query.order(imprint_id.asc()),
-                Direction::Desc => query.order(imprint_id.desc()),
-            },
-            ImprintField::ImprintName => match order.direction {
-                Direction::Asc => query.order(imprint_name.asc()),
-                Direction::Desc => query.order(imprint_name.desc()),
-            },
-            ImprintField::ImprintUrl => match order.direction {
-                Direction::Asc => query.order(imprint_url.asc()),
-                Direction::Desc => query.order(imprint_url.desc()),
-            },
-            ImprintField::CrossmarkDoi => match order.direction {
-                Direction::Asc => query.order(crossmark_doi.asc()),
-                Direction::Desc => query.order(crossmark_doi.desc()),
-            },
-            ImprintField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            ImprintField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            ImprintField::ImprintId => {
+                apply_directional_order!(query, order.direction, order, imprint_id)
+            }
+            ImprintField::ImprintName => {
+                apply_directional_order!(query, order.direction, order, imprint_name)
+            }
+            ImprintField::ImprintUrl => {
+                apply_directional_order!(query, order.direction, order, imprint_url)
+            }
+            ImprintField::CrossmarkDoi => {
+                apply_directional_order!(query, order.direction, order, crossmark_doi)
+            }
+            ImprintField::DefaultCurrency => {
+                apply_directional_order!(query, order.direction, order, default_currency)
+            }
+            ImprintField::DefaultPlace => {
+                apply_directional_order!(query, order.direction, order, default_place)
+            }
+            ImprintField::DefaultLocale => {
+                apply_directional_order!(query, order.direction, order, default_locale)
+            }
+            ImprintField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            ImprintField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(publisher_id.eq_any(publishers));
@@ -94,6 +97,7 @@ impl Crud for Imprint {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::imprint::dsl::*;
         let mut connection = db.get()?;
@@ -120,20 +124,20 @@ impl Crud for Imprint {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        Ok(self.publisher_id)
-    }
-
     crud_methods!(imprint::table, imprint::dsl::imprint);
 }
+
+publisher_id_impls!(Imprint, NewImprint, PatchImprint, |s, _db| {
+    Ok(s.publisher_id)
+});
 
 impl HistoryEntry for Imprint {
     type NewHistoryEntity = NewImprintHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             imprint_id: self.imprint_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -143,28 +147,4 @@ impl DbInsert for NewImprintHistory {
     type MainEntity = ImprintHistory;
 
     db_insert!(imprint_history::table);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_imprint_pk() {
-        let imprint: Imprint = Default::default();
-        assert_eq!(imprint.pk(), imprint.imprint_id);
-    }
-
-    #[test]
-    fn test_new_imprint_history_from_imprint() {
-        let imprint: Imprint = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_imprint_history = imprint.new_history_entry(&account_id);
-        assert_eq!(new_imprint_history.imprint_id, imprint.imprint_id);
-        assert_eq!(new_imprint_history.account_id, account_id);
-        assert_eq!(
-            new_imprint_history.data,
-            serde_json::Value::String(serde_json::to_string(&imprint).unwrap())
-        );
-    }
 }

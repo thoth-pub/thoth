@@ -2,12 +2,13 @@ use super::{
     Contribution, ContributionField, ContributionHistory, ContributionType, NewContribution,
     NewContributionHistory, PatchContribution,
 };
-use crate::graphql::model::ContributionOrderBy;
-use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::graphql::types::inputs::ContributionOrderBy;
+use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{contribution, contribution_history};
-use crate::{crud_methods, db_insert};
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{
+    BoolExpressionMethods, Connection, ExpressionMethods, NullableExpressionMethods, QueryDsl,
+    RunQueryDsl,
+};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
 
@@ -18,6 +19,7 @@ impl Crud for Contribution {
     type FilterParameter1 = ContributionType;
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.contribution_id
@@ -35,8 +37,10 @@ impl Crud for Contribution {
         contribution_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Contribution>> {
         use crate::schema::contribution::dsl::*;
+
         let mut connection = db.get()?;
         let mut query = contribution
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
@@ -44,54 +48,93 @@ impl Crud for Contribution {
             .into_boxed();
 
         query = match order.field {
-            ContributionField::ContributionId => match order.direction {
-                Direction::Asc => query.order(contribution_id.asc()),
-                Direction::Desc => query.order(contribution_id.desc()),
-            },
-            ContributionField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
-            },
-            ContributionField::ContributorId => match order.direction {
-                Direction::Asc => query.order(contributor_id.asc()),
-                Direction::Desc => query.order(contributor_id.desc()),
-            },
-            ContributionField::ContributionType => match order.direction {
-                Direction::Asc => query.order(contribution_type.asc()),
-                Direction::Desc => query.order(contribution_type.desc()),
-            },
-            ContributionField::MainContribution => match order.direction {
-                Direction::Asc => query.order(main_contribution.asc()),
-                Direction::Desc => query.order(main_contribution.desc()),
-            },
-            ContributionField::Biography => match order.direction {
-                Direction::Asc => query.order(biography.asc()),
-                Direction::Desc => query.order(biography.desc()),
-            },
-            ContributionField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            ContributionField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
-            ContributionField::FirstName => match order.direction {
-                Direction::Asc => query.order(first_name.asc()),
-                Direction::Desc => query.order(first_name.desc()),
-            },
-            ContributionField::LastName => match order.direction {
-                Direction::Asc => query.order(last_name.asc()),
-                Direction::Desc => query.order(last_name.desc()),
-            },
-            ContributionField::FullName => match order.direction {
-                Direction::Asc => query.order(full_name.asc()),
-                Direction::Desc => query.order(full_name.desc()),
-            },
-            ContributionField::ContributionOrdinal => match order.direction {
-                Direction::Asc => query.order(contribution_ordinal.asc()),
-                Direction::Desc => query.order(contribution_ordinal.desc()),
-            },
+            ContributionField::ContributionId => {
+                apply_directional_order!(query, order.direction, order_by, contribution_id)
+            }
+            ContributionField::WorkId => {
+                apply_directional_order!(query, order.direction, order_by, work_id, contribution_id)
+            }
+            ContributionField::ContributorId => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                contributor_id,
+                contribution_id
+            ),
+            ContributionField::ContributionType => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                contribution_type,
+                contribution_id
+            ),
+            ContributionField::MainContribution => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                main_contribution,
+                contribution_id
+            ),
+            ContributionField::Biography => {
+                let biography_content = crate::schema::biography::table
+                    .select(crate::schema::biography::content.nullable())
+                    .filter(crate::schema::biography::contribution_id.eq(contribution_id))
+                    .order((
+                        crate::schema::biography::canonical.desc(),
+                        crate::schema::biography::biography_id.asc(),
+                    ))
+                    .limit(1)
+                    .single_value();
+                apply_directional_order!(
+                    query,
+                    order.direction,
+                    order_by,
+                    biography_content,
+                    contribution_id
+                )
+            }
+            ContributionField::CreatedAt => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                created_at,
+                contribution_id
+            ),
+            ContributionField::UpdatedAt => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                updated_at,
+                contribution_id
+            ),
+            ContributionField::FirstName => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                first_name,
+                contribution_id
+            ),
+            ContributionField::LastName => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                last_name,
+                contribution_id
+            ),
+            ContributionField::FullName => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                full_name,
+                contribution_id
+            ),
+            ContributionField::ContributionOrdinal => apply_directional_order!(
+                query,
+                order.direction,
+                order_by,
+                contribution_ordinal,
+                contribution_id
+            ),
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
@@ -119,6 +162,7 @@ impl Crud for Contribution {
         contribution_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::contribution::dsl::*;
         let mut connection = db.get()?;
@@ -138,20 +182,20 @@ impl Crud for Contribution {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(contribution::table, contribution::dsl::contribution);
 }
+
+publisher_id_impls!(Contribution, NewContribution, PatchContribution, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Contribution {
     type NewHistoryEntity = NewContributionHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             contribution_id: self.contribution_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -163,29 +207,28 @@ impl DbInsert for NewContributionHistory {
     db_insert!(contribution_history::table);
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+impl Reorder for Contribution {
+    db_change_ordinal!(
+        contribution::table,
+        contribution::contribution_ordinal,
+        "contribution_contribution_ordinal_work_id_uniq"
+    );
 
-    #[test]
-    fn test_contribution_pk() {
-        let contribution: Contribution = Default::default();
-        assert_eq!(contribution.pk(), contribution.contribution_id);
-    }
-
-    #[test]
-    fn test_new_contribution_history_from_contribution() {
-        let contribution: Contribution = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_contribution_history = contribution.new_history_entry(&account_id);
-        assert_eq!(
-            new_contribution_history.contribution_id,
-            contribution.contribution_id
-        );
-        assert_eq!(new_contribution_history.account_id, account_id);
-        assert_eq!(
-            new_contribution_history.data,
-            serde_json::Value::String(serde_json::to_string(&contribution).unwrap())
-        );
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>> {
+        contribution::table
+            .select((
+                contribution::contribution_id,
+                contribution::contribution_ordinal,
+            ))
+            .filter(
+                contribution::work_id
+                    .eq(self.work_id)
+                    .and(contribution::contribution_id.ne(self.contribution_id)),
+            )
+            .load::<(Uuid, i32)>(connection)
+            .map_err(Into::into)
     }
 }

@@ -2,7 +2,7 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::types::inputs::Direction;
 use crate::model::{Doi, Isbn, Timestamp};
 #[cfg(feature = "backend")]
 use crate::schema::reference;
@@ -45,7 +45,7 @@ pub enum ReferenceField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Reference {
@@ -78,7 +78,7 @@ pub struct Reference {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new citation to a written text"),
     diesel(table_name = reference)
 )]
@@ -109,7 +109,7 @@ pub struct NewReference {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing citation to a written text"),
     diesel(table_name = reference, treat_none_as_null = true)
 )]
@@ -139,23 +139,23 @@ pub struct PatchReference {
     pub retrieval_date: Option<NaiveDate>,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct ReferenceHistory {
     pub reference_history_id: Uuid,
     pub reference_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = reference_history)
 )]
 pub struct NewReferenceHistory {
     pub reference_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -170,11 +170,11 @@ pub struct ReferenceOrderBy {
     pub direction: Direction,
 }
 
-#[test]
-fn test_referencefield_default() {
-    let reffield: ReferenceField = Default::default();
-    assert_eq!(reffield, ReferenceField::ReferenceOrdinal);
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::ReferencePolicy;
+#[cfg(test)]
+mod tests;

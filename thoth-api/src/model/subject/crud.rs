@@ -1,12 +1,13 @@
 use super::{
     NewSubject, NewSubjectHistory, PatchSubject, Subject, SubjectField, SubjectHistory, SubjectType,
 };
-use crate::graphql::model::SubjectOrderBy;
-use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::graphql::types::inputs::SubjectOrderBy;
+use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{subject, subject_history};
-use crate::{crud_methods, db_insert};
-use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{
+    BoolExpressionMethods, Connection, ExpressionMethods, PgTextExpressionMethods, QueryDsl,
+    RunQueryDsl,
+};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
 
@@ -17,6 +18,7 @@ impl Crud for Subject {
     type FilterParameter1 = SubjectType;
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.subject_id
@@ -34,6 +36,7 @@ impl Crud for Subject {
         subject_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Subject>> {
         use crate::schema::subject::dsl::*;
         let mut connection = db.get()?;
@@ -43,34 +46,27 @@ impl Crud for Subject {
             .into_boxed();
 
         query = match order.field {
-            SubjectField::SubjectId => match order.direction {
-                Direction::Asc => query.order(subject_id.asc()),
-                Direction::Desc => query.order(subject_id.desc()),
-            },
-            SubjectField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
-            },
-            SubjectField::SubjectType => match order.direction {
-                Direction::Asc => query.order(subject_type.asc()),
-                Direction::Desc => query.order(subject_type.desc()),
-            },
-            SubjectField::SubjectCode => match order.direction {
-                Direction::Asc => query.order(subject_code.asc()),
-                Direction::Desc => query.order(subject_code.desc()),
-            },
-            SubjectField::SubjectOrdinal => match order.direction {
-                Direction::Asc => query.order(subject_ordinal.asc()),
-                Direction::Desc => query.order(subject_ordinal.desc()),
-            },
-            SubjectField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            SubjectField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            SubjectField::SubjectId => {
+                apply_directional_order!(query, order.direction, order, subject_id)
+            }
+            SubjectField::WorkId => {
+                apply_directional_order!(query, order.direction, order, work_id)
+            }
+            SubjectField::SubjectType => {
+                apply_directional_order!(query, order.direction, order, subject_type)
+            }
+            SubjectField::SubjectCode => {
+                apply_directional_order!(query, order.direction, order, subject_code)
+            }
+            SubjectField::SubjectOrdinal => {
+                apply_directional_order!(query, order.direction, order, subject_ordinal)
+            }
+            SubjectField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            SubjectField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
@@ -99,6 +95,7 @@ impl Crud for Subject {
         subject_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::subject::dsl::*;
         let mut connection = db.get()?;
@@ -120,20 +117,20 @@ impl Crud for Subject {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(subject::table, subject::dsl::subject);
 }
+
+publisher_id_impls!(Subject, NewSubject, PatchSubject, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Subject {
     type NewHistoryEntity = NewSubjectHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             subject_id: self.subject_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -145,26 +142,26 @@ impl DbInsert for NewSubjectHistory {
     db_insert!(subject_history::table);
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+impl Reorder for Subject {
+    db_change_ordinal!(
+        subject::table,
+        subject::subject_ordinal,
+        "subject_ordinal_type_uniq"
+    );
 
-    #[test]
-    fn test_subject_pk() {
-        let subject: Subject = Default::default();
-        assert_eq!(subject.pk(), subject.subject_id);
-    }
-
-    #[test]
-    fn test_new_subject_history_from_subject() {
-        let subject: Subject = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_subject_history = subject.new_history_entry(&account_id);
-        assert_eq!(new_subject_history.subject_id, subject.subject_id);
-        assert_eq!(new_subject_history.account_id, account_id);
-        assert_eq!(
-            new_subject_history.data,
-            serde_json::Value::String(serde_json::to_string(&subject).unwrap())
-        );
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>> {
+        subject::table
+            .select((subject::subject_id, subject::subject_ordinal))
+            .filter(
+                subject::work_id
+                    .eq(self.work_id)
+                    .and(subject::subject_type.eq(self.subject_type))
+                    .and(subject::subject_id.ne(self.subject_id)),
+            )
+            .load::<(Uuid, i32)>(connection)
+            .map_err(Into::into)
     }
 }

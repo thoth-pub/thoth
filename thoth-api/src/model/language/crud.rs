@@ -2,11 +2,9 @@ use super::{
     Language, LanguageCode, LanguageField, LanguageHistory, LanguageRelation, NewLanguage,
     NewLanguageHistory, PatchLanguage,
 };
-use crate::graphql::model::LanguageOrderBy;
-use crate::graphql::utils::Direction;
+use crate::graphql::types::inputs::LanguageOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{language, language_history};
-use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
@@ -18,6 +16,7 @@ impl Crud for Language {
     type FilterParameter1 = LanguageCode;
     type FilterParameter2 = LanguageRelation;
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.language_id
@@ -35,6 +34,7 @@ impl Crud for Language {
         language_codes: Vec<Self::FilterParameter1>,
         language_relations: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Language>> {
         use crate::schema::language::dsl;
         let mut connection = db.get()?;
@@ -44,34 +44,24 @@ impl Crud for Language {
             .into_boxed();
 
         query = match order.field {
-            LanguageField::LanguageId => match order.direction {
-                Direction::Asc => query.order(dsl::language_id.asc()),
-                Direction::Desc => query.order(dsl::language_id.desc()),
-            },
-            LanguageField::WorkId => match order.direction {
-                Direction::Asc => query.order(dsl::work_id.asc()),
-                Direction::Desc => query.order(dsl::work_id.desc()),
-            },
-            LanguageField::LanguageCode => match order.direction {
-                Direction::Asc => query.order(dsl::language_code.asc()),
-                Direction::Desc => query.order(dsl::language_code.desc()),
-            },
-            LanguageField::LanguageRelation => match order.direction {
-                Direction::Asc => query.order(dsl::language_relation.asc()),
-                Direction::Desc => query.order(dsl::language_relation.desc()),
-            },
-            LanguageField::MainLanguage => match order.direction {
-                Direction::Asc => query.order(dsl::main_language.asc()),
-                Direction::Desc => query.order(dsl::main_language.desc()),
-            },
-            LanguageField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(dsl::created_at.asc()),
-                Direction::Desc => query.order(dsl::created_at.desc()),
-            },
-            LanguageField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(dsl::updated_at.asc()),
-                Direction::Desc => query.order(dsl::updated_at.desc()),
-            },
+            LanguageField::LanguageId => {
+                apply_directional_order!(query, order.direction, order, dsl::language_id)
+            }
+            LanguageField::WorkId => {
+                apply_directional_order!(query, order.direction, order, dsl::work_id)
+            }
+            LanguageField::LanguageCode => {
+                apply_directional_order!(query, order.direction, order, dsl::language_code)
+            }
+            LanguageField::LanguageRelation => {
+                apply_directional_order!(query, order.direction, order, dsl::language_relation)
+            }
+            LanguageField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, dsl::created_at)
+            }
+            LanguageField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, dsl::updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
@@ -99,6 +89,7 @@ impl Crud for Language {
         language_codes: Vec<Self::FilterParameter1>,
         language_relations: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::language::dsl;
         let mut connection = db.get()?;
@@ -120,20 +111,20 @@ impl Crud for Language {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(language::table, language::dsl::language);
 }
+
+publisher_id_impls!(Language, NewLanguage, PatchLanguage, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Language {
     type NewHistoryEntity = NewLanguageHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             language_id: self.language_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -143,28 +134,4 @@ impl DbInsert for NewLanguageHistory {
     type MainEntity = LanguageHistory;
 
     db_insert!(language_history::table);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_language_pk() {
-        let language: Language = Default::default();
-        assert_eq!(language.pk(), language.language_id);
-    }
-
-    #[test]
-    fn test_new_language_history_from_language() {
-        let language: Language = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_language_history = language.new_history_entry(&account_id);
-        assert_eq!(new_language_history.language_id, language.language_id);
-        assert_eq!(new_language_history.account_id, account_id);
-        assert_eq!(
-            new_language_history.data,
-            serde_json::Value::String(serde_json::to_string(&language).unwrap())
-        );
-    }
 }

@@ -2,8 +2,6 @@ use super::{
     Location, LocationField, LocationHistory, LocationOrderBy, LocationPlatform, NewLocation,
     NewLocationHistory, PatchLocation,
 };
-use crate::db_insert;
-use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{location, location_history};
 use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
@@ -17,6 +15,7 @@ impl Crud for Location {
     type FilterParameter1 = LocationPlatform;
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.location_id
@@ -34,6 +33,7 @@ impl Crud for Location {
         location_platforms: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Location>> {
         use crate::schema::location::dsl::*;
         let mut connection = db.get()?;
@@ -46,38 +46,30 @@ impl Crud for Location {
                 .into_boxed();
 
         query = match order.field {
-            LocationField::LocationId => match order.direction {
-                Direction::Asc => query.order(location_id.asc()),
-                Direction::Desc => query.order(location_id.desc()),
-            },
-            LocationField::PublicationId => match order.direction {
-                Direction::Asc => query.order(publication_id.asc()),
-                Direction::Desc => query.order(publication_id.desc()),
-            },
-            LocationField::LandingPage => match order.direction {
-                Direction::Asc => query.order(landing_page.asc()),
-                Direction::Desc => query.order(landing_page.desc()),
-            },
-            LocationField::FullTextUrl => match order.direction {
-                Direction::Asc => query.order(full_text_url.asc()),
-                Direction::Desc => query.order(full_text_url.desc()),
-            },
-            LocationField::LocationPlatform => match order.direction {
-                Direction::Asc => query.order(location_platform.asc()),
-                Direction::Desc => query.order(location_platform.desc()),
-            },
-            LocationField::Canonical => match order.direction {
-                Direction::Asc => query.order(canonical.asc()),
-                Direction::Desc => query.order(canonical.desc()),
-            },
-            LocationField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            LocationField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            LocationField::LocationId => {
+                apply_directional_order!(query, order.direction, order, location_id)
+            }
+            LocationField::PublicationId => {
+                apply_directional_order!(query, order.direction, order, publication_id)
+            }
+            LocationField::LandingPage => {
+                apply_directional_order!(query, order.direction, order, landing_page)
+            }
+            LocationField::FullTextUrl => {
+                apply_directional_order!(query, order.direction, order, full_text_url)
+            }
+            LocationField::LocationPlatform => {
+                apply_directional_order!(query, order.direction, order, location_platform)
+            }
+            LocationField::Canonical => {
+                apply_directional_order!(query, order.direction, order, canonical)
+            }
+            LocationField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            LocationField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
@@ -102,6 +94,7 @@ impl Crud for Location {
         location_platforms: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::location::dsl::*;
         let mut connection = db.get()?;
@@ -118,10 +111,6 @@ impl Crud for Location {
             .get_result::<i64>(&mut connection)
             .map(|t| t.to_string().parse::<i32>().unwrap())
             .map_err(Into::into)
-    }
-
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::publication::Publication::from_id(db, &self.publication_id)?.publisher_id(db)
     }
 
     // `crud_methods!` cannot be used for update(), because we need to execute multiple statements
@@ -144,13 +133,12 @@ impl Crud for Location {
         })
     }
 
-    fn update(
+    fn update<C: crate::policy::PolicyContext>(
         &self,
-        db: &crate::db::PgPool,
+        ctx: &C,
         data: &PatchLocation,
-        account_id: &Uuid,
     ) -> ThothResult<Self> {
-        let mut connection = db.get()?;
+        let mut connection = ctx.db().get()?;
         connection
             .transaction(|connection| {
                 if data.canonical == self.canonical {
@@ -165,7 +153,7 @@ impl Crud for Location {
                 } else {
                     // Update the existing canonical location to non-canonical
                     let mut old_canonical_location =
-                        PatchLocation::from(self.get_canonical_location(db)?);
+                        PatchLocation::from(self.get_canonical_location(ctx.db())?);
                     old_canonical_location.canonical = false;
                     diesel::update(location::table.find(old_canonical_location.location_id))
                         .set(old_canonical_location)
@@ -177,7 +165,7 @@ impl Crud for Location {
                 }
             })
             .and_then(|location| {
-                self.new_history_entry(account_id)
+                self.new_history_entry(ctx.user_id()?)
                     .insert(&mut connection)
                     .map(|_| location)
             })
@@ -193,13 +181,17 @@ impl Crud for Location {
     }
 }
 
+publisher_id_impls!(Location, NewLocation, PatchLocation, |s, db| {
+    crate::model::publication::Publication::from_id(db, &s.publication_id)?.publisher_id(db)
+});
+
 impl HistoryEntry for Location {
     type NewHistoryEntity = NewLocationHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             location_id: self.location_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -297,29 +289,5 @@ fn location_canonical_record_complete(
             // but exceptions to this will be caught at the database level.
             Ok(())
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_location_pk() {
-        let location: Location = Default::default();
-        assert_eq!(location.pk(), location.location_id);
-    }
-
-    #[test]
-    fn test_new_location_history_from_location() {
-        let location: Location = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_location_history = location.new_history_entry(&account_id);
-        assert_eq!(new_location_history.location_id, location.location_id);
-        assert_eq!(new_location_history.account_id, account_id);
-        assert_eq!(
-            new_location_history.data,
-            serde_json::Value::String(serde_json::to_string(&location).unwrap())
-        );
     }
 }

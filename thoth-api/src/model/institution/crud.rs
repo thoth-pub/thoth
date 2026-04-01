@@ -2,10 +2,9 @@ use super::{
     Institution, InstitutionField, InstitutionHistory, InstitutionOrderBy, NewInstitution,
     NewInstitutionHistory, PatchInstitution,
 };
-use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::db::PgPool;
+use crate::model::{Crud, DbInsert, HistoryEntry, PublisherIds};
 use crate::schema::{institution, institution_history};
-use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -19,6 +18,7 @@ impl Crud for Institution {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.institution_id
@@ -36,40 +36,32 @@ impl Crud for Institution {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Institution>> {
         use crate::schema::institution::dsl::*;
         let mut connection = db.get()?;
         let mut query = institution.into_boxed();
 
         query = match order.field {
-            InstitutionField::InstitutionId => match order.direction {
-                Direction::Asc => query.order(institution_id.asc()),
-                Direction::Desc => query.order(institution_id.desc()),
-            },
-            InstitutionField::InstitutionName => match order.direction {
-                Direction::Asc => query.order(institution_name.asc()),
-                Direction::Desc => query.order(institution_name.desc()),
-            },
-            InstitutionField::InstitutionDoi => match order.direction {
-                Direction::Asc => query.order(institution_doi.asc()),
-                Direction::Desc => query.order(institution_doi.desc()),
-            },
-            InstitutionField::Ror => match order.direction {
-                Direction::Asc => query.order(ror.asc()),
-                Direction::Desc => query.order(ror.desc()),
-            },
-            InstitutionField::CountryCode => match order.direction {
-                Direction::Asc => query.order(country_code.asc()),
-                Direction::Desc => query.order(country_code.desc()),
-            },
-            InstitutionField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            InstitutionField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            InstitutionField::InstitutionId => {
+                apply_directional_order!(query, order.direction, order, institution_id)
+            }
+            InstitutionField::InstitutionName => {
+                apply_directional_order!(query, order.direction, order, institution_name)
+            }
+            InstitutionField::InstitutionDoi => {
+                apply_directional_order!(query, order.direction, order, institution_doi)
+            }
+            InstitutionField::Ror => apply_directional_order!(query, order.direction, order, ror),
+            InstitutionField::CountryCode => {
+                apply_directional_order!(query, order.direction, order, country_code)
+            }
+            InstitutionField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            InstitutionField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if let Some(filter) = filter {
             query = query.filter(
@@ -93,6 +85,7 @@ impl Crud for Institution {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::institution::dsl::*;
         let mut connection = db.get()?;
@@ -117,22 +110,47 @@ impl Crud for Institution {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        Err(ThothError::InternalError(
-            "Method publisher_id() is not supported for Institution objects".to_string(),
-        ))
-    }
-
     crud_methods!(institution::table, institution::dsl::institution);
+}
+
+impl PublisherIds for Institution {
+    fn publisher_ids(&self, db: &PgPool) -> ThothResult<Vec<Uuid>> {
+        let mut connection = db.get()?;
+        let publishers_via_affiliation = crate::schema::publisher::table
+            .inner_join(
+                crate::schema::imprint::table.inner_join(
+                    crate::schema::work::table.inner_join(
+                        crate::schema::contribution::table
+                            .inner_join(crate::schema::affiliation::table),
+                    ),
+                ),
+            )
+            .select(crate::schema::publisher::publisher_id)
+            .filter(crate::schema::affiliation::institution_id.eq(self.institution_id))
+            .distinct()
+            .load::<Uuid>(&mut connection)
+            .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
+        let publishers_via_funding =
+            crate::schema::publisher::table
+                .inner_join(crate::schema::imprint::table.inner_join(
+                    crate::schema::work::table.inner_join(crate::schema::funding::table),
+                ))
+                .select(crate::schema::publisher::publisher_id)
+                .filter(crate::schema::funding::institution_id.eq(self.institution_id))
+                .distinct()
+                .load::<Uuid>(&mut connection)
+                .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
+        Ok([publishers_via_affiliation, publishers_via_funding].concat())
+    }
 }
 
 impl HistoryEntry for Institution {
     type NewHistoryEntity = NewInstitutionHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             institution_id: self.institution_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -142,66 +160,4 @@ impl DbInsert for NewInstitutionHistory {
     type MainEntity = InstitutionHistory;
 
     db_insert!(institution_history::table);
-}
-
-impl Institution {
-    pub fn linked_publisher_ids(&self, db: &crate::db::PgPool) -> ThothResult<Vec<Uuid>> {
-        institution_linked_publisher_ids(self.institution_id, db)
-    }
-}
-
-fn institution_linked_publisher_ids(
-    institution_id: Uuid,
-    db: &crate::db::PgPool,
-) -> ThothResult<Vec<Uuid>> {
-    let mut connection = db.get()?;
-    let publishers_via_affiliation = crate::schema::publisher::table
-        .inner_join(crate::schema::imprint::table.inner_join(
-            crate::schema::work::table.inner_join(
-                crate::schema::contribution::table.inner_join(crate::schema::affiliation::table),
-            ),
-        ))
-        .select(crate::schema::publisher::publisher_id)
-        .filter(crate::schema::affiliation::institution_id.eq(institution_id))
-        .distinct()
-        .load::<Uuid>(&mut connection)
-        .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
-    let publishers_via_funding = crate::schema::publisher::table
-        .inner_join(
-            crate::schema::imprint::table
-                .inner_join(crate::schema::work::table.inner_join(crate::schema::funding::table)),
-        )
-        .select(crate::schema::publisher::publisher_id)
-        .filter(crate::schema::funding::institution_id.eq(institution_id))
-        .distinct()
-        .load::<Uuid>(&mut connection)
-        .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
-    Ok([publishers_via_affiliation, publishers_via_funding].concat())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_institution_pk() {
-        let institution: Institution = Default::default();
-        assert_eq!(institution.pk(), institution.institution_id);
-    }
-
-    #[test]
-    fn test_new_institution_history_from_institution() {
-        let institution: Institution = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_institution_history = institution.new_history_entry(&account_id);
-        assert_eq!(
-            new_institution_history.institution_id,
-            institution.institution_id
-        );
-        assert_eq!(new_institution_history.account_id, account_id);
-        assert_eq!(
-            new_institution_history.data,
-            serde_json::Value::String(serde_json::to_string(&institution).unwrap())
-        );
-    }
 }

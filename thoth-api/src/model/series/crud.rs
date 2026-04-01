@@ -2,10 +2,8 @@ use super::{
     NewSeries, NewSeriesHistory, PatchSeries, Series, SeriesField, SeriesHistory, SeriesOrderBy,
     SeriesType,
 };
-use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{series, series_history};
-use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -19,6 +17,7 @@ impl Crud for Series {
     type FilterParameter1 = SeriesType;
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.series_id
@@ -36,6 +35,7 @@ impl Crud for Series {
         series_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Series>> {
         use crate::schema::series::dsl::*;
         let mut connection = db.get()?;
@@ -45,46 +45,36 @@ impl Crud for Series {
             .into_boxed();
 
         query = match order.field {
-            SeriesField::SeriesId => match order.direction {
-                Direction::Asc => query.order(series_id.asc()),
-                Direction::Desc => query.order(series_id.desc()),
-            },
-            SeriesField::SeriesType => match order.direction {
-                Direction::Asc => query.order(series_type.asc()),
-                Direction::Desc => query.order(series_type.desc()),
-            },
-            SeriesField::SeriesName => match order.direction {
-                Direction::Asc => query.order(series_name.asc()),
-                Direction::Desc => query.order(series_name.desc()),
-            },
-            SeriesField::IssnPrint => match order.direction {
-                Direction::Asc => query.order(issn_print.asc()),
-                Direction::Desc => query.order(issn_print.desc()),
-            },
-            SeriesField::IssnDigital => match order.direction {
-                Direction::Asc => query.order(issn_digital.asc()),
-                Direction::Desc => query.order(issn_digital.desc()),
-            },
-            SeriesField::SeriesUrl => match order.direction {
-                Direction::Asc => query.order(series_url.asc()),
-                Direction::Desc => query.order(series_url.desc()),
-            },
-            SeriesField::SeriesDescription => match order.direction {
-                Direction::Asc => query.order(series_description.asc()),
-                Direction::Desc => query.order(series_description.desc()),
-            },
-            SeriesField::SeriesCfpUrl => match order.direction {
-                Direction::Asc => query.order(series_cfp_url.asc()),
-                Direction::Desc => query.order(series_cfp_url.desc()),
-            },
-            SeriesField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            SeriesField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            SeriesField::SeriesId => {
+                apply_directional_order!(query, order.direction, order, series_id)
+            }
+            SeriesField::SeriesType => {
+                apply_directional_order!(query, order.direction, order, series_type)
+            }
+            SeriesField::SeriesName => {
+                apply_directional_order!(query, order.direction, order, series_name)
+            }
+            SeriesField::IssnPrint => {
+                apply_directional_order!(query, order.direction, order, issn_print)
+            }
+            SeriesField::IssnDigital => {
+                apply_directional_order!(query, order.direction, order, issn_digital)
+            }
+            SeriesField::SeriesUrl => {
+                apply_directional_order!(query, order.direction, order, series_url)
+            }
+            SeriesField::SeriesDescription => {
+                apply_directional_order!(query, order.direction, order, series_description)
+            }
+            SeriesField::SeriesCfpUrl => {
+                apply_directional_order!(query, order.direction, order, series_cfp_url)
+            }
+            SeriesField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            SeriesField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
@@ -116,6 +106,7 @@ impl Crud for Series {
         series_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::series::dsl::*;
         let mut connection = db.get()?;
@@ -150,21 +141,21 @@ impl Crud for Series {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        let imprint = crate::model::imprint::Imprint::from_id(db, &self.imprint_id)?;
-        <crate::model::imprint::Imprint as Crud>::publisher_id(&imprint, db)
-    }
-
     crud_methods!(series::table, series::dsl::series);
 }
+
+publisher_id_impls!(Series, NewSeries, PatchSeries, |s, db| {
+    let imprint = crate::model::imprint::Imprint::from_id(db, &s.imprint_id)?;
+    <crate::model::imprint::Imprint as PublisherId>::publisher_id(&imprint, db)
+});
 
 impl HistoryEntry for Series {
     type NewHistoryEntity = NewSeriesHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             series_id: self.series_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -174,28 +165,4 @@ impl DbInsert for NewSeriesHistory {
     type MainEntity = SeriesHistory;
 
     db_insert!(series_history::table);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_series_pk() {
-        let series: Series = Default::default();
-        assert_eq!(series.pk(), series.series_id);
-    }
-
-    #[test]
-    fn test_new_series_history_from_series() {
-        let series: Series = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_series_history = series.new_history_entry(&account_id);
-        assert_eq!(new_series_history.series_id, series.series_id);
-        assert_eq!(new_series_history.account_id, account_id);
-        assert_eq!(
-            new_series_history.data,
-            serde_json::Value::String(serde_json::to_string(&series).unwrap())
-        );
-    }
 }

@@ -3,8 +3,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
-use crate::model::work::Work;
+use crate::graphql::types::inputs::Direction;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::work_relation;
@@ -13,7 +12,7 @@ use crate::schema::work_relation_history;
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "Nature of a relationship between works"),
     ExistingTypePath = "crate::schema::sql_types::RelationType"
 )]
@@ -107,7 +106,7 @@ pub enum WorkRelationField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkRelation {
@@ -120,20 +119,9 @@ pub struct WorkRelation {
     pub updated_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkRelationWithRelatedWork {
-    pub work_relation_id: Uuid,
-    pub relator_work_id: Uuid,
-    pub related_work_id: Uuid,
-    pub relation_type: RelationType,
-    pub relation_ordinal: i32,
-    pub related_work: Work,
-}
-
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new relationship between two works"),
     diesel(table_name = work_relation)
 )]
@@ -146,7 +134,7 @@ pub struct NewWorkRelation {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing relationship between two works"),
     diesel(table_name = work_relation, treat_none_as_null = true)
 )]
@@ -158,23 +146,23 @@ pub struct PatchWorkRelation {
     pub relation_ordinal: i32,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct WorkRelationHistory {
     pub work_relation_history_id: Uuid,
     pub work_relation_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = work_relation_history)
 )]
 pub struct NewWorkRelationHistory {
     pub work_relation_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -205,88 +193,11 @@ impl RelationType {
     }
 }
 
-impl Default for WorkRelationWithRelatedWork {
-    fn default() -> WorkRelationWithRelatedWork {
-        WorkRelationWithRelatedWork {
-            work_relation_id: Default::default(),
-            relator_work_id: Default::default(),
-            related_work_id: Default::default(),
-            relation_type: Default::default(),
-            relation_ordinal: 1,
-            related_work: Default::default(),
-        }
-    }
-}
-
-#[test]
-fn test_relationtype_default() {
-    let reltype: RelationType = Default::default();
-    assert_eq!(reltype, RelationType::HasChild);
-}
-
-#[test]
-fn test_workrelationfield_default() {
-    let workrelfield: WorkRelationField = Default::default();
-    assert_eq!(workrelfield, WorkRelationField::RelationType);
-}
-
-#[test]
-fn test_relationtype_display() {
-    assert_eq!(format!("{}", RelationType::Replaces), "Replaces");
-    assert_eq!(
-        format!("{}", RelationType::HasTranslation),
-        "Has Translation"
-    );
-    assert_eq!(format!("{}", RelationType::HasPart), "Has Part");
-    assert_eq!(format!("{}", RelationType::HasChild), "Has Child");
-    assert_eq!(format!("{}", RelationType::IsReplacedBy), "Is Replaced By");
-    assert_eq!(
-        format!("{}", RelationType::IsTranslationOf),
-        "Is Translation Of"
-    );
-    assert_eq!(format!("{}", RelationType::IsPartOf), "Is Part Of");
-    assert_eq!(format!("{}", RelationType::IsChildOf), "Is Child Of");
-}
-
-#[test]
-fn test_relationtype_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(
-        RelationType::from_str("Replaces").unwrap(),
-        RelationType::Replaces
-    );
-    assert_eq!(
-        RelationType::from_str("Has Translation").unwrap(),
-        RelationType::HasTranslation
-    );
-    assert_eq!(
-        RelationType::from_str("Has Part").unwrap(),
-        RelationType::HasPart
-    );
-    assert_eq!(
-        RelationType::from_str("Has Child").unwrap(),
-        RelationType::HasChild
-    );
-    assert_eq!(
-        RelationType::from_str("Is Replaced By").unwrap(),
-        RelationType::IsReplacedBy
-    );
-    assert_eq!(
-        RelationType::from_str("Is Translation Of").unwrap(),
-        RelationType::IsTranslationOf
-    );
-    assert_eq!(
-        RelationType::from_str("Is Part Of").unwrap(),
-        RelationType::IsPartOf
-    );
-    assert_eq!(
-        RelationType::from_str("Is Child Of").unwrap(),
-        RelationType::IsChildOf
-    );
-
-    assert!(RelationType::from_str("Has Parent").is_err());
-    assert!(RelationType::from_str("Subsumes").is_err());
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::WorkRelationPolicy;
+#[cfg(test)]
+mod tests;

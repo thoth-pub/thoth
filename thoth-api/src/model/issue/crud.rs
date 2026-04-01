@@ -1,11 +1,9 @@
 use super::{Issue, IssueField, IssueHistory, NewIssue, NewIssueHistory, PatchIssue};
-use crate::graphql::model::IssueOrderBy;
-use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::graphql::types::inputs::IssueOrderBy;
+use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{issue, issue_history};
-use crate::{crud_methods, db_insert};
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
-use thoth_errors::{ThothError, ThothResult};
+use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
+use thoth_errors::ThothResult;
 use uuid::Uuid;
 
 impl Crud for Issue {
@@ -15,6 +13,7 @@ impl Crud for Issue {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.issue_id
@@ -32,6 +31,7 @@ impl Crud for Issue {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Issue>> {
         use crate::schema::issue::dsl::*;
         let mut connection = db.get()?;
@@ -41,30 +41,25 @@ impl Crud for Issue {
             .into_boxed();
 
         query = match order.field {
-            IssueField::IssueId => match order.direction {
-                Direction::Asc => query.order(issue_id.asc()),
-                Direction::Desc => query.order(issue_id.desc()),
-            },
-            IssueField::SeriesId => match order.direction {
-                Direction::Asc => query.order(series_id.asc()),
-                Direction::Desc => query.order(series_id.desc()),
-            },
-            IssueField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
-            },
-            IssueField::IssueOrdinal => match order.direction {
-                Direction::Asc => query.order(issue_ordinal.asc()),
-                Direction::Desc => query.order(issue_ordinal.desc()),
-            },
-            IssueField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            IssueField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            IssueField::IssueId => {
+                apply_directional_order!(query, order.direction, order, issue_id)
+            }
+            IssueField::SeriesId => {
+                apply_directional_order!(query, order.direction, order, series_id)
+            }
+            IssueField::WorkId => apply_directional_order!(query, order.direction, order, work_id),
+            IssueField::IssueOrdinal => {
+                apply_directional_order!(query, order.direction, order, issue_ordinal)
+            }
+            IssueField::IssueNumber => {
+                apply_directional_order!(query, order.direction, order, issue_number)
+            }
+            IssueField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            IssueField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
@@ -89,6 +84,7 @@ impl Crud for Issue {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::issue::dsl::*;
         let mut connection = db.get()?;
@@ -104,20 +100,20 @@ impl Crud for Issue {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(issue::table, issue::dsl::issue);
 }
+
+publisher_id_impls!(Issue, NewIssue, PatchIssue, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Issue {
     type NewHistoryEntity = NewIssueHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             issue_id: self.issue_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -129,59 +125,25 @@ impl DbInsert for NewIssueHistory {
     db_insert!(issue_history::table);
 }
 
-impl NewIssue {
-    pub fn imprints_match(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        issue_imprints_match(self.work_id, self.series_id, db)
-    }
-}
+impl Reorder for Issue {
+    db_change_ordinal!(
+        issue::table,
+        issue::issue_ordinal,
+        "issue_issue_ordinal_series_id_uniq"
+    );
 
-impl PatchIssue {
-    pub fn imprints_match(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        issue_imprints_match(self.work_id, self.series_id, db)
-    }
-}
-
-fn issue_imprints_match(work_id: Uuid, series_id: Uuid, db: &crate::db::PgPool) -> ThothResult<()> {
-    use diesel::prelude::*;
-
-    let mut connection = db.get()?;
-    let series_imprint = crate::schema::series::table
-        .select(crate::schema::series::imprint_id)
-        .filter(crate::schema::series::series_id.eq(series_id))
-        .first::<Uuid>(&mut connection)
-        .expect("Error loading series for issue");
-    let work_imprint = crate::schema::work::table
-        .select(crate::schema::work::imprint_id)
-        .filter(crate::schema::work::work_id.eq(work_id))
-        .first::<Uuid>(&mut connection)
-        .expect("Error loading work for issue");
-    if work_imprint == series_imprint {
-        Ok(())
-    } else {
-        Err(ThothError::IssueImprintsError)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_issue_pk() {
-        let issue: Issue = Default::default();
-        assert_eq!(issue.pk(), issue.issue_id);
-    }
-
-    #[test]
-    fn test_new_issue_history_from_issue() {
-        let issue: Issue = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_issue_history = issue.new_history_entry(&account_id);
-        assert_eq!(new_issue_history.issue_id, issue.issue_id);
-        assert_eq!(new_issue_history.account_id, account_id);
-        assert_eq!(
-            new_issue_history.data,
-            serde_json::Value::String(serde_json::to_string(&issue).unwrap())
-        );
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>> {
+        issue::table
+            .select((issue::issue_id, issue::issue_ordinal))
+            .filter(
+                issue::series_id
+                    .eq(self.series_id)
+                    .and(issue::issue_id.ne(self.issue_id)),
+            )
+            .load::<(Uuid, i32)>(connection)
+            .map_err(Into::into)
     }
 }

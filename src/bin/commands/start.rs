@@ -1,7 +1,7 @@
 use crate::arguments;
 use clap::{ArgMatches, Command};
 use lazy_static::lazy_static;
-use thoth::{api_server, app_server, errors::ThothResult, export_server};
+use thoth::{api_server, errors::ThothResult, export_server};
 
 lazy_static! {
     pub(crate) static ref COMMAND: Command = Command::new("start")
@@ -17,17 +17,11 @@ lazy_static! {
                 .arg(arguments::threads("GRAPHQL_API_THREADS"))
                 .arg(arguments::keep_alive("GRAPHQL_API_KEEP_ALIVE"))
                 .arg(arguments::gql_url())
-                .arg(arguments::domain())
                 .arg(arguments::key())
-                .arg(arguments::session()),
-        )
-        .subcommand(
-            Command::new("app")
-                .about("Start the thoth client GUI")
-                .arg(arguments::host("APP_HOST"))
-                .arg(arguments::port("8080", "APP_PORT"))
-                .arg(arguments::threads("APP_THREADS"))
-                .arg(arguments::keep_alive("APP_KEEP_ALIVE")),
+                .arg(arguments::zitadel_url())
+                .arg(arguments::aws_access_key_id())
+                .arg(arguments::aws_secret_access_key())
+                .arg(arguments::aws_region()),
         )
         .subcommand(
             Command::new("export-api")
@@ -49,9 +43,12 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     let threads = *arguments.get_one::<usize>("threads").unwrap();
     let keep_alive = *arguments.get_one::<u64>("keep-alive").unwrap();
     let url = arguments.get_one::<String>("gql-url").unwrap().to_owned();
-    let domain = arguments.get_one::<String>("domain").unwrap().to_owned();
-    let secret_str = arguments.get_one::<String>("key").unwrap().to_owned();
-    let session_duration = *arguments.get_one::<i64>("duration").unwrap();
+    let private_key = arguments.get_one::<String>("key").unwrap().to_owned();
+    let zitadel_url = arguments
+        .get_one::<String>("zitadel-url")
+        .unwrap()
+        .to_owned();
+
     api_server(
         database_url,
         host,
@@ -59,21 +56,23 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
         threads,
         keep_alive,
         url,
-        domain,
-        secret_str,
-        session_duration,
+        private_key,
+        zitadel_url,
+        arguments
+            .get_one::<String>("aws-access-key-id")
+            .unwrap()
+            .to_owned(),
+        arguments
+            .get_one::<String>("aws-secret-access-key")
+            .unwrap()
+            .to_owned(),
+        arguments
+            .get_one::<String>("aws-region")
+            .unwrap()
+            .to_owned(),
     )
     .map_err(|e| e.into())
 }
-
-pub fn app(arguments: &ArgMatches) -> ThothResult<()> {
-    let host = arguments.get_one::<String>("host").unwrap().to_owned();
-    let port = arguments.get_one::<String>("port").unwrap().to_owned();
-    let threads = *arguments.get_one::<usize>("threads").unwrap();
-    let keep_alive = *arguments.get_one::<u64>("keep-alive").unwrap();
-    app_server(host, port, threads, keep_alive).map_err(|e| e.into())
-}
-
 pub fn export_api(arguments: &ArgMatches) -> ThothResult<()> {
     let redis_url = arguments.get_one::<String>("redis").unwrap().to_owned();
     let host = arguments.get_one::<String>("host").unwrap().to_owned();

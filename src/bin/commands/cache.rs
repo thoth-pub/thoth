@@ -32,7 +32,7 @@ pub fn delete(arguments: &ArgMatches) -> ThothResult<()> {
     runtime.block_on(async {
         for index in chosen {
             let specification = ALL_SPECIFICATIONS.get(index).unwrap();
-            let keys = scan_match(&pool, &format!("{}*", specification)).await?;
+            let keys = scan_match(&pool, &format!("{specification}*")).await?;
             for key in keys {
                 del(&pool, &key).await?;
             }

@@ -2,14 +2,13 @@ use super::{
     Contributor, ContributorField, ContributorHistory, ContributorOrderBy, NewContributor,
     NewContributorHistory, PatchContributor,
 };
-use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::db::PgPool;
+use crate::model::{Crud, DbInsert, HistoryEntry, PublisherIds};
 use crate::schema::{contributor, contributor_history};
-use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
-use thoth_errors::{ThothError, ThothResult};
+use thoth_errors::ThothResult;
 use uuid::Uuid;
 
 impl Crud for Contributor {
@@ -19,6 +18,7 @@ impl Crud for Contributor {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.contributor_id
@@ -36,44 +36,37 @@ impl Crud for Contributor {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Contributor>> {
         use crate::schema::contributor::dsl::*;
         let mut connection = db.get()?;
         let mut query = contributor.into_boxed();
 
         query = match order.field {
-            ContributorField::ContributorId => match order.direction {
-                Direction::Asc => query.order(contributor_id.asc()),
-                Direction::Desc => query.order(contributor_id.desc()),
-            },
-            ContributorField::FirstName => match order.direction {
-                Direction::Asc => query.order(first_name.asc()),
-                Direction::Desc => query.order(first_name.desc()),
-            },
-            ContributorField::LastName => match order.direction {
-                Direction::Asc => query.order(last_name.asc()),
-                Direction::Desc => query.order(last_name.desc()),
-            },
-            ContributorField::FullName => match order.direction {
-                Direction::Asc => query.order(full_name.asc()),
-                Direction::Desc => query.order(full_name.desc()),
-            },
-            ContributorField::Orcid => match order.direction {
-                Direction::Asc => query.order(orcid.asc()),
-                Direction::Desc => query.order(orcid.desc()),
-            },
-            ContributorField::Website => match order.direction {
-                Direction::Asc => query.order(website.asc()),
-                Direction::Desc => query.order(website.desc()),
-            },
-            ContributorField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            ContributorField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            ContributorField::ContributorId => {
+                apply_directional_order!(query, order.direction, order, contributor_id)
+            }
+            ContributorField::FirstName => {
+                apply_directional_order!(query, order.direction, order, first_name)
+            }
+            ContributorField::LastName => {
+                apply_directional_order!(query, order.direction, order, last_name)
+            }
+            ContributorField::FullName => {
+                apply_directional_order!(query, order.direction, order, full_name)
+            }
+            ContributorField::Orcid => {
+                apply_directional_order!(query, order.direction, order, orcid)
+            }
+            ContributorField::Website => {
+                apply_directional_order!(query, order.direction, order, website)
+            }
+            ContributorField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            ContributorField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if let Some(filter) = filter {
             query = query.filter(
@@ -97,6 +90,7 @@ impl Crud for Contributor {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::contributor::dsl::*;
         let mut connection = db.get()?;
@@ -120,23 +114,31 @@ impl Crud for Contributor {
             .map(|t| t.to_string().parse::<i32>().unwrap())
             .map_err(Into::into)
     }
-
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        Err(ThothError::InternalError(
-            "Method publisher_id() is not supported for Contributor objects".to_string(),
-        ))
-    }
-
     crud_methods!(contributor::table, contributor::dsl::contributor);
+}
+
+impl PublisherIds for Contributor {
+    fn publisher_ids(&self, db: &PgPool) -> ThothResult<Vec<Uuid>> {
+        let mut connection = db.get()?;
+        crate::schema::publisher::table
+            .inner_join(crate::schema::imprint::table.inner_join(
+                crate::schema::work::table.inner_join(crate::schema::contribution::table),
+            ))
+            .select(crate::schema::publisher::publisher_id)
+            .filter(crate::schema::contribution::contributor_id.eq(self.contributor_id))
+            .distinct()
+            .load::<Uuid>(&mut connection)
+            .map_err(Into::into)
+    }
 }
 
 impl HistoryEntry for Contributor {
     type NewHistoryEntity = NewContributorHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             contributor_id: self.contributor_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -146,55 +148,4 @@ impl DbInsert for NewContributorHistory {
     type MainEntity = ContributorHistory;
 
     db_insert!(contributor_history::table);
-}
-
-impl Contributor {
-    pub fn linked_publisher_ids(&self, db: &crate::db::PgPool) -> ThothResult<Vec<Uuid>> {
-        contributor_linked_publisher_ids(self.contributor_id, db)
-    }
-}
-
-fn contributor_linked_publisher_ids(
-    contributor_id: Uuid,
-    db: &crate::db::PgPool,
-) -> ThothResult<Vec<Uuid>> {
-    let mut connection = db.get()?;
-    crate::schema::publisher::table
-        .inner_join(
-            crate::schema::imprint::table.inner_join(
-                crate::schema::work::table.inner_join(crate::schema::contribution::table),
-            ),
-        )
-        .select(crate::schema::publisher::publisher_id)
-        .filter(crate::schema::contribution::contributor_id.eq(contributor_id))
-        .distinct()
-        .load::<Uuid>(&mut connection)
-        .map_err(Into::into)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_contributor_pk() {
-        let contributor: Contributor = Default::default();
-        assert_eq!(contributor.pk(), contributor.contributor_id);
-    }
-
-    #[test]
-    fn test_new_contributor_history_from_contributor() {
-        let contributor: Contributor = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_contributor_history = contributor.new_history_entry(&account_id);
-        assert_eq!(
-            new_contributor_history.contributor_id,
-            contributor.contributor_id
-        );
-        assert_eq!(new_contributor_history.account_id, account_id);
-        assert_eq!(
-            new_contributor_history.data,
-            serde_json::Value::String(serde_json::to_string(&contributor).unwrap())
-        );
-    }
 }

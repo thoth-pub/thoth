@@ -1,9 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
-use crate::model::contribution::ContributionWithWork;
-use crate::model::institution::Institution;
+use crate::graphql::types::inputs::Direction;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::affiliation;
@@ -25,7 +23,7 @@ pub enum AffiliationField {
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Affiliation {
@@ -38,26 +36,9 @@ pub struct Affiliation {
     pub updated_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct AffiliationWithInstitution {
-    pub affiliation_id: Uuid,
-    pub contribution_id: Uuid,
-    pub institution_id: Uuid,
-    pub affiliation_ordinal: i32,
-    pub position: Option<String>,
-    pub institution: Institution,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct AffiliationWithContribution {
-    pub contribution: ContributionWithWork,
-}
-
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new association between a person and an institution for a specific contribution"),
     diesel(table_name = affiliation)
 )]
@@ -70,7 +51,7 @@ pub struct NewAffiliation {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing association between a person and an institution for a specific contribution"),
     diesel(table_name = affiliation, treat_none_as_null = true)
 )]
@@ -82,23 +63,23 @@ pub struct PatchAffiliation {
     pub position: Option<String>,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct AffiliationHistory {
     pub affiliation_history_id: Uuid,
     pub affiliation_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = affiliation_history)
 )]
 pub struct NewAffiliationHistory {
     pub affiliation_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -112,19 +93,6 @@ pub struct AffiliationOrderBy {
     pub direction: Direction,
 }
 
-impl Default for AffiliationWithInstitution {
-    fn default() -> AffiliationWithInstitution {
-        AffiliationWithInstitution {
-            affiliation_id: Default::default(),
-            institution_id: Default::default(),
-            contribution_id: Default::default(),
-            affiliation_ordinal: 1,
-            position: Default::default(),
-            institution: Default::default(),
-        }
-    }
-}
-
 impl Default for AffiliationOrderBy {
     fn default() -> AffiliationOrderBy {
         AffiliationOrderBy {
@@ -136,3 +104,9 @@ impl Default for AffiliationOrderBy {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::AffiliationPolicy;
+#[cfg(test)]
+mod tests;

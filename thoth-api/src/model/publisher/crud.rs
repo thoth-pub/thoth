@@ -2,10 +2,9 @@ use super::{
     NewPublisher, NewPublisherHistory, PatchPublisher, Publisher, PublisherField, PublisherHistory,
     PublisherOrderBy,
 };
-use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::db::PgPool;
+use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{publisher, publisher_history};
-use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -19,6 +18,7 @@ impl Crud for Publisher {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.publisher_id
@@ -36,36 +36,40 @@ impl Crud for Publisher {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Publisher>> {
         use crate::schema::publisher::dsl::*;
         let mut connection = db.get()?;
         let mut query = publisher.into_boxed();
 
         query = match order.field {
-            PublisherField::PublisherId => match order.direction {
-                Direction::Asc => query.order(publisher_id.asc()),
-                Direction::Desc => query.order(publisher_id.desc()),
-            },
-            PublisherField::PublisherName => match order.direction {
-                Direction::Asc => query.order(publisher_name.asc()),
-                Direction::Desc => query.order(publisher_name.desc()),
-            },
-            PublisherField::PublisherShortname => match order.direction {
-                Direction::Asc => query.order(publisher_shortname.asc()),
-                Direction::Desc => query.order(publisher_shortname.desc()),
-            },
-            PublisherField::PublisherUrl => match order.direction {
-                Direction::Asc => query.order(publisher_url.asc()),
-                Direction::Desc => query.order(publisher_url.desc()),
-            },
-            PublisherField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            PublisherField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            PublisherField::PublisherId => {
+                apply_directional_order!(query, order.direction, order, publisher_id)
+            }
+            PublisherField::PublisherName => {
+                apply_directional_order!(query, order.direction, order, publisher_name)
+            }
+            PublisherField::PublisherShortname => {
+                apply_directional_order!(query, order.direction, order, publisher_shortname)
+            }
+            PublisherField::PublisherUrl => {
+                apply_directional_order!(query, order.direction, order, publisher_url)
+            }
+            PublisherField::ZitadelId => {
+                apply_directional_order!(query, order.direction, order, zitadel_id)
+            }
+            PublisherField::AccessibilityStatement => {
+                apply_directional_order!(query, order.direction, order, accessibility_statement)
+            }
+            PublisherField::AccessibilityReportUrl => {
+                apply_directional_order!(query, order.direction, order, accessibility_report_url)
+            }
+            PublisherField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            PublisherField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(publisher_id.eq_any(publishers));
@@ -91,6 +95,7 @@ impl Crud for Publisher {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::publisher::dsl::*;
         let mut connection = db.get()?;
@@ -117,20 +122,49 @@ impl Crud for Publisher {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        Ok(self.pk())
-    }
-
     crud_methods!(publisher::table, publisher::dsl::publisher);
+}
+
+impl Publisher {
+    pub fn by_zitadel_ids(
+        db: &crate::db::PgPool,
+        org_ids: Vec<String>,
+    ) -> ThothResult<Vec<Publisher>> {
+        use crate::schema::publisher::dsl::*;
+
+        if org_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut connection = db.get()?;
+        let org_ids: Vec<Option<String>> = org_ids.into_iter().map(Some).collect();
+
+        publisher
+            .filter(zitadel_id.eq_any(org_ids))
+            .load::<Publisher>(&mut connection)
+            .map_err(Into::into)
+    }
+}
+
+impl PublisherId for Publisher {
+    fn publisher_id(&self, _db: &PgPool) -> ThothResult<Uuid> {
+        Ok(self.publisher_id)
+    }
+}
+
+impl PublisherId for PatchPublisher {
+    fn publisher_id(&self, _db: &PgPool) -> ThothResult<Uuid> {
+        Ok(self.publisher_id)
+    }
 }
 
 impl HistoryEntry for Publisher {
     type NewHistoryEntity = NewPublisherHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             publisher_id: self.publisher_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -140,28 +174,4 @@ impl DbInsert for NewPublisherHistory {
     type MainEntity = PublisherHistory;
 
     db_insert!(publisher_history::table);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_publisher_pk() {
-        let publisher: Publisher = Default::default();
-        assert_eq!(publisher.pk(), publisher.publisher_id);
-    }
-
-    #[test]
-    fn test_new_publisher_history_from_publisher() {
-        let publisher: Publisher = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_publisher_history = publisher.new_history_entry(&account_id);
-        assert_eq!(new_publisher_history.publisher_id, publisher.publisher_id);
-        assert_eq!(new_publisher_history.account_id, account_id);
-        assert_eq!(
-            new_publisher_history.data,
-            serde_json::Value::String(serde_json::to_string(&publisher).unwrap())
-        );
-    }
 }

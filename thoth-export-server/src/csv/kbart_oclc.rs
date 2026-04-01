@@ -75,112 +75,113 @@ impl TryFrom<Work> for KbartOclcRow {
 
     fn try_from(work: Work) -> ThothResult<Self> {
         // title_url is mandatory in KBART but optional in Thoth
-        if work.landing_page.is_none() {
-            Err(ThothError::IncompleteMetadataRecord(
+        let landing_page = work.landing_page.ok_or_else(|| {
+            ThothError::IncompleteMetadataRecord(
                 KBART_ERROR.to_string(),
                 "Missing Landing Page".to_string(),
-            ))
+            )
+        })?;
         // Don't output works with no publication date (mandatory in KBART)
-        } else if work.publication_date.is_none() {
-            Err(ThothError::IncompleteMetadataRecord(
+        let publication_date = work.publication_date.ok_or_else(|| {
+            ThothError::IncompleteMetadataRecord(
                 KBART_ERROR.to_string(),
                 "Missing Publication Date".to_string(),
-            ))
+            )
+        })?;
         // Don't output works with no license
-        } else if work.license.is_none() {
-            Err(ThothError::IncompleteMetadataRecord(
+        work.license.ok_or_else(|| {
+            ThothError::IncompleteMetadataRecord(
                 KBART_ERROR.to_string(),
                 "Missing License".to_string(),
-            ))
-        } else {
-            let mut print_identifier = None;
-            let mut online_identifier = None;
-            let mut print_edition_exists = false;
-            for publication in work.publications {
-                if publication.publication_type == PublicationType::PDF
-                    && publication.isbn.is_some()
-                {
-                    online_identifier = publication.isbn.as_ref().map(|i| i.to_string());
-                }
-                if publication.publication_type == PublicationType::PAPERBACK {
-                    print_edition_exists = true;
-                    if publication.isbn.is_some() {
-                        print_identifier = publication.isbn.as_ref().map(|i| i.to_string());
-                    }
-                }
-                if publication.publication_type == PublicationType::HARDBACK {
-                    print_edition_exists = true;
+            )
+        })?;
+
+        let mut print_identifier = None;
+        let mut online_identifier = None;
+        let mut print_edition_exists = false;
+        for publication in work.publications {
+            if publication.publication_type == PublicationType::PDF && publication.isbn.is_some() {
+                online_identifier = publication.isbn.as_ref().map(|i| i.to_string());
+            }
+            if publication.publication_type == PublicationType::PAPERBACK {
+                print_edition_exists = true;
+                if publication.isbn.is_some() {
+                    print_identifier = publication.isbn.as_ref().map(|i| i.to_string());
                 }
             }
-            let mut first_author = None;
-            let mut first_editor = None;
-            let mut contributions = work.contributions;
-            // The first author/editor will usually be the contributor with contribution_ordinal 1,
-            // but this is not guaranteed, so we select the highest-ranked contributor of the
-            // appropriate contribution type who is listed as a "main" contributor.
-            // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
-            contributions.sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
-            for contribution in contributions {
-                if contribution.main_contribution {
-                    if work.work_type == WorkType::EDITED_BOOK {
-                        if contribution.contribution_type == ContributionType::EDITOR {
-                            first_editor = Some(contribution.last_name);
-                            break;
-                        }
-                    } else if contribution.contribution_type == ContributionType::AUTHOR {
-                        first_author = Some(contribution.last_name);
+            if publication.publication_type == PublicationType::HARDBACK {
+                print_edition_exists = true;
+            }
+        }
+        let mut first_author = None;
+        let mut first_editor = None;
+        let mut contributions = work.contributions;
+        // The first author/editor will usually be the contributor with contribution_ordinal 1,
+        // but this is not guaranteed, so we select the highest-ranked contributor of the
+        // appropriate contribution type who is listed as a "main" contributor.
+        // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
+        contributions.sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
+        for contribution in contributions {
+            if contribution.main_contribution {
+                if work.work_type == WorkType::EDITED_BOOK {
+                    if contribution.contribution_type == ContributionType::EDITOR {
+                        first_editor = Some(contribution.last_name);
                         break;
                     }
+                } else if contribution.contribution_type == ContributionType::AUTHOR {
+                    first_author = Some(contribution.last_name);
+                    break;
                 }
             }
-            let date_monograph_published_online = work
-                .publication_date
-                .map(|date| chrono::Datelike::year(&date).into())
-                .unwrap();
-            let date_monograph_published_print = match print_edition_exists {
-                true => Some(date_monograph_published_online),
-                false => None,
-            };
-            Ok(KbartOclcRow {
-                publication_title: work.full_title,
-                print_identifier,
-                online_identifier,
-                date_first_issue_online: None,
-                num_first_vol_online: None,
-                num_first_issue_online: None,
-                date_last_issue_online: None,
-                num_last_vol_online: None,
-                num_last_issue_online: None,
-                title_url: work.landing_page.unwrap(),
-                first_author,
-                title_id: work
-                    .doi
-                    .map(|d| d.to_string())
-                    .unwrap_or_else(|| work.work_id.to_string()),
-                embargo_info: None,
-                coverage_depth: "fulltext".to_string(),
-                notes: None,
-                publisher_name: Some(work.imprint.publisher.publisher_name),
-                publication_type: match work.work_type {
-                    WorkType::BOOK_SET => "Serial".to_string(),
-                    _ => "Monograph".to_string(),
-                },
-                date_monograph_published_print,
-                date_monograph_published_online,
-                // Note that it is possible for a work to belong to more than one series.
-                // Only one series can be listed in KBART, so we select the first one found (if any).
-                monograph_volume: work.issues.first().map(|i| i.issue_ordinal),
-                monograph_edition: work.edition,
-                first_editor,
-                // This should match the series' `title_id` if also provided in the KBART.
-                parent_publication_title_id: work
-                    .issues
-                    .first()
-                    .and_then(|i| i.series.issn_digital.as_ref().map(|s| s.to_string())),
-                preceding_publication_title_id: None,
-                access_type: "F".to_string(),
-            })
         }
+        let date_monograph_published_online = chrono::Datelike::year(&publication_date).into();
+        let date_monograph_published_print = match print_edition_exists {
+            true => Some(date_monograph_published_online),
+            false => None,
+        };
+        Ok(KbartOclcRow {
+            publication_title: work.titles[0].full_title.clone(),
+            print_identifier,
+            online_identifier,
+            date_first_issue_online: None,
+            num_first_vol_online: None,
+            num_first_issue_online: None,
+            date_last_issue_online: None,
+            num_last_vol_online: None,
+            num_last_issue_online: None,
+            title_url: landing_page,
+            first_author,
+            title_id: work
+                .doi
+                .map(|d| d.to_string())
+                .unwrap_or_else(|| work.work_id.to_string()),
+            embargo_info: None,
+            coverage_depth: "fulltext".to_string(),
+            notes: None,
+            publisher_name: Some(work.imprint.publisher.publisher_name),
+            publication_type: match work.work_type {
+                WorkType::BOOK_SET => "Serial".to_string(),
+                _ => "Monograph".to_string(),
+            },
+            date_monograph_published_print,
+            date_monograph_published_online,
+            // Note that it is possible for a work to belong to more than one series.
+            // Only one series can be listed in KBART, so we select the first one found (if any).
+            monograph_volume: work
+                .issues
+                .first()
+                .and_then(|i| i.issue_number.as_ref())
+                .copied(),
+            monograph_edition: work.edition,
+            first_editor,
+            // This should match the series' `title_id` if also provided in the KBART.
+            parent_publication_title_id: work
+                .issues
+                .first()
+                .and_then(|i| i.series.issn_digital.as_ref().map(|s| s.to_string())),
+            preceding_publication_title_id: None,
+            access_type: "F".to_string(),
+        })
     }
 }
 
@@ -249,9 +250,32 @@ mod tests {
             work_status: WorkStatus::ACTIVE,
             // We must manually set full_title within this test framework, but
             // Thoth UI compiles it automatically from title + (optional) subtitle
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
+            abstracts: vec![
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "Lorem ipsum dolor sit amet".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::SHORT,
+                    canonical: true,
+                },
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::LONG,
+                    canonical: true,
+                },
+            ],
             work_type: WorkType::MONOGRAPH,
             reference: None,
             edition: Some(1),
@@ -260,10 +284,6 @@ mod tests {
             withdrawn_date: None,
             license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
-            short_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
-            long_abstract: Some(
-                "Lorem ipsum dolor sit amet, consectetur adipiscing elit".to_string(),
-            ),
             general_note: None,
             bibliography_note: None,
             place: Some("León, Spain".to_string()),
@@ -286,15 +306,21 @@ mod tests {
                 imprint_name: "OA Editions Imprint".to_string(),
                 imprint_url: None,
                 crossmark_doi: None,
+                default_currency: None,
+                default_place: None,
+                default_locale: None,
                 publisher: WorkImprintPublisher {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: Some("OAE".to_string()),
                     publisher_url: None,
+                    accessibility_statement: None,
+                    contacts: vec![],
                 },
             },
             issues: vec![
                 WorkIssues {
-                    issue_ordinal: 20,
+                    issue_ordinal: 21,
+                    issue_number: Some(20),
                     series: WorkIssuesSeries {
                         series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                         series_type: thoth_client::SeriesType::BOOK_SERIES,
@@ -307,7 +333,8 @@ mod tests {
                     },
                 },
                 WorkIssues {
-                    issue_ordinal: 50,
+                    issue_ordinal: 51,
+                    issue_number: Some(50),
                     series: WorkIssuesSeries {
                         series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                         series_type: thoth_client::SeriesType::BOOK_SERIES,
@@ -327,7 +354,7 @@ mod tests {
                     last_name: "First".to_string(),
                     full_name: "Author First".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(
@@ -343,7 +370,7 @@ mod tests {
                     last_name: "Second".to_string(),
                     full_name: "Author Second".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -357,7 +384,7 @@ mod tests {
                     last_name: "FirstEd".to_string(),
                     full_name: "Editor FirstEd".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 3,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -383,6 +410,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -401,6 +432,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -419,6 +454,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -437,6 +476,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -455,6 +498,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
