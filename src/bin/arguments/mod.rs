@@ -42,37 +42,14 @@ pub fn port(default_value: &'static str, env_value: &'static str) -> Arg {
         .num_args(1)
 }
 
-pub fn domain() -> Arg {
-    Arg::new("domain")
-        .short('d')
-        .long("domain")
-        .value_name("THOTH_DOMAIN")
-        .env("THOTH_DOMAIN")
-        .default_value("localhost")
-        .help("Authentication cookie domain")
-        .num_args(1)
-}
-
 pub fn key() -> Arg {
     Arg::new("key")
         .short('k')
-        .long("secret-key")
-        .value_name("SECRET")
-        .env("SECRET_KEY")
-        .help("Authentication cookie secret key")
+        .long("private-key")
+        .value_name("PRIVATE_KEY")
+        .env("PRIVATE_KEY")
+        .help("Thoth's GraphQL API zitadel private key (base64-encoded JSON key)")
         .num_args(1)
-}
-
-pub fn session() -> Arg {
-    Arg::new("duration")
-        .short('s')
-        .long("session-length")
-        .value_name("DURATION")
-        .env("SESSION_DURATION_SECONDS")
-        .default_value("3600")
-        .help("Authentication cookie session duration (seconds)")
-        .num_args(1)
-        .value_parser(value_parser!(i64))
 }
 
 pub fn gql_url() -> Arg {
@@ -108,6 +85,27 @@ pub fn export_url() -> Arg {
         .num_args(1)
 }
 
+pub fn zitadel_url() -> Arg {
+    Arg::new("zitadel-url")
+        .short('z')
+        .long("zitadel-url")
+        .value_name("ZITADEL_URL")
+        .env("ZITADEL_URL")
+        .default_value("http://localhost:8282")
+        .help("Zitadel's, public facing, root URL.")
+        .num_args(1)
+}
+
+pub fn thoth_pat() -> Arg {
+    Arg::new("thoth-pat")
+        .short('P')
+        .long("thoth-pat")
+        .value_name("THOTH_PAT")
+        .env("THOTH_PAT")
+        .help("Thoth service account Personal Access Token (PAT)")
+        .num_args(1)
+}
+
 pub fn threads(env_value: &'static str) -> Arg {
     Arg::new("threads")
         .short('t')
@@ -137,4 +135,31 @@ pub fn revert() -> Arg {
         .long("revert")
         .help("Revert all database migrations")
         .action(ArgAction::SetTrue)
+}
+
+pub fn aws_access_key_id() -> Arg {
+    Arg::new("aws-access-key-id")
+        .long("aws-access-key-id")
+        .value_name("AWS_ACCESS_KEY_ID")
+        .env("AWS_ACCESS_KEY_ID")
+        .help("AWS access key id")
+        .num_args(1)
+}
+
+pub fn aws_secret_access_key() -> Arg {
+    Arg::new("aws-secret-access-key")
+        .long("aws-secret-access-key")
+        .value_name("AWS_SECRET_ACCESS_KEY")
+        .env("AWS_SECRET_ACCESS_KEY")
+        .help("AWS secret access key")
+        .num_args(1)
+}
+
+pub fn aws_region() -> Arg {
+    Arg::new("aws-region")
+        .long("aws-region")
+        .value_name("AWS_REGION")
+        .env("AWS_REGION")
+        .help("AWS region for S3/CloudFront")
+        .num_args(1)
 }

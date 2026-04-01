@@ -1,0 +1,166 @@
+use super::LocaleCode;
+use super::{
+    Abstract, AbstractField, AbstractHistory, AbstractOrderBy, AbstractType, NewAbstract,
+    NewAbstractHistory, PatchAbstract,
+};
+use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
+use crate::schema::work_abstract::dsl;
+use crate::schema::{abstract_history, work_abstract};
+use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
+use thoth_errors::ThothResult;
+use uuid::Uuid;
+
+impl Abstract {
+    fn canonical_from_work_id_and_type(
+        db: &crate::db::PgPool,
+        work_id: &Uuid,
+        abstract_type: AbstractType,
+    ) -> ThothResult<Self> {
+        let mut connection = db.get()?;
+        work_abstract::table
+            .filter(work_abstract::work_id.eq(work_id))
+            .filter(work_abstract::canonical.eq(true))
+            .filter(work_abstract::abstract_type.eq(abstract_type))
+            .first::<Abstract>(&mut connection)
+            .map_err(Into::into)
+    }
+
+    pub(crate) fn short_canonical_from_work_id(
+        db: &crate::db::PgPool,
+        work_id: &Uuid,
+    ) -> ThothResult<Self> {
+        Self::canonical_from_work_id_and_type(db, work_id, AbstractType::Short)
+    }
+
+    pub(crate) fn long_canonical_from_work_id(
+        db: &crate::db::PgPool,
+        work_id: &Uuid,
+    ) -> ThothResult<Self> {
+        Self::canonical_from_work_id_and_type(db, work_id, AbstractType::Long)
+    }
+}
+
+impl Crud for Abstract {
+    type NewEntity = NewAbstract;
+    type PatchEntity = PatchAbstract;
+    type OrderByEntity = AbstractOrderBy;
+    type FilterParameter1 = LocaleCode;
+    type FilterParameter2 = ();
+    type FilterParameter3 = AbstractType;
+    type FilterParameter4 = ();
+
+    fn pk(&self) -> Uuid {
+        self.abstract_id
+    }
+
+    fn all(
+        db: &crate::db::PgPool,
+        limit: i32,
+        offset: i32,
+        filter: Option<String>,
+        order: Self::OrderByEntity,
+        _: Vec<Uuid>,
+        parent_id_1: Option<Uuid>,
+        _: Option<Uuid>,
+        locale_codes: Vec<Self::FilterParameter1>,
+        _: Vec<Self::FilterParameter2>,
+        abstract_type: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
+    ) -> ThothResult<Vec<Abstract>> {
+        let mut connection = db.get()?;
+        let mut query = dsl::work_abstract
+            .select(crate::schema::work_abstract::all_columns)
+            .into_boxed();
+
+        query = match order.field {
+            AbstractField::AbstractId => {
+                apply_directional_order!(query, order.direction, order, dsl::abstract_id)
+            }
+            AbstractField::WorkId => {
+                apply_directional_order!(query, order.direction, order, dsl::work_id)
+            }
+            AbstractField::LocaleCode => {
+                apply_directional_order!(query, order.direction, order, dsl::locale_code)
+            }
+            AbstractField::AbstractType => {
+                apply_directional_order!(query, order.direction, order, dsl::abstract_type)
+            }
+            AbstractField::Content => {
+                apply_directional_order!(query, order.direction, order, dsl::content)
+            }
+            AbstractField::Canonical => {
+                apply_directional_order!(query, order.direction, order, dsl::canonical)
+            }
+        };
+
+        if let Some(filter) = filter {
+            query = query.filter(dsl::content.ilike(format!("%{filter}%")));
+        }
+
+        if let Some(pid) = parent_id_1 {
+            query = query.filter(dsl::work_id.eq(pid));
+        }
+
+        if !locale_codes.is_empty() {
+            query = query.filter(dsl::locale_code.eq_any(locale_codes));
+        }
+
+        if let Some(at) = abstract_type {
+            query = query.filter(dsl::abstract_type.eq(at));
+        }
+
+        query
+            .limit(limit.into())
+            .offset(offset.into())
+            .load::<Abstract>(&mut connection)
+            .map_err(Into::into)
+    }
+
+    fn count(
+        db: &crate::db::PgPool,
+        filter: Option<String>,
+        _: Vec<Uuid>,
+        _: Vec<Self::FilterParameter1>,
+        _: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
+    ) -> ThothResult<i32> {
+        let mut connection = db.get()?;
+        let mut query = dsl::work_abstract.into_boxed();
+
+        if let Some(filter) = filter {
+            query = query.filter(dsl::content.ilike(format!("%{filter}%")));
+        }
+
+        query
+            .count()
+            .get_result::<i64>(&mut connection)
+            .map(|t| t.to_string().parse::<i32>().unwrap())
+            .map_err(Into::into)
+    }
+
+    crud_methods!(work_abstract::table, work_abstract::dsl::work_abstract);
+}
+
+publisher_id_impls!(Abstract, NewAbstract, PatchAbstract, |s, db| {
+    let work = crate::model::work::Work::from_id(db, &s.work_id)?;
+    <crate::model::work::Work as PublisherId>::publisher_id(&work, db)
+});
+
+impl HistoryEntry for Abstract {
+    type NewHistoryEntity = NewAbstractHistory;
+
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
+        Self::NewHistoryEntity {
+            abstract_id: self.abstract_id,
+            user_id: user_id.to_string(),
+            data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
+        }
+    }
+}
+
+impl DbInsert for NewAbstractHistory {
+    type MainEntity = AbstractHistory;
+
+    db_insert!(abstract_history::table);
+}

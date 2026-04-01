@@ -1,6 +1,6 @@
 [package]
 name = "thoth"
-version = "0.13.16"
+version = "1.0.0"
 authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -12,16 +12,17 @@ readme = "README.md"
 maintenance = { status = "actively-developed" }
 
 [workspace]
-members = ["thoth-api", "thoth-api-server", "thoth-app", "thoth-app-server", "thoth-client", "thoth-errors", "thoth-export-server"]
+members = ["thoth-api", "thoth-api-server", "thoth-client", "thoth-errors", "thoth-export-server"]
 
 [dependencies]
-thoth-api = { version = "=0.13.16", path = "thoth-api", features = ["backend"] }
-thoth-api-server = { version = "=0.13.16", path = "thoth-api-server" }
-thoth-app-server = { version = "=0.13.16", path = "thoth-app-server" }
-thoth-errors = { version = "=0.13.16", path = "thoth-errors" }
-thoth-export-server = { version = "=0.13.16", path = "thoth-export-server" }
+thoth-api = { version = "=1.0.0", path = "thoth-api", features = ["backend"] }
+thoth-api-server = { version = "=1.0.0", path = "thoth-api-server" }
+thoth-errors = { version = "=1.0.0", path = "thoth-errors" }
+thoth-export-server = { version = "=1.0.0", path = "thoth-export-server" }
+base64 = "0.22.1"
 clap = { version = "4.5.32", features = ["cargo", "env"] }
 dialoguer = { version = "0.11.0", features = ["password"] }
 dotenv = "0.15.0"
 lazy_static = "1.5.0"
 tokio = { version = "1.44.1", features = ["rt", "rt-multi-thread", "macros"] }
+zitadel = { version = "5.5.1", features = ["api", "interceptors"]}

@@ -1,12 +1,11 @@
-use crate::model::Doi;
+use crate::model::{locale::LocaleCode, price::CurrencyCode, Doi};
 use serde::Deserialize;
 use serde::Serialize;
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
-use crate::model::publisher::Publisher;
+use crate::graphql::types::inputs::Direction;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::imprint;
@@ -30,11 +29,14 @@ pub enum ImprintField {
     ImprintUrl,
     #[strum(serialize = "CrossmarkDOI")]
     CrossmarkDoi,
+    DefaultCurrency,
+    DefaultPlace,
+    DefaultLocale,
     CreatedAt,
     UpdatedAt,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Imprint {
@@ -43,24 +45,19 @@ pub struct Imprint {
     pub imprint_name: String,
     pub imprint_url: Option<String>,
     pub crossmark_doi: Option<Doi>,
+    pub s3_bucket: Option<String>,
+    pub cdn_domain: Option<String>,
+    pub cloudfront_dist_id: Option<String>,
+    pub default_currency: Option<CurrencyCode>,
+    pub default_place: Option<String>,
+    pub default_locale: Option<LocaleCode>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct ImprintWithPublisher {
-    pub imprint_id: Uuid,
-    pub imprint_name: String,
-    pub imprint_url: Option<String>,
-    pub crossmark_doi: Option<Doi>,
-    pub updated_at: Timestamp,
-    pub publisher: Publisher,
-}
-
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new brand under which a publisher issues works"),
     diesel(table_name = imprint)
 )]
@@ -69,11 +66,17 @@ pub struct NewImprint {
     pub imprint_name: String,
     pub imprint_url: Option<String>,
     pub crossmark_doi: Option<Doi>,
+    pub s3_bucket: Option<String>,
+    pub cdn_domain: Option<String>,
+    pub cloudfront_dist_id: Option<String>,
+    pub default_currency: Option<CurrencyCode>,
+    pub default_place: Option<String>,
+    pub default_locale: Option<LocaleCode>,
 }
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing brand under which a publisher issues works"),
     diesel(table_name = imprint, treat_none_as_null = true)
 )]
@@ -83,25 +86,31 @@ pub struct PatchImprint {
     pub imprint_name: String,
     pub imprint_url: Option<String>,
     pub crossmark_doi: Option<Doi>,
+    pub s3_bucket: Option<String>,
+    pub cdn_domain: Option<String>,
+    pub cloudfront_dist_id: Option<String>,
+    pub default_currency: Option<CurrencyCode>,
+    pub default_place: Option<String>,
+    pub default_locale: Option<LocaleCode>,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct ImprintHistory {
     pub imprint_history_id: Uuid,
     pub imprint_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = imprint_history)
 )]
 pub struct NewImprintHistory {
     pub imprint_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -116,53 +125,11 @@ pub struct ImprintOrderBy {
     pub direction: Direction,
 }
 
-#[test]
-fn test_imprintfield_default() {
-    let impfield: ImprintField = Default::default();
-    assert_eq!(impfield, ImprintField::ImprintName);
-}
-
-#[test]
-fn test_imprintfield_display() {
-    assert_eq!(format!("{}", ImprintField::ImprintId), "ID");
-    assert_eq!(format!("{}", ImprintField::ImprintName), "Imprint");
-    assert_eq!(format!("{}", ImprintField::ImprintUrl), "ImprintURL");
-    assert_eq!(format!("{}", ImprintField::CrossmarkDoi), "CrossmarkDOI");
-    assert_eq!(format!("{}", ImprintField::CreatedAt), "CreatedAt");
-    assert_eq!(format!("{}", ImprintField::UpdatedAt), "UpdatedAt");
-}
-
-#[test]
-fn test_imprintfield_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(
-        ImprintField::from_str("ID").unwrap(),
-        ImprintField::ImprintId
-    );
-    assert_eq!(
-        ImprintField::from_str("Imprint").unwrap(),
-        ImprintField::ImprintName
-    );
-    assert_eq!(
-        ImprintField::from_str("ImprintURL").unwrap(),
-        ImprintField::ImprintUrl
-    );
-    assert_eq!(
-        ImprintField::from_str("CrossmarkDOI").unwrap(),
-        ImprintField::CrossmarkDoi
-    );
-    assert_eq!(
-        ImprintField::from_str("CreatedAt").unwrap(),
-        ImprintField::CreatedAt
-    );
-    assert_eq!(
-        ImprintField::from_str("UpdatedAt").unwrap(),
-        ImprintField::UpdatedAt
-    );
-    assert!(ImprintField::from_str("ImprintID").is_err());
-    assert!(ImprintField::from_str("Publisher").is_err());
-    assert!(ImprintField::from_str("Website").is_err());
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::ImprintPolicy;
+#[cfg(test)]
+mod tests;

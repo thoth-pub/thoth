@@ -3,8 +3,6 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::model::affiliation::AffiliationWithInstitution;
-use crate::model::work::WorkWithRelations;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::contribution;
@@ -13,7 +11,7 @@ use crate::schema::contribution_history;
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "Role describing the type of contribution to the work"),
     ExistingTypePath = "crate::schema::sql_types::ContributionType"
 )]
@@ -120,7 +118,7 @@ pub enum ContributionField {
     ContributionOrdinal,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contribution {
@@ -129,7 +127,6 @@ pub struct Contribution {
     pub contributor_id: Uuid,
     pub contribution_type: ContributionType,
     pub main_contribution: bool,
-    pub biography: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
     pub first_name: Option<String>,
@@ -137,22 +134,9 @@ pub struct Contribution {
     pub full_name: String,
     pub contribution_ordinal: i32,
 }
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct ContributionWithAffiliations {
-    pub affiliations: Option<Vec<AffiliationWithInstitution>>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct ContributionWithWork {
-    pub work: WorkWithRelations,
-}
-
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new individual involvement in the production of a work"),
     diesel(table_name = contribution)
 )]
@@ -161,7 +145,6 @@ pub struct NewContribution {
     pub contributor_id: Uuid,
     pub contribution_type: ContributionType,
     pub main_contribution: bool,
-    pub biography: Option<String>,
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
@@ -170,7 +153,7 @@ pub struct NewContribution {
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an individual involvement in the production of a work"),
     diesel(table_name = contribution, treat_none_as_null = true)
 )]
@@ -180,30 +163,29 @@ pub struct PatchContribution {
     pub contributor_id: Uuid,
     pub contribution_type: ContributionType,
     pub main_contribution: bool,
-    pub biography: Option<String>,
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
     pub contribution_ordinal: i32,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct ContributionHistory {
     pub contribution_history_id: Uuid,
     pub contribution_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = contribution_history)
 )]
 pub struct NewContributionHistory {
     pub contribution_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -215,7 +197,6 @@ impl Default for Contribution {
             contributor_id: Default::default(),
             contribution_type: Default::default(),
             main_contribution: true,
-            biography: Default::default(),
             created_at: Default::default(),
             updated_at: Default::default(),
             first_name: Default::default(),
@@ -226,102 +207,11 @@ impl Default for Contribution {
     }
 }
 
-#[test]
-fn test_contributiontype_default() {
-    let contributiontype: ContributionType = Default::default();
-    assert_eq!(contributiontype, ContributionType::Author);
-}
-
-#[test]
-fn test_contributiontype_display() {
-    assert_eq!(format!("{}", ContributionType::Author), "Author");
-    assert_eq!(format!("{}", ContributionType::Editor), "Editor");
-    assert_eq!(format!("{}", ContributionType::Translator), "Translator");
-    assert_eq!(
-        format!("{}", ContributionType::Photographer),
-        "Photographer"
-    );
-    assert_eq!(format!("{}", ContributionType::Illustrator), "Illustrator");
-    assert_eq!(format!("{}", ContributionType::MusicEditor), "Music Editor");
-    assert_eq!(format!("{}", ContributionType::ForewordBy), "Foreword By");
-    assert_eq!(
-        format!("{}", ContributionType::IntroductionBy),
-        "Introduction By"
-    );
-    assert_eq!(format!("{}", ContributionType::AfterwordBy), "Afterword By");
-    assert_eq!(format!("{}", ContributionType::PrefaceBy), "Preface By");
-    assert_eq!(format!("{}", ContributionType::SoftwareBy), "Software By");
-    assert_eq!(format!("{}", ContributionType::ResearchBy), "Research By");
-    assert_eq!(
-        format!("{}", ContributionType::ContributionsBy),
-        "Contributions By"
-    );
-    assert_eq!(format!("{}", ContributionType::Indexer), "Indexer");
-}
-
-#[test]
-fn test_contributiontype_fromstr() {
-    use std::str::FromStr;
-    assert_eq!(
-        ContributionType::from_str("Author").unwrap(),
-        ContributionType::Author
-    );
-    assert_eq!(
-        ContributionType::from_str("Editor").unwrap(),
-        ContributionType::Editor
-    );
-    assert_eq!(
-        ContributionType::from_str("Translator").unwrap(),
-        ContributionType::Translator
-    );
-    assert_eq!(
-        ContributionType::from_str("Photographer").unwrap(),
-        ContributionType::Photographer
-    );
-    assert_eq!(
-        ContributionType::from_str("Illustrator").unwrap(),
-        ContributionType::Illustrator
-    );
-    assert_eq!(
-        ContributionType::from_str("Music Editor").unwrap(),
-        ContributionType::MusicEditor
-    );
-    assert_eq!(
-        ContributionType::from_str("Foreword By").unwrap(),
-        ContributionType::ForewordBy
-    );
-    assert_eq!(
-        ContributionType::from_str("Introduction By").unwrap(),
-        ContributionType::IntroductionBy
-    );
-    assert_eq!(
-        ContributionType::from_str("Afterword By").unwrap(),
-        ContributionType::AfterwordBy
-    );
-    assert_eq!(
-        ContributionType::from_str("Preface By").unwrap(),
-        ContributionType::PrefaceBy
-    );
-    assert_eq!(
-        ContributionType::from_str("Software By").unwrap(),
-        ContributionType::SoftwareBy
-    );
-    assert_eq!(
-        ContributionType::from_str("Research By").unwrap(),
-        ContributionType::ResearchBy
-    );
-    assert_eq!(
-        ContributionType::from_str("Contributions By").unwrap(),
-        ContributionType::ContributionsBy
-    );
-    assert_eq!(
-        ContributionType::from_str("Indexer").unwrap(),
-        ContributionType::Indexer
-    );
-
-    assert!(ContributionType::from_str("Juggler").is_err());
-    assert!(ContributionType::from_str("Supervisor").is_err());
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::ContributionPolicy;
+#[cfg(test)]
+mod tests;

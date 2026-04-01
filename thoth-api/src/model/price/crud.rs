@@ -1,9 +1,7 @@
 use super::{CurrencyCode, NewPrice, NewPriceHistory, PatchPrice, Price, PriceField, PriceHistory};
-use crate::graphql::model::PriceOrderBy;
-use crate::graphql::utils::Direction;
+use crate::graphql::types::inputs::PriceOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{price, price_history};
-use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
@@ -15,6 +13,7 @@ impl Crud for Price {
     type FilterParameter1 = CurrencyCode;
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.price_id
@@ -32,6 +31,7 @@ impl Crud for Price {
         currency_codes: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Price>> {
         use crate::schema::price::dsl::*;
         let mut connection = db.get()?;
@@ -44,30 +44,24 @@ impl Crud for Price {
                 .into_boxed();
 
         query = match order.field {
-            PriceField::PriceId => match order.direction {
-                Direction::Asc => query.order(price_id.asc()),
-                Direction::Desc => query.order(price_id.desc()),
-            },
-            PriceField::PublicationId => match order.direction {
-                Direction::Asc => query.order(publication_id.asc()),
-                Direction::Desc => query.order(publication_id.desc()),
-            },
-            PriceField::CurrencyCode => match order.direction {
-                Direction::Asc => query.order(currency_code.asc()),
-                Direction::Desc => query.order(currency_code.desc()),
-            },
-            PriceField::UnitPrice => match order.direction {
-                Direction::Asc => query.order(unit_price.asc()),
-                Direction::Desc => query.order(unit_price.desc()),
-            },
-            PriceField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            PriceField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            PriceField::PriceId => {
+                apply_directional_order!(query, order.direction, order, price_id)
+            }
+            PriceField::PublicationId => {
+                apply_directional_order!(query, order.direction, order, publication_id)
+            }
+            PriceField::CurrencyCode => {
+                apply_directional_order!(query, order.direction, order, currency_code)
+            }
+            PriceField::UnitPrice => {
+                apply_directional_order!(query, order.direction, order, unit_price)
+            }
+            PriceField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            PriceField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
@@ -92,6 +86,7 @@ impl Crud for Price {
         currency_codes: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::price::dsl::*;
         let mut connection = db.get()?;
@@ -110,20 +105,20 @@ impl Crud for Price {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::publication::Publication::from_id(db, &self.publication_id)?.publisher_id(db)
-    }
-
     crud_methods!(price::table, price::dsl::price);
 }
+
+publisher_id_impls!(Price, NewPrice, PatchPrice, |s, db| {
+    crate::model::publication::Publication::from_id(db, &s.publication_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Price {
     type NewHistoryEntity = NewPriceHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             price_id: self.price_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -133,28 +128,4 @@ impl DbInsert for NewPriceHistory {
     type MainEntity = PriceHistory;
 
     db_insert!(price_history::table);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_price_pk() {
-        let price: Price = Default::default();
-        assert_eq!(price.pk(), price.price_id);
-    }
-
-    #[test]
-    fn test_new_price_history_from_price() {
-        let price: Price = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_price_history = price.new_history_entry(&account_id);
-        assert_eq!(new_price_history.price_id, price.price_id);
-        assert_eq!(new_price_history.account_id, account_id);
-        assert_eq!(
-            new_price_history.data,
-            serde_json::Value::String(serde_json::to_string(&price).unwrap())
-        );
-    }
 }

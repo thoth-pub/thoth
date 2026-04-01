@@ -1,10 +1,11 @@
 use csv::Writer;
 use serde::Serialize;
 use std::io::Write;
+use thoth_api::markup::ast::{ast_to_plain_text, jats_to_ast};
 use thoth_client::{
-    SubjectType, Work, WorkContributions, WorkContributionsAffiliations, WorkFundings, WorkIssues,
-    WorkLanguages, WorkPublications, WorkPublicationsLocations, WorkPublicationsPrices,
-    WorkReferences, WorkRelations, WorkSubjects,
+    AbstractType, SubjectType, Work, WorkContributions, WorkContributionsAffiliations,
+    WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkPublicationsLocations,
+    WorkPublicationsPrices, WorkReferences, WorkRelations, WorkSubjects,
 };
 use thoth_errors::ThothResult;
 
@@ -63,7 +64,7 @@ struct CsvThothRow {
         rename = "series [(type, name, issn_print, issn_digital, url, cfp_url, description, issue)]"
     )]
     series: String,
-    #[serde(rename = "languages [(relation, ISO_639-3/B_language, is_main)]")]
+    #[serde(rename = "languages [(relation, ISO_639-3/B_language)]")]
     languages: String,
     #[serde(rename = "BIC [code]")]
     bic: String,
@@ -78,7 +79,7 @@ struct CsvThothRow {
     #[serde(rename = "keywords [keyword]")]
     keywords: String,
     #[serde(
-        rename = "funding [(institution, institution_doi, ror, country, program, project, grant, jurisdiction)]"
+        rename = "funding [(institution, institution_doi, ror, country, program, project, grant)]"
     )]
     funding: String,
     #[serde(rename = "relations [(related_work, doi, relation_type, relation_number)]")]
@@ -115,8 +116,8 @@ impl From<Work> for CsvThothRow {
             imprint: work.imprint.imprint_name,
             work_type: format!("{:?}", work.work_type),
             work_status: format!("{:?}", work.work_status),
-            title: work.title,
-            subtitle: work.subtitle,
+            title: work.titles[0].title.clone(),
+            subtitle: work.titles[0].subtitle.clone(),
             reference: work.reference,
             edition: work.edition,
             doi: work.doi.map(|d| d.to_string()),
@@ -137,8 +138,24 @@ impl From<Work> for CsvThothRow {
             video_count: work.video_count,
             lccn: work.lccn,
             oclc: work.oclc,
-            short_abstract: work.short_abstract,
-            long_abstract: work.long_abstract,
+            short_abstract: work
+                .abstracts
+                .iter()
+                .find(|a| a.abstract_type == AbstractType::SHORT && a.canonical)
+                .map(|x| {
+                    // Convert JATS to plaintext
+                    let ast = jats_to_ast(&x.content);
+                    ast_to_plain_text(&ast)
+                }),
+            long_abstract: work
+                .abstracts
+                .iter()
+                .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
+                .map(|x| {
+                    // Convert JATS to plaintext
+                    let ast = jats_to_ast(&x.content);
+                    ast_to_plain_text(&ast)
+                }),
             general_note: work.general_note,
             bibliography_note: work.bibliography_note,
             toc: work.toc,
@@ -329,7 +346,10 @@ impl CsvCell<CsvThoth> for WorkContributions {
             self.last_name,
             self.full_name,
             self.main_contribution,
-            self.biography.clone().unwrap_or_default(),
+            self.biographies
+                .first()
+                .map(|b| b.content.clone())
+                .unwrap_or_default(),
             self.contributor
                 .orcid
                 .as_ref()
@@ -409,8 +429,8 @@ impl CsvCell<CsvThoth> for WorkIssues {
 impl CsvCell<CsvThoth> for WorkLanguages {
     fn csv_cell(&self) -> String {
         format!(
-            "(\"{:?}\", \"{:?}\", \"{}\")",
-            self.language_relation, self.language_code, self.main_language,
+            "(\"{:?}\", \"{:?}\")",
+            self.language_relation, self.language_code,
         )
     }
 }
@@ -424,7 +444,7 @@ impl CsvCell<CsvThoth> for WorkSubjects {
 impl CsvCell<CsvThoth> for WorkFundings {
     fn csv_cell(&self) -> String {
         format!(
-            "(\"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\")",
+            "(\"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\")",
             self.institution.institution_name,
             self.institution
                 .institution_doi
@@ -444,7 +464,6 @@ impl CsvCell<CsvThoth> for WorkFundings {
             self.program.clone().unwrap_or_default(),
             self.project_name.clone().unwrap_or_default(),
             self.grant_number.clone().unwrap_or_default(),
-            self.jurisdiction.clone().unwrap_or_default(),
         )
     }
 }
@@ -453,7 +472,7 @@ impl CsvCell<CsvThoth> for WorkRelations {
     fn csv_cell(&self) -> String {
         format!(
             "(\"{}\", \"{}\", \"{:?}\", \"{}\")",
-            self.related_work.full_title,
+            self.related_work.titles[0].full_title,
             self.related_work
                 .doi
                 .as_ref()
@@ -517,9 +536,31 @@ mod tests {
         static ref TEST_WORK: Work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
-            full_title: "Book Title: Book Subtitle".to_string(),
-            title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title: Book Subtitle".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: Some("Book Subtitle".to_string()),
+                canonical: true,
+            }],
+            abstracts: vec![thoth_client::WorkAbstracts {
+                abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                content: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.</p>".to_string(),
+                locale_code: thoth_client::LocaleCode::EN,
+                abstract_type: thoth_client::AbstractType::SHORT,
+                canonical: true,
+                },
+                thoth_client::WorkAbstracts {
+                    abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    content: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.</p>".to_string(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    abstract_type: thoth_client::AbstractType::LONG,
+                    canonical: true,
+                },
+            ],
             work_type: WorkType::MONOGRAPH,
             edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
@@ -528,8 +569,6 @@ mod tests {
             withdrawn_date: None,
             license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
-            short_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.".to_string()),
-            long_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string()),
             general_note: Some("This is a general note".to_string()),
             bibliography_note: Some("This is a bibliography note".to_string()),
             place: Some("León, Spain".to_string()),
@@ -552,14 +591,20 @@ mod tests {
                 imprint_name: "OA Editions Imprint".to_string(),
                 imprint_url: None,
                 crossmark_doi: None,
+                default_currency: None,
+                default_place: None,
+                default_locale: None,
                 publisher: WorkImprintPublisher {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: Some("OAE".to_string()),
                     publisher_url: None,
+                    accessibility_statement: None,
+                    contacts: vec![],
                 },
             },
             issues: vec![WorkIssues {
                 issue_ordinal: 1,
+                issue_number: None,
                 series: WorkIssuesSeries {
                     series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     series_type: SeriesType::JOURNAL,
@@ -578,7 +623,15 @@ mod tests {
                     last_name: "1".to_string(),
                     full_name: "Author 1".to_string(),
                     main_contribution: true,
-                    biography: Some("Author 1 is an author".to_string()),
+                    biographies: vec![
+                        thoth_client::WorkContributionsBiographies {
+                            biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                            contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            content: "Author 1 is an author".to_string(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            canonical: true,
+                        }
+                    ],
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -603,7 +656,7 @@ mod tests {
                     last_name: "2".to_string(),
                     full_name: "Author 2".to_string(),
                     main_contribution: true,
-                    biography: None,
+                    biographies: vec![],
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
                         orcid: None,
@@ -616,7 +669,6 @@ mod tests {
                 WorkLanguages {
                     language_code: LanguageCode::SPA,
                     language_relation: LanguageRelation::ORIGINAL,
-                    main_language: true,
                 },
             ],
             publications: vec![
@@ -635,6 +687,10 @@ mod tests {
                     weight_g: Some(152.0),
                     weight_oz: Some(5.3616),
                     isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![
                         WorkPublicationsPrices {
                             currency_code: CurrencyCode::EUR,
@@ -679,6 +735,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![
                         WorkPublicationsPrices {
                             currency_code: CurrencyCode::EUR,
@@ -710,6 +770,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![WorkPublicationsLocations {
                         landing_page: Some("https://www.book.com/pdf_landing".to_string()),
@@ -733,6 +797,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![WorkPublicationsLocations {
                         landing_page: Some("https://www.book.com/html_landing".to_string()),
@@ -756,6 +824,10 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
+                    accessibility_standard: None,
+                    accessibility_additional_standard: None,
+                    accessibility_exception: None,
+                    accessibility_report_url: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -812,7 +884,6 @@ mod tests {
                 project_name: Some("Name of project".to_string()),
                 project_shortname: None,
                 grant_number: Some("Number of grant".to_string()),
-                jurisdiction: Some("Funding jurisdiction".to_string()),
                 institution: FundingInstitution {
                     institution_name: "Name of institution".to_string(),
                     institution_doi: Some(Doi::from_str("https://doi.org/10.00001/INSTITUTION.0001").unwrap()),
@@ -825,17 +896,21 @@ mod tests {
                 relation_ordinal: 1,
                 related_work: WorkRelationsRelatedWork {
                     work_status: WorkStatus::ACTIVE,
-                    full_title: "Related work title".to_string(),
-                    title: "N/A".to_string(),
-                    subtitle: None,
+                    titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                        title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                        locale_code: thoth_client::LocaleCode::EN,
+                        full_title: "Related work title".to_string(),
+                        title: "N/A".to_string(),
+                        subtitle: None,
+                        canonical: true,
+                    }],
+                    abstracts: vec![],
                     edition: None,
                     doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
                     publication_date: None,
                     withdrawn_date: None,
                     license: None,
                     copyright_holder: None,
-                    short_abstract: None,
-                    long_abstract: None,
                     general_note: None,
                     place: None,
                     first_page: None,
@@ -881,8 +956,8 @@ mod tests {
         };
     }
 
-    const TEST_RESULT: &str = r#""publisher","imprint","work_type","work_status","title","subtitle","edition","doi","reference","publication_date","withdrawn_date","publication_place","license","copyright_holder","landing_page","page_count","page_breakdown","first_page","last_page","page_interval","image_count","table_count","audio_count","video_count","lccn","oclc","short_abstract","long_abstract","general_note","bibliography_note","toc","cover_url","cover_caption","contributions [(type, first_name, last_name, full_name, is_main, biography, orcid, website, [(position, institution, institution_doi, ror, country)])]","publications [(type, isbn, width (mm), width (cm), width (in), height (mm), height (cm), height (in), depth (mm), depth (cm), depth (in), weight (g), weight (oz), [(ISO_4217_currency, price)], [(landing_page, full_text, platform, is_canonical)])]","series [(type, name, issn_print, issn_digital, url, cfp_url, description, issue)]","languages [(relation, ISO_639-3/B_language, is_main)]","BIC [code]","THEMA [code]","BISAC [code]","LCC [code]","custom_categories [category]","keywords [keyword]","funding [(institution, institution_doi, ror, country, program, project, grant, jurisdiction)]","relations [(related_work, doi, relation_type, relation_number)]","references [(doi, citation, issn, isbn, journal_title, article_title, series_title, volume_title, edition, author, volume, issue, first_page, component_number, standard_designator, standards_body, publication_date, retrieval_date)]"
-"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","10.00001/BOOK.0001","IntRef1","1999-12-31","","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","334","x+334","","","","15","20","25","30","123456789","987654321","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","This is a general note","This is a bibliography note","1. Chapter 1","https://www.book.com/cover","This is a cover caption","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", ""true"", ""Author 1 is an author"", ""0000-0002-0000-0001"", """", [(""Manager"", ""University of Life"", """", ""0abcdef12"", """")]),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", ""true"", """", """", """", )]","[(""PAPERBACK"", ""978-3-16-148410-0"", ""156"", ""15.6"", ""6.14"", ""234"", ""23.4"", ""9.21"", ""25"", ""2.5"", ""1"", ""152"", ""5.3616"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")], [(""https://www.book.com/paperback"", """", ""OTHER"", ""true""),(""https://www.jstor.com/paperback"", """", ""JSTOR"", ""false"")]),(""HARDBACK"", ""978-1-4028-9462-6"", """", """", """", """", """", """", """", """", """", """", """", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")], ),(""PDF"", ""978-1-56619-909-4"", """", """", """", """", """", """", """", """", """", """", """", , [(""https://www.book.com/pdf_landing"", ""https://www.book.com/pdf_fulltext"", ""OTHER"", ""true"")]),(""HTML"", """", """", """", """", """", """", """", """", """", """", """", """", , [(""https://www.book.com/html_landing"", ""https://www.book.com/html_fulltext"", ""OTHER"", ""true"")]),(""XML"", ""978-92-95055-02-5"", """", """", """", """", """", """", """", """", """", """", """", , )]","[(""JOURNAL"", ""Name of series"", ""1234-5678"", ""8765-4321"", ""https://www.series.com"", ""https://www.series.com/cfp"", ""Description of series"", ""1"")]","[(""ORIGINAL"", ""SPA"", ""true"")]","[""AAA"",""AAB""]","[""JWA""]","[""AAA000000"",""AAA000001""]","[""JA85""]","[""Category1""]","[""keyword1"",""keyword2""]","[(""Name of institution"", ""10.00001/INSTITUTION.0001"", ""0aaaaaa00"", ""MDA"", ""Name of program"", ""Name of project"", ""Number of grant"", ""Funding jurisdiction"")]","[(""Related work title"", ""10.00001/RELATION.0001"", ""HAS_CHILD"", ""1"")]","[(""10.00001/reference"", ""Author, A. (2022) Article, Journal."", ""1111-2222"", """", ""Journal"", ""Article"", """", """", """", ""Author, A"", """", """", ""3"", """", """", """", ""2022-01-01"", ""2022-12-31"")]"
+    const TEST_RESULT: &str = r#""publisher","imprint","work_type","work_status","title","subtitle","edition","doi","reference","publication_date","withdrawn_date","publication_place","license","copyright_holder","landing_page","page_count","page_breakdown","first_page","last_page","page_interval","image_count","table_count","audio_count","video_count","lccn","oclc","short_abstract","long_abstract","general_note","bibliography_note","toc","cover_url","cover_caption","contributions [(type, first_name, last_name, full_name, is_main, biography, orcid, website, [(position, institution, institution_doi, ror, country)])]","publications [(type, isbn, width (mm), width (cm), width (in), height (mm), height (cm), height (in), depth (mm), depth (cm), depth (in), weight (g), weight (oz), [(ISO_4217_currency, price)], [(landing_page, full_text, platform, is_canonical)])]","series [(type, name, issn_print, issn_digital, url, cfp_url, description, issue)]","languages [(relation, ISO_639-3/B_language)]","BIC [code]","THEMA [code]","BISAC [code]","LCC [code]","custom_categories [category]","keywords [keyword]","funding [(institution, institution_doi, ror, country, program, project, grant)]","relations [(related_work, doi, relation_type, relation_number)]","references [(doi, citation, issn, isbn, journal_title, article_title, series_title, volume_title, edition, author, volume, issue, first_page, component_number, standard_designator, standards_body, publication_date, retrieval_date)]"
+"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","10.00001/BOOK.0001","IntRef1","1999-12-31","","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","334","x+334","","","","15","20","25","30","123456789","987654321","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","This is a general note","This is a bibliography note","1. Chapter 1","https://www.book.com/cover","This is a cover caption","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", ""true"", ""Author 1 is an author"", ""0000-0002-0000-0001"", """", [(""Manager"", ""University of Life"", """", ""0abcdef12"", """")]),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", ""true"", """", """", """", )]","[(""PAPERBACK"", ""978-3-16-148410-0"", ""156"", ""15.6"", ""6.14"", ""234"", ""23.4"", ""9.21"", ""25"", ""2.5"", ""1"", ""152"", ""5.3616"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")], [(""https://www.book.com/paperback"", """", ""OTHER"", ""true""),(""https://www.jstor.com/paperback"", """", ""JSTOR"", ""false"")]),(""HARDBACK"", ""978-1-4028-9462-6"", """", """", """", """", """", """", """", """", """", """", """", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")], ),(""PDF"", ""978-1-56619-909-4"", """", """", """", """", """", """", """", """", """", """", """", , [(""https://www.book.com/pdf_landing"", ""https://www.book.com/pdf_fulltext"", ""OTHER"", ""true"")]),(""HTML"", """", """", """", """", """", """", """", """", """", """", """", """", , [(""https://www.book.com/html_landing"", ""https://www.book.com/html_fulltext"", ""OTHER"", ""true"")]),(""XML"", ""978-92-95055-02-5"", """", """", """", """", """", """", """", """", """", """", """", , )]","[(""JOURNAL"", ""Name of series"", ""1234-5678"", ""8765-4321"", ""https://www.series.com"", ""https://www.series.com/cfp"", ""Description of series"", ""1"")]","[(""ORIGINAL"", ""SPA"")]","[""AAA"",""AAB""]","[""JWA""]","[""AAA000000"",""AAA000001""]","[""JA85""]","[""Category1""]","[""keyword1"",""keyword2""]","[(""Name of institution"", ""10.00001/INSTITUTION.0001"", ""0aaaaaa00"", ""MDA"", ""Name of program"", ""Name of project"", ""Number of grant"")]","[(""Related work title"", ""10.00001/RELATION.0001"", ""HAS_CHILD"", ""1"")]","[(""10.00001/reference"", ""Author, A. (2022) Article, Journal."", ""1111-2222"", """", ""Journal"", ""Article"", """", """", """", ""Author, A"", """", """", ""3"", """", """", """", ""2022-01-01"", ""2022-12-31"")]"
 "#;
 
     #[test]
@@ -926,6 +1001,10 @@ mod tests {
             depth_in: Some(1.0),
             weight_g: Some(152.0),
             weight_oz: Some(5.3616),
+            accessibility_standard: None,
+            accessibility_additional_standard: None,
+            accessibility_exception: None,
+            accessibility_report_url: None,
             prices: vec![WorkPublicationsPrices {
                 currency_code: CurrencyCode::EUR,
                 unit_price: 25.95,
@@ -968,7 +1047,13 @@ mod tests {
             last_name: "1".to_string(),
             full_name: "Author 1".to_string(),
             main_contribution: true,
-            biography: Some("Author 1 was born".to_string()),
+            biographies: vec![thoth_client::WorkContributionsBiographies {
+                biography_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                contribution_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                content: "Author 1 was born".to_string(),
+                locale_code: thoth_client::LocaleCode::EN,
+                canonical: true,
+            }],
             contribution_ordinal: 1,
             contributor: WorkContributionsContributor {
                 orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -983,7 +1068,7 @@ mod tests {
         contribution.contribution_type = ContributionType::TRANSLATOR;
         contribution.first_name = None;
         contribution.main_contribution = false;
-        contribution.biography = None;
+        contribution.biographies = vec![];
         contribution.contributor.orcid = None;
         contribution.contributor.website = None;
         assert_eq!(
@@ -1065,6 +1150,7 @@ mod tests {
     fn test_csv_thoth_issues() {
         let mut issue = WorkIssues {
             issue_ordinal: 1,
+            issue_number: None,
             series: WorkIssuesSeries {
                 series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                 series_type: SeriesType::JOURNAL,
@@ -1094,18 +1180,16 @@ mod tests {
         let mut language = WorkLanguages {
             language_code: LanguageCode::SPA,
             language_relation: LanguageRelation::TRANSLATED_FROM,
-            main_language: true,
         };
         assert_eq!(
             CsvCell::<CsvThoth>::csv_cell(&language),
-            r#"("TRANSLATED_FROM", "SPA", "true")"#.to_string()
+            r#"("TRANSLATED_FROM", "SPA")"#.to_string()
         );
         language.language_code = LanguageCode::WEL;
         language.language_relation = LanguageRelation::TRANSLATED_INTO;
-        language.main_language = false;
         assert_eq!(
             CsvCell::<CsvThoth>::csv_cell(&language),
-            r#"("TRANSLATED_INTO", "WEL", "false")"#.to_string()
+            r#"("TRANSLATED_INTO", "WEL")"#.to_string()
         );
     }
 
@@ -1129,7 +1213,6 @@ mod tests {
             project_name: Some("Name of project".to_string()),
             project_shortname: None,
             grant_number: Some("Number of grant".to_string()),
-            jurisdiction: Some("Funding jurisdiction".to_string()),
             institution: FundingInstitution {
                 institution_name: "Name of institution".to_string(),
                 institution_doi: Some(
@@ -1140,17 +1223,16 @@ mod tests {
             },
         };
         assert_eq!(CsvCell::<CsvThoth>::csv_cell(&funding),
-            r#"("Name of institution", "10.00001/INSTITUTION.0001", "0aaaaaa00", "MDA", "Name of program", "Name of project", "Number of grant", "Funding jurisdiction")"#.to_string());
+            r#"("Name of institution", "10.00001/INSTITUTION.0001", "0aaaaaa00", "MDA", "Name of program", "Name of project", "Number of grant")"#.to_string());
         funding.institution.institution_doi = None;
         funding.institution.ror = None;
         funding.institution.country_code = None;
         funding.program = None;
         funding.project_name = None;
         funding.grant_number = None;
-        funding.jurisdiction = None;
         assert_eq!(
             CsvCell::<CsvThoth>::csv_cell(&funding),
-            r#"("Name of institution", "", "", "", "", "", "", "")"#.to_string()
+            r#"("Name of institution", "", "", "", "", "", "")"#.to_string()
         );
     }
 
@@ -1161,17 +1243,30 @@ mod tests {
             relation_ordinal: 1,
             related_work: WorkRelationsRelatedWork {
                 work_status: WorkStatus::ACTIVE,
-                full_title: "Related work title".to_string(),
-                title: "N/A".to_string(),
-                subtitle: None,
+                titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                    title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    full_title: "Related work title".to_string(),
+                    title: "N/A".to_string(),
+                    subtitle: None,
+                    canonical: true,
+                }],
+                abstracts: vec![
+                        thoth_client::WorkRelationsRelatedWorkAbstracts {
+                            abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                            content: "<p>Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.</p>".to_string(),
+                            locale_code: thoth_client::LocaleCode::EN,
+                            abstract_type: thoth_client::AbstractType::SHORT,
+                            canonical: true,
+                        },
+                    ],
                 edition: None,
                 doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
                 publication_date: None,
                 withdrawn_date: None,
                 license: None,
                 copyright_holder: None,
-                short_abstract: None,
-                long_abstract: None,
                 general_note: None,
                 place: None,
                 first_page: None,
@@ -1198,7 +1293,7 @@ mod tests {
         );
         relation.relation_type = RelationType::IS_TRANSLATION_OF;
         relation.relation_ordinal = 2;
-        relation.related_work.full_title = "Different related work title".to_string();
+        relation.related_work.titles[0].full_title = "Different related work title".to_string();
         relation.related_work.doi = None;
         assert_eq!(
             CsvCell::<CsvThoth>::csv_cell(&relation),

@@ -1,5 +1,9 @@
 pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "award_role"))]
+    pub struct AwardRole;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "contribution_type"))]
     pub struct ContributionType;
 
@@ -46,24 +50,87 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "relation_type"))]
     pub struct RelationType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "resource_type"))]
+    pub struct ResourceType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "locale_code"))]
+    pub struct LocaleCode;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "abstract_type"))]
+    pub struct AbstractType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "markup_format"))]
+    pub struct MarkupFormat;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "file_type"))]
+    pub struct FileType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "contact_type"))]
+    pub struct ContactType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "accessibility_standard"))]
+    pub struct AccessibilityStandard;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "accessibility_exception"))]
+    pub struct AccessibilityException;
+}
+
+use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::{LocaleCode, MarkupFormat, AbstractType};
+
+    #[sql_name = "abstract"]
+    work_abstract (abstract_id) {
+        abstract_id -> Uuid,
+        work_id -> Uuid,
+        content -> Text,
+        locale_code -> LocaleCode,
+        abstract_type -> AbstractType,
+        canonical -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::ResourceType;
+
+    additional_resource (additional_resource_id) {
+        additional_resource_id -> Uuid,
+        work_id -> Uuid,
+        title -> Text,
+        description -> Nullable<Text>,
+        attribution -> Nullable<Text>,
+        resource_type -> ResourceType,
+        doi -> Nullable<Text>,
+        handle -> Nullable<Text>,
+        url -> Nullable<Text>,
+        date -> Nullable<Date>,
+        resource_ordinal -> Int4,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
 }
 
 table! {
     use diesel::sql_types::*;
 
-    account (account_id) {
-        account_id -> Uuid,
-        name -> Text,
-        surname -> Text,
-        email -> Text,
-        hash -> Bytea,
-        salt -> Text,
-        is_superuser -> Bool,
-        is_bot -> Bool,
-        is_active -> Bool,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
-        token -> Nullable<Text>,
+    additional_resource_history (additional_resource_history_id) {
+        additional_resource_history_id -> Uuid,
+        additional_resource_id -> Uuid,
+        user_id -> Text,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
     }
 }
 
@@ -83,11 +150,83 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::LocaleCode;
+
+    biography (biography_id) {
+        biography_id -> Uuid,
+        contribution_id -> Uuid,
+        content -> Text,
+        canonical -> Bool,
+        locale_code -> LocaleCode,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::{AwardRole, CountryCode};
+
+    award (award_id) {
+        award_id -> Uuid,
+        work_id -> Uuid,
+        title -> Text,
+        url -> Nullable<Text>,
+        category -> Nullable<Text>,
+        year -> Nullable<Text>,
+        jury -> Nullable<Text>,
+        country -> Nullable<CountryCode>,
+        prize_statement -> Nullable<Text>,
+        role -> Nullable<AwardRole>,
+        award_ordinal -> Int4,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    award_history (award_history_id) {
+        award_history_id -> Uuid,
+        award_id -> Uuid,
+        user_id -> Text,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
 
     affiliation_history (affiliation_history_id) {
         affiliation_history_id -> Uuid,
         affiliation_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::ContactType;
+
+    contact (contact_id) {
+        contact_id -> Uuid,
+        publisher_id -> Uuid,
+        contact_type -> ContactType,
+        email -> Text,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    contact_history (contact_history_id) {
+        contact_history_id -> Uuid,
+        contact_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -103,7 +242,6 @@ table! {
         contributor_id -> Uuid,
         contribution_type -> ContributionType,
         main_contribution -> Bool,
-        biography -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
         first_name -> Nullable<Text>,
@@ -119,7 +257,7 @@ table! {
     contribution_history (contribution_history_id) {
         contribution_history_id -> Uuid,
         contribution_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -146,7 +284,74 @@ table! {
     contributor_history (contributor_history_id) {
         contributor_history_id -> Uuid,
         contributor_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    book_review (book_review_id) {
+        book_review_id -> Uuid,
+        work_id -> Uuid,
+        title -> Nullable<Text>,
+        author_name -> Nullable<Text>,
+        reviewer_orcid -> Nullable<Text>,
+        reviewer_institution_id -> Nullable<Uuid>,
+        url -> Nullable<Text>,
+        doi -> Nullable<Text>,
+        review_date -> Nullable<Date>,
+        journal_name -> Nullable<Text>,
+        journal_volume -> Nullable<Text>,
+        journal_number -> Nullable<Text>,
+        journal_issn -> Nullable<Text>,
+        page_range -> Nullable<Text>,
+        text -> Nullable<Text>,
+        review_ordinal -> Int4,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    book_review_history (book_review_history_id) {
+        book_review_history_id -> Uuid,
+        book_review_id -> Uuid,
+        user_id -> Text,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    endorsement (endorsement_id) {
+        endorsement_id -> Uuid,
+        work_id -> Uuid,
+        author_name -> Nullable<Text>,
+        author_role -> Nullable<Text>,
+        author_orcid -> Nullable<Text>,
+        author_institution_id -> Nullable<Uuid>,
+        url -> Nullable<Text>,
+        text -> Nullable<Text>,
+        endorsement_ordinal -> Int4,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    endorsement_history (endorsement_history_id) {
+        endorsement_history_id -> Uuid,
+        endorsement_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -163,7 +368,6 @@ table! {
         project_name -> Nullable<Text>,
         project_shortname -> Nullable<Text>,
         grant_number -> Nullable<Text>,
-        jurisdiction -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
@@ -175,7 +379,7 @@ table! {
     funding_history (funding_history_id) {
         funding_history_id -> Uuid,
         funding_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -183,6 +387,8 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::CurrencyCode;
+    use super::sql_types::LocaleCode;
 
     imprint (imprint_id) {
         imprint_id -> Uuid,
@@ -190,6 +396,12 @@ table! {
         imprint_name -> Text,
         imprint_url -> Nullable<Text>,
         crossmark_doi -> Nullable<Text>,
+        s3_bucket -> Nullable<Text>,
+        cdn_domain -> Nullable<Text>,
+        cloudfront_dist_id -> Nullable<Text>,
+        default_currency -> Nullable<CurrencyCode>,
+        default_place -> Nullable<Text>,
+        default_locale -> Nullable<LocaleCode>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
@@ -201,7 +413,7 @@ table! {
     imprint_history (imprint_history_id) {
         imprint_history_id -> Uuid,
         imprint_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -228,7 +440,7 @@ table! {
     institution_history (institution_history_id) {
         institution_history_id -> Uuid,
         institution_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -242,6 +454,7 @@ table! {
         series_id -> Uuid,
         work_id -> Uuid,
         issue_ordinal -> Int4,
+        issue_number -> Nullable<Int4>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
@@ -253,7 +466,7 @@ table! {
     issue_history (issue_history_id) {
         issue_history_id -> Uuid,
         issue_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -269,7 +482,6 @@ table! {
         work_id -> Uuid,
         language_code -> LanguageCode,
         language_relation -> LanguageRelation,
-        main_language -> Bool,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
@@ -281,7 +493,7 @@ table! {
     language_history (language_history_id) {
         language_history_id -> Uuid,
         language_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -309,7 +521,7 @@ table! {
     location_history (location_history_id) {
         location_history_id -> Uuid,
         location_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -335,7 +547,7 @@ table! {
     price_history (price_history_id) {
         price_history_id -> Uuid,
         price_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -344,6 +556,8 @@ table! {
 table! {
     use diesel::sql_types::*;
     use super::sql_types::PublicationType;
+    use super::sql_types::AccessibilityStandard;
+    use super::sql_types::AccessibilityException;
 
     publication (publication_id) {
         publication_id -> Uuid,
@@ -360,6 +574,10 @@ table! {
         depth_in -> Nullable<Float8>,
         weight_g -> Nullable<Float8>,
         weight_oz -> Nullable<Float8>,
+        accessibility_standard -> Nullable<AccessibilityStandard>,
+        accessibility_additional_standard -> Nullable<AccessibilityStandard>,
+        accessibility_exception -> Nullable<AccessibilityException>,
+        accessibility_report_url -> Nullable<Text>,
     }
 }
 
@@ -369,7 +587,7 @@ table! {
     publication_history (publication_history_id) {
         publication_history_id -> Uuid,
         publication_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -383,18 +601,9 @@ table! {
         publisher_name -> Text,
         publisher_shortname -> Nullable<Text>,
         publisher_url -> Nullable<Text>,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
-    }
-}
-
-table! {
-    use diesel::sql_types::*;
-
-    publisher_account (account_id, publisher_id) {
-        account_id -> Uuid,
-        publisher_id -> Uuid,
-        is_admin -> Bool,
+        zitadel_id -> Nullable<Text>,
+        accessibility_statement -> Nullable<Text>,
+        accessibility_report_url -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
@@ -406,7 +615,7 @@ table! {
     publisher_history (publisher_history_id) {
         publisher_history_id -> Uuid,
         publisher_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -450,7 +659,7 @@ table! {
     reference_history (reference_history_id) {
         reference_history_id -> Uuid,
         reference_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -481,7 +690,7 @@ table! {
     series_history (series_history_id) {
         series_history_id -> Uuid,
         series_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -508,7 +717,7 @@ table! {
     subject_history (subject_history_id) {
         subject_history_id -> Uuid,
         subject_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -523,9 +732,6 @@ table! {
         work_id -> Uuid,
         work_type -> WorkType,
         work_status -> WorkStatus,
-        full_title -> Text,
-        title -> Text,
-        subtitle -> Nullable<Text>,
         reference -> Nullable<Text>,
         edition -> Nullable<Int4>,
         imprint_id -> Uuid,
@@ -544,11 +750,10 @@ table! {
         landing_page -> Nullable<Text>,
         lccn -> Nullable<Text>,
         oclc -> Nullable<Text>,
-        short_abstract -> Nullable<Text>,
-        long_abstract -> Nullable<Text>,
         general_note -> Nullable<Text>,
         bibliography_note -> Nullable<Text>,
         toc -> Nullable<Text>,
+        resources_description -> Nullable<Text>,
         cover_url -> Nullable<Text>,
         cover_caption -> Nullable<Text>,
         created_at -> Timestamptz,
@@ -566,7 +771,34 @@ table! {
     work_history (work_history_id) {
         work_history_id -> Uuid,
         work_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    work_featured_video (work_featured_video_id) {
+        work_featured_video_id -> Uuid,
+        work_id -> Uuid,
+        title -> Nullable<Text>,
+        url -> Nullable<Text>,
+        width -> Int4,
+        height -> Int4,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    work_featured_video_history (work_featured_video_history_id) {
+        work_featured_video_history_id -> Uuid,
+        work_featured_video_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
@@ -593,75 +825,190 @@ table! {
     work_relation_history (work_relation_history_id) {
         work_relation_history_id -> Uuid,
         work_relation_id -> Uuid,
-        account_id -> Uuid,
+        user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
     }
 }
 
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::LocaleCode;
+    use super::sql_types::MarkupFormat;
+
+    #[sql_name = "title"]
+    work_title (title_id) {
+        title_id -> Uuid,
+        work_id -> Uuid,
+        full_title -> Text,
+        title -> Text,
+        subtitle -> Nullable<Text>,
+        canonical -> Bool,
+        locale_code -> LocaleCode,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    title_history (title_history_id) {
+        title_history_id -> Uuid,
+        title_id -> Uuid,
+        user_id -> Text,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::FileType;
+
+    file (file_id) {
+        file_id -> Uuid,
+        file_type -> FileType,
+        work_id -> Nullable<Uuid>,
+        publication_id -> Nullable<Uuid>,
+        additional_resource_id -> Nullable<Uuid>,
+        work_featured_video_id -> Nullable<Uuid>,
+        object_key -> Text,
+        cdn_url -> Text,
+        mime_type -> Text,
+        bytes -> Int8,
+        sha256 -> Text,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::FileType;
+
+    file_upload (file_upload_id) {
+        file_upload_id -> Uuid,
+        file_type -> FileType,
+        work_id -> Nullable<Uuid>,
+        publication_id -> Nullable<Uuid>,
+        additional_resource_id -> Nullable<Uuid>,
+        work_featured_video_id -> Nullable<Uuid>,
+        declared_mime_type -> Text,
+        declared_extension -> Text,
+        declared_sha256 -> Text,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    abstract_history (abstract_history_id) {
+        abstract_history_id -> Uuid,
+        abstract_id -> Uuid,
+        user_id -> Text,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    biography_history (biography_history_id) {
+        biography_history_id -> Uuid,
+        biography_id -> Uuid,
+        user_id -> Text,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+joinable!(abstract_history -> work_abstract (abstract_id));
+joinable!(additional_resource -> work (work_id));
+joinable!(additional_resource_history -> additional_resource (additional_resource_id));
 joinable!(affiliation -> contribution (contribution_id));
 joinable!(affiliation -> institution (institution_id));
-joinable!(affiliation_history -> account (account_id));
 joinable!(affiliation_history -> affiliation (affiliation_id));
+joinable!(award -> work (work_id));
+joinable!(award_history -> award (award_id));
+joinable!(biography_history -> biography (biography_id));
+joinable!(book_review -> institution (reviewer_institution_id));
+joinable!(book_review -> work (work_id));
+joinable!(book_review_history -> book_review (book_review_id));
+joinable!(contact -> publisher (publisher_id));
+joinable!(contact_history -> contact (contact_id));
 joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
-joinable!(contribution_history -> account (account_id));
 joinable!(contribution_history -> contribution (contribution_id));
-joinable!(contributor_history -> account (account_id));
 joinable!(contributor_history -> contributor (contributor_id));
+joinable!(endorsement -> institution (author_institution_id));
+joinable!(endorsement -> work (work_id));
+joinable!(endorsement_history -> endorsement (endorsement_id));
+joinable!(file -> work (work_id));
+joinable!(file -> publication (publication_id));
+joinable!(file -> additional_resource (additional_resource_id));
+joinable!(file -> work_featured_video (work_featured_video_id));
+joinable!(file_upload -> work (work_id));
+joinable!(file_upload -> publication (publication_id));
+joinable!(file_upload -> additional_resource (additional_resource_id));
+joinable!(file_upload -> work_featured_video (work_featured_video_id));
 joinable!(funding -> institution (institution_id));
 joinable!(funding -> work (work_id));
-joinable!(funding_history -> account (account_id));
 joinable!(funding_history -> funding (funding_id));
 joinable!(imprint -> publisher (publisher_id));
-joinable!(imprint_history -> account (account_id));
 joinable!(imprint_history -> imprint (imprint_id));
-joinable!(institution_history -> account (account_id));
 joinable!(institution_history -> institution (institution_id));
 joinable!(issue -> series (series_id));
 joinable!(issue -> work (work_id));
-joinable!(issue_history -> account (account_id));
 joinable!(issue_history -> issue (issue_id));
 joinable!(language -> work (work_id));
-joinable!(language_history -> account (account_id));
 joinable!(language_history -> language (language_id));
 joinable!(location -> publication (publication_id));
-joinable!(location_history -> account (account_id));
 joinable!(location_history -> location (location_id));
 joinable!(price -> publication (publication_id));
-joinable!(price_history -> account (account_id));
 joinable!(price_history -> price (price_id));
 joinable!(publication -> work (work_id));
-joinable!(publication_history -> account (account_id));
 joinable!(publication_history -> publication (publication_id));
-joinable!(publisher_account -> account (account_id));
-joinable!(publisher_account -> publisher (publisher_id));
-joinable!(publisher_history -> account (account_id));
 joinable!(publisher_history -> publisher (publisher_id));
 joinable!(reference -> work (work_id));
-joinable!(reference_history -> account (account_id));
 joinable!(reference_history -> reference (reference_id));
 joinable!(series -> imprint (imprint_id));
-joinable!(series_history -> account (account_id));
 joinable!(series_history -> series (series_id));
 joinable!(subject -> work (work_id));
-joinable!(subject_history -> account (account_id));
 joinable!(subject_history -> subject (subject_id));
+joinable!(title_history -> work_title (title_id));
 joinable!(work -> imprint (imprint_id));
-joinable!(work_history -> account (account_id));
+joinable!(work_abstract -> work (work_id));
 joinable!(work_history -> work (work_id));
+joinable!(work_featured_video -> work (work_id));
+joinable!(work_featured_video_history -> work_featured_video (work_featured_video_id));
 joinable!(work_relation -> work (relator_work_id));
-joinable!(work_relation_history -> account (account_id));
 joinable!(work_relation_history -> work_relation (work_relation_id));
+joinable!(work_title -> work (work_id));
 
 allow_tables_to_appear_in_same_query!(
-    account,
+    abstract_history,
+    additional_resource,
+    additional_resource_history,
     affiliation,
     affiliation_history,
+    award,
+    award_history,
+    biography,
+    biography_history,
+    book_review,
+    book_review_history,
+    contact,
+    contact_history,
     contribution,
     contribution_history,
     contributor,
     contributor_history,
+    endorsement,
+    endorsement_history,
+    file,
+    file_upload,
     funding,
     funding_history,
     imprint,
@@ -679,7 +1026,6 @@ allow_tables_to_appear_in_same_query!(
     publication,
     publication_history,
     publisher,
-    publisher_account,
     publisher_history,
     reference,
     reference_history,
@@ -687,8 +1033,13 @@ allow_tables_to_appear_in_same_query!(
     series_history,
     subject,
     subject_history,
+    title_history,
     work,
+    work_abstract,
     work_history,
+    work_featured_video,
+    work_featured_video_history,
     work_relation,
     work_relation_history,
+    work_title,
 );

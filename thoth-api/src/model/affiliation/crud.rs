@@ -2,11 +2,9 @@ use super::{
     Affiliation, AffiliationField, AffiliationHistory, AffiliationOrderBy, NewAffiliation,
     NewAffiliationHistory, PatchAffiliation,
 };
-use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{affiliation, affiliation_history};
-use crate::{crud_methods, db_insert};
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
 
@@ -17,6 +15,7 @@ impl Crud for Affiliation {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.affiliation_id
@@ -34,6 +33,7 @@ impl Crud for Affiliation {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Affiliation>> {
         use crate::schema::affiliation::dsl::*;
         let mut connection = db.get()?;
@@ -46,34 +46,27 @@ impl Crud for Affiliation {
                 .into_boxed();
 
         query = match order.field {
-            AffiliationField::AffiliationId => match order.direction {
-                Direction::Asc => query.order(affiliation_id.asc()),
-                Direction::Desc => query.order(affiliation_id.desc()),
-            },
-            AffiliationField::ContributionId => match order.direction {
-                Direction::Asc => query.order(contribution_id.asc()),
-                Direction::Desc => query.order(contribution_id.desc()),
-            },
-            AffiliationField::InstitutionId => match order.direction {
-                Direction::Asc => query.order(institution_id.asc()),
-                Direction::Desc => query.order(institution_id.desc()),
-            },
-            AffiliationField::AffiliationOrdinal => match order.direction {
-                Direction::Asc => query.order(affiliation_ordinal.asc()),
-                Direction::Desc => query.order(affiliation_ordinal.desc()),
-            },
-            AffiliationField::Position => match order.direction {
-                Direction::Asc => query.order(position.asc()),
-                Direction::Desc => query.order(position.desc()),
-            },
-            AffiliationField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            AffiliationField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            AffiliationField::AffiliationId => {
+                apply_directional_order!(query, order.direction, order, affiliation_id)
+            }
+            AffiliationField::ContributionId => {
+                apply_directional_order!(query, order.direction, order, contribution_id)
+            }
+            AffiliationField::InstitutionId => {
+                apply_directional_order!(query, order.direction, order, institution_id)
+            }
+            AffiliationField::AffiliationOrdinal => {
+                apply_directional_order!(query, order.direction, order, affiliation_ordinal)
+            }
+            AffiliationField::Position => {
+                apply_directional_order!(query, order.direction, order, position)
+            }
+            AffiliationField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            AffiliationField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
@@ -98,6 +91,7 @@ impl Crud for Affiliation {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::affiliation::dsl::*;
         let mut connection = db.get()?;
@@ -113,21 +107,20 @@ impl Crud for Affiliation {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::contribution::Contribution::from_id(db, &self.contribution_id)?
-            .publisher_id(db)
-    }
-
     crud_methods!(affiliation::table, affiliation::dsl::affiliation);
 }
+
+publisher_id_impls!(Affiliation, NewAffiliation, PatchAffiliation, |s, db| {
+    crate::model::contribution::Contribution::from_id(db, &s.contribution_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Affiliation {
     type NewHistoryEntity = NewAffiliationHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             affiliation_id: self.affiliation_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -139,29 +132,28 @@ impl DbInsert for NewAffiliationHistory {
     db_insert!(affiliation_history::table);
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+impl Reorder for Affiliation {
+    db_change_ordinal!(
+        affiliation::table,
+        affiliation::affiliation_ordinal,
+        "affiliation_affiliation_ordinal_contribution_id_uniq"
+    );
 
-    #[test]
-    fn test_affiliation_pk() {
-        let affiliation: Affiliation = Default::default();
-        assert_eq!(affiliation.pk(), affiliation.affiliation_id);
-    }
-
-    #[test]
-    fn test_new_affiliation_history_from_affiliation() {
-        let affiliation: Affiliation = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_affiliation_history = affiliation.new_history_entry(&account_id);
-        assert_eq!(
-            new_affiliation_history.affiliation_id,
-            affiliation.affiliation_id
-        );
-        assert_eq!(new_affiliation_history.account_id, account_id);
-        assert_eq!(
-            new_affiliation_history.data,
-            serde_json::Value::String(serde_json::to_string(&affiliation).unwrap())
-        );
+    fn get_other_objects(
+        &self,
+        connection: &mut diesel::PgConnection,
+    ) -> ThothResult<Vec<(Uuid, i32)>> {
+        affiliation::table
+            .select((
+                affiliation::affiliation_id,
+                affiliation::affiliation_ordinal,
+            ))
+            .filter(
+                affiliation::contribution_id
+                    .eq(self.contribution_id)
+                    .and(affiliation::affiliation_id.ne(self.affiliation_id)),
+            )
+            .load::<(Uuid, i32)>(connection)
+            .map_err(Into::into)
     }
 }

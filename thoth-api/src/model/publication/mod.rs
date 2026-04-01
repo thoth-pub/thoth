@@ -4,10 +4,7 @@ use strum::EnumString;
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
-use crate::model::location::Location;
-use crate::model::price::Price;
-use crate::model::work::WorkWithRelations;
+use crate::graphql::types::inputs::Direction;
 use crate::model::Isbn;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -17,7 +14,7 @@ use crate::schema::publication_history;
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     graphql(description = "Format of a publication"),
     ExistingTypePath = "crate::schema::sql_types::PublicationType"
 )]
@@ -110,6 +107,114 @@ pub enum PublicationType {
 
 #[cfg_attr(
     feature = "backend",
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
+    graphql(
+        description = "Standardised specification for accessibility to which a publication may conform"
+    ),
+    ExistingTypePath = "crate::schema::sql_types::AccessibilityStandard"
+)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AccessibilityStandard {
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "wcag-21-aa",
+        graphql(description = "WCAG 2.1 AA")
+    )]
+    Wcag21aa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "wcag-21-aaa",
+        graphql(description = "WCAG 2.1 AAA")
+    )]
+    Wcag21aaa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "wcag-22-aa",
+        graphql(description = "WCAG 2.2 AA")
+    )]
+    Wcag22aa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "wcag-22-aaa",
+        graphql(description = "WCAG 2.2 AAA")
+    )]
+    Wcag22aaa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "epub-a11y-10-aa",
+        graphql(description = "EPUB Accessibility Specification 1.0 AA")
+    )]
+    EpubA11y10aa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "epub-a11y-10-aaa",
+        graphql(description = "EPUB Accessibility Specification 1.0 AAA")
+    )]
+    EpubA11y10aaa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "epub-a11y-11-aa",
+        graphql(description = "EPUB Accessibility Specification 1.1 AA")
+    )]
+    EpubA11y11aa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "epub-a11y-11-aaa",
+        graphql(description = "EPUB Accessibility Specification 1.1 AAA")
+    )]
+    EpubA11y11aaa,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "pdf-ua-1",
+        graphql(description = "PDF/UA-1")
+    )]
+    PdfUa1,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "pdf-ua-2",
+        graphql(description = "PDF/UA-2")
+    )]
+    PdfUa2,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
+    graphql(
+        description = "Reason for publication not being required to comply with accessibility standards"
+    ),
+    ExistingTypePath = "crate::schema::sql_types::AccessibilityException"
+)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AccessibilityException {
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "micro-enterprises",
+        graphql(description = "Publisher is a micro-enterprise")
+    )]
+    MicroEnterprises,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "disproportionate-burden",
+        graphql(
+            description = "Making the publication accessible would financially overburden the publisher"
+        )
+    )]
+    DisproportionateBurden,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "fundamental-alteration",
+        graphql(
+            description = "Making the publication accessible would fundamentally modify the nature of it"
+        )
+    )]
+    FundamentalAlteration,
+}
+
+#[cfg_attr(
+    feature = "backend",
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting publications list")
 )]
@@ -135,9 +240,13 @@ pub enum PublicationField {
     DepthIn,
     WeightG,
     WeightOz,
+    AccessibilityStandard,
+    AccessibilityAdditionalStandard,
+    AccessibilityException,
+    AccessibilityReportUrl,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Publication {
@@ -155,32 +264,15 @@ pub struct Publication {
     pub depth_in: Option<f64>,
     pub weight_g: Option<f64>,
     pub weight_oz: Option<f64>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct PublicationWithRelations {
-    pub publication_id: Uuid,
-    pub publication_type: PublicationType,
-    pub work_id: Uuid,
-    pub isbn: Option<Isbn>,
-    pub updated_at: Timestamp,
-    pub width_mm: Option<f64>,
-    pub width_in: Option<f64>,
-    pub height_mm: Option<f64>,
-    pub height_in: Option<f64>,
-    pub depth_mm: Option<f64>,
-    pub depth_in: Option<f64>,
-    pub weight_g: Option<f64>,
-    pub weight_oz: Option<f64>,
-    pub prices: Option<Vec<Price>>,
-    pub locations: Option<Vec<Location>>,
-    pub work: WorkWithRelations,
+    pub accessibility_standard: Option<AccessibilityStandard>,
+    pub accessibility_additional_standard: Option<AccessibilityStandard>,
+    pub accessibility_exception: Option<AccessibilityException>,
+    pub accessibility_report_url: Option<String>,
 }
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, Insertable),
+    derive(juniper::GraphQLInputObject, diesel::Insertable),
     graphql(description = "Set of values required to define a new manifestation of a written text"),
     diesel(table_name = publication)
 )]
@@ -196,11 +288,15 @@ pub struct NewPublication {
     pub depth_in: Option<f64>,
     pub weight_g: Option<f64>,
     pub weight_oz: Option<f64>,
+    pub accessibility_standard: Option<AccessibilityStandard>,
+    pub accessibility_additional_standard: Option<AccessibilityStandard>,
+    pub accessibility_exception: Option<AccessibilityException>,
+    pub accessibility_report_url: Option<String>,
 }
 
 #[cfg_attr(
     feature = "backend",
-    derive(juniper::GraphQLInputObject, AsChangeset),
+    derive(juniper::GraphQLInputObject, diesel::AsChangeset),
     graphql(description = "Set of values required to update an existing manifestation of a written text"),
     diesel(table_name = publication, treat_none_as_null = true)
 )]
@@ -217,25 +313,29 @@ pub struct PatchPublication {
     pub depth_in: Option<f64>,
     pub weight_g: Option<f64>,
     pub weight_oz: Option<f64>,
+    pub accessibility_standard: Option<AccessibilityStandard>,
+    pub accessibility_additional_standard: Option<AccessibilityStandard>,
+    pub accessibility_exception: Option<AccessibilityException>,
+    pub accessibility_report_url: Option<String>,
 }
 
-#[cfg_attr(feature = "backend", derive(Queryable))]
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 pub struct PublicationHistory {
     pub publication_history_id: Uuid,
     pub publication_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
     pub timestamp: Timestamp,
 }
 
 #[cfg_attr(
     feature = "backend",
-    derive(Insertable),
+    derive(diesel::Insertable),
     diesel(table_name = publication_history)
 )]
 pub struct NewPublicationHistory {
     pub publication_id: Uuid,
-    pub account_id: Uuid,
+    pub user_id: String,
     pub data: serde_json::Value,
 }
 
@@ -380,278 +480,14 @@ macro_rules! publication_properties {
     };
 }
 publication_properties!(Publication);
-publication_properties!(PublicationWithRelations);
 publication_properties!(NewPublication);
 publication_properties!(PatchPublication);
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_publicationproperties_type() {
-        let mut publication: Publication = Default::default();
-        for pub_type in [PublicationType::Paperback, PublicationType::Hardback] {
-            publication.publication_type = pub_type;
-            assert!(publication.is_physical());
-            assert!(!publication.is_digital());
-        }
-        for pub_type in [
-            PublicationType::Azw3,
-            PublicationType::Docx,
-            PublicationType::Epub,
-            PublicationType::FictionBook,
-            PublicationType::Html,
-            PublicationType::Mobi,
-            PublicationType::Mp3,
-            PublicationType::Pdf,
-            PublicationType::Xml,
-            PublicationType::Wav,
-        ] {
-            publication.publication_type = pub_type;
-            assert!(!publication.is_physical());
-            assert!(publication.is_digital());
-        }
-    }
-
-    #[test]
-    fn test_publicationproperties_width() {
-        let mut publication: Publication = Publication {
-            publication_type: PublicationType::Pdf,
-            width_mm: Some(100.0),
-            ..Default::default()
-        };
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::DimensionDigitalError)
-        );
-        publication.width_mm = None;
-        assert!(publication.validate_dimensions_constraints().is_ok());
-        publication.width_in = Some(39.4);
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::DimensionDigitalError)
-        );
-        publication.publication_type = PublicationType::Paperback;
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::WidthEmptyError)
-        );
-        publication.width_in = None;
-        assert!(publication.validate_dimensions_constraints().is_ok());
-        publication.width_mm = Some(100.0);
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::WidthEmptyError)
-        );
-        publication.width_in = Some(39.4);
-        assert!(publication.validate_dimensions_constraints().is_ok());
-    }
-
-    #[test]
-    fn test_publicationproperties_height() {
-        let mut publication: Publication = Publication {
-            publication_type: PublicationType::Pdf,
-            height_mm: Some(100.0),
-            ..Default::default()
-        };
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::DimensionDigitalError)
-        );
-        publication.height_mm = None;
-        assert!(publication.validate_dimensions_constraints().is_ok());
-        publication.height_in = Some(39.4);
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::DimensionDigitalError)
-        );
-        publication.publication_type = PublicationType::Paperback;
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::HeightEmptyError)
-        );
-        publication.height_in = None;
-        assert!(publication.validate_dimensions_constraints().is_ok());
-        publication.height_mm = Some(100.0);
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::HeightEmptyError)
-        );
-        publication.height_in = Some(39.4);
-        assert!(publication.validate_dimensions_constraints().is_ok());
-    }
-
-    #[test]
-    fn test_publicationproperties_depth() {
-        let mut publication: Publication = Publication {
-            publication_type: PublicationType::Pdf,
-            depth_mm: Some(10.0),
-            ..Default::default()
-        };
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::DimensionDigitalError)
-        );
-        publication.depth_mm = None;
-        assert!(publication.validate_dimensions_constraints().is_ok());
-        publication.depth_in = Some(3.94);
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::DimensionDigitalError)
-        );
-        publication.publication_type = PublicationType::Paperback;
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::DepthEmptyError)
-        );
-        publication.depth_in = None;
-        assert!(publication.validate_dimensions_constraints().is_ok());
-        publication.depth_mm = Some(10.0);
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::DepthEmptyError)
-        );
-        publication.depth_in = Some(3.94);
-        assert!(publication.validate_dimensions_constraints().is_ok());
-    }
-
-    #[test]
-    fn test_publicationproperties_weight() {
-        let mut publication: Publication = Publication {
-            publication_type: PublicationType::Pdf,
-            weight_g: Some(100.0),
-            ..Default::default()
-        };
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::DimensionDigitalError)
-        );
-        publication.weight_g = None;
-        assert!(publication.validate_dimensions_constraints().is_ok());
-        publication.weight_oz = Some(3.5);
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::DimensionDigitalError)
-        );
-        publication.publication_type = PublicationType::Paperback;
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::WeightEmptyError)
-        );
-        publication.weight_oz = None;
-        assert!(publication.validate_dimensions_constraints().is_ok());
-        publication.weight_g = Some(100.0);
-        assert_eq!(
-            publication.validate_dimensions_constraints(),
-            Err(ThothError::WeightEmptyError)
-        );
-        publication.weight_oz = Some(3.5);
-        assert!(publication.validate_dimensions_constraints().is_ok());
-    }
-
-    #[test]
-    fn test_publicationtype_default() {
-        let pubtype: PublicationType = Default::default();
-        assert_eq!(pubtype, PublicationType::Paperback);
-    }
-
-    #[test]
-    fn test_publicationfield_default() {
-        let pubfield: PublicationField = Default::default();
-        assert_eq!(pubfield, PublicationField::PublicationType);
-    }
-
-    #[test]
-    fn test_publicationtype_display() {
-        assert_eq!(format!("{}", PublicationType::Paperback), "Paperback");
-        assert_eq!(format!("{}", PublicationType::Hardback), "Hardback");
-        assert_eq!(format!("{}", PublicationType::Pdf), "PDF");
-        assert_eq!(format!("{}", PublicationType::Html), "HTML");
-        assert_eq!(format!("{}", PublicationType::Xml), "XML");
-        assert_eq!(format!("{}", PublicationType::Epub), "Epub");
-        assert_eq!(format!("{}", PublicationType::Mobi), "Mobi");
-        assert_eq!(format!("{}", PublicationType::Azw3), "AZW3");
-        assert_eq!(format!("{}", PublicationType::Docx), "DOCX");
-        assert_eq!(format!("{}", PublicationType::FictionBook), "FictionBook");
-        assert_eq!(format!("{}", PublicationType::Mp3), "MP3");
-        assert_eq!(format!("{}", PublicationType::Wav), "WAV");
-    }
-
-    #[test]
-    fn test_publicationfield_display() {
-        assert_eq!(format!("{}", PublicationField::PublicationId), "ID");
-        assert_eq!(format!("{}", PublicationField::PublicationType), "Type");
-        assert_eq!(format!("{}", PublicationField::WorkId), "WorkID");
-        assert_eq!(format!("{}", PublicationField::Isbn), "ISBN");
-        assert_eq!(format!("{}", PublicationField::CreatedAt), "CreatedAt");
-        assert_eq!(format!("{}", PublicationField::UpdatedAt), "UpdatedAt");
-        assert_eq!(format!("{}", PublicationField::WidthMm), "WidthMm");
-        assert_eq!(format!("{}", PublicationField::WidthIn), "WidthIn");
-        assert_eq!(format!("{}", PublicationField::HeightMm), "HeightMm");
-        assert_eq!(format!("{}", PublicationField::HeightIn), "HeightIn");
-        assert_eq!(format!("{}", PublicationField::DepthMm), "DepthMm");
-        assert_eq!(format!("{}", PublicationField::DepthIn), "DepthIn");
-        assert_eq!(format!("{}", PublicationField::WeightG), "WeightG");
-        assert_eq!(format!("{}", PublicationField::WeightOz), "WeightOz");
-    }
-
-    #[test]
-    fn test_publicationtype_fromstr() {
-        use std::str::FromStr;
-        for (input, expected) in [
-            ("Paperback", PublicationType::Paperback),
-            ("Hardback", PublicationType::Hardback),
-            ("PDF", PublicationType::Pdf),
-            ("HTML", PublicationType::Html),
-            ("XML", PublicationType::Xml),
-            ("Epub", PublicationType::Epub),
-            ("Mobi", PublicationType::Mobi),
-            ("AZW3", PublicationType::Azw3),
-            ("DOCX", PublicationType::Docx),
-            ("FictionBook", PublicationType::FictionBook),
-            ("MP3", PublicationType::Mp3),
-            ("WAV", PublicationType::Wav),
-        ]
-        .iter()
-        {
-            assert_eq!(PublicationType::from_str(input).unwrap(), *expected);
-        }
-
-        assert!(PublicationType::from_str("PNG").is_err());
-        assert!(PublicationType::from_str("Latex").is_err());
-        assert!(PublicationType::from_str("azw3").is_err());
-        assert!(PublicationType::from_str("Fiction Book").is_err());
-    }
-
-    #[test]
-    fn test_publicationfield_fromstr() {
-        use std::str::FromStr;
-        for (input, expected) in [
-            ("ID", PublicationField::PublicationId),
-            ("Type", PublicationField::PublicationType),
-            ("WorkID", PublicationField::WorkId),
-            ("ISBN", PublicationField::Isbn),
-            ("CreatedAt", PublicationField::CreatedAt),
-            ("UpdatedAt", PublicationField::UpdatedAt),
-            ("WidthMm", PublicationField::WidthMm),
-            ("WidthIn", PublicationField::WidthIn),
-            ("HeightMm", PublicationField::HeightMm),
-            ("HeightIn", PublicationField::HeightIn),
-            ("DepthMm", PublicationField::DepthMm),
-            ("DepthIn", PublicationField::DepthIn),
-            ("WeightG", PublicationField::WeightG),
-            ("WeightOz", PublicationField::WeightOz),
-        ]
-        .iter()
-        {
-            assert_eq!(PublicationField::from_str(input).unwrap(), *expected);
-        }
-
-        assert!(PublicationField::from_str("PublicationID").is_err());
-        assert!(PublicationField::from_str("Work Title").is_err());
-        assert!(PublicationField::from_str("Work DOI").is_err());
-    }
-}
-
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+mod policy;
+#[cfg(feature = "backend")]
+pub(crate) use policy::PublicationPolicy;
+#[cfg(test)]
+mod tests;

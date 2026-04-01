@@ -6,13 +6,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[1.0.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.0.0) - 2026-04-01
+### Changed
+  - [736](https://github.com/thoth-pub/thoth/pull/736) - Remove `Funding.jurisdiction` and `Language.mainLanguage`, and add `Issue.issueNumber`
+  - [732](https://github.com/thoth-pub/thoth/pull/732) - Add default fields for common metadata values to `Imprint`
+  - [697](https://github.com/thoth-pub/thoth/pull/697) - Migrated GraphQL API authentication to OIDC via Zitadel. Internal JWT handling has been replaced with introspection of Zitadel-issued tokens. Authorisation is now based entirely on token claims, removing the need for the internal `account` and `publisher_account` tables.
+  - [697](https://github.com/thoth-pub/thoth/pull/697) - Improved and standardised backend model test coverage.
+  - [689](https://github.com/thoth-pub/thoth/issues/689) - Move `Work.fullTitle`, `Work.title` and `Work.subtitle` into a dedicated `Title` table, supporting multilingual and rich text fields
+  - [689](https://github.com/thoth-pub/thoth/issues/689) - Move `Work.shortAbstract` and `Work.longAbstract` into a dedicated `Abstract` table with `abstractType`, supporting multilingual and rich text fields
+  - [689](https://github.com/thoth-pub/thoth/issues/689) - Move `Contribution.biography` into a dedicated `Biography` table, supporting multilingual and rich text fields
+  - [689](https://github.com/thoth-pub/thoth/issues/689) - Store all rich text fields internally as JATS XML, supporting conversion to/from HTML, Markdown, and plain text
+  - [689](https://github.com/thoth-pub/thoth/issues/689) - Mark existing GraphQL fields as deprecated and return only the canonical version
+  - [701](https://github.com/thoth-pub/thoth/issues/701) - Add accessibility-related metadata to Thoth data model and outputs
+  - [682](https://github.com/thoth-pub/thoth/issues/682) - Improve ONIX 3.0 and 3.1 outputs based on feedback from EDItEUR
+
+### Added
+  - [711](https://github.com/thoth-pub/thoth/pull/711) - Allow filtering work queries by publication date
+  - [715](https://github.com/thoth-pub/thoth/pull/715) - Support reordering items which have ordinals
+  - [713](https://github.com/thoth-pub/thoth/issues/713) - Add a secure and scalable file upload architecture for books and chapters.
+  - Added new work-linked domain entities: `additional_resource`, `award`, `endorsement`, `book_review`, `work_featured_video`
+
+### Fixed
+  - [712](https://github.com/thoth-pub/thoth/pull/712) - Make `updated_at_with_relations` propagation less deadlock-prone
+
+### Removed
+  - [710](https://github.com/thoth-pub/thoth/pull/710) - Deprecated thoth-app
+
+
 ## [[0.13.16]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.16) - 2026-03-06
 ### Changed
   - [#731](https://github.com/thoth-pub/thoth/pull/731) - Ignore hyphens when filtering publications on ISBN
 
 ## [[0.13.15]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.15) - 2025-12-03
 ### Changed
-  - [#717](https://github.com/thoth-pub/thoth/pull/717) - Update Thema codes to v1.6
+- [#717](https://github.com/thoth-pub/thoth/pull/717) - Update Thema codes to v1.6
 
 ## [[0.13.14]](https://github.com/thoth-pub/thoth/releases/tag/v0.13.14) - 2025-10-14
 ### Changed

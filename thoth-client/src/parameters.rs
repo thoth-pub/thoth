@@ -12,6 +12,8 @@ pub struct QueryParameters {
     with_fundings: bool,
     with_relations: bool,
     with_references: bool,
+    with_abstracts: bool,
+    with_titles: bool,
 }
 
 /// An intermediate struct to parse QueryParameters into work_query::Variables
@@ -71,7 +73,9 @@ impl QueryParameters {
     }
 
     pub fn with_all(self) -> Self {
-        self.with_issues()
+        self.with_all_abstracts()
+            .with_all_titles()
+            .with_issues()
             .with_languages()
             .with_publications()
             .with_subjects()
@@ -115,6 +119,16 @@ impl QueryParameters {
         self
     }
 
+    pub fn with_all_abstracts(mut self) -> Self {
+        self.with_abstracts = true;
+        self
+    }
+
+    pub fn with_all_titles(mut self) -> Self {
+        self.with_titles = true;
+        self
+    }
+
     pub fn without_issues(mut self) -> Self {
         self.with_issues = false;
         self
@@ -149,15 +163,32 @@ impl QueryParameters {
         self.with_references = false;
         self
     }
+
+    pub fn with_canonical_abstracts_only(mut self) -> Self {
+        self.with_abstracts = false;
+        self
+    }
+
+    pub fn with_canonical_title_only(mut self) -> Self {
+        self.with_titles = false;
+        self
+    }
 }
 
-const FILTER_INCLUDE_ALL: i64 = 99999;
-const FILTER_INCLUDE_NONE: i64 = 0;
+pub const FILTER_INCLUDE_ALL: i64 = 99999;
+pub const FILTER_INCLUDE_NONE: i64 = 0;
+/// For abstracts: fetch only canonical ones (typically 1 LONG and 1 SHORT)
+pub const FILTER_INCLUDE_CANONICAL: i64 = 2;
 
 impl From<WorkQueryVariables> for work_query::Variables {
     fn from(v: WorkQueryVariables) -> Self {
         work_query::Variables {
             work_id: v.work_id,
+            abstracts_limit: if v.parameters.with_abstracts {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_CANONICAL
+            },
             issues_limit: if v.parameters.with_issues {
                 FILTER_INCLUDE_ALL
             } else {
@@ -192,6 +223,11 @@ impl From<WorkQueryVariables> for work_query::Variables {
                 FILTER_INCLUDE_ALL
             } else {
                 FILTER_INCLUDE_NONE
+            },
+            titles_limit: if v.parameters.with_titles {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_CANONICAL
             },
         }
     }
@@ -203,6 +239,11 @@ impl From<WorksQueryVariables> for works_query::Variables {
             publishers: v.publishers,
             limit: v.limit,
             offset: v.offset,
+            abstracts_limit: if v.parameters.with_abstracts {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_CANONICAL
+            },
             issues_limit: if v.parameters.with_issues {
                 FILTER_INCLUDE_ALL
             } else {
@@ -237,6 +278,11 @@ impl From<WorksQueryVariables> for works_query::Variables {
                 FILTER_INCLUDE_ALL
             } else {
                 FILTER_INCLUDE_NONE
+            },
+            titles_limit: if v.parameters.with_titles {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_CANONICAL
             },
         }
     }
@@ -257,6 +303,8 @@ mod tests {
             with_fundings: false,
             with_relations: false,
             with_references: false,
+            with_abstracts: false,
+            with_titles: false,
         };
         assert_eq!(to_test, QueryParameters::default());
         assert_eq!(to_test, QueryParameters::new())
@@ -274,6 +322,8 @@ mod tests {
                 with_fundings: true,
                 with_relations: true,
                 with_references: true,
+                with_abstracts: true,
+                with_titles: true,
             },
         );
         assert_eq!(
@@ -285,7 +335,9 @@ mod tests {
                 .without_subjects()
                 .without_fundings()
                 .without_relations()
-                .without_references(),
+                .without_references()
+                .with_canonical_abstracts_only()
+                .with_canonical_title_only(),
             QueryParameters {
                 with_issues: false,
                 with_languages: false,
@@ -294,6 +346,8 @@ mod tests {
                 with_fundings: false,
                 with_relations: false,
                 with_references: false,
+                with_abstracts: false,
+                with_titles: false,
             },
         );
         assert_eq!(
@@ -313,6 +367,8 @@ mod tests {
                 with_fundings: true,
                 with_relations: true,
                 with_references: true,
+                with_abstracts: false,
+                with_titles: false,
             },
         );
     }
@@ -327,6 +383,7 @@ mod tests {
             variables,
             work_query::Variables {
                 work_id,
+                abstracts_limit: FILTER_INCLUDE_ALL,
                 issues_limit: FILTER_INCLUDE_ALL,
                 languages_limit: FILTER_INCLUDE_ALL,
                 publications_limit: FILTER_INCLUDE_ALL,
@@ -334,6 +391,7 @@ mod tests {
                 fundings_limit: FILTER_INCLUDE_ALL,
                 relations_limit: FILTER_INCLUDE_ALL,
                 references_limit: FILTER_INCLUDE_ALL,
+                titles_limit: FILTER_INCLUDE_ALL,
             }
         );
         parameters = QueryParameters::new();
@@ -342,6 +400,7 @@ mod tests {
             variables,
             work_query::Variables {
                 work_id,
+                abstracts_limit: FILTER_INCLUDE_CANONICAL,
                 issues_limit: FILTER_INCLUDE_NONE,
                 languages_limit: FILTER_INCLUDE_NONE,
                 publications_limit: FILTER_INCLUDE_NONE,
@@ -349,6 +408,7 @@ mod tests {
                 fundings_limit: FILTER_INCLUDE_NONE,
                 relations_limit: FILTER_INCLUDE_NONE,
                 references_limit: FILTER_INCLUDE_NONE,
+                titles_limit: FILTER_INCLUDE_CANONICAL,
             }
         );
         parameters = QueryParameters::new().with_all().without_relations();
@@ -357,6 +417,7 @@ mod tests {
             variables,
             work_query::Variables {
                 work_id,
+                abstracts_limit: FILTER_INCLUDE_ALL,
                 issues_limit: FILTER_INCLUDE_ALL,
                 languages_limit: FILTER_INCLUDE_ALL,
                 publications_limit: FILTER_INCLUDE_ALL,
@@ -364,6 +425,7 @@ mod tests {
                 fundings_limit: FILTER_INCLUDE_ALL,
                 relations_limit: FILTER_INCLUDE_NONE,
                 references_limit: FILTER_INCLUDE_ALL,
+                titles_limit: FILTER_INCLUDE_ALL,
             }
         );
     }
@@ -381,6 +443,7 @@ mod tests {
                 publishers: publishers.clone(),
                 limit: 100,
                 offset: 0,
+                abstracts_limit: FILTER_INCLUDE_ALL,
                 issues_limit: FILTER_INCLUDE_ALL,
                 languages_limit: FILTER_INCLUDE_ALL,
                 publications_limit: FILTER_INCLUDE_ALL,
@@ -388,6 +451,7 @@ mod tests {
                 fundings_limit: FILTER_INCLUDE_ALL,
                 relations_limit: FILTER_INCLUDE_ALL,
                 references_limit: FILTER_INCLUDE_ALL,
+                titles_limit: FILTER_INCLUDE_ALL,
             }
         );
         parameters = QueryParameters::new();
@@ -398,6 +462,7 @@ mod tests {
                 publishers: publishers.clone(),
                 limit: 100,
                 offset: 0,
+                abstracts_limit: FILTER_INCLUDE_CANONICAL,
                 issues_limit: FILTER_INCLUDE_NONE,
                 languages_limit: FILTER_INCLUDE_NONE,
                 publications_limit: FILTER_INCLUDE_NONE,
@@ -405,6 +470,7 @@ mod tests {
                 fundings_limit: FILTER_INCLUDE_NONE,
                 relations_limit: FILTER_INCLUDE_NONE,
                 references_limit: FILTER_INCLUDE_NONE,
+                titles_limit: FILTER_INCLUDE_CANONICAL,
             }
         );
         parameters = QueryParameters::new()
@@ -418,6 +484,7 @@ mod tests {
                 publishers,
                 limit: 100,
                 offset: 0,
+                abstracts_limit: FILTER_INCLUDE_ALL,
                 issues_limit: FILTER_INCLUDE_ALL,
                 languages_limit: FILTER_INCLUDE_ALL,
                 publications_limit: FILTER_INCLUDE_ALL,
@@ -425,6 +492,7 @@ mod tests {
                 fundings_limit: FILTER_INCLUDE_ALL,
                 relations_limit: FILTER_INCLUDE_NONE,
                 references_limit: FILTER_INCLUDE_NONE,
+                titles_limit: FILTER_INCLUDE_ALL,
             }
         );
     }

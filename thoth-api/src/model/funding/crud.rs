@@ -1,9 +1,7 @@
 use super::{Funding, FundingField, FundingHistory, NewFunding, NewFundingHistory, PatchFunding};
-use crate::graphql::model::FundingOrderBy;
-use crate::graphql::utils::Direction;
+use crate::graphql::types::inputs::FundingOrderBy;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{funding, funding_history};
-use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::ThothResult;
 use uuid::Uuid;
@@ -15,6 +13,7 @@ impl Crud for Funding {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.funding_id
@@ -32,6 +31,7 @@ impl Crud for Funding {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Funding>> {
         use crate::schema::funding::dsl::*;
         let mut connection = db.get()?;
@@ -41,46 +41,33 @@ impl Crud for Funding {
             .into_boxed();
 
         query = match order.field {
-            FundingField::FundingId => match order.direction {
-                Direction::Asc => query.order(funding_id.asc()),
-                Direction::Desc => query.order(funding_id.desc()),
-            },
-            FundingField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
-            },
-            FundingField::InstitutionId => match order.direction {
-                Direction::Asc => query.order(institution_id.asc()),
-                Direction::Desc => query.order(institution_id.desc()),
-            },
-            FundingField::Program => match order.direction {
-                Direction::Asc => query.order(program.asc()),
-                Direction::Desc => query.order(program.desc()),
-            },
-            FundingField::ProjectName => match order.direction {
-                Direction::Asc => query.order(project_name.asc()),
-                Direction::Desc => query.order(project_name.desc()),
-            },
-            FundingField::ProjectShortname => match order.direction {
-                Direction::Asc => query.order(project_shortname.asc()),
-                Direction::Desc => query.order(project_shortname.desc()),
-            },
-            FundingField::GrantNumber => match order.direction {
-                Direction::Asc => query.order(grant_number.asc()),
-                Direction::Desc => query.order(grant_number.desc()),
-            },
-            FundingField::Jurisdiction => match order.direction {
-                Direction::Asc => query.order(jurisdiction.asc()),
-                Direction::Desc => query.order(jurisdiction.desc()),
-            },
-            FundingField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            FundingField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
+            FundingField::FundingId => {
+                apply_directional_order!(query, order.direction, order, funding_id)
+            }
+            FundingField::WorkId => {
+                apply_directional_order!(query, order.direction, order, work_id)
+            }
+            FundingField::InstitutionId => {
+                apply_directional_order!(query, order.direction, order, institution_id)
+            }
+            FundingField::Program => {
+                apply_directional_order!(query, order.direction, order, program)
+            }
+            FundingField::ProjectName => {
+                apply_directional_order!(query, order.direction, order, project_name)
+            }
+            FundingField::ProjectShortname => {
+                apply_directional_order!(query, order.direction, order, project_shortname)
+            }
+            FundingField::GrantNumber => {
+                apply_directional_order!(query, order.direction, order, grant_number)
+            }
+            FundingField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            FundingField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
@@ -105,6 +92,7 @@ impl Crud for Funding {
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::funding::dsl::*;
         let mut connection = db.get()?;
@@ -120,20 +108,20 @@ impl Crud for Funding {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(funding::table, funding::dsl::funding);
 }
+
+publisher_id_impls!(Funding, NewFunding, PatchFunding, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Funding {
     type NewHistoryEntity = NewFundingHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             funding_id: self.funding_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -143,28 +131,4 @@ impl DbInsert for NewFundingHistory {
     type MainEntity = FundingHistory;
 
     db_insert!(funding_history::table);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_funding_pk() {
-        let funding: Funding = Default::default();
-        assert_eq!(funding.pk(), funding.funding_id);
-    }
-
-    #[test]
-    fn test_new_funding_history_from_funding() {
-        let funding: Funding = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_funding_history = funding.new_history_entry(&account_id);
-        assert_eq!(new_funding_history.funding_id, funding.funding_id);
-        assert_eq!(new_funding_history.account_id, account_id);
-        assert_eq!(
-            new_funding_history.data,
-            serde_json::Value::String(serde_json::to_string(&funding).unwrap())
-        );
-    }
 }

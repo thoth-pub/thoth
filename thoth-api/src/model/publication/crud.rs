@@ -2,10 +2,8 @@ use super::{
     NewPublication, NewPublicationHistory, PatchPublication, Publication, PublicationField,
     PublicationHistory, PublicationOrderBy, PublicationType,
 };
-use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry, Isbn};
+use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
-use crate::{crud_methods, db_insert};
 use diesel::{
     dsl::sql, sql_types::Text, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -19,6 +17,7 @@ impl Crud for Publication {
     type FilterParameter1 = PublicationType;
     type FilterParameter2 = ();
     type FilterParameter3 = ();
+    type FilterParameter4 = ();
 
     fn pk(&self) -> Uuid {
         self.publication_id
@@ -36,6 +35,7 @@ impl Crud for Publication {
         publication_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Publication>> {
         use crate::schema::publication::dsl::*;
         let mut connection = db.get()?;
@@ -45,62 +45,61 @@ impl Crud for Publication {
             .into_boxed();
 
         query = match order.field {
-            PublicationField::PublicationId => match order.direction {
-                Direction::Asc => query.order(publication_id.asc()),
-                Direction::Desc => query.order(publication_id.desc()),
-            },
-            PublicationField::PublicationType => match order.direction {
-                Direction::Asc => query.order(publication_type.asc()),
-                Direction::Desc => query.order(publication_type.desc()),
-            },
-            PublicationField::WorkId => match order.direction {
-                Direction::Asc => query.order(work_id.asc()),
-                Direction::Desc => query.order(work_id.desc()),
-            },
-            PublicationField::Isbn => match order.direction {
-                Direction::Asc => query.order(isbn.asc()),
-                Direction::Desc => query.order(isbn.desc()),
-            },
-            PublicationField::CreatedAt => match order.direction {
-                Direction::Asc => query.order(created_at.asc()),
-                Direction::Desc => query.order(created_at.desc()),
-            },
-            PublicationField::UpdatedAt => match order.direction {
-                Direction::Asc => query.order(updated_at.asc()),
-                Direction::Desc => query.order(updated_at.desc()),
-            },
-            PublicationField::WidthMm => match order.direction {
-                Direction::Asc => query.order(width_mm.asc()),
-                Direction::Desc => query.order(width_mm.desc()),
-            },
-            PublicationField::WidthIn => match order.direction {
-                Direction::Asc => query.order(width_in.asc()),
-                Direction::Desc => query.order(width_in.desc()),
-            },
-            PublicationField::HeightMm => match order.direction {
-                Direction::Asc => query.order(height_mm.asc()),
-                Direction::Desc => query.order(height_mm.desc()),
-            },
-            PublicationField::HeightIn => match order.direction {
-                Direction::Asc => query.order(height_in.asc()),
-                Direction::Desc => query.order(height_in.desc()),
-            },
-            PublicationField::DepthMm => match order.direction {
-                Direction::Asc => query.order(depth_mm.asc()),
-                Direction::Desc => query.order(depth_mm.desc()),
-            },
-            PublicationField::DepthIn => match order.direction {
-                Direction::Asc => query.order(depth_in.asc()),
-                Direction::Desc => query.order(depth_in.desc()),
-            },
-            PublicationField::WeightG => match order.direction {
-                Direction::Asc => query.order(weight_g.asc()),
-                Direction::Desc => query.order(weight_g.desc()),
-            },
-            PublicationField::WeightOz => match order.direction {
-                Direction::Asc => query.order(weight_oz.asc()),
-                Direction::Desc => query.order(weight_oz.desc()),
-            },
+            PublicationField::PublicationId => {
+                apply_directional_order!(query, order.direction, order, publication_id)
+            }
+            PublicationField::PublicationType => {
+                apply_directional_order!(query, order.direction, order, publication_type)
+            }
+            PublicationField::WorkId => {
+                apply_directional_order!(query, order.direction, order, work_id)
+            }
+            PublicationField::Isbn => apply_directional_order!(query, order.direction, order, isbn),
+            PublicationField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at)
+            }
+            PublicationField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at)
+            }
+            PublicationField::WidthMm => {
+                apply_directional_order!(query, order.direction, order, width_mm)
+            }
+            PublicationField::WidthIn => {
+                apply_directional_order!(query, order.direction, order, width_in)
+            }
+            PublicationField::HeightMm => {
+                apply_directional_order!(query, order.direction, order, height_mm)
+            }
+            PublicationField::HeightIn => {
+                apply_directional_order!(query, order.direction, order, height_in)
+            }
+            PublicationField::DepthMm => {
+                apply_directional_order!(query, order.direction, order, depth_mm)
+            }
+            PublicationField::DepthIn => {
+                apply_directional_order!(query, order.direction, order, depth_in)
+            }
+            PublicationField::WeightG => {
+                apply_directional_order!(query, order.direction, order, weight_g)
+            }
+            PublicationField::WeightOz => {
+                apply_directional_order!(query, order.direction, order, weight_oz)
+            }
+            PublicationField::AccessibilityStandard => {
+                apply_directional_order!(query, order.direction, order, accessibility_standard)
+            }
+            PublicationField::AccessibilityAdditionalStandard => apply_directional_order!(
+                query,
+                order.direction,
+                order,
+                accessibility_additional_standard
+            ),
+            PublicationField::AccessibilityException => {
+                apply_directional_order!(query, order.direction, order, accessibility_exception)
+            }
+            PublicationField::AccessibilityReportUrl => {
+                apply_directional_order!(query, order.direction, order, accessibility_report_url)
+            }
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
@@ -135,6 +134,7 @@ impl Crud for Publication {
         publication_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
+        _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::publication::dsl::*;
         let mut connection = db.get()?;
@@ -169,20 +169,20 @@ impl Crud for Publication {
             .map_err(Into::into)
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.work_id)?.publisher_id(db)
-    }
-
     crud_methods!(publication::table, publication::dsl::publication);
 }
+
+publisher_id_impls!(Publication, NewPublication, PatchPublication, |s, db| {
+    crate::model::work::Work::from_id(db, &s.work_id)?.publisher_id(db)
+});
 
 impl HistoryEntry for Publication {
     type NewHistoryEntity = NewPublicationHistory;
 
-    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, user_id: &str) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             publication_id: self.publication_id,
-            account_id: *account_id,
+            user_id: user_id.to_string(),
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
@@ -192,31 +192,4 @@ impl DbInsert for NewPublicationHistory {
     type MainEntity = PublicationHistory;
 
     db_insert!(publication_history::table);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_publication_pk() {
-        let publication: Publication = Default::default();
-        assert_eq!(publication.pk(), publication.publication_id);
-    }
-
-    #[test]
-    fn test_new_publication_history_from_publication() {
-        let publication: Publication = Default::default();
-        let account_id: Uuid = Default::default();
-        let new_publication_history = publication.new_history_entry(&account_id);
-        assert_eq!(
-            new_publication_history.publication_id,
-            publication.publication_id
-        );
-        assert_eq!(new_publication_history.account_id, account_id);
-        assert_eq!(
-            new_publication_history.data,
-            serde_json::Value::String(serde_json::to_string(&publication).unwrap())
-        );
-    }
 }
