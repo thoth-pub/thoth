@@ -546,19 +546,19 @@ pub fn jats_to_ast(jats: &str) -> Node {
         }
 
         match tag_name {
-            "article" | "body" | "sec" | "div" => Node::Document(children),
+            "html" | "article" | "body" | "sec" | "div" => Node::Document(children),
             "p" => Node::Paragraph(children),
             "break" | "br" => Node::Break,
-            "bold" => Node::Bold(children),
-            "italic" => Node::Italic(children),
-            "underline" => Node::Underline(children),
-            "strike" => Node::Strikethrough(children),
-            "monospace" => Node::Code(children),
+            "bold" | "strong" | "b" => Node::Bold(children),
+            "italic" | "em" | "i" => Node::Italic(children),
+            "underline" | "u" => Node::Underline(children),
+            "strike" | "s" | "del" | "strikethrough" => Node::Strikethrough(children),
+            "monospace" | "code" => Node::Code(children),
             "sup" => Node::Superscript(children),
             "sub" => Node::Subscript(children),
-            "sc" => Node::SmallCaps(children),
-            "list" => Node::List(children),
-            "list-item" => Node::ListItem(children),
+            "sc" | "text" => Node::SmallCaps(children),
+            "list" | "ul" | "ol" => Node::List(children),
+            "list-item" | "li" => Node::ListItem(children),
             "span" => {
                 if element
                     .value()
