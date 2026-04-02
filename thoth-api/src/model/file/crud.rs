@@ -7,7 +7,7 @@ use crate::db::PgPool;
 use crate::model::{
     additional_resource::{AdditionalResource, PatchAdditionalResource},
     location::{Location, LocationPlatform, NewLocation, PatchLocation},
-    publication::Publication,
+    publication::{PatchPublication, Publication},
     work::{PatchWork, Work},
     work_featured_video::{PatchWorkFeaturedVideo, WorkFeaturedVideo},
     Crud, Doi, PublisherId, Timestamp,
@@ -15,8 +15,8 @@ use crate::model::{
 use crate::policy::{CreatePolicy, PolicyContext};
 use crate::schema::{file, file_upload};
 use crate::storage::{
-    canonical_frontcover_key, canonical_publication_key, canonical_resource_key,
-    presign_put_for_upload, temp_key, S3Client, StorageConfig,
+    canonical_a11yreport_key, canonical_frontcover_key, canonical_publication_key,
+    canonical_resource_key, presign_put_for_upload, temp_key, S3Client, StorageConfig,
 };
 use chrono::{Duration, Utc};
 use diesel::prelude::*;
@@ -491,13 +491,17 @@ impl File {
             .map_err(ThothError::from)
     }
 
-    pub fn from_publication_id(db: &PgPool, publication_id: &Uuid) -> ThothResult<Option<Self>> {
+    pub fn from_publication_id(
+        db: &PgPool,
+        publication_id: &Uuid,
+        file_type: FileType,
+    ) -> ThothResult<Option<Self>> {
         use crate::schema::file::dsl;
 
         let mut connection = db.get()?;
         dsl::file
             .filter(dsl::publication_id.eq(publication_id))
-            .filter(dsl::file_type.eq(FileType::Publication))
+            .filter(dsl::file_type.eq(file_type))
             .first::<File>(&mut connection)
             .optional()
             .map_err(ThothError::from)
@@ -602,6 +606,14 @@ impl FileUpload {
                 let work: Work = ctx.load_current(&work_featured_video.work_id)?;
                 Ok((work, None, None, Some(work_featured_video)))
             }
+            FileType::A11yReport => {
+                let publication_id = self
+                    .publication_id
+                    .ok_or(ThothError::AccessibilityReportFileUploadMissingPublicationId)?;
+                let publication: Publication = ctx.load_current(&publication_id)?;
+                let work: Work = ctx.load_current(&publication.work_id)?;
+                Ok((work, Some(publication), None, None))
+            }
         }
     }
 
@@ -642,6 +654,17 @@ impl FileUpload {
                     &self.declared_extension,
                 ))
             }
+            FileType::A11yReport => {
+                let publication_id = self
+                    .publication_id
+                    .ok_or(ThothError::AccessibilityReportFileUploadMissingPublicationId);
+                Ok(canonical_a11yreport_key(
+                    doi_prefix,
+                    doi_suffix,
+                    &publication_id?,
+                    &self.declared_extension,
+                ))
+            }
         }
     }
 
@@ -651,7 +674,7 @@ impl FileUpload {
                 let publication_id = self
                     .publication_id
                     .ok_or(ThothError::PublicationFileUploadMissingPublicationId)?;
-                File::from_publication_id(db, &publication_id)
+                File::from_publication_id(db, &publication_id, FileType::Publication)
             }
             FileType::Frontcover => {
                 let work_id = self
@@ -670,6 +693,12 @@ impl FileUpload {
                     .work_featured_video_id
                     .ok_or(ThothError::WorkFeaturedVideoFileUploadMissingWorkFeaturedVideoId)?;
                 File::from_work_featured_video_id(db, &work_featured_video_id)
+            }
+            FileType::A11yReport => {
+                let publication_id = self
+                    .publication_id
+                    .ok_or(ThothError::AccessibilityReportFileUploadMissingPublicationId)?;
+                File::from_publication_id(db, &publication_id, FileType::A11yReport)
             }
         }
     }
@@ -781,6 +810,15 @@ impl FileUpload {
                     height,
                 };
                 work_featured_video.update(ctx, &patch)?;
+            }
+            FileType::A11yReport => {
+                let publication_id = self
+                    .publication_id
+                    .ok_or(ThothError::AccessibilityReportFileUploadMissingPublicationId)?;
+                let publication: Publication = ctx.load_current(&publication_id)?;
+                let mut patch: PatchPublication = publication.clone().into();
+                patch.accessibility_report_url = Some(cdn_url.to_string());
+                publication.update(ctx, &patch)?;
             }
         }
 

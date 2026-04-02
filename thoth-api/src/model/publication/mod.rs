@@ -482,6 +482,28 @@ macro_rules! publication_properties {
 publication_properties!(Publication);
 publication_properties!(NewPublication);
 publication_properties!(PatchPublication);
+impl From<Publication> for PatchPublication {
+    fn from(p: Publication) -> Self {
+        Self {
+            publication_id: p.publication_id,
+            publication_type: p.publication_type,
+            work_id: p.work_id,
+            isbn: p.isbn,
+            width_mm: p.width_mm,
+            width_in: p.width_in,
+            height_mm: p.height_mm,
+            height_in: p.height_in,
+            depth_mm: p.depth_mm,
+            depth_in: p.depth_in,
+            weight_g: p.weight_g,
+            weight_oz: p.weight_oz,
+            accessibility_standard: p.accessibility_standard,
+            accessibility_additional_standard: p.accessibility_additional_standard,
+            accessibility_exception: p.accessibility_exception,
+            accessibility_report_url: p.accessibility_report_url,
+        }
+    }
+}
 
 #[cfg(feature = "backend")]
 pub mod crud;

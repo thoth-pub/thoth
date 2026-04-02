@@ -1082,7 +1082,8 @@ impl Publication {
 
     #[graphql(description = "Get the publication file for this publication")]
     pub fn file(&self, context: &Context) -> FieldResult<Option<File>> {
-        File::from_publication_id(&context.db, &self.publication_id).map_err(Into::into)
+        File::from_publication_id(&context.db, &self.publication_id, FileType::Publication)
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Get the work to which this publication belongs")]

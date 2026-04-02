@@ -162,6 +162,8 @@ pub enum ThothError {
     AdditionalResourceFileUploadMissingAdditionalResourceId,
     #[error("Work featured video file upload missing work_featured_video_id")]
     WorkFeaturedVideoFileUploadMissingWorkFeaturedVideoId,
+    #[error("Accessibility report file upload missing publication_id")]
+    AccessibilityReportFileUploadMissingPublicationId,
 }
 
 impl ThothError {

@@ -48,6 +48,13 @@ pub enum FileType {
     )]
     #[strum(serialize = "work_featured_video")]
     WorkFeaturedVideo,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "accessibility_report",
+        graphql(description = "Accessibility report")
+    )]
+    #[strum(serialize = "accessibility_report")]
+    A11yReport,
 }
 
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]
@@ -200,6 +207,24 @@ pub struct NewWorkFeaturedVideoFileUpload {
 
 #[cfg(feature = "backend")]
 #[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Input for starting an upload for an accessibility report.")]
+pub struct NewA11yReportFileUpload {
+    #[graphql(description = "Thoth ID of the publication linked to this file.")]
+    pub publication_id: Uuid,
+    #[graphql(
+        description = "MIME type declared by the client (used for validation and in the presigned URL)."
+    )]
+    pub declared_mime_type: String,
+    #[graphql(
+        description = "File extension to use in the final canonical key, e.g. 'html', 'pdf'."
+    )]
+    pub declared_extension: String,
+    #[graphql(description = "SHA-256 checksum of the file, hex-encoded.")]
+    pub declared_sha256: String,
+}
+
+#[cfg(feature = "backend")]
+#[derive(juniper::GraphQLInputObject)]
 #[graphql(
     description = "Input for completing a file upload and promoting it to its final DOI-based location."
 )]
@@ -318,6 +343,22 @@ impl From<NewWorkFeaturedVideoFileUpload> for NewFileUpload {
             publication_id: None,
             additional_resource_id: None,
             work_featured_video_id: Some(data.work_featured_video_id),
+            declared_mime_type: data.declared_mime_type,
+            declared_extension: data.declared_extension.to_lowercase(),
+            declared_sha256: data.declared_sha256,
+        }
+    }
+}
+
+#[cfg(feature = "backend")]
+impl From<NewA11yReportFileUpload> for NewFileUpload {
+    fn from(data: NewA11yReportFileUpload) -> Self {
+        NewFileUpload {
+            file_type: FileType::A11yReport,
+            work_id: None,
+            publication_id: Some(data.publication_id),
+            additional_resource_id: None,
+            work_featured_video_id: None,
             declared_mime_type: data.declared_mime_type,
             declared_extension: data.declared_extension.to_lowercase(),
             declared_sha256: data.declared_sha256,

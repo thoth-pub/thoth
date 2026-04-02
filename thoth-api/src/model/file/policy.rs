@@ -11,6 +11,8 @@ const MIN_PUBLICATION_BYTES: i64 = 50 * KIB;
 const MAX_PUBLICATION_BYTES: i64 = 5 * GIB;
 const MIN_FRONTCOVER_BYTES: i64 = 50 * KIB;
 const MAX_FRONTCOVER_BYTES: i64 = 50 * MIB;
+const MIN_A11YREPORT_BYTES: i64 = 50 * KIB;
+const MAX_A11YREPORT_BYTES: i64 = 5 * MIB;
 const MIN_RESOURCE_BYTES: i64 = 1;
 const MAX_RESOURCE_BYTES: i64 = 5 * GIB;
 
@@ -150,6 +152,12 @@ impl FilePolicy {
                     return Err(ThothError::InvalidFileExtension);
                 }
             }
+            FileType::A11yReport => {
+                let valid_extensions = ["html", "pdf"];
+                if !valid_extensions.contains(&extension.to_lowercase().as_str()) {
+                    return Err(ThothError::InvalidFileExtension);
+                }
+            }
             FileType::Publication => {
                 if let Some(pub_type) = publication_type {
                     let valid_extensions: Vec<&str> = match pub_type {
@@ -207,6 +215,16 @@ impl FilePolicy {
                 };
 
                 if mime_type == expected {
+                    Ok(())
+                } else {
+                    Err(ThothError::InvalidFileMimeType)
+                }
+            }
+            FileType::A11yReport => {
+                let accepted_mime_types: &[&str] =
+                    &["text/html", "application/pdf", "application/octet-stream"];
+
+                if accepted_mime_types.contains(&mime_type.as_str()) {
                     Ok(())
                 } else {
                     Err(ThothError::InvalidFileMimeType)
@@ -273,6 +291,7 @@ impl FilePolicy {
         let (min_bytes, max_bytes) = match file_type {
             FileType::Publication => (MIN_PUBLICATION_BYTES, MAX_PUBLICATION_BYTES),
             FileType::Frontcover => (MIN_FRONTCOVER_BYTES, MAX_FRONTCOVER_BYTES),
+            FileType::A11yReport => (MIN_A11YREPORT_BYTES, MAX_A11YREPORT_BYTES),
             FileType::AdditionalResource | FileType::WorkFeaturedVideo => {
                 (MIN_RESOURCE_BYTES, MAX_RESOURCE_BYTES)
             }
@@ -300,7 +319,7 @@ impl FilePolicy {
     ) -> ThothResult<()> {
         Self::can_delete(ctx, upload)?;
         match upload.file_type {
-            FileType::Frontcover | FileType::Publication => {
+            FileType::Frontcover | FileType::Publication | FileType::A11yReport => {
                 Self::validate_file_extension(
                     &upload.declared_extension,
                     &upload.file_type,

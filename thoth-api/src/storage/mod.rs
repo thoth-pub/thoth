@@ -710,6 +710,22 @@ pub fn canonical_resource_key(
     )
 }
 
+/// Compute the canonical object key for an accessibility report file
+pub fn canonical_a11yreport_key(
+    doi_prefix: &str,
+    doi_suffix: &str,
+    publication_id: &Uuid,
+    extension: &str,
+) -> String {
+    format!(
+        "{}/{}/resources/{}_a11yreport.{}",
+        doi_prefix.to_lowercase(),
+        doi_suffix.to_lowercase(),
+        publication_id,
+        extension.to_lowercase()
+    )
+}
+
 /// Build the full CDN URL from domain and object key
 pub fn build_cdn_url(cdn_domain: &str, object_key: &str) -> String {
     // Ensure cdn_domain doesn't end with / and object_key doesn't have a leading /
