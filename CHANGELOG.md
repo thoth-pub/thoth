@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade `jsonwebtoken` to v10.3.0
   - Upgrade `rustls-webpki` to v0.103.10
 
+### Fixed
+  - Allow publisher admins to update metadata without storage-field superuser check
+
 ## [[1.0.1]](https://github.com/thoth-pub/thoth/releases/tag/v1.0.1) - 2026-04-01
 ### Fixed
   - Return raw JATS XML rather than attempting to validate it
