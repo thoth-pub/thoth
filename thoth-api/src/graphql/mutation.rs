@@ -28,7 +28,9 @@ use crate::model::{
     language::{Language, LanguagePolicy, NewLanguage, PatchLanguage},
     location::{Location, LocationPolicy, NewLocation, PatchLocation},
     price::{NewPrice, PatchPrice, Price, PricePolicy},
-    publication::{NewPublication, PatchPublication, Publication, PublicationPolicy},
+    publication::{
+        NewPublication, PatchPublication, Publication, PublicationPolicy, PublicationProperties,
+    },
     publisher::{NewPublisher, PatchPublisher, Publisher, PublisherPolicy},
     r#abstract::{Abstract, AbstractPolicy, NewAbstract, PatchAbstract},
     reference::{NewReference, PatchReference, Reference, ReferencePolicy},
@@ -107,6 +109,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for publication to be created")] data: NewPublication,
     ) -> FieldResult<Publication> {
+        let data = data.into_normalised()?;
         PublicationPolicy::can_create(context, &data, ())?;
         Publication::create(&context.db, &data).map_err(Into::into)
     }
@@ -453,6 +456,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing publication")] data: PatchPublication,
     ) -> FieldResult<Publication> {
+        let data = data.into_normalised()?;
         let publication = context.load_current(&data.publication_id)?;
         PublicationPolicy::can_update(context, &publication, &data, ())?;
 

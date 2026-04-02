@@ -227,6 +227,12 @@ mod helpers {
 
 mod validation {
     use super::*;
+    use std::str::FromStr;
+
+    fn raw_isbn(value: &str) -> Isbn {
+        serde_json::from_str(&format!("\"{value}\""))
+            .expect("Failed to deserialize raw ISBN scalar")
+    }
 
     #[test]
     fn validate_dimensions_enforces_width_constraints() {
@@ -362,6 +368,28 @@ mod validation {
         );
         publication.weight_oz = Some(3.5);
         assert!(publication.validate_dimensions_constraints().is_ok());
+    }
+
+    #[test]
+    fn normalise_isbn_accepts_valid_hyphenless_isbn13() {
+        let mut publication: Publication = Default::default();
+        publication.isbn = Some(raw_isbn("9783943253962"));
+
+        publication.normalise_isbn().expect("ISBN should normalise");
+
+        assert_eq!(
+            publication.isbn,
+            Some(Isbn::from_str("9783943253962").expect("Failed to parse canonical ISBN"))
+        );
+    }
+
+    #[test]
+    fn normalise_isbn_rejects_invalid_isbn() {
+        let mut publication: Publication = Default::default();
+        publication.isbn = Some(raw_isbn("not-an-isbn"));
+
+        let result = publication.normalise_isbn();
+        assert!(matches!(result, Err(ThothError::IsbnParseError(_))));
     }
 }
 

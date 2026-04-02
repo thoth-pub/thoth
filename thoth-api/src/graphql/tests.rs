@@ -459,6 +459,10 @@ fn make_new_publication(work_id: Uuid) -> NewPublication {
     }
 }
 
+fn raw_isbn(value: &str) -> Isbn {
+    serde_json::from_str(&format!("\"{value}\"")).expect("Failed to deserialize raw ISBN scalar")
+}
+
 fn make_new_location(publication_id: Uuid, canonical: bool) -> NewLocation {
     NewLocation {
         publication_id,
@@ -2736,6 +2740,177 @@ fn graphql_create_abstract_allows_canonical_short_and_long_for_same_work() {
     assert_eq!(
         long_abstract["abstractType"],
         JsonValue::String("LONG".to_string())
+    );
+}
+
+#[test]
+fn graphql_create_publication_normalises_hyphenless_isbn() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-publication-create-isbn-normalisation");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let doi = Doi::from_str(&format!(
+        "https://doi.org/10.1234/{}",
+        unique("publication-create-isbn-normalisation")
+    ))
+    .expect("Failed to build DOI");
+    let work = create_with_data(
+        &schema,
+        &context,
+        "createWork",
+        "NewWork",
+        "workId",
+        make_new_work(seed.imprint_id, WorkType::Monograph, doi),
+    );
+    let work_id = json_uuid(&work["workId"]);
+
+    let publication = create_with_data(
+        &schema,
+        &context,
+        "createPublication",
+        "NewPublication",
+        "publicationId isbn",
+        NewPublication {
+            publication_type: PublicationType::Paperback,
+            work_id,
+            isbn: Some(raw_isbn("9783943253962")),
+            width_mm: None,
+            width_in: None,
+            height_mm: None,
+            height_in: None,
+            depth_mm: None,
+            depth_in: None,
+            weight_g: None,
+            weight_oz: None,
+            accessibility_standard: None,
+            accessibility_additional_standard: None,
+            accessibility_exception: None,
+            accessibility_report_url: None,
+        },
+    );
+    let publication_id = json_uuid(&publication["publicationId"]);
+    let stored_publication =
+        Publication::from_id(pool.as_ref(), &publication_id).expect("Failed to fetch publication");
+    let expected = Isbn::from_str("9783943253962").expect("Failed to parse expected ISBN");
+
+    assert_eq!(stored_publication.isbn, Some(expected.clone()));
+    assert_eq!(publication["isbn"], JsonValue::String(expected.to_string()));
+}
+
+#[test]
+fn graphql_update_publication_normalises_hyphenless_isbn() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-publication-update-isbn-normalisation");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let publication = Publication::from_id(pool.as_ref(), &seed.publication_id)
+        .expect("Failed to fetch seeded publication");
+    let mut patch = patch_publication(&publication);
+    patch.isbn = Some(raw_isbn("9783943253962"));
+
+    let updated = update_with_data(
+        &schema,
+        &context,
+        "updatePublication",
+        "PatchPublication",
+        "publicationId isbn",
+        patch,
+    );
+    let publication_id = json_uuid(&updated["publicationId"]);
+    let stored_publication =
+        Publication::from_id(pool.as_ref(), &publication_id).expect("Failed to fetch publication");
+    let expected = Isbn::from_str("9783943253962").expect("Failed to parse expected ISBN");
+
+    assert_eq!(stored_publication.isbn, Some(expected.clone()));
+    assert_eq!(updated["isbn"], JsonValue::String(expected.to_string()));
+}
+
+#[test]
+fn graphql_create_publication_rejects_invalid_isbn_before_db_constraint() {
+    use crate::schema::publication::dsl as publication_dsl;
+    use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-publication-invalid-isbn-validation");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let doi = Doi::from_str(&format!(
+        "https://doi.org/10.1234/{}",
+        unique("publication-invalid-isbn-validation")
+    ))
+    .expect("Failed to build DOI");
+    let work = create_with_data(
+        &schema,
+        &context,
+        "createWork",
+        "NewWork",
+        "workId",
+        make_new_work(seed.imprint_id, WorkType::Monograph, doi),
+    );
+    let work_id = json_uuid(&work["workId"]);
+
+    let query = r#"
+        mutation CreatePublication($data: NewPublication!) {
+            createPublication(data: $data) {
+                publicationId
+            }
+        }
+    "#;
+    let mut vars = Variables::new();
+    insert_var(
+        &mut vars,
+        "data",
+        NewPublication {
+            publication_type: PublicationType::Paperback,
+            work_id,
+            isbn: Some(raw_isbn("not-an-isbn")),
+            width_mm: None,
+            width_in: None,
+            height_mm: None,
+            height_in: None,
+            depth_mm: None,
+            depth_in: None,
+            weight_g: None,
+            weight_oz: None,
+            accessibility_standard: None,
+            accessibility_additional_standard: None,
+            accessibility_exception: None,
+            accessibility_report_url: None,
+        },
+    );
+
+    let (value, errors) = juniper::execute_sync(query, None, &schema, &vars, &context)
+        .expect("GraphQL execution should succeed with validation errors");
+    assert!(!errors.is_empty(), "Expected GraphQL validation error");
+    let message = errors[0].error().message();
+    assert!(
+        message.contains("validly formatted ISBN"),
+        "Expected parse-style ISBN error, got: {message}"
+    );
+    assert!(
+        !message.contains("exactly 17 characters"),
+        "Should fail before database ISBN length constraint, got: {message}"
+    );
+    let payload = serde_json::to_value(value).expect("Failed to serialize GraphQL response");
+    assert!(
+        payload.get("createPublication").is_none() || payload["createPublication"].is_null(),
+        "Expected no createPublication payload on validation error, got: {payload:?}"
+    );
+
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let publications = publication_dsl::publication
+        .filter(publication_dsl::work_id.eq(work_id))
+        .load::<Publication>(&mut connection)
+        .expect("Failed to query publications for work");
+    assert!(
+        publications.is_empty(),
+        "Invalid ISBN should not create publication rows"
     );
 }
 
