@@ -4969,7 +4969,7 @@ dependencies = [
 
 [[package]]
 name = "thoth"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "base64 0.22.1",
  "clap",
@@ -4986,7 +4986,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "actix-web",
  "aws-config",
@@ -5024,7 +5024,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api-server"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "actix-cors",
  "actix-http",
@@ -5041,7 +5041,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-client"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "chrono",
  "graphql_client",
@@ -5057,7 +5057,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-errors"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "actix-web",
  "chrono",
@@ -5080,7 +5080,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-export-server"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "actix-cors",
  "actix-web",

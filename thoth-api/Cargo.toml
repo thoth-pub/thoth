@@ -1,6 +1,6 @@
 [package]
 name = "thoth-api"
-version = "1.0.1"
+version = "1.0.2"
 authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -31,7 +31,7 @@ backend = [
 ]
 
 [dependencies]
-thoth-errors = { version = "=1.0.1", path = "../thoth-errors" }
+thoth-errors = { version = "=1.0.2", path = "../thoth-errors" }
 actix-web = { version = "4.10", optional = true }
 isbn = "0.6.0"
 chrono = { version = "0.4.40", features = ["serde"] }
