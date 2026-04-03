@@ -609,6 +609,121 @@ mutation($data: PatchImprint!) {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn test_update_imprint_keeps_storage_fields_when_admin_omits_them() {
+    let _guard = support::test_lock();
+    let pool = support::db_pool();
+    support::reset_db(&pool).expect("Failed to reset DB");
+
+    let org_id = format!("org-{}", Uuid::new_v4());
+    let publisher_id = create_publisher(pool.clone(), org_id.as_str()).await;
+    let imprint = create_imprint_record(
+        pool.clone(),
+        publisher_id,
+        Some("bucket-existing"),
+        Some("existing.example.org"),
+        Some("dist-existing"),
+    )
+    .await;
+
+    let update_query = r#"
+mutation($data: PatchImprint!) {
+  updateImprint(data: $data) {
+    imprintId
+    defaultCurrency
+    defaultLocale
+  }
+}
+"#;
+
+    let update_variables = json!({
+        "data": {
+            "imprintId": imprint.imprint_id,
+            "publisherId": publisher_id,
+            "imprintName": imprint.imprint_name,
+            "defaultCurrency": "USD",
+            "defaultLocale": "EN",
+        }
+    });
+    let update_response = support::execute_graphql(
+        pool.clone(),
+        Some(support::user_with_roles(
+            "user-admin",
+            &[("PUBLISHER_ADMIN", org_id.as_str())],
+        )),
+        update_query,
+        Some(update_variables),
+    )
+    .await;
+    support::assert_no_errors(&update_response);
+
+    assert_eq!(
+        update_response
+            .pointer("/data/updateImprint/defaultCurrency")
+            .and_then(|v| v.as_str()),
+        Some("USD")
+    );
+    assert_eq!(
+        update_response
+            .pointer("/data/updateImprint/defaultLocale")
+            .and_then(|v| v.as_str()),
+        Some("EN")
+    );
+
+    let read_query = r#"
+query($imprintId: Uuid!) {
+  imprint(imprintId: $imprintId) {
+    defaultCurrency
+    defaultLocale
+    s3Bucket
+    cdnDomain
+    cloudfrontDistId
+  }
+}
+"#;
+
+    let read_variables = json!({ "imprintId": imprint.imprint_id });
+    let read_response = support::execute_graphql(
+        pool,
+        Some(support::superuser("superuser-1")),
+        read_query,
+        Some(read_variables),
+    )
+    .await;
+    support::assert_no_errors(&read_response);
+
+    assert_eq!(
+        read_response
+            .pointer("/data/imprint/defaultCurrency")
+            .and_then(|v| v.as_str()),
+        Some("USD")
+    );
+    assert_eq!(
+        read_response
+            .pointer("/data/imprint/defaultLocale")
+            .and_then(|v| v.as_str()),
+        Some("EN")
+    );
+    assert_eq!(
+        read_response
+            .pointer("/data/imprint/s3Bucket")
+            .and_then(|v| v.as_str()),
+        Some("bucket-existing")
+    );
+    assert_eq!(
+        read_response
+            .pointer("/data/imprint/cdnDomain")
+            .and_then(|v| v.as_str()),
+        Some("existing.example.org")
+    );
+    assert_eq!(
+        read_response
+            .pointer("/data/imprint/cloudfrontDistId")
+            .and_then(|v| v.as_str()),
+        Some("dist-existing")
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_imprint_storage_fields_round_trip_for_superuser() {
     let _guard = support::test_lock();
     let pool = support::db_pool();

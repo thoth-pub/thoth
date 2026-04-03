@@ -28,7 +28,9 @@ use crate::model::{
     language::{Language, LanguagePolicy, NewLanguage, PatchLanguage},
     location::{Location, LocationPolicy, NewLocation, PatchLocation},
     price::{NewPrice, PatchPrice, Price, PricePolicy},
-    publication::{NewPublication, PatchPublication, Publication, PublicationPolicy},
+    publication::{
+        NewPublication, PatchPublication, Publication, PublicationPolicy, PublicationProperties,
+    },
     publisher::{NewPublisher, PatchPublisher, Publisher, PublisherPolicy},
     r#abstract::{Abstract, AbstractPolicy, NewAbstract, PatchAbstract},
     reference::{NewReference, PatchReference, Reference, ReferencePolicy},
@@ -42,7 +44,9 @@ use crate::model::{
     work_relation::{NewWorkRelation, PatchWorkRelation, WorkRelation, WorkRelationPolicy},
     Crud, Reorder,
 };
-use crate::policy::{CreatePolicy, DeletePolicy, MovePolicy, PolicyContext, UpdatePolicy};
+use crate::policy::{
+    CreatePolicy, DeletePolicy, MovePolicy, PolicyContext, UpdatePolicy, UserAccess,
+};
 use crate::storage::{
     additional_resource_cleanup_plan, build_cdn_url, copy_temp_object_to_final, delete_object,
     head_object, probe_video_dimensions, publication_cleanup_plan, reconcile_replaced_object,
@@ -105,6 +109,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values for publication to be created")] data: NewPublication,
     ) -> FieldResult<Publication> {
+        let data = data.into_normalised()?;
         PublicationPolicy::can_create(context, &data, ())?;
         Publication::create(&context.db, &data).map_err(Into::into)
     }
@@ -401,7 +406,23 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing imprint")] data: PatchImprint,
     ) -> FieldResult<Imprint> {
-        let imprint = context.load_current(&data.imprint_id)?;
+        let imprint: Imprint = context.load_current(&data.imprint_id)?;
+        let mut data = data;
+
+        if !context.user().is_some_and(|user| user.is_superuser()) {
+            // Non-superusers cannot modify storage fields. If these fields are omitted in the
+            // GraphQL payload, Juniper deserializes them as `None`, so preserve existing values.
+            if data.s3_bucket.is_none() {
+                data.s3_bucket = imprint.s3_bucket.clone();
+            }
+            if data.cdn_domain.is_none() {
+                data.cdn_domain = imprint.cdn_domain.clone();
+            }
+            if data.cloudfront_dist_id.is_none() {
+                data.cloudfront_dist_id = imprint.cloudfront_dist_id.clone();
+            }
+        }
+
         ImprintPolicy::can_update(context, &imprint, &data, ())?;
 
         imprint.update(context, &data).map_err(Into::into)
@@ -435,6 +456,7 @@ impl MutationRoot {
         context: &Context,
         #[graphql(description = "Values to apply to existing publication")] data: PatchPublication,
     ) -> FieldResult<Publication> {
+        let data = data.into_normalised()?;
         let publication = context.load_current(&data.publication_id)?;
         PublicationPolicy::can_update(context, &publication, &data, ())?;
 
