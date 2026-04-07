@@ -1,7 +1,7 @@
 use chrono::Utc;
 use regex::Regex;
 use std::io::Write;
-use thoth_api::markup::normalize_crossref_abstract_jats;
+use thoth_api::markup::normalise_crossref_abstract_jats;
 use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
     AbstractType, ContributionType, Funding, PublicationType, Reference, RelationType, Work,
@@ -393,7 +393,7 @@ fn write_abstract_content<W: Write>(
     abstract_type: &str,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
-    let normalized_content = normalize_crossref_abstract_jats(abstract_content).map_err(|err| {
+    let normalised_content = normalise_crossref_abstract_jats(abstract_content).map_err(|err| {
         ThothError::IncompleteMetadataRecord(
             DEPOSIT_ERROR.to_string(),
             format!("Invalid Crossref abstract markup: {}", err),
@@ -404,7 +404,7 @@ fn write_abstract_content<W: Write>(
         Some(vec![("abstract-type", abstract_type)]),
         w,
         |w| {
-            write_jats_content(&normalized_content, w)?;
+            write_jats_content(&normalised_content, w)?;
             Ok(())
         },
     )
@@ -416,7 +416,7 @@ fn write_abstract_content_with_locale_code<W: Write>(
     locale_code: &str,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
-    let normalized_content = normalize_crossref_abstract_jats(abstract_content).map_err(|err| {
+    let normalised_content = normalise_crossref_abstract_jats(abstract_content).map_err(|err| {
         ThothError::IncompleteMetadataRecord(
             DEPOSIT_ERROR.to_string(),
             format!("Invalid Crossref abstract markup: {}", err),
@@ -429,7 +429,7 @@ fn write_abstract_content_with_locale_code<W: Write>(
             ("xml:lang", locale_code),
         ]),
         w,
-        |w| write_jats_content(&normalized_content, w),
+        |w| write_jats_content(&normalised_content, w),
     )
 }
 
@@ -2503,7 +2503,7 @@ mod tests {
     }
 
     #[test]
-    fn test_write_abstract_content_with_locale_code_rejects_unnormalizable_crossref_markup() {
+    fn test_write_abstract_content_with_locale_code_rejects_unnormalisable_crossref_markup() {
         let mut buffer = Vec::new();
         let mut writer = xml::writer::EmitterConfig::new()
             .perform_indent(true)

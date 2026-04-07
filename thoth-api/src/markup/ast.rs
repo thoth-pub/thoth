@@ -61,7 +61,7 @@ fn push_node_to_top(stack: &mut [Node], node: Node) {
     }
 }
 
-fn normalize_text_segments(text: &str) -> Vec<Node> {
+fn normalise_text_segments(text: &str) -> Vec<Node> {
     let pattern = regex::Regex::new(
         r"(?x)
         (?P<formula>\$[^$\n]+\$)
@@ -114,22 +114,22 @@ fn normalize_text_segments(text: &str) -> Vec<Node> {
     result
 }
 
-fn normalize_node(node: Node) -> Node {
+fn normalise_node(node: Node) -> Node {
     match node {
-        Node::Document(children) => Node::Document(normalize_children(children)),
-        Node::Paragraph(children) => Node::Paragraph(normalize_children(children)),
-        Node::Bold(children) => Node::Bold(normalize_children(children)),
-        Node::Italic(children) => Node::Italic(normalize_children(children)),
-        Node::Underline(children) => Node::Underline(normalize_children(children)),
-        Node::Strikethrough(children) => Node::Strikethrough(normalize_children(children)),
-        Node::Code(children) => Node::Code(normalize_children(children)),
-        Node::Superscript(children) => Node::Superscript(normalize_children(children)),
-        Node::Subscript(children) => Node::Subscript(normalize_children(children)),
-        Node::SmallCaps(children) => Node::SmallCaps(normalize_children(children)),
-        Node::List(children) => Node::List(normalize_children(children)),
-        Node::ListItem(children) => Node::ListItem(normalize_children(children)),
+        Node::Document(children) => Node::Document(normalise_children(children)),
+        Node::Paragraph(children) => Node::Paragraph(normalise_children(children)),
+        Node::Bold(children) => Node::Bold(normalise_children(children)),
+        Node::Italic(children) => Node::Italic(normalise_children(children)),
+        Node::Underline(children) => Node::Underline(normalise_children(children)),
+        Node::Strikethrough(children) => Node::Strikethrough(normalise_children(children)),
+        Node::Code(children) => Node::Code(normalise_children(children)),
+        Node::Superscript(children) => Node::Superscript(normalise_children(children)),
+        Node::Subscript(children) => Node::Subscript(normalise_children(children)),
+        Node::SmallCaps(children) => Node::SmallCaps(normalise_children(children)),
+        Node::List(children) => Node::List(normalise_children(children)),
+        Node::ListItem(children) => Node::ListItem(normalise_children(children)),
         Node::Link { url, text } => {
-            let text = normalize_children(text);
+            let text = normalise_children(text);
             let plain = inline_text_to_plain_text(&text);
             if url.starts_with("mailto:") {
                 let email = url.trim_start_matches("mailto:");
@@ -147,7 +147,7 @@ fn normalize_node(node: Node) -> Node {
             }
         }
         Node::Text(text) => {
-            let segments = normalize_text_segments(&text);
+            let segments = normalise_text_segments(&text);
             if segments.len() == 1 {
                 segments.into_iter().next().unwrap()
             } else {
@@ -158,21 +158,21 @@ fn normalize_node(node: Node) -> Node {
     }
 }
 
-fn normalize_children(children: Vec<Node>) -> Vec<Node> {
-    let mut normalized = Vec::new();
+fn normalise_children(children: Vec<Node>) -> Vec<Node> {
+    let mut normalised = Vec::new();
 
     for child in children {
-        match normalize_node(child) {
-            Node::Document(grandchildren) => normalized.extend(grandchildren),
-            node => normalized.push(node),
+        match normalise_node(child) {
+            Node::Document(grandchildren) => normalised.extend(grandchildren),
+            node => normalised.push(node),
         }
     }
 
-    normalized
+    normalised
 }
 
-fn normalize_inline_root(result: Node) -> Node {
-    match normalize_node(result) {
+fn normalise_inline_root(result: Node) -> Node {
+    match normalise_node(result) {
         Node::Document(children) => {
             if children.len() > 1 {
                 let all_inline = children.iter().all(is_inline_node);
@@ -235,25 +235,25 @@ fn has_visible_content(node: &Node) -> bool {
 
 fn flush_crossref_inline_buffer(
     inline_buffer: &mut Vec<Node>,
-    normalized: &mut Vec<Node>,
+    normalised: &mut Vec<Node>,
 ) -> ThothResult<()> {
     if inline_buffer.iter().any(has_visible_content) {
         let children = std::mem::take(inline_buffer);
-        normalized.extend(normalize_crossref_paragraph_children(children)?);
+        normalised.extend(normalise_crossref_paragraph_children(children)?);
     } else {
         inline_buffer.clear();
     }
     Ok(())
 }
 
-fn normalize_crossref_inline_node(node: Node) -> ThothResult<Vec<Node>> {
+fn normalise_crossref_inline_node(node: Node) -> ThothResult<Vec<Node>> {
     match node {
         Node::Document(children) => {
-            let mut normalized = Vec::new();
+            let mut normalised = Vec::new();
             for child in children {
-                normalized.extend(normalize_crossref_inline_node(child)?);
+                normalised.extend(normalise_crossref_inline_node(child)?);
             }
-            Ok(normalized)
+            Ok(normalised)
         }
         Node::Paragraph(_) | Node::List(_) | Node::ListItem(_) => Err(ThothError::RequestError(
             "Crossref abstracts cannot contain nested block elements inside paragraphs."
@@ -263,33 +263,33 @@ fn normalize_crossref_inline_node(node: Node) -> ThothResult<Vec<Node>> {
             "Crossref abstracts cannot contain line breaks; use separate paragraphs instead."
                 .to_string(),
         )),
-        Node::Bold(children) => Ok(vec![Node::Bold(normalize_crossref_inline_children(
+        Node::Bold(children) => Ok(vec![Node::Bold(normalise_crossref_inline_children(
             children,
         )?)]),
-        Node::Italic(children) => Ok(vec![Node::Italic(normalize_crossref_inline_children(
+        Node::Italic(children) => Ok(vec![Node::Italic(normalise_crossref_inline_children(
             children,
         )?)]),
-        Node::Underline(children) => Ok(vec![Node::Underline(normalize_crossref_inline_children(
+        Node::Underline(children) => Ok(vec![Node::Underline(normalise_crossref_inline_children(
             children,
         )?)]),
         Node::Strikethrough(children) => Ok(vec![Node::Strikethrough(
-            normalize_crossref_inline_children(children)?,
+            normalise_crossref_inline_children(children)?,
         )]),
-        Node::Code(children) => Ok(vec![Node::Code(normalize_crossref_inline_children(
+        Node::Code(children) => Ok(vec![Node::Code(normalise_crossref_inline_children(
             children,
         )?)]),
         Node::Superscript(children) => Ok(vec![Node::Superscript(
-            normalize_crossref_inline_children(children)?,
+            normalise_crossref_inline_children(children)?,
         )]),
-        Node::Subscript(children) => Ok(vec![Node::Subscript(normalize_crossref_inline_children(
+        Node::Subscript(children) => Ok(vec![Node::Subscript(normalise_crossref_inline_children(
             children,
         )?)]),
-        Node::SmallCaps(children) => Ok(vec![Node::SmallCaps(normalize_crossref_inline_children(
+        Node::SmallCaps(children) => Ok(vec![Node::SmallCaps(normalise_crossref_inline_children(
             children,
         )?)]),
         Node::Link { url, text } => Ok(vec![Node::Link {
             url,
-            text: normalize_crossref_inline_children(text)?,
+            text: normalise_crossref_inline_children(text)?,
         }]),
         Node::InlineFormula(tex) => Ok(vec![Node::InlineFormula(tex)]),
         Node::Email(email) => Ok(vec![Node::Email(email)]),
@@ -298,40 +298,40 @@ fn normalize_crossref_inline_node(node: Node) -> ThothResult<Vec<Node>> {
     }
 }
 
-fn normalize_crossref_inline_children(children: Vec<Node>) -> ThothResult<Vec<Node>> {
-    let mut normalized = Vec::new();
+fn normalise_crossref_inline_children(children: Vec<Node>) -> ThothResult<Vec<Node>> {
+    let mut normalised = Vec::new();
     for child in children {
-        normalized.extend(normalize_crossref_inline_node(child)?);
+        normalised.extend(normalise_crossref_inline_node(child)?);
     }
-    Ok(normalized)
+    Ok(normalised)
 }
 
-fn normalize_crossref_paragraph_children(children: Vec<Node>) -> ThothResult<Vec<Node>> {
-    let mut normalized = Vec::new();
+fn normalise_crossref_paragraph_children(children: Vec<Node>) -> ThothResult<Vec<Node>> {
+    let mut normalised = Vec::new();
     let mut segment = Vec::new();
 
     for child in children {
         match child {
             Node::Break => {
                 if segment.iter().any(has_visible_content) {
-                    normalized.push(Node::Paragraph(std::mem::take(&mut segment)));
+                    normalised.push(Node::Paragraph(std::mem::take(&mut segment)));
                 }
             }
             other => {
-                segment.extend(normalize_crossref_inline_node(other)?);
+                segment.extend(normalise_crossref_inline_node(other)?);
             }
         }
     }
 
     if segment.iter().any(has_visible_content) {
-        normalized.push(Node::Paragraph(segment));
+        normalised.push(Node::Paragraph(segment));
     }
 
-    Ok(normalized)
+    Ok(normalised)
 }
 
-fn normalize_crossref_list_item(children: Vec<Node>) -> ThothResult<Node> {
-    let mut normalized = Vec::new();
+fn normalise_crossref_list_item(children: Vec<Node>) -> ThothResult<Node> {
+    let mut normalised = Vec::new();
     let mut inline_buffer = Vec::new();
 
     for child in children {
@@ -340,8 +340,8 @@ fn normalize_crossref_list_item(children: Vec<Node>) -> ThothResult<Node> {
                 for grandchild in grandchildren {
                     match grandchild {
                         Node::Paragraph(paragraph_children) => {
-                            flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
-                            normalized.extend(normalize_crossref_paragraph_children(
+                            flush_crossref_inline_buffer(&mut inline_buffer, &mut normalised)?;
+                            normalised.extend(normalise_crossref_paragraph_children(
                                 paragraph_children,
                             )?);
                         }
@@ -362,8 +362,8 @@ fn normalize_crossref_list_item(children: Vec<Node>) -> ThothResult<Node> {
                 }
             }
             Node::Paragraph(paragraph_children) => {
-                flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
-                normalized.extend(normalize_crossref_paragraph_children(paragraph_children)?);
+                flush_crossref_inline_buffer(&mut inline_buffer, &mut normalised)?;
+                normalised.extend(normalise_crossref_paragraph_children(paragraph_children)?);
             }
             inline if is_inline_node(&inline) => inline_buffer.push(inline),
             Node::Break => return Err(ThothError::RequestError(
@@ -374,18 +374,18 @@ fn normalize_crossref_list_item(children: Vec<Node>) -> ThothResult<Node> {
                 return Err(ThothError::RequestError(
                     "Crossref abstract lists can only contain inline content or paragraphs."
                         .to_string(),
-                ))
+                ));
             }
         }
     }
 
-    flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
-    Ok(Node::ListItem(normalized))
+    flush_crossref_inline_buffer(&mut inline_buffer, &mut normalised)?;
+    Ok(Node::ListItem(normalised))
 }
 
-/// Normalize stored abstract markup into the subset we safely emit to Crossref.
-pub fn normalize_crossref_abstract_ast(node: Node) -> ThothResult<Node> {
-    let mut normalized = Vec::new();
+/// normalise stored abstract markup into the subset we safely emit to Crossref.
+pub fn normalise_crossref_abstract_ast(node: Node) -> ThothResult<Node> {
+    let mut normalised = Vec::new();
     let mut inline_buffer = Vec::new();
 
     let top_level_children = match node {
@@ -399,33 +399,33 @@ pub fn normalize_crossref_abstract_ast(node: Node) -> ThothResult<Node> {
                 for grandchild in grandchildren {
                     match grandchild {
                         Node::Document(_) => {
-                            flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
+                            flush_crossref_inline_buffer(&mut inline_buffer, &mut normalised)?;
                             let Node::Document(children) =
-                                normalize_crossref_abstract_ast(grandchild)?
+                                normalise_crossref_abstract_ast(grandchild)?
                             else {
                                 unreachable!();
                             };
-                            normalized.extend(children);
+                            normalised.extend(children);
                         }
                         Node::Paragraph(paragraph_children) => {
-                            flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
-                            normalized.extend(normalize_crossref_paragraph_children(
+                            flush_crossref_inline_buffer(&mut inline_buffer, &mut normalised)?;
+                            normalised.extend(normalise_crossref_paragraph_children(
                                 paragraph_children,
                             )?);
                         }
                         Node::List(items) => {
-                            flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
-                            let normalized_items = items
+                            flush_crossref_inline_buffer(&mut inline_buffer, &mut normalised)?;
+                            let normalised_items = items
                                 .into_iter()
                                 .map(|item| match item {
-                                    Node::ListItem(children) => normalize_crossref_list_item(children),
+                                    Node::ListItem(children) => normalise_crossref_list_item(children),
                                     _ => Err(ThothError::RequestError(
                                         "Crossref abstract lists must contain list-item elements."
                                             .to_string(),
                                     )),
                                 })
                                 .collect::<ThothResult<Vec<_>>>()?;
-                            normalized.push(Node::List(normalized_items));
+                            normalised.push(Node::List(normalised_items));
                         }
                         Node::Break => {
                             return Err(ThothError::RequestError(
@@ -453,21 +453,21 @@ pub fn normalize_crossref_abstract_ast(node: Node) -> ThothResult<Node> {
                 }
             }
             Node::Paragraph(paragraph_children) => {
-                flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
-                normalized.extend(normalize_crossref_paragraph_children(paragraph_children)?);
+                flush_crossref_inline_buffer(&mut inline_buffer, &mut normalised)?;
+                normalised.extend(normalise_crossref_paragraph_children(paragraph_children)?);
             }
             Node::List(items) => {
-                flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
-                let normalized_items = items
+                flush_crossref_inline_buffer(&mut inline_buffer, &mut normalised)?;
+                let normalised_items = items
                     .into_iter()
                     .map(|item| match item {
-                        Node::ListItem(children) => normalize_crossref_list_item(children),
+                        Node::ListItem(children) => normalise_crossref_list_item(children),
                         _ => Err(ThothError::RequestError(
                             "Crossref abstract lists must contain list-item elements.".to_string(),
                         )),
                     })
                     .collect::<ThothResult<Vec<_>>>()?;
-                normalized.push(Node::List(normalized_items));
+                normalised.push(Node::List(normalised_items));
             }
             Node::Break => return Err(ThothError::RequestError(
                 "Crossref abstracts cannot contain line breaks; use separate paragraphs instead."
@@ -476,7 +476,7 @@ pub fn normalize_crossref_abstract_ast(node: Node) -> ThothResult<Node> {
             Node::ListItem(_) => {
                 return Err(ThothError::RequestError(
                     "Crossref abstract lists must contain list-item elements.".to_string(),
-                ))
+                ));
             }
             other => {
                 if is_inline_node(&other) {
@@ -490,10 +490,10 @@ pub fn normalize_crossref_abstract_ast(node: Node) -> ThothResult<Node> {
         }
     }
 
-    flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
-    normalized.retain(has_visible_content);
+    flush_crossref_inline_buffer(&mut inline_buffer, &mut normalised)?;
+    normalised.retain(has_visible_content);
 
-    Ok(Node::Document(normalized))
+    Ok(Node::Document(normalised))
 }
 
 // Convert Markdown string to AST
@@ -537,7 +537,7 @@ pub fn markdown_to_ast(markdown: &str) -> Node {
     }
 
     let result = stack.pop().unwrap_or_else(|| Node::Document(vec![]));
-    normalize_inline_root(result)
+    normalise_inline_root(result)
 }
 
 // Convert HTML string to AST
@@ -612,7 +612,7 @@ pub fn html_to_ast(html: &str) -> Node {
 
     // If there's a body tag, parse its contents, otherwise parse the whole document
     if let Some(body_element) = document.select(&body_selector).next() {
-        normalize_inline_root(parse_element_to_node(body_element))
+        normalise_inline_root(parse_element_to_node(body_element))
     } else {
         // If no body tag, create a document node with all top-level elements
         let mut children = Vec::new();
@@ -623,7 +623,7 @@ pub fn html_to_ast(html: &str) -> Node {
         }
         let result = Node::Document(children);
 
-        normalize_inline_root(result)
+        normalise_inline_root(result)
     }
 }
 
@@ -643,7 +643,7 @@ pub fn plain_text_to_ast(text: &str) -> Node {
     if paragraphs.len() == 1 {
         let lines: Vec<&str> = paragraphs[0].split('\n').collect();
         if lines.len() == 1 {
-            let parsed_nodes = normalize_text_segments(lines[0]);
+            let parsed_nodes = normalise_text_segments(lines[0]);
             if parsed_nodes.len() == 1 {
                 parsed_nodes[0].clone()
             } else {
@@ -652,7 +652,7 @@ pub fn plain_text_to_ast(text: &str) -> Node {
         } else {
             let mut children = Vec::new();
             for (index, line) in lines.iter().enumerate() {
-                children.extend(normalize_text_segments(line));
+                children.extend(normalise_text_segments(line));
                 if index + 1 < lines.len() {
                     children.push(Node::Break);
                 }
@@ -665,7 +665,7 @@ pub fn plain_text_to_ast(text: &str) -> Node {
             let lines: Vec<&str> = paragraph.split('\n').collect();
             let mut children = Vec::new();
             for (index, line) in lines.iter().enumerate() {
-                children.extend(normalize_text_segments(line));
+                children.extend(normalise_text_segments(line));
                 if index + 1 < lines.len() {
                     children.push(Node::Break);
                 }
@@ -801,7 +801,7 @@ pub fn jats_to_ast(jats: &str) -> Node {
             .unwrap();
     let email_pattern = regex::Regex::new(r"(?s)<email>(.*?)</email>").unwrap();
     let uri_pattern = regex::Regex::new(r"(?s)<uri>(.*?)</uri>").unwrap();
-    let normalized_jats = uri_pattern
+    let normalised_jats = uri_pattern
         .replace_all(
             &email_pattern.replace_all(
                 &inline_formula_pattern.replace_all(
@@ -898,12 +898,12 @@ pub fn jats_to_ast(jats: &str) -> Node {
         }
     }
 
-    let document = Html::parse_document(&normalized_jats);
+    let document = Html::parse_document(&normalised_jats);
     let body_selector = Selector::parse("body").unwrap();
 
     // If there's a body tag, parse its contents, otherwise parse the whole document
     if let Some(body_element) = document.select(&body_selector).next() {
-        normalize_inline_root(parse_jats_element_to_node(body_element))
+        normalise_inline_root(parse_jats_element_to_node(body_element))
     } else {
         // If no body tag, create a document node with all top-level elements
         let mut children = Vec::new();
@@ -918,10 +918,10 @@ pub fn jats_to_ast(jats: &str) -> Node {
             // Otherwise, wrap in document
             match &children[0] {
                 Node::Text(_) => children.into_iter().next().unwrap(),
-                _ => normalize_inline_root(Node::Document(children)),
+                _ => normalise_inline_root(Node::Document(children)),
             }
         } else {
-            normalize_inline_root(Node::Document(children))
+            normalise_inline_root(Node::Document(children))
         }
     }
 }
