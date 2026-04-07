@@ -1195,11 +1195,19 @@ fn patch_title(title: &Title) -> PatchTitle {
     }
 }
 
+fn append_to_jats_paragraph_content(content: &str, suffix: &str) -> String {
+    if let Some((head, tail)) = content.rsplit_once("</p>") {
+        format!("{head}{suffix}</p>{tail}")
+    } else {
+        format!("{content}{suffix}")
+    }
+}
+
 fn patch_abstract(abstract_item: &Abstract) -> PatchAbstract {
     PatchAbstract {
         abstract_id: abstract_item.abstract_id,
         work_id: abstract_item.work_id,
-        content: format!("{} Updated", abstract_item.content),
+        content: append_to_jats_paragraph_content(&abstract_item.content, " Updated"),
         locale_code: abstract_item.locale_code,
         abstract_type: abstract_item.abstract_type,
         canonical: abstract_item.canonical,
@@ -1210,7 +1218,7 @@ fn patch_biography(biography: &Biography) -> PatchBiography {
     PatchBiography {
         biography_id: biography.biography_id,
         contribution_id: biography.contribution_id,
-        content: format!("{} Updated", biography.content),
+        content: append_to_jats_paragraph_content(&biography.content, " Updated"),
         canonical: biography.canonical,
         locale_code: biography.locale_code,
     }
@@ -3123,7 +3131,7 @@ fn graphql_mutations_cover_all() {
         "PatchAbstract",
         "abstractId",
         patch_abstract(&abstract_item),
-        MarkupFormat::PlainText,
+        MarkupFormat::JatsXml,
     );
 
     let biography = Biography::from_id(pool.as_ref(), &seed.biography_id).unwrap();
@@ -3134,7 +3142,7 @@ fn graphql_mutations_cover_all() {
         "PatchBiography",
         "biographyId",
         patch_biography(&biography),
-        MarkupFormat::PlainText,
+        MarkupFormat::JatsXml,
     );
 
     let work = Work::from_id(pool.as_ref(), &seed.book_work_id).unwrap();

@@ -57,6 +57,10 @@ fn validate_jats_subset(content: &str, conversion_limit: ConversionLimit) -> Tho
     use quick_xml::events::Event;
     use quick_xml::Reader;
 
+    fn local_tag_name(raw_name: &str) -> &str {
+        raw_name.rsplit(':').next().unwrap_or(raw_name)
+    }
+
     let allowed_tags: &[&str] = match conversion_limit {
         ConversionLimit::Title => &[
             "bold",
@@ -99,22 +103,31 @@ fn validate_jats_subset(content: &str, conversion_limit: ConversionLimit) -> Tho
     );
     let mut reader = Reader::from_str(&wrapped);
     let mut buf = Vec::new();
+    let mut open_tags: Vec<String> = Vec::new();
 
     loop {
         match reader.read_event_into(&mut buf) {
-            Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
+            Ok(Event::Start(e)) => {
                 let raw_name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let tag_name = local_tag_name(&raw_name).to_string();
                 if raw_name != "root" {
-                    let tag_name = raw_name
-                        .rsplit(':')
-                        .next()
-                        .unwrap_or(raw_name.as_str())
-                        .to_string();
                     if !allowed_tags.contains(&tag_name.as_str()) {
                         return Err(ThothError::RequestError(format!(
                             "Unsupported JATS element: <{}>",
                             tag_name
                         )));
+                    }
+
+                    if matches!(
+                        conversion_limit,
+                        ConversionLimit::Abstract | ConversionLimit::Biography
+                    ) && matches!(open_tags.last().map(String::as_str), Some("p"))
+                        && matches!(tag_name.as_str(), "p" | "list" | "list-item")
+                    {
+                        return Err(ThothError::RequestError(
+                            "Abstracts and biographies cannot contain nested block elements inside paragraphs."
+                                .to_string(),
+                        ));
                     }
                 }
 
@@ -146,6 +159,69 @@ fn validate_jats_subset(content: &str, conversion_limit: ConversionLimit) -> Tho
                             raw_name, key
                         )));
                     }
+                }
+                if raw_name != "root" {
+                    open_tags.push(tag_name);
+                }
+            }
+            Ok(Event::Empty(e)) => {
+                let raw_name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let tag_name = local_tag_name(&raw_name).to_string();
+                if raw_name != "root" {
+                    if !allowed_tags.contains(&tag_name.as_str()) {
+                        return Err(ThothError::RequestError(format!(
+                            "Unsupported JATS element: <{}>",
+                            tag_name
+                        )));
+                    }
+
+                    if matches!(
+                        conversion_limit,
+                        ConversionLimit::Abstract | ConversionLimit::Biography
+                    ) && matches!(open_tags.last().map(String::as_str), Some("p"))
+                        && matches!(tag_name.as_str(), "p" | "list" | "list-item")
+                    {
+                        return Err(ThothError::RequestError(
+                            "Abstracts and biographies cannot contain nested block elements inside paragraphs."
+                                .to_string(),
+                        ));
+                    }
+                }
+
+                for attr in e.attributes() {
+                    let attr = attr.map_err(|err| {
+                        ThothError::RequestError(format!("Invalid JATS attribute: {}", err))
+                    })?;
+                    let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                    if raw_name == "root" {
+                        if key != "xmlns:xlink" {
+                            return Err(ThothError::RequestError(format!(
+                                "Unsupported JATS attribute: {}",
+                                key
+                            )));
+                        }
+                        continue;
+                    }
+
+                    if raw_name.ends_with("ext-link") {
+                        if key != "xlink:href" {
+                            return Err(ThothError::RequestError(format!(
+                                "Unsupported JATS attribute on ext-link: {}",
+                                key
+                            )));
+                        }
+                    } else {
+                        return Err(ThothError::RequestError(format!(
+                            "Unsupported JATS attribute on {}: {}",
+                            raw_name, key
+                        )));
+                    }
+                }
+            }
+            Ok(Event::End(e)) => {
+                let raw_name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                if raw_name != "root" {
+                    open_tags.pop();
                 }
             }
             Ok(Event::Eof) => break,
