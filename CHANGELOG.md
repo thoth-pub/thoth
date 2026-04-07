@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Fixed
-  - Harden JATS rich-text handling by rejecting malformed or nested markup and abstract line breaks on write, and normalise Crossref abstract output to avoid invalid nested `jats:p` and `jats:break` elements.
+  - [741](https://github.com/thoth-pub/thoth/pull/741) - Harden JATS rich-text handling by rejecting malformed or nested markup and abstract line breaks on write, and normalise Crossref abstract output to avoid invalid nested `jats:p` and `jats:break` elements
 
 ## [[1.0.2]](https://github.com/thoth-pub/thoth/releases/tag/v1.0.2) - 2026-04-03
 ### Security
