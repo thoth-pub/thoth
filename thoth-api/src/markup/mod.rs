@@ -6,7 +6,7 @@ pub mod ast;
 
 use ast::{
     ast_to_html, ast_to_jats, ast_to_markdown, ast_to_plain_text, html_to_ast, jats_to_ast,
-    markdown_to_ast, normalize_crossref_abstract_ast, plain_text_ast_to_jats, plain_text_to_ast,
+    markdown_to_ast, normalise_crossref_abstract_ast, plain_text_ast_to_jats, plain_text_to_ast,
     strip_structural_elements_from_ast_for_conversion, validate_ast_content,
 };
 
@@ -322,15 +322,15 @@ pub fn convert_to_jats(
     }
 }
 
-/// Normalize stored abstract-like markup into the subset we safely emit to Crossref.
-pub fn normalize_crossref_abstract_jats(content: &str) -> ThothResult<String> {
+/// normalise stored abstract-like markup into the subset we safely emit to Crossref.
+pub fn normalise_crossref_abstract_jats(content: &str) -> ThothResult<String> {
     let ast = if looks_like_markup(content) {
         jats_to_ast(content)
     } else {
         plain_text_to_ast(content)
     };
-    let normalized = normalize_crossref_abstract_ast(ast)?;
-    Ok(ast_to_jats(&normalized))
+    let normalised = normalise_crossref_abstract_ast(ast)?;
+    Ok(ast_to_jats(&normalised))
 }
 
 /// Convert from JATS XML to specified format using a specific tag name
@@ -366,7 +366,7 @@ pub fn convert_from_jats(
         });
     }
 
-    // Read paths need to tolerate legacy stored markup and normalize it on the fly.
+    // Read paths need to tolerate legacy stored markup and normalise it on the fly.
     let ast = jats_to_ast(jats_xml);
 
     // For title conversion, strip structural elements before validation
@@ -667,16 +667,16 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_crossref_abstract_jats_splits_breaks_and_removes_empty_paragraphs() {
+    fn test_normalise_crossref_abstract_jats_splits_breaks_and_removes_empty_paragraphs() {
         let input = "<p></p><p>First line<break/>Second line</p>";
-        let output = normalize_crossref_abstract_jats(input).unwrap();
+        let output = normalise_crossref_abstract_jats(input).unwrap();
         assert_eq!(output, "<p>First line</p><p>Second line</p>");
     }
 
     #[test]
-    fn test_normalize_crossref_abstract_jats_flattens_inline_only_content() {
+    fn test_normalise_crossref_abstract_jats_flattens_inline_only_content() {
         let input = "This has <bold>bold</bold> text.";
-        let output = normalize_crossref_abstract_jats(input).unwrap();
+        let output = normalise_crossref_abstract_jats(input).unwrap();
         assert_eq!(output, "<p>This has <bold>bold</bold> text.</p>");
     }
     // --- convert_to_jats tests end   ---
