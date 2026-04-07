@@ -1195,11 +1195,19 @@ fn patch_title(title: &Title) -> PatchTitle {
     }
 }
 
+fn append_to_jats_paragraph_content(content: &str, suffix: &str) -> String {
+    if let Some((head, tail)) = content.rsplit_once("</p>") {
+        format!("{head}{suffix}</p>{tail}")
+    } else {
+        format!("{content}{suffix}")
+    }
+}
+
 fn patch_abstract(abstract_item: &Abstract) -> PatchAbstract {
     PatchAbstract {
         abstract_id: abstract_item.abstract_id,
         work_id: abstract_item.work_id,
-        content: format!("{} Updated", abstract_item.content),
+        content: append_to_jats_paragraph_content(&abstract_item.content, " Updated"),
         locale_code: abstract_item.locale_code,
         abstract_type: abstract_item.abstract_type,
         canonical: abstract_item.canonical,
@@ -1210,7 +1218,7 @@ fn patch_biography(biography: &Biography) -> PatchBiography {
     PatchBiography {
         biography_id: biography.biography_id,
         contribution_id: biography.contribution_id,
-        content: format!("{} Updated", biography.content),
+        content: append_to_jats_paragraph_content(&biography.content, " Updated"),
         canonical: biography.canonical,
         locale_code: biography.locale_code,
     }
@@ -2551,7 +2559,7 @@ query LinkedRelations($reviewId: Uuid!, $endorsementId: Uuid!) {
 }
 
 #[test]
-fn graphql_markup_mutations_accept_plain_text_when_markup_is_jats_xml() {
+fn graphql_markup_mutations_accept_valid_jatsxml_but_reject_breaks_and_markup_like_plain_text() {
     let (_guard, pool) = test_db::setup_test_db();
     let schema = create_schema();
     let superuser = test_db::test_superuser("user-jats-xml-mutations");
@@ -2597,12 +2605,17 @@ fn graphql_markup_mutations_accept_plain_text_when_markup_is_jats_xml() {
     );
 
     let abstract_item = Abstract::from_id(pool.as_ref(), &seed.abstract_short_id).unwrap();
-    update_with_data_and_markup(
-        &schema,
-        &context,
-        "updateAbstract",
-        "PatchAbstract",
-        "abstractId",
+    let abstract_query = r#"
+        mutation UpdateAbstract($data: PatchAbstract!, $markup: MarkupFormat!) {
+            updateAbstract(data: $data, markupFormat: $markup) {
+                abstractId
+            }
+        }
+    "#;
+    let mut abstract_vars = Variables::new();
+    insert_var(
+        &mut abstract_vars,
+        "data",
         PatchAbstract {
             abstract_id: abstract_item.abstract_id,
             work_id: abstract_item.work_id,
@@ -2613,22 +2626,28 @@ fn graphql_markup_mutations_accept_plain_text_when_markup_is_jats_xml() {
             abstract_type: abstract_item.abstract_type,
             canonical: abstract_item.canonical,
         },
-        MarkupFormat::PlainText,
     );
-
-    let stored_abstract = Abstract::from_id(pool.as_ref(), &seed.abstract_short_id).unwrap();
-    assert_eq!(
-        stored_abstract.content,
-        "<p>First line<break/>Second line with <inline-formula><tex-math>E=mc^2</tex-math></inline-formula> and <email>user@example.org</email> and <uri>https://example.org</uri></p>"
+    insert_var(&mut abstract_vars, "markup", MarkupFormat::PlainText);
+    let (_, abstract_errors) =
+        juniper::execute_sync(abstract_query, None, &schema, &abstract_vars, &context)
+            .expect("GraphQL execution should succeed with validation errors");
+    assert!(
+        !abstract_errors.is_empty(),
+        "Expected abstract validation error"
     );
 
     let biography = Biography::from_id(pool.as_ref(), &seed.biography_id).unwrap();
-    update_with_data_and_markup(
-        &schema,
-        &context,
-        "updateBiography",
-        "PatchBiography",
-        "biographyId",
+    let biography_query = r#"
+        mutation UpdateBiography($data: PatchBiography!, $markup: MarkupFormat!) {
+            updateBiography(data: $data, markupFormat: $markup) {
+                biographyId
+            }
+        }
+    "#;
+    let mut biography_vars = Variables::new();
+    insert_var(
+        &mut biography_vars,
+        "data",
         PatchBiography {
             biography_id: biography.biography_id,
             contribution_id: biography.contribution_id,
@@ -2636,13 +2655,14 @@ fn graphql_markup_mutations_accept_plain_text_when_markup_is_jats_xml() {
             canonical: biography.canonical,
             locale_code: biography.locale_code,
         },
-        MarkupFormat::JatsXml,
     );
-
-    let stored_biography = Biography::from_id(pool.as_ref(), &seed.biography_id).unwrap();
-    assert_eq!(
-        stored_biography.content,
-        "<p>Bio line<break/><inline-formula><tex-math>x^2</tex-math></inline-formula> <email>bio@example.org</email> <uri>https://bio.example.org</uri></p>"
+    insert_var(&mut biography_vars, "markup", MarkupFormat::JatsXml);
+    let (_, biography_errors) =
+        juniper::execute_sync(biography_query, None, &schema, &biography_vars, &context)
+            .expect("GraphQL execution should succeed with validation errors");
+    assert!(
+        !biography_errors.is_empty(),
+        "Expected biography validation error"
     );
 }
 
@@ -3111,7 +3131,7 @@ fn graphql_mutations_cover_all() {
         "PatchAbstract",
         "abstractId",
         patch_abstract(&abstract_item),
-        MarkupFormat::PlainText,
+        MarkupFormat::JatsXml,
     );
 
     let biography = Biography::from_id(pool.as_ref(), &seed.biography_id).unwrap();
@@ -3122,7 +3142,7 @@ fn graphql_mutations_cover_all() {
         "PatchBiography",
         "biographyId",
         patch_biography(&biography),
-        MarkupFormat::PlainText,
+        MarkupFormat::JatsXml,
     );
 
     let work = Work::from_id(pool.as_ref(), &seed.book_work_id).unwrap();
