@@ -206,6 +206,296 @@ fn normalize_inline_root(result: Node) -> Node {
     }
 }
 
+fn has_visible_text(text: &str) -> bool {
+    !text.trim().is_empty()
+}
+
+fn has_visible_content(node: &Node) -> bool {
+    match node {
+        Node::Document(children)
+        | Node::Paragraph(children)
+        | Node::Bold(children)
+        | Node::Italic(children)
+        | Node::Underline(children)
+        | Node::Strikethrough(children)
+        | Node::Code(children)
+        | Node::Superscript(children)
+        | Node::Subscript(children)
+        | Node::SmallCaps(children)
+        | Node::List(children)
+        | Node::ListItem(children) => children.iter().any(has_visible_content),
+        Node::Link { text, .. } => text.iter().any(has_visible_content),
+        Node::Text(text) => has_visible_text(text),
+        Node::InlineFormula(tex) => !tex.trim().is_empty(),
+        Node::Email(email) => !email.trim().is_empty(),
+        Node::Uri(uri) => !uri.trim().is_empty(),
+        Node::Break => false,
+    }
+}
+
+fn flush_crossref_inline_buffer(
+    inline_buffer: &mut Vec<Node>,
+    normalized: &mut Vec<Node>,
+) -> ThothResult<()> {
+    if inline_buffer.iter().any(has_visible_content) {
+        let children = std::mem::take(inline_buffer);
+        normalized.extend(normalize_crossref_paragraph_children(children)?);
+    } else {
+        inline_buffer.clear();
+    }
+    Ok(())
+}
+
+fn normalize_crossref_inline_node(node: Node) -> ThothResult<Vec<Node>> {
+    match node {
+        Node::Document(children) => {
+            let mut normalized = Vec::new();
+            for child in children {
+                normalized.extend(normalize_crossref_inline_node(child)?);
+            }
+            Ok(normalized)
+        }
+        Node::Paragraph(_) | Node::List(_) | Node::ListItem(_) => Err(ThothError::RequestError(
+            "Crossref abstracts cannot contain nested block elements inside paragraphs."
+                .to_string(),
+        )),
+        Node::Break => Err(ThothError::RequestError(
+            "Crossref abstracts cannot contain line breaks; use separate paragraphs instead."
+                .to_string(),
+        )),
+        Node::Bold(children) => Ok(vec![Node::Bold(normalize_crossref_inline_children(
+            children,
+        )?)]),
+        Node::Italic(children) => Ok(vec![Node::Italic(normalize_crossref_inline_children(
+            children,
+        )?)]),
+        Node::Underline(children) => Ok(vec![Node::Underline(normalize_crossref_inline_children(
+            children,
+        )?)]),
+        Node::Strikethrough(children) => Ok(vec![Node::Strikethrough(
+            normalize_crossref_inline_children(children)?,
+        )]),
+        Node::Code(children) => Ok(vec![Node::Code(normalize_crossref_inline_children(
+            children,
+        )?)]),
+        Node::Superscript(children) => Ok(vec![Node::Superscript(
+            normalize_crossref_inline_children(children)?,
+        )]),
+        Node::Subscript(children) => Ok(vec![Node::Subscript(normalize_crossref_inline_children(
+            children,
+        )?)]),
+        Node::SmallCaps(children) => Ok(vec![Node::SmallCaps(normalize_crossref_inline_children(
+            children,
+        )?)]),
+        Node::Link { url, text } => Ok(vec![Node::Link {
+            url,
+            text: normalize_crossref_inline_children(text)?,
+        }]),
+        Node::InlineFormula(tex) => Ok(vec![Node::InlineFormula(tex)]),
+        Node::Email(email) => Ok(vec![Node::Email(email)]),
+        Node::Uri(uri) => Ok(vec![Node::Uri(uri)]),
+        Node::Text(text) => Ok(vec![Node::Text(text)]),
+    }
+}
+
+fn normalize_crossref_inline_children(children: Vec<Node>) -> ThothResult<Vec<Node>> {
+    let mut normalized = Vec::new();
+    for child in children {
+        normalized.extend(normalize_crossref_inline_node(child)?);
+    }
+    Ok(normalized)
+}
+
+fn normalize_crossref_paragraph_children(children: Vec<Node>) -> ThothResult<Vec<Node>> {
+    let mut normalized = Vec::new();
+    let mut segment = Vec::new();
+
+    for child in children {
+        match child {
+            Node::Break => {
+                if segment.iter().any(has_visible_content) {
+                    normalized.push(Node::Paragraph(std::mem::take(&mut segment)));
+                }
+            }
+            other => {
+                segment.extend(normalize_crossref_inline_node(other)?);
+            }
+        }
+    }
+
+    if segment.iter().any(has_visible_content) {
+        normalized.push(Node::Paragraph(segment));
+    }
+
+    Ok(normalized)
+}
+
+fn normalize_crossref_list_item(children: Vec<Node>) -> ThothResult<Node> {
+    let mut normalized = Vec::new();
+    let mut inline_buffer = Vec::new();
+
+    for child in children {
+        match child {
+            Node::Document(grandchildren) => {
+                for grandchild in grandchildren {
+                    match grandchild {
+                        Node::Paragraph(paragraph_children) => {
+                            flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
+                            normalized.extend(normalize_crossref_paragraph_children(
+                                paragraph_children,
+                            )?);
+                        }
+                        inline if is_inline_node(&inline) => inline_buffer.push(inline),
+                        Node::Break => {
+                            return Err(ThothError::RequestError(
+                                "Crossref abstracts cannot contain line breaks; use separate paragraphs instead."
+                                    .to_string(),
+                            ))
+                        }
+                        _ => {
+                            return Err(ThothError::RequestError(
+                                "Crossref abstract lists can only contain inline content or paragraphs."
+                                    .to_string(),
+                            ))
+                        }
+                    }
+                }
+            }
+            Node::Paragraph(paragraph_children) => {
+                flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
+                normalized.extend(normalize_crossref_paragraph_children(paragraph_children)?);
+            }
+            inline if is_inline_node(&inline) => inline_buffer.push(inline),
+            Node::Break => return Err(ThothError::RequestError(
+                "Crossref abstracts cannot contain line breaks; use separate paragraphs instead."
+                    .to_string(),
+            )),
+            _ => {
+                return Err(ThothError::RequestError(
+                    "Crossref abstract lists can only contain inline content or paragraphs."
+                        .to_string(),
+                ))
+            }
+        }
+    }
+
+    flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
+    Ok(Node::ListItem(normalized))
+}
+
+/// Normalize stored abstract markup into the subset we safely emit to Crossref.
+pub fn normalize_crossref_abstract_ast(node: Node) -> ThothResult<Node> {
+    let mut normalized = Vec::new();
+    let mut inline_buffer = Vec::new();
+
+    let top_level_children = match node {
+        Node::Document(children) => children,
+        other => vec![other],
+    };
+
+    for child in top_level_children {
+        match child {
+            Node::Document(grandchildren) => {
+                for grandchild in grandchildren {
+                    match grandchild {
+                        Node::Document(_) => {
+                            flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
+                            let Node::Document(children) =
+                                normalize_crossref_abstract_ast(grandchild)?
+                            else {
+                                unreachable!();
+                            };
+                            normalized.extend(children);
+                        }
+                        Node::Paragraph(paragraph_children) => {
+                            flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
+                            normalized.extend(normalize_crossref_paragraph_children(
+                                paragraph_children,
+                            )?);
+                        }
+                        Node::List(items) => {
+                            flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
+                            let normalized_items = items
+                                .into_iter()
+                                .map(|item| match item {
+                                    Node::ListItem(children) => normalize_crossref_list_item(children),
+                                    _ => Err(ThothError::RequestError(
+                                        "Crossref abstract lists must contain list-item elements."
+                                            .to_string(),
+                                    )),
+                                })
+                                .collect::<ThothResult<Vec<_>>>()?;
+                            normalized.push(Node::List(normalized_items));
+                        }
+                        Node::Break => {
+                            return Err(ThothError::RequestError(
+                                "Crossref abstracts cannot contain line breaks; use separate paragraphs instead."
+                                    .to_string(),
+                            ))
+                        }
+                        Node::ListItem(_) => {
+                            return Err(ThothError::RequestError(
+                                "Crossref abstract lists must contain list-item elements."
+                                    .to_string(),
+                            ))
+                        }
+                        other => {
+                            if is_inline_node(&other) {
+                                inline_buffer.push(other);
+                            } else {
+                                return Err(ThothError::RequestError(
+                                    "Crossref abstracts contain unsupported block structure."
+                                        .to_string(),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            Node::Paragraph(paragraph_children) => {
+                flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
+                normalized.extend(normalize_crossref_paragraph_children(paragraph_children)?);
+            }
+            Node::List(items) => {
+                flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
+                let normalized_items = items
+                    .into_iter()
+                    .map(|item| match item {
+                        Node::ListItem(children) => normalize_crossref_list_item(children),
+                        _ => Err(ThothError::RequestError(
+                            "Crossref abstract lists must contain list-item elements.".to_string(),
+                        )),
+                    })
+                    .collect::<ThothResult<Vec<_>>>()?;
+                normalized.push(Node::List(normalized_items));
+            }
+            Node::Break => return Err(ThothError::RequestError(
+                "Crossref abstracts cannot contain line breaks; use separate paragraphs instead."
+                    .to_string(),
+            )),
+            Node::ListItem(_) => {
+                return Err(ThothError::RequestError(
+                    "Crossref abstract lists must contain list-item elements.".to_string(),
+                ))
+            }
+            other => {
+                if is_inline_node(&other) {
+                    inline_buffer.push(other);
+                } else {
+                    return Err(ThothError::RequestError(
+                        "Crossref abstracts contain unsupported block structure.".to_string(),
+                    ));
+                }
+            }
+        }
+    }
+
+    flush_crossref_inline_buffer(&mut inline_buffer, &mut normalized)?;
+    normalized.retain(has_visible_content);
+
+    Ok(Node::Document(normalized))
+}
+
 // Convert Markdown string to AST
 pub fn markdown_to_ast(markdown: &str) -> Node {
     let parser = Parser::new(markdown);
@@ -1191,7 +1481,11 @@ fn validate_title_content(node: &Node) -> ThothResult<()> {
             }
         }
         Node::Paragraph(children) => {
-            // Paragraphs are allowed in titles, but only for grouping inline elements
+            if children.iter().any(|child| !is_inline_node(child)) {
+                return Err(ThothError::RequestError(
+                    "Titles cannot contain nested block elements inside paragraphs.".to_string(),
+                ));
+            }
             for child in children {
                 validate_title_content(child)?;
             }
@@ -1242,8 +1536,18 @@ fn validate_abstract_content(node: &Node) -> ThothResult<()> {
                 validate_abstract_content(child)?;
             }
         }
-        Node::Paragraph(children)
-        | Node::Bold(children)
+        Node::Paragraph(children) => {
+            if children.iter().any(|child| !is_inline_node(child)) {
+                return Err(ThothError::RequestError(
+                    "Abstracts and biographies cannot contain nested block elements inside paragraphs."
+                        .to_string(),
+                ));
+            }
+            for child in children {
+                validate_abstract_content(child)?;
+            }
+        }
+        Node::Bold(children)
         | Node::Italic(children)
         | Node::Underline(children)
         | Node::Strikethrough(children)
@@ -1255,7 +1559,13 @@ fn validate_abstract_content(node: &Node) -> ThothResult<()> {
                 validate_abstract_content(child)?;
             }
         }
-        Node::Break | Node::InlineFormula(_) | Node::Email(_) | Node::Uri(_) => {}
+        Node::Break => {
+            return Err(ThothError::RequestError(
+                "Line breaks are not allowed in abstracts or biographies. Use separate paragraphs instead."
+                    .to_string(),
+            ))
+        }
+        Node::InlineFormula(_) | Node::Email(_) | Node::Uri(_) => {}
         Node::List(children) | Node::ListItem(children) => {
             for child in children {
                 validate_abstract_content(child)?;
@@ -2060,6 +2370,24 @@ mod tests {
             Node::Italic(vec![Node::Text("italic".to_string())]),
         ])])]);
         assert!(validate_ast_content(&ast, ConversionLimit::Abstract).is_ok());
+    }
+
+    #[test]
+    fn test_validate_abstract_content_disallows_breaks() {
+        let ast = Node::Document(vec![Node::Paragraph(vec![
+            Node::Text("First line".to_string()),
+            Node::Break,
+            Node::Text("Second line".to_string()),
+        ])]);
+        assert!(validate_ast_content(&ast, ConversionLimit::Abstract).is_err());
+    }
+
+    #[test]
+    fn test_validate_abstract_content_disallows_nested_block_elements_inside_paragraphs() {
+        let ast = Node::Document(vec![Node::Paragraph(vec![Node::List(vec![
+            Node::ListItem(vec![Node::Text("Item".to_string())]),
+        ])])]);
+        assert!(validate_ast_content(&ast, ConversionLimit::Abstract).is_err());
     }
 
     #[test]

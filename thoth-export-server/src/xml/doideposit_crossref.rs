@@ -1,6 +1,7 @@
 use chrono::Utc;
 use regex::Regex;
 use std::io::Write;
+use thoth_api::markup::normalize_crossref_abstract_jats;
 use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
     AbstractType, ContributionType, Funding, PublicationType, Reference, RelationType, Work,
@@ -392,12 +393,18 @@ fn write_abstract_content<W: Write>(
     abstract_type: &str,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
+    let normalized_content = normalize_crossref_abstract_jats(abstract_content).map_err(|err| {
+        ThothError::IncompleteMetadataRecord(
+            DEPOSIT_ERROR.to_string(),
+            format!("Invalid Crossref abstract markup: {}", err),
+        )
+    })?;
     write_full_element_block(
         "jats:abstract",
         Some(vec![("abstract-type", abstract_type)]),
         w,
         |w| {
-            write_jats_content(abstract_content, w)?;
+            write_jats_content(&normalized_content, w)?;
             Ok(())
         },
     )
@@ -409,6 +416,12 @@ fn write_abstract_content_with_locale_code<W: Write>(
     locale_code: &str,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
+    let normalized_content = normalize_crossref_abstract_jats(abstract_content).map_err(|err| {
+        ThothError::IncompleteMetadataRecord(
+            DEPOSIT_ERROR.to_string(),
+            format!("Invalid Crossref abstract markup: {}", err),
+        )
+    })?;
     write_full_element_block(
         "jats:abstract",
         Some(vec![
@@ -416,7 +429,7 @@ fn write_abstract_content_with_locale_code<W: Write>(
             ("xml:lang", locale_code),
         ]),
         w,
-        |w| write_jats_content(abstract_content, w),
+        |w| write_jats_content(&normalized_content, w),
     )
 }
 
@@ -2449,6 +2462,63 @@ mod tests {
         assert!(output.contains(r#"<jats:abstract abstract-type="short" xml:lang="IT" />"#));
         // Should not contain any paragraph elements
         assert!(!output.contains(r#"<jats:p>"#));
+
+        // Nested paragraph wrappers should be flattened before writing.
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            "<p><p>Nested paragraph.</p></p>",
+            "long",
+            "EN",
+            &mut writer,
+        );
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains(r#"<jats:p>Nested paragraph.</jats:p>"#));
+        assert!(!output.contains(r#"<jats:p><jats:p>"#));
+        assert!(!output.contains(r#"<jats:p />"#));
+
+        // Break elements should be converted into sibling paragraphs.
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            "<p>First line<break/>Second line</p>",
+            "long",
+            "EN",
+            &mut writer,
+        );
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains(r#"<jats:p>First line</jats:p>"#));
+        assert!(output.contains(r#"<jats:p>Second line</jats:p>"#));
+        assert!(!output.contains(r#"<jats:break"#));
+    }
+
+    #[test]
+    fn test_write_abstract_content_with_locale_code_rejects_unnormalizable_crossref_markup() {
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            "<list><list-item>Item<break/>Two</list-item></list>",
+            "long",
+            "EN",
+            &mut writer,
+        );
+
+        assert!(result.is_err());
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("Invalid Crossref abstract markup"));
     }
 
     #[test]
