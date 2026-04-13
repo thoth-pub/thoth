@@ -17,7 +17,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8"/>
-    <title>Thoth OAI-PMH Browser</title>
+    <title>Thoth OAI-PMH</title>
     <style>
 @font-face {
   font-family: "Economica";
@@ -251,8 +251,8 @@ a {
       <header class="brand-bar">
         <img class="brand-logo" src="https://cdn.thoth.pub/THOTH_ColourPos.png" alt="Thoth logo"/>
         <div>
-          <h1 class="brand-title">Thoth OAI-PMH Browser</h1>
-          <p class="brand-subtitle">Human-friendly view of OAI-PMH XML responses.</p>
+          <h1 class="brand-title">Thoth OAI-PMH</h1>
+          <p class="brand-subtitle">Human-readable view of OAI-PMH responses.</p>
           <xsl:call-template name="quicklinks"/>
         </div>
       </header>
