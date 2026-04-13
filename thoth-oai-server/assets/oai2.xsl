@@ -1,707 +1,645 @@
 <?xml version="1.0" encoding="utf-8"?>
-
-<!--
-
-  XSL Transform to convert OAI 2.0 responses into XHTML
-
-  By Christopher Gutteridge, University of Southampton
-
-  v1.1
-
--->
-
-<!--
-
-Copyright 2022 University of Southampton.
-
-This file is part of EPrints 3.4 http://www.eprints.org/
-
-EPrints 3.4 and this file are released under the terms of the
-GNU Lesser General Public License version 3 as published by
-the Free Software Foundation unless otherwise stated.
-
-EPrints 3.4 is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-See the GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public
-License along with EPrints 3.4.
-If not, see http://www.gnu.org/licenses/
-
--->
-
-
-<!--
-
-  All the elements really needed for EPrints are done but if
-  you want to use this XSL for other OAI archive you may want
-  to make some minor changes or additions.
-
-  Not Done
-    The 'about' section of 'record'
-    The 'compession' part of 'identify'
-    The optional 'setDescription' container of 'set'
-
-  All the links just link to oai_dc versions of records.
-
--->
 <xsl:stylesheet
     version="1.0"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
     xmlns:oai="http://www.openarchives.org/OAI/2.0/"
+    xmlns:id="http://www.openarchives.org/OAI/2.0/oai-identifier"
+    xmlns:thoth="https://thoth.pub/oai/"
+    xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/"
+    xmlns:oaire="http://namespace.openaire.eu/schema/oaire/"
+    xmlns:marc="http://www.loc.gov/MARC21/slim"
+    xmlns:dc="http://purl.org/dc/elements/1.1/"
+    exclude-result-prefixes="oai id thoth oai_dc oaire marc dc"
 >
-
-<xsl:output method="html"/>
-
-
-
-<xsl:template name="style">
-td.value {
-	vertical-align: top;
-	padding-left: 1em;
-	padding: 3px;
-}
-td.key {
-	background-color: #e0e0ff;
-	padding: 3px;
-	text-align: right;
-	border: 1px solid #c0c0c0;
-	white-space: nowrap;
-	font-weight: bold;
-	vertical-align: top;
-}
-.dcdata td.key {
-	background-color: #ffffe0;
-}
-body {
-	margin: 1em 2em 1em 2em;
-}
-h1, h2, h3 {
-	font-family: sans-serif;
-	clear: left;
-}
-h1 {
-	padding-bottom: 4px;
-	margin-bottom: 0px;
-}
-h2 {
-	margin-bottom: 0.5em;
-}
-h3 {
-	margin-bottom: 0.3em;
-	font-size: medium;
-}
-.link {
-	border: 1px outset #88f;
-	background-color: #c0c0ff;
-	padding: 1px 4px 1px 4px;
-	font-size: 80%;
-	text-decoration: none;
-	font-weight: bold;
-	font-family: sans-serif;
-	color: black;
-}
-.link:hover {
-	color: red;
-}
-.link:active {
-	color: red;
-	border: 1px inset #88f;
-	background-color: #a0a0df;
-}
-.oaiRecord, .oaiRecordTitle {
-	background-color: #f0f0ff;
-	border-style: solid;
-	border-color: #d0d0d0;
-}
-h2.oaiRecordTitle {
-	background-color: #e0e0ff;
-	font-size: medium;
-	font-weight: bold;
-	padding: 10px;
-	border-width: 2px 2px 0px 2px;
-	margin: 0px;
-}
-.oaiRecord {
-	margin-bottom: 3em;
-	border-width: 2px;
-	padding: 10px;
-}
-
-.results {
-	margin-bottom: 1.5em;
-}
-ul.quicklinks {
-	margin-top: 2px;
-	padding: 4px;
-	text-align: left;
-	border-bottom: 2px solid #ccc;
-	border-top: 2px solid #ccc;
-	clear: left;
-}
-ul.quicklinks li {
-	font-size: 80%;
-	display: inline;
-	list-stlye: none;
-	font-family: sans-serif;
-}
-p.intro {
-	font-size: 80%;
-}
-<xsl:call-template name='xmlstyle' />
-</xsl:template>
-
-<xsl:variable name='identifier' select="substring-before(concat(substring-after(/oai:OAI-PMH/oai:request,'identifier='),'&amp;'),'&amp;')" />
+<xsl:output method="html" encoding="utf-8" omit-xml-declaration="yes"/>
 
 <xsl:template match="/">
 <html lang="en">
   <head>
-    <title>Thoth OAI 2.0</title>
-    <style><xsl:call-template name="style"/></style>
+    <meta charset="utf-8"/>
+    <title>Thoth OAI-PMH Browser</title>
+    <style>
+@font-face {
+  font-family: "Economica";
+  src: url(https://cdn.thoth.pub/fonts/Economica/Economica-Bold.ttf) format("truetype");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Open Sans";
+  src: url(https://cdn.thoth.pub/fonts/Open_Sans/OpenSans-VariableFont.ttf) format("truetype");
+  font-display: swap;
+}
+:root {
+  --thoth-primary: #6e4f7f;
+  --thoth-secondary: #52a46a;
+  --thoth-accent: #ffdd75;
+  --thoth-body: #3c3c3b;
+  --thoth-soft: #fff4e8;
+  --thoth-border: #d9c7aa;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: "Open Sans", Arial, sans-serif;
+  color: var(--thoth-body);
+  background: linear-gradient(180deg, #fffdf8 0%, #fff9f0 100%);
+}
+a {
+  color: var(--thoth-primary);
+}
+.shell {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+.brand-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid var(--thoth-border);
+  border-radius: 1rem;
+  background: #ffffff;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 12px 30px rgba(60, 60, 59, 0.08);
+}
+.brand-logo {
+  width: 220px;
+  max-width: 100%;
+  height: auto;
+}
+.brand-title {
+  margin: 0;
+  font-family: "Economica", "Open Sans", Arial, sans-serif;
+  font-size: 2.4rem;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.brand-subtitle {
+  margin: 0.35rem 0 0;
+  font-size: 0.95rem;
+  color: #5f5f5e;
+}
+.quicklinks {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+.quicklinks a {
+  display: inline-block;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: rgba(110, 79, 127, 0.12);
+  color: var(--thoth-primary);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.4rem 0.85rem;
+}
+.quicklinks a:hover {
+  border-color: var(--thoth-primary);
+  background: rgba(110, 79, 127, 0.18);
+}
+.overview {
+  margin-top: 1.1rem;
+  border: 1px solid var(--thoth-border);
+  border-radius: 0.9rem;
+  background: #ffffff;
+  padding: 1rem 1.25rem;
+}
+.section {
+  margin-top: 1rem;
+  border: 1px solid var(--thoth-border);
+  border-radius: 0.9rem;
+  background: #ffffff;
+  padding: 1rem 1.25rem;
+}
+.section-title {
+  margin: 0;
+  font-family: "Economica", "Open Sans", Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--thoth-primary);
+}
+.section-subtitle {
+  margin: 0.75rem 0 0.45rem;
+  font-family: "Economica", "Open Sans", Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--thoth-secondary);
+}
+.intro {
+  margin: 0.45rem 0 0;
+  color: #5f5f5e;
+}
+.kv-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.8rem;
+}
+.kv-table th,
+.kv-table td {
+  border: 1px solid var(--thoth-border);
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  vertical-align: top;
+}
+.kv-table th {
+  width: 28%;
+  background: var(--thoth-soft);
+  font-size: 0.86rem;
+}
+.record-card {
+  margin-top: 1rem;
+  border: 1px solid var(--thoth-border);
+  border-radius: 0.8rem;
+  overflow: hidden;
+}
+.record-card > h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #ffffff;
+  background: linear-gradient(90deg, var(--thoth-primary) 0%, var(--thoth-secondary) 100%);
+  padding: 0.65rem 0.85rem;
+}
+.record-card-body {
+  background: #ffffff;
+  padding: 0.9rem;
+}
+.pill {
+  display: inline-block;
+  border-radius: 999px;
+  background: rgba(255, 221, 117, 0.26);
+  border: 1px solid rgba(110, 79, 127, 0.2);
+  color: var(--thoth-body);
+  padding: 0.2rem 0.6rem;
+  margin-right: 0.3rem;
+  margin-bottom: 0.3rem;
+  font-size: 0.78rem;
+}
+.meta-note {
+  margin: 0.7rem 0 0;
+  font-size: 0.9rem;
+}
+.xml-box {
+  border: 1px solid var(--thoth-border);
+  border-radius: 0.6rem;
+  background: #fff;
+  padding: 0.55rem;
+  margin-top: 0.55rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  overflow: auto;
+}
+.xml-node {
+  padding-left: 1rem;
+  white-space: nowrap;
+}
+.xml-tag {
+  color: #7b355c;
+  font-weight: 700;
+}
+.xml-attr {
+  color: #244f8f;
+}
+.xml-text {
+  color: #2e2e2d;
+  white-space: normal;
+}
+.error-card {
+  border: 1px solid #cb6b7d;
+  border-radius: 0.8rem;
+  background: rgba(241, 149, 168, 0.12);
+  padding: 0.9rem 1rem;
+  margin-top: 1rem;
+}
+.error-title {
+  margin: 0;
+  color: #8f2238;
+  font-size: 1rem;
+}
+.error-text {
+  margin: 0.4rem 0 0;
+  color: #5f2734;
+}
+.footer {
+  margin-top: 1.4rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--thoth-border);
+  font-size: 0.85rem;
+  color: #5f5f5e;
+}
+@media (max-width: 780px) {
+  .brand-title {
+    font-size: 1.9rem;
+  }
+  .kv-table th {
+    width: 36%;
+  }
+}
+    </style>
   </head>
   <body>
-    <header>
-      <h1>Thoth OAI 2.0</h1>
-      <nav><xsl:call-template name="quicklinks"/></nav>
-      <p class="intro">You are viewing an HTML version of the XML OAI response. To see the underlying XML use your web browsers view source option. More information about this XSLT is at the <a href="#moreinfo">bottom of the page</a>.</p>
-    </header>
-    <xsl:apply-templates select="/oai:OAI-PMH" />
-    <footer>
-      <nav><xsl:call-template name="quicklinks"/></nav>
-      <h2><a name="moreinfo">About the XSLT</a></h2>
-      <p>An XSLT file has converted the <a href="https://www.openarchives.org">OAI-PMH 2.0</a> responses into XHTML which looks nice in a browser which supports XSLT such as Mozilla, Firebird and Internet Explorer. The XSLT file was created by <a href="https://www.ecs.soton.ac.uk/people/cjg">Christopher Gutteridge</a> at the University of Southampton as part of the <a href="https://www.eprints.org/software/">GNU EPrints system</a>, and is freely redistributable under the <a href="https://www.gnu.org">GPL</a>.</p><p>If you want to use the XSL file on your own OAI interface you may but due to the way XSLT works you must install the XSL file on the same server as the OAI script, you can't just link to this copy.</p>
-    </footer>
+    <div class="shell">
+      <header class="brand-bar">
+        <img class="brand-logo" src="https://cdn.thoth.pub/THOTH_ColourPos.png" alt="Thoth logo"/>
+        <div>
+          <h1 class="brand-title">Thoth OAI-PMH Browser</h1>
+          <p class="brand-subtitle">Human-friendly view of OAI-PMH XML responses.</p>
+          <xsl:call-template name="quicklinks"/>
+        </div>
+      </header>
+      <xsl:apply-templates select="/oai:OAI-PMH"/>
+      <footer class="footer">
+        <p>Rendered by Thoth's OAI stylesheet. Use your browser's "View Source" to inspect raw XML.</p>
+      </footer>
+    </div>
   </body>
 </html>
 </xsl:template>
 
 <xsl:template name="quicklinks">
-    <ul class="quicklinks">
-      <li><a href="?verb=Identify">Identify</a> | </li>
-      <li><a href="?verb=ListRecords&amp;metadataPrefix=oai_dc">ListRecords</a> | </li>
-      <li><a href="?verb=ListSets">ListSets</a> | </li>
-      <li><a href="?verb=ListMetadataFormats">ListMetadataFormats</a> | </li>
-      <li><a href="?verb=ListIdentifiers&amp;metadataPrefix=oai_dc">ListIdentifiers</a></li>
-    </ul>
-</xsl:template>
-
-
-<xsl:template match="/oai:OAI-PMH">
-  <table class="values">
-    <tr><td class="key">Datestamp of response</td>
-    <td class="value"><xsl:value-of select="oai:responseDate"/></td></tr>
-    <tr><td class="key">Request URL</td>
-    <td class="value"><xsl:value-of select="oai:request"/></td></tr>
-  </table>
-<!--  verb: [<xsl:value-of select="oai:request/@verb" />]<br /> -->
-  <xsl:choose>
-    <xsl:when test="oai:error">
-      <h2>OAI Error(s)</h2>
-      <p>The request could not be completed due to the following error or errors.</p>
-      <div class="results">
-        <xsl:apply-templates select="oai:error"/>
-      </div>
-    </xsl:when>
-    <xsl:otherwise>
-      <p>Request was of type <xsl:value-of select="oai:request/@verb"/>.</p>
-      <div class="results">
-        <xsl:apply-templates select="oai:Identify" />
-        <xsl:apply-templates select="oai:GetRecord"/>
-        <xsl:apply-templates select="oai:ListRecords"/>
-        <xsl:apply-templates select="oai:ListSets"/>
-        <xsl:apply-templates select="oai:ListMetadataFormats"/>
-        <xsl:apply-templates select="oai:ListIdentifiers"/>
-      </div>
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
-
-
-<!-- ERROR -->
-
-<xsl:template match="/oai:OAI-PMH/oai:error">
-  <table class="values">
-    <tr><td class="key">Error Code</td>
-    <td class="value"><xsl:value-of select="@code"/></td></tr>
-  </table>
-  <p class="error"><xsl:value-of select="." /></p>
-</xsl:template>
-
-<!-- IDENTIFY -->
-
-<xsl:template match="/oai:OAI-PMH/oai:Identify">
-  <table class="values">
-    <tr><td class="key">Repository Name</td>
-    <td class="value"><xsl:value-of select="oai:repositoryName"/></td></tr>
-    <tr><td class="key">Base URL</td>
-    <td class="value"><xsl:value-of select="oai:baseURL"/></td></tr>
-    <tr><td class="key">Protocol Version</td>
-    <td class="value"><xsl:value-of select="oai:protocolVersion"/></td></tr>
-    <tr><td class="key">Earliest Datestamp</td>
-    <td class="value"><xsl:value-of select="oai:earliestDatestamp"/></td></tr>
-    <tr><td class="key">Deleted Record Policy</td>
-    <td class="value"><xsl:value-of select="oai:deletedRecord"/></td></tr>
-    <tr><td class="key">Granularity</td>
-    <td class="value"><xsl:value-of select="oai:granularity"/></td></tr>
-    <xsl:apply-templates select="oai:adminEmail"/>
-  </table>
-  <xsl:apply-templates select="oai:description"/>
-<!--no warning about unsupported descriptions -->
-</xsl:template>
-
-<xsl:template match="/oai:OAI-PMH/oai:Identify/oai:adminEmail">
-    <tr><td class="key">Admin Email</td>
-    <td class="value"><xsl:value-of select="."/></td></tr>
-</xsl:template>
-
-<!--
-   Identify / Unsupported Description
--->
-
-<xsl:template match="oai:description/*" priority="-100">
-  <h2>Unsupported Description Type</h2>
-  <p>The XSL currently does not support this type of description.</p>
-  <div class="xmlSource">
-    <xsl:apply-templates select="." mode='xmlMarkup' />
-  </div>
-</xsl:template>
-
-
-<!--
-   Identify / OAI-Identifier
--->
-
-<xsl:template match="id:oai-identifier" xmlns:id="http://www.openarchives.org/OAI/2.0/oai-identifier">
-  <h2>OAI-Identifier</h2>
-  <table class="values">
-    <tr><td class="key">Scheme</td>
-    <td class="value"><xsl:value-of select="id:scheme"/></td></tr>
-    <tr><td class="key">Repository Identifier</td>
-    <td class="value"><xsl:value-of select="id:repositoryIdentifier"/></td></tr>
-    <tr><td class="key">Delimiter</td>
-    <td class="value"><xsl:value-of select="id:delimiter"/></td></tr>
-    <tr><td class="key">Sample OAI Identifier</td>
-    <td class="value"><xsl:value-of select="id:sampleIdentifier"/></td></tr>
-  </table>
-</xsl:template>
-
-
-<!--
-   Identify / EPrints
--->
-
-<xsl:template match="ep:eprints" xmlns:ep="http://www.openarchives.org/OAI/1.1/eprints">
-  <h2>EPrints Description</h2>
-  <xsl:if test="ep:content">
-    <h3>Content</h3>
-    <xsl:apply-templates select="ep:content"/>
-  </xsl:if>
-  <xsl:if test="ep:submissionPolicy">
-    <h3>Submission Policy</h3>
-    <xsl:apply-templates select="ep:submissionPolicy"/>
-  </xsl:if>
-  <h3>Metadata Policy</h3>
-  <xsl:apply-templates select="ep:metadataPolicy"/>
-  <h3>Data Policy</h3>
-  <xsl:apply-templates select="ep:dataPolicy"/>
-  <xsl:apply-templates select="ep:comment"/>
-</xsl:template>
-
-<xsl:template match="ep:content|ep:dataPolicy|ep:metadataPolicy|ep:submissionPolicy" xmlns:ep="http://www.openarchives.org/OAI/1.1/eprints">
-  <xsl:if test="ep:text">
-    <p><xsl:value-of select="ep:text" /></p>
-  </xsl:if>
-  <xsl:if test="ep:URL">
-    <div><a href="{ep:URL}"><xsl:value-of select="ep:URL" /></a></div>
-  </xsl:if>
-</xsl:template>
-
-<xsl:template match="ep:comment" xmlns:ep="http://www.openarchives.org/OAI/1.1/eprints">
-  <h3>Comment</h3>
-  <div><xsl:value-of select="."/></div>
-</xsl:template>
-
-
-<!--
-   Identify / Friends
--->
-
-<xsl:template match="fr:friends" xmlns:fr="http://www.openarchives.org/OAI/2.0/friends/">
-  <h2>Friends</h2>
-  <ul>
-    <xsl:apply-templates select="fr:baseURL"/>
+  <ul class="quicklinks">
+    <li><a href="?verb=Identify">Identify</a></li>
+    <li><a href="?verb=ListRecords&amp;metadataPrefix=oai_dc">ListRecords</a></li>
+    <li><a href="?verb=ListIdentifiers&amp;metadataPrefix=oai_dc">ListIdentifiers</a></li>
+    <li><a href="?verb=ListSets">ListSets</a></li>
+    <li><a href="?verb=ListMetadataFormats">ListMetadataFormats</a></li>
   </ul>
 </xsl:template>
 
-<xsl:template match="fr:baseURL" xmlns:fr="http://www.openarchives.org/OAI/2.0/friends/">
-  <li><xsl:value-of select="."/>
-<xsl:text> </xsl:text>
-<a class="link" href="{.}?verb=Identify">Identify</a></li>
-</xsl:template>
-
-
-<!--
-   Identify / Branding
--->
-
-<xsl:template match="br:branding" xmlns:br="http://www.openarchives.org/OAI/2.0/branding/">
-  <h2>Branding</h2>
-  <xsl:apply-templates select="br:collectionIcon"/>
-  <xsl:apply-templates select="br:metadataRendering"/>
-</xsl:template>
-
-<xsl:template match="br:collectionIcon" xmlns:br="http://www.openarchives.org/OAI/2.0/branding/">
-  <h3>Icon</h3>
+<xsl:template match="/oai:OAI-PMH">
+  <section class="overview">
+    <h2 class="section-title">Response Overview</h2>
+    <table class="kv-table">
+      <tr><th>Response Date</th><td><xsl:value-of select="oai:responseDate"/></td></tr>
+      <tr><th>Request URL</th><td><xsl:value-of select="oai:request"/></td></tr>
+      <tr>
+        <th>Verb</th>
+        <td>
+          <xsl:choose>
+            <xsl:when test="string-length(oai:request/@verb) &gt; 0">
+              <xsl:value-of select="oai:request/@verb"/>
+            </xsl:when>
+            <xsl:otherwise>unknown</xsl:otherwise>
+          </xsl:choose>
+        </td>
+      </tr>
+    </table>
+  </section>
   <xsl:choose>
-    <xsl:when test="link!=''">
-      <a href="{br:link}"><img src="{br:url}" alt="{br:title}" width="{br:width}" height="{br:height}" border="0" /></a>
+    <xsl:when test="oai:error">
+      <xsl:apply-templates select="oai:error"/>
     </xsl:when>
     <xsl:otherwise>
-      <img src="{br:url}" alt="{br:title}" width="{br:width}" height="{br:height}" border="0" />
+      <xsl:apply-templates select="oai:Identify"/>
+      <xsl:apply-templates select="oai:GetRecord"/>
+      <xsl:apply-templates select="oai:ListRecords"/>
+      <xsl:apply-templates select="oai:ListIdentifiers"/>
+      <xsl:apply-templates select="oai:ListSets"/>
+      <xsl:apply-templates select="oai:ListMetadataFormats"/>
     </xsl:otherwise>
   </xsl:choose>
 </xsl:template>
 
-<xsl:template match="br:metadataRendering" xmlns:br="http://www.openarchives.org/OAI/2.0/branding/">
-  <h3>Metadata Rendering Rule</h3>
-  <table class="values">
-    <tr><td class="key">URL</td>
-    <td class="value"><xsl:value-of select="."/></td></tr>
-    <tr><td class="key">Namespace</td>
-    <td class="value"><xsl:value-of select="@metadataNamespace"/></td></tr>
-    <tr><td class="key">Mime Type</td>
-    <td class="value"><xsl:value-of select="@mimetype"/></td></tr>
+<xsl:template match="oai:error">
+  <section class="error-card">
+    <h2 class="error-title">OAI Error: <xsl:value-of select="@code"/></h2>
+    <p class="error-text"><xsl:value-of select="."/></p>
+  </section>
+</xsl:template>
+
+<xsl:template match="oai:Identify">
+  <section class="section">
+    <h2 class="section-title">Identify</h2>
+    <table class="kv-table">
+      <tr><th>Repository Name</th><td><xsl:value-of select="oai:repositoryName"/></td></tr>
+      <tr><th>Base URL</th><td><xsl:value-of select="oai:baseURL"/></td></tr>
+      <tr><th>Protocol Version</th><td><xsl:value-of select="oai:protocolVersion"/></td></tr>
+      <tr><th>Earliest Datestamp</th><td><xsl:value-of select="oai:earliestDatestamp"/></td></tr>
+      <tr><th>Deleted Record Policy</th><td><xsl:value-of select="oai:deletedRecord"/></td></tr>
+      <tr><th>Granularity</th><td><xsl:value-of select="oai:granularity"/></td></tr>
+      <xsl:for-each select="oai:compression">
+        <tr><th>Compression</th><td><xsl:value-of select="."/></td></tr>
+      </xsl:for-each>
+      <xsl:for-each select="oai:adminEmail">
+        <tr><th>Admin Email</th><td><xsl:value-of select="."/></td></tr>
+      </xsl:for-each>
+    </table>
+    <xsl:apply-templates select="oai:description/*"/>
+  </section>
+</xsl:template>
+
+<xsl:template match="id:oai-identifier">
+  <h3 class="section-subtitle">OAI Identifier</h3>
+  <table class="kv-table">
+    <tr><th>Scheme</th><td><xsl:value-of select="id:scheme"/></td></tr>
+    <tr><th>Repository Identifier</th><td><xsl:value-of select="id:repositoryIdentifier"/></td></tr>
+    <tr><th>Delimiter</th><td><xsl:value-of select="id:delimiter"/></td></tr>
+    <tr><th>Sample Identifier</th><td><xsl:value-of select="id:sampleIdentifier"/></td></tr>
   </table>
 </xsl:template>
 
-
-
-<!--
-   Identify / Gateway
--->
-
-<xsl:template match="gw:gateway" xmlns:gw="http://www.openarchives.org/OAI/2.0/gateway/x">
-  <h2>Gateway Information</h2>
-  <table class="values">
-    <tr><td class="key">Source</td>
-    <td class="value"><xsl:value-of select="gw:source"/></td></tr>
-    <tr><td class="key">Description</td>
-    <td class="value"><xsl:value-of select="gw:gatewayDescription"/></td></tr>
-    <xsl:apply-templates select="gw:gatewayAdmin"/>
-    <xsl:if test="gw:gatewayURL">
-      <tr><td class="key">URL</td>
-      <td class="value"><xsl:value-of select="gw:gatewayURL"/></td></tr>
-    </xsl:if>
-    <xsl:if test="gw:gatewayNotes">
-      <tr><td class="key">Notes</td>
-      <td class="value"><xsl:value-of select="gw:gatewayNotes"/></td></tr>
-    </xsl:if>
+<xsl:template match="thoth:repository">
+  <h3 class="section-subtitle">Thoth Repository Metadata</h3>
+  <table class="kv-table">
+    <tr><th>Latest Datestamp</th><td><xsl:value-of select="thoth:latestDatestamp"/></td></tr>
+    <tr><th>Rights Management</th><td><xsl:value-of select="thoth:rightsStatement"/></td></tr>
+    <tr>
+      <th>Rights URL</th>
+      <td>
+        <xsl:choose>
+          <xsl:when test="string-length(normalize-space(thoth:rightsUri)) &gt; 0">
+            <a href="{thoth:rightsUri}"><xsl:value-of select="thoth:rightsUri"/></a>
+          </xsl:when>
+          <xsl:otherwise>Not provided</xsl:otherwise>
+        </xsl:choose>
+      </td>
+    </tr>
   </table>
 </xsl:template>
 
-<xsl:template match="gw:gatewayAdmin" xmlns:gw="http://www.openarchives.org/OAI/2.0/gateway/">
-  <tr><td class="key">Admin</td>
-  <td class="value"><xsl:value-of select="."/></td></tr>
+<xsl:template match="oai:description/*" priority="-10">
+  <h3 class="section-subtitle">Description (Additional Metadata)</h3>
+  <div class="xml-box">
+    <xsl:apply-templates select="." mode="xml-pretty"/>
+  </div>
 </xsl:template>
-
-
-<!-- GetRecord -->
 
 <xsl:template match="oai:GetRecord">
-  <xsl:apply-templates select="oai:record" />
+  <section class="section">
+    <h2 class="section-title">GetRecord</h2>
+    <xsl:apply-templates select="oai:record"/>
+  </section>
 </xsl:template>
-
-<!-- ListRecords -->
 
 <xsl:template match="oai:ListRecords">
-  <xsl:apply-templates select="oai:record" />
-  <xsl:apply-templates select="oai:resumptionToken" />
+  <section class="section">
+    <h2 class="section-title">ListRecords</h2>
+    <xsl:apply-templates select="oai:record"/>
+    <xsl:apply-templates select="oai:resumptionToken"/>
+  </section>
 </xsl:template>
-
-<!-- ListIdentifiers -->
 
 <xsl:template match="oai:ListIdentifiers">
-  <xsl:apply-templates select="oai:header" />
-  <xsl:apply-templates select="oai:resumptionToken" />
+  <section class="section">
+    <h2 class="section-title">ListIdentifiers</h2>
+    <xsl:apply-templates select="oai:header"/>
+    <xsl:apply-templates select="oai:resumptionToken"/>
+  </section>
 </xsl:template>
 
-<!-- ListSets -->
-
 <xsl:template match="oai:ListSets">
-  <xsl:apply-templates select="oai:set" />
-  <xsl:apply-templates select="oai:resumptionToken" />
+  <section class="section">
+    <h2 class="section-title">ListSets</h2>
+    <xsl:apply-templates select="oai:set"/>
+    <xsl:apply-templates select="oai:resumptionToken"/>
+  </section>
 </xsl:template>
 
 <xsl:template match="oai:set">
-  <h2>Set</h2>
-  <table class="values">
-    <tr><td class="key">setName</td>
-    <td class="value"><xsl:value-of select="oai:setName"/></td></tr>
-    <xsl:apply-templates select="oai:setSpec" />
-  </table>
+  <div class="record-card">
+    <h3>Set: <xsl:value-of select="oai:setSpec"/></h3>
+    <div class="record-card-body">
+      <table class="kv-table">
+        <tr><th>Set Spec</th><td><xsl:value-of select="oai:setSpec"/></td></tr>
+        <tr><th>Set Name</th><td><xsl:value-of select="oai:setName"/></td></tr>
+      </table>
+      <xsl:apply-templates select="oai:setDescription"/>
+    </div>
+  </div>
 </xsl:template>
 
-<!-- ListMetadataFormats -->
+<xsl:template match="oai:setDescription">
+  <h4 class="section-subtitle">Set Description</h4>
+  <div class="xml-box">
+    <xsl:apply-templates select="*" mode="xml-pretty"/>
+  </div>
+</xsl:template>
 
 <xsl:template match="oai:ListMetadataFormats">
-<xsl:apply-templates select="/oai:OAI-PMH/oai:request/@identifier"/>
-<div class="ListMetadataFormats">
-  <h2 class="title">ListMetadataFormats</h2>
-  <table class="values">
-  <xsl:apply-templates select="oai:metadataFormat"/>
-  </table>
-</div>
+  <section class="section">
+    <h2 class="section-title">ListMetadataFormats</h2>
+    <xsl:if test="string-length(normalize-space(/oai:OAI-PMH/oai:request/@identifier)) &gt; 0">
+      <p class="intro">
+        Formats for identifier:
+        <strong><xsl:value-of select="/oai:OAI-PMH/oai:request/@identifier"/></strong>
+      </p>
+    </xsl:if>
+    <xsl:apply-templates select="oai:metadataFormat"/>
+  </section>
 </xsl:template>
 
 <xsl:template match="oai:metadataFormat">
-  <h2>Metadata Format</h2>
-  <table class="values">
-    <tr><td class="key">metadataPrefix</td>
-    <td class="value"><a class="link" href="?verb=ListRecords&amp;metadataPrefix={oai:metadataPrefix}"><xsl:value-of select="oai:metadataPrefix"/></a></td></tr>
-    <tr><td class="key">metadataNamespace</td>
-    <td class="value"><xsl:value-of select="oai:metadataNamespace"/></td></tr>
-    <tr><td class="key">schema</td>
-    <td class="value"><a href="{oai:schema}"><xsl:value-of select="oai:schema"/></a></td></tr>
-  </table>
+  <div class="record-card">
+    <h3>Metadata Format: <xsl:value-of select="oai:metadataPrefix"/></h3>
+    <div class="record-card-body">
+      <table class="kv-table">
+        <tr>
+          <th>metadataPrefix</th>
+          <td>
+            <span class="pill"><xsl:value-of select="oai:metadataPrefix"/></span>
+            <a href="?verb=ListRecords&amp;metadataPrefix={oai:metadataPrefix}">ListRecords</a>
+          </td>
+        </tr>
+        <tr><th>metadataNamespace</th><td><xsl:value-of select="oai:metadataNamespace"/></td></tr>
+        <tr><th>schema</th><td><a href="{oai:schema}"><xsl:value-of select="oai:schema"/></a></td></tr>
+      </table>
+      <xsl:if test="string-length(normalize-space(/oai:OAI-PMH/oai:request/@identifier)) &gt; 0">
+        <p class="meta-note">
+          <a href="?verb=GetRecord&amp;metadataPrefix={oai:metadataPrefix}&amp;identifier={/oai:OAI-PMH/oai:request/@identifier}">
+            View this record in <xsl:value-of select="oai:metadataPrefix"/>
+          </a>
+        </p>
+      </xsl:if>
+    </div>
+  </div>
 </xsl:template>
-
-<xsl:template match="/oai:OAI-PMH/oai:ListMetadataFormats/oai:metadataFormat/oai:metadataPrefix">
-    <xsl:param name="identifier" />
-    <xsl:text> </xsl:text><a class="link" href="?verb=GetRecord&amp;metadataPrefix={.}&amp;identifier={$identifier}"><xsl:value-of select="."/></a>
-</xsl:template>
-
-<xsl:template match="/oai:OAI-PMH/oai:request/@identifier">
-  <xsl:choose>
-    <xsl:when test=".">
-      <p>This is a list of metadata formats available for the record "<xsl:value-of select="."/>". Use these links to view the metadata:
-	<xsl:apply-templates select="/oai:OAI-PMH/oai:ListMetadataFormats/oai:metadataFormat/oai:metadataPrefix">
-	    <xsl:with-param name="identifier"><xsl:value-of select="."/></xsl:with-param>
-        </xsl:apply-templates>
-      </p>
-    </xsl:when>
-    <xsl:otherwise>
-      <p>This is a list of metadata formats available from this archive.</p>
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
-
-<!-- record object -->
 
 <xsl:template match="oai:record">
-  <h2 class="oaiRecordTitle">OAI Record: <xsl:value-of select="oai:header/oai:identifier"/></h2>
-  <div class="oaiRecord">
-    <xsl:apply-templates select="oai:header" />
-    <xsl:apply-templates select="oai:metadata" />
-    <xsl:apply-templates select="oai:about" />
+  <div class="record-card">
+    <h3>Record: <xsl:value-of select="oai:header/oai:identifier"/></h3>
+    <div class="record-card-body">
+      <xsl:apply-templates select="oai:header"/>
+      <xsl:apply-templates select="oai:metadata"/>
+      <xsl:apply-templates select="oai:about"/>
+    </div>
   </div>
 </xsl:template>
 
 <xsl:template match="oai:header">
-  <h2>OAI Record Header</h2>
-  <table class="values">
-    <tr><td class="key">OAI Identifier</td>
-    <td class="value">
-      <xsl:value-of select="oai:identifier"/>
-      <xsl:text> </xsl:text><a class="link" href="?verb=GetRecord&amp;metadataPrefix=oai_dc&amp;identifier={oai:identifier}">oai_dc</a>
-      <xsl:text> </xsl:text><a class="link" href="?verb=GetRecord&amp;metadataPrefix=oai_openaire&amp;identifier={oai:identifier}">oai_openaire</a>
-      <xsl:text> </xsl:text><a class="link" href="?verb=GetRecord&amp;metadataPrefix=marcxml&amp;identifier={oai:identifier}">marcxml</a>
-      <xsl:text> </xsl:text><a class="link" href="?verb=ListMetadataFormats&amp;identifier={oai:identifier}">formats</a>
-    </td></tr>
-    <tr><td class="key">Datestamp</td>
-    <td class="value"><xsl:value-of select="oai:datestamp"/></td></tr>
-  <xsl:apply-templates select="oai:setSpec" />
+  <h4 class="section-subtitle">Header</h4>
+  <table class="kv-table">
+    <tr>
+      <th>Identifier</th>
+      <td>
+        <xsl:value-of select="oai:identifier"/>
+        <xsl:text> </xsl:text>
+        <a href="?verb=ListMetadataFormats&amp;identifier={oai:identifier}">Formats</a>
+      </td>
+    </tr>
+    <tr><th>Datestamp</th><td><xsl:value-of select="oai:datestamp"/></td></tr>
+    <xsl:for-each select="oai:setSpec">
+      <tr>
+        <th>Set Spec</th>
+        <td>
+          <xsl:value-of select="."/>
+          <xsl:text> </xsl:text>
+          <a href="?verb=ListIdentifiers&amp;metadataPrefix=oai_dc&amp;set={.}">Identifiers</a>
+          <xsl:text> </xsl:text>
+          <a href="?verb=ListRecords&amp;metadataPrefix=oai_dc&amp;set={.}">Records</a>
+        </td>
+      </tr>
+    </xsl:for-each>
+    <xsl:if test="@status='deleted'">
+      <tr><th>Status</th><td>deleted</td></tr>
+    </xsl:if>
   </table>
-  <xsl:if test="@status='deleted'">
-    <p>This record has been deleted.</p>
-  </xsl:if>
-</xsl:template>
-
-
-<xsl:template match="oai:about">
-  <p>"about" part of record container not supported by the XSL</p>
 </xsl:template>
 
 <xsl:template match="oai:metadata">
-  &#160;
-  <div class="metadata">
-    <xsl:apply-templates select="*" />
-  </div>
-</xsl:template>
-
-
-
-
-<!-- oai setSpec object -->
-
-<xsl:template match="oai:setSpec">
-  <tr><td class="key">setSpec</td>
-  <td class="value"><xsl:value-of select="."/>
-    <xsl:text> </xsl:text><a class="link" href="?verb=ListIdentifiers&amp;metadataPrefix=oai_dc&amp;set={.}">Identifiers</a>
-    <xsl:text> </xsl:text><a class="link" href="?verb=ListRecords&amp;metadataPrefix=oai_dc&amp;set={.}">Records</a>
-  </td></tr>
-</xsl:template>
-
-
-
-<!-- oai resumptionToken -->
-
-<xsl:template match="oai:resumptionToken">
-  <p>There are more results.</p>
-  <table class="values">
-    <xsl:if test="@expirationDate">
-      <tr><td class="key">expirationDate</td><td class="value"><xsl:value-of select="@expirationDate"/></td></tr>
-    </xsl:if>
-    <xsl:if test="@completeListSize">
-      <tr><td class="key">completeListSize</td><td class="value"><xsl:value-of select="@completeListSize"/></td></tr>
-    </xsl:if>
-    <xsl:if test="@cursor">
-      <tr><td class="key">cursor</td><td class="value"><xsl:value-of select="@cursor"/></td></tr>
-    </xsl:if>
-    <tr><td class="key">resumptionToken:</td><td class="value"><xsl:value-of select="."/><xsl:text> </xsl:text><a class="link" href="?verb={/oai:OAI-PMH/oai:request/@verb}&amp;resumptionToken={.}">Resume</a></td></tr>
-  </table>
-</xsl:template>
-
-<!-- unknown metadata format -->
-
-<xsl:template match="oai:metadata/*" priority='-100'>
-  <h3>Unknown Metadata Format</h3>
-  <div class="xmlSource">
-    <xsl:apply-templates select="." mode='xmlMarkup' />
-  </div>
-</xsl:template>
-
-<!-- oai_openaire record -->
-
-<xsl:template match="marc:record" xmlns:marc="http://www.loc.gov/MARC21/slim" >
-  <div class="marcxmldata">
-    <h3>MARC21 (marcxml)</h3>
-    <table class="xmlSource">
-      <xsl:apply-templates select="." mode='xmlMarkup' />
-    </table>
-  </div>
-</xsl:template>
-
-<!-- oai_openaire record -->
-
-<xsl:template match="oaire:resource" xmlns:oaire="http://namespace.openaire.eu/schema/oaire/" >
-  <div class="openairedata">
-    <h3>OpenAIRE Metadata (oai_openaire)</h3>
-    <table class="xmlSource">
-      <xsl:apply-templates select="." mode='xmlMarkup' />
-    </table>
-  </div>
-</xsl:template>
-
-<!-- oai_dc record -->
-
-<xsl:template match="oai_dc:dc"  xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/" >
-  <div class="dcdata">
-    <h3>Dublin Core Metadata (oai_dc)</h3>
-    <table class="xmlSource">
-      <xsl:apply-templates select="." mode='xmlMarkup' />
-    </table>
-  </div>
-</xsl:template>
-
-<xsl:template match="dc:title" xmlns:dc="http://purl.org/dc/elements/1.1/">
-<tr><td class="key">Title</td><td class="value"><xsl:value-of select="."/></td></tr></xsl:template>
-
-<xsl:template match="dc:creator" xmlns:dc="http://purl.org/dc/elements/1.1/">
-<tr><td class="key">Author or Creator</td><td class="value"><xsl:value-of select="."/></td></tr></xsl:template>
-
-<xsl:template match="dc:subject" xmlns:dc="http://purl.org/dc/elements/1.1/">
-<tr><td class="key">Subject and Keywords</td><td class="value"><xsl:value-of select="."/></td></tr></xsl:template>
-
-<xsl:template match="dc:description" xmlns:dc="http://purl.org/dc/elements/1.1/">
-<tr><td class="key">Description</td><td class="value"><xsl:value-of select="."/></td></tr></xsl:template>
-
-<xsl:template match="dc:publisher" xmlns:dc="http://purl.org/dc/elements/1.1/">
-<tr><td class="key">Publisher</td><td class="value"><xsl:value-of select="."/></td></tr></xsl:template>
-
-<xsl:template match="dc:contributor" xmlns:dc="http://purl.org/dc/elements/1.1/">
-<tr><td class="key">Other Contributor</td><td class="value"><xsl:value-of select="."/></td></tr></xsl:template>
-
-<xsl:template match="dc:date" xmlns:dc="http://purl.org/dc/elements/1.1/">
-<tr><td class="key">Date</td><td class="value"><xsl:value-of select="."/></td></tr></xsl:template>
-
-<xsl:template match="dc:type" xmlns:dc="http://purl.org/dc/elements/1.1/">
-<tr><td class="key">Resource Type</td><td class="value"><xsl:value-of select="."/></td></tr></xsl:template>
-
-<xsl:template match="dc:format" xmlns:dc="http://purl.org/dc/elements/1.1/">
-<tr><td class="key">Format</td><td class="value"><xsl:value-of select="."/></td></tr></xsl:template>
-
-<xsl:template match="dc:identifier" xmlns:dc="http://purl.org/dc/elements/1.1/">
-<tr><td class="key">Resource Identifier</td><td class="value"><xsl:value-of select="."/></td></tr></xsl:template>
-
-<xsl:template match="dc:source" xmlns:dc="http://purl.org/dc/elements/1.1/">
-<tr><td class="key">Source</td><td class="value"><xsl:value-of select="."/></td></tr></xsl:template>
-
-<xsl:template match="dc:language" xmlns:dc="http://purl.org/dc/elements/1.1/">
-<tr><td class="key">Language</td><td class="value"><xsl:value-of select="."/></td></tr></xsl:template>
-
-<xsl:template match="dc:relation" xmlns:dc="http://purl.org/dc/elements/1.1/">
-<tr><td class="key">Relation</td><td class="value">
+  <h4 class="section-subtitle">Metadata</h4>
   <xsl:choose>
-    <xsl:when test='starts-with(.,"http" )'>
-      <xsl:choose>
-        <xsl:when test='string-length(.) &gt; 50'>
-          <a class="link" href="{.}">URL</a>
-          <i> URL not shown as it is very long.</i>
-        </xsl:when>
-        <xsl:otherwise>
-          <a href="{.}"><xsl:value-of select="."/></a>
-        </xsl:otherwise>
-      </xsl:choose>
+    <xsl:when test="*">
+      <xsl:apply-templates select="*"/>
     </xsl:when>
     <xsl:otherwise>
-      <xsl:value-of select="."/>
+      <p class="meta-note">No metadata payload for this record.</p>
     </xsl:otherwise>
   </xsl:choose>
-</td></tr></xsl:template>
+</xsl:template>
 
-<xsl:template match="dc:coverage" xmlns:dc="http://purl.org/dc/elements/1.1/">
-<tr><td class="key">Coverage</td><td class="value"><xsl:value-of select="."/></td></tr></xsl:template>
+<xsl:template match="oai:about">
+  <h4 class="section-subtitle">About</h4>
+  <xsl:choose>
+    <xsl:when test="*">
+      <div class="xml-box">
+        <xsl:apply-templates select="*" mode="xml-pretty"/>
+      </div>
+    </xsl:when>
+    <xsl:otherwise>
+      <p class="meta-note">No additional about metadata.</p>
+    </xsl:otherwise>
+  </xsl:choose>
+</xsl:template>
 
-<xsl:template match="dc:rights" xmlns:dc="http://purl.org/dc/elements/1.1/">
-<tr><td class="key">Rights Management</td><td class="value"><xsl:value-of select="."/></td></tr></xsl:template>
-
-<!-- XML Pretty Maker -->
-
-<xsl:template match="node()" mode='xmlMarkup'>
-  <div class="xmlBlock">
-    &lt;<span class="xmlTagName"><xsl:value-of select='name(.)' /></span><xsl:apply-templates select="@*" mode='xmlMarkup'/>&gt;<xsl:apply-templates select="node()" mode='xmlMarkup' />&lt;/<span class="xmlTagName"><xsl:value-of select='name(.)' /></span>&gt;
+<xsl:template match="oai_dc:dc">
+  <div class="record-card">
+    <h3>Dublin Core (oai_dc)</h3>
+    <div class="record-card-body">
+      <table class="kv-table">
+        <xsl:apply-templates select="dc:*"/>
+      </table>
+    </div>
   </div>
 </xsl:template>
 
-<xsl:template match="text()" mode='xmlMarkup'><span class="xmlText"><xsl:value-of select='.' /></span></xsl:template>
-
-<xsl:template match="@*" mode='xmlMarkup'>
-  <xsl:text> </xsl:text><span class="xmlAttrName"><xsl:value-of select='name()' /></span>="<span class="xmlAttrValue"><xsl:value-of select='.' /></span>"
+<xsl:template match="dc:*">
+  <xsl:variable name="value" select="normalize-space(.)"/>
+  <tr>
+    <th><xsl:value-of select="local-name()"/></th>
+    <td>
+      <xsl:choose>
+        <xsl:when test="starts-with($value, 'http://') or starts-with($value, 'https://')">
+          <a href="{$value}"><xsl:value-of select="$value"/></a>
+        </xsl:when>
+        <xsl:otherwise><xsl:value-of select="$value"/></xsl:otherwise>
+      </xsl:choose>
+    </td>
+  </tr>
 </xsl:template>
 
-<xsl:template name="xmlstyle">
-.xmlSource {
-	font-family: monospace;
-  line-height: 1.1rem;
-	border: solid #c0c0a0 1px;
-	background-color: #fff;
-	padding: 2em 2em 2em 0em;
-}
-.xmlBlock {
-	padding-left: 2em;
-}
-.xmlTagName {
-	color: #800000;
-	font-weight: bold;
-}
-.xmlAttrName {
-	font-weight: bold;
-}
-.xmlAttrValue {
-	color: #0000c0;
-}
+<xsl:template match="oaire:resource">
+  <div class="record-card">
+    <h3>OpenAIRE (oai_openaire)</h3>
+    <div class="record-card-body">
+      <div class="xml-box">
+        <xsl:apply-templates select="." mode="xml-pretty"/>
+      </div>
+    </div>
+  </div>
 </xsl:template>
+
+<xsl:template match="marc:record">
+  <div class="record-card">
+    <h3>MARCXML (marcxml)</h3>
+    <div class="record-card-body">
+      <div class="xml-box">
+        <xsl:apply-templates select="." mode="xml-pretty"/>
+      </div>
+    </div>
+  </div>
+</xsl:template>
+
+<xsl:template match="oai:metadata/*" priority="-10">
+  <div class="record-card">
+    <h3>Metadata (Unsupported Format)</h3>
+    <div class="record-card-body">
+      <div class="xml-box">
+        <xsl:apply-templates select="." mode="xml-pretty"/>
+      </div>
+    </div>
+  </div>
+</xsl:template>
+
+<xsl:template match="oai:resumptionToken">
+  <div class="record-card">
+    <h3>Resumption Token</h3>
+    <div class="record-card-body">
+      <xsl:choose>
+        <xsl:when test="string-length(normalize-space(.)) &gt; 0">
+          <p class="meta-note">More results are available.</p>
+          <table class="kv-table">
+            <xsl:if test="@expirationDate">
+              <tr><th>expirationDate</th><td><xsl:value-of select="@expirationDate"/></td></tr>
+            </xsl:if>
+            <xsl:if test="@completeListSize">
+              <tr><th>completeListSize</th><td><xsl:value-of select="@completeListSize"/></td></tr>
+            </xsl:if>
+            <xsl:if test="@cursor">
+              <tr><th>cursor</th><td><xsl:value-of select="@cursor"/></td></tr>
+            </xsl:if>
+            <tr><th>token</th><td><xsl:value-of select="."/></td></tr>
+            <tr>
+              <th>resume</th>
+              <td>
+                <a href="?verb={/oai:OAI-PMH/oai:request/@verb}&amp;resumptionToken={.}">Resume Listing</a>
+              </td>
+            </tr>
+          </table>
+        </xsl:when>
+        <xsl:otherwise>
+          <p class="meta-note">End of list. This empty token marks a terminal page.</p>
+        </xsl:otherwise>
+      </xsl:choose>
+    </div>
+  </div>
+</xsl:template>
+
+<xsl:template match="*" mode="xml-pretty">
+  <div class="xml-node">
+    &lt;<span class="xml-tag"><xsl:value-of select="name()"/></span><xsl:apply-templates select="@*" mode="xml-pretty"/>&gt;
+    <xsl:apply-templates select="node()" mode="xml-pretty"/>
+    &lt;/<span class="xml-tag"><xsl:value-of select="name()"/></span>&gt;
+  </div>
+</xsl:template>
+
+<xsl:template match="@*" mode="xml-pretty">
+  <xsl:text> </xsl:text>
+  <span class="xml-attr"><xsl:value-of select="name()"/></span>="<span class="xml-text"><xsl:value-of select="."/></span>"
+</xsl:template>
+
+<xsl:template match="text()[normalize-space(.) != '']" mode="xml-pretty">
+  <span class="xml-text"><xsl:value-of select="normalize-space(.)"/></span>
+</xsl:template>
+
+<xsl:template match="text()" mode="xml-pretty"/>
 
 </xsl:stylesheet>
-

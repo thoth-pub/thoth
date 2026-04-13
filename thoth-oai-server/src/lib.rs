@@ -23,6 +23,8 @@ use uuid::Uuid;
 
 const LOG_FORMAT: &str = r#"%{r}a %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#;
 const XSL_STYLESHEET: &str = include_str!("../assets/oai2.xsl");
+const METADATA_RIGHTS_STATEMENT: &str = "Metadata is licensed under the terms of Creative Commons CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/.";
+const METADATA_RIGHTS_URI: &str = "https://creativecommons.org/publicdomain/zero/1.0/";
 #[cfg(test)]
 const DEFAULT_RETRY_AFTER_SECONDS: u64 = 30;
 
@@ -352,6 +354,8 @@ fn render_identify(
 <description>\
 <thoth:repository xmlns:thoth=\"https://thoth.pub/oai/\">\
 <thoth:latestDatestamp>{}</thoth:latestDatestamp>\
+<thoth:rightsStatement>{}</thoth:rightsStatement>\
+<thoth:rightsUri>{}</thoth:rightsUri>\
 </thoth:repository>\
 </description>\
 </Identify>",
@@ -362,6 +366,8 @@ fn render_identify(
         RECORD_PREFIX,
         SAMPLE_ID,
         xml_escape(&OaiService::timestamp_xml(latest)),
+        xml_escape(METADATA_RIGHTS_STATEMENT),
+        xml_escape(METADATA_RIGHTS_URI),
     )
 }
 
@@ -1585,6 +1591,12 @@ mod tests {
             if case == "verb=Identify" {
                 assert!(get_body.contains("<compression>gzip</compression>"));
                 assert!(post_body.contains("<compression>gzip</compression>"));
+                assert!(get_body.contains(
+                    "<thoth:rightsStatement>Metadata is licensed under the terms of Creative Commons CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/.</thoth:rightsStatement>"
+                ));
+                assert!(post_body.contains(
+                    "<thoth:rightsUri>https://creativecommons.org/publicdomain/zero/1.0/</thoth:rightsUri>"
+                ));
             }
 
             assert_eq!(
@@ -1595,6 +1607,33 @@ mod tests {
 
         export_server.stop().await;
         graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn stylesheet_contains_branding_and_oai_rendering_support() {
+        let app = test::init_service(
+            App::new().service(web::resource("/oai2.xsl").route(web::get().to(stylesheet))),
+        )
+        .await;
+
+        let req = test::TestRequest::get().uri("/oai2.xsl").to_request();
+        let response = test::call_service(&app, req).await;
+        assert_eq!(response.status(), actix_web::http::StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok()),
+            Some("text/xsl; charset=utf-8")
+        );
+
+        let body = String::from_utf8(test::read_body(response).await.to_vec())
+            .expect("stylesheet body UTF-8");
+        assert!(body.contains("https://cdn.thoth.pub/THOTH_ColourPos.png"));
+        assert!(body.contains("Rights Management"));
+        assert!(body.contains("match=\"oai:setDescription\""));
+        assert!(body.contains("match=\"oai:about\""));
+        assert!(body.contains("End of list. This empty token marks a terminal page."));
     }
 
     #[actix_web::test]
