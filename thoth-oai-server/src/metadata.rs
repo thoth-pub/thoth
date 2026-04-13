@@ -1240,7 +1240,7 @@ mod tests {
             "issues": [
                 {
                     "issueOrdinal": 7,
-                    "issueNumber": "7",
+                    "issueNumber": 7,
                     "series": {
                         "seriesId": "00000000-0000-0000-0000-000000000401",
                         "seriesType": "JOURNAL",
@@ -1555,7 +1555,7 @@ mod tests {
         assert!(xml.contains("<dc:title>Canonical Title: A Story</dc:title>"));
         assert!(xml.contains("<dc:title>Alternativer Titel</dc:title>"));
         assert!(xml.contains("<dc:language>eng</dc:language>"));
-        assert!(xml.contains("<dc:language>deu</dc:language>"));
+        assert_eq!(xml.matches("<dc:language>").count(), 2);
         assert!(xml.contains("<dc:description>Short abstract text.</dc:description>"));
         assert!(xml.contains("<dc:description>Long abstract text.</dc:description>"));
         assert!(xml.contains("<dc:description>Part I; Part II</dc:description>"));

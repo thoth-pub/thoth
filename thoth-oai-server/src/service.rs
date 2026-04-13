@@ -126,7 +126,7 @@ impl OaiService {
     }
 
     pub(crate) fn repository_url(&self) -> String {
-        format!("{}/oai", self.public_url.trim_end_matches('/'))
+        self.public_url.trim_end_matches('/').to_string()
     }
 
     pub(crate) async fn earliest(&self) -> ThothResult<Timestamp> {
@@ -190,9 +190,10 @@ impl OaiService {
                 break;
             }
 
-            raw_offset += batch.len() as i64;
-
+            let batch_len = batch.len() as i64;
+            let mut consumed = 0i64;
             for work in batch {
+                consumed += 1;
                 if !self
                     .matches_record(&work, token.metadata_prefix, bounds.as_ref())
                     .await?
@@ -203,6 +204,10 @@ impl OaiService {
                 if records.len() == PAGE_LIMIT as usize {
                     break;
                 }
+            }
+            raw_offset += consumed;
+            if consumed < batch_len {
+                break;
             }
         }
 

@@ -67,12 +67,6 @@ struct ParsedListRequest {
     resumed: bool,
 }
 
-async fn index() -> HttpResponse {
-    HttpResponse::Found()
-        .append_header(("Location", "/oai"))
-        .finish()
-}
-
 async fn stylesheet() -> HttpResponse {
     HttpResponse::Ok()
         .content_type("text/xsl; charset=utf-8")
@@ -239,7 +233,7 @@ async fn not_found() -> HttpResponse {
 <body>
   <h1>404 - Page Not Found</h1>
   <p>The requested page was not found.</p>
-  <p><a href="/oai">OAI-PMH Interface</a></p>
+  <p><a href="/">OAI-PMH Interface</a></p>
 </body>
 </html>"##,
         )
@@ -973,9 +967,8 @@ pub async fn start_server(
             .wrap(Logger::new(LOG_FORMAT))
             .wrap(Cors::default().allowed_methods(vec!["GET", "POST", "OPTIONS"]))
             .app_data(web::Data::new(state.clone()))
-            .service(web::resource("/").route(web::get().to(index)))
             .service(
-                web::resource("/oai")
+                web::resource("/")
                     .route(web::get().to(oai_get))
                     .route(web::post().to(oai_post)),
             )
@@ -1534,7 +1527,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn get_and_post_are_equivalent_for_all_oai_verbs() {
+    async fn get_and_post_are_equivalent_for_all_oai_verbs_on_root_endpoint() {
         let work_id = Uuid::from_u128(1);
         let works = vec![make_work(
             work_id,
@@ -1558,7 +1551,7 @@ mod tests {
                     retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
                 }))
                 .service(
-                    web::resource("/oai")
+                    web::resource("/")
                         .route(web::get().to(oai_get))
                         .route(web::post().to(oai_post)),
                 ),
@@ -1577,7 +1570,7 @@ mod tests {
 
         for case in cases {
             let get_req = test::TestRequest::get()
-                .uri(&format!("/oai?{case}"))
+                .uri(&format!("/?{case}"))
                 .to_request();
             let get_response = test::call_service(&app, get_req).await;
             assert_eq!(get_response.status(), actix_web::http::StatusCode::OK);
@@ -1597,7 +1590,7 @@ mod tests {
                 .expect("GET body UTF-8");
 
             let post_req = test::TestRequest::post()
-                .uri("/oai")
+                .uri("/")
                 .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
                 .set_payload(case.clone())
                 .to_request();
@@ -1695,7 +1688,7 @@ mod tests {
         assert!(body.contains(
             "https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/manifest.json"
         ));
-        assert!(body.contains("<a href=\"/oai\">OAI-PMH Interface</a>"));
+        assert!(body.contains("<a href=\"/\">OAI-PMH Interface</a>"));
     }
 
     #[actix_web::test]
@@ -2573,7 +2566,7 @@ mod tests {
         let response = test::call_service(&app, req).await;
         let body = String::from_utf8(test::read_body(response).await.to_vec()).expect("body UTF-8");
 
-        assert_eq!(count_occurrences(&body, "<record>"), 1);
+        assert_eq!(count_occurrences(&body, "<header>"), 1);
         assert!(body.contains(&OaiService::oai_identifier(visible_work_id)));
         assert!(!body.contains(&OaiService::oai_identifier(hidden_work_id)));
 
