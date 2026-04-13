@@ -18,11 +18,22 @@ pub const MAX_SHORT_ABSTRACT_CHAR_LIMIT: u16 = 350;
 /// - membership for *all* publishers involved (via `PublisherIds`)
 pub struct AbstractPolicy;
 
-fn has_canonical_abstract(db: &crate::db::PgPool, work_id: &Uuid) -> ThothResult<bool> {
+fn has_canonical_abstract(
+    db: &crate::db::PgPool,
+    work_id: &Uuid,
+    abstract_type: AbstractType,
+    exclude_abstract_id: Option<&Uuid>,
+) -> ThothResult<bool> {
     let mut connection = db.get()?;
-    let query = work_abstract::table
+    let mut query = work_abstract::table
         .filter(work_abstract::work_id.eq(work_id))
-        .filter(work_abstract::canonical.eq(true));
+        .filter(work_abstract::abstract_type.eq(abstract_type))
+        .filter(work_abstract::canonical.eq(true))
+        .into_boxed();
+
+    if let Some(abstract_id) = exclude_abstract_id {
+        query = query.filter(work_abstract::abstract_id.ne(abstract_id));
+    }
 
     let result: bool = select(exists(query)).get_result(&mut connection)?;
     Ok(result)
@@ -39,8 +50,10 @@ impl CreatePolicy<NewAbstract, Option<MarkupFormat>> for AbstractPolicy {
         // Abstract creation requires a markup format.
         markup.ok_or(ThothError::MissingMarkupFormat)?;
 
-        // Canonical abstracts: only one canonical abstract is allowed per work.
-        if data.canonical && has_canonical_abstract(ctx.db(), &data.work_id)? {
+        // Canonical abstracts: only one canonical abstract is allowed per work and type.
+        if data.canonical
+            && has_canonical_abstract(ctx.db(), &data.work_id, data.abstract_type, None)?
+        {
             return Err(ThothError::CanonicalAbstractExistsError);
         }
 
@@ -66,6 +79,17 @@ impl UpdatePolicy<Abstract, PatchAbstract, Option<MarkupFormat>> for AbstractPol
 
         // Abstract creation requires a markup format.
         markup.ok_or(ThothError::MissingMarkupFormat)?;
+
+        if patch.canonical
+            && has_canonical_abstract(
+                ctx.db(),
+                &patch.work_id,
+                patch.abstract_type,
+                Some(&current.abstract_id),
+            )?
+        {
+            return Err(ThothError::CanonicalAbstractExistsError);
+        }
 
         if patch.abstract_type == AbstractType::Short
             && patch.content.len() > MAX_SHORT_ABSTRACT_CHAR_LIMIT as usize

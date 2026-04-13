@@ -3,7 +3,7 @@ use strum::{Display, EnumString};
 use uuid::Uuid;
 
 use crate::graphql::types::inputs::Direction;
-use crate::model::Timestamp;
+use crate::model::{CountryCode, Timestamp};
 #[cfg(feature = "backend")]
 use crate::schema::award;
 #[cfg(feature = "backend")]
@@ -49,6 +49,9 @@ pub enum AwardField {
     AwardOrdinal,
     Title,
     Category,
+    Year,
+    Jury,
+    Country,
     Role,
     Url,
     CreatedAt,
@@ -64,6 +67,9 @@ pub struct Award {
     pub title: String,
     pub url: Option<String>,
     pub category: Option<String>,
+    pub year: Option<String>,
+    pub jury: Option<String>,
+    pub country: Option<CountryCode>,
     pub prize_statement: Option<String>,
     pub role: Option<AwardRole>,
     pub award_ordinal: i32,
@@ -82,6 +88,9 @@ pub struct NewAward {
     pub title: String,
     pub url: Option<String>,
     pub category: Option<String>,
+    pub year: Option<String>,
+    pub jury: Option<String>,
+    pub country: Option<CountryCode>,
     pub prize_statement: Option<String>,
     pub role: Option<AwardRole>,
     pub award_ordinal: i32,
@@ -99,6 +108,9 @@ pub struct PatchAward {
     pub title: String,
     pub url: Option<String>,
     pub category: Option<String>,
+    pub year: Option<String>,
+    pub jury: Option<String>,
+    pub country: Option<CountryCode>,
     pub prize_statement: Option<String>,
     pub role: Option<AwardRole>,
     pub award_ordinal: i32,

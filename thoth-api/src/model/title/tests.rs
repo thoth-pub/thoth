@@ -27,9 +27,9 @@ mod conversions {
     #[test]
     fn convert_title_to_jats_updates_fields() {
         let mut title = Title {
-            title: "<title>My Title</title>".to_string(),
-            subtitle: Some("<subtitle>Sub</subtitle>".to_string()),
-            full_title: "<title>My Title: Sub</title>".to_string(),
+            title: "My <italic>Title</italic>".to_string(),
+            subtitle: Some("Sub".to_string()),
+            full_title: "My <italic>Title</italic>: Sub".to_string(),
             locale_code: LocaleCode::En,
             canonical: false,
             ..Default::default()
@@ -38,12 +38,9 @@ mod conversions {
         convert_title_to_jats(&mut title, MarkupFormat::JatsXml)
             .expect("Failed to convert title to JATS");
 
-        assert_eq!(title.title(), "<title>My Title</title>");
-        assert_eq!(
-            TitleProperties::subtitle(&title),
-            Some("<subtitle>Sub</subtitle>")
-        );
-        assert_eq!(title.full_title(), "<title>My Title: Sub</title>");
+        assert_eq!(title.title(), "My <italic>Title</italic>");
+        assert_eq!(TitleProperties::subtitle(&title), Some("Sub"));
+        assert_eq!(title.full_title(), "My <italic>Title</italic>: Sub");
     }
 }
 

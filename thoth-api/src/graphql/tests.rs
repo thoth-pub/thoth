@@ -14,10 +14,10 @@ use crate::model::{
     contact::{Contact, ContactType, NewContact, PatchContact},
     contribution::{Contribution, ContributionType, NewContribution, PatchContribution},
     contributor::{Contributor, NewContributor, PatchContributor},
-    endorsement::{Endorsement, NewEndorsement},
+    endorsement::{Endorsement, NewEndorsement, PatchEndorsement},
     funding::{Funding, NewFunding, PatchFunding},
     imprint::{Imprint, NewImprint, PatchImprint},
-    institution::{CountryCode, Institution, NewInstitution, PatchInstitution},
+    institution::{Institution, NewInstitution, PatchInstitution},
     issue::{Issue, NewIssue, PatchIssue},
     language::{Language, LanguageCode, LanguageRelation, NewLanguage, PatchLanguage},
     locale::LocaleCode,
@@ -32,7 +32,7 @@ use crate::model::{
     title::{NewTitle, PatchTitle, Title},
     work::{NewWork, PatchWork, Work, WorkStatus, WorkType},
     work_relation::{NewWorkRelation, PatchWorkRelation, RelationType, WorkRelation},
-    Crud, Doi, Isbn, Orcid, Ror,
+    CountryCode, Crud, Doi, Isbn, Orcid, Ror,
 };
 use crate::policy::{PolicyContext, Role};
 use chrono::NaiveDate;
@@ -457,6 +457,10 @@ fn make_new_publication(work_id: Uuid) -> NewPublication {
         accessibility_exception: None,
         accessibility_report_url: None,
     }
+}
+
+fn raw_isbn(value: &str) -> Isbn {
+    serde_json::from_str(&format!("\"{value}\"")).expect("Failed to deserialize raw ISBN scalar")
 }
 
 fn make_new_location(publication_id: Uuid, canonical: bool) -> NewLocation {
@@ -1191,11 +1195,19 @@ fn patch_title(title: &Title) -> PatchTitle {
     }
 }
 
+fn append_to_jats_paragraph_content(content: &str, suffix: &str) -> String {
+    if let Some((head, tail)) = content.rsplit_once("</p>") {
+        format!("{head}{suffix}</p>{tail}")
+    } else {
+        format!("{content}{suffix}")
+    }
+}
+
 fn patch_abstract(abstract_item: &Abstract) -> PatchAbstract {
     PatchAbstract {
         abstract_id: abstract_item.abstract_id,
         work_id: abstract_item.work_id,
-        content: format!("{} Updated", abstract_item.content),
+        content: append_to_jats_paragraph_content(&abstract_item.content, " Updated"),
         locale_code: abstract_item.locale_code,
         abstract_type: abstract_item.abstract_type,
         canonical: abstract_item.canonical,
@@ -1206,7 +1218,7 @@ fn patch_biography(biography: &Biography) -> PatchBiography {
     PatchBiography {
         biography_id: biography.biography_id,
         contribution_id: biography.contribution_id,
-        content: format!("{} Updated", biography.content),
+        content: append_to_jats_paragraph_content(&biography.content, " Updated"),
         canonical: biography.canonical,
         locale_code: biography.locale_code,
     }
@@ -2178,7 +2190,7 @@ query ParentMarkup($id: Uuid!) {
 }
 
 #[test]
-fn graphql_award_supports_role_and_prize_statement_markup() {
+fn graphql_award_supports_role_prize_statement_and_new_fields() {
     let (_guard, pool) = test_db::setup_test_db();
     let schema = create_schema();
     let superuser = test_db::test_superuser("user-award-markup");
@@ -2190,12 +2202,15 @@ fn graphql_award_supports_role_and_prize_statement_markup() {
         &context,
         "createAward",
         "NewAward",
-        "awardId role title(markupFormat: PLAIN_TEXT) prizeStatement(markupFormat: PLAIN_TEXT)",
+        "awardId role year jury country title(markupFormat: PLAIN_TEXT) prizeStatement(markupFormat: PLAIN_TEXT)",
         NewAward {
             work_id: seed.book_work_id,
             title: "*Award*".to_string(),
             url: Some("https://example.com/award".to_string()),
             category: Some("Prize".to_string()),
+            year: Some("2025-2026".to_string()),
+            jury: Some("International Jury".to_string()),
+            country: Some(CountryCode::Gbr),
             prize_statement: Some("**Prize** statement".to_string()),
             role: Some(AwardRole::JointWinner),
             award_ordinal: 1,
@@ -2204,12 +2219,18 @@ fn graphql_award_supports_role_and_prize_statement_markup() {
     );
 
     assert_eq!(award["role"].as_str(), Some("JOINT_WINNER"));
+    assert_eq!(award["year"].as_str(), Some("2025-2026"));
+    assert_eq!(award["jury"].as_str(), Some("International Jury"));
+    assert_eq!(award["country"].as_str(), Some("GBR"));
     assert_eq!(award["title"].as_str(), Some("Award"));
     assert_eq!(award["prizeStatement"].as_str(), Some("Prize statement"));
 
     let award_id = json_uuid(&award["awardId"]);
     let stored = Award::from_id(pool.as_ref(), &award_id).expect("Failed to fetch stored award");
     assert_eq!(stored.role, Some(AwardRole::JointWinner));
+    assert_eq!(stored.year.as_deref(), Some("2025-2026"));
+    assert_eq!(stored.jury.as_deref(), Some("International Jury"));
+    assert_eq!(stored.country, Some(CountryCode::Gbr));
     assert!(stored.title.contains("<italic>"));
     assert!(stored
         .prize_statement
@@ -2352,11 +2373,11 @@ fn graphql_endorsement_supports_author_identity_fields() {
         &context,
         "createEndorsement",
         "NewEndorsement",
-        "endorsementId authorOrcid authorInstitutionId authorInstitution { institutionId ror } text(markupFormat: PLAIN_TEXT)",
+        "endorsementId authorRole(markupFormat: PLAIN_TEXT) authorOrcid authorInstitutionId authorInstitution { institutionId ror } text(markupFormat: PLAIN_TEXT)",
         NewEndorsement {
             work_id: seed.book_work_id,
             author_name: Some("Author".to_string()),
-            author_role: Some("Scholar".to_string()),
+            author_role: Some("*Visiting Scholar*".to_string()),
             author_orcid: Some(Orcid::from_str("https://orcid.org/0000-0001-2345-6789").unwrap()),
             author_institution_id: Some(institution.institution_id),
             url: Some("https://example.com/endorsement".to_string()),
@@ -2375,6 +2396,7 @@ fn graphql_endorsement_supports_author_identity_fields() {
         endorsement["authorInstitutionId"].as_str(),
         Some(author_institution_id.as_str())
     );
+    assert_eq!(endorsement["authorRole"].as_str(), Some("Visiting Scholar"));
     assert_eq!(endorsement["text"].as_str(), Some("Excellent book"));
     assert_eq!(
         endorsement["authorInstitution"]["ror"].as_str(),
@@ -2388,6 +2410,70 @@ fn graphql_endorsement_supports_author_identity_fields() {
         stored.author_orcid,
         Some(Orcid::from_str("https://orcid.org/0000-0001-2345-6789").unwrap())
     );
+    assert!(stored
+        .author_role
+        .as_deref()
+        .unwrap_or_default()
+        .contains("<italic>"));
+}
+
+#[test]
+fn graphql_update_endorsement_supports_author_role_markup() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-endorsement-author-role-markup");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let endorsement = create_with_data_and_markup(
+        &schema,
+        &context,
+        "createEndorsement",
+        "NewEndorsement",
+        "endorsementId authorRole(markupFormat: PLAIN_TEXT)",
+        NewEndorsement {
+            work_id: seed.book_work_id,
+            author_name: Some("Author".to_string()),
+            author_role: Some("Scholar".to_string()),
+            author_orcid: None,
+            author_institution_id: None,
+            url: Some("https://example.com/endorsement".to_string()),
+            text: Some("Excellent book".to_string()),
+            endorsement_ordinal: 1,
+        },
+        MarkupFormat::PlainText,
+    );
+
+    let endorsement_id = json_uuid(&endorsement["endorsementId"]);
+    let updated = update_with_data_and_markup(
+        &schema,
+        &context,
+        "updateEndorsement",
+        "PatchEndorsement",
+        "endorsementId authorRole(markupFormat: PLAIN_TEXT)",
+        PatchEndorsement {
+            endorsement_id,
+            work_id: seed.book_work_id,
+            author_name: Some("Author".to_string()),
+            author_role: Some("*Lead Editor*".to_string()),
+            author_orcid: None,
+            author_institution_id: None,
+            url: Some("https://example.com/endorsement".to_string()),
+            text: Some("Excellent book".to_string()),
+            endorsement_ordinal: 1,
+        },
+        MarkupFormat::Markdown,
+    );
+
+    assert_eq!(updated["authorRole"].as_str(), Some("Lead Editor"));
+
+    let stored = Endorsement::from_id(pool.as_ref(), &endorsement_id)
+        .expect("Failed to fetch stored endorsement");
+    assert!(stored
+        .author_role
+        .as_deref()
+        .unwrap_or_default()
+        .contains("<italic>"));
 }
 
 #[test]
@@ -2470,6 +2556,382 @@ query LinkedRelations($reviewId: Uuid!, $endorsementId: Uuid!) {
     assert!(data["bookReview"]["reviewerInstitution"].is_null());
     assert!(data["endorsement"]["authorInstitutionId"].is_null());
     assert!(data["endorsement"]["authorInstitution"].is_null());
+}
+
+#[test]
+fn graphql_markup_mutations_accept_valid_jatsxml_but_reject_breaks_and_markup_like_plain_text() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-jats-xml-mutations");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let title = Title::from_id(pool.as_ref(), &seed.title_id).unwrap();
+    update_with_data_and_markup(
+        &schema,
+        &context,
+        "updateTitle",
+        "PatchTitle",
+        "titleId",
+        PatchTitle {
+            title_id: title.title_id,
+            work_id: title.work_id,
+            locale_code: title.locale_code,
+            full_title: "Foundations for Moral <italic>Relativism</italic> <underline>Second</underline> <strike>Expanded</strike> <inline-formula><tex-math>E=mc^2</tex-math></inline-formula> <email>editor@example.org</email> <uri>https://example.org</uri> Edition"
+                .to_string(),
+            title: "Foundations for Moral <italic>Relativism</italic> <inline-formula><tex-math>E=mc^2</tex-math></inline-formula>".to_string(),
+            subtitle: Some(
+                "<underline>Second</underline> <strike>Expanded</strike> <email>editor@example.org</email> <uri>https://example.org</uri> Edition".to_string(),
+            ),
+            canonical: title.canonical,
+        },
+        MarkupFormat::JatsXml,
+    );
+
+    let stored_title = Title::from_id(pool.as_ref(), &seed.title_id).unwrap();
+    assert_eq!(
+        stored_title.full_title,
+        "Foundations for Moral <italic>Relativism</italic> <underline>Second</underline> <strike>Expanded</strike> <inline-formula><tex-math>E=mc^2</tex-math></inline-formula> <email>editor@example.org</email> <uri>https://example.org</uri> Edition"
+    );
+    assert_eq!(
+        stored_title.title,
+        "Foundations for Moral <italic>Relativism</italic> <inline-formula><tex-math>E=mc^2</tex-math></inline-formula>"
+    );
+    assert_eq!(
+        stored_title.subtitle.as_deref(),
+        Some(
+            "<underline>Second</underline> <strike>Expanded</strike> <email>editor@example.org</email> <uri>https://example.org</uri> Edition"
+        )
+    );
+
+    let abstract_item = Abstract::from_id(pool.as_ref(), &seed.abstract_short_id).unwrap();
+    let abstract_query = r#"
+        mutation UpdateAbstract($data: PatchAbstract!, $markup: MarkupFormat!) {
+            updateAbstract(data: $data, markupFormat: $markup) {
+                abstractId
+            }
+        }
+    "#;
+    let mut abstract_vars = Variables::new();
+    insert_var(
+        &mut abstract_vars,
+        "data",
+        PatchAbstract {
+            abstract_id: abstract_item.abstract_id,
+            work_id: abstract_item.work_id,
+            content:
+                "First line\nSecond line with $E=mc^2$ and user@example.org and https://example.org"
+                    .to_string(),
+            locale_code: abstract_item.locale_code,
+            abstract_type: abstract_item.abstract_type,
+            canonical: abstract_item.canonical,
+        },
+    );
+    insert_var(&mut abstract_vars, "markup", MarkupFormat::PlainText);
+    let (_, abstract_errors) =
+        juniper::execute_sync(abstract_query, None, &schema, &abstract_vars, &context)
+            .expect("GraphQL execution should succeed with validation errors");
+    assert!(
+        !abstract_errors.is_empty(),
+        "Expected abstract validation error"
+    );
+
+    let biography = Biography::from_id(pool.as_ref(), &seed.biography_id).unwrap();
+    let biography_query = r#"
+        mutation UpdateBiography($data: PatchBiography!, $markup: MarkupFormat!) {
+            updateBiography(data: $data, markupFormat: $markup) {
+                biographyId
+            }
+        }
+    "#;
+    let mut biography_vars = Variables::new();
+    insert_var(
+        &mut biography_vars,
+        "data",
+        PatchBiography {
+            biography_id: biography.biography_id,
+            contribution_id: biography.contribution_id,
+            content: "<p>Bio line<break/><inline-formula><tex-math>x^2</tex-math></inline-formula> <email>bio@example.org</email> <uri>https://bio.example.org</uri></p>".to_string(),
+            canonical: biography.canonical,
+            locale_code: biography.locale_code,
+        },
+    );
+    insert_var(&mut biography_vars, "markup", MarkupFormat::JatsXml);
+    let (_, biography_errors) =
+        juniper::execute_sync(biography_query, None, &schema, &biography_vars, &context)
+            .expect("GraphQL execution should succeed with validation errors");
+    assert!(
+        !biography_errors.is_empty(),
+        "Expected biography validation error"
+    );
+}
+
+#[test]
+fn graphql_update_title_rejects_break_elements_for_jats_xml() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-jats-title-break-rejection");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+    let title = Title::from_id(pool.as_ref(), &seed.title_id).unwrap();
+
+    let query = r#"
+        mutation UpdateTitle($data: PatchTitle!, $markup: MarkupFormat!) {
+            updateTitle(data: $data, markupFormat: $markup) {
+                titleId
+            }
+        }
+    "#;
+    let mut vars = Variables::new();
+    insert_var(
+        &mut vars,
+        "data",
+        PatchTitle {
+            title_id: title.title_id,
+            work_id: title.work_id,
+            locale_code: title.locale_code,
+            full_title: "Broken<break/>Title".to_string(),
+            title: "Broken<break/>Title".to_string(),
+            subtitle: title.subtitle.clone(),
+            canonical: title.canonical,
+        },
+    );
+    insert_var(&mut vars, "markup", MarkupFormat::JatsXml);
+
+    let (_, errors) = juniper::execute_sync(query, None, &schema, &vars, &context)
+        .expect("GraphQL execution should succeed with validation errors");
+    assert!(!errors.is_empty(), "Expected GraphQL validation error");
+    assert!(!errors[0].error().message().is_empty());
+}
+
+#[test]
+fn graphql_create_abstract_allows_canonical_short_and_long_for_same_work() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-canonical-abstract-types");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let doi = Doi::from_str(&format!(
+        "https://doi.org/10.1234/{}",
+        unique("canonical-abstract-types")
+    ))
+    .expect("Failed to build DOI");
+    let work = create_with_data(
+        &schema,
+        &context,
+        "createWork",
+        "NewWork",
+        "workId",
+        make_new_work(seed.imprint_id, WorkType::Monograph, doi),
+    );
+    let work_id = json_uuid(&work["workId"]);
+
+    let short_abstract = create_with_data_and_markup(
+        &schema,
+        &context,
+        "createAbstract",
+        "NewAbstract",
+        "abstractId canonical abstractType",
+        make_new_abstract(
+            work_id,
+            AbstractType::Short,
+            true,
+            "Canonical short abstract",
+        ),
+        MarkupFormat::PlainText,
+    );
+    assert_eq!(short_abstract["canonical"], JsonValue::Bool(true));
+    assert_eq!(
+        short_abstract["abstractType"],
+        JsonValue::String("SHORT".to_string())
+    );
+
+    let long_abstract = create_with_data_and_markup(
+        &schema,
+        &context,
+        "createAbstract",
+        "NewAbstract",
+        "abstractId canonical abstractType",
+        make_new_abstract(work_id, AbstractType::Long, true, "Canonical long abstract"),
+        MarkupFormat::PlainText,
+    );
+    assert_eq!(long_abstract["canonical"], JsonValue::Bool(true));
+    assert_eq!(
+        long_abstract["abstractType"],
+        JsonValue::String("LONG".to_string())
+    );
+}
+
+#[test]
+fn graphql_create_publication_normalises_hyphenless_isbn() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-publication-create-isbn-normalisation");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let doi = Doi::from_str(&format!(
+        "https://doi.org/10.1234/{}",
+        unique("publication-create-isbn-normalisation")
+    ))
+    .expect("Failed to build DOI");
+    let work = create_with_data(
+        &schema,
+        &context,
+        "createWork",
+        "NewWork",
+        "workId",
+        make_new_work(seed.imprint_id, WorkType::Monograph, doi),
+    );
+    let work_id = json_uuid(&work["workId"]);
+
+    let publication = create_with_data(
+        &schema,
+        &context,
+        "createPublication",
+        "NewPublication",
+        "publicationId isbn",
+        NewPublication {
+            publication_type: PublicationType::Paperback,
+            work_id,
+            isbn: Some(raw_isbn("9783943253962")),
+            width_mm: None,
+            width_in: None,
+            height_mm: None,
+            height_in: None,
+            depth_mm: None,
+            depth_in: None,
+            weight_g: None,
+            weight_oz: None,
+            accessibility_standard: None,
+            accessibility_additional_standard: None,
+            accessibility_exception: None,
+            accessibility_report_url: None,
+        },
+    );
+    let publication_id = json_uuid(&publication["publicationId"]);
+    let stored_publication =
+        Publication::from_id(pool.as_ref(), &publication_id).expect("Failed to fetch publication");
+    let expected = Isbn::from_str("9783943253962").expect("Failed to parse expected ISBN");
+
+    assert_eq!(stored_publication.isbn, Some(expected.clone()));
+    assert_eq!(publication["isbn"], JsonValue::String(expected.to_string()));
+}
+
+#[test]
+fn graphql_update_publication_normalises_hyphenless_isbn() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-publication-update-isbn-normalisation");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let publication = Publication::from_id(pool.as_ref(), &seed.publication_id)
+        .expect("Failed to fetch seeded publication");
+    let mut patch = patch_publication(&publication);
+    patch.isbn = Some(raw_isbn("9783943253962"));
+
+    let updated = update_with_data(
+        &schema,
+        &context,
+        "updatePublication",
+        "PatchPublication",
+        "publicationId isbn",
+        patch,
+    );
+    let publication_id = json_uuid(&updated["publicationId"]);
+    let stored_publication =
+        Publication::from_id(pool.as_ref(), &publication_id).expect("Failed to fetch publication");
+    let expected = Isbn::from_str("9783943253962").expect("Failed to parse expected ISBN");
+
+    assert_eq!(stored_publication.isbn, Some(expected.clone()));
+    assert_eq!(updated["isbn"], JsonValue::String(expected.to_string()));
+}
+
+#[test]
+fn graphql_create_publication_rejects_invalid_isbn_before_db_constraint() {
+    use crate::schema::publication::dsl as publication_dsl;
+    use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-publication-invalid-isbn-validation");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let doi = Doi::from_str(&format!(
+        "https://doi.org/10.1234/{}",
+        unique("publication-invalid-isbn-validation")
+    ))
+    .expect("Failed to build DOI");
+    let work = create_with_data(
+        &schema,
+        &context,
+        "createWork",
+        "NewWork",
+        "workId",
+        make_new_work(seed.imprint_id, WorkType::Monograph, doi),
+    );
+    let work_id = json_uuid(&work["workId"]);
+
+    let query = r#"
+        mutation CreatePublication($data: NewPublication!) {
+            createPublication(data: $data) {
+                publicationId
+            }
+        }
+    "#;
+    let mut vars = Variables::new();
+    insert_var(
+        &mut vars,
+        "data",
+        NewPublication {
+            publication_type: PublicationType::Paperback,
+            work_id,
+            isbn: Some(raw_isbn("not-an-isbn")),
+            width_mm: None,
+            width_in: None,
+            height_mm: None,
+            height_in: None,
+            depth_mm: None,
+            depth_in: None,
+            weight_g: None,
+            weight_oz: None,
+            accessibility_standard: None,
+            accessibility_additional_standard: None,
+            accessibility_exception: None,
+            accessibility_report_url: None,
+        },
+    );
+
+    let (value, errors) = juniper::execute_sync(query, None, &schema, &vars, &context)
+        .expect("GraphQL execution should succeed with validation errors");
+    assert!(!errors.is_empty(), "Expected GraphQL validation error");
+    let message = errors[0].error().message();
+    assert!(
+        message.contains("validly formatted ISBN"),
+        "Expected parse-style ISBN error, got: {message}"
+    );
+    assert!(
+        !message.contains("exactly 17 characters"),
+        "Should fail before database ISBN length constraint, got: {message}"
+    );
+    let payload = serde_json::to_value(value).expect("Failed to serialize GraphQL response");
+    assert!(
+        payload.get("createPublication").is_none() || payload["createPublication"].is_null(),
+        "Expected no createPublication payload on validation error, got: {payload:?}"
+    );
+
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let publications = publication_dsl::publication
+        .filter(publication_dsl::work_id.eq(work_id))
+        .load::<Publication>(&mut connection)
+        .expect("Failed to query publications for work");
+    assert!(
+        publications.is_empty(),
+        "Invalid ISBN should not create publication rows"
+    );
 }
 
 #[test]
@@ -2669,7 +3131,7 @@ fn graphql_mutations_cover_all() {
         "PatchAbstract",
         "abstractId",
         patch_abstract(&abstract_item),
-        MarkupFormat::PlainText,
+        MarkupFormat::JatsXml,
     );
 
     let biography = Biography::from_id(pool.as_ref(), &seed.biography_id).unwrap();
@@ -2680,7 +3142,7 @@ fn graphql_mutations_cover_all() {
         "PatchBiography",
         "biographyId",
         patch_biography(&biography),
-        MarkupFormat::PlainText,
+        MarkupFormat::JatsXml,
     );
 
     let work = Work::from_id(pool.as_ref(), &seed.book_work_id).unwrap();

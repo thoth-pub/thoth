@@ -11,6 +11,8 @@ pub const DOI_DOMAIN: &str = "https://doi.org/";
 pub const ORCID_DOMAIN: &str = "https://orcid.org/";
 pub const ROR_DOMAIN: &str = "https://ror.org/";
 
+pub use country::CountryCode;
+
 #[cfg_attr(
     feature = "backend",
     derive(diesel_derive_newtype::DieselNewType, juniper::GraphQLScalar),
@@ -884,6 +886,7 @@ pub mod book_review;
 pub mod contact;
 pub mod contribution;
 pub mod contributor;
+pub mod country;
 pub mod endorsement;
 pub mod file;
 pub mod funding;

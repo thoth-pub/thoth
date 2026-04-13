@@ -60,7 +60,7 @@ impl Default for ApiConfig {
 
 #[get("/")]
 async fn index(config: Data<ApiConfig>) -> HttpResponse {
-    HttpResponse::Ok().json(config.into_inner())
+    HttpResponse::Ok().json(config.get_ref())
 }
 
 #[get("/graphiql")]
@@ -137,6 +137,7 @@ pub async fn start_server(
     let s3_client = create_s3_client(&aws_access_key_id, &aws_secret_access_key, &aws_region).await;
     let cloudfront_client =
         create_cloudfront_client(&aws_access_key_id, &aws_secret_access_key, &aws_region).await;
+    let pool = Data::new(init_pool(&database_url));
 
     HttpServer::new(move || {
         App::new()
@@ -153,7 +154,7 @@ pub async fn start_server(
             )
             .app_data(auth.clone())
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
-            .app_data(Data::new(init_pool(&database_url)))
+            .app_data(pool.clone())
             .app_data(Data::new(s3_client.clone()))
             .app_data(Data::new(cloudfront_client.clone()))
             .app_data(Data::new(Arc::new(create_schema())))

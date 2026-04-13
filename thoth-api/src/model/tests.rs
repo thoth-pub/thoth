@@ -23,12 +23,12 @@ pub(crate) mod db {
     use crate::model::contribution::{Contribution, ContributionType, NewContribution};
     use crate::model::contributor::{Contributor, NewContributor};
     use crate::model::imprint::{Imprint, NewImprint};
-    use crate::model::institution::{CountryCode, Institution, NewInstitution};
+    use crate::model::institution::{Institution, NewInstitution};
     use crate::model::publication::{NewPublication, Publication, PublicationType};
     use crate::model::publisher::{NewPublisher, Publisher};
     use crate::model::series::{NewSeries, Series, SeriesType};
     use crate::model::work::{NewWork, Work, WorkStatus, WorkType};
-    use crate::model::Crud;
+    use crate::model::{CountryCode, Crud};
     use crate::policy::Role;
     use crate::storage::{create_cloudfront_client, create_s3_client, CloudFrontClient, S3Client};
 

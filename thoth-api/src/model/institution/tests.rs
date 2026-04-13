@@ -1,5 +1,5 @@
 use super::*;
-use crate::model::{Crud, Doi, Ror};
+use crate::model::{CountryCode, Crud, Doi, Ror};
 use uuid::Uuid;
 
 fn make_institution(pool: &crate::db::PgPool, name: String) -> Institution {

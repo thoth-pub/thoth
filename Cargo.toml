@@ -1,6 +1,6 @@
 [package]
 name = "thoth"
-version = "0.13.16"
+version = "1.0.4"
 authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -22,15 +22,15 @@ members = [
 ]
 
 [dependencies]
-thoth-api = { version = "=0.13.16", path = "thoth-api", features = ["backend"] }
-thoth-api-server = { version = "=0.13.16", path = "thoth-api-server" }
-thoth-errors = { version = "=0.13.16", path = "thoth-errors" }
-thoth-export-server = { version = "=0.13.16", path = "thoth-export-server" }
-thoth-oai-server = { version = "=0.13.16", path = "thoth-oai-server" }
+thoth-api = { version = "=1.0.4", path = "thoth-api", features = ["backend"] }
+thoth-api-server = { version = "=1.0.4", path = "thoth-api-server" }
+thoth-errors = { version = "=1.0.4", path = "thoth-errors" }
+thoth-export-server = { version = "=1.0.4", path = "thoth-export-server" }
+thoth-oai-server = { version = "=1.0.4", path = "thoth-oai-server" }
 base64 = "0.22.1"
 clap = { version = "4.5.32", features = ["cargo", "env"] }
 dialoguer = { version = "0.11.0", features = ["password"] }
 dotenv = "0.15.0"
 lazy_static = "1.5.0"
 tokio = { version = "1.44.1", features = ["rt", "rt-multi-thread", "macros"] }
-zitadel = { version = "5.5.1", features = ["api", "interceptors"]}
+zitadel = { version = "5.7.6", features = ["api", "interceptors"]}

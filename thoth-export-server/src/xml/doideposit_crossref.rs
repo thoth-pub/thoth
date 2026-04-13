@@ -1,6 +1,7 @@
 use chrono::Utc;
 use regex::Regex;
 use std::io::Write;
+use thoth_api::markup::normalise_crossref_abstract_jats;
 use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
     AbstractType, ContributionType, Funding, PublicationType, Reference, RelationType, Work,
@@ -392,12 +393,18 @@ fn write_abstract_content<W: Write>(
     abstract_type: &str,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
+    let normalised_content = normalise_crossref_abstract_jats(abstract_content).map_err(|err| {
+        ThothError::IncompleteMetadataRecord(
+            DEPOSIT_ERROR.to_string(),
+            format!("Invalid Crossref abstract markup: {}", err),
+        )
+    })?;
     write_full_element_block(
         "jats:abstract",
         Some(vec![("abstract-type", abstract_type)]),
         w,
         |w| {
-            write_jats_content(abstract_content, w)?;
+            write_jats_content(&normalised_content, w)?;
             Ok(())
         },
     )
@@ -409,6 +416,12 @@ fn write_abstract_content_with_locale_code<W: Write>(
     locale_code: &str,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
+    let normalised_content = normalise_crossref_abstract_jats(abstract_content).map_err(|err| {
+        ThothError::IncompleteMetadataRecord(
+            DEPOSIT_ERROR.to_string(),
+            format!("Invalid Crossref abstract markup: {}", err),
+        )
+    })?;
     write_full_element_block(
         "jats:abstract",
         Some(vec![
@@ -416,7 +429,7 @@ fn write_abstract_content_with_locale_code<W: Write>(
             ("xml:lang", locale_code),
         ]),
         w,
-        |w| write_jats_content(abstract_content, w),
+        |w| write_jats_content(&normalised_content, w),
     )
 }
 
@@ -562,53 +575,47 @@ fn write_crossmark_funding_access<W: Write>(
                 w.write(XmlEvent::Characters(&crossmark_doi.to_string()))
                     .map_err(|e| e.into())
             })?;
+
+            let mut updates: Vec<(&str, String, String)> = Vec::new();
             if update_type == "new_edition" {
                 if let Some(publication_date) = &work.publication_date {
-                    for relation in work.relations.iter().filter(|r| {
-                        r.relation_type == RelationType::REPLACES && r.related_work.doi.is_some()
-                    }) {
-                        // only output crossmark update if there's a DOI for the Superseded Work and publication date for the Active Work
-                        // metadata is output on the Active Work, rather than the Superseded one, see
-                        // https://community.crossref.org/t/appropriate-doi-to-use-in-crossmark-new-edition-and-withdrawal-update-types/6189/2
-                        let doi = relation.related_work.doi.as_ref().unwrap();
-
-                        write_element_block("updates", w, |w| {
-                            write_full_element_block(
-                                "update",
-                                Some(vec![
-                                    ("type", update_type),
-                                    ("date", &publication_date.to_string()),
-                                ]),
-                                w,
-                                |w| {
-                                    w.write(XmlEvent::Characters(&doi.to_string()))
-                                        .map_err(|e| e.into())
-                                },
-                            )
-                        })?;
-                    }
+                    let publication_date = publication_date.to_string();
+                    updates.extend(work.relations.iter().filter_map(|relation| {
+                        if relation.relation_type == RelationType::REPLACES {
+                            relation.related_work.doi.as_ref().map(|doi| {
+                                // only output crossmark update if there's a DOI for the Superseded Work
+                                // and publication date for the Active Work. Metadata is output on the
+                                // Active Work, rather than the Superseded one, see
+                                // https://community.crossref.org/t/appropriate-doi-to-use-in-crossmark-new-edition-and-withdrawal-update-types/6189/2
+                                (update_type, publication_date.clone(), doi.to_string())
+                            })
+                        } else {
+                            None
+                        }
+                    }));
                 }
             } else if update_type == "withdrawal" {
                 // for a withdrawal, only output crossmark update
                 // if there's a withdrawn date and DOI for the Withdrawn work.
                 if let Some(withdrawn_date) = &work.withdrawn_date {
                     if let Some(doi) = &work.doi {
-                        write_element_block("updates", w, |w| {
-                            write_full_element_block(
-                                "update",
-                                Some(vec![
-                                    ("type", update_type),
-                                    ("date", &withdrawn_date.to_string()),
-                                ]),
-                                w,
-                                |w| {
-                                    w.write(XmlEvent::Characters(&doi.to_string()))
-                                        .map_err(|e| e.into())
-                                },
-                            )
-                        })?;
+                        updates.push((update_type, withdrawn_date.to_string(), doi.to_string()));
                     }
                 }
+            }
+
+            if !updates.is_empty() {
+                write_element_block("updates", w, |w| {
+                    for (update_type, update_date, doi) in &updates {
+                        write_full_element_block(
+                            "update",
+                            Some(vec![("type", *update_type), ("date", update_date.as_str())]),
+                            w,
+                            |w| w.write(XmlEvent::Characters(doi)).map_err(|e| e.into()),
+                        )?;
+                    }
+                    Ok(())
+                })?;
             }
 
             // If crossmark metadata is included, funding and access data must be inside the <crossmark> element
@@ -2177,6 +2184,46 @@ mod tests {
                 fundings: vec![],
                 languages: vec![],
             },
+        },
+        WorkRelations {
+            relation_type: RelationType::REPLACES,
+            relation_ordinal: 3,
+            related_work: WorkRelationsRelatedWork {
+                work_status: WorkStatus::SUPERSEDED,
+                titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                    title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000003").unwrap(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    full_title: "Book Title: Book Subtitle: 2nd Edition".to_string(),
+                    title: "Part".to_string(),
+                    subtitle: Some("Two".to_string()),
+                    canonical: true,
+                }],
+                abstracts: vec![],
+                edition: None,
+                doi: Some(Doi::from_str("https://doi.org/10.00003/older_edition").unwrap()),
+                publication_date: chrono::NaiveDate::from_ymd_opt(1996, 2, 28),
+                withdrawn_date: chrono::NaiveDate::from_ymd_opt(1997, 2, 28),
+                license: None,
+                copyright_holder: None,
+                general_note: None,
+                place: Some("Older Place".to_string()),
+                first_page: None,
+                last_page: None,
+                page_count: None,
+                page_interval: None,
+                landing_page: Some("https://www.book.com/part_two".to_string()),
+                imprint: WorkRelationsRelatedWorkImprint {
+                    crossmark_doi: None,
+                    publisher: WorkRelationsRelatedWorkImprintPublisher {
+                        publisher_name: "Part Two Publisher".to_string(),
+                    },
+                },
+                contributions: vec![],
+                publications: vec![],
+                references: vec![],
+                fundings: vec![],
+                languages: vec![],
+            },
         }];
         let output = generate_test_output(true, &test_work);
         assert!(output.contains(r#"      <crossmark>"#));
@@ -2184,12 +2231,20 @@ mod tests {
         assert!(output
             .contains(r#"        <crossmark_policy>10.00001/crossmark_policy</crossmark_policy>"#));
         assert!(output.contains(r#"        <updates>"#));
+        assert_eq!(output.matches(r#"        <updates>"#).count(), 1);
         assert!(output.contains(
             r#"          <update type="new_edition" date="1999-12-31">10.00002/old_edition</update>"#
+        ));
+        assert!(output.contains(
+            r#"          <update type="new_edition" date="1999-12-31">10.00003/older_edition</update>"#
         ));
         assert!(output.contains(r#"        </updates>"#));
         assert!(output.contains(r#"        <custom_metadata>"#));
         assert!(output.contains(r#"        </custom_metadata>"#));
+        assert!(
+            output.find(r#"        </updates>"#).unwrap()
+                < output.find(r#"        <custom_metadata>"#).unwrap()
+        );
         assert!(output.contains(r#"      </crossmark>"#));
 
         // Remove/change some values to test variations/non-output of optional blocks
@@ -2450,6 +2505,63 @@ mod tests {
         assert!(output.contains(r#"<jats:abstract abstract-type="short" xml:lang="IT" />"#));
         // Should not contain any paragraph elements
         assert!(!output.contains(r#"<jats:p>"#));
+
+        // Nested paragraph wrappers should be flattened before writing.
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            "<p><p>Nested paragraph.</p></p>",
+            "long",
+            "EN",
+            &mut writer,
+        );
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains(r#"<jats:p>Nested paragraph.</jats:p>"#));
+        assert!(!output.contains(r#"<jats:p><jats:p>"#));
+        assert!(!output.contains(r#"<jats:p />"#));
+
+        // Break elements should be converted into sibling paragraphs.
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            "<p>First line<break/>Second line</p>",
+            "long",
+            "EN",
+            &mut writer,
+        );
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains(r#"<jats:p>First line</jats:p>"#));
+        assert!(output.contains(r#"<jats:p>Second line</jats:p>"#));
+        assert!(!output.contains(r#"<jats:break"#));
+    }
+
+    #[test]
+    fn test_write_abstract_content_with_locale_code_rejects_unnormalisable_crossref_markup() {
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            "<list><list-item>Item<break/>Two</list-item></list>",
+            "long",
+            "EN",
+            &mut writer,
+        );
+
+        assert!(result.is_err());
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("Invalid Crossref abstract markup"));
     }
 
     #[test]

@@ -24,7 +24,7 @@ use crate::model::{
     file::{File, FileType},
     funding::Funding,
     imprint::{Imprint, ImprintField, ImprintOrderBy},
-    institution::{CountryCode, Institution},
+    institution::Institution,
     issue::Issue,
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
@@ -43,7 +43,7 @@ use crate::model::{
     work::{Work, WorkOrderBy, WorkStatus, WorkType},
     work_featured_video::WorkFeaturedVideo,
     work_relation::{RelationType, WorkRelation, WorkRelationOrderBy},
-    Crud, Doi, Isbn, Orcid, Ror, Timestamp,
+    CountryCode, Crud, Doi, Isbn, Orcid, Ror, Timestamp,
 };
 use crate::policy::PolicyContext;
 use crate::storage::{CloudFrontClient, S3Client};
@@ -1319,6 +1319,24 @@ impl Imprint {
         self.crossmark_doi.as_ref()
     }
 
+    #[graphql(description = "S3 bucket used for files belonging to this imprint")]
+    pub fn s3_bucket(&self, context: &Context) -> FieldResult<Option<&str>> {
+        context.require_superuser()?;
+        Ok(self.s3_bucket.as_deref())
+    }
+
+    #[graphql(description = "CDN domain used for files belonging to this imprint")]
+    pub fn cdn_domain(&self, context: &Context) -> FieldResult<Option<&str>> {
+        context.require_superuser()?;
+        Ok(self.cdn_domain.as_deref())
+    }
+
+    #[graphql(description = "CloudFront distribution ID used for files belonging to this imprint")]
+    pub fn cloudfront_dist_id(&self, context: &Context) -> FieldResult<Option<&str>> {
+        context.require_superuser()?;
+        Ok(self.cloudfront_dist_id.as_deref())
+    }
+
     #[graphql(description = "Default currency code for works under this imprint")]
     pub fn default_currency(&self) -> Option<&CurrencyCode> {
         self.default_currency.as_ref()
@@ -2293,6 +2311,21 @@ impl Award {
         self.category.as_ref()
     }
 
+    #[graphql(description = "Year or year span associated with the award")]
+    pub fn year(&self) -> Option<&String> {
+        self.year.as_ref()
+    }
+
+    #[graphql(description = "Jury associated with the award")]
+    pub fn jury(&self) -> Option<&String> {
+        self.jury.as_ref()
+    }
+
+    #[graphql(description = "Country associated with the award")]
+    pub fn country(&self) -> Option<CountryCode> {
+        self.country
+    }
+
     #[graphql(description = "Role of the work in this award")]
     pub fn role(&self) -> Option<AwardRole> {
         self.role
@@ -2364,8 +2397,25 @@ impl Endorsement {
     }
 
     #[graphql(description = "Role of the endorsement author")]
-    pub fn author_role(&self) -> Option<&String> {
-        self.author_role.as_ref()
+    pub fn author_role(
+        &self,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "Markup format used for rendering endorsement author role",
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Option<String>> {
+        self.author_role
+            .as_ref()
+            .map(|author_role| {
+                convert_from_jats(
+                    author_role,
+                    markup_format.ok_or(ThothError::MissingMarkupFormat)?,
+                    ConversionLimit::Abstract,
+                )
+            })
+            .transpose()
+            .map_err(Into::into)
     }
 
     #[graphql(
