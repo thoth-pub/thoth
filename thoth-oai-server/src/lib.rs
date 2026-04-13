@@ -207,10 +207,28 @@ async fn not_found() -> HttpResponse {
     HttpResponse::NotFound()
         .content_type("text/html; charset=utf-8")
         .body(
-            r#"<!DOCTYPE html>
+            r##"<!DOCTYPE html>
 <html>
 <head>
   <title>404 - Page Not Found</title>
+  <link rel="shortcut icon" href="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/favicon.ico" />
+  <link rel="apple-touch-icon" sizes="57x57" href="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/apple-icon-57x57.png">
+  <link rel="apple-touch-icon" sizes="60x60" href="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/apple-icon-60x60.png">
+  <link rel="apple-touch-icon" sizes="72x72" href="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/apple-icon-72x72.png">
+  <link rel="apple-touch-icon" sizes="76x76" href="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/apple-icon-76x76.png">
+  <link rel="apple-touch-icon" sizes="114x114" href="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/apple-icon-114x114.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/apple-icon-120x120.png">
+  <link rel="apple-touch-icon" sizes="144x144" href="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/apple-icon-144x144.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/apple-icon-152x152.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/apple-icon-180x180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/android-icon-192x192.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/favicon-96x96.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/favicon-16x16.png">
+  <link rel="manifest" href="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/manifest.json">
+  <meta name="msapplication-TileColor" content="#FFDD57">
+  <meta name="msapplication-TileImage" content="https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/ms-icon-144x144.png">
+  <meta name="theme-color" content="#FFDD57">
   <style>
     body { font-family: Arial, sans-serif; margin: 40px; text-align: center; }
     h1 { color: #666; }
@@ -221,7 +239,7 @@ async fn not_found() -> HttpResponse {
   <p>The requested page was not found.</p>
   <p><a href="/oai">OAI-PMH Interface</a></p>
 </body>
-</html>"#,
+</html>"##,
         )
 }
 
@@ -1630,10 +1648,42 @@ mod tests {
         let body = String::from_utf8(test::read_body(response).await.to_vec())
             .expect("stylesheet body UTF-8");
         assert!(body.contains("https://cdn.thoth.pub/THOTH_ColourPos.png"));
+        assert!(body.contains(
+            "https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/favicon.ico"
+        ));
+        assert!(body.contains(
+            "https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/manifest.json"
+        ));
         assert!(body.contains("Rights Management"));
         assert!(body.contains("match=\"oai:setDescription\""));
         assert!(body.contains("match=\"oai:about\""));
         assert!(body.contains("End of list. This empty token marks a terminal page."));
+    }
+
+    #[actix_web::test]
+    async fn not_found_page_contains_favicon_and_oai_link() {
+        let app = test::init_service(App::new().default_service(web::route().to(not_found))).await;
+
+        let req = test::TestRequest::get().uri("/missing").to_request();
+        let response = test::call_service(&app, req).await;
+        assert_eq!(response.status(), actix_web::http::StatusCode::NOT_FOUND);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok()),
+            Some("text/html; charset=utf-8")
+        );
+
+        let body =
+            String::from_utf8(test::read_body(response).await.to_vec()).expect("404 body UTF-8");
+        assert!(body.contains(
+            "https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/favicon.ico"
+        ));
+        assert!(body.contains(
+            "https://cdn.thoth.pub/favicons/thoth-head-20260331/transparent/manifest.json"
+        ));
+        assert!(body.contains("<a href=\"/oai\">OAI-PMH Interface</a>"));
     }
 
     #[actix_web::test]
