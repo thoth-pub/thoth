@@ -106,6 +106,39 @@ a {
   border-color: var(--thoth-primary);
   background: rgba(110, 79, 127, 0.18);
 }
+.action-link {
+  display: inline-block;
+  border-radius: 999px;
+  border: 1px solid rgba(110, 79, 127, 0.35);
+  background: rgba(110, 79, 127, 0.1);
+  color: var(--thoth-primary);
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.34rem 0.62rem;
+  margin-left: 0.35rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.action-link:hover {
+  border-color: var(--thoth-primary);
+  background: rgba(110, 79, 127, 0.2);
+}
+.action-link:focus-visible {
+  outline: 2px solid var(--thoth-secondary);
+  outline-offset: 2px;
+}
+.action-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+}
+.action-links .action-link {
+  margin-left: 0;
+}
 .overview {
   margin-top: 1.1rem;
   border: 1px solid var(--thoth-border);
@@ -446,7 +479,7 @@ a {
           <th>metadataPrefix</th>
           <td>
             <span class="pill"><xsl:value-of select="oai:metadataPrefix"/></span>
-            <a href="?verb=ListRecords&amp;metadataPrefix={oai:metadataPrefix}">ListRecords</a>
+            <a class="action-link" href="?verb=ListRecords&amp;metadataPrefix={oai:metadataPrefix}">ListRecords</a>
           </td>
         </tr>
         <tr><th>metadataNamespace</th><td><xsl:value-of select="oai:metadataNamespace"/></td></tr>
@@ -454,7 +487,7 @@ a {
       </table>
       <xsl:if test="string-length(normalize-space(/oai:OAI-PMH/oai:request/@identifier)) &gt; 0">
         <p class="meta-note">
-          <a href="?verb=GetRecord&amp;metadataPrefix={oai:metadataPrefix}&amp;identifier={/oai:OAI-PMH/oai:request/@identifier}">
+          <a class="action-link" href="?verb=GetRecord&amp;metadataPrefix={oai:metadataPrefix}&amp;identifier={/oai:OAI-PMH/oai:request/@identifier}">
             View this record in <xsl:value-of select="oai:metadataPrefix"/>
           </a>
         </p>
@@ -481,8 +514,7 @@ a {
       <th>Identifier</th>
       <td>
         <xsl:value-of select="oai:identifier"/>
-        <xsl:text> </xsl:text>
-        <a href="?verb=ListMetadataFormats&amp;identifier={oai:identifier}">Formats</a>
+        <a class="action-link" href="?verb=ListMetadataFormats&amp;identifier={oai:identifier}">Formats</a>
       </td>
     </tr>
     <tr><th>Datestamp</th><td><xsl:value-of select="oai:datestamp"/></td></tr>
@@ -491,10 +523,10 @@ a {
         <th>Set Spec</th>
         <td>
           <xsl:value-of select="."/>
-          <xsl:text> </xsl:text>
-          <a href="?verb=ListIdentifiers&amp;metadataPrefix=oai_dc&amp;set={.}">Identifiers</a>
-          <xsl:text> </xsl:text>
-          <a href="?verb=ListRecords&amp;metadataPrefix=oai_dc&amp;set={.}">Records</a>
+          <span class="action-links">
+            <a class="action-link" href="?verb=ListIdentifiers&amp;metadataPrefix=oai_dc&amp;set={.}">Identifiers</a>
+            <a class="action-link" href="?verb=ListRecords&amp;metadataPrefix=oai_dc&amp;set={.}">Records</a>
+          </span>
         </td>
       </tr>
     </xsl:for-each>
@@ -610,7 +642,7 @@ a {
             <tr>
               <th>resume</th>
               <td>
-                <a href="?verb={/oai:OAI-PMH/oai:request/@verb}&amp;resumptionToken={.}">Resume Listing</a>
+                <a class="action-link" href="?verb={/oai:OAI-PMH/oai:request/@verb}&amp;resumptionToken={.}">Resume Listing</a>
               </td>
             </tr>
           </table>
