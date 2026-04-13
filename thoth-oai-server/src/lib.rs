@@ -1,3 +1,5 @@
+#![recursion_limit = "512"]
+
 mod metadata;
 mod service;
 
@@ -269,12 +271,16 @@ async fn handle_oai_request(
             ];
             if let Some(identifier) = params.get("identifier") {
                 let work_id = parse_identifier_for_lookup(identifier)?;
-                let work = service
+                service
                     .get_record(work_id, MetadataPrefix::OaiDc)
                     .await
                     .map_err(map_get_record_error(MetadataPrefix::OaiDc))?;
                 prefixes = vec![MetadataPrefix::OaiDc, MetadataPrefix::OaiOpenaire];
-                if OaiService::is_marcxml_record_candidate(&work) {
+                if service
+                    .has_marcxml_dissemination(work_id)
+                    .await
+                    .map_err(HandlerError::Internal)?
+                {
                     prefixes.push(MetadataPrefix::MarcXml);
                 }
                 if prefixes.is_empty() {
@@ -1008,6 +1014,7 @@ mod tests {
     #[derive(Clone, Default)]
     struct MockExportState {
         failing_work_ids: HashSet<Uuid>,
+        non_disseminatable_work_ids: HashSet<Uuid>,
         malformed_work_ids: HashSet<Uuid>,
     }
 
@@ -1157,6 +1164,11 @@ mod tests {
             return HttpResponse::InternalServerError()
                 .content_type("text/plain; charset=utf-8")
                 .body("export failed");
+        }
+        if state.non_disseminatable_work_ids.contains(&work_id) {
+            return HttpResponse::NotFound()
+                .content_type("text/plain; charset=utf-8")
+                .body("record not available");
         }
         if state.malformed_work_ids.contains(&work_id) {
             return HttpResponse::Ok()
@@ -1828,7 +1840,11 @@ mod tests {
             ),
         ];
         let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
-        let export_server = spawn_export_server(MockExportState::default()).await;
+        let mut export_state = MockExportState::default();
+        export_state
+            .non_disseminatable_work_ids
+            .insert(marc_ineligible_id);
+        let export_server = spawn_export_server(export_state).await;
 
         let app = test::init_service(
             App::new()
@@ -2425,6 +2441,235 @@ mod tests {
                 "/oai?verb=GetRecord&identifier={}&metadataPrefix=marcxml",
                 OaiService::oai_identifier(work_id)
             ))
+            .to_request();
+        let response = test::call_service(&app, req).await;
+        assert_eq!(
+            response.status(),
+            actix_web::http::StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get(header::RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("30")
+        );
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn marcxml_list_filters_use_export_dissemination_truth() {
+        let disseminatable_work_id = Uuid::from_u128(31);
+        let non_disseminatable_work_id = Uuid::from_u128(32);
+        let second_disseminatable_work_id = Uuid::from_u128(33);
+        let works = vec![
+            make_work(
+                disseminatable_work_id,
+                "2024-12-31T12:00:00Z",
+                PUBLISHER_NAME,
+                true,
+                true,
+            ),
+            make_work(
+                non_disseminatable_work_id,
+                "2024-12-30T12:00:00Z",
+                PUBLISHER_NAME,
+                true,
+                true,
+            ),
+            make_work(
+                second_disseminatable_work_id,
+                "2024-12-29T12:00:00Z",
+                PUBLISHER_NAME,
+                true,
+                true,
+            ),
+        ];
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
+
+        let mut export_state = MockExportState::default();
+        export_state
+            .non_disseminatable_work_ids
+            .insert(non_disseminatable_work_id);
+        let export_server = spawn_export_server(export_state).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let req = test::TestRequest::get()
+            .uri("/oai?verb=ListIdentifiers&metadataPrefix=marcxml")
+            .to_request();
+        let response = test::call_service(&app, req).await;
+        assert_eq!(response.status(), actix_web::http::StatusCode::OK);
+        let body = String::from_utf8(test::read_body(response).await.to_vec()).expect("body UTF-8");
+
+        assert_eq!(count_occurrences(&body, "<header>"), 2);
+        assert!(body.contains(&OaiService::oai_identifier(disseminatable_work_id)));
+        assert!(body.contains(&OaiService::oai_identifier(second_disseminatable_work_id)));
+        assert!(!body.contains(&OaiService::oai_identifier(non_disseminatable_work_id)));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn marcxml_list_records_excludes_non_disseminatable_records() {
+        let visible_work_id = Uuid::from_u128(35);
+        let hidden_work_id = Uuid::from_u128(36);
+        let works = vec![
+            make_work(
+                visible_work_id,
+                "2024-12-31T12:00:00Z",
+                PUBLISHER_NAME,
+                true,
+                true,
+            ),
+            make_work(
+                hidden_work_id,
+                "2024-12-30T12:00:00Z",
+                PUBLISHER_NAME,
+                true,
+                true,
+            ),
+        ];
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
+
+        let mut export_state = MockExportState::default();
+        export_state
+            .non_disseminatable_work_ids
+            .insert(hidden_work_id);
+        let export_server = spawn_export_server(export_state).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let req = test::TestRequest::get()
+            .uri("/oai?verb=ListRecords&metadataPrefix=marcxml")
+            .to_request();
+        let response = test::call_service(&app, req).await;
+        let body = String::from_utf8(test::read_body(response).await.to_vec()).expect("body UTF-8");
+
+        assert_eq!(count_occurrences(&body, "<record>"), 1);
+        assert!(body.contains(&OaiService::oai_identifier(visible_work_id)));
+        assert!(!body.contains(&OaiService::oai_identifier(hidden_work_id)));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn marcxml_list_resumption_respects_export_dissemination_filtering() {
+        let works = make_descending_work_series(80);
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works.clone())).await;
+
+        let mut export_state = MockExportState::default();
+        for (index, work) in works.iter().enumerate() {
+            let work_id = work
+                .get("workId")
+                .and_then(Value::as_str)
+                .and_then(|value| Uuid::parse_str(value).ok())
+                .expect("work id");
+            if index % 4 == 0 {
+                export_state.non_disseminatable_work_ids.insert(work_id);
+            }
+        }
+        let export_server = spawn_export_server(export_state).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let first_req = test::TestRequest::get()
+            .uri("/oai?verb=ListIdentifiers&metadataPrefix=marcxml")
+            .to_request();
+        let first_response = test::call_service(&app, first_req).await;
+        let first_body = String::from_utf8(test::read_body(first_response).await.to_vec())
+            .expect("first page UTF-8");
+        assert_eq!(count_occurrences(&first_body, "<header>"), 50);
+        assert!(first_body.contains("<resumptionToken cursor=\"0\">"));
+        let first_token = extract_resumption_token(&first_body).expect("resumption token");
+
+        let second_req = test::TestRequest::get()
+            .uri(&format!(
+                "/oai?verb=ListIdentifiers&resumptionToken={first_token}"
+            ))
+            .to_request();
+        let second_response = test::call_service(&app, second_req).await;
+        let second_body = String::from_utf8(test::read_body(second_response).await.to_vec())
+            .expect("second page UTF-8");
+        assert_eq!(count_occurrences(&second_body, "<header>"), 10);
+        assert!(second_body.contains("<resumptionToken/>"));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn transient_export_failures_in_marcxml_lists_return_503_with_retry_after() {
+        let work_id = Uuid::from_u128(34);
+        let works = vec![make_work(
+            work_id,
+            "2024-12-31T12:00:00Z",
+            PUBLISHER_NAME,
+            true,
+            true,
+        )];
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
+
+        let mut export_state = MockExportState::default();
+        export_state.failing_work_ids.insert(work_id);
+        let export_server = spawn_export_server(export_state).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let req = test::TestRequest::get()
+            .uri("/oai?verb=ListIdentifiers&metadataPrefix=marcxml")
             .to_request();
         let response = test::call_service(&app, req).await;
         assert_eq!(

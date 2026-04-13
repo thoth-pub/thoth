@@ -145,18 +145,12 @@ impl OaiService {
     pub(crate) async fn get_record(
         &self,
         identifier: Uuid,
-        metadata_prefix: MetadataPrefix,
+        _metadata_prefix: MetadataPrefix,
     ) -> ThothResult<Work> {
         let work = self
             .thoth_client
             .get_work(identifier, Self::query_parameters())
             .await?;
-        if metadata_prefix == MetadataPrefix::MarcXml && !Self::is_marcxml_record_candidate(&work) {
-            return Err(ThothError::IncompleteMetadataRecord(
-                metadata_prefix.as_str().to_string(),
-                "Record cannot be disseminated as MARCXML".to_string(),
-            ));
-        }
         Ok(work)
     }
 
@@ -199,7 +193,10 @@ impl OaiService {
             raw_offset += batch.len() as i64;
 
             for work in batch {
-                if !Self::matches_record(&work, token.metadata_prefix, bounds.as_ref())? {
+                if !self
+                    .matches_record(&work, token.metadata_prefix, bounds.as_ref())
+                    .await?
+                {
                     continue;
                 }
                 records.push(work);
@@ -244,7 +241,9 @@ impl OaiService {
         Ok(RecordPage {
             records,
             cursor: returned_count,
-            complete_list_size: (!date_filter_active).then_some(total),
+            complete_list_size: (!date_filter_active
+                && token.metadata_prefix != MetadataPrefix::MarcXml)
+                .then_some(total),
             next_token,
             terminal_resumption_token,
         })
@@ -316,25 +315,25 @@ impl OaiService {
             .join("-")
     }
 
-    pub(crate) fn is_marcxml_record_candidate(work: &Work) -> bool {
-        !work.contributions.is_empty()
-            && !work.languages.is_empty()
-            && work
-                .publications
-                .iter()
-                .any(|publication| publication.isbn.is_some())
-    }
-
     pub(crate) fn query_parameters() -> QueryParameters {
         QueryParameters::new()
-            .with_canonical_abstracts_only()
-            .with_canonical_title_only()
+            .with_all_abstracts()
+            .with_all_titles()
             .with_issues()
             .with_languages()
             .with_publications()
             .with_subjects()
             .with_fundings()
             .with_relations()
+            .with_references()
+    }
+
+    pub(crate) async fn has_marcxml_dissemination(&self, work_id: Uuid) -> ThothResult<bool> {
+        match self.get_marcxml_record(work_id).await {
+            Ok(_) => Ok(true),
+            Err(error) if Self::is_transient_export_error(&error) => Err(error),
+            Err(_) => Ok(false),
+        }
     }
 
     async fn find_set(&self, set_spec: Option<&str>) -> ThothResult<Option<SetRecord>> {
@@ -500,15 +499,19 @@ impl OaiService {
         }
     }
 
-    fn matches_record(
+    async fn matches_record(
+        &self,
         work: &Work,
         metadata_prefix: MetadataPrefix,
         bounds: Option<&DatestampBounds>,
     ) -> ThothResult<bool> {
-        if metadata_prefix == MetadataPrefix::MarcXml && !Self::is_marcxml_record_candidate(work) {
+        if !Self::matches_datestamp_filter(work.updated_at_with_relations, bounds)? {
             return Ok(false);
         }
-        Self::matches_datestamp_filter(work.updated_at_with_relations, bounds)
+        if metadata_prefix == MetadataPrefix::MarcXml {
+            return self.has_marcxml_dissemination(work.work_id).await;
+        }
+        Ok(true)
     }
 
     async fn has_more_matching_records(
@@ -530,7 +533,7 @@ impl OaiService {
 
             raw_offset += batch.len() as i64;
             for work in batch {
-                if Self::matches_record(&work, metadata_prefix, bounds)? {
+                if self.matches_record(&work, metadata_prefix, bounds).await? {
                     return Ok(true);
                 }
             }
@@ -614,6 +617,29 @@ impl OaiService {
             }
         }
         Ok(true)
+    }
+
+    fn is_transient_export_error(error: &ThothError) -> bool {
+        let ThothError::RequestError(message) = error else {
+            return false;
+        };
+        let message = message.to_ascii_lowercase();
+        let has_transient_status = [429, 500, 502, 503, 504]
+            .iter()
+            .any(|status| message.contains(&format!("export {status}")));
+        let has_network_failure = [
+            "timed out",
+            "timeout",
+            "connection refused",
+            "connection reset",
+            "error sending request",
+            "temporary failure",
+            "dns error",
+            "failed to lookup address",
+        ]
+        .iter()
+        .any(|needle| message.contains(needle));
+        has_transient_status || has_network_failure
     }
 }
 
