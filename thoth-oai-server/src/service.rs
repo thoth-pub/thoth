@@ -47,6 +47,7 @@ pub(crate) struct ResumptionToken {
     pub until: Option<String>,
     pub granularity: Option<DatestampGranularity>,
     pub scan_offset: Option<i64>,
+    pub returned_count: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -170,7 +171,9 @@ impl OaiService {
             .map(|set_record| vec![set_record.publisher_id]);
         let bounds = Self::build_datestamp_bounds(token)?;
         let date_filter_active = bounds.is_some();
-        let cursor = token.scan_offset.unwrap_or(token.offset);
+        let filtering_active = bounds.is_some() || token.metadata_prefix == MetadataPrefix::MarcXml;
+        let scan_offset = token.scan_offset.unwrap_or(token.offset);
+        let returned_count = token.returned_count.unwrap_or(token.offset);
 
         let total = if token.metadata_prefix == MetadataPrefix::MarcXml {
             self.thoth_client
@@ -183,27 +186,11 @@ impl OaiService {
         };
 
         let mut records = Vec::new();
-        let mut raw_offset = cursor;
+        let mut raw_offset = scan_offset;
         while raw_offset < total && records.len() < PAGE_LIMIT as usize {
-            let batch = if token.metadata_prefix == MetadataPrefix::MarcXml {
-                self.thoth_client
-                    .get_oai_books(
-                        publishers.clone(),
-                        PAGE_LIMIT,
-                        raw_offset,
-                        Self::query_parameters(),
-                    )
-                    .await?
-            } else {
-                self.thoth_client
-                    .get_oai_works(
-                        publishers.clone(),
-                        PAGE_LIMIT,
-                        raw_offset,
-                        Self::query_parameters(),
-                    )
-                    .await?
-            };
+            let batch = self
+                .fetch_record_batch(token.metadata_prefix, publishers.clone(), raw_offset)
+                .await?;
 
             if batch.is_empty() {
                 break;
@@ -212,13 +199,7 @@ impl OaiService {
             raw_offset += batch.len() as i64;
 
             for work in batch {
-                if token.metadata_prefix == MetadataPrefix::MarcXml
-                    && !Self::is_marcxml_record_candidate(&work)
-                {
-                    continue;
-                }
-                if !Self::matches_datestamp_filter(work.updated_at_with_relations, bounds.as_ref())?
-                {
+                if !Self::matches_record(&work, token.metadata_prefix, bounds.as_ref())? {
                     continue;
                 }
                 records.push(work);
@@ -228,7 +209,24 @@ impl OaiService {
             }
         }
 
-        let next_token = (raw_offset < total && !records.is_empty()).then(|| {
+        let has_next_page = if raw_offset < total && !records.is_empty() {
+            if filtering_active {
+                self.has_more_matching_records(
+                    token.metadata_prefix,
+                    publishers.clone(),
+                    raw_offset,
+                    total,
+                    bounds.as_ref(),
+                )
+                .await?
+            } else {
+                true
+            }
+        } else {
+            false
+        };
+
+        let next_token = has_next_page.then(|| {
             Self::encode_resumption_token(ResumptionToken {
                 offset: raw_offset,
                 metadata_prefix: token.metadata_prefix,
@@ -238,13 +236,14 @@ impl OaiService {
                 until: token.until.clone(),
                 granularity: token.granularity,
                 scan_offset: Some(raw_offset),
+                returned_count: Some(returned_count + records.len() as i64),
             })
         });
 
-        let terminal_resumption_token = resumed && next_token.is_none() && !records.is_empty();
+        let terminal_resumption_token = resumed && next_token.is_none();
         Ok(RecordPage {
             records,
-            cursor,
+            cursor: returned_count,
             complete_list_size: (!date_filter_active).then_some(total),
             next_token,
             terminal_resumption_token,
@@ -484,6 +483,61 @@ impl OaiService {
         }
     }
 
+    async fn fetch_record_batch(
+        &self,
+        metadata_prefix: MetadataPrefix,
+        publishers: Option<Vec<Uuid>>,
+        raw_offset: i64,
+    ) -> ThothResult<Vec<Work>> {
+        if metadata_prefix == MetadataPrefix::MarcXml {
+            self.thoth_client
+                .get_oai_books(publishers, PAGE_LIMIT, raw_offset, Self::query_parameters())
+                .await
+        } else {
+            self.thoth_client
+                .get_oai_works(publishers, PAGE_LIMIT, raw_offset, Self::query_parameters())
+                .await
+        }
+    }
+
+    fn matches_record(
+        work: &Work,
+        metadata_prefix: MetadataPrefix,
+        bounds: Option<&DatestampBounds>,
+    ) -> ThothResult<bool> {
+        if metadata_prefix == MetadataPrefix::MarcXml && !Self::is_marcxml_record_candidate(work) {
+            return Ok(false);
+        }
+        Self::matches_datestamp_filter(work.updated_at_with_relations, bounds)
+    }
+
+    async fn has_more_matching_records(
+        &self,
+        metadata_prefix: MetadataPrefix,
+        publishers: Option<Vec<Uuid>>,
+        mut raw_offset: i64,
+        total: i64,
+        bounds: Option<&DatestampBounds>,
+    ) -> ThothResult<bool> {
+        while raw_offset < total {
+            let batch = self
+                .fetch_record_batch(metadata_prefix, publishers.clone(), raw_offset)
+                .await?;
+
+            if batch.is_empty() {
+                break;
+            }
+
+            raw_offset += batch.len() as i64;
+            for work in batch {
+                if Self::matches_record(&work, metadata_prefix, bounds)? {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
     fn build_datestamp_bounds(token: &ResumptionToken) -> ThothResult<Option<DatestampBounds>> {
         if token.from.is_none() && token.until.is_none() {
             return Ok(None);
@@ -601,6 +655,7 @@ mod tests {
             until: Some("2024-12-31".to_string()),
             granularity: Some(DatestampGranularity::Day),
             scan_offset: Some(200),
+            returned_count: Some(75),
         };
 
         let encoded = OaiService::encode_resumption_token(token.clone());
@@ -650,6 +705,7 @@ mod tests {
         let token = OaiService::decode_resumption_token(&legacy).unwrap();
         assert_eq!(token.offset, 100);
         assert_eq!(token.scan_offset, None);
+        assert_eq!(token.returned_count, None);
         assert_eq!(token.from, None);
         assert_eq!(token.until, None);
         assert_eq!(token.granularity, None);

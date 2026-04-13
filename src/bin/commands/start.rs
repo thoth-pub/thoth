@@ -43,6 +43,7 @@ lazy_static! {
                 .arg(arguments::keep_alive("OAI_API_KEEP_ALIVE"))
                 .arg(arguments::oai_url())
                 .arg(arguments::gql_endpoint())
+                .arg(arguments::oai_retry_after_seconds())
                 .arg(arguments::export_url()),
         );
 }
@@ -120,6 +121,7 @@ pub fn oai_api(arguments: &ArgMatches) -> ThothResult<()> {
         .get_one::<String>("gql-endpoint")
         .unwrap()
         .to_owned();
+    let retry_after_seconds = *arguments.get_one::<u64>("oai-retry-after-seconds").unwrap();
     let export_url = arguments
         .get_one::<String>("export-url")
         .unwrap()
@@ -133,6 +135,7 @@ pub fn oai_api(arguments: &ArgMatches) -> ThothResult<()> {
         public_url,
         gql_endpoint,
         export_url,
+        retry_after_seconds,
     )
     .map_err(|e| e.into())
 }

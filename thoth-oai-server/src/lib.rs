@@ -1,11 +1,18 @@
 mod metadata;
 mod service;
 
-use std::{collections::HashMap, io, time::Duration};
+use std::{
+    collections::HashMap,
+    io::{self, Write},
+    time::Duration,
+};
 
 use actix_cors::Cors;
-use actix_web::{middleware::Logger, web, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{
+    http::header, middleware::Logger, web, App, HttpRequest, HttpResponse, HttpServer,
+};
 use chrono::{DateTime, NaiveDate, Utc};
+use flate2::{write::GzEncoder, Compression};
 use quick_xml::escape::escape;
 use service::{
     DatestampGranularity, MetadataPrefix, OaiService, RecordPage, ResumptionToken, ADMIN_EMAIL,
@@ -16,10 +23,13 @@ use uuid::Uuid;
 
 const LOG_FORMAT: &str = r#"%{r}a %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#;
 const XSL_STYLESHEET: &str = include_str!("../assets/oai2.xsl");
+#[cfg(test)]
+const DEFAULT_RETRY_AFTER_SECONDS: u64 = 30;
 
 #[derive(Clone)]
 struct AppState {
     service: OaiService,
+    retry_after_seconds: u64,
 }
 
 #[derive(Debug)]
@@ -79,12 +89,15 @@ async fn oai_post(
     match std::str::from_utf8(&body) {
         Ok(body) => params.merge(parse_form_encoded(body)),
         Err(_) => {
-            return xml_response(error_document(
-                &state.service,
-                &params.values,
-                "badArgument",
-                "Invalid UTF-8 request body",
-            ))
+            return xml_response(
+                &request,
+                error_document(
+                    &state.service,
+                    &params.values,
+                    "badArgument",
+                    "Invalid UTF-8 request body",
+                ),
+            )
         }
     }
     oai_with_params(request, params, state).await
@@ -96,28 +109,71 @@ async fn oai_with_params(
     state: web::Data<AppState>,
 ) -> HttpResponse {
     if params.has_repeated {
-        return xml_response(error_document(
-            &state.service,
-            &params.values,
-            "badArgument",
-            "The request includes repeated arguments",
-        ));
+        return xml_response(
+            &request,
+            error_document(
+                &state.service,
+                &params.values,
+                "badArgument",
+                "The request includes repeated arguments",
+            ),
+        );
     }
     match handle_oai_request(&request, &params.values, &state.service).await {
-        Ok(body) => xml_response(success_document(&state.service, &params.values, &body)),
-        Err(HandlerError::Protocol(error)) => xml_response(error_document(
-            &state.service,
-            &params.values,
-            error.code,
-            &error.message,
-        )),
+        Ok(body) => xml_response(
+            &request,
+            success_document(&state.service, &params.values, &body),
+        ),
+        Err(HandlerError::Protocol(error)) => xml_response(
+            &request,
+            error_document(&state.service, &params.values, error.code, &error.message),
+        ),
         Err(HandlerError::Internal(error)) => {
             log::error!("OAI request failed: {error}");
-            HttpResponse::InternalServerError()
-                .content_type("text/plain; charset=utf-8")
-                .body("Internal Server Error")
+            if is_transient_upstream_error(&error) {
+                transient_service_unavailable(state.retry_after_seconds)
+            } else {
+                HttpResponse::InternalServerError()
+                    .content_type("text/plain; charset=utf-8")
+                    .body("Internal Server Error")
+            }
         }
     }
+}
+
+fn is_transient_upstream_error(error: &ThothError) -> bool {
+    let message = match error {
+        ThothError::RequestError(message) | ThothError::GraphqlError(message) => {
+            message.to_ascii_lowercase()
+        }
+        _ => return false,
+    };
+
+    let has_transient_status = [500, 502, 503, 504, 429].iter().any(|status| {
+        message.contains(&format!("graphql {status}"))
+            || message.contains(&format!("export {status}"))
+    });
+    let has_network_failure = [
+        "timed out",
+        "timeout",
+        "connection refused",
+        "connection reset",
+        "error sending request",
+        "temporary failure",
+        "dns error",
+        "failed to lookup address",
+    ]
+    .iter()
+    .any(|needle| message.contains(needle));
+
+    has_transient_status || has_network_failure
+}
+
+fn transient_service_unavailable(retry_after_seconds: u64) -> HttpResponse {
+    HttpResponse::ServiceUnavailable()
+        .insert_header((header::RETRY_AFTER, retry_after_seconds.to_string()))
+        .content_type("text/plain; charset=utf-8")
+        .body("Service Unavailable")
 }
 
 impl ParsedParams {
@@ -247,7 +303,7 @@ async fn handle_oai_request(
                 .list_records(&parsed.token, parsed.resumed)
                 .await
                 .map_err(map_list_error)?;
-            if page.records.is_empty() {
+            if page.records.is_empty() && !parsed.resumed {
                 return Err(HandlerError::Protocol(no_records_match()));
             }
             Ok(render_list_identifiers(&page))
@@ -259,7 +315,7 @@ async fn handle_oai_request(
                 .list_records(&parsed.token, parsed.resumed)
                 .await
                 .map_err(map_list_error)?;
-            if page.records.is_empty() {
+            if page.records.is_empty() && !parsed.resumed {
                 return Err(HandlerError::Protocol(no_records_match()));
             }
             Ok(render_list_records(service, &page, parsed.token.metadata_prefix).await?)
@@ -284,6 +340,7 @@ fn render_identify(
 <earliestDatestamp>{}</earliestDatestamp>\
 <deletedRecord>no</deletedRecord>\
 <granularity>YYYY-MM-DDThh:mm:ssZ</granularity>\
+<compression>gzip</compression>\
 <description>\
 <oai-identifier xmlns=\"http://www.openarchives.org/OAI/2.0/oai-identifier\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.openarchives.org/OAI/2.0/oai-identifier http://www.openarchives.org/OAI/2.0/oai-identifier.xsd\">\
 <scheme>oai</scheme>\
@@ -394,20 +451,10 @@ async fn render_record_xml(
         MetadataPrefix::OaiOpenaire => {
             metadata::map_oai_openaire(work).map_err(HandlerError::Internal)?
         }
-        MetadataPrefix::MarcXml => {
-            service
-                .get_marcxml_record(work.work_id)
-                .await
-                .map_err(|_| {
-                    HandlerError::Protocol(ProtocolError {
-                        code: "cannotDisseminateFormat",
-                        message: format!(
-                            "Record cannot be disseminated as {}",
-                            metadata_prefix.as_str()
-                        ),
-                    })
-                })?
-        }
+        MetadataPrefix::MarcXml => service
+            .get_marcxml_record(work.work_id)
+            .await
+            .map_err(map_marcxml_error(metadata_prefix))?,
     };
 
     Ok(format!(
@@ -495,6 +542,9 @@ fn parse_list_token(
         if token.scan_offset.is_none() {
             token.scan_offset = Some(token.offset);
         }
+        if token.returned_count.is_none() {
+            token.returned_count = Some(token.offset);
+        }
         return Ok(ParsedListRequest {
             token,
             resumed: true,
@@ -520,6 +570,7 @@ fn parse_list_token(
             until,
             granularity,
             scan_offset: Some(0),
+            returned_count: Some(0),
         },
         resumed: false,
     })
@@ -677,6 +728,23 @@ fn map_get_record_error(
     }
 }
 
+fn map_marcxml_error(
+    metadata_prefix: MetadataPrefix,
+) -> impl Fn(ThothError) -> HandlerError + Copy {
+    move |error| match error {
+        ThothError::RequestError(_) if is_transient_upstream_error(&error) => {
+            HandlerError::Internal(error)
+        }
+        _ => HandlerError::Protocol(ProtocolError {
+            code: "cannotDisseminateFormat",
+            message: format!(
+                "Record cannot be disseminated as {}",
+                metadata_prefix.as_str()
+            ),
+        }),
+    }
+}
+
 fn map_list_error(error: ThothError) -> HandlerError {
     match error {
         ThothError::EntityNotFound => no_records_match().into(),
@@ -797,13 +865,63 @@ fn push_text_element(xml: &mut String, name: &str, text: &str) {
     xml.push('>');
 }
 
-fn xml_response(body: String) -> HttpResponse {
+fn xml_response(request: &HttpRequest, body: String) -> HttpResponse {
+    if request_accepts_gzip(request) {
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        if encoder.write_all(body.as_bytes()).is_err() {
+            return HttpResponse::InternalServerError()
+                .content_type("text/plain; charset=utf-8")
+                .body("Internal Server Error");
+        }
+        match encoder.finish() {
+            Ok(compressed_body) => {
+                return HttpResponse::Ok()
+                    .insert_header((header::CONTENT_ENCODING, "gzip"))
+                    .content_type("text/xml; charset=utf-8")
+                    .body(compressed_body);
+            }
+            Err(_) => {
+                return HttpResponse::InternalServerError()
+                    .content_type("text/plain; charset=utf-8")
+                    .body("Internal Server Error");
+            }
+        }
+    }
+
     HttpResponse::Ok()
         .content_type("text/xml; charset=utf-8")
         .body(body)
 }
 
+fn request_accepts_gzip(request: &HttpRequest) -> bool {
+    let Some(value) = request.headers().get(header::ACCEPT_ENCODING) else {
+        return false;
+    };
+    let Ok(value) = value.to_str() else {
+        return false;
+    };
+
+    value.split(',').any(|item| {
+        let mut parts = item.trim().split(';');
+        let coding = parts
+            .next()
+            .map(str::trim)
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        if coding != "gzip" && coding != "*" {
+            return false;
+        }
+        let quality = parts
+            .map(str::trim)
+            .find_map(|part| part.strip_prefix("q="))
+            .and_then(|value| value.parse::<f32>().ok())
+            .unwrap_or(1.0);
+        quality > 0.0
+    })
+}
+
 #[actix_web::main]
+#[allow(clippy::too_many_arguments)]
 pub async fn start_server(
     host: String,
     port: String,
@@ -812,10 +930,12 @@ pub async fn start_server(
     public_url: String,
     gql_endpoint: String,
     export_url: String,
+    retry_after_seconds: u64,
 ) -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     let state = AppState {
         service: OaiService::new(public_url, gql_endpoint, export_url),
+        retry_after_seconds,
     };
 
     HttpServer::new(move || {
@@ -846,8 +966,9 @@ mod tests {
     use actix_web::{dev::ServerHandle, http::header, test, App, HttpResponse, HttpServer};
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
     use chrono::{Duration, NaiveDate};
+    use flate2::read::GzDecoder;
     use serde_json::{json, Value};
-    use std::{collections::HashSet, net::TcpListener};
+    use std::{collections::HashSet, io::Read, net::TcpListener};
 
     const PUBLISHER_ID: &str = "00000000-0000-0000-1111-000000000001";
     const PUBLISHER_NAME: &str = "Open Access Press";
@@ -889,6 +1010,32 @@ mod tests {
         })
         .listen(listener)
         .expect("listen graphql mock server")
+        .run();
+        let handle = server.handle();
+        actix_web::rt::spawn(server);
+
+        RunningMockServer {
+            base_url: format!("http://{address}"),
+            handle,
+        }
+    }
+
+    async fn spawn_graphql_error_server(status: actix_web::http::StatusCode) -> RunningMockServer {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind graphql error server");
+        let address = listener.local_addr().expect("graphql error local address");
+
+        let server = HttpServer::new(move || {
+            App::new().route(
+                "/graphql",
+                web::post().to(move || async move {
+                    HttpResponse::build(status)
+                        .content_type("application/json; charset=utf-8")
+                        .body(r#"{"errors":[{"message":"upstream failure"}]}"#)
+                }),
+            )
+        })
+        .listen(listener)
+        .expect("listen graphql error server")
         .run();
         let handle = server.handle();
         actix_web::rt::spawn(server);
@@ -1372,6 +1519,7 @@ mod tests {
                         format!("{}/graphql", graphql_server.base_url),
                         export_server.base_url.clone(),
                     ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
                 }))
                 .service(
                     web::resource("/oai")
@@ -1405,6 +1553,10 @@ mod tests {
                     .expect("GET content type"),
                 "text/xml; charset=utf-8"
             );
+            assert!(get_response
+                .headers()
+                .get(header::CONTENT_ENCODING)
+                .is_none());
             let get_body = String::from_utf8(test::read_body(get_response).await.to_vec())
                 .expect("GET body UTF-8");
 
@@ -1423,8 +1575,17 @@ mod tests {
                     .expect("POST content type"),
                 "text/xml; charset=utf-8"
             );
+            assert!(post_response
+                .headers()
+                .get(header::CONTENT_ENCODING)
+                .is_none());
             let post_body = String::from_utf8(test::read_body(post_response).await.to_vec())
                 .expect("POST body UTF-8");
+
+            if case == "verb=Identify" {
+                assert!(get_body.contains("<compression>gzip</compression>"));
+                assert!(post_body.contains("<compression>gzip</compression>"));
+            }
 
             assert_eq!(
                 normalize_response_date(&get_body),
@@ -1450,6 +1611,7 @@ mod tests {
                         format!("{}/graphql", graphql_server.base_url),
                         export_server.base_url.clone(),
                     ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
                 }))
                 .service(
                     web::resource("/oai")
@@ -1495,6 +1657,7 @@ mod tests {
                         format!("{}/graphql", graphql_server.base_url),
                         export_server.base_url.clone(),
                     ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
                 }))
                 .service(web::resource("/oai").route(web::get().to(oai_get))),
         )
@@ -1537,6 +1700,7 @@ mod tests {
                         format!("{}/graphql", graphql_server.base_url),
                         export_server.base_url.clone(),
                     ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
                 }))
                 .service(web::resource("/oai").route(web::get().to(oai_get))),
         )
@@ -1585,6 +1749,7 @@ mod tests {
                         format!("{}/graphql", graphql_server.base_url),
                         export_server.base_url.clone(),
                     ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
                 }))
                 .service(web::resource("/oai").route(web::get().to(oai_get))),
         )
@@ -1633,7 +1798,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn marc_export_failures_are_mapped_to_cannot_disseminate_format() {
+    async fn marc_export_parse_failures_are_mapped_to_cannot_disseminate_format() {
         let work_id = Uuid::from_u128(20);
         let works = vec![make_work(
             work_id,
@@ -1645,7 +1810,7 @@ mod tests {
         let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
 
         let mut export_state = MockExportState::default();
-        export_state.failing_work_ids.insert(work_id);
+        export_state.malformed_work_ids.insert(work_id);
         let export_server = spawn_export_server(export_state).await;
 
         let app = test::init_service(
@@ -1656,6 +1821,7 @@ mod tests {
                         format!("{}/graphql", graphql_server.base_url),
                         export_server.base_url.clone(),
                     ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
                 }))
                 .service(web::resource("/oai").route(web::get().to(oai_get))),
         )
@@ -1689,6 +1855,7 @@ mod tests {
                         format!("{}/graphql", graphql_server.base_url),
                         export_server.base_url.clone(),
                     ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
                 }))
                 .service(web::resource("/oai").route(web::get().to(oai_get))),
         )
@@ -1760,6 +1927,7 @@ mod tests {
                         format!("{}/graphql", graphql_server.base_url),
                         export_server.base_url.clone(),
                     ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
                 }))
                 .service(web::resource("/oai").route(web::get().to(oai_get))),
         )
@@ -1815,6 +1983,7 @@ mod tests {
                         format!("{}/graphql", graphql_server.base_url),
                         export_server.base_url.clone(),
                     ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
                 }))
                 .service(web::resource("/oai").route(web::get().to(oai_get))),
         )
@@ -1842,6 +2011,7 @@ mod tests {
             Some(DatestampGranularity::Day)
         );
         assert!(decoded_filtered.scan_offset.is_some());
+        assert_eq!(decoded_filtered.returned_count, Some(50));
 
         let filtered_second_req = test::TestRequest::get()
             .uri(&format!(
@@ -1890,6 +2060,295 @@ mod tests {
         let malformed_body = String::from_utf8(test::read_body(malformed_response).await.to_vec())
             .expect("malformed response body UTF-8");
         assert!(malformed_body.contains("<error code=\"badResumptionToken\">"));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn filtered_resumption_cursor_tracks_returned_records() {
+        let works = make_descending_work_series(120);
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
+        let export_server = spawn_export_server(MockExportState::default()).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let first_req = test::TestRequest::get()
+            .uri("/oai?verb=ListIdentifiers&metadataPrefix=oai_dc&from=2024-09-13&until=2024-12-31")
+            .to_request();
+        let first_response = test::call_service(&app, first_req).await;
+        let first_body = String::from_utf8(test::read_body(first_response).await.to_vec())
+            .expect("first page UTF-8");
+        assert!(first_body.contains("<resumptionToken cursor=\"0\">"));
+        let first_token = extract_resumption_token(&first_body).expect("first token");
+
+        let second_req = test::TestRequest::get()
+            .uri(&format!(
+                "/oai?verb=ListIdentifiers&resumptionToken={first_token}"
+            ))
+            .to_request();
+        let second_response = test::call_service(&app, second_req).await;
+        let second_body = String::from_utf8(test::read_body(second_response).await.to_vec())
+            .expect("second page UTF-8");
+        assert_eq!(count_occurrences(&second_body, "<header>"), 50);
+        assert!(second_body.contains("<resumptionToken cursor=\"50\">"));
+        let second_token = extract_resumption_token(&second_body).expect("second token");
+        let decoded_second = OaiService::decode_resumption_token(&second_token).unwrap();
+        assert_eq!(decoded_second.returned_count, Some(100));
+
+        let third_req = test::TestRequest::get()
+            .uri(&format!(
+                "/oai?verb=ListIdentifiers&resumptionToken={second_token}"
+            ))
+            .to_request();
+        let third_response = test::call_service(&app, third_req).await;
+        let third_body = String::from_utf8(test::read_body(third_response).await.to_vec())
+            .expect("third page UTF-8");
+        assert_eq!(count_occurrences(&third_body, "<header>"), 10);
+        assert!(third_body.contains("<resumptionToken/>"));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn continuation_end_returns_terminal_token_without_no_records_match() {
+        let works = make_descending_work_series(120);
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
+        let export_server = spawn_export_server(MockExportState::default()).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let first_req = test::TestRequest::get()
+            .uri("/oai?verb=ListIdentifiers&metadataPrefix=oai_dc&from=2024-11-12&until=2024-12-31")
+            .to_request();
+        let first_response = test::call_service(&app, first_req).await;
+        let first_body = String::from_utf8(test::read_body(first_response).await.to_vec())
+            .expect("first page UTF-8");
+        assert_eq!(count_occurrences(&first_body, "<header>"), 50);
+        assert!(!first_body.contains("<resumptionToken"));
+
+        let stale_token = OaiService::encode_resumption_token(ResumptionToken {
+            offset: 50,
+            metadata_prefix: MetadataPrefix::OaiDc,
+            set: None,
+            identifiers_only: true,
+            from: Some("2024-11-12".to_string()),
+            until: Some("2024-12-31".to_string()),
+            granularity: Some(DatestampGranularity::Day),
+            scan_offset: Some(50),
+            returned_count: Some(50),
+        });
+        let continuation_req = test::TestRequest::get()
+            .uri(&format!(
+                "/oai?verb=ListIdentifiers&resumptionToken={stale_token}"
+            ))
+            .to_request();
+        let continuation_response = test::call_service(&app, continuation_req).await;
+        let continuation_body =
+            String::from_utf8(test::read_body(continuation_response).await.to_vec())
+                .expect("continuation body UTF-8");
+        assert!(continuation_body.contains("<ListIdentifiers>"));
+        assert!(continuation_body.contains("<resumptionToken/>"));
+        assert!(!continuation_body.contains("<error code=\"noRecordsMatch\">"));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn gzip_accept_encoding_returns_compressed_oai_xml() {
+        let works = make_descending_work_series(1);
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
+        let export_server = spawn_export_server(MockExportState::default()).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let req = test::TestRequest::get()
+            .uri("/oai?verb=Identify")
+            .insert_header((header::ACCEPT_ENCODING, "gzip"))
+            .to_request();
+        let response = test::call_service(&app, req).await;
+        assert_eq!(response.status(), actix_web::http::StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CONTENT_ENCODING)
+                .and_then(|value| value.to_str().ok()),
+            Some("gzip")
+        );
+
+        let compressed = test::read_body(response).await;
+        let mut decoder = GzDecoder::new(compressed.as_ref());
+        let mut xml = String::new();
+        decoder
+            .read_to_string(&mut xml)
+            .expect("gzip decode response");
+        assert!(xml.contains("<Identify>"));
+        assert!(xml.contains("<compression>gzip</compression>"));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn transient_graphql_failures_return_503_with_retry_after() {
+        let graphql_server =
+            spawn_graphql_error_server(actix_web::http::StatusCode::SERVICE_UNAVAILABLE).await;
+        let export_server = spawn_export_server(MockExportState::default()).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                    retry_after_seconds: 45,
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let req = test::TestRequest::get()
+            .uri("/oai?verb=Identify")
+            .to_request();
+        let response = test::call_service(&app, req).await;
+        assert_eq!(
+            response.status(),
+            actix_web::http::StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get(header::RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("45")
+        );
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn non_transient_graphql_failures_remain_http_500() {
+        let graphql_server =
+            spawn_graphql_error_server(actix_web::http::StatusCode::BAD_REQUEST).await;
+        let export_server = spawn_export_server(MockExportState::default()).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let req = test::TestRequest::get()
+            .uri("/oai?verb=Identify")
+            .to_request();
+        let response = test::call_service(&app, req).await;
+        assert_eq!(
+            response.status(),
+            actix_web::http::StatusCode::INTERNAL_SERVER_ERROR
+        );
+        assert!(response.headers().get(header::RETRY_AFTER).is_none());
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn transient_export_failures_return_503_with_retry_after() {
+        let work_id = Uuid::from_u128(21);
+        let works = vec![make_work(
+            work_id,
+            "2024-12-31T12:00:00Z",
+            PUBLISHER_NAME,
+            true,
+            true,
+        )];
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
+
+        let mut export_state = MockExportState::default();
+        export_state.failing_work_ids.insert(work_id);
+        let export_server = spawn_export_server(export_state).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let req = test::TestRequest::get()
+            .uri(&format!(
+                "/oai?verb=GetRecord&identifier={}&metadataPrefix=marcxml",
+                OaiService::oai_identifier(work_id)
+            ))
+            .to_request();
+        let response = test::call_service(&app, req).await;
+        assert_eq!(
+            response.status(),
+            actix_web::http::StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get(header::RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("30")
+        );
 
         export_server.stop().await;
         graphql_server.stop().await;

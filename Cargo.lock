@@ -5114,6 +5114,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "env_logger",
+ "flate2",
  "log",
  "quick-xml",
  "reqwest",

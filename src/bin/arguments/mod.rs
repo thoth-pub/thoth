@@ -96,6 +96,17 @@ pub fn oai_url() -> Arg {
         .num_args(1)
 }
 
+pub fn oai_retry_after_seconds() -> Arg {
+    Arg::new("oai-retry-after-seconds")
+        .long("oai-retry-after-seconds")
+        .value_name("OAI_API_RETRY_AFTER_SECONDS")
+        .env("OAI_API_RETRY_AFTER_SECONDS")
+        .default_value("30")
+        .help("Retry-After value in seconds used for transient upstream OAI failures")
+        .num_args(1)
+        .value_parser(value_parser!(u64))
+}
+
 pub fn zitadel_url() -> Arg {
     Arg::new("zitadel-url")
         .short('z')
