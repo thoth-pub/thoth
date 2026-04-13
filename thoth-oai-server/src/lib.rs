@@ -5,11 +5,11 @@ use std::{collections::HashMap, io, time::Duration};
 
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpRequest, HttpResponse, HttpServer};
-use chrono::Utc;
+use chrono::{DateTime, NaiveDate, Utc};
 use quick_xml::escape::escape;
 use service::{
-    MetadataPrefix, OaiService, RecordPage, ResumptionToken, ADMIN_EMAIL, RECORD_PREFIX,
-    REPOSITORY_NAME, SAMPLE_ID,
+    DatestampGranularity, MetadataPrefix, OaiService, RecordPage, ResumptionToken, ADMIN_EMAIL,
+    RECORD_PREFIX, REPOSITORY_NAME, SAMPLE_ID,
 };
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -41,6 +41,18 @@ impl From<ProtocolError> for HandlerError {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+struct ParsedParams {
+    values: HashMap<String, String>,
+    has_repeated: bool,
+}
+
+#[derive(Debug, Clone)]
+struct ParsedListRequest {
+    token: ResumptionToken,
+    resumed: bool,
+}
+
 async fn index() -> HttpResponse {
     HttpResponse::Found()
         .append_header(("Location", "/oai"))
@@ -53,17 +65,49 @@ async fn stylesheet() -> HttpResponse {
         .body(XSL_STYLESHEET)
 }
 
-async fn oai(
+async fn oai_get(request: HttpRequest, state: web::Data<AppState>) -> HttpResponse {
+    let params = parse_form_encoded(request.query_string());
+    oai_with_params(request, params, state).await
+}
+
+async fn oai_post(
     request: HttpRequest,
-    params: web::Query<HashMap<String, String>>,
+    body: web::Bytes,
     state: web::Data<AppState>,
 ) -> HttpResponse {
-    let params = params.into_inner();
-    match handle_oai_request(&request, &params, &state.service).await {
-        Ok(body) => xml_response(success_document(&state.service, &params, &body)),
+    let mut params = parse_form_encoded(request.query_string());
+    match std::str::from_utf8(&body) {
+        Ok(body) => params.merge(parse_form_encoded(body)),
+        Err(_) => {
+            return xml_response(error_document(
+                &state.service,
+                &params.values,
+                "badArgument",
+                "Invalid UTF-8 request body",
+            ))
+        }
+    }
+    oai_with_params(request, params, state).await
+}
+
+async fn oai_with_params(
+    request: HttpRequest,
+    params: ParsedParams,
+    state: web::Data<AppState>,
+) -> HttpResponse {
+    if params.has_repeated {
+        return xml_response(error_document(
+            &state.service,
+            &params.values,
+            "badArgument",
+            "The request includes repeated arguments",
+        ));
+    }
+    match handle_oai_request(&request, &params.values, &state.service).await {
+        Ok(body) => xml_response(success_document(&state.service, &params.values, &body)),
         Err(HandlerError::Protocol(error)) => xml_response(error_document(
             &state.service,
-            &params,
+            &params.values,
             error.code,
             &error.message,
         )),
@@ -74,6 +118,31 @@ async fn oai(
                 .body("Internal Server Error")
         }
     }
+}
+
+impl ParsedParams {
+    fn merge(&mut self, other: ParsedParams) {
+        self.has_repeated = self.has_repeated || other.has_repeated;
+        for (key, value) in other.values {
+            if self.values.insert(key, value).is_some() {
+                self.has_repeated = true;
+            }
+        }
+    }
+}
+
+fn parse_form_encoded(input: &str) -> ParsedParams {
+    let mut parsed = ParsedParams::default();
+    for (key, value) in url::form_urlencoded::parse(input.as_bytes()) {
+        if parsed
+            .values
+            .insert(key.into_owned(), value.into_owned())
+            .is_some()
+        {
+            parsed.has_repeated = true;
+        }
+    }
+    parsed
 }
 
 async fn not_found() -> HttpResponse {
@@ -117,16 +186,40 @@ async fn handle_oai_request(
         }
         "ListMetadataFormats" => {
             require_only(params, &["verb", "identifier"])?;
+            let mut prefixes = vec![
+                MetadataPrefix::OaiDc,
+                MetadataPrefix::OaiOpenaire,
+                MetadataPrefix::MarcXml,
+            ];
             if let Some(identifier) = params.get("identifier") {
-                let work_id = parse_identifier(identifier)?;
-                service
+                let work_id = parse_identifier_for_lookup(identifier)?;
+                let work = service
                     .get_record(work_id, MetadataPrefix::OaiDc)
                     .await
                     .map_err(map_get_record_error(MetadataPrefix::OaiDc))?;
+                prefixes = vec![MetadataPrefix::OaiDc, MetadataPrefix::OaiOpenaire];
+                if OaiService::is_marcxml_record_candidate(&work) {
+                    prefixes.push(MetadataPrefix::MarcXml);
+                }
+                if prefixes.is_empty() {
+                    return Err(ProtocolError {
+                        code: "noMetadataFormats",
+                        message: "No metadata formats are available for this identifier"
+                            .to_string(),
+                    }
+                    .into());
+                }
             }
-            Ok(render_list_metadata_formats())
+            Ok(render_list_metadata_formats(&prefixes))
         }
         "ListSets" => {
+            if params.contains_key("resumptionToken") {
+                return Err(ProtocolError {
+                    code: "badResumptionToken",
+                    message: "This repository does not support set resumption tokens".to_string(),
+                }
+                .into());
+            }
             require_only(params, &["verb"])?;
             let sets = service.list_sets().await.map_err(HandlerError::Internal)?;
             Ok(render_list_sets(&sets))
@@ -139,7 +232,7 @@ async fn handle_oai_request(
             let metadata_prefix = params
                 .get("metadataPrefix")
                 .ok_or_else(|| bad_argument("Missing metadataPrefix parameter"))?;
-            let work_id = parse_identifier(identifier)?;
+            let work_id = parse_identifier_for_lookup(identifier)?;
             let metadata_prefix = parse_metadata_prefix(metadata_prefix)?;
             let work = service
                 .get_record(work_id, metadata_prefix)
@@ -149,9 +242,9 @@ async fn handle_oai_request(
         }
         "ListIdentifiers" => {
             validate_list_verb(params)?;
-            let token = parse_list_token(params, true)?;
+            let parsed = parse_list_token(params, true)?;
             let page = service
-                .list_records(token.metadata_prefix, token.set.clone(), token.offset, true)
+                .list_records(&parsed.token, parsed.resumed)
                 .await
                 .map_err(map_list_error)?;
             if page.records.is_empty() {
@@ -161,20 +254,15 @@ async fn handle_oai_request(
         }
         "ListRecords" => {
             validate_list_verb(params)?;
-            let token = parse_list_token(params, false)?;
+            let parsed = parse_list_token(params, false)?;
             let page = service
-                .list_records(
-                    token.metadata_prefix,
-                    token.set.clone(),
-                    token.offset,
-                    false,
-                )
+                .list_records(&parsed.token, parsed.resumed)
                 .await
                 .map_err(map_list_error)?;
             if page.records.is_empty() {
                 return Err(HandlerError::Protocol(no_records_match()));
             }
-            Ok(render_list_records(service, &page, token.metadata_prefix).await?)
+            Ok(render_list_records(service, &page, parsed.token.metadata_prefix).await?)
         }
         other => Err(HandlerError::Protocol(bad_verb(&format!(
             "Unknown verb {other}"
@@ -220,14 +308,9 @@ fn render_identify(
     )
 }
 
-fn render_list_metadata_formats() -> String {
-    let prefixes = [
-        MetadataPrefix::OaiDc,
-        MetadataPrefix::OaiOpenaire,
-        MetadataPrefix::MarcXml,
-    ];
+fn render_list_metadata_formats(prefixes: &[MetadataPrefix]) -> String {
     let mut xml = String::from("<ListMetadataFormats>");
-    for prefix in prefixes {
+    for prefix in prefixes.iter().copied() {
         xml.push_str("<metadataFormat>");
         push_text_element(&mut xml, "metadataPrefix", prefix.as_str());
         push_text_element(&mut xml, "schema", prefix.schema());
@@ -266,7 +349,9 @@ fn render_list_identifiers(page: &RecordPage) -> String {
     for work in &page.records {
         xml.push_str(&render_header_xml(work));
     }
-    if let Some(token) = &page.next_token {
+    if page.terminal_resumption_token {
+        xml.push_str("<resumptionToken/>");
+    } else if let Some(token) = &page.next_token {
         xml.push_str(&render_resumption_token(
             token,
             page.cursor,
@@ -286,7 +371,9 @@ async fn render_list_records(
     for work in &page.records {
         xml.push_str(&render_record_xml(service, work, metadata_prefix).await?);
     }
-    if let Some(token) = &page.next_token {
+    if page.terminal_resumption_token {
+        xml.push_str("<resumptionToken/>");
+    } else if let Some(token) = &page.next_token {
         xml.push_str(&render_resumption_token(
             token,
             page.cursor,
@@ -307,10 +394,20 @@ async fn render_record_xml(
         MetadataPrefix::OaiOpenaire => {
             metadata::map_oai_openaire(work).map_err(HandlerError::Internal)?
         }
-        MetadataPrefix::MarcXml => service
-            .get_marcxml_record(work.work_id)
-            .await
-            .map_err(map_get_record_error(metadata_prefix))?,
+        MetadataPrefix::MarcXml => {
+            service
+                .get_marcxml_record(work.work_id)
+                .await
+                .map_err(|_| {
+                    HandlerError::Protocol(ProtocolError {
+                        code: "cannotDisseminateFormat",
+                        message: format!(
+                            "Record cannot be disseminated as {}",
+                            metadata_prefix.as_str()
+                        ),
+                    })
+                })?
+        }
     };
 
     Ok(format!(
@@ -334,13 +431,21 @@ fn render_header_xml(work: &thoth_client::Work) -> String {
     )
 }
 
-fn render_resumption_token(token: &str, cursor: i64, complete_list_size: i64) -> String {
-    format!(
-        "<resumptionToken cursor=\"{}\" completeListSize=\"{}\">{}</resumptionToken>",
-        cursor,
-        complete_list_size,
-        xml_escape(token)
-    )
+fn render_resumption_token(token: &str, cursor: i64, complete_list_size: Option<i64>) -> String {
+    if let Some(complete_list_size) = complete_list_size {
+        format!(
+            "<resumptionToken cursor=\"{}\" completeListSize=\"{}\">{}</resumptionToken>",
+            cursor,
+            complete_list_size,
+            xml_escape(token)
+        )
+    } else {
+        format!(
+            "<resumptionToken cursor=\"{}\">{}</resumptionToken>",
+            cursor,
+            xml_escape(token)
+        )
+    }
 }
 
 fn validate_list_verb(params: &HashMap<String, String>) -> HandlerResult<()> {
@@ -360,14 +465,14 @@ fn validate_list_verb(params: &HashMap<String, String>) -> HandlerResult<()> {
 fn parse_list_token(
     params: &HashMap<String, String>,
     identifiers_only: bool,
-) -> HandlerResult<ResumptionToken> {
+) -> HandlerResult<ParsedListRequest> {
     if let Some(value) = params.get("resumptionToken") {
         if params.len() != 2 {
             return Err(
                 bad_argument("resumptionToken cannot be combined with other arguments").into(),
             );
         }
-        let token = OaiService::decode_resumption_token(value).map_err(|_| ProtocolError {
+        let mut token = OaiService::decode_resumption_token(value).map_err(|_| ProtocolError {
             code: "badResumptionToken",
             message: "Invalid resumptionToken".to_string(),
         })?;
@@ -378,18 +483,158 @@ fn parse_list_token(
             }
             .into());
         }
-        return Ok(token);
+        let (from, until, granularity) = parse_datestamp_filter(
+            token.from.as_deref(),
+            token.until.as_deref(),
+            token.granularity,
+            true,
+        )?;
+        token.from = from;
+        token.until = until;
+        token.granularity = granularity;
+        if token.scan_offset.is_none() {
+            token.scan_offset = Some(token.offset);
+        }
+        return Ok(ParsedListRequest {
+            token,
+            resumed: true,
+        });
     }
 
     let metadata_prefix = params
         .get("metadataPrefix")
         .ok_or_else(|| bad_argument("Missing metadataPrefix parameter"))?;
-    Ok(ResumptionToken {
-        offset: 0,
-        metadata_prefix: parse_metadata_prefix(metadata_prefix)?,
-        set: params.get("set").cloned(),
-        identifiers_only,
+    let (from, until, granularity) = parse_datestamp_filter(
+        params.get("from").map(String::as_str),
+        params.get("until").map(String::as_str),
+        None,
+        false,
+    )?;
+    Ok(ParsedListRequest {
+        token: ResumptionToken {
+            offset: 0,
+            metadata_prefix: parse_metadata_prefix(metadata_prefix)?,
+            set: params.get("set").cloned(),
+            identifiers_only,
+            from,
+            until,
+            granularity,
+            scan_offset: Some(0),
+        },
+        resumed: false,
     })
+}
+
+fn parse_datestamp_filter(
+    from: Option<&str>,
+    until: Option<&str>,
+    expected_granularity: Option<DatestampGranularity>,
+    is_resumption_token: bool,
+) -> HandlerResult<(Option<String>, Option<String>, Option<DatestampGranularity>)> {
+    let parse_error = |message: &str| {
+        if is_resumption_token {
+            ProtocolError {
+                code: "badResumptionToken",
+                message: message.to_string(),
+            }
+        } else {
+            bad_argument(message)
+        }
+    };
+
+    let from_value = from
+        .map(|value| parse_datestamp_value(value, expected_granularity))
+        .transpose()
+        .map_err(|message| parse_error(&message))?;
+    let until_value = until
+        .map(|value| parse_datestamp_value(value, expected_granularity))
+        .transpose()
+        .map_err(|message| parse_error(&message))?;
+
+    let mut granularity = expected_granularity;
+    if let Some((value_granularity, _)) = from_value {
+        granularity = Some(value_granularity);
+    }
+    if let Some((value_granularity, _)) = until_value {
+        if let Some(existing) = granularity {
+            if existing != value_granularity {
+                return Err(
+                    parse_error("from and until must use the same datestamp granularity").into(),
+                );
+            }
+        } else {
+            granularity = Some(value_granularity);
+        }
+    }
+
+    let canonical_from = from_value.map(|(_, value)| value);
+    let canonical_until = until_value.map(|(_, value)| value);
+
+    if let (Some(from_value), Some(until_value), Some(granularity)) = (
+        canonical_from.as_deref(),
+        canonical_until.as_deref(),
+        granularity,
+    ) {
+        let ordered = match granularity {
+            DatestampGranularity::Day => from_value <= until_value,
+            DatestampGranularity::Second => {
+                let from = DateTime::parse_from_str(from_value, "%Y-%m-%dT%H:%M:%SZ")
+                    .map_err(|_| parse_error("Invalid from datestamp"))?;
+                let until = DateTime::parse_from_str(until_value, "%Y-%m-%dT%H:%M:%SZ")
+                    .map_err(|_| parse_error("Invalid until datestamp"))?;
+                from <= until
+            }
+        };
+        if !ordered {
+            return Err(parse_error("from datestamp must be less than or equal to until").into());
+        }
+    }
+
+    Ok((canonical_from, canonical_until, granularity))
+}
+
+fn parse_datestamp_value(
+    value: &str,
+    expected_granularity: Option<DatestampGranularity>,
+) -> Result<(DatestampGranularity, String), String> {
+    match expected_granularity {
+        Some(DatestampGranularity::Day) => NaiveDate::parse_from_str(value, "%Y-%m-%d")
+            .map(|date| {
+                (
+                    DatestampGranularity::Day,
+                    date.format("%Y-%m-%d").to_string(),
+                )
+            })
+            .map_err(|_| "Invalid day datestamp".to_string()),
+        Some(DatestampGranularity::Second) => {
+            let datetime = DateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%SZ")
+                .map_err(|_| "Invalid second datestamp".to_string())?;
+            Ok((
+                DatestampGranularity::Second,
+                datetime
+                    .with_timezone(&Utc)
+                    .format("%Y-%m-%dT%H:%M:%SZ")
+                    .to_string(),
+            ))
+        }
+        None => {
+            if let Ok(date) = NaiveDate::parse_from_str(value, "%Y-%m-%d") {
+                return Ok((
+                    DatestampGranularity::Day,
+                    date.format("%Y-%m-%d").to_string(),
+                ));
+            }
+            let datetime = DateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%SZ")
+                .map_err(|_| "Invalid datestamp".to_string())?;
+            Ok((
+                DatestampGranularity::Second,
+                datetime
+                    .with_timezone(&Utc)
+                    .format("%Y-%m-%dT%H:%M:%SZ")
+                    .to_string(),
+            ))
+        }
+    }
 }
 
 fn parse_metadata_prefix(value: &str) -> HandlerResult<MetadataPrefix> {
@@ -402,8 +647,14 @@ fn parse_metadata_prefix(value: &str) -> HandlerResult<MetadataPrefix> {
     })
 }
 
-fn parse_identifier(value: &str) -> HandlerResult<Uuid> {
-    OaiService::parse_oai_identifier(value).map_err(|_| bad_argument("Invalid identifier").into())
+fn parse_identifier_for_lookup(value: &str) -> HandlerResult<Uuid> {
+    OaiService::parse_oai_identifier(value).map_err(|_| {
+        ProtocolError {
+            code: "idDoesNotExist",
+            message: "The requested identifier does not exist".to_string(),
+        }
+        .into()
+    })
 }
 
 fn map_get_record_error(
@@ -429,6 +680,12 @@ fn map_get_record_error(
 fn map_list_error(error: ThothError) -> HandlerError {
     match error {
         ThothError::EntityNotFound => no_records_match().into(),
+        ThothError::RequestError(message) if message.starts_with("badResumptionToken") => {
+            HandlerError::Protocol(ProtocolError {
+                code: "badResumptionToken",
+                message: "Invalid resumptionToken".to_string(),
+            })
+        }
         other => HandlerError::Internal(other),
     }
 }
@@ -468,7 +725,7 @@ fn success_document(service: &OaiService, params: &HashMap<String, String>, body
         xml_declaration(),
         stylesheet_pi(),
         response_date(),
-        request_element(service, params),
+        request_element(service, params, true),
         body
     )
 }
@@ -479,27 +736,34 @@ fn error_document(
     code: &str,
     message: &str,
 ) -> String {
+    let include_attributes = !matches!(code, "badVerb" | "badArgument");
     format!(
         "{}{}<OAI-PMH xmlns=\"http://www.openarchives.org/OAI/2.0/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.openarchives.org/OAI/2.0/ http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd\"><responseDate>{}</responseDate>{}<error code=\"{}\">{}</error></OAI-PMH>",
         xml_declaration(),
         stylesheet_pi(),
         response_date(),
-        request_element(service, params),
+        request_element(service, params, include_attributes),
         xml_escape(code),
         xml_escape(message)
     )
 }
 
-fn request_element(service: &OaiService, params: &HashMap<String, String>) -> String {
+fn request_element(
+    service: &OaiService,
+    params: &HashMap<String, String>,
+    include_attributes: bool,
+) -> String {
     let mut attrs = params.iter().collect::<Vec<_>>();
     attrs.sort_by(|(left, _), (right, _)| left.cmp(right));
     let mut element = String::from("<request");
-    for (key, value) in attrs {
-        element.push(' ');
-        element.push_str(key);
-        element.push_str("=\"");
-        element.push_str(&xml_escape(value));
-        element.push('"');
+    if include_attributes {
+        for (key, value) in attrs {
+            element.push(' ');
+            element.push_str(key);
+            element.push_str("=\"");
+            element.push_str(&xml_escape(value));
+            element.push('"');
+        }
     }
     element.push('>');
     element.push_str(&xml_escape(&service.repository_url()));
@@ -535,7 +799,7 @@ fn push_text_element(xml: &mut String, name: &str, text: &str) {
 
 fn xml_response(body: String) -> HttpResponse {
     HttpResponse::Ok()
-        .content_type("application/xml; charset=utf-8")
+        .content_type("text/xml; charset=utf-8")
         .body(body)
 }
 
@@ -557,10 +821,14 @@ pub async fn start_server(
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::new(LOG_FORMAT))
-            .wrap(Cors::default().allowed_methods(vec!["GET", "OPTIONS"]))
+            .wrap(Cors::default().allowed_methods(vec!["GET", "POST", "OPTIONS"]))
             .app_data(web::Data::new(state.clone()))
             .service(web::resource("/").route(web::get().to(index)))
-            .service(web::resource("/oai").route(web::get().to(oai)))
+            .service(
+                web::resource("/oai")
+                    .route(web::get().to(oai_get))
+                    .route(web::post().to(oai_post)),
+            )
             .service(web::resource("/oai2.xsl").route(web::get().to(stylesheet)))
             .default_service(web::route().to(not_found))
     })
@@ -569,4 +837,1061 @@ pub async fn start_server(
     .bind(format!("{host}:{port}"))?
     .run()
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::service::PAGE_LIMIT;
+    use actix_web::{dev::ServerHandle, http::header, test, App, HttpResponse, HttpServer};
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+    use chrono::{Duration, NaiveDate};
+    use serde_json::{json, Value};
+    use std::{collections::HashSet, net::TcpListener};
+
+    const PUBLISHER_ID: &str = "00000000-0000-0000-1111-000000000001";
+    const PUBLISHER_NAME: &str = "Open Access Press";
+
+    #[derive(Clone)]
+    struct MockGraphqlState {
+        works: Vec<Value>,
+        publishers: Vec<Value>,
+        latest: String,
+        earliest: String,
+    }
+
+    #[derive(Clone, Default)]
+    struct MockExportState {
+        failing_work_ids: HashSet<Uuid>,
+        malformed_work_ids: HashSet<Uuid>,
+    }
+
+    struct RunningMockServer {
+        base_url: String,
+        handle: ServerHandle,
+    }
+
+    impl RunningMockServer {
+        async fn stop(self) {
+            self.handle.stop(true).await;
+        }
+    }
+
+    async fn spawn_graphql_server(state: MockGraphqlState) -> RunningMockServer {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind graphql mock server");
+        let address = listener.local_addr().expect("graphql local address");
+        let state = web::Data::new(state);
+
+        let server = HttpServer::new(move || {
+            App::new()
+                .app_data(state.clone())
+                .route("/graphql", web::post().to(graphql_mock_handler))
+        })
+        .listen(listener)
+        .expect("listen graphql mock server")
+        .run();
+        let handle = server.handle();
+        actix_web::rt::spawn(server);
+
+        RunningMockServer {
+            base_url: format!("http://{address}"),
+            handle,
+        }
+    }
+
+    async fn spawn_export_server(state: MockExportState) -> RunningMockServer {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind export mock server");
+        let address = listener.local_addr().expect("export local address");
+        let state = web::Data::new(state);
+
+        let server = HttpServer::new(move || {
+            App::new().app_data(state.clone()).route(
+                "/specifications/marc21xml::thoth/work/{work_id}",
+                web::get().to(export_mock_handler),
+            )
+        })
+        .listen(listener)
+        .expect("listen export mock server")
+        .run();
+        let handle = server.handle();
+        actix_web::rt::spawn(server);
+
+        RunningMockServer {
+            base_url: format!("http://{address}"),
+            handle,
+        }
+    }
+
+    async fn graphql_mock_handler(
+        state: web::Data<MockGraphqlState>,
+        payload: web::Json<Value>,
+    ) -> HttpResponse {
+        let payload = payload.into_inner();
+        let variables = payload
+            .get("variables")
+            .cloned()
+            .unwrap_or_else(|| json!({}));
+        let operation_name = request_operation_name(&payload);
+
+        let response = match operation_name.as_deref() {
+            Some("OaiLatestWorksUpdatedQuery") => {
+                json!({ "data": { "works": [{ "updatedAtWithRelations": state.latest.clone() }] } })
+            }
+            Some("OaiEarliestWorksUpdatedQuery") => {
+                json!({ "data": { "works": [{ "updatedAtWithRelations": state.earliest.clone() }] } })
+            }
+            Some("PublishersQuery") => {
+                json!({ "data": { "publishers": state.publishers.clone() } })
+            }
+            Some("WorkQuery") => {
+                let work_id = variables
+                    .get("workId")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned);
+                match work_id.and_then(|work_id| find_work_by_id(&state, &work_id)) {
+                    Some(work) => json!({ "data": { "work": work } }),
+                    None => json!({ "errors": [{ "message": "work not found" }] }),
+                }
+            }
+            Some("OaiWorkCountQuery") => {
+                let works = filter_works_by_publishers(&state, &variables);
+                json!({ "data": { "workCount": works.len() as i64 } })
+            }
+            Some("OaiBookCountQuery") => {
+                let works = filter_works_by_publishers(&state, &variables);
+                json!({ "data": { "bookCount": works.len() as i64 } })
+            }
+            Some("OaiWorksQuery") => {
+                let works =
+                    paginate_works(filter_works_by_publishers(&state, &variables), &variables);
+                json!({ "data": { "works": works } })
+            }
+            Some("OaiBooksQuery") => {
+                let works =
+                    paginate_works(filter_works_by_publishers(&state, &variables), &variables);
+                json!({ "data": { "books": works } })
+            }
+            _ => json!({ "errors": [{ "message": "unsupported operation" }] }),
+        };
+
+        HttpResponse::Ok().json(response)
+    }
+
+    async fn export_mock_handler(
+        state: web::Data<MockExportState>,
+        work_id: web::Path<Uuid>,
+    ) -> HttpResponse {
+        let work_id = work_id.into_inner();
+        if state.failing_work_ids.contains(&work_id) {
+            return HttpResponse::InternalServerError()
+                .content_type("text/plain; charset=utf-8")
+                .body("export failed");
+        }
+        if state.malformed_work_ids.contains(&work_id) {
+            return HttpResponse::Ok()
+                .content_type("application/xml; charset=utf-8")
+                .body("<collection xmlns=\"http://www.loc.gov/MARC21/slim\"></collection>");
+        }
+        HttpResponse::Ok()
+            .content_type("application/xml; charset=utf-8")
+            .body(format!(
+                r#"<?xml version="1.0" encoding="UTF-8"?>
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+  <record>
+    <leader>00000nam a2200000 i 4500</leader>
+    <controlfield tag="001">{work_id}</controlfield>
+  </record>
+</collection>"#
+            ))
+    }
+
+    fn request_operation_name(payload: &Value) -> Option<String> {
+        payload
+            .get("operationName")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned)
+            .or_else(|| {
+                let query = payload.get("query").and_then(Value::as_str)?;
+                [
+                    "OaiLatestWorksUpdatedQuery",
+                    "OaiEarliestWorksUpdatedQuery",
+                    "PublishersQuery",
+                    "WorkQuery",
+                    "OaiWorkCountQuery",
+                    "OaiBookCountQuery",
+                    "OaiWorksQuery",
+                    "OaiBooksQuery",
+                ]
+                .iter()
+                .find(|name| query.contains(**name))
+                .map(|name| (*name).to_string())
+            })
+    }
+
+    fn find_work_by_id(state: &MockGraphqlState, work_id: &str) -> Option<Value> {
+        state
+            .works
+            .iter()
+            .find(|work| work.get("workId").and_then(Value::as_str) == Some(work_id))
+            .cloned()
+    }
+
+    fn filter_works_by_publishers(state: &MockGraphqlState, variables: &Value) -> Vec<Value> {
+        let Some(publishers) = variables.get("publishers") else {
+            return state.works.clone();
+        };
+        if publishers.is_null() {
+            return state.works.clone();
+        }
+        let Some(ids) = publishers.as_array() else {
+            return state.works.clone();
+        };
+        if ids.is_empty() {
+            return Vec::new();
+        }
+        let allowed_names = ids
+            .iter()
+            .filter_map(Value::as_str)
+            .filter_map(|publisher_id| {
+                state
+                    .publishers
+                    .iter()
+                    .find(|publisher| {
+                        publisher.get("publisherId").and_then(Value::as_str) == Some(publisher_id)
+                    })
+                    .and_then(|publisher| publisher.get("publisherName").and_then(Value::as_str))
+                    .map(ToOwned::to_owned)
+            })
+            .collect::<HashSet<_>>();
+        state
+            .works
+            .iter()
+            .filter(|work| {
+                work.get("imprint")
+                    .and_then(|imprint| imprint.get("publisher"))
+                    .and_then(|publisher| publisher.get("publisherName"))
+                    .and_then(Value::as_str)
+                    .is_some_and(|publisher_name| allowed_names.contains(publisher_name))
+            })
+            .cloned()
+            .collect()
+    }
+
+    fn paginate_works(works: Vec<Value>, variables: &Value) -> Vec<Value> {
+        let offset = variables.get("offset").and_then(Value::as_i64).unwrap_or(0);
+        let limit = variables
+            .get("limit")
+            .and_then(Value::as_i64)
+            .unwrap_or(PAGE_LIMIT);
+        works
+            .into_iter()
+            .skip(offset.max(0) as usize)
+            .take(limit.max(0) as usize)
+            .collect()
+    }
+
+    fn mock_graphql_state(mut works: Vec<Value>) -> MockGraphqlState {
+        works.sort_by(|left, right| {
+            let left = left
+                .get("updatedAtWithRelations")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let right = right
+                .get("updatedAtWithRelations")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            right.cmp(left)
+        });
+        let latest = works
+            .first()
+            .and_then(|work| work.get("updatedAtWithRelations"))
+            .and_then(Value::as_str)
+            .unwrap_or("2024-12-31T00:00:00Z")
+            .to_string();
+        let earliest = works
+            .last()
+            .and_then(|work| work.get("updatedAtWithRelations"))
+            .and_then(Value::as_str)
+            .unwrap_or("2024-01-01T00:00:00Z")
+            .to_string();
+
+        MockGraphqlState {
+            works,
+            publishers: vec![json!({
+                "publisherId": PUBLISHER_ID,
+                "publisherName": PUBLISHER_NAME,
+            })],
+            latest,
+            earliest,
+        }
+    }
+
+    fn make_work(
+        work_id: Uuid,
+        updated_at_with_relations: &str,
+        publisher_name: &str,
+        marc_eligible: bool,
+        include_xml_publication: bool,
+    ) -> Value {
+        let contributions = if marc_eligible {
+            vec![json!({
+                "contributionType": "AUTHOR",
+                "firstName": "Ada",
+                "lastName": "Lovelace",
+                "fullName": "Ada Lovelace",
+                "mainContribution": true,
+                "biographies": [],
+                "contributionOrdinal": 1,
+                "contributor": {
+                    "orcid": "https://orcid.org/0000-0002-0000-0001",
+                    "website": null
+                },
+                "affiliations": []
+            })]
+        } else {
+            Vec::new()
+        };
+        let languages = if marc_eligible {
+            vec![json!({
+                "languageCode": "ENG",
+                "languageRelation": "ORIGINAL"
+            })]
+        } else {
+            Vec::new()
+        };
+        let mut publications = vec![json!({
+            "publicationId": Uuid::from_u128(work_id.as_u128() + 10),
+            "publicationType": "PDF",
+            "isbn": if marc_eligible { Value::String("978-1-4028-9462-6".to_string()) } else { Value::Null },
+            "weightG": null,
+            "weightOz": null,
+            "widthMm": null,
+            "widthCm": null,
+            "widthIn": null,
+            "heightMm": null,
+            "heightCm": null,
+            "heightIn": null,
+            "depthMm": null,
+            "depthCm": null,
+            "depthIn": null,
+            "accessibilityStandard": null,
+            "accessibilityAdditionalStandard": null,
+            "accessibilityException": null,
+            "accessibilityReportUrl": null,
+            "prices": [],
+            "locations": [
+                {
+                    "landingPage": "https://example.org/book",
+                    "fullTextUrl": "https://example.org/book.pdf",
+                    "locationPlatform": "OTHER",
+                    "canonical": true
+                }
+            ]
+        })];
+        if include_xml_publication {
+            publications.push(json!({
+                "publicationId": Uuid::from_u128(work_id.as_u128() + 11),
+                "publicationType": "XML",
+                "isbn": "978-92-95055-02-5",
+                "weightG": null,
+                "weightOz": null,
+                "widthMm": null,
+                "widthCm": null,
+                "widthIn": null,
+                "heightMm": null,
+                "heightCm": null,
+                "heightIn": null,
+                "depthMm": null,
+                "depthCm": null,
+                "depthIn": null,
+                "accessibilityStandard": null,
+                "accessibilityAdditionalStandard": null,
+                "accessibilityException": null,
+                "accessibilityReportUrl": null,
+                "prices": [],
+                "locations": []
+            }));
+        }
+
+        let mut work = serde_json::Map::new();
+        work.insert("workId".to_string(), json!(work_id));
+        work.insert(
+            "updatedAtWithRelations".to_string(),
+            json!(updated_at_with_relations),
+        );
+        work.insert("workStatus".to_string(), json!("ACTIVE"));
+        work.insert("workType".to_string(), json!("MONOGRAPH"));
+        work.insert("reference".to_string(), Value::Null);
+        work.insert("edition".to_string(), json!(1));
+        work.insert(
+            "doi".to_string(),
+            json!(format!("https://doi.org/10.00001/{work_id}")),
+        );
+        work.insert("publicationDate".to_string(), json!("2024-01-01"));
+        work.insert("withdrawnDate".to_string(), Value::Null);
+        work.insert(
+            "license".to_string(),
+            json!("http://creativecommons.org/licenses/by/4.0/"),
+        );
+        work.insert("copyrightHolder".to_string(), json!("Author"));
+        work.insert("generalNote".to_string(), Value::Null);
+        work.insert("bibliographyNote".to_string(), Value::Null);
+        work.insert("place".to_string(), json!("London"));
+        work.insert("pageCount".to_string(), json!(100));
+        work.insert("pageBreakdown".to_string(), Value::Null);
+        work.insert("firstPage".to_string(), Value::Null);
+        work.insert("lastPage".to_string(), Value::Null);
+        work.insert("pageInterval".to_string(), Value::Null);
+        work.insert("imageCount".to_string(), Value::Null);
+        work.insert("tableCount".to_string(), Value::Null);
+        work.insert("audioCount".to_string(), Value::Null);
+        work.insert("videoCount".to_string(), Value::Null);
+        work.insert("landingPage".to_string(), json!("https://example.org/book"));
+        work.insert("toc".to_string(), Value::Null);
+        work.insert("lccn".to_string(), Value::Null);
+        work.insert("oclc".to_string(), Value::Null);
+        work.insert("coverUrl".to_string(), Value::Null);
+        work.insert("coverCaption".to_string(), Value::Null);
+        work.insert(
+            "titles".to_string(),
+            json!([{
+                "titleId": Uuid::from_u128(work_id.as_u128() + 1),
+                "localeCode": "EN",
+                "fullTitle": "Sample Title",
+                "title": "Sample Title",
+                "subtitle": null,
+                "canonical": true
+            }]),
+        );
+        work.insert("abstracts".to_string(), json!([]));
+        work.insert(
+            "imprint".to_string(),
+            json!({
+                "imprintName": "Imprint",
+                "imprintUrl": null,
+                "crossmarkDoi": null,
+                "defaultCurrency": "EUR",
+                "defaultPlace": "London",
+                "defaultLocale": "EN",
+                "publisher": {
+                    "publisherName": publisher_name,
+                    "publisherShortname": "OAP",
+                    "publisherUrl": null,
+                    "accessibilityStatement": null,
+                    "contacts": []
+                }
+            }),
+        );
+        work.insert("issues".to_string(), json!([]));
+        work.insert("contributions".to_string(), json!(contributions));
+        work.insert("languages".to_string(), json!(languages));
+        work.insert("publications".to_string(), json!(publications));
+        work.insert("subjects".to_string(), json!([]));
+        work.insert("fundings".to_string(), json!([]));
+        work.insert("relations".to_string(), json!([]));
+        work.insert("references".to_string(), json!([]));
+        Value::Object(work)
+    }
+
+    fn make_descending_work_series(count: usize) -> Vec<Value> {
+        let base_date = NaiveDate::from_ymd_opt(2024, 12, 31).expect("valid base date");
+        (0..count)
+            .map(|index| {
+                let updated_at = (base_date - Duration::days(index as i64))
+                    .format("%Y-%m-%dT12:00:00Z")
+                    .to_string();
+                let work_id =
+                    Uuid::from_u128(0x1000_0000_0000_0000_0000_0000_0000_0000 + index as u128);
+                make_work(work_id, &updated_at, PUBLISHER_NAME, true, true)
+            })
+            .collect()
+    }
+
+    fn normalize_response_date(xml: &str) -> String {
+        let open = "<responseDate>";
+        let close = "</responseDate>";
+        let Some(start) = xml.find(open) else {
+            return xml.to_string();
+        };
+        let value_start = start + open.len();
+        let Some(value_end_rel) = xml[value_start..].find(close) else {
+            return xml.to_string();
+        };
+        let value_end = value_start + value_end_rel;
+        let mut normalized = String::new();
+        normalized.push_str(&xml[..value_start]);
+        normalized.push_str("RESPONSE_DATE");
+        normalized.push_str(&xml[value_end..]);
+        normalized
+    }
+
+    fn request_opening_tag(xml: &str) -> String {
+        let start = xml.find("<request").expect("request element exists");
+        let end = xml[start..]
+            .find('>')
+            .map(|offset| start + offset)
+            .expect("request closing bracket");
+        xml[start..=end].to_string()
+    }
+
+    fn extract_resumption_token(xml: &str) -> Option<String> {
+        let token_start = xml.find("<resumptionToken")?;
+        let content_start = token_start + xml[token_start..].find('>')? + 1;
+        let content_end = content_start + xml[content_start..].find("</resumptionToken>")?;
+        let value = xml[content_start..content_end].trim();
+        if value.is_empty() {
+            None
+        } else {
+            Some(value.to_string())
+        }
+    }
+
+    fn count_occurrences(haystack: &str, needle: &str) -> usize {
+        haystack.matches(needle).count()
+    }
+
+    #[actix_web::test]
+    async fn get_and_post_are_equivalent_for_all_oai_verbs() {
+        let work_id = Uuid::from_u128(1);
+        let works = vec![make_work(
+            work_id,
+            "2024-12-30T12:00:00Z",
+            PUBLISHER_NAME,
+            true,
+            true,
+        )];
+
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
+        let export_server = spawn_export_server(MockExportState::default()).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                }))
+                .service(
+                    web::resource("/oai")
+                        .route(web::get().to(oai_get))
+                        .route(web::post().to(oai_post)),
+                ),
+        )
+        .await;
+
+        let identifier = OaiService::oai_identifier(work_id);
+        let cases = vec![
+            "verb=Identify".to_string(),
+            "verb=ListMetadataFormats".to_string(),
+            "verb=ListSets".to_string(),
+            format!("verb=GetRecord&identifier={identifier}&metadataPrefix=oai_dc"),
+            "verb=ListIdentifiers&metadataPrefix=oai_dc".to_string(),
+            "verb=ListRecords&metadataPrefix=oai_dc".to_string(),
+        ];
+
+        for case in cases {
+            let get_req = test::TestRequest::get()
+                .uri(&format!("/oai?{case}"))
+                .to_request();
+            let get_response = test::call_service(&app, get_req).await;
+            assert_eq!(get_response.status(), actix_web::http::StatusCode::OK);
+            assert_eq!(
+                get_response
+                    .headers()
+                    .get(header::CONTENT_TYPE)
+                    .and_then(|value| value.to_str().ok())
+                    .expect("GET content type"),
+                "text/xml; charset=utf-8"
+            );
+            let get_body = String::from_utf8(test::read_body(get_response).await.to_vec())
+                .expect("GET body UTF-8");
+
+            let post_req = test::TestRequest::post()
+                .uri("/oai")
+                .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+                .set_payload(case.clone())
+                .to_request();
+            let post_response = test::call_service(&app, post_req).await;
+            assert_eq!(post_response.status(), actix_web::http::StatusCode::OK);
+            assert_eq!(
+                post_response
+                    .headers()
+                    .get(header::CONTENT_TYPE)
+                    .and_then(|value| value.to_str().ok())
+                    .expect("POST content type"),
+                "text/xml; charset=utf-8"
+            );
+            let post_body = String::from_utf8(test::read_body(post_response).await.to_vec())
+                .expect("POST body UTF-8");
+
+            assert_eq!(
+                normalize_response_date(&get_body),
+                normalize_response_date(&post_body)
+            );
+        }
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn repeated_arguments_return_bad_argument() {
+        let graphql_server =
+            spawn_graphql_server(mock_graphql_state(make_descending_work_series(1))).await;
+        let export_server = spawn_export_server(MockExportState::default()).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                }))
+                .service(
+                    web::resource("/oai")
+                        .route(web::get().to(oai_get))
+                        .route(web::post().to(oai_post)),
+                ),
+        )
+        .await;
+
+        let get_req = test::TestRequest::get()
+            .uri("/oai?verb=Identify&verb=ListSets")
+            .to_request();
+        let get_response = test::call_service(&app, get_req).await;
+        let get_body = String::from_utf8(test::read_body(get_response).await.to_vec())
+            .expect("GET body UTF-8");
+        assert!(get_body.contains("<error code=\"badArgument\">"));
+
+        let post_req = test::TestRequest::post()
+            .uri("/oai?verb=Identify")
+            .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .set_payload("verb=ListSets")
+            .to_request();
+        let post_response = test::call_service(&app, post_req).await;
+        let post_body = String::from_utf8(test::read_body(post_response).await.to_vec())
+            .expect("POST body UTF-8");
+        assert!(post_body.contains("<error code=\"badArgument\">"));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn request_attributes_are_omitted_for_bad_verb_and_bad_argument() {
+        let graphql_server =
+            spawn_graphql_server(mock_graphql_state(make_descending_work_series(1))).await;
+        let export_server = spawn_export_server(MockExportState::default()).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let bad_verb_req = test::TestRequest::get()
+            .uri("/oai?verb=UnknownVerb")
+            .to_request();
+        let bad_verb_response = test::call_service(&app, bad_verb_req).await;
+        let bad_verb_body = String::from_utf8(test::read_body(bad_verb_response).await.to_vec())
+            .expect("badVerb body UTF-8");
+        assert!(bad_verb_body.contains("<error code=\"badVerb\">"));
+        assert_eq!(request_opening_tag(&bad_verb_body), "<request>");
+
+        let bad_argument_req = test::TestRequest::get()
+            .uri("/oai?verb=Identify&foo=bar")
+            .to_request();
+        let bad_argument_response = test::call_service(&app, bad_argument_req).await;
+        let bad_argument_body =
+            String::from_utf8(test::read_body(bad_argument_response).await.to_vec())
+                .expect("badArgument body UTF-8");
+        assert!(bad_argument_body.contains("<error code=\"badArgument\">"));
+        assert_eq!(request_opening_tag(&bad_argument_body), "<request>");
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn list_sets_rejects_resumption_tokens() {
+        let graphql_server =
+            spawn_graphql_server(mock_graphql_state(make_descending_work_series(1))).await;
+        let export_server = spawn_export_server(MockExportState::default()).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let req = test::TestRequest::get()
+            .uri("/oai?verb=ListSets&resumptionToken=abc")
+            .to_request();
+        let response = test::call_service(&app, req).await;
+        let body = String::from_utf8(test::read_body(response).await.to_vec()).expect("body UTF-8");
+
+        assert!(body.contains("<error code=\"badResumptionToken\">"));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn list_metadata_formats_is_identifier_aware() {
+        let marc_eligible_id = Uuid::from_u128(10);
+        let marc_ineligible_id = Uuid::from_u128(11);
+        let works = vec![
+            make_work(
+                marc_eligible_id,
+                "2024-12-31T12:00:00Z",
+                PUBLISHER_NAME,
+                true,
+                true,
+            ),
+            make_work(
+                marc_ineligible_id,
+                "2024-12-30T12:00:00Z",
+                PUBLISHER_NAME,
+                false,
+                true,
+            ),
+        ];
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
+        let export_server = spawn_export_server(MockExportState::default()).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let eligible_req = test::TestRequest::get()
+            .uri(&format!(
+                "/oai?verb=ListMetadataFormats&identifier={}",
+                OaiService::oai_identifier(marc_eligible_id)
+            ))
+            .to_request();
+        let eligible_response = test::call_service(&app, eligible_req).await;
+        let eligible_body = String::from_utf8(test::read_body(eligible_response).await.to_vec())
+            .expect("eligible body UTF-8");
+        assert!(eligible_body.contains("<metadataPrefix>oai_dc</metadataPrefix>"));
+        assert!(eligible_body.contains("<metadataPrefix>oai_openaire</metadataPrefix>"));
+        assert!(eligible_body.contains("<metadataPrefix>marcxml</metadataPrefix>"));
+
+        let ineligible_req = test::TestRequest::get()
+            .uri(&format!(
+                "/oai?verb=ListMetadataFormats&identifier={}",
+                OaiService::oai_identifier(marc_ineligible_id)
+            ))
+            .to_request();
+        let ineligible_response = test::call_service(&app, ineligible_req).await;
+        let ineligible_body =
+            String::from_utf8(test::read_body(ineligible_response).await.to_vec())
+                .expect("ineligible body UTF-8");
+        assert!(ineligible_body.contains("<metadataPrefix>oai_dc</metadataPrefix>"));
+        assert!(ineligible_body.contains("<metadataPrefix>oai_openaire</metadataPrefix>"));
+        assert!(!ineligible_body.contains("<metadataPrefix>marcxml</metadataPrefix>"));
+
+        let invalid_identifier_req = test::TestRequest::get()
+            .uri(
+                "/oai?verb=ListMetadataFormats&identifier=oai:example.org:00000000-0000-0000-0000-000000000001",
+            )
+            .to_request();
+        let invalid_identifier_response = test::call_service(&app, invalid_identifier_req).await;
+        let invalid_identifier_body =
+            String::from_utf8(test::read_body(invalid_identifier_response).await.to_vec())
+                .expect("invalid identifier body UTF-8");
+        assert!(invalid_identifier_body.contains("<error code=\"idDoesNotExist\">"));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn marc_export_failures_are_mapped_to_cannot_disseminate_format() {
+        let work_id = Uuid::from_u128(20);
+        let works = vec![make_work(
+            work_id,
+            "2024-12-31T12:00:00Z",
+            PUBLISHER_NAME,
+            true,
+            true,
+        )];
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
+
+        let mut export_state = MockExportState::default();
+        export_state.failing_work_ids.insert(work_id);
+        let export_server = spawn_export_server(export_state).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let req = test::TestRequest::get()
+            .uri(&format!(
+                "/oai?verb=GetRecord&identifier={}&metadataPrefix=marcxml",
+                OaiService::oai_identifier(work_id)
+            ))
+            .to_request();
+        let response = test::call_service(&app, req).await;
+        let body = String::from_utf8(test::read_body(response).await.to_vec()).expect("body UTF-8");
+        assert!(body.contains("<error code=\"cannotDisseminateFormat\">"));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn list_identifiers_validates_datestamp_arguments() {
+        let graphql_server =
+            spawn_graphql_server(mock_graphql_state(make_descending_work_series(3))).await;
+        let export_server = spawn_export_server(MockExportState::default()).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let mismatch_req = test::TestRequest::get()
+            .uri(
+                "/oai?verb=ListIdentifiers&metadataPrefix=oai_dc&from=2024-01-01&until=2024-01-01T00:00:00Z",
+            )
+            .to_request();
+        let mismatch_response = test::call_service(&app, mismatch_req).await;
+        let mismatch_body = String::from_utf8(test::read_body(mismatch_response).await.to_vec())
+            .expect("mismatch body UTF-8");
+        assert!(mismatch_body.contains("<error code=\"badArgument\">"));
+
+        let invalid_req = test::TestRequest::get()
+            .uri("/oai?verb=ListIdentifiers&metadataPrefix=oai_dc&from=20240101")
+            .to_request();
+        let invalid_response = test::call_service(&app, invalid_req).await;
+        let invalid_body = String::from_utf8(test::read_body(invalid_response).await.to_vec())
+            .expect("invalid body UTF-8");
+        assert!(invalid_body.contains("<error code=\"badArgument\">"));
+
+        let reversed_req = test::TestRequest::get()
+            .uri("/oai?verb=ListIdentifiers&metadataPrefix=oai_dc&from=2024-12-31&until=2024-01-01")
+            .to_request();
+        let reversed_response = test::call_service(&app, reversed_req).await;
+        let reversed_body = String::from_utf8(test::read_body(reversed_response).await.to_vec())
+            .expect("reversed body UTF-8");
+        assert!(reversed_body.contains("<error code=\"badArgument\">"));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn list_identifiers_applies_date_filters_and_reports_no_records_match() {
+        let works = vec![
+            make_work(
+                Uuid::from_u128(30),
+                "2024-03-01T12:00:00Z",
+                PUBLISHER_NAME,
+                true,
+                true,
+            ),
+            make_work(
+                Uuid::from_u128(31),
+                "2024-02-01T12:00:00Z",
+                PUBLISHER_NAME,
+                true,
+                true,
+            ),
+            make_work(
+                Uuid::from_u128(32),
+                "2023-12-31T12:00:00Z",
+                PUBLISHER_NAME,
+                true,
+                true,
+            ),
+        ];
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
+        let export_server = spawn_export_server(MockExportState::default()).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let from_req = test::TestRequest::get()
+            .uri("/oai?verb=ListIdentifiers&metadataPrefix=oai_dc&from=2024-01-01")
+            .to_request();
+        let from_response = test::call_service(&app, from_req).await;
+        let from_body = String::from_utf8(test::read_body(from_response).await.to_vec())
+            .expect("from body UTF-8");
+        assert_eq!(count_occurrences(&from_body, "<header>"), 2);
+
+        let until_req = test::TestRequest::get()
+            .uri("/oai?verb=ListIdentifiers&metadataPrefix=oai_dc&until=2024-01-31")
+            .to_request();
+        let until_response = test::call_service(&app, until_req).await;
+        let until_body = String::from_utf8(test::read_body(until_response).await.to_vec())
+            .expect("until body UTF-8");
+        assert_eq!(count_occurrences(&until_body, "<header>"), 1);
+
+        let range_req = test::TestRequest::get()
+            .uri("/oai?verb=ListIdentifiers&metadataPrefix=oai_dc&from=2024-01-01&until=2024-02-15")
+            .to_request();
+        let range_response = test::call_service(&app, range_req).await;
+        let range_body = String::from_utf8(test::read_body(range_response).await.to_vec())
+            .expect("range body UTF-8");
+        assert_eq!(count_occurrences(&range_body, "<header>"), 1);
+
+        let no_match_req = test::TestRequest::get()
+            .uri("/oai?verb=ListIdentifiers&metadataPrefix=oai_dc&from=2030-01-01")
+            .to_request();
+        let no_match_response = test::call_service(&app, no_match_req).await;
+        let no_match_body = String::from_utf8(test::read_body(no_match_response).await.to_vec())
+            .expect("no match body UTF-8");
+        assert!(no_match_body.contains("<error code=\"noRecordsMatch\">"));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn resumption_tokens_support_filters_backward_compatibility_and_terminal_token() {
+        let works = make_descending_work_series(60);
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
+        let export_server = spawn_export_server(MockExportState::default()).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let filtered_first_req = test::TestRequest::get()
+            .uri("/oai?verb=ListIdentifiers&metadataPrefix=oai_dc&from=2024-11-10&until=2024-12-31")
+            .to_request();
+        let filtered_first_response = test::call_service(&app, filtered_first_req).await;
+        let filtered_first_body =
+            String::from_utf8(test::read_body(filtered_first_response).await.to_vec())
+                .expect("first filtered body UTF-8");
+        assert_eq!(count_occurrences(&filtered_first_body, "<header>"), 50);
+        assert!(filtered_first_body.contains("<resumptionToken cursor=\"0\">"));
+        assert!(!filtered_first_body.contains("completeListSize=\""));
+
+        let filtered_token =
+            extract_resumption_token(&filtered_first_body).expect("filtered resumption token");
+        let decoded_filtered = OaiService::decode_resumption_token(&filtered_token)
+            .expect("decode filtered resumption token");
+        assert_eq!(decoded_filtered.from.as_deref(), Some("2024-11-10"));
+        assert_eq!(decoded_filtered.until.as_deref(), Some("2024-12-31"));
+        assert_eq!(
+            decoded_filtered.granularity,
+            Some(DatestampGranularity::Day)
+        );
+        assert!(decoded_filtered.scan_offset.is_some());
+
+        let filtered_second_req = test::TestRequest::get()
+            .uri(&format!(
+                "/oai?verb=ListIdentifiers&resumptionToken={filtered_token}"
+            ))
+            .to_request();
+        let filtered_second_response = test::call_service(&app, filtered_second_req).await;
+        let filtered_second_body =
+            String::from_utf8(test::read_body(filtered_second_response).await.to_vec())
+                .expect("second filtered body UTF-8");
+        assert_eq!(count_occurrences(&filtered_second_body, "<header>"), 2);
+        assert!(filtered_second_body.contains("<resumptionToken/>"));
+
+        let unfiltered_req = test::TestRequest::get()
+            .uri("/oai?verb=ListIdentifiers&metadataPrefix=oai_dc")
+            .to_request();
+        let unfiltered_response = test::call_service(&app, unfiltered_req).await;
+        let unfiltered_body =
+            String::from_utf8(test::read_body(unfiltered_response).await.to_vec())
+                .expect("unfiltered body UTF-8");
+        assert!(unfiltered_body.contains("completeListSize=\"60\""));
+
+        let legacy_token = URL_SAFE_NO_PAD.encode(
+            serde_json::to_vec(&json!({
+                "offset": 0,
+                "metadata_prefix": "OaiDc",
+                "set": null,
+                "identifiers_only": true
+            }))
+            .expect("legacy token serialize"),
+        );
+        let legacy_req = test::TestRequest::get()
+            .uri(&format!(
+                "/oai?verb=ListIdentifiers&resumptionToken={legacy_token}"
+            ))
+            .to_request();
+        let legacy_response = test::call_service(&app, legacy_req).await;
+        let legacy_body = String::from_utf8(test::read_body(legacy_response).await.to_vec())
+            .expect("legacy response body UTF-8");
+        assert!(legacy_body.contains("<ListIdentifiers>"));
+
+        let malformed_req = test::TestRequest::get()
+            .uri("/oai?verb=ListIdentifiers&resumptionToken=not-a-token")
+            .to_request();
+        let malformed_response = test::call_service(&app, malformed_req).await;
+        let malformed_body = String::from_utf8(test::read_body(malformed_response).await.to_vec())
+            .expect("malformed response body UTF-8");
+        assert!(malformed_body.contains("<error code=\"badResumptionToken\">"));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
 }

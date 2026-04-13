@@ -161,7 +161,7 @@ fn publication_type_value(publication_type: &PublicationType) -> &'static str {
         PublicationType::PAPERBACK => "paperback",
         PublicationType::PDF => "application/pdf",
         PublicationType::EPUB => "application/epub+zip",
-        PublicationType::XML => "application/xml",
+        PublicationType::XML => "text/xml",
         PublicationType::HTML => "text/html",
         PublicationType::DOCX => {
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -728,4 +728,14 @@ pub(crate) fn map_oai_openaire(work: &Work) -> ThothResult<String> {
 
     xml.push_str("</oaire:resource>");
     Ok(xml)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn xml_publication_type_maps_to_text_xml() {
+        assert_eq!(publication_type_value(&PublicationType::XML), "text/xml");
+    }
 }

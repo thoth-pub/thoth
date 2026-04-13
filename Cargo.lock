@@ -5122,6 +5122,7 @@ dependencies = [
  "thoth-api",
  "thoth-client",
  "thoth-errors",
+ "url",
  "uuid",
  "xml-rs",
 ]
