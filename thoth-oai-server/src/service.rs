@@ -15,6 +15,9 @@ pub(crate) const REPOSITORY_NAME: &str = "Thoth OAI-PMH Repository";
 pub(crate) const ADMIN_EMAIL: &str = "support@thoth.pub";
 pub(crate) const SAMPLE_ID: &str = "5a08ff03-7d53-42a9-bfb5-7fc81c099c52";
 pub(crate) const PAGE_LIMIT: i64 = 50;
+const OAI_DC_SPEC: &str = "dublin_core::thoth";
+const OAI_OPENAIRE_SPEC: &str = "openaire::thoth";
+const MARCXML_SPEC: &str = "marc21xml::thoth";
 
 #[derive(Clone)]
 pub(crate) struct OaiService {
@@ -165,7 +168,7 @@ impl OaiService {
             .map(|set_record| vec![set_record.publisher_id]);
         let bounds = Self::build_datestamp_bounds(token)?;
         let date_filter_active = bounds.is_some();
-        let filtering_active = bounds.is_some() || token.metadata_prefix == MetadataPrefix::MarcXml;
+        let filtering_active = true;
         let scan_offset = token.scan_offset.unwrap_or(token.offset);
         let returned_count = token.returned_count.unwrap_or(token.offset);
 
@@ -255,11 +258,51 @@ impl OaiService {
     }
 
     pub(crate) async fn get_marcxml_record(&self, work_id: Uuid) -> ThothResult<String> {
+        self.get_delegated_record(work_id, MARCXML_SPEC, b"record", "MARCXML")
+            .await
+    }
+
+    pub(crate) async fn get_oai_dc_record(&self, work_id: Uuid) -> ThothResult<String> {
+        self.get_delegated_record(work_id, OAI_DC_SPEC, b"dc", "OAI-DC")
+            .await
+    }
+
+    pub(crate) async fn get_oai_openaire_record(&self, work_id: Uuid) -> ThothResult<String> {
+        self.get_delegated_record(work_id, OAI_OPENAIRE_SPEC, b"resource", "OpenAIRE")
+            .await
+    }
+
+    pub(crate) async fn has_metadata_dissemination(
+        &self,
+        work_id: Uuid,
+        metadata_prefix: MetadataPrefix,
+    ) -> ThothResult<bool> {
+        let dissemination = match metadata_prefix {
+            MetadataPrefix::OaiDc => self.get_oai_dc_record(work_id).await,
+            MetadataPrefix::OaiOpenaire => self.get_oai_openaire_record(work_id).await,
+            MetadataPrefix::MarcXml => self.get_marcxml_record(work_id).await,
+        };
+
+        match dissemination {
+            Ok(_) => Ok(true),
+            Err(error) if Self::is_transient_export_error(&error) => Err(error),
+            Err(_) => Ok(false),
+        }
+    }
+
+    async fn get_delegated_record(
+        &self,
+        work_id: Uuid,
+        specification: &str,
+        element_local_name: &[u8],
+        format_name: &str,
+    ) -> ThothResult<String> {
         let response = self
             .export_client
             .get(format!(
-                "{}/specifications/marc21xml::thoth/work/{}",
+                "{}/specifications/{}/work/{}",
                 self.export_url.trim_end_matches('/'),
+                specification,
                 work_id
             ))
             .send()
@@ -279,7 +322,7 @@ impl OaiService {
             )));
         }
 
-        Self::extract_marc_record(&body)
+        Self::extract_xml_element(&body, element_local_name, format_name)
     }
 
     pub(crate) fn oai_identifier(work_id: Uuid) -> String {
@@ -333,14 +376,6 @@ impl OaiService {
             .with_references()
     }
 
-    pub(crate) async fn has_marcxml_dissemination(&self, work_id: Uuid) -> ThothResult<bool> {
-        match self.get_marcxml_record(work_id).await {
-            Ok(_) => Ok(true),
-            Err(error) if Self::is_transient_export_error(&error) => Err(error),
-            Err(_) => Ok(false),
-        }
-    }
-
     async fn find_set(&self, set_spec: Option<&str>) -> ThothResult<Option<SetRecord>> {
         let Some(set_spec) = set_spec else {
             return Ok(None);
@@ -362,7 +397,11 @@ impl OaiService {
         }
     }
 
-    fn extract_marc_record(body: &str) -> ThothResult<String> {
+    fn extract_xml_element(
+        body: &str,
+        element_local_name: &[u8],
+        format_name: &str,
+    ) -> ThothResult<String> {
         let mut reader = Reader::from_str(body);
         reader.config_mut().trim_text(false);
         let mut writer = Writer::new(Vec::new());
@@ -372,7 +411,7 @@ impl OaiService {
         loop {
             match reader.read_event() {
                 Ok(Event::Start(event)) => {
-                    let is_record = event.local_name().as_ref() == b"record";
+                    let is_record = event.local_name().as_ref() == element_local_name;
                     if capturing {
                         capture_depth += 1;
                         writer
@@ -395,7 +434,7 @@ impl OaiService {
                     }
                 }
                 Ok(Event::Empty(event)) => {
-                    let is_record = event.local_name().as_ref() == b"record";
+                    let is_record = event.local_name().as_ref() == element_local_name;
                     if capturing || is_record {
                         writer
                             .write_event(Event::Empty(event.to_owned()))
@@ -406,7 +445,9 @@ impl OaiService {
                             })?;
                         if is_record && !capturing {
                             return String::from_utf8(writer.into_inner()).map_err(|_| {
-                                ThothError::InternalError("Could not parse MARCXML".to_string())
+                                ThothError::InternalError(format!(
+                                    "Could not parse {format_name} XML"
+                                ))
                             });
                         }
                     }
@@ -423,7 +464,9 @@ impl OaiService {
                         capture_depth -= 1;
                         if capture_depth == 0 {
                             return String::from_utf8(writer.into_inner()).map_err(|_| {
-                                ThothError::InternalError("Could not parse MARCXML".to_string())
+                                ThothError::InternalError(format!(
+                                    "Could not parse {format_name} XML"
+                                ))
                             });
                         }
                     }
@@ -474,13 +517,13 @@ impl OaiService {
                 }
                 Ok(Event::Decl(_)) | Ok(Event::DocType(_)) => {}
                 Ok(Event::Eof) => {
-                    return Err(ThothError::InternalError(
-                        "No marc:record element found".to_string(),
-                    ));
+                    return Err(ThothError::InternalError(format!(
+                        "No {format_name} element found"
+                    )));
                 }
                 Err(error) => {
                     return Err(ThothError::InternalError(format!(
-                        "Could not parse MARCXML: {error}"
+                        "Could not parse {format_name} XML: {error}"
                     )));
                 }
             }
@@ -513,10 +556,8 @@ impl OaiService {
         if !Self::matches_datestamp_filter(work.updated_at_with_relations, bounds)? {
             return Ok(false);
         }
-        if metadata_prefix == MetadataPrefix::MarcXml {
-            return self.has_marcxml_dissemination(work.work_id).await;
-        }
-        Ok(true)
+        self.has_metadata_dissemination(work.work_id, metadata_prefix)
+            .await
     }
 
     async fn has_more_matching_records(
@@ -698,7 +739,7 @@ mod tests {
     }
 
     #[test]
-    fn extract_marc_record_returns_record_element() {
+    fn extract_xml_element_returns_record_element() {
         let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <collection xmlns="http://www.loc.gov/MARC21/slim">
   <record>
@@ -706,7 +747,7 @@ mod tests {
     <controlfield tag="001">123</controlfield>
   </record>
 </collection>"#;
-        let record = OaiService::extract_marc_record(xml).unwrap();
+        let record = OaiService::extract_xml_element(xml, b"record", "MARCXML").unwrap();
 
         assert!(record.starts_with("<record"));
         assert!(record.contains("<leader>00000nam a2200000 i 4500</leader>"));

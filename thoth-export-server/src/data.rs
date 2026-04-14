@@ -80,6 +80,18 @@ lazy_static! {
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/thoth"),],
         },
         Specification {
+            id: "dublin_core::thoth",
+            name: "Thoth Dublin Core",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/dublin_core"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/thoth"),],
+        },
+        Specification {
+            id: "openaire::thoth",
+            name: "Thoth OpenAIRE",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/openaire"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/thoth"),],
+        },
+        Specification {
             id: "kbart::oclc",
             name: "OCLC KBART",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/kbart"),
@@ -138,6 +150,11 @@ lazy_static! {
             accepts: vec![
                 concat!(env!("THOTH_EXPORT_API"), "/specifications/csv::thoth"),
                 concat!(env!("THOTH_EXPORT_API"), "/specifications/json::thoth"),
+                concat!(
+                    env!("THOTH_EXPORT_API"),
+                    "/specifications/dublin_core::thoth"
+                ),
+                concat!(env!("THOTH_EXPORT_API"), "/specifications/openaire::thoth"),
                 concat!(
                     env!("THOTH_EXPORT_API"),
                     "/specifications/marc21record::thoth"
@@ -357,6 +374,24 @@ lazy_static! {
             ),],
         },
         Format {
+            id: "dublin_core",
+            name: "Dublin Core",
+            version: None,
+            specifications: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/dublin_core::thoth"
+            ),],
+        },
+        Format {
+            id: "openaire",
+            name: "OpenAIRE",
+            version: None,
+            specifications: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/openaire::thoth"
+            ),],
+        },
+        Format {
             id: "kbart",
             name: "KBART",
             version: None,
@@ -522,9 +557,10 @@ mod tests {
     #[test]
     fn test_format_id_derives_from_name_and_version() {
         for f in ALL_FORMATS.iter() {
+            let base = f.name.to_lowercase().replace(' ', "_");
             let id_should_be = match f.version {
-                Some(version) => format!("{}_{}", f.name.to_lowercase(), version),
-                None => f.name.to_lowercase().to_string(),
+                Some(version) => format!("{}_{}", base, version),
+                None => base,
             };
             assert_eq!(String::from(f.id), id_should_be)
         }

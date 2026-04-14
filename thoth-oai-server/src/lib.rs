@@ -1,6 +1,5 @@
 #![recursion_limit = "512"]
 
-mod metadata;
 mod service;
 
 use std::{
@@ -150,6 +149,7 @@ fn is_transient_upstream_error(error: &ThothError) -> bool {
     let has_transient_status = [500, 502, 503, 504, 429].iter().any(|status| {
         message.contains(&format!("graphql {status}"))
             || message.contains(&format!("export {status}"))
+            || message.contains(&status.to_string())
     });
     let has_network_failure = [
         "timed out",
@@ -269,13 +269,19 @@ async fn handle_oai_request(
                     .get_record(work_id, MetadataPrefix::OaiDc)
                     .await
                     .map_err(map_get_record_error(MetadataPrefix::OaiDc))?;
-                prefixes = vec![MetadataPrefix::OaiDc, MetadataPrefix::OaiOpenaire];
-                if service
-                    .has_marcxml_dissemination(work_id)
-                    .await
-                    .map_err(HandlerError::Internal)?
-                {
-                    prefixes.push(MetadataPrefix::MarcXml);
+                prefixes.clear();
+                for prefix in [
+                    MetadataPrefix::OaiDc,
+                    MetadataPrefix::OaiOpenaire,
+                    MetadataPrefix::MarcXml,
+                ] {
+                    if service
+                        .has_metadata_dissemination(work_id, prefix)
+                        .await
+                        .map_err(HandlerError::Internal)?
+                    {
+                        prefixes.push(prefix);
+                    }
                 }
                 if prefixes.is_empty() {
                     return Err(ProtocolError {
@@ -471,14 +477,18 @@ async fn render_record_xml(
     metadata_prefix: MetadataPrefix,
 ) -> HandlerResult<String> {
     let metadata = match metadata_prefix {
-        MetadataPrefix::OaiDc => metadata::map_oai_dc(work).map_err(HandlerError::Internal)?,
-        MetadataPrefix::OaiOpenaire => {
-            metadata::map_oai_openaire(work).map_err(HandlerError::Internal)?
-        }
+        MetadataPrefix::OaiDc => service
+            .get_oai_dc_record(work.work_id)
+            .await
+            .map_err(map_export_metadata_error(metadata_prefix))?,
+        MetadataPrefix::OaiOpenaire => service
+            .get_oai_openaire_record(work.work_id)
+            .await
+            .map_err(map_export_metadata_error(metadata_prefix))?,
         MetadataPrefix::MarcXml => service
             .get_marcxml_record(work.work_id)
             .await
-            .map_err(map_marcxml_error(metadata_prefix))?,
+            .map_err(map_export_metadata_error(metadata_prefix))?,
     };
 
     Ok(format!(
@@ -752,7 +762,7 @@ fn map_get_record_error(
     }
 }
 
-fn map_marcxml_error(
+fn map_export_metadata_error(
     metadata_prefix: MetadataPrefix,
 ) -> impl Fn(ThothError) -> HandlerError + Copy {
     move |error| match error {
@@ -1008,6 +1018,7 @@ mod tests {
     struct MockExportState {
         failing_work_ids: HashSet<Uuid>,
         non_disseminatable_work_ids: HashSet<Uuid>,
+        marc_non_disseminatable_work_ids: HashSet<Uuid>,
         malformed_work_ids: HashSet<Uuid>,
     }
 
@@ -1077,7 +1088,7 @@ mod tests {
 
         let server = HttpServer::new(move || {
             App::new().app_data(state.clone()).route(
-                "/specifications/marc21xml::thoth/work/{work_id}",
+                "/specifications/{specification_id}/work/{work_id}",
                 web::get().to(export_mock_handler),
             )
         })
@@ -1150,23 +1161,40 @@ mod tests {
 
     async fn export_mock_handler(
         state: web::Data<MockExportState>,
-        work_id: web::Path<Uuid>,
+        path: web::Path<(String, Uuid)>,
     ) -> HttpResponse {
-        let work_id = work_id.into_inner();
+        let (specification_id, work_id) = path.into_inner();
+        let is_marc = specification_id == "marc21xml::thoth";
         if state.failing_work_ids.contains(&work_id) {
             return HttpResponse::InternalServerError()
                 .content_type("text/plain; charset=utf-8")
                 .body("export failed");
         }
-        if state.non_disseminatable_work_ids.contains(&work_id) {
+        if state.non_disseminatable_work_ids.contains(&work_id)
+            || (is_marc && state.marc_non_disseminatable_work_ids.contains(&work_id))
+        {
             return HttpResponse::NotFound()
                 .content_type("text/plain; charset=utf-8")
                 .body("record not available");
         }
-        if state.malformed_work_ids.contains(&work_id) {
+        if is_marc && state.malformed_work_ids.contains(&work_id) {
             return HttpResponse::Ok()
                 .content_type("application/xml; charset=utf-8")
                 .body("<collection xmlns=\"http://www.loc.gov/MARC21/slim\"></collection>");
+        }
+        if specification_id == "dublin_core::thoth" {
+            return HttpResponse::Ok()
+                .content_type("application/xml; charset=utf-8")
+                .body(format!(
+                    r#"<oai_dc:dc xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd"><dc:identifier>{work_id}</dc:identifier><dc:title>Export delegated OAI DC</dc:title></oai_dc:dc>"#
+                ));
+        }
+        if specification_id == "openaire::thoth" {
+            return HttpResponse::Ok()
+                .content_type("application/xml; charset=utf-8")
+                .body(format!(
+                    r#"<oaire:resource xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:datacite="http://datacite.org/schema/kernel-4" xmlns:oaire="http://namespace.openaire.eu/schema/oaire/" xsi:schemaLocation="http://namespace.openaire.eu/schema/oaire/ https://www.openaire.eu/schema/repo-lit/4.0/openaire.xsd"><datacite:identifier identifierType="URL">{work_id}</datacite:identifier><datacite:title>Export delegated OpenAIRE</datacite:title></oaire:resource>"#
+                ));
         }
         HttpResponse::Ok()
             .content_type("application/xml; charset=utf-8")
@@ -1835,7 +1863,7 @@ mod tests {
         let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
         let mut export_state = MockExportState::default();
         export_state
-            .non_disseminatable_work_ids
+            .marc_non_disseminatable_work_ids
             .insert(marc_ineligible_id);
         let export_server = spawn_export_server(export_state).await;
 
@@ -1896,6 +1924,49 @@ mod tests {
     }
 
     #[actix_web::test]
+    async fn list_metadata_formats_uses_export_dissemination_for_oai_prefixes() {
+        let work_id = Uuid::from_u128(12);
+        let works = vec![make_work(
+            work_id,
+            "2024-12-31T12:00:00Z",
+            PUBLISHER_NAME,
+            true,
+            true,
+        )];
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
+        let mut export_state = MockExportState::default();
+        export_state.non_disseminatable_work_ids.insert(work_id);
+        let export_server = spawn_export_server(export_state).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let req = test::TestRequest::get()
+            .uri(&format!(
+                "/oai?verb=ListMetadataFormats&identifier={}",
+                OaiService::oai_identifier(work_id)
+            ))
+            .to_request();
+        let response = test::call_service(&app, req).await;
+        let body = String::from_utf8(test::read_body(response).await.to_vec()).expect("body UTF-8");
+        assert!(body.contains("<error code=\"noMetadataFormats\">"));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
     async fn marc_export_parse_failures_are_mapped_to_cannot_disseminate_format() {
         let work_id = Uuid::from_u128(20);
         let works = vec![make_work(
@@ -1928,6 +1999,50 @@ mod tests {
         let req = test::TestRequest::get()
             .uri(&format!(
                 "/oai?verb=GetRecord&identifier={}&metadataPrefix=marcxml",
+                OaiService::oai_identifier(work_id)
+            ))
+            .to_request();
+        let response = test::call_service(&app, req).await;
+        let body = String::from_utf8(test::read_body(response).await.to_vec()).expect("body UTF-8");
+        assert!(body.contains("<error code=\"cannotDisseminateFormat\">"));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
+    async fn oai_dc_export_failures_are_mapped_to_cannot_disseminate_format() {
+        let work_id = Uuid::from_u128(22);
+        let works = vec![make_work(
+            work_id,
+            "2024-12-31T12:00:00Z",
+            PUBLISHER_NAME,
+            true,
+            true,
+        )];
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
+
+        let mut export_state = MockExportState::default();
+        export_state.non_disseminatable_work_ids.insert(work_id);
+        let export_server = spawn_export_server(export_state).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let req = test::TestRequest::get()
+            .uri(&format!(
+                "/oai?verb=GetRecord&identifier={}&metadataPrefix=oai_dc",
                 OaiService::oai_identifier(work_id)
             ))
             .to_request();
@@ -2484,7 +2599,7 @@ mod tests {
 
         let mut export_state = MockExportState::default();
         export_state
-            .non_disseminatable_work_ids
+            .marc_non_disseminatable_work_ids
             .insert(non_disseminatable_work_id);
         let export_server = spawn_export_server(export_state).await;
 
@@ -2519,6 +2634,62 @@ mod tests {
     }
 
     #[actix_web::test]
+    async fn oai_dc_list_filters_use_export_dissemination_truth() {
+        let visible_work_id = Uuid::from_u128(37);
+        let hidden_work_id = Uuid::from_u128(38);
+        let works = vec![
+            make_work(
+                visible_work_id,
+                "2024-12-31T12:00:00Z",
+                PUBLISHER_NAME,
+                true,
+                true,
+            ),
+            make_work(
+                hidden_work_id,
+                "2024-12-30T12:00:00Z",
+                PUBLISHER_NAME,
+                true,
+                true,
+            ),
+        ];
+        let graphql_server = spawn_graphql_server(mock_graphql_state(works)).await;
+
+        let mut export_state = MockExportState::default();
+        export_state
+            .non_disseminatable_work_ids
+            .insert(hidden_work_id);
+        let export_server = spawn_export_server(export_state).await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    service: OaiService::new(
+                        "https://example.org".to_string(),
+                        format!("{}/graphql", graphql_server.base_url),
+                        export_server.base_url.clone(),
+                    ),
+                    retry_after_seconds: DEFAULT_RETRY_AFTER_SECONDS,
+                }))
+                .service(web::resource("/oai").route(web::get().to(oai_get))),
+        )
+        .await;
+
+        let req = test::TestRequest::get()
+            .uri("/oai?verb=ListIdentifiers&metadataPrefix=oai_dc")
+            .to_request();
+        let response = test::call_service(&app, req).await;
+        let body = String::from_utf8(test::read_body(response).await.to_vec()).expect("body UTF-8");
+
+        assert_eq!(count_occurrences(&body, "<header>"), 1);
+        assert!(body.contains(&OaiService::oai_identifier(visible_work_id)));
+        assert!(!body.contains(&OaiService::oai_identifier(hidden_work_id)));
+
+        export_server.stop().await;
+        graphql_server.stop().await;
+    }
+
+    #[actix_web::test]
     async fn marcxml_list_records_excludes_non_disseminatable_records() {
         let visible_work_id = Uuid::from_u128(35);
         let hidden_work_id = Uuid::from_u128(36);
@@ -2542,7 +2713,7 @@ mod tests {
 
         let mut export_state = MockExportState::default();
         export_state
-            .non_disseminatable_work_ids
+            .marc_non_disseminatable_work_ids
             .insert(hidden_work_id);
         let export_server = spawn_export_server(export_state).await;
 
@@ -2587,7 +2758,9 @@ mod tests {
                 .and_then(|value| Uuid::parse_str(value).ok())
                 .expect("work id");
             if index % 4 == 0 {
-                export_state.non_disseminatable_work_ids.insert(work_id);
+                export_state
+                    .marc_non_disseminatable_work_ids
+                    .insert(work_id);
             }
         }
         let export_server = spawn_export_server(export_state).await;
