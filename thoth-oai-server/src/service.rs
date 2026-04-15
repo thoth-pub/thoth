@@ -151,7 +151,7 @@ impl OaiService {
             b"record",
             "MARCXML",
         )
-            .await
+        .await
     }
 
     pub(crate) async fn get_oai_dc_record(&self, work_id: Uuid) -> ThothResult<String> {
@@ -162,7 +162,7 @@ impl OaiService {
             b"dc",
             "Dublin Core",
         )
-            .await
+        .await
     }
 
     pub(crate) async fn get_oai_openaire_record(&self, work_id: Uuid) -> ThothResult<String> {
@@ -173,7 +173,7 @@ impl OaiService {
             b"resource",
             "OpenAIRE",
         )
-            .await
+        .await
     }
 
     pub(crate) async fn has_metadata_dissemination(
