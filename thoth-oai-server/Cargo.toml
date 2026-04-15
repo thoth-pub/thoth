@@ -17,8 +17,8 @@ actix-web = "4.10"
 async-trait = "0.1.89"
 env_logger = "0.11.7"
 oai-pmh = { package = "oai-pmh-rs", version = "0.2.0", features = ["actix"] }
-quick-xml = "0.36"
-reqwest = { version = "0.12", features = ["json"] }
+quick-xml = "0.39"
+reqwest = { version = "0.13", features = ["json"] }
 uuid = { version = "1.16.0", features = ["serde"] }
 
 [dev-dependencies]
