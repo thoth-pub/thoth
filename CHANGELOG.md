@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - Add OAI-PMH
 
+## [[1.0.5]](https://github.com/thoth-pub/thoth/releases/tag/v1.0.5) - 2026-04-15
+### Added
+  - Add `workStatuses` filtering to `subjects` and `subjectCount` queries
+
 ## [[1.0.4]](https://github.com/thoth-pub/thoth/releases/tag/v1.0.4) - 2026-04-13
 ### Fixed
   - Aggregate Crossref Crossmark updates into a single `<updates>` block

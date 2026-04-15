@@ -1,6 +1,6 @@
 [package]
 name = "thoth"
-version = "1.0.4"
+version = "1.0.5"
 authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -22,11 +22,11 @@ members = [
 ]
 
 [dependencies]
-thoth-api = { version = "=1.0.4", path = "thoth-api", features = ["backend"] }
-thoth-api-server = { version = "=1.0.4", path = "thoth-api-server" }
-thoth-errors = { version = "=1.0.4", path = "thoth-errors" }
-thoth-export-server = { version = "=1.0.4", path = "thoth-export-server" }
-thoth-oai-server = { version = "=1.0.4", path = "thoth-oai-server" }
+thoth-api = { version = "=1.0.5", path = "thoth-api", features = ["backend"] }
+thoth-api-server = { version = "=1.0.5", path = "thoth-api-server" }
+thoth-errors = { version = "=1.0.5", path = "thoth-errors" }
+thoth-export-server = { version = "=1.0.5", path = "thoth-export-server" }
+thoth-oai-server = { version = "=1.0.5", path = "thoth-oai-server" }
 base64 = "0.22.1"
 clap = { version = "4.5.32", features = ["cargo", "env"] }
 dialoguer = { version = "0.11.0", features = ["password"] }

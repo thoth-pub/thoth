@@ -228,7 +228,58 @@ mod crud {
     use crate::model::tests::db::{
         create_imprint, create_publisher, create_work, setup_test_db, test_context,
     };
+    use crate::model::work::{NewWork, Work, WorkStatus, WorkType};
     use crate::model::{Crud, Reorder};
+    use chrono::NaiveDate;
+
+    fn create_work_with_status(
+        pool: &crate::db::PgPool,
+        imprint_id: Uuid,
+        work_status: WorkStatus,
+    ) -> Work {
+        let publication_date = match work_status {
+            WorkStatus::Active | WorkStatus::Withdrawn | WorkStatus::Superseded => {
+                Some(NaiveDate::from_ymd_opt(2025, 1, 1).unwrap())
+            }
+            _ => None,
+        };
+
+        Work::create(
+            pool,
+            &NewWork {
+                work_type: WorkType::Monograph,
+                work_status,
+                reference: None,
+                edition: Some(1),
+                imprint_id,
+                doi: None,
+                publication_date,
+                withdrawn_date: None,
+                place: None,
+                page_count: None,
+                page_breakdown: None,
+                image_count: None,
+                table_count: None,
+                audio_count: None,
+                video_count: None,
+                license: None,
+                copyright_holder: None,
+                landing_page: None,
+                lccn: None,
+                oclc: None,
+                general_note: None,
+                bibliography_note: None,
+                toc: None,
+                resources_description: None,
+                cover_url: None,
+                cover_caption: None,
+                first_page: None,
+                last_page: None,
+                page_interval: None,
+            },
+        )
+        .expect("Failed to create work")
+    }
 
     #[test]
     fn crud_roundtrip_create_fetch_update_delete() {
@@ -394,6 +445,44 @@ mod crud {
             None,
         )
         .expect("Failed to count subjects by type");
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn crud_count_filters_by_work_status() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let forthcoming_work = create_work(pool.as_ref(), &imprint);
+        let active_work =
+            create_work_with_status(pool.as_ref(), imprint.imprint_id, WorkStatus::Active);
+
+        make_subject(
+            pool.as_ref(),
+            forthcoming_work.work_id,
+            SubjectType::Keyword,
+            "Subject A".to_string(),
+            1,
+        );
+        make_subject(
+            pool.as_ref(),
+            active_work.work_id,
+            SubjectType::Keyword,
+            "Subject B".to_string(),
+            1,
+        );
+
+        let count = Subject::count(
+            pool.as_ref(),
+            None,
+            vec![],
+            vec![],
+            vec![WorkStatus::Active],
+            None,
+            None,
+        )
+        .expect("Failed to count subjects by work status");
         assert_eq!(count, 1);
     }
 
@@ -567,6 +656,54 @@ mod crud {
             None,
         )
         .expect("Failed to filter subjects by type");
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].subject_id, matches.subject_id);
+    }
+
+    #[test]
+    fn crud_filter_param_limits_work_statuses() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let forthcoming_work = create_work(pool.as_ref(), &imprint);
+        let active_work =
+            create_work_with_status(pool.as_ref(), imprint.imprint_id, WorkStatus::Active);
+
+        make_subject(
+            pool.as_ref(),
+            forthcoming_work.work_id,
+            SubjectType::Keyword,
+            "Subject A".to_string(),
+            1,
+        );
+        let matches = make_subject(
+            pool.as_ref(),
+            active_work.work_id,
+            SubjectType::Keyword,
+            "Subject B".to_string(),
+            1,
+        );
+
+        let filtered = Subject::all(
+            pool.as_ref(),
+            10,
+            0,
+            None,
+            SubjectOrderBy {
+                field: SubjectField::SubjectId,
+                direction: Direction::Asc,
+            },
+            vec![],
+            None,
+            None,
+            vec![],
+            vec![WorkStatus::Active],
+            None,
+            None,
+        )
+        .expect("Failed to filter subjects by work status");
 
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].subject_id, matches.subject_id);
