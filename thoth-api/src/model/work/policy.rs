@@ -25,7 +25,10 @@ impl UpdatePolicy<Work, PatchWork> for WorkPolicy {
     ) -> ThothResult<()> {
         let user = ctx.require_publisher_for(current)?;
         ctx.require_publisher_for(patch)?;
-        current.can_update_imprint(ctx.db())?;
+
+        if patch.imprint_id != current.imprint_id {
+            current.can_update_imprint(ctx.db())?;
+        }
 
         if patch.work_type == WorkType::BookChapter {
             current.can_be_chapter(ctx.db())?;

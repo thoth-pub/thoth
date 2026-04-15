@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use strum::Display;
 use strum::EnumString;
 use thoth_errors::{ThothError, ThothResult};
@@ -361,7 +362,26 @@ pub trait PublicationProperties {
     fn weight_g(&self) -> &Option<f64>;
     fn weight_oz(&self) -> &Option<f64>;
     fn isbn(&self) -> &Option<Isbn>;
+    fn isbn_mut(&mut self) -> &mut Option<Isbn>;
     fn work_id(&self) -> &Uuid;
+
+    fn normalise_isbn(&mut self) -> ThothResult<()> {
+        let normalised = self
+            .isbn()
+            .as_ref()
+            .map(|isbn| Isbn::from_str(&isbn.to_string()))
+            .transpose()?;
+        *self.isbn_mut() = normalised;
+        Ok(())
+    }
+
+    fn into_normalised(mut self) -> ThothResult<Self>
+    where
+        Self: Sized,
+    {
+        self.normalise_isbn()?;
+        Ok(self)
+    }
 
     fn is_physical(&self) -> bool {
         matches!(
@@ -472,6 +492,9 @@ macro_rules! publication_properties {
             }
             fn isbn(&self) -> &Option<Isbn> {
                 &self.isbn
+            }
+            fn isbn_mut(&mut self) -> &mut Option<Isbn> {
+                &mut self.isbn
             }
             fn work_id(&self) -> &Uuid {
                 &self.work_id

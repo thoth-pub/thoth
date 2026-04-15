@@ -8,7 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [744](https://github.com/thoth-pub/thoth/pull/744) - Support accessibility report file upload
 
-## [[1.0.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.0.0) - 2026-04-01
+## [[1.0.5]](https://github.com/thoth-pub/thoth/releases/tag/v1.0.5) - 2026-04-15
+### Added
+  - Add `workStatuses` filtering to `subjects` and `subjectCount` queries
+
+## [[1.0.4]](https://github.com/thoth-pub/thoth/releases/tag/v1.0.4) - 2026-04-13
+### Fixed
+  - Aggregate Crossref Crossmark updates into a single `<updates>` block
+
+## [[1.0.3]](https://github.com/thoth-pub/thoth/releases/tag/v1.0.3) - 2026-04-07
+### Fixed
+  - [741](https://github.com/thoth-pub/thoth/pull/741) - Harden JATS rich-text handling by rejecting malformed or nested markup and abstract line breaks on write, and normalise Crossref abstract output to avoid invalid nested `jats:p` and `jats:break` elements
+
+## [[1.0.2]](https://github.com/thoth-pub/thoth/releases/tag/v1.0.2) - 2026-04-03
+### Security
+  - Upgrade `aws-lc-sys` to v0.39.1
+  - Upgrade `jsonwebtoken` to v10.3.0
+  - Upgrade `rustls-webpki` to v0.103.10
+
+### Fixed
+  - Allow publisher admins to update metadata without storage-field superuser check
+
+## [[1.0.1]](https://github.com/thoth-pub/thoth/releases/tag/v1.0.1) - 2026-04-01
 ### Fixed
   - Return raw JATS XML rather than attempting to validate it
 

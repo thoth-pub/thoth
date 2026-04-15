@@ -1138,6 +1138,7 @@ impl QueryRoot {
         .map_err(Into::into)
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[graphql(description = "Query the full list of subjects")]
     fn subjects(
         context: &Context,
@@ -1163,6 +1164,11 @@ impl QueryRoot {
             description = "Specific types to filter by",
         )]
         subject_types: Option<Vec<SubjectType>>,
+        #[graphql(
+            default = vec![],
+            description = "Specific statuses to filter by"
+        )]
+        work_statuses: Option<Vec<WorkStatus>>,
     ) -> FieldResult<Vec<Subject>> {
         Subject::all(
             &context.db,
@@ -1174,7 +1180,7 @@ impl QueryRoot {
             None,
             None,
             subject_types.unwrap_or_default(),
-            vec![],
+            work_statuses.unwrap_or_default(),
             None,
             None,
         )
@@ -1202,13 +1208,18 @@ impl QueryRoot {
             description = "Specific types to filter by",
         )]
         subject_types: Option<Vec<SubjectType>>,
+        #[graphql(
+            default = vec![],
+            description = "Specific statuses to filter by"
+        )]
+        work_statuses: Option<Vec<WorkStatus>>,
     ) -> FieldResult<i32> {
         Subject::count(
             &context.db,
             filter,
             vec![],
             subject_types.unwrap_or_default(),
-            vec![],
+            work_statuses.unwrap_or_default(),
             None,
             None,
         )
