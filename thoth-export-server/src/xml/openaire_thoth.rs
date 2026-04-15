@@ -1,6 +1,7 @@
+use super::{write_element_block, XmlElementBlock, XmlSpecification};
 use std::collections::HashSet;
+use std::io::Write;
 
-use quick_xml::escape::escape;
 use thoth_api::markup::{convert_from_jats, ConversionLimit, MarkupFormat};
 use thoth_client::{
     AbstractType, ContributionType, LanguageRelation, PublicationType, RelationType, SubjectType,
@@ -8,24 +9,36 @@ use thoth_client::{
 };
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
-
-use crate::record::XML_DECLARATION;
+use xml::writer::events::StartElementBuilder;
+use xml::writer::{EmitterConfig, EventWriter, XmlEvent};
 
 const OPENAIRE_ERROR: &str = "openaire::thoth";
 const OAI_IDENTIFIER_PREFIX: &str = "oai:thoth.pub";
 const BY_WORK_ONLY_MESSAGE: &str = "Output can only be generated for one work at a time";
+const OPENAIRE_NS: &[(&str, &str)] = &[
+    ("xmlns:rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#"),
+    ("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance"),
+    ("xmlns:dc", "http://purl.org/dc/elements/1.1/"),
+    ("xmlns:dcterms", "http://purl.org/dc/terms/"),
+    ("xmlns:datacite", "http://datacite.org/schema/kernel-4"),
+    ("xmlns:oaire", "http://namespace.openaire.eu/schema/oaire/"),
+    (
+        "xsi:schemaLocation",
+        "http://namespace.openaire.eu/schema/oaire/ https://www.openaire.eu/schema/repo-lit/4.0/openaire.xsd",
+    ),
+];
 
 #[derive(Copy, Clone)]
 pub(crate) struct OpenaireThoth;
 
-impl OpenaireThoth {
-    pub(crate) fn generate(&self, works: &[Work]) -> ThothResult<String> {
+impl XmlSpecification for OpenaireThoth {
+    fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
         match works {
             [] => Err(ThothError::IncompleteMetadataRecord(
                 OPENAIRE_ERROR.to_string(),
                 "Not enough data".to_string(),
             )),
-            [work] => Ok(format!("{XML_DECLARATION}\n{}", map_openaire(work)?)),
+            [work] => XmlElementBlock::<OpenaireThoth>::xml_element(work, w),
             _ => Err(ThothError::IncompleteMetadataRecord(
                 OPENAIRE_ERROR.to_string(),
                 BY_WORK_ONLY_MESSAGE.to_string(),
@@ -34,54 +47,50 @@ impl OpenaireThoth {
     }
 }
 
-fn xml_escape(value: &str) -> String {
-    escape(value).into_owned()
-}
-
-fn push_text_element(xml: &mut String, name: &str, text: &str) {
-    xml.push('<');
-    xml.push_str(name);
-    xml.push('>');
-    xml.push_str(&xml_escape(text));
-    xml.push_str("</");
-    xml.push_str(name);
-    xml.push('>');
-}
-
-fn push_text_element_attrs(xml: &mut String, name: &str, attrs: &[(&str, String)], text: &str) {
-    xml.push('<');
-    xml.push_str(name);
-    for (key, value) in attrs {
-        xml.push(' ');
-        xml.push_str(key);
-        xml.push_str("=\"");
-        xml.push_str(&xml_escape(value));
-        xml.push('"');
+impl XmlElementBlock<OpenaireThoth> for Work {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_openaire(self, w)
     }
-    xml.push('>');
-    xml.push_str(&xml_escape(text));
-    xml.push_str("</");
-    xml.push_str(name);
-    xml.push('>');
 }
 
-fn push_open_tag(xml: &mut String, name: &str, attrs: &[(&str, String)]) {
-    xml.push('<');
-    xml.push_str(name);
+fn push_text_element<W: Write>(xml: &mut EventWriter<W>, name: &str, text: &str) -> ThothResult<()> {
+    write_element_block(name, xml, |xml| {
+        xml.write(XmlEvent::Characters(text)).map_err(|e| e.into())
+    })
+}
+
+fn push_text_element_attrs<W: Write>(
+    xml: &mut EventWriter<W>,
+    name: &str,
+    attrs: &[(&str, String)],
+    text: &str,
+) -> ThothResult<()> {
+    let mut event_builder: StartElementBuilder = XmlEvent::start_element(name);
     for (key, value) in attrs {
-        xml.push(' ');
-        xml.push_str(key);
-        xml.push_str("=\"");
-        xml.push_str(&xml_escape(value));
-        xml.push('"');
+        event_builder = event_builder.attr(*key, value.as_str());
     }
-    xml.push('>');
+    let event: XmlEvent = event_builder.into();
+    xml.write(event)?;
+    xml.write(XmlEvent::Characters(text))?;
+    xml.write(XmlEvent::end_element()).map_err(|e| e.into())
 }
 
-fn push_close_tag(xml: &mut String, name: &str) {
-    xml.push_str("</");
-    xml.push_str(name);
-    xml.push('>');
+fn push_open_tag<W: Write>(
+    xml: &mut EventWriter<W>,
+    name: &str,
+    attrs: &[(&str, String)],
+) -> ThothResult<()> {
+    let mut event_builder: StartElementBuilder = XmlEvent::start_element(name);
+    for (key, value) in attrs {
+        event_builder = event_builder.attr(*key, value.as_str());
+    }
+    let event: XmlEvent = event_builder.into();
+    xml.write(event).map_err(|e| e.into())
+}
+
+fn push_close_tag<W: Write>(xml: &mut EventWriter<W>, _name: &str) -> ThothResult<()> {
+    let event: XmlEvent = XmlEvent::end_element().into();
+    xml.write(event).map_err(|e| e.into())
 }
 
 fn normalize_value(value: &str) -> Option<String> {
@@ -365,17 +374,19 @@ fn reference_citation(reference: &thoth_client::WorkReferences) -> Option<String
     }
 }
 
-fn map_openaire(work: &Work) -> ThothResult<String> {
-    let mut xml = String::from(
-        r#"<oaire:resource xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:datacite="http://datacite.org/schema/kernel-4" xmlns:oaire="http://namespace.openaire.eu/schema/oaire/" xsi:schemaLocation="http://namespace.openaire.eu/schema/oaire/ https://www.openaire.eu/schema/repo-lit/4.0/openaire.xsd">"#,
-    );
+fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothResult<()> {
+    let root_attrs = OPENAIRE_NS
+        .iter()
+        .map(|(key, value)| (*key, (*value).to_string()))
+        .collect::<Vec<_>>();
+    push_open_tag(xml, "oaire:resource", &root_attrs)?;
 
     push_text_element_attrs(
         &mut xml,
         "datacite:identifier",
         &[("identifierType", "URL".to_string())],
         &work_url(work),
-    );
+    )?;
 
     let mut title_entries = Vec::new();
     let mut title_seen = HashSet::new();
@@ -405,39 +416,39 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
         }
     }
     if !title_entries.is_empty() {
-        push_open_tag(&mut xml, "datacite:titles", &[]);
+        push_open_tag(&mut xml, "datacite:titles", &[])?;
         for (attrs, value) in title_entries {
             if attrs.is_empty() {
-                push_text_element(&mut xml, "datacite:title", &value);
+                push_text_element(&mut xml, "datacite:title", &value)?;
             } else {
                 let attrs = attrs
                     .iter()
                     .map(|(key, value)| (*key, value.clone()))
                     .collect::<Vec<_>>();
-                push_text_element_attrs(&mut xml, "datacite:title", &attrs, &value);
+                push_text_element_attrs(&mut xml, "datacite:title", &attrs, &value)?;
             }
         }
-        push_close_tag(&mut xml, "datacite:titles");
+        push_close_tag(&mut xml, "datacite:titles")?;
     }
 
     let creators = creators(work).collect::<Vec<_>>();
     if !creators.is_empty() {
-        push_open_tag(&mut xml, "datacite:creators", &[]);
+        push_open_tag(&mut xml, "datacite:creators", &[])?;
         for creator in creators {
-            push_open_tag(&mut xml, "datacite:creator", &[]);
+            push_open_tag(&mut xml, "datacite:creator", &[])?;
             push_text_element_attrs(
                 &mut xml,
                 "datacite:creatorName",
                 &[("nameType", "Personal".to_string())],
                 &personal_name(creator),
-            );
+            )?;
             if let Some(first_name) = creator.first_name.as_deref() {
                 if !first_name.is_empty() {
-                    push_text_element(&mut xml, "datacite:givenName", first_name);
+                    push_text_element(&mut xml, "datacite:givenName", first_name)?;
                 }
             }
             if !creator.last_name.is_empty() {
-                push_text_element(&mut xml, "datacite:familyName", &creator.last_name);
+                push_text_element(&mut xml, "datacite:familyName", &creator.last_name)?;
             }
             if let Some(orcid) = &creator.contributor.orcid {
                 push_text_element_attrs(
@@ -448,7 +459,7 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
                         ("schemeURI", "https://orcid.org/".to_string()),
                     ],
                     &orcid_url(orcid),
-                );
+                )?;
             }
             for affiliation in &creator.affiliations {
                 if let Some(ror) = &affiliation.institution.ror {
@@ -457,23 +468,23 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
                         "datacite:affiliation",
                         &[("affiliationIdentifier", ror_url(ror))],
                         &affiliation.institution.institution_name,
-                    );
+                    )?;
                 } else {
                     push_text_element(
                         &mut xml,
                         "datacite:affiliation",
                         &affiliation.institution.institution_name,
-                    );
+                    )?;
                 }
             }
-            push_close_tag(&mut xml, "datacite:creator");
+            push_close_tag(&mut xml, "datacite:creator")?;
         }
-        push_close_tag(&mut xml, "datacite:creators");
+        push_close_tag(&mut xml, "datacite:creators")?;
     }
 
     let contributors = contributors(work).collect::<Vec<_>>();
     if !contributors.is_empty() {
-        push_open_tag(&mut xml, "datacite:contributors", &[]);
+        push_open_tag(&mut xml, "datacite:contributors", &[])?;
         for contributor in contributors {
             let contributor_type = if contributor.contribution_type == ContributionType::EDITOR {
                 "Editor"
@@ -484,20 +495,20 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
                 &mut xml,
                 "datacite:contributor",
                 &[("contributorType", contributor_type.to_string())],
-            );
+            )?;
             push_text_element_attrs(
                 &mut xml,
                 "datacite:contributorName",
                 &[("nameType", "Personal".to_string())],
                 &personal_name(contributor),
-            );
+            )?;
             if let Some(first_name) = contributor.first_name.as_deref() {
                 if !first_name.is_empty() {
-                    push_text_element(&mut xml, "datacite:givenName", first_name);
+                    push_text_element(&mut xml, "datacite:givenName", first_name)?;
                 }
             }
             if !contributor.last_name.is_empty() {
-                push_text_element(&mut xml, "datacite:familyName", &contributor.last_name);
+                push_text_element(&mut xml, "datacite:familyName", &contributor.last_name)?;
             }
             if let Some(orcid) = &contributor.contributor.orcid {
                 push_text_element_attrs(
@@ -508,7 +519,7 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
                         ("schemeURI", "https://orcid.org/".to_string()),
                     ],
                     &orcid_url(orcid),
-                );
+                )?;
             }
             for affiliation in &contributor.affiliations {
                 if let Some(ror) = &affiliation.institution.ror {
@@ -517,46 +528,46 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
                         "datacite:affiliation",
                         &[("affiliationIdentifier", ror_url(ror))],
                         &affiliation.institution.institution_name,
-                    );
+                    )?;
                 } else {
                     push_text_element(
                         &mut xml,
                         "datacite:affiliation",
                         &affiliation.institution.institution_name,
-                    );
+                    )?;
                 }
             }
-            push_close_tag(&mut xml, "datacite:contributor");
+            push_close_tag(&mut xml, "datacite:contributor")?;
         }
-        push_close_tag(&mut xml, "datacite:contributors");
+        push_close_tag(&mut xml, "datacite:contributors")?;
     }
 
     if !work.fundings.is_empty() {
-        push_open_tag(&mut xml, "oaire:fundingReferences", &[]);
+        push_open_tag(&mut xml, "oaire:fundingReferences", &[])?;
         for funding in &work.fundings {
-            push_open_tag(&mut xml, "oaire:fundingReference", &[]);
+            push_open_tag(&mut xml, "oaire:fundingReference", &[])?;
             push_text_element(
                 &mut xml,
                 "oaire:funderName",
                 &funding.institution.institution_name,
-            );
+            )?;
             if let Some(ror) = &funding.institution.ror {
                 push_text_element_attrs(
                     &mut xml,
                     "oaire:funderIdentifier",
                     &[("funderIdentifierType", "ROR".to_string())],
                     &ror_url(ror),
-                );
+                )?;
             }
             if let Some(grant_number) = &funding.grant_number {
-                push_text_element(&mut xml, "oaire:awardNumber", grant_number);
+                push_text_element(&mut xml, "oaire:awardNumber", grant_number)?;
             }
             if let Some(project_name) = &funding.project_name {
-                push_text_element(&mut xml, "oaire:awardTitle", project_name);
+                push_text_element(&mut xml, "oaire:awardTitle", project_name)?;
             }
-            push_close_tag(&mut xml, "oaire:fundingReference");
+            push_close_tag(&mut xml, "oaire:fundingReference")?;
         }
-        push_close_tag(&mut xml, "oaire:fundingReferences");
+        push_close_tag(&mut xml, "oaire:fundingReferences")?;
     }
 
     let mut alternate_identifiers = Vec::new();
@@ -588,16 +599,16 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
         }
     }
     if !alternate_identifiers.is_empty() {
-        push_open_tag(&mut xml, "datacite:alternateIdentifiers", &[]);
+        push_open_tag(&mut xml, "datacite:alternateIdentifiers", &[])?;
         for (identifier_type, value) in alternate_identifiers {
             push_text_element_attrs(
                 &mut xml,
                 "datacite:alternateIdentifier",
                 &[("alternateIdentifierType", identifier_type)],
                 &value,
-            );
+            )?;
         }
-        push_close_tag(&mut xml, "datacite:alternateIdentifiers");
+        push_close_tag(&mut xml, "datacite:alternateIdentifiers")?;
     }
 
     let mut related_identifiers = Vec::new();
@@ -642,7 +653,7 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
         }
     }
     if !related_identifiers.is_empty() {
-        push_open_tag(&mut xml, "datacite:relatedIdentifiers", &[]);
+        push_open_tag(&mut xml, "datacite:relatedIdentifiers", &[])?;
         for (identifier_type, relation_type, value) in related_identifiers {
             push_text_element_attrs(
                 &mut xml,
@@ -652,9 +663,9 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
                     ("relationType", relation_type),
                 ],
                 &value,
-            );
+            )?;
         }
-        push_close_tag(&mut xml, "datacite:relatedIdentifiers");
+        push_close_tag(&mut xml, "datacite:relatedIdentifiers")?;
     }
 
     let mut language_values = Vec::new();
@@ -667,14 +678,14 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
         );
     }
     for language in language_values {
-        push_text_element(&mut xml, "dc:language", &language);
+        push_text_element(&mut xml, "dc:language", &language)?;
     }
 
     push_text_element(
         &mut xml,
         "dc:publisher",
         &work.imprint.publisher.publisher_name,
-    );
+    )?;
 
     if let Some(publication_date) = &work.publication_date {
         push_text_element_attrs(
@@ -682,13 +693,13 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
             "datacite:date",
             &[("dateType", "Issued".to_string())],
             &publication_date.to_string(),
-        );
+        )?;
     }
     push_text_element(
         &mut xml,
         "dcterms:modified",
         &timestamp_rfc3339(work.updated_at_with_relations),
-    );
+    )?;
 
     if let Some((uri, value)) = openaire_resource_type(work) {
         push_text_element_attrs(
@@ -699,7 +710,7 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
                 ("uri", uri.to_string()),
             ],
             value,
-        );
+        )?;
     }
 
     let mut description_values = Vec::new();
@@ -747,7 +758,7 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
         );
     }
     for description in description_values {
-        push_text_element(&mut xml, "dc:description", &description);
+        push_text_element(&mut xml, "dc:description", &description)?;
     }
 
     let mut format_values = Vec::new();
@@ -760,7 +771,7 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
         );
     }
     for format_value in format_values {
-        push_text_element(&mut xml, "dc:format", &format_value);
+        push_text_element(&mut xml, "dc:format", &format_value)?;
     }
 
     if let Some(license) = &work.license {
@@ -772,13 +783,13 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
                 "http://purl.org/coar/access_right/c_abf2".to_string(),
             )],
             "open access",
-        );
+        )?;
         push_text_element_attrs(
             &mut xml,
             "oaire:licenseCondition",
             &[("uri", license.clone())],
             normalized_license_name(license),
-        );
+        )?;
     } else {
         push_text_element_attrs(
             &mut xml,
@@ -788,14 +799,14 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
                 "http://purl.org/coar/access_right/c_16ec".to_string(),
             )],
             "restricted access",
-        );
+        )?;
     }
     if let Some(copyright_holder) = work.copyright_holder.as_deref() {
         push_text_element(
             &mut xml,
             "datacite:rights",
             &format!("Copyright holder: {copyright_holder}"),
-        );
+        )?;
     }
 
     let mut subject_entries = Vec::new();
@@ -830,13 +841,13 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
     }
     for (attrs, value) in subject_entries {
         if attrs.is_empty() {
-            push_text_element(&mut xml, "datacite:subject", &value);
+            push_text_element(&mut xml, "datacite:subject", &value)?;
         } else {
             let attrs = attrs
                 .iter()
                 .map(|(key, value)| (*key, value.clone()))
                 .collect::<Vec<_>>();
-            push_text_element_attrs(&mut xml, "datacite:subject", &attrs, &value);
+            push_text_element_attrs(&mut xml, "datacite:subject", &attrs, &value)?;
         }
     }
 
@@ -857,11 +868,11 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
         sizes.push(format!("{video_count} videos"));
     }
     if !sizes.is_empty() {
-        push_open_tag(&mut xml, "datacite:sizes", &[]);
+        push_open_tag(&mut xml, "datacite:sizes", &[])?;
         for size in sizes {
-            push_text_element(&mut xml, "datacite:size", &size);
+            push_text_element(&mut xml, "datacite:size", &size)?;
         }
-        push_close_tag(&mut xml, "datacite:sizes");
+        push_close_tag(&mut xml, "datacite:sizes")?;
     }
 
     for publication in &work.publications {
@@ -878,7 +889,7 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
                         ("objectType", "fulltext".to_string()),
                     ],
                     full_text_url,
-                );
+                )?;
             }
         }
     }
@@ -892,33 +903,33 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
                 .find(|title| title.canonical)
                 .or_else(|| parent_work.titles.first())
             {
-                push_text_element(&mut xml, "oaire:citationTitle", &parent_title.full_title);
+                push_text_element(&mut xml, "oaire:citationTitle", &parent_title.full_title)?;
             } else if let Some(title) = canonical_title(work) {
-                push_text_element(&mut xml, "oaire:citationTitle", &title.full_title);
+                push_text_element(&mut xml, "oaire:citationTitle", &title.full_title)?;
             }
             if let Some(edition) = parent_work.edition.or(work.edition) {
-                push_text_element(&mut xml, "oaire:citationEdition", &edition.to_string());
+                push_text_element(&mut xml, "oaire:citationEdition", &edition.to_string())?;
             }
         } else if let Some(title) = canonical_title(work) {
-            push_text_element(&mut xml, "oaire:citationTitle", &title.full_title);
+            push_text_element(&mut xml, "oaire:citationTitle", &title.full_title)?;
         }
     } else if let Some(issue) = issue {
-        push_text_element(&mut xml, "oaire:citationTitle", &issue.series.series_name);
+        push_text_element(&mut xml, "oaire:citationTitle", &issue.series.series_name)?;
         let citation_issue = issue
             .issue_number
             .map(|value| value.to_string())
             .and_then(|value| normalize_value(&value))
             .unwrap_or_else(|| issue.issue_ordinal.to_string());
-        push_text_element(&mut xml, "oaire:citationIssue", &citation_issue);
+        push_text_element(&mut xml, "oaire:citationIssue", &citation_issue)?;
     } else if let Some(title) = canonical_title(work) {
-        push_text_element(&mut xml, "oaire:citationTitle", &title.full_title);
+        push_text_element(&mut xml, "oaire:citationTitle", &title.full_title)?;
     }
 
     if let Some(first_page) = &work.first_page {
-        push_text_element(&mut xml, "oaire:citationStartPage", first_page);
+        push_text_element(&mut xml, "oaire:citationStartPage", first_page)?;
     }
     if let Some(last_page) = &work.last_page {
-        push_text_element(&mut xml, "oaire:citationEndPage", last_page);
+        push_text_element(&mut xml, "oaire:citationEndPage", last_page)?;
     }
 
     let mut citation_values = Vec::new();
@@ -929,17 +940,43 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
         }
     }
     for citation in citation_values {
-        push_text_element(&mut xml, "dcterms:bibliographicCitation", &citation);
+        push_text_element(&mut xml, "dcterms:bibliographicCitation", &citation)?;
     }
 
-    xml.push_str("</oaire:resource>");
-    Ok(xml)
+    push_close_tag(xml, "oaire:resource")
+}
+
+fn map_openaire(work: &Work) -> ThothResult<String> {
+    let mut buffer = Vec::new();
+    let mut writer = EmitterConfig::new()
+        .perform_indent(true)
+        .create_writer(&mut buffer);
+    XmlElementBlock::<OpenaireThoth>::xml_element(work, &mut writer)
+        .map(|_| buffer)
+        .and_then(|xml| {
+            String::from_utf8(xml)
+                .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
+        })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::xml::dublincore_thoth::test_support::{assert_valid_against_schema, fixture_work};
+    use crate::record::XML_DECLARATION;
+
+    fn assert_precedes(xml: &str, first: &str, second: &str) {
+        let first_pos = xml
+            .find(first)
+            .unwrap_or_else(|| panic!("Could not find `{first}` in XML output"));
+        let second_pos = xml
+            .find(second)
+            .unwrap_or_else(|| panic!("Could not find `{second}` in XML output"));
+        assert!(
+            first_pos < second_pos,
+            "Expected `{first}` to appear before `{second}`"
+        );
+    }
 
     #[test]
     fn openaire_mapping_is_exhaustive_and_schema_clean() {
@@ -964,6 +1001,17 @@ mod tests {
         assert!(xml.contains("<oaire:file mimeType=\"application/pdf\" objectType=\"fulltext\">https://example.org/books/111.pdf</oaire:file>"));
         assert!(xml.contains("<oaire:licenseCondition uri=\"http://creativecommons.org/licenses/by/4.0/\">CC BY 4.0</oaire:licenseCondition>"));
         assert!(!xml.contains("<dcterms:spatial>"));
+        assert_precedes(
+            &xml,
+            "<datacite:identifier identifierType=\"URL\">",
+            "<datacite:titles>",
+        );
+        assert_precedes(&xml, "<datacite:creators>", "<datacite:contributors>");
+        assert_precedes(
+            &xml,
+            "<oaire:citationTitle>Open Access Series</oaire:citationTitle>",
+            "<oaire:citationIssue>7</oaire:citationIssue>",
+        );
 
         assert_valid_against_schema(&xml, "oai_openaire.xsd");
     }
@@ -971,16 +1019,17 @@ mod tests {
     #[test]
     fn generator_returns_single_work_xml_with_declaration() {
         let xml = OpenaireThoth {}
-            .generate(&[fixture_work()])
+            .generate(&[fixture_work()], None)
             .expect("single openaire");
         assert!(xml.starts_with(XML_DECLARATION));
+        assert!(!xml.starts_with(&format!("{XML_DECLARATION}\n")));
         assert!(xml.contains("<oaire:resource "));
     }
 
     #[test]
     fn generator_rejects_multiple_works() {
         let work = fixture_work();
-        let result = OpenaireThoth {}.generate(&[work.clone(), work]);
+        let result = OpenaireThoth {}.generate(&[work.clone(), work], None);
         assert!(matches!(
             result,
             Err(ThothError::IncompleteMetadataRecord(spec, message))

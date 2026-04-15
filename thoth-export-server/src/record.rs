@@ -280,9 +280,11 @@ impl MetadataRecord {
                 marc21xml_thoth.generate(&data)
             }
             MetadataSpecification::DublinCoreThoth(dublin_core_thoth) => {
-                dublin_core_thoth.generate(&data)
+                dublin_core_thoth.generate(&data, None)
             }
-            MetadataSpecification::OpenaireThoth(openaire_thoth) => openaire_thoth.generate(&data),
+            MetadataSpecification::OpenaireThoth(openaire_thoth) => {
+                openaire_thoth.generate(&data, None)
+            }
         }
     }
 }

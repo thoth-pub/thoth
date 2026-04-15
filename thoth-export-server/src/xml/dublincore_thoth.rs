@@ -1,29 +1,39 @@
+use super::{write_element_block, XmlElementBlock, XmlSpecification};
 use std::collections::HashSet;
+use std::io::Write;
 
-use quick_xml::escape::escape;
 use thoth_api::markup::{convert_from_jats, ConversionLimit, MarkupFormat};
 use thoth_client::{
     AbstractType, ContributionType, LanguageRelation, PublicationType, SubjectType, Work,
     WorkAbstracts, WorkContributions, WorkLanguages, WorkTitles,
 };
 use thoth_errors::{ThothError, ThothResult};
-
-use crate::record::XML_DECLARATION;
+use xml::writer::events::StartElementBuilder;
+use xml::writer::{EmitterConfig, EventWriter, XmlEvent};
 
 const DUBLIN_CORE_ERROR: &str = "dublin_core::thoth";
 const BY_WORK_ONLY_MESSAGE: &str = "Output can only be generated for one work at a time";
+const DUBLIN_CORE_NS: &[(&str, &str)] = &[
+    ("xmlns:oai_dc", "http://www.openarchives.org/OAI/2.0/oai_dc/"),
+    ("xmlns:dc", "http://purl.org/dc/elements/1.1/"),
+    ("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance"),
+    (
+        "xsi:schemaLocation",
+        "http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd",
+    ),
+];
 
 #[derive(Copy, Clone)]
 pub(crate) struct DublinCoreThoth;
 
-impl DublinCoreThoth {
-    pub(crate) fn generate(&self, works: &[Work]) -> ThothResult<String> {
+impl XmlSpecification for DublinCoreThoth {
+    fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
         match works {
             [] => Err(ThothError::IncompleteMetadataRecord(
                 DUBLIN_CORE_ERROR.to_string(),
                 "Not enough data".to_string(),
             )),
-            [work] => Ok(format!("{XML_DECLARATION}\n{}", map_dublin_core(work)?)),
+            [work] => XmlElementBlock::<DublinCoreThoth>::xml_element(work, w),
             _ => Err(ThothError::IncompleteMetadataRecord(
                 DUBLIN_CORE_ERROR.to_string(),
                 BY_WORK_ONLY_MESSAGE.to_string(),
@@ -32,18 +42,34 @@ impl DublinCoreThoth {
     }
 }
 
-fn xml_escape(value: &str) -> String {
-    escape(value).into_owned()
+impl XmlElementBlock<DublinCoreThoth> for Work {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_dublin_core(self, w)
+    }
 }
 
-fn push_text_element(xml: &mut String, name: &str, text: &str) {
-    xml.push('<');
-    xml.push_str(name);
-    xml.push('>');
-    xml.push_str(&xml_escape(text));
-    xml.push_str("</");
-    xml.push_str(name);
-    xml.push('>');
+fn push_text_element<W: Write>(xml: &mut EventWriter<W>, name: &str, text: &str) -> ThothResult<()> {
+    write_element_block(name, xml, |xml| {
+        xml.write(XmlEvent::Characters(text)).map_err(|e| e.into())
+    })
+}
+
+fn push_open_tag<W: Write>(
+    xml: &mut EventWriter<W>,
+    name: &str,
+    attrs: &[(&str, &str)],
+) -> ThothResult<()> {
+    let mut event_builder: StartElementBuilder = XmlEvent::start_element(name);
+    for &(key, value) in attrs {
+        event_builder = event_builder.attr(key, value);
+    }
+    let event: XmlEvent = event_builder.into();
+    xml.write(event).map_err(|e| e.into())
+}
+
+fn push_close_tag<W: Write>(xml: &mut EventWriter<W>, _name: &str) -> ThothResult<()> {
+    let event: XmlEvent = XmlEvent::end_element().into();
+    xml.write(event).map_err(|e| e.into())
 }
 
 fn normalize_value(value: &str) -> Option<String> {
@@ -198,10 +224,8 @@ fn normalized_license_name(license: &str) -> &str {
     }
 }
 
-fn map_dublin_core(work: &Work) -> ThothResult<String> {
-    let mut xml = String::from(
-        r#"<oai_dc:dc xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd">"#,
-    );
+fn write_dublin_core<W: Write>(work: &Work, xml: &mut EventWriter<W>) -> ThothResult<()> {
+    push_open_tag(xml, "oai_dc:dc", DUBLIN_CORE_NS)?;
 
     let mut title_values = Vec::new();
     let mut title_seen = HashSet::new();
@@ -209,11 +233,11 @@ fn map_dublin_core(work: &Work) -> ThothResult<String> {
         push_unique(&mut title_values, &mut title_seen, title.full_title.clone());
     }
     for title in title_values {
-        push_text_element(&mut xml, "dc:title", &title);
+        push_text_element(xml, "dc:title", &title)?;
     }
 
     for creator in creators(work) {
-        push_text_element(&mut xml, "dc:creator", &creator.full_name);
+        push_text_element(xml, "dc:creator", &creator.full_name)?;
     }
 
     let mut subject_values = Vec::new();
@@ -227,7 +251,7 @@ fn map_dublin_core(work: &Work) -> ThothResult<String> {
         push_unique(&mut subject_values, &mut subject_seen, value);
     }
     for subject in subject_values {
-        push_text_element(&mut xml, "dc:subject", &subject);
+        push_text_element(xml, "dc:subject", &subject)?;
     }
 
     let mut description_values = Vec::new();
@@ -275,24 +299,20 @@ fn map_dublin_core(work: &Work) -> ThothResult<String> {
         );
     }
     for description in description_values {
-        push_text_element(&mut xml, "dc:description", &description);
+        push_text_element(xml, "dc:description", &description)?;
     }
 
-    push_text_element(
-        &mut xml,
-        "dc:publisher",
-        &work.imprint.publisher.publisher_name,
-    );
+    push_text_element(xml, "dc:publisher", &work.imprint.publisher.publisher_name)?;
 
     for contributor in contributors(work) {
-        push_text_element(&mut xml, "dc:contributor", &contributor.full_name);
+        push_text_element(xml, "dc:contributor", &contributor.full_name)?;
     }
 
     if let Some(publication_date) = &work.publication_date {
-        push_text_element(&mut xml, "dc:date", &publication_date.to_string());
+        push_text_element(xml, "dc:date", &publication_date.to_string())?;
     }
 
-    push_text_element(&mut xml, "dc:type", dc_type(work));
+    push_text_element(xml, "dc:type", dc_type(work))?;
 
     let mut format_values = Vec::new();
     let mut format_seen = HashSet::new();
@@ -304,7 +324,7 @@ fn map_dublin_core(work: &Work) -> ThothResult<String> {
         );
     }
     for format_value in format_values {
-        push_text_element(&mut xml, "dc:format", &format_value);
+        push_text_element(xml, "dc:format", &format_value)?;
     }
 
     let mut identifier_values = Vec::new();
@@ -344,7 +364,7 @@ fn map_dublin_core(work: &Work) -> ThothResult<String> {
         );
     }
     for identifier in identifier_values {
-        push_text_element(&mut xml, "dc:identifier", &identifier);
+        push_text_element(xml, "dc:identifier", &identifier)?;
     }
 
     let mut language_values = Vec::new();
@@ -357,7 +377,7 @@ fn map_dublin_core(work: &Work) -> ThothResult<String> {
         );
     }
     for language in language_values {
-        push_text_element(&mut xml, "dc:language", &language);
+        push_text_element(xml, "dc:language", &language)?;
     }
 
     let mut relation_values = Vec::new();
@@ -384,7 +404,7 @@ fn map_dublin_core(work: &Work) -> ThothResult<String> {
         }
     }
     for relation in relation_values {
-        push_text_element(&mut xml, "dc:relation", &relation);
+        push_text_element(xml, "dc:relation", &relation)?;
     }
 
     let mut rights_values = Vec::new();
@@ -405,11 +425,23 @@ fn map_dublin_core(work: &Work) -> ThothResult<String> {
         );
     }
     for rights in rights_values {
-        push_text_element(&mut xml, "dc:rights", &rights);
+        push_text_element(xml, "dc:rights", &rights)?;
     }
 
-    xml.push_str("</oai_dc:dc>");
-    Ok(xml)
+    push_close_tag(xml, "oai_dc:dc")
+}
+
+fn map_dublin_core(work: &Work) -> ThothResult<String> {
+    let mut buffer = Vec::new();
+    let mut writer = EmitterConfig::new()
+        .perform_indent(true)
+        .create_writer(&mut buffer);
+    XmlElementBlock::<DublinCoreThoth>::xml_element(work, &mut writer)
+        .map(|_| buffer)
+        .and_then(|xml| {
+            String::from_utf8(xml)
+                .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
+        })
 }
 
 #[cfg(test)]
@@ -830,6 +862,20 @@ pub(crate) mod test_support {
 mod tests {
     use super::test_support::{assert_valid_against_schema, fixture_work};
     use super::*;
+    use crate::record::XML_DECLARATION;
+
+    fn assert_precedes(xml: &str, first: &str, second: &str) {
+        let first_pos = xml
+            .find(first)
+            .unwrap_or_else(|| panic!("Could not find `{first}` in XML output"));
+        let second_pos = xml
+            .find(second)
+            .unwrap_or_else(|| panic!("Could not find `{second}` in XML output"));
+        assert!(
+            first_pos < second_pos,
+            "Expected `{first}` to appear before `{second}`"
+        );
+    }
 
     #[test]
     fn xml_publication_type_maps_to_text_xml() {
@@ -861,6 +907,17 @@ mod tests {
         assert!(xml.contains("<dc:rights>CC BY 4.0</dc:rights>"));
         assert!(xml.contains("<dc:rights>Copyright holder: Example Author</dc:rights>"));
         assert!(!xml.contains("<dc:coverage>"));
+        assert_precedes(
+            &xml,
+            "<dc:title>Canonical Title: A Story</dc:title>",
+            "<dc:title>Alternativer Titel</dc:title>",
+        );
+        assert_precedes(&xml, "<dc:type>book</dc:type>", "<dc:format>application/pdf</dc:format>");
+        assert_precedes(
+            &xml,
+            "<dc:rights>http://creativecommons.org/licenses/by/4.0/</dc:rights>",
+            "<dc:rights>CC BY 4.0</dc:rights>",
+        );
 
         assert_valid_against_schema(&xml, "oai_dc.xsd");
     }
@@ -868,16 +925,17 @@ mod tests {
     #[test]
     fn generator_returns_single_work_xml_with_declaration() {
         let xml = DublinCoreThoth {}
-            .generate(&[fixture_work()])
+            .generate(&[fixture_work()], None)
             .expect("single dublin core");
         assert!(xml.starts_with(XML_DECLARATION));
+        assert!(!xml.starts_with(&format!("{XML_DECLARATION}\n")));
         assert!(xml.contains("<oai_dc:dc "));
     }
 
     #[test]
     fn generator_rejects_multiple_works() {
         let work = fixture_work();
-        let result = DublinCoreThoth {}.generate(&[work.clone(), work]);
+        let result = DublinCoreThoth {}.generate(&[work.clone(), work], None);
         assert!(matches!(
             result,
             Err(ThothError::IncompleteMetadataRecord(spec, message))
