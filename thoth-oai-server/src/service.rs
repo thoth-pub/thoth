@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::{Arc, Mutex},
+};
 
 use oai_pmh::core::MetadataPrefix;
 use quick_xml::{events::Event, Reader, Writer};
@@ -18,6 +21,41 @@ pub(crate) const PAGE_LIMIT: i64 = 50;
 const OAI_DC_SPEC: &str = "dublin_core::thoth";
 const OAI_OPENAIRE_SPEC: &str = "openaire::thoth";
 const MARCXML_SPEC: &str = "marc21xml::thoth";
+const DELEGATED_RECORD_CACHE_LIMIT: usize = 2048;
+type DelegatedRecordCacheKey = (Uuid, &'static str);
+
+#[derive(Default)]
+struct DelegatedRecordCache {
+    entries: HashMap<DelegatedRecordCacheKey, String>,
+    insertion_order: VecDeque<DelegatedRecordCacheKey>,
+}
+
+impl DelegatedRecordCache {
+    fn get(&self, key: &DelegatedRecordCacheKey) -> Option<String> {
+        self.entries.get(key).cloned()
+    }
+
+    fn insert(&mut self, key: DelegatedRecordCacheKey, value: String) {
+        match self.entries.entry(key) {
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                entry.insert(value);
+                return;
+            }
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                self.insertion_order.push_back(*entry.key());
+                entry.insert(value);
+            }
+        }
+
+        while self.entries.len() > DELEGATED_RECORD_CACHE_LIMIT {
+            if let Some(oldest_key) = self.insertion_order.pop_front() {
+                self.entries.remove(&oldest_key);
+            } else {
+                break;
+            }
+        }
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct OaiService {
@@ -25,6 +63,7 @@ pub(crate) struct OaiService {
     export_url: String,
     thoth_client: Arc<ThothClient>,
     export_client: Client,
+    delegated_record_cache: Arc<Mutex<DelegatedRecordCache>>,
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +80,7 @@ impl OaiService {
             export_url,
             thoth_client: Arc::new(ThothClient::new(gql_endpoint)),
             export_client: Client::new(),
+            delegated_record_cache: Arc::new(Mutex::new(DelegatedRecordCache::default())),
         }
     }
 
@@ -104,17 +144,35 @@ impl OaiService {
     }
 
     pub(crate) async fn get_marcxml_record(&self, work_id: Uuid) -> ThothResult<String> {
-        self.get_delegated_record(work_id, MARCXML_SPEC, b"record", "MARCXML")
+        self.get_delegated_record(
+            work_id,
+            MetadataPrefix::MarcXml,
+            MARCXML_SPEC,
+            b"record",
+            "MARCXML",
+        )
             .await
     }
 
     pub(crate) async fn get_oai_dc_record(&self, work_id: Uuid) -> ThothResult<String> {
-        self.get_delegated_record(work_id, OAI_DC_SPEC, b"dc", "Dublin Core")
+        self.get_delegated_record(
+            work_id,
+            MetadataPrefix::OaiDc,
+            OAI_DC_SPEC,
+            b"dc",
+            "Dublin Core",
+        )
             .await
     }
 
     pub(crate) async fn get_oai_openaire_record(&self, work_id: Uuid) -> ThothResult<String> {
-        self.get_delegated_record(work_id, OAI_OPENAIRE_SPEC, b"resource", "OpenAIRE")
+        self.get_delegated_record(
+            work_id,
+            MetadataPrefix::OaiOpenaire,
+            OAI_OPENAIRE_SPEC,
+            b"resource",
+            "OpenAIRE",
+        )
             .await
     }
 
@@ -139,10 +197,16 @@ impl OaiService {
     async fn get_delegated_record(
         &self,
         work_id: Uuid,
+        metadata_prefix: MetadataPrefix,
         specification: &str,
         element_local_name: &[u8],
         format_name: &str,
     ) -> ThothResult<String> {
+        let cache_key = (work_id, metadata_prefix.as_str());
+        if let Some(record) = self.get_cached_delegated_record(&cache_key) {
+            return Ok(record);
+        }
+
         let response = self
             .export_client
             .get(format!(
@@ -168,7 +232,22 @@ impl OaiService {
             )));
         }
 
-        Self::extract_xml_element(&body, element_local_name, format_name)
+        let record = Self::extract_xml_element(&body, element_local_name, format_name)?;
+        self.cache_delegated_record(cache_key, record.clone());
+        Ok(record)
+    }
+
+    fn get_cached_delegated_record(&self, key: &DelegatedRecordCacheKey) -> Option<String> {
+        self.delegated_record_cache
+            .lock()
+            .ok()
+            .and_then(|cache| cache.get(key))
+    }
+
+    fn cache_delegated_record(&self, key: DelegatedRecordCacheKey, value: String) {
+        if let Ok(mut cache) = self.delegated_record_cache.lock() {
+            cache.insert(key, value);
+        }
     }
 
     pub(crate) fn oai_identifier(work_id: Uuid) -> String {
