@@ -331,6 +331,17 @@ impl OaiService {
                             })?;
                     }
                 }
+                Ok(Event::GeneralRef(event)) => {
+                    if capturing {
+                        writer
+                            .write_event(Event::GeneralRef(event.to_owned()))
+                            .map_err(|error| {
+                                ThothError::InternalError(format!(
+                                    "Could not write {format_name}: {error}"
+                                ))
+                            })?;
+                    }
+                }
                 Ok(Event::Comment(event)) => {
                     if capturing {
                         writer

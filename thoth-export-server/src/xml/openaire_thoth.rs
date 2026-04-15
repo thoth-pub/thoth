@@ -10,7 +10,9 @@ use thoth_client::{
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 use xml::writer::events::StartElementBuilder;
-use xml::writer::{EmitterConfig, EventWriter, XmlEvent};
+#[cfg(test)]
+use xml::writer::EmitterConfig;
+use xml::writer::{EventWriter, XmlEvent};
 
 const OPENAIRE_ERROR: &str = "openaire::thoth";
 const OAI_IDENTIFIER_PREFIX: &str = "oai:thoth.pub";
@@ -53,7 +55,11 @@ impl XmlElementBlock<OpenaireThoth> for Work {
     }
 }
 
-fn push_text_element<W: Write>(xml: &mut EventWriter<W>, name: &str, text: &str) -> ThothResult<()> {
+fn push_text_element<W: Write>(
+    xml: &mut EventWriter<W>,
+    name: &str,
+    text: &str,
+) -> ThothResult<()> {
     write_element_block(name, xml, |xml| {
         xml.write(XmlEvent::Characters(text)).map_err(|e| e.into())
     })
@@ -374,7 +380,7 @@ fn reference_citation(reference: &thoth_client::WorkReferences) -> Option<String
     }
 }
 
-fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothResult<()> {
+fn write_openaire<W: Write>(work: &Work, xml: &mut EventWriter<W>) -> ThothResult<()> {
     let root_attrs = OPENAIRE_NS
         .iter()
         .map(|(key, value)| (*key, (*value).to_string()))
@@ -382,7 +388,7 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
     push_open_tag(xml, "oaire:resource", &root_attrs)?;
 
     push_text_element_attrs(
-        &mut xml,
+        xml,
         "datacite:identifier",
         &[("identifierType", "URL".to_string())],
         &work_url(work),
@@ -416,43 +422,43 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
         }
     }
     if !title_entries.is_empty() {
-        push_open_tag(&mut xml, "datacite:titles", &[])?;
+        push_open_tag(xml, "datacite:titles", &[])?;
         for (attrs, value) in title_entries {
             if attrs.is_empty() {
-                push_text_element(&mut xml, "datacite:title", &value)?;
+                push_text_element(xml, "datacite:title", &value)?;
             } else {
                 let attrs = attrs
                     .iter()
                     .map(|(key, value)| (*key, value.clone()))
                     .collect::<Vec<_>>();
-                push_text_element_attrs(&mut xml, "datacite:title", &attrs, &value)?;
+                push_text_element_attrs(xml, "datacite:title", &attrs, &value)?;
             }
         }
-        push_close_tag(&mut xml, "datacite:titles")?;
+        push_close_tag(xml, "datacite:titles")?;
     }
 
     let creators = creators(work).collect::<Vec<_>>();
     if !creators.is_empty() {
-        push_open_tag(&mut xml, "datacite:creators", &[])?;
+        push_open_tag(xml, "datacite:creators", &[])?;
         for creator in creators {
-            push_open_tag(&mut xml, "datacite:creator", &[])?;
+            push_open_tag(xml, "datacite:creator", &[])?;
             push_text_element_attrs(
-                &mut xml,
+                xml,
                 "datacite:creatorName",
                 &[("nameType", "Personal".to_string())],
                 &personal_name(creator),
             )?;
             if let Some(first_name) = creator.first_name.as_deref() {
                 if !first_name.is_empty() {
-                    push_text_element(&mut xml, "datacite:givenName", first_name)?;
+                    push_text_element(xml, "datacite:givenName", first_name)?;
                 }
             }
             if !creator.last_name.is_empty() {
-                push_text_element(&mut xml, "datacite:familyName", &creator.last_name)?;
+                push_text_element(xml, "datacite:familyName", &creator.last_name)?;
             }
             if let Some(orcid) = &creator.contributor.orcid {
                 push_text_element_attrs(
-                    &mut xml,
+                    xml,
                     "datacite:nameIdentifier",
                     &[
                         ("nameIdentifierScheme", "ORCID".to_string()),
@@ -464,27 +470,27 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
             for affiliation in &creator.affiliations {
                 if let Some(ror) = &affiliation.institution.ror {
                     push_text_element_attrs(
-                        &mut xml,
+                        xml,
                         "datacite:affiliation",
                         &[("affiliationIdentifier", ror_url(ror))],
                         &affiliation.institution.institution_name,
                     )?;
                 } else {
                     push_text_element(
-                        &mut xml,
+                        xml,
                         "datacite:affiliation",
                         &affiliation.institution.institution_name,
                     )?;
                 }
             }
-            push_close_tag(&mut xml, "datacite:creator")?;
+            push_close_tag(xml, "datacite:creator")?;
         }
-        push_close_tag(&mut xml, "datacite:creators")?;
+        push_close_tag(xml, "datacite:creators")?;
     }
 
     let contributors = contributors(work).collect::<Vec<_>>();
     if !contributors.is_empty() {
-        push_open_tag(&mut xml, "datacite:contributors", &[])?;
+        push_open_tag(xml, "datacite:contributors", &[])?;
         for contributor in contributors {
             let contributor_type = if contributor.contribution_type == ContributionType::EDITOR {
                 "Editor"
@@ -492,27 +498,27 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
                 "Other"
             };
             push_open_tag(
-                &mut xml,
+                xml,
                 "datacite:contributor",
                 &[("contributorType", contributor_type.to_string())],
             )?;
             push_text_element_attrs(
-                &mut xml,
+                xml,
                 "datacite:contributorName",
                 &[("nameType", "Personal".to_string())],
                 &personal_name(contributor),
             )?;
             if let Some(first_name) = contributor.first_name.as_deref() {
                 if !first_name.is_empty() {
-                    push_text_element(&mut xml, "datacite:givenName", first_name)?;
+                    push_text_element(xml, "datacite:givenName", first_name)?;
                 }
             }
             if !contributor.last_name.is_empty() {
-                push_text_element(&mut xml, "datacite:familyName", &contributor.last_name)?;
+                push_text_element(xml, "datacite:familyName", &contributor.last_name)?;
             }
             if let Some(orcid) = &contributor.contributor.orcid {
                 push_text_element_attrs(
-                    &mut xml,
+                    xml,
                     "datacite:nameIdentifier",
                     &[
                         ("nameIdentifierScheme", "ORCID".to_string()),
@@ -524,50 +530,50 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
             for affiliation in &contributor.affiliations {
                 if let Some(ror) = &affiliation.institution.ror {
                     push_text_element_attrs(
-                        &mut xml,
+                        xml,
                         "datacite:affiliation",
                         &[("affiliationIdentifier", ror_url(ror))],
                         &affiliation.institution.institution_name,
                     )?;
                 } else {
                     push_text_element(
-                        &mut xml,
+                        xml,
                         "datacite:affiliation",
                         &affiliation.institution.institution_name,
                     )?;
                 }
             }
-            push_close_tag(&mut xml, "datacite:contributor")?;
+            push_close_tag(xml, "datacite:contributor")?;
         }
-        push_close_tag(&mut xml, "datacite:contributors")?;
+        push_close_tag(xml, "datacite:contributors")?;
     }
 
     if !work.fundings.is_empty() {
-        push_open_tag(&mut xml, "oaire:fundingReferences", &[])?;
+        push_open_tag(xml, "oaire:fundingReferences", &[])?;
         for funding in &work.fundings {
-            push_open_tag(&mut xml, "oaire:fundingReference", &[])?;
+            push_open_tag(xml, "oaire:fundingReference", &[])?;
             push_text_element(
-                &mut xml,
+                xml,
                 "oaire:funderName",
                 &funding.institution.institution_name,
             )?;
             if let Some(ror) = &funding.institution.ror {
                 push_text_element_attrs(
-                    &mut xml,
+                    xml,
                     "oaire:funderIdentifier",
                     &[("funderIdentifierType", "ROR".to_string())],
                     &ror_url(ror),
                 )?;
             }
             if let Some(grant_number) = &funding.grant_number {
-                push_text_element(&mut xml, "oaire:awardNumber", grant_number)?;
+                push_text_element(xml, "oaire:awardNumber", grant_number)?;
             }
             if let Some(project_name) = &funding.project_name {
-                push_text_element(&mut xml, "oaire:awardTitle", project_name)?;
+                push_text_element(xml, "oaire:awardTitle", project_name)?;
             }
-            push_close_tag(&mut xml, "oaire:fundingReference")?;
+            push_close_tag(xml, "oaire:fundingReference")?;
         }
-        push_close_tag(&mut xml, "oaire:fundingReferences")?;
+        push_close_tag(xml, "oaire:fundingReferences")?;
     }
 
     let mut alternate_identifiers = Vec::new();
@@ -599,16 +605,16 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
         }
     }
     if !alternate_identifiers.is_empty() {
-        push_open_tag(&mut xml, "datacite:alternateIdentifiers", &[])?;
+        push_open_tag(xml, "datacite:alternateIdentifiers", &[])?;
         for (identifier_type, value) in alternate_identifiers {
             push_text_element_attrs(
-                &mut xml,
+                xml,
                 "datacite:alternateIdentifier",
                 &[("alternateIdentifierType", identifier_type)],
                 &value,
             )?;
         }
-        push_close_tag(&mut xml, "datacite:alternateIdentifiers")?;
+        push_close_tag(xml, "datacite:alternateIdentifiers")?;
     }
 
     let mut related_identifiers = Vec::new();
@@ -653,10 +659,10 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
         }
     }
     if !related_identifiers.is_empty() {
-        push_open_tag(&mut xml, "datacite:relatedIdentifiers", &[])?;
+        push_open_tag(xml, "datacite:relatedIdentifiers", &[])?;
         for (identifier_type, relation_type, value) in related_identifiers {
             push_text_element_attrs(
-                &mut xml,
+                xml,
                 "datacite:relatedIdentifier",
                 &[
                     ("relatedIdentifierType", identifier_type),
@@ -665,7 +671,7 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
                 &value,
             )?;
         }
-        push_close_tag(&mut xml, "datacite:relatedIdentifiers")?;
+        push_close_tag(xml, "datacite:relatedIdentifiers")?;
     }
 
     let mut language_values = Vec::new();
@@ -678,32 +684,28 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
         );
     }
     for language in language_values {
-        push_text_element(&mut xml, "dc:language", &language)?;
+        push_text_element(xml, "dc:language", &language)?;
     }
 
-    push_text_element(
-        &mut xml,
-        "dc:publisher",
-        &work.imprint.publisher.publisher_name,
-    )?;
+    push_text_element(xml, "dc:publisher", &work.imprint.publisher.publisher_name)?;
 
     if let Some(publication_date) = &work.publication_date {
         push_text_element_attrs(
-            &mut xml,
+            xml,
             "datacite:date",
             &[("dateType", "Issued".to_string())],
             &publication_date.to_string(),
         )?;
     }
     push_text_element(
-        &mut xml,
+        xml,
         "dcterms:modified",
         &timestamp_rfc3339(work.updated_at_with_relations),
     )?;
 
     if let Some((uri, value)) = openaire_resource_type(work) {
         push_text_element_attrs(
-            &mut xml,
+            xml,
             "oaire:resourceType",
             &[
                 ("resourceTypeGeneral", "literature".to_string()),
@@ -758,7 +760,7 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
         );
     }
     for description in description_values {
-        push_text_element(&mut xml, "dc:description", &description)?;
+        push_text_element(xml, "dc:description", &description)?;
     }
 
     let mut format_values = Vec::new();
@@ -771,12 +773,12 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
         );
     }
     for format_value in format_values {
-        push_text_element(&mut xml, "dc:format", &format_value)?;
+        push_text_element(xml, "dc:format", &format_value)?;
     }
 
     if let Some(license) = &work.license {
         push_text_element_attrs(
-            &mut xml,
+            xml,
             "datacite:rights",
             &[(
                 "rightsURI",
@@ -785,14 +787,14 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
             "open access",
         )?;
         push_text_element_attrs(
-            &mut xml,
+            xml,
             "oaire:licenseCondition",
             &[("uri", license.clone())],
             normalized_license_name(license),
         )?;
     } else {
         push_text_element_attrs(
-            &mut xml,
+            xml,
             "datacite:rights",
             &[(
                 "rightsURI",
@@ -803,7 +805,7 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
     }
     if let Some(copyright_holder) = work.copyright_holder.as_deref() {
         push_text_element(
-            &mut xml,
+            xml,
             "datacite:rights",
             &format!("Copyright holder: {copyright_holder}"),
         )?;
@@ -841,13 +843,13 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
     }
     for (attrs, value) in subject_entries {
         if attrs.is_empty() {
-            push_text_element(&mut xml, "datacite:subject", &value)?;
+            push_text_element(xml, "datacite:subject", &value)?;
         } else {
             let attrs = attrs
                 .iter()
                 .map(|(key, value)| (*key, value.clone()))
                 .collect::<Vec<_>>();
-            push_text_element_attrs(&mut xml, "datacite:subject", &attrs, &value)?;
+            push_text_element_attrs(xml, "datacite:subject", &attrs, &value)?;
         }
     }
 
@@ -868,18 +870,18 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
         sizes.push(format!("{video_count} videos"));
     }
     if !sizes.is_empty() {
-        push_open_tag(&mut xml, "datacite:sizes", &[])?;
+        push_open_tag(xml, "datacite:sizes", &[])?;
         for size in sizes {
-            push_text_element(&mut xml, "datacite:size", &size)?;
+            push_text_element(xml, "datacite:size", &size)?;
         }
-        push_close_tag(&mut xml, "datacite:sizes")?;
+        push_close_tag(xml, "datacite:sizes")?;
     }
 
     for publication in &work.publications {
         for location in &publication.locations {
             if let Some(full_text_url) = &location.full_text_url {
                 push_text_element_attrs(
-                    &mut xml,
+                    xml,
                     "oaire:file",
                     &[
                         (
@@ -903,33 +905,33 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
                 .find(|title| title.canonical)
                 .or_else(|| parent_work.titles.first())
             {
-                push_text_element(&mut xml, "oaire:citationTitle", &parent_title.full_title)?;
+                push_text_element(xml, "oaire:citationTitle", &parent_title.full_title)?;
             } else if let Some(title) = canonical_title(work) {
-                push_text_element(&mut xml, "oaire:citationTitle", &title.full_title)?;
+                push_text_element(xml, "oaire:citationTitle", &title.full_title)?;
             }
             if let Some(edition) = parent_work.edition.or(work.edition) {
-                push_text_element(&mut xml, "oaire:citationEdition", &edition.to_string())?;
+                push_text_element(xml, "oaire:citationEdition", &edition.to_string())?;
             }
         } else if let Some(title) = canonical_title(work) {
-            push_text_element(&mut xml, "oaire:citationTitle", &title.full_title)?;
+            push_text_element(xml, "oaire:citationTitle", &title.full_title)?;
         }
     } else if let Some(issue) = issue {
-        push_text_element(&mut xml, "oaire:citationTitle", &issue.series.series_name)?;
+        push_text_element(xml, "oaire:citationTitle", &issue.series.series_name)?;
         let citation_issue = issue
             .issue_number
             .map(|value| value.to_string())
             .and_then(|value| normalize_value(&value))
             .unwrap_or_else(|| issue.issue_ordinal.to_string());
-        push_text_element(&mut xml, "oaire:citationIssue", &citation_issue)?;
+        push_text_element(xml, "oaire:citationIssue", &citation_issue)?;
     } else if let Some(title) = canonical_title(work) {
-        push_text_element(&mut xml, "oaire:citationTitle", &title.full_title)?;
+        push_text_element(xml, "oaire:citationTitle", &title.full_title)?;
     }
 
     if let Some(first_page) = &work.first_page {
-        push_text_element(&mut xml, "oaire:citationStartPage", first_page)?;
+        push_text_element(xml, "oaire:citationStartPage", first_page)?;
     }
     if let Some(last_page) = &work.last_page {
-        push_text_element(&mut xml, "oaire:citationEndPage", last_page)?;
+        push_text_element(xml, "oaire:citationEndPage", last_page)?;
     }
 
     let mut citation_values = Vec::new();
@@ -940,12 +942,13 @@ fn write_openaire<W: Write>(work: &Work, mut xml: &mut EventWriter<W>) -> ThothR
         }
     }
     for citation in citation_values {
-        push_text_element(&mut xml, "dcterms:bibliographicCitation", &citation)?;
+        push_text_element(xml, "dcterms:bibliographicCitation", &citation)?;
     }
 
     push_close_tag(xml, "oaire:resource")
 }
 
+#[cfg(test)]
 fn map_openaire(work: &Work) -> ThothResult<String> {
     let mut buffer = Vec::new();
     let mut writer = EmitterConfig::new()
@@ -962,8 +965,8 @@ fn map_openaire(work: &Work) -> ThothResult<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xml::dublincore_thoth::test_support::{assert_valid_against_schema, fixture_work};
     use crate::record::XML_DECLARATION;
+    use crate::xml::dublincore_thoth::test_support::{assert_valid_against_schema, fixture_work};
 
     fn assert_precedes(xml: &str, first: &str, second: &str) {
         let first_pos = xml

@@ -9,7 +9,9 @@ use thoth_client::{
 };
 use thoth_errors::{ThothError, ThothResult};
 use xml::writer::events::StartElementBuilder;
-use xml::writer::{EmitterConfig, EventWriter, XmlEvent};
+#[cfg(test)]
+use xml::writer::EmitterConfig;
+use xml::writer::{EventWriter, XmlEvent};
 
 const DUBLIN_CORE_ERROR: &str = "dublin_core::thoth";
 const BY_WORK_ONLY_MESSAGE: &str = "Output can only be generated for one work at a time";
@@ -48,7 +50,11 @@ impl XmlElementBlock<DublinCoreThoth> for Work {
     }
 }
 
-fn push_text_element<W: Write>(xml: &mut EventWriter<W>, name: &str, text: &str) -> ThothResult<()> {
+fn push_text_element<W: Write>(
+    xml: &mut EventWriter<W>,
+    name: &str,
+    text: &str,
+) -> ThothResult<()> {
     write_element_block(name, xml, |xml| {
         xml.write(XmlEvent::Characters(text)).map_err(|e| e.into())
     })
@@ -431,6 +437,7 @@ fn write_dublin_core<W: Write>(work: &Work, xml: &mut EventWriter<W>) -> ThothRe
     push_close_tag(xml, "oai_dc:dc")
 }
 
+#[cfg(test)]
 fn map_dublin_core(work: &Work) -> ThothResult<String> {
     let mut buffer = Vec::new();
     let mut writer = EmitterConfig::new()
@@ -912,7 +919,11 @@ mod tests {
             "<dc:title>Canonical Title: A Story</dc:title>",
             "<dc:title>Alternativer Titel</dc:title>",
         );
-        assert_precedes(&xml, "<dc:type>book</dc:type>", "<dc:format>application/pdf</dc:format>");
+        assert_precedes(
+            &xml,
+            "<dc:type>book</dc:type>",
+            "<dc:format>application/pdf</dc:format>",
+        );
         assert_precedes(
             &xml,
             "<dc:rights>http://creativecommons.org/licenses/by/4.0/</dc:rights>",
