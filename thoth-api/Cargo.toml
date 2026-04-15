@@ -36,10 +36,10 @@ actix-web = { version = "4.10", optional = true }
 isbn = "0.6.0"
 chrono = { version = "0.4.40", features = ["serde"] }
 deadpool-redis = { version = "0.20.0", optional = true }
-diesel = { version = "2.2.8", features = ["postgres", "uuid", "chrono", "r2d2", "64-column-tables", "serde_json"], optional = true }
-diesel-derive-enum = { version = "2.1.0", features = ["postgres"], optional = true }
-diesel-derive-newtype = "2.1.2"
-diesel_migrations = { version = "2.2.0", features = ["postgres"], optional = true }
+diesel = { version = "=2.2.8", features = ["postgres", "uuid", "chrono", "r2d2", "64-column-tables", "serde_json"], optional = true }
+diesel-derive-enum = { version = "=2.1.0", features = ["postgres"], optional = true }
+diesel-derive-newtype = "=2.1.2"
+diesel_migrations = { version = "=2.2.0", features = ["postgres"], optional = true }
 dotenv = "0.15.0"
 futures = { version  = "0.3.31", optional = true }
 jsonwebtoken = { version = "10.3.0", optional = true }

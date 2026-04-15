@@ -1,7 +1,7 @@
 use crate::arguments;
 use clap::{ArgMatches, Command};
 use lazy_static::lazy_static;
-use thoth::{api_server, errors::ThothResult, export_server};
+use thoth::{api_server, errors::ThothResult, export_server, oai_server};
 
 lazy_static! {
     pub(crate) static ref COMMAND: Command = Command::new("start")
@@ -33,6 +33,18 @@ lazy_static! {
                 .arg(arguments::keep_alive("EXPORT_API_KEEP_ALIVE"))
                 .arg(arguments::export_url())
                 .arg(arguments::gql_endpoint()),
+        )
+        .subcommand(
+            Command::new("oai-api")
+                .about("Start the thoth OAI-PMH API")
+                .arg(arguments::host("OAI_API_HOST"))
+                .arg(arguments::port("8383", "OAI_API_PORT"))
+                .arg(arguments::threads("OAI_API_THREADS"))
+                .arg(arguments::keep_alive("OAI_API_KEEP_ALIVE"))
+                .arg(arguments::oai_url())
+                .arg(arguments::gql_endpoint())
+                .arg(arguments::oai_retry_after_seconds())
+                .arg(arguments::export_url()),
         );
 }
 
@@ -95,6 +107,35 @@ pub fn export_api(arguments: &ArgMatches) -> ThothResult<()> {
         keep_alive,
         url,
         gql_endpoint,
+    )
+    .map_err(|e| e.into())
+}
+
+pub fn oai_api(arguments: &ArgMatches) -> ThothResult<()> {
+    let host = arguments.get_one::<String>("host").unwrap().to_owned();
+    let port = arguments.get_one::<String>("port").unwrap().to_owned();
+    let threads = *arguments.get_one::<usize>("threads").unwrap();
+    let keep_alive = *arguments.get_one::<u64>("keep-alive").unwrap();
+    let public_url = arguments.get_one::<String>("oai-url").unwrap().to_owned();
+    let gql_endpoint = arguments
+        .get_one::<String>("gql-endpoint")
+        .unwrap()
+        .to_owned();
+    let retry_after_seconds = *arguments.get_one::<u64>("oai-retry-after-seconds").unwrap();
+    let export_url = arguments
+        .get_one::<String>("export-url")
+        .unwrap()
+        .to_owned();
+
+    oai_server(
+        host,
+        port,
+        threads,
+        keep_alive,
+        public_url,
+        gql_endpoint,
+        export_url,
+        retry_after_seconds,
     )
     .map_err(|e| e.into())
 }

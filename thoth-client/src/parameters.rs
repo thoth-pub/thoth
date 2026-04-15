@@ -1,4 +1,4 @@
-use crate::queries::{work_query, works_query};
+use crate::queries::{oai_books_query, oai_works_query, work_query, works_query};
 use uuid::Uuid;
 
 /// A set of booleans to toggle directives in the GraphQL queries
@@ -288,10 +288,120 @@ impl From<WorksQueryVariables> for works_query::Variables {
     }
 }
 
+impl From<WorksQueryVariables> for oai_works_query::Variables {
+    fn from(v: WorksQueryVariables) -> Self {
+        oai_works_query::Variables {
+            publishers: v.publishers,
+            limit: v.limit,
+            offset: v.offset,
+            abstracts_limit: if v.parameters.with_abstracts {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_CANONICAL
+            },
+            issues_limit: if v.parameters.with_issues {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            languages_limit: if v.parameters.with_languages {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            publications_limit: if v.parameters.with_publications {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            subjects_limit: if v.parameters.with_subjects {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            fundings_limit: if v.parameters.with_fundings {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            relations_limit: if v.parameters.with_relations {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            references_limit: if v.parameters.with_references {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            titles_limit: if v.parameters.with_titles {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_CANONICAL
+            },
+        }
+    }
+}
+
+impl From<WorksQueryVariables> for oai_books_query::Variables {
+    fn from(v: WorksQueryVariables) -> Self {
+        oai_books_query::Variables {
+            publishers: v.publishers,
+            limit: v.limit,
+            offset: v.offset,
+            abstracts_limit: if v.parameters.with_abstracts {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_CANONICAL
+            },
+            issues_limit: if v.parameters.with_issues {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            languages_limit: if v.parameters.with_languages {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            publications_limit: if v.parameters.with_publications {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            subjects_limit: if v.parameters.with_subjects {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            fundings_limit: if v.parameters.with_fundings {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            relations_limit: if v.parameters.with_relations {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            references_limit: if v.parameters.with_references {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            titles_limit: if v.parameters.with_titles {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_CANONICAL
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::queries::{work_query, works_query};
+    use crate::queries::{oai_books_query, oai_works_query, work_query, works_query};
 
     #[test]
     fn test_default_query_parameters() {
@@ -492,6 +602,65 @@ mod tests {
                 fundings_limit: FILTER_INCLUDE_ALL,
                 relations_limit: FILTER_INCLUDE_NONE,
                 references_limit: FILTER_INCLUDE_NONE,
+                titles_limit: FILTER_INCLUDE_ALL,
+            }
+        );
+    }
+
+    #[test]
+    fn test_convert_parameters_to_oai_works_query_variables() {
+        let publisher_id: Uuid = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap();
+        let publishers = Some(vec![publisher_id]);
+        let parameters = QueryParameters::new()
+            .with_issues()
+            .with_languages()
+            .with_publications();
+
+        let variables: oai_works_query::Variables =
+            WorksQueryVariables::new(publishers.clone(), 50, 25, parameters).into();
+
+        assert_eq!(
+            variables,
+            oai_works_query::Variables {
+                publishers: publishers.clone(),
+                limit: 50,
+                offset: 25,
+                abstracts_limit: FILTER_INCLUDE_CANONICAL,
+                issues_limit: FILTER_INCLUDE_ALL,
+                languages_limit: FILTER_INCLUDE_ALL,
+                publications_limit: FILTER_INCLUDE_ALL,
+                subjects_limit: FILTER_INCLUDE_NONE,
+                fundings_limit: FILTER_INCLUDE_NONE,
+                relations_limit: FILTER_INCLUDE_NONE,
+                references_limit: FILTER_INCLUDE_NONE,
+                titles_limit: FILTER_INCLUDE_CANONICAL,
+            }
+        );
+    }
+
+    #[test]
+    fn test_convert_parameters_to_oai_books_query_variables() {
+        let publisher_id: Uuid = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap();
+        let publishers = Some(vec![publisher_id]);
+        let parameters = QueryParameters::new().with_all();
+
+        let variables: oai_books_query::Variables =
+            WorksQueryVariables::new(publishers.clone(), 10, 5, parameters).into();
+
+        assert_eq!(
+            variables,
+            oai_books_query::Variables {
+                publishers,
+                limit: 10,
+                offset: 5,
+                abstracts_limit: FILTER_INCLUDE_ALL,
+                issues_limit: FILTER_INCLUDE_ALL,
+                languages_limit: FILTER_INCLUDE_ALL,
+                publications_limit: FILTER_INCLUDE_ALL,
+                subjects_limit: FILTER_INCLUDE_ALL,
+                fundings_limit: FILTER_INCLUDE_ALL,
+                relations_limit: FILTER_INCLUDE_ALL,
+                references_limit: FILTER_INCLUDE_ALL,
                 titles_limit: FILTER_INCLUDE_ALL,
             }
         );

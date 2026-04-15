@@ -23,6 +23,7 @@ fn main() -> thoth::errors::ThothResult<()> {
         Some(("start", start_arguments)) => match start_arguments.subcommand() {
             Some(("graphql-api", arguments)) => commands::start::graphql_api(arguments),
             Some(("export-api", arguments)) => commands::start::export_api(arguments),
+            Some(("oai-api", arguments)) => commands::start::oai_api(arguments),
             _ => unreachable!(),
         },
         Some(("migrate", arguments)) => commands::migrate(arguments),

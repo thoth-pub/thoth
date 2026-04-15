@@ -1,0 +1,28 @@
+[package]
+name = "thoth-oai-server"
+version = "1.0.5"
+authors = ["Javier Arias <javi@thoth.pub>", "Ross Higman <ross@thoth.pub>"]
+edition = "2021"
+license = "Apache-2.0"
+description = "Actix instance serving Thoth's OAI-PMH endpoints"
+repository = "https://github.com/thoth-pub/thoth"
+readme = "README.md"
+
+[dependencies]
+thoth-api = { version = "=1.0.5", path = "../thoth-api", features = ["backend"] }
+thoth-errors = { version = "=1.0.5", path = "../thoth-errors" }
+thoth-client = { version = "=1.0.5", path = "../thoth-client" }
+actix-cors = "0.7.1"
+actix-web = "4.10"
+async-trait = "0.1.89"
+env_logger = "0.11.7"
+oai-pmh = { package = "oai-pmh-rs", version = "0.2.0", features = ["actix"] }
+quick-xml = "0.39"
+reqwest = { version = "0.13", features = ["json"] }
+uuid = { version = "1.16.0", features = ["serde"] }
+
+[dev-dependencies]
+base64 = "0.22.1"
+chrono = { version = "0.4.40", features = ["serde"] }
+flate2 = "1.1.1"
+serde_json = "1.0"

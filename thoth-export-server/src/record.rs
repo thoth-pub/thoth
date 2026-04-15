@@ -18,9 +18,9 @@ use crate::json::{JsonSpecification, JsonThoth};
 use crate::marc21::{Marc21MarkupThoth, Marc21RecordThoth, Marc21Specification};
 use crate::specification_query::SpecificationQuery;
 use crate::xml::{
-    DoiDepositCrossref, Marc21XmlThoth, Onix21EbscoHost, Onix21ProquestEbrary, Onix31Thoth,
-    Onix3GoogleBooks, Onix3Jstor, Onix3Oapen, Onix3Overdrive, Onix3ProjectMuse, Onix3Thoth,
-    XmlSpecification,
+    DoiDepositCrossref, DublinCoreThoth, Marc21XmlThoth, Onix21EbscoHost, Onix21ProquestEbrary,
+    Onix31Thoth, Onix3GoogleBooks, Onix3Jstor, Onix3Oapen, Onix3Overdrive, Onix3ProjectMuse,
+    Onix3Thoth, OpenaireThoth, XmlSpecification,
 };
 
 pub const DELIMITER_COMMA: u8 = b',';
@@ -47,6 +47,8 @@ pub(crate) enum MetadataSpecification {
     Marc21RecordThoth(Marc21RecordThoth),
     Marc21MarkupThoth(Marc21MarkupThoth),
     Marc21XmlThoth(Marc21XmlThoth),
+    DublinCoreThoth(DublinCoreThoth),
+    OpenaireThoth(OpenaireThoth),
 }
 
 pub(crate) struct MetadataRecord {
@@ -103,6 +105,8 @@ impl MetadataRecord {
             MetadataSpecification::Marc21RecordThoth(_) => Self::MARC_MIME_TYPE,
             MetadataSpecification::Marc21MarkupThoth(_) => Self::TXT_MIME_TYPE,
             MetadataSpecification::Marc21XmlThoth(_) => Self::XML_MIME_TYPE,
+            MetadataSpecification::DublinCoreThoth(_) => Self::XML_MIME_TYPE,
+            MetadataSpecification::OpenaireThoth(_) => Self::XML_MIME_TYPE,
         }
     }
 
@@ -125,6 +129,8 @@ impl MetadataRecord {
             MetadataSpecification::Marc21RecordThoth(_) => self.marc_record_file_name(),
             MetadataSpecification::Marc21MarkupThoth(_) => self.marc_markup_file_name(),
             MetadataSpecification::Marc21XmlThoth(_) => self.xml_file_name(),
+            MetadataSpecification::DublinCoreThoth(_) => self.xml_file_name(),
+            MetadataSpecification::OpenaireThoth(_) => self.xml_file_name(),
         }
     }
 
@@ -273,6 +279,12 @@ impl MetadataRecord {
             MetadataSpecification::Marc21XmlThoth(marc21xml_thoth) => {
                 marc21xml_thoth.generate(&data)
             }
+            MetadataSpecification::DublinCoreThoth(dublin_core_thoth) => {
+                dublin_core_thoth.generate(&data, None)
+            }
+            MetadataSpecification::OpenaireThoth(openaire_thoth) => {
+                openaire_thoth.generate(&data, None)
+            }
         }
     }
 }
@@ -343,6 +355,8 @@ impl FromStr for MetadataSpecification {
                 Marc21MarkupThoth {},
             )),
             "marc21xml::thoth" => Ok(MetadataSpecification::Marc21XmlThoth(Marc21XmlThoth {})),
+            "dublin_core::thoth" => Ok(MetadataSpecification::DublinCoreThoth(DublinCoreThoth {})),
+            "openaire::thoth" => Ok(MetadataSpecification::OpenaireThoth(OpenaireThoth {})),
             _ => Err(ThothError::InvalidMetadataSpecification(input.to_string())),
         }
     }
@@ -368,6 +382,8 @@ impl Display for MetadataSpecification {
             MetadataSpecification::Marc21RecordThoth(_) => "marc21record::thoth",
             MetadataSpecification::Marc21MarkupThoth(_) => "marc21markup::thoth",
             MetadataSpecification::Marc21XmlThoth(_) => "marc21xml::thoth",
+            MetadataSpecification::DublinCoreThoth(_) => "dublin_core::thoth",
+            MetadataSpecification::OpenaireThoth(_) => "openaire::thoth",
         };
         write!(f, "{str}")
     }
@@ -535,6 +551,24 @@ mod tests {
         assert_eq!(
             to_test.file_name(),
             "marc21xml__thoth__some_id.xml".to_string()
+        );
+        let to_test = MetadataRecord::new(
+            "some_id".to_string(),
+            MetadataSpecification::DublinCoreThoth(DublinCoreThoth {}),
+            timestamp,
+        );
+        assert_eq!(
+            to_test.file_name(),
+            "dublin_core__thoth__some_id.xml".to_string()
+        );
+        let to_test = MetadataRecord::new(
+            "some_id".to_string(),
+            MetadataSpecification::OpenaireThoth(OpenaireThoth {}),
+            timestamp,
+        );
+        assert_eq!(
+            to_test.file_name(),
+            "openaire__thoth__some_id.xml".to_string()
         );
     }
 }

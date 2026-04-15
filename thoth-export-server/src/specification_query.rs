@@ -269,6 +269,71 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                 .with_subjects()
                 .with_languages()
                 .with_fundings()),
+            MetadataSpecification::DublinCoreThoth(_) => match q.request {
+                SpecificationRequest::ByWork => Ok(QueryParameters::new()
+                    .with_all_abstracts()
+                    .with_all_titles()
+                    .with_issues()
+                    .with_languages()
+                    .with_publications()
+                    .with_subjects()
+                    .with_fundings()
+                    .with_relations()
+                    .with_references()),
+                SpecificationRequest::ByPublisher => Err(ThothError::IncompleteMetadataRecord(
+                    "dublin_core::thoth".to_string(),
+                    "Output can only be generated for one work at a time".to_string(),
+                )),
+            },
+            MetadataSpecification::OpenaireThoth(_) => match q.request {
+                SpecificationRequest::ByWork => Ok(QueryParameters::new()
+                    .with_all_abstracts()
+                    .with_all_titles()
+                    .with_issues()
+                    .with_languages()
+                    .with_publications()
+                    .with_subjects()
+                    .with_fundings()
+                    .with_relations()
+                    .with_references()),
+                SpecificationRequest::ByPublisher => Err(ThothError::IncompleteMetadataRecord(
+                    "openaire::thoth".to_string(),
+                    "Output can only be generated for one work at a time".to_string(),
+                )),
+            },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::record::MetadataSpecification;
+    use crate::xml::{DublinCoreThoth, OpenaireThoth};
+
+    #[test]
+    fn dublin_core_by_publisher_is_unsupported() {
+        let result = QueryParameters::try_from(QueryConfiguration::by_publisher(
+            MetadataSpecification::DublinCoreThoth(DublinCoreThoth {}),
+        ));
+        assert!(matches!(
+            result,
+            Err(ThothError::IncompleteMetadataRecord(spec, message))
+                if spec == "dublin_core::thoth"
+                    && message == "Output can only be generated for one work at a time"
+        ));
+    }
+
+    #[test]
+    fn openaire_by_publisher_is_unsupported() {
+        let result = QueryParameters::try_from(QueryConfiguration::by_publisher(
+            MetadataSpecification::OpenaireThoth(OpenaireThoth {}),
+        ));
+        assert!(matches!(
+            result,
+            Err(ThothError::IncompleteMetadataRecord(spec, message))
+                if spec == "openaire::thoth"
+                    && message == "Output can only be generated for one work at a time"
+        ));
     }
 }
