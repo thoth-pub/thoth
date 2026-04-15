@@ -182,7 +182,7 @@ impl OaiProvider for OaiService {
             sample_identifier: format!("{RECORD_PREFIX}:{SAMPLE_ID}"),
             descriptions: vec![format!(
                 "<thoth:repository xmlns:thoth=\"https://thoth.pub/oai/\"><thoth:latestDatestamp>{}</thoth:latestDatestamp><thoth:rightsStatement>{}</thoth:rightsStatement><thoth:rightsUri>{}</thoth:rightsUri></thoth:repository>",
-                escape(&OaiService::timestamp_xml(latest)),
+                escape(OaiService::timestamp_xml(latest)),
                 escape(METADATA_RIGHTS_STATEMENT),
                 escape(METADATA_RIGHTS_URI),
             )],
