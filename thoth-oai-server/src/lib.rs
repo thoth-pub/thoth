@@ -2,23 +2,21 @@
 
 mod service;
 
-use std::{
-    collections::HashMap,
-    io::{self, Write},
-    time::Duration,
-};
+use std::{io, time::Duration};
 
 use actix_cors::Cors;
-use actix_web::{
-    http::header, middleware::Logger, web, App, HttpRequest, HttpResponse, HttpServer,
+use actix_web::{middleware::Logger, web, App, HttpRequest, HttpResponse, HttpServer};
+use async_trait::async_trait;
+use oai_pmh::{
+    core::{
+        IdentifyData, InternalErrorClass, MetadataPrefix, OaiProvider,
+        ProtocolError as CoreProtocolError, ProviderError, RecordHeader, SetRecord,
+    },
+    transport::actix as oai_actix,
 };
-use chrono::{DateTime, NaiveDate, Utc};
-use flate2::{write::GzEncoder, Compression};
 use quick_xml::escape::escape;
-use service::{
-    DatestampGranularity, MetadataPrefix, OaiService, RecordPage, ResumptionToken, ADMIN_EMAIL,
-    RECORD_PREFIX, REPOSITORY_NAME, SAMPLE_ID,
-};
+use service::{OaiService, ADMIN_EMAIL, RECORD_PREFIX, REPOSITORY_NAME, SAMPLE_ID};
+use thoth_client::Work;
 use thoth_errors::ThothError;
 use uuid::Uuid;
 
@@ -35,37 +33,6 @@ struct AppState {
     retry_after_seconds: u64,
 }
 
-#[derive(Debug)]
-struct ProtocolError {
-    code: &'static str,
-    message: String,
-}
-
-enum HandlerError {
-    Protocol(ProtocolError),
-    Internal(ThothError),
-}
-
-type HandlerResult<T> = Result<T, HandlerError>;
-
-impl From<ProtocolError> for HandlerError {
-    fn from(value: ProtocolError) -> Self {
-        Self::Protocol(value)
-    }
-}
-
-#[derive(Debug, Default, Clone)]
-struct ParsedParams {
-    values: HashMap<String, String>,
-    has_repeated: bool,
-}
-
-#[derive(Debug, Clone)]
-struct ParsedListRequest {
-    token: ResumptionToken,
-    resumed: bool,
-}
-
 async fn stylesheet() -> HttpResponse {
     HttpResponse::Ok()
         .content_type("text/xsl; charset=utf-8")
@@ -73,8 +40,11 @@ async fn stylesheet() -> HttpResponse {
 }
 
 async fn oai_get(request: HttpRequest, state: web::Data<AppState>) -> HttpResponse {
-    let params = parse_form_encoded(request.query_string());
-    oai_with_params(request, params, state).await
+    let state = web::Data::new(oai_actix::AppState {
+        provider: state.service.clone(),
+        retry_after_seconds: state.retry_after_seconds,
+    });
+    oai_actix::oai_get(request, state).await
 }
 
 async fn oai_post(
@@ -82,60 +52,11 @@ async fn oai_post(
     body: web::Bytes,
     state: web::Data<AppState>,
 ) -> HttpResponse {
-    let mut params = parse_form_encoded(request.query_string());
-    match std::str::from_utf8(&body) {
-        Ok(body) => params.merge(parse_form_encoded(body)),
-        Err(_) => {
-            return xml_response(
-                &request,
-                error_document(
-                    &state.service,
-                    &params.values,
-                    "badArgument",
-                    "Invalid UTF-8 request body",
-                ),
-            )
-        }
-    }
-    oai_with_params(request, params, state).await
-}
-
-async fn oai_with_params(
-    request: HttpRequest,
-    params: ParsedParams,
-    state: web::Data<AppState>,
-) -> HttpResponse {
-    if params.has_repeated {
-        return xml_response(
-            &request,
-            error_document(
-                &state.service,
-                &params.values,
-                "badArgument",
-                "The request includes repeated arguments",
-            ),
-        );
-    }
-    match handle_oai_request(&request, &params.values, &state.service).await {
-        Ok(body) => xml_response(
-            &request,
-            success_document(&state.service, &params.values, &body),
-        ),
-        Err(HandlerError::Protocol(error)) => xml_response(
-            &request,
-            error_document(&state.service, &params.values, error.code, &error.message),
-        ),
-        Err(HandlerError::Internal(error)) => {
-            log::error!("OAI request failed: {error}");
-            if is_transient_upstream_error(&error) {
-                transient_service_unavailable(state.retry_after_seconds)
-            } else {
-                HttpResponse::InternalServerError()
-                    .content_type("text/plain; charset=utf-8")
-                    .body("Internal Server Error")
-            }
-        }
-    }
+    let state = web::Data::new(oai_actix::AppState {
+        provider: state.service.clone(),
+        retry_after_seconds: state.retry_after_seconds,
+    });
+    oai_actix::oai_post(request, body, state).await
 }
 
 fn is_transient_upstream_error(error: &ThothError) -> bool {
@@ -167,36 +88,233 @@ fn is_transient_upstream_error(error: &ThothError) -> bool {
     has_transient_status || has_network_failure
 }
 
-fn transient_service_unavailable(retry_after_seconds: u64) -> HttpResponse {
-    HttpResponse::ServiceUnavailable()
-        .insert_header((header::RETRY_AFTER, retry_after_seconds.to_string()))
-        .content_type("text/plain; charset=utf-8")
-        .body("Service Unavailable")
+fn parse_identifier_for_lookup_core(identifier: &str) -> Result<Uuid, CoreProtocolError> {
+    OaiService::parse_oai_identifier(identifier).map_err(|_| CoreProtocolError {
+        code: "idDoesNotExist",
+        message: "The requested identifier does not exist".to_string(),
+    })
 }
 
-impl ParsedParams {
-    fn merge(&mut self, other: ParsedParams) {
-        self.has_repeated = self.has_repeated || other.has_repeated;
-        for (key, value) in other.values {
-            if self.values.insert(key, value).is_some() {
-                self.has_repeated = true;
+fn map_get_record_provider_error(
+    metadata_prefix: MetadataPrefix,
+    error: ThothError,
+) -> ProviderError<ThothError> {
+    match error {
+        ThothError::EntityNotFound => ProviderError::Protocol(CoreProtocolError {
+            code: "idDoesNotExist",
+            message: "The requested identifier does not exist".to_string(),
+        }),
+        ThothError::IncompleteMetadataRecord(_, _)
+        | ThothError::InvalidMetadataSpecification(_) => {
+            ProviderError::Protocol(CoreProtocolError {
+                code: "cannotDisseminateFormat",
+                message: format!(
+                    "Record cannot be disseminated as {}",
+                    metadata_prefix.as_str()
+                ),
+            })
+        }
+        other => ProviderError::Internal(other),
+    }
+}
+
+fn map_export_metadata_provider_error(
+    metadata_prefix: MetadataPrefix,
+    error: ThothError,
+) -> ProviderError<ThothError> {
+    match error {
+        ThothError::RequestError(_) if is_transient_upstream_error(&error) => {
+            ProviderError::Internal(error)
+        }
+        _ => ProviderError::Protocol(CoreProtocolError {
+            code: "cannotDisseminateFormat",
+            message: format!(
+                "Record cannot be disseminated as {}",
+                metadata_prefix.as_str()
+            ),
+        }),
+    }
+}
+
+fn map_list_source_provider_error(error: ThothError) -> ProviderError<ThothError> {
+    match error {
+        ThothError::EntityNotFound => ProviderError::Protocol(CoreProtocolError {
+            code: "noRecordsMatch",
+            message: "The request matched no records".to_string(),
+        }),
+        other => ProviderError::Internal(other),
+    }
+}
+
+fn header_from_work(work: &Work) -> RecordHeader {
+    let set_spec = OaiService::set_spec(&work.imprint.publisher.publisher_name);
+    RecordHeader {
+        identifier: OaiService::oai_identifier(work.work_id),
+        datestamp: OaiService::timestamp_xml(work.updated_at_with_relations),
+        set_spec,
+        about_xml: Vec::new(),
+    }
+}
+
+#[async_trait]
+impl OaiProvider for OaiService {
+    type Error = ThothError;
+    type ListEntry = Work;
+
+    fn repository_url(&self) -> String {
+        self.repository_url()
+    }
+
+    async fn identify(&self) -> Result<IdentifyData, ProviderError<Self::Error>> {
+        let earliest = self.earliest().await.map_err(ProviderError::Internal)?;
+        let latest = self.latest().await.map_err(ProviderError::Internal)?;
+        Ok(IdentifyData {
+            repository_name: REPOSITORY_NAME.to_string(),
+            base_url: self.repository_url(),
+            admin_email: ADMIN_EMAIL.to_string(),
+            earliest_datestamp: OaiService::timestamp_xml(earliest),
+            deleted_record: "no".to_string(),
+            granularity: "YYYY-MM-DDThh:mm:ssZ".to_string(),
+            compressions: vec!["gzip".to_string()],
+            identifier_scheme: "oai".to_string(),
+            repository_identifier: "thoth.pub".to_string(),
+            identifier_delimiter: ":".to_string(),
+            sample_identifier: format!("{RECORD_PREFIX}:{SAMPLE_ID}"),
+            descriptions: vec![format!(
+                "<thoth:repository xmlns:thoth=\"https://thoth.pub/oai/\"><thoth:latestDatestamp>{}</thoth:latestDatestamp><thoth:rightsStatement>{}</thoth:rightsStatement><thoth:rightsUri>{}</thoth:rightsUri></thoth:repository>",
+                escape(&OaiService::timestamp_xml(latest)),
+                escape(METADATA_RIGHTS_STATEMENT),
+                escape(METADATA_RIGHTS_URI),
+            )],
+        })
+    }
+
+    async fn list_metadata_formats(
+        &self,
+        identifier: Option<&str>,
+    ) -> Result<Vec<MetadataPrefix>, ProviderError<Self::Error>> {
+        let mut prefixes = vec![
+            MetadataPrefix::OaiDc,
+            MetadataPrefix::OaiOpenaire,
+            MetadataPrefix::MarcXml,
+        ];
+        if let Some(identifier) = identifier {
+            let work_id = parse_identifier_for_lookup_core(identifier)?;
+            self.get_record(work_id, MetadataPrefix::OaiDc)
+                .await
+                .map_err(|error| map_get_record_provider_error(MetadataPrefix::OaiDc, error))?;
+            prefixes.clear();
+            for prefix in [
+                MetadataPrefix::OaiDc,
+                MetadataPrefix::OaiOpenaire,
+                MetadataPrefix::MarcXml,
+            ] {
+                match self.has_metadata_dissemination(work_id, prefix).await {
+                    Ok(true) => prefixes.push(prefix),
+                    Ok(false) => {}
+                    Err(error) if is_transient_upstream_error(&error) => {
+                        return Err(ProviderError::Internal(error));
+                    }
+                    Err(_) => {}
+                }
             }
         }
+        Ok(prefixes)
     }
-}
 
-fn parse_form_encoded(input: &str) -> ParsedParams {
-    let mut parsed = ParsedParams::default();
-    for (key, value) in url::form_urlencoded::parse(input.as_bytes()) {
-        if parsed
-            .values
-            .insert(key.into_owned(), value.into_owned())
-            .is_some()
-        {
-            parsed.has_repeated = true;
+    async fn list_sets(&self) -> Result<Vec<SetRecord>, ProviderError<Self::Error>> {
+        OaiService::list_sets(self)
+            .await
+            .map_err(ProviderError::Internal)
+            .map(|sets| {
+                sets.into_iter()
+                    .map(|set| SetRecord {
+                        spec: set.spec,
+                        name: set.name,
+                        description_xml: None,
+                    })
+                    .collect()
+            })
+    }
+
+    async fn get_record_header(
+        &self,
+        identifier: &str,
+        metadata_prefix: MetadataPrefix,
+    ) -> Result<RecordHeader, ProviderError<Self::Error>> {
+        let work_id = parse_identifier_for_lookup_core(identifier)?;
+        let work = self
+            .get_record(work_id, metadata_prefix)
+            .await
+            .map_err(|error| map_get_record_provider_error(metadata_prefix, error))?;
+        Ok(header_from_work(&work))
+    }
+
+    async fn get_record_metadata(
+        &self,
+        identifier: &str,
+        metadata_prefix: MetadataPrefix,
+    ) -> Result<String, ProviderError<Self::Error>> {
+        let work_id = parse_identifier_for_lookup_core(identifier)?;
+        let metadata = match metadata_prefix {
+            MetadataPrefix::OaiDc => self.get_oai_dc_record(work_id).await,
+            MetadataPrefix::OaiOpenaire => self.get_oai_openaire_record(work_id).await,
+            MetadataPrefix::MarcXml => self.get_marcxml_record(work_id).await,
+        };
+        metadata.map_err(|error| map_export_metadata_provider_error(metadata_prefix, error))
+    }
+
+    async fn list_source_count(
+        &self,
+        metadata_prefix: MetadataPrefix,
+        set: Option<&str>,
+    ) -> Result<i64, ProviderError<Self::Error>> {
+        self.list_source_count(metadata_prefix, set)
+            .await
+            .map_err(map_list_source_provider_error)
+    }
+
+    async fn list_source_batch(
+        &self,
+        metadata_prefix: MetadataPrefix,
+        set: Option<&str>,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<Self::ListEntry>, ProviderError<Self::Error>> {
+        self.list_source_batch(metadata_prefix, set, offset, limit)
+            .await
+            .map_err(map_list_source_provider_error)
+    }
+
+    fn list_entry_header(&self, entry: &Self::ListEntry) -> RecordHeader {
+        header_from_work(entry)
+    }
+
+    async fn list_entry_disseminatable(
+        &self,
+        entry: &Self::ListEntry,
+        metadata_prefix: MetadataPrefix,
+    ) -> Result<bool, ProviderError<Self::Error>> {
+        self.has_metadata_dissemination(entry.work_id, metadata_prefix)
+            .await
+            .map_err(ProviderError::Internal)
+    }
+
+    fn include_complete_list_size(
+        &self,
+        metadata_prefix: MetadataPrefix,
+        date_filter_active: bool,
+    ) -> bool {
+        metadata_prefix != MetadataPrefix::MarcXml && !date_filter_active
+    }
+
+    fn classify_internal_error(&self, error: &Self::Error) -> InternalErrorClass {
+        if is_transient_upstream_error(error) {
+            InternalErrorClass::Transient
+        } else {
+            InternalErrorClass::Fatal
         }
     }
-    parsed
 }
 
 async fn not_found() -> HttpResponse {
@@ -237,721 +355,6 @@ async fn not_found() -> HttpResponse {
 </body>
 </html>"##,
         )
-}
-
-async fn handle_oai_request(
-    _request: &HttpRequest,
-    params: &HashMap<String, String>,
-    service: &OaiService,
-) -> HandlerResult<String> {
-    let verb = params
-        .get("verb")
-        .map(String::as_str)
-        .ok_or_else(|| bad_verb("Missing verb parameter"))?;
-
-    match verb {
-        "Identify" => {
-            require_only(params, &["verb"])?;
-            let earliest = service.earliest().await.map_err(HandlerError::Internal)?;
-            let latest = service.latest().await.map_err(HandlerError::Internal)?;
-            Ok(render_identify(service, earliest, latest))
-        }
-        "ListMetadataFormats" => {
-            require_only(params, &["verb", "identifier"])?;
-            let mut prefixes = vec![
-                MetadataPrefix::OaiDc,
-                MetadataPrefix::OaiOpenaire,
-                MetadataPrefix::MarcXml,
-            ];
-            if let Some(identifier) = params.get("identifier") {
-                let work_id = parse_identifier_for_lookup(identifier)?;
-                service
-                    .get_record(work_id, MetadataPrefix::OaiDc)
-                    .await
-                    .map_err(map_get_record_error(MetadataPrefix::OaiDc))?;
-                prefixes.clear();
-                for prefix in [
-                    MetadataPrefix::OaiDc,
-                    MetadataPrefix::OaiOpenaire,
-                    MetadataPrefix::MarcXml,
-                ] {
-                    if service
-                        .has_metadata_dissemination(work_id, prefix)
-                        .await
-                        .map_err(HandlerError::Internal)?
-                    {
-                        prefixes.push(prefix);
-                    }
-                }
-                if prefixes.is_empty() {
-                    return Err(ProtocolError {
-                        code: "noMetadataFormats",
-                        message: "No metadata formats are available for this identifier"
-                            .to_string(),
-                    }
-                    .into());
-                }
-            }
-            Ok(render_list_metadata_formats(&prefixes))
-        }
-        "ListSets" => {
-            if params.contains_key("resumptionToken") {
-                return Err(ProtocolError {
-                    code: "badResumptionToken",
-                    message: "This repository does not support set resumption tokens".to_string(),
-                }
-                .into());
-            }
-            require_only(params, &["verb"])?;
-            let sets = service.list_sets().await.map_err(HandlerError::Internal)?;
-            Ok(render_list_sets(&sets))
-        }
-        "GetRecord" => {
-            require_only(params, &["verb", "identifier", "metadataPrefix"])?;
-            let identifier = params
-                .get("identifier")
-                .ok_or_else(|| bad_argument("Missing identifier parameter"))?;
-            let metadata_prefix = params
-                .get("metadataPrefix")
-                .ok_or_else(|| bad_argument("Missing metadataPrefix parameter"))?;
-            let work_id = parse_identifier_for_lookup(identifier)?;
-            let metadata_prefix = parse_metadata_prefix(metadata_prefix)?;
-            let work = service
-                .get_record(work_id, metadata_prefix)
-                .await
-                .map_err(map_get_record_error(metadata_prefix))?;
-            Ok(render_get_record(service, &work, metadata_prefix).await?)
-        }
-        "ListIdentifiers" => {
-            validate_list_verb(params)?;
-            let parsed = parse_list_token(params, true)?;
-            let page = service
-                .list_records(&parsed.token, parsed.resumed)
-                .await
-                .map_err(map_list_error)?;
-            if page.records.is_empty() && !parsed.resumed {
-                return Err(HandlerError::Protocol(no_records_match()));
-            }
-            Ok(render_list_identifiers(&page))
-        }
-        "ListRecords" => {
-            validate_list_verb(params)?;
-            let parsed = parse_list_token(params, false)?;
-            let page = service
-                .list_records(&parsed.token, parsed.resumed)
-                .await
-                .map_err(map_list_error)?;
-            if page.records.is_empty() && !parsed.resumed {
-                return Err(HandlerError::Protocol(no_records_match()));
-            }
-            Ok(render_list_records(service, &page, parsed.token.metadata_prefix).await?)
-        }
-        other => Err(HandlerError::Protocol(bad_verb(&format!(
-            "Unknown verb {other}"
-        )))),
-    }
-}
-
-fn render_identify(
-    service: &OaiService,
-    earliest: thoth_api::model::Timestamp,
-    latest: thoth_api::model::Timestamp,
-) -> String {
-    format!(
-        "<Identify>\
-<repositoryName>{}</repositoryName>\
-<baseURL>{}</baseURL>\
-<protocolVersion>2.0</protocolVersion>\
-<adminEmail>{}</adminEmail>\
-<earliestDatestamp>{}</earliestDatestamp>\
-<deletedRecord>no</deletedRecord>\
-<granularity>YYYY-MM-DDThh:mm:ssZ</granularity>\
-<compression>gzip</compression>\
-<description>\
-<oai-identifier xmlns=\"http://www.openarchives.org/OAI/2.0/oai-identifier\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.openarchives.org/OAI/2.0/oai-identifier http://www.openarchives.org/OAI/2.0/oai-identifier.xsd\">\
-<scheme>oai</scheme>\
-<repositoryIdentifier>thoth.pub</repositoryIdentifier>\
-<delimiter>:</delimiter>\
-<sampleIdentifier>{}:{}</sampleIdentifier>\
-</oai-identifier>\
-</description>\
-<description>\
-<thoth:repository xmlns:thoth=\"https://thoth.pub/oai/\">\
-<thoth:latestDatestamp>{}</thoth:latestDatestamp>\
-<thoth:rightsStatement>{}</thoth:rightsStatement>\
-<thoth:rightsUri>{}</thoth:rightsUri>\
-</thoth:repository>\
-</description>\
-</Identify>",
-        xml_escape(REPOSITORY_NAME),
-        xml_escape(&service.repository_url()),
-        xml_escape(ADMIN_EMAIL),
-        xml_escape(&OaiService::timestamp_xml(earliest)),
-        RECORD_PREFIX,
-        SAMPLE_ID,
-        xml_escape(&OaiService::timestamp_xml(latest)),
-        xml_escape(METADATA_RIGHTS_STATEMENT),
-        xml_escape(METADATA_RIGHTS_URI),
-    )
-}
-
-fn render_list_metadata_formats(prefixes: &[MetadataPrefix]) -> String {
-    let mut xml = String::from("<ListMetadataFormats>");
-    for prefix in prefixes.iter().copied() {
-        xml.push_str("<metadataFormat>");
-        push_text_element(&mut xml, "metadataPrefix", prefix.as_str());
-        push_text_element(&mut xml, "schema", prefix.schema());
-        push_text_element(&mut xml, "metadataNamespace", prefix.namespace());
-        xml.push_str("</metadataFormat>");
-    }
-    xml.push_str("</ListMetadataFormats>");
-    xml
-}
-
-fn render_list_sets(sets: &[service::SetRecord]) -> String {
-    let mut xml = String::from("<ListSets>");
-    for set in sets {
-        xml.push_str("<set>");
-        push_text_element(&mut xml, "setSpec", &set.spec);
-        push_text_element(&mut xml, "setName", &set.name);
-        xml.push_str("</set>");
-    }
-    xml.push_str("</ListSets>");
-    xml
-}
-
-async fn render_get_record(
-    service: &OaiService,
-    work: &thoth_client::Work,
-    metadata_prefix: MetadataPrefix,
-) -> HandlerResult<String> {
-    let mut xml = String::from("<GetRecord>");
-    xml.push_str(&render_record_xml(service, work, metadata_prefix).await?);
-    xml.push_str("</GetRecord>");
-    Ok(xml)
-}
-
-fn render_list_identifiers(page: &RecordPage) -> String {
-    let mut xml = String::from("<ListIdentifiers>");
-    for work in &page.records {
-        xml.push_str(&render_header_xml(work));
-    }
-    if page.terminal_resumption_token {
-        xml.push_str("<resumptionToken/>");
-    } else if let Some(token) = &page.next_token {
-        xml.push_str(&render_resumption_token(
-            token,
-            page.cursor,
-            page.complete_list_size,
-        ));
-    }
-    xml.push_str("</ListIdentifiers>");
-    xml
-}
-
-async fn render_list_records(
-    service: &OaiService,
-    page: &RecordPage,
-    metadata_prefix: MetadataPrefix,
-) -> HandlerResult<String> {
-    let mut xml = String::from("<ListRecords>");
-    for work in &page.records {
-        xml.push_str(&render_record_xml(service, work, metadata_prefix).await?);
-    }
-    if page.terminal_resumption_token {
-        xml.push_str("<resumptionToken/>");
-    } else if let Some(token) = &page.next_token {
-        xml.push_str(&render_resumption_token(
-            token,
-            page.cursor,
-            page.complete_list_size,
-        ));
-    }
-    xml.push_str("</ListRecords>");
-    Ok(xml)
-}
-
-async fn render_record_xml(
-    service: &OaiService,
-    work: &thoth_client::Work,
-    metadata_prefix: MetadataPrefix,
-) -> HandlerResult<String> {
-    let metadata = match metadata_prefix {
-        MetadataPrefix::OaiDc => service
-            .get_oai_dc_record(work.work_id)
-            .await
-            .map_err(map_export_metadata_error(metadata_prefix))?,
-        MetadataPrefix::OaiOpenaire => service
-            .get_oai_openaire_record(work.work_id)
-            .await
-            .map_err(map_export_metadata_error(metadata_prefix))?,
-        MetadataPrefix::MarcXml => service
-            .get_marcxml_record(work.work_id)
-            .await
-            .map_err(map_export_metadata_error(metadata_prefix))?,
-    };
-
-    Ok(format!(
-        "<record>{}<metadata>{}</metadata></record>",
-        render_header_xml(work),
-        metadata
-    ))
-}
-
-fn render_header_xml(work: &thoth_client::Work) -> String {
-    let set_spec = OaiService::set_spec(&work.imprint.publisher.publisher_name);
-    format!(
-        "<header>\
-<identifier>{}</identifier>\
-<datestamp>{}</datestamp>\
-<setSpec>{}</setSpec>\
-</header>",
-        xml_escape(&OaiService::oai_identifier(work.work_id)),
-        xml_escape(&OaiService::timestamp_xml(work.updated_at_with_relations)),
-        xml_escape(&set_spec),
-    )
-}
-
-fn render_resumption_token(token: &str, cursor: i64, complete_list_size: Option<i64>) -> String {
-    if let Some(complete_list_size) = complete_list_size {
-        format!(
-            "<resumptionToken cursor=\"{}\" completeListSize=\"{}\">{}</resumptionToken>",
-            cursor,
-            complete_list_size,
-            xml_escape(token)
-        )
-    } else {
-        format!(
-            "<resumptionToken cursor=\"{}\">{}</resumptionToken>",
-            cursor,
-            xml_escape(token)
-        )
-    }
-}
-
-fn validate_list_verb(params: &HashMap<String, String>) -> HandlerResult<()> {
-    require_only(
-        params,
-        &[
-            "verb",
-            "metadataPrefix",
-            "set",
-            "resumptionToken",
-            "from",
-            "until",
-        ],
-    )
-}
-
-fn parse_list_token(
-    params: &HashMap<String, String>,
-    identifiers_only: bool,
-) -> HandlerResult<ParsedListRequest> {
-    if let Some(value) = params.get("resumptionToken") {
-        if params.len() != 2 {
-            return Err(
-                bad_argument("resumptionToken cannot be combined with other arguments").into(),
-            );
-        }
-        let mut token = OaiService::decode_resumption_token(value).map_err(|_| ProtocolError {
-            code: "badResumptionToken",
-            message: "Invalid resumptionToken".to_string(),
-        })?;
-        if token.identifiers_only != identifiers_only {
-            return Err(ProtocolError {
-                code: "badResumptionToken",
-                message: "resumptionToken does not match the request verb".to_string(),
-            }
-            .into());
-        }
-        let (from, until, granularity) = parse_datestamp_filter(
-            token.from.as_deref(),
-            token.until.as_deref(),
-            token.granularity,
-            true,
-        )?;
-        token.from = from;
-        token.until = until;
-        token.granularity = granularity;
-        if token.scan_offset.is_none() {
-            token.scan_offset = Some(token.offset);
-        }
-        if token.returned_count.is_none() {
-            token.returned_count = Some(token.offset);
-        }
-        return Ok(ParsedListRequest {
-            token,
-            resumed: true,
-        });
-    }
-
-    let metadata_prefix = params
-        .get("metadataPrefix")
-        .ok_or_else(|| bad_argument("Missing metadataPrefix parameter"))?;
-    let (from, until, granularity) = parse_datestamp_filter(
-        params.get("from").map(String::as_str),
-        params.get("until").map(String::as_str),
-        None,
-        false,
-    )?;
-    Ok(ParsedListRequest {
-        token: ResumptionToken {
-            offset: 0,
-            metadata_prefix: parse_metadata_prefix(metadata_prefix)?,
-            set: params.get("set").cloned(),
-            identifiers_only,
-            from,
-            until,
-            granularity,
-            scan_offset: Some(0),
-            returned_count: Some(0),
-        },
-        resumed: false,
-    })
-}
-
-fn parse_datestamp_filter(
-    from: Option<&str>,
-    until: Option<&str>,
-    expected_granularity: Option<DatestampGranularity>,
-    is_resumption_token: bool,
-) -> HandlerResult<(Option<String>, Option<String>, Option<DatestampGranularity>)> {
-    let parse_error = |message: &str| {
-        if is_resumption_token {
-            ProtocolError {
-                code: "badResumptionToken",
-                message: message.to_string(),
-            }
-        } else {
-            bad_argument(message)
-        }
-    };
-
-    let from_value = from
-        .map(|value| parse_datestamp_value(value, expected_granularity))
-        .transpose()
-        .map_err(|message| parse_error(&message))?;
-    let until_value = until
-        .map(|value| parse_datestamp_value(value, expected_granularity))
-        .transpose()
-        .map_err(|message| parse_error(&message))?;
-
-    let mut granularity = expected_granularity;
-    if let Some((value_granularity, _)) = from_value {
-        granularity = Some(value_granularity);
-    }
-    if let Some((value_granularity, _)) = until_value {
-        if let Some(existing) = granularity {
-            if existing != value_granularity {
-                return Err(
-                    parse_error("from and until must use the same datestamp granularity").into(),
-                );
-            }
-        } else {
-            granularity = Some(value_granularity);
-        }
-    }
-
-    let canonical_from = from_value.map(|(_, value)| value);
-    let canonical_until = until_value.map(|(_, value)| value);
-
-    if let (Some(from_value), Some(until_value), Some(granularity)) = (
-        canonical_from.as_deref(),
-        canonical_until.as_deref(),
-        granularity,
-    ) {
-        let ordered = match granularity {
-            DatestampGranularity::Day => from_value <= until_value,
-            DatestampGranularity::Second => {
-                let from = DateTime::parse_from_str(from_value, "%Y-%m-%dT%H:%M:%SZ")
-                    .map_err(|_| parse_error("Invalid from datestamp"))?;
-                let until = DateTime::parse_from_str(until_value, "%Y-%m-%dT%H:%M:%SZ")
-                    .map_err(|_| parse_error("Invalid until datestamp"))?;
-                from <= until
-            }
-        };
-        if !ordered {
-            return Err(parse_error("from datestamp must be less than or equal to until").into());
-        }
-    }
-
-    Ok((canonical_from, canonical_until, granularity))
-}
-
-fn parse_datestamp_value(
-    value: &str,
-    expected_granularity: Option<DatestampGranularity>,
-) -> Result<(DatestampGranularity, String), String> {
-    match expected_granularity {
-        Some(DatestampGranularity::Day) => NaiveDate::parse_from_str(value, "%Y-%m-%d")
-            .map(|date| {
-                (
-                    DatestampGranularity::Day,
-                    date.format("%Y-%m-%d").to_string(),
-                )
-            })
-            .map_err(|_| "Invalid day datestamp".to_string()),
-        Some(DatestampGranularity::Second) => {
-            let datetime = DateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%SZ")
-                .map_err(|_| "Invalid second datestamp".to_string())?;
-            Ok((
-                DatestampGranularity::Second,
-                datetime
-                    .with_timezone(&Utc)
-                    .format("%Y-%m-%dT%H:%M:%SZ")
-                    .to_string(),
-            ))
-        }
-        None => {
-            if let Ok(date) = NaiveDate::parse_from_str(value, "%Y-%m-%d") {
-                return Ok((
-                    DatestampGranularity::Day,
-                    date.format("%Y-%m-%d").to_string(),
-                ));
-            }
-            let datetime = DateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%SZ")
-                .map_err(|_| "Invalid datestamp".to_string())?;
-            Ok((
-                DatestampGranularity::Second,
-                datetime
-                    .with_timezone(&Utc)
-                    .format("%Y-%m-%dT%H:%M:%SZ")
-                    .to_string(),
-            ))
-        }
-    }
-}
-
-fn parse_metadata_prefix(value: &str) -> HandlerResult<MetadataPrefix> {
-    MetadataPrefix::try_from(value).map_err(|_| {
-        ProtocolError {
-            code: "cannotDisseminateFormat",
-            message: format!("Unsupported metadataPrefix {value}"),
-        }
-        .into()
-    })
-}
-
-fn parse_identifier_for_lookup(value: &str) -> HandlerResult<Uuid> {
-    OaiService::parse_oai_identifier(value).map_err(|_| {
-        ProtocolError {
-            code: "idDoesNotExist",
-            message: "The requested identifier does not exist".to_string(),
-        }
-        .into()
-    })
-}
-
-fn map_get_record_error(
-    metadata_prefix: MetadataPrefix,
-) -> impl Fn(ThothError) -> HandlerError + Copy {
-    move |error| match error {
-        ThothError::EntityNotFound => HandlerError::Protocol(ProtocolError {
-            code: "idDoesNotExist",
-            message: "The requested identifier does not exist".to_string(),
-        }),
-        ThothError::IncompleteMetadataRecord(_, _)
-        | ThothError::InvalidMetadataSpecification(_) => HandlerError::Protocol(ProtocolError {
-            code: "cannotDisseminateFormat",
-            message: format!(
-                "Record cannot be disseminated as {}",
-                metadata_prefix.as_str()
-            ),
-        }),
-        other => HandlerError::Internal(other),
-    }
-}
-
-fn map_export_metadata_error(
-    metadata_prefix: MetadataPrefix,
-) -> impl Fn(ThothError) -> HandlerError + Copy {
-    move |error| match error {
-        ThothError::RequestError(_) if is_transient_upstream_error(&error) => {
-            HandlerError::Internal(error)
-        }
-        _ => HandlerError::Protocol(ProtocolError {
-            code: "cannotDisseminateFormat",
-            message: format!(
-                "Record cannot be disseminated as {}",
-                metadata_prefix.as_str()
-            ),
-        }),
-    }
-}
-
-fn map_list_error(error: ThothError) -> HandlerError {
-    match error {
-        ThothError::EntityNotFound => no_records_match().into(),
-        ThothError::RequestError(message) if message.starts_with("badResumptionToken") => {
-            HandlerError::Protocol(ProtocolError {
-                code: "badResumptionToken",
-                message: "Invalid resumptionToken".to_string(),
-            })
-        }
-        other => HandlerError::Internal(other),
-    }
-}
-
-fn require_only(params: &HashMap<String, String>, allowed: &[&str]) -> HandlerResult<()> {
-    if params.keys().all(|key| allowed.contains(&key.as_str())) {
-        Ok(())
-    } else {
-        Err(bad_argument("The request included unsupported arguments").into())
-    }
-}
-
-fn bad_argument(message: &str) -> ProtocolError {
-    ProtocolError {
-        code: "badArgument",
-        message: message.to_string(),
-    }
-}
-
-fn bad_verb(message: &str) -> ProtocolError {
-    ProtocolError {
-        code: "badVerb",
-        message: message.to_string(),
-    }
-}
-
-fn no_records_match() -> ProtocolError {
-    ProtocolError {
-        code: "noRecordsMatch",
-        message: "The request matched no records".to_string(),
-    }
-}
-
-fn success_document(service: &OaiService, params: &HashMap<String, String>, body: &str) -> String {
-    format!(
-        "{}{}<OAI-PMH xmlns=\"http://www.openarchives.org/OAI/2.0/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.openarchives.org/OAI/2.0/ http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd\"><responseDate>{}</responseDate>{}{}</OAI-PMH>",
-        xml_declaration(),
-        stylesheet_pi(),
-        response_date(),
-        request_element(service, params, true),
-        body
-    )
-}
-
-fn error_document(
-    service: &OaiService,
-    params: &HashMap<String, String>,
-    code: &str,
-    message: &str,
-) -> String {
-    let include_attributes = !matches!(code, "badVerb" | "badArgument");
-    format!(
-        "{}{}<OAI-PMH xmlns=\"http://www.openarchives.org/OAI/2.0/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.openarchives.org/OAI/2.0/ http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd\"><responseDate>{}</responseDate>{}<error code=\"{}\">{}</error></OAI-PMH>",
-        xml_declaration(),
-        stylesheet_pi(),
-        response_date(),
-        request_element(service, params, include_attributes),
-        xml_escape(code),
-        xml_escape(message)
-    )
-}
-
-fn request_element(
-    service: &OaiService,
-    params: &HashMap<String, String>,
-    include_attributes: bool,
-) -> String {
-    let mut attrs = params.iter().collect::<Vec<_>>();
-    attrs.sort_by(|(left, _), (right, _)| left.cmp(right));
-    let mut element = String::from("<request");
-    if include_attributes {
-        for (key, value) in attrs {
-            element.push(' ');
-            element.push_str(key);
-            element.push_str("=\"");
-            element.push_str(&xml_escape(value));
-            element.push('"');
-        }
-    }
-    element.push('>');
-    element.push_str(&xml_escape(&service.repository_url()));
-    element.push_str("</request>");
-    element
-}
-
-fn response_date() -> String {
-    Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
-}
-
-fn xml_declaration() -> &'static str {
-    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-}
-
-fn stylesheet_pi() -> &'static str {
-    "\n<?xml-stylesheet type=\"text/xsl\" href=\"/oai2.xsl\"?>\n"
-}
-
-fn xml_escape(value: &str) -> String {
-    escape(value).into_owned()
-}
-
-fn push_text_element(xml: &mut String, name: &str, text: &str) {
-    xml.push('<');
-    xml.push_str(name);
-    xml.push('>');
-    xml.push_str(&xml_escape(text));
-    xml.push_str("</");
-    xml.push_str(name);
-    xml.push('>');
-}
-
-fn xml_response(request: &HttpRequest, body: String) -> HttpResponse {
-    if request_accepts_gzip(request) {
-        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        if encoder.write_all(body.as_bytes()).is_err() {
-            return HttpResponse::InternalServerError()
-                .content_type("text/plain; charset=utf-8")
-                .body("Internal Server Error");
-        }
-        match encoder.finish() {
-            Ok(compressed_body) => {
-                return HttpResponse::Ok()
-                    .insert_header((header::CONTENT_ENCODING, "gzip"))
-                    .content_type("text/xml; charset=utf-8")
-                    .body(compressed_body);
-            }
-            Err(_) => {
-                return HttpResponse::InternalServerError()
-                    .content_type("text/plain; charset=utf-8")
-                    .body("Internal Server Error");
-            }
-        }
-    }
-
-    HttpResponse::Ok()
-        .content_type("text/xml; charset=utf-8")
-        .body(body)
-}
-
-fn request_accepts_gzip(request: &HttpRequest) -> bool {
-    let Some(value) = request.headers().get(header::ACCEPT_ENCODING) else {
-        return false;
-    };
-    let Ok(value) = value.to_str() else {
-        return false;
-    };
-
-    value.split(',').any(|item| {
-        let mut parts = item.trim().split(';');
-        let coding = parts
-            .next()
-            .map(str::trim)
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-        if coding != "gzip" && coding != "*" {
-            return false;
-        }
-        let quality = parts
-            .map(str::trim)
-            .find_map(|part| part.strip_prefix("q="))
-            .and_then(|value| value.parse::<f32>().ok())
-            .unwrap_or(1.0);
-        quality > 0.0
-    })
 }
 
 #[actix_web::main]
@@ -1000,6 +403,9 @@ mod tests {
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
     use chrono::{Duration, NaiveDate};
     use flate2::read::GzDecoder;
+    use oai_pmh::core::{
+        decode_resumption_token, encode_resumption_token, DatestampGranularity, ResumptionToken,
+    };
     use serde_json::{json, Value};
     use std::{collections::HashSet, io::Read, net::TcpListener};
 
@@ -2215,8 +1621,8 @@ mod tests {
 
         let filtered_token =
             extract_resumption_token(&filtered_first_body).expect("filtered resumption token");
-        let decoded_filtered = OaiService::decode_resumption_token(&filtered_token)
-            .expect("decode filtered resumption token");
+        let decoded_filtered =
+            decode_resumption_token(&filtered_token).expect("decode filtered resumption token");
         assert_eq!(decoded_filtered.from.as_deref(), Some("2024-11-10"));
         assert_eq!(decoded_filtered.until.as_deref(), Some("2024-12-31"));
         assert_eq!(
@@ -2318,7 +1724,7 @@ mod tests {
         assert_eq!(count_occurrences(&second_body, "<header>"), 50);
         assert!(second_body.contains("<resumptionToken cursor=\"50\">"));
         let second_token = extract_resumption_token(&second_body).expect("second token");
-        let decoded_second = OaiService::decode_resumption_token(&second_token).unwrap();
+        let decoded_second = decode_resumption_token(&second_token).unwrap();
         assert_eq!(decoded_second.returned_count, Some(100));
 
         let third_req = test::TestRequest::get()
@@ -2365,7 +1771,7 @@ mod tests {
         assert_eq!(count_occurrences(&first_body, "<header>"), 50);
         assert!(!first_body.contains("<resumptionToken"));
 
-        let stale_token = OaiService::encode_resumption_token(ResumptionToken {
+        let stale_token = encode_resumption_token(ResumptionToken {
             offset: 50,
             metadata_prefix: MetadataPrefix::OaiDc,
             set: None,

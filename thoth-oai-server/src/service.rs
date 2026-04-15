@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-use chrono::{DateTime, NaiveDate, Utc};
+use oai_pmh::core::MetadataPrefix;
 use quick_xml::{events::Event, Reader, Writer};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
 use thoth_api::model::Timestamp;
 use thoth_client::{Publisher, QueryParameters, ThothClient, Work};
 use thoth_errors::{ThothError, ThothResult};
@@ -14,7 +12,9 @@ pub(crate) const RECORD_PREFIX: &str = "oai:thoth.pub";
 pub(crate) const REPOSITORY_NAME: &str = "Thoth OAI-PMH Repository";
 pub(crate) const ADMIN_EMAIL: &str = "support@thoth.pub";
 pub(crate) const SAMPLE_ID: &str = "5a08ff03-7d53-42a9-bfb5-7fc81c099c52";
+#[cfg(test)]
 pub(crate) const PAGE_LIMIT: i64 = 50;
+
 const OAI_DC_SPEC: &str = "dublin_core::thoth";
 const OAI_OPENAIRE_SPEC: &str = "openaire::thoth";
 const MARCXML_SPEC: &str = "marc21xml::thoth";
@@ -27,95 +27,11 @@ pub(crate) struct OaiService {
     export_client: Client,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) enum MetadataPrefix {
-    OaiDc,
-    OaiOpenaire,
-    MarcXml,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) enum DatestampGranularity {
-    Day,
-    Second,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct ResumptionToken {
-    pub offset: i64,
-    pub metadata_prefix: MetadataPrefix,
-    pub set: Option<String>,
-    pub identifiers_only: bool,
-    pub from: Option<String>,
-    pub until: Option<String>,
-    pub granularity: Option<DatestampGranularity>,
-    pub scan_offset: Option<i64>,
-    pub returned_count: Option<i64>,
-}
-
 #[derive(Debug, Clone)]
 pub(crate) struct SetRecord {
     pub publisher_id: Uuid,
     pub spec: String,
     pub name: String,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct RecordPage {
-    pub records: Vec<Work>,
-    pub cursor: i64,
-    pub complete_list_size: Option<i64>,
-    pub next_token: Option<String>,
-    pub terminal_resumption_token: bool,
-}
-
-#[derive(Debug, Clone)]
-struct DatestampBounds {
-    from: Option<Timestamp>,
-    until: Option<Timestamp>,
-}
-
-impl MetadataPrefix {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            MetadataPrefix::OaiDc => "oai_dc",
-            MetadataPrefix::OaiOpenaire => "oai_openaire",
-            MetadataPrefix::MarcXml => "marcxml",
-        }
-    }
-
-    pub fn schema(self) -> &'static str {
-        match self {
-            MetadataPrefix::OaiDc => "http://www.openarchives.org/OAI/2.0/oai_dc.xsd",
-            MetadataPrefix::OaiOpenaire => {
-                "https://www.openaire.eu/schema/repo-lit/4.0/openaire.xsd"
-            }
-            MetadataPrefix::MarcXml => {
-                "https://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd"
-            }
-        }
-    }
-
-    pub fn namespace(self) -> &'static str {
-        match self {
-            MetadataPrefix::OaiDc => "http://www.openarchives.org/OAI/2.0/oai_dc/",
-            MetadataPrefix::OaiOpenaire => "http://namespace.openaire.eu/schema/oaire/",
-            MetadataPrefix::MarcXml => "https://www.loc.gov/standards/marcxml/",
-        }
-    }
-}
-
-impl TryFrom<&str> for MetadataPrefix {
-    type Error = ThothError;
-
-    fn try_from(value: &str) -> ThothResult<Self> {
-        match value {
-            "oai_dc" => Ok(Self::OaiDc),
-            "oai_openaire" => Ok(Self::OaiOpenaire),
-            "marcxml" => Ok(Self::MarcXml),
-            other => Err(ThothError::InvalidMetadataSpecification(other.to_string())),
-        }
-    }
 }
 
 impl OaiService {
@@ -150,111 +66,41 @@ impl OaiService {
         identifier: Uuid,
         _metadata_prefix: MetadataPrefix,
     ) -> ThothResult<Work> {
-        let work = self
-            .thoth_client
+        self.thoth_client
             .get_work(identifier, Self::query_parameters())
-            .await?;
-        Ok(work)
+            .await
     }
 
-    pub(crate) async fn list_records(
+    pub(crate) async fn list_source_count(
         &self,
-        token: &ResumptionToken,
-        resumed: bool,
-    ) -> ThothResult<RecordPage> {
-        let set_record = self.find_set(token.set.as_deref()).await?;
-        let publishers = set_record
-            .as_ref()
-            .map(|set_record| vec![set_record.publisher_id]);
-        let bounds = Self::build_datestamp_bounds(token)?;
-        let date_filter_active = bounds.is_some();
-        let filtering_active = true;
-        let scan_offset = token.scan_offset.unwrap_or(token.offset);
-        let returned_count = token.returned_count.unwrap_or(token.offset);
-
-        let total = if token.metadata_prefix == MetadataPrefix::MarcXml {
-            self.thoth_client
-                .get_oai_book_count(publishers.clone())
-                .await?
+        metadata_prefix: MetadataPrefix,
+        set_spec: Option<&str>,
+    ) -> ThothResult<i64> {
+        let publishers = self.publishers_for_set(set_spec).await?;
+        if metadata_prefix == MetadataPrefix::MarcXml {
+            self.thoth_client.get_oai_book_count(publishers).await
         } else {
-            self.thoth_client
-                .get_oai_work_count(publishers.clone())
-                .await?
-        };
-
-        let mut records = Vec::new();
-        let mut raw_offset = scan_offset;
-        while raw_offset < total && records.len() < PAGE_LIMIT as usize {
-            let batch = self
-                .fetch_record_batch(token.metadata_prefix, publishers.clone(), raw_offset)
-                .await?;
-
-            if batch.is_empty() {
-                break;
-            }
-
-            let batch_len = batch.len() as i64;
-            let mut consumed = 0i64;
-            for work in batch {
-                consumed += 1;
-                if !self
-                    .matches_record(&work, token.metadata_prefix, bounds.as_ref())
-                    .await?
-                {
-                    continue;
-                }
-                records.push(work);
-                if records.len() == PAGE_LIMIT as usize {
-                    break;
-                }
-            }
-            raw_offset += consumed;
-            if consumed < batch_len {
-                break;
-            }
+            self.thoth_client.get_oai_work_count(publishers).await
         }
+    }
 
-        let has_next_page = if raw_offset < total && !records.is_empty() {
-            if filtering_active {
-                self.has_more_matching_records(
-                    token.metadata_prefix,
-                    publishers.clone(),
-                    raw_offset,
-                    total,
-                    bounds.as_ref(),
-                )
-                .await?
-            } else {
-                true
-            }
+    pub(crate) async fn list_source_batch(
+        &self,
+        metadata_prefix: MetadataPrefix,
+        set_spec: Option<&str>,
+        offset: i64,
+        limit: i64,
+    ) -> ThothResult<Vec<Work>> {
+        let publishers = self.publishers_for_set(set_spec).await?;
+        if metadata_prefix == MetadataPrefix::MarcXml {
+            self.thoth_client
+                .get_oai_books(publishers, limit, offset, Self::query_parameters())
+                .await
         } else {
-            false
-        };
-
-        let next_token = has_next_page.then(|| {
-            Self::encode_resumption_token(ResumptionToken {
-                offset: raw_offset,
-                metadata_prefix: token.metadata_prefix,
-                set: token.set.clone(),
-                identifiers_only: token.identifiers_only,
-                from: token.from.clone(),
-                until: token.until.clone(),
-                granularity: token.granularity,
-                scan_offset: Some(raw_offset),
-                returned_count: Some(returned_count + records.len() as i64),
-            })
-        });
-
-        let terminal_resumption_token = resumed && next_token.is_none();
-        Ok(RecordPage {
-            records,
-            cursor: returned_count,
-            complete_list_size: (!date_filter_active
-                && token.metadata_prefix != MetadataPrefix::MarcXml)
-                .then_some(total),
-            next_token,
-            terminal_resumption_token,
-        })
+            self.thoth_client
+                .get_oai_works(publishers, limit, offset, Self::query_parameters())
+                .await
+        }
     }
 
     pub(crate) async fn get_marcxml_record(&self, work_id: Uuid) -> ThothResult<String> {
@@ -263,7 +109,7 @@ impl OaiService {
     }
 
     pub(crate) async fn get_oai_dc_record(&self, work_id: Uuid) -> ThothResult<String> {
-        self.get_delegated_record(work_id, OAI_DC_SPEC, b"dc", "OAI-DC")
+        self.get_delegated_record(work_id, OAI_DC_SPEC, b"dc", "Dublin Core")
             .await
     }
 
@@ -336,18 +182,6 @@ impl OaiService {
             .and_then(|value| Uuid::parse_str(value).map_err(|_| ThothError::InvalidUuid))
     }
 
-    pub(crate) fn encode_resumption_token(token: ResumptionToken) -> String {
-        URL_SAFE_NO_PAD.encode(serde_json::to_vec(&token).expect("resumption token to serialize"))
-    }
-
-    pub(crate) fn decode_resumption_token(value: &str) -> ThothResult<ResumptionToken> {
-        let bytes = URL_SAFE_NO_PAD
-            .decode(value)
-            .map_err(|_| ThothError::RequestError("badResumptionToken".to_string()))?;
-        serde_json::from_slice(&bytes)
-            .map_err(|_| ThothError::RequestError("badResumptionToken".to_string()))
-    }
-
     pub(crate) fn timestamp_xml(timestamp: Timestamp) -> String {
         timestamp.to_rfc3339().replace("+00:00", "Z")
     }
@@ -376,6 +210,11 @@ impl OaiService {
             .with_references()
     }
 
+    async fn publishers_for_set(&self, set_spec: Option<&str>) -> ThothResult<Option<Vec<Uuid>>> {
+        let set = self.find_set(set_spec).await?;
+        Ok(set.map(|set_record| vec![set_record.publisher_id]))
+    }
+
     async fn find_set(&self, set_spec: Option<&str>) -> ThothResult<Option<SetRecord>> {
         let Some(set_spec) = set_spec else {
             return Ok(None);
@@ -389,10 +228,9 @@ impl OaiService {
     }
 
     fn to_set_record(publisher: Publisher) -> SetRecord {
-        let spec = Self::set_spec(&publisher.publisher_name);
         SetRecord {
             publisher_id: publisher.publisher_id,
-            spec,
+            spec: Self::set_spec(&publisher.publisher_name),
             name: publisher.publisher_name,
         }
     }
@@ -418,7 +256,7 @@ impl OaiService {
                             .write_event(Event::Start(event.to_owned()))
                             .map_err(|error| {
                                 ThothError::InternalError(format!(
-                                    "Could not write MARCXML: {error}"
+                                    "Could not write {format_name}: {error}"
                                 ))
                             })?;
                     } else if is_record {
@@ -428,7 +266,7 @@ impl OaiService {
                             .write_event(Event::Start(event.to_owned()))
                             .map_err(|error| {
                                 ThothError::InternalError(format!(
-                                    "Could not write MARCXML: {error}"
+                                    "Could not write {format_name}: {error}"
                                 ))
                             })?;
                     }
@@ -440,7 +278,7 @@ impl OaiService {
                             .write_event(Event::Empty(event.to_owned()))
                             .map_err(|error| {
                                 ThothError::InternalError(format!(
-                                    "Could not write MARCXML: {error}"
+                                    "Could not write {format_name}: {error}"
                                 ))
                             })?;
                         if is_record && !capturing {
@@ -458,7 +296,7 @@ impl OaiService {
                             .write_event(Event::End(event.to_owned()))
                             .map_err(|error| {
                                 ThothError::InternalError(format!(
-                                    "Could not write MARCXML: {error}"
+                                    "Could not write {format_name}: {error}"
                                 ))
                             })?;
                         capture_depth -= 1;
@@ -477,7 +315,7 @@ impl OaiService {
                             .write_event(Event::Text(event.to_owned()))
                             .map_err(|error| {
                                 ThothError::InternalError(format!(
-                                    "Could not write MARCXML: {error}"
+                                    "Could not write {format_name}: {error}"
                                 ))
                             })?;
                     }
@@ -488,7 +326,7 @@ impl OaiService {
                             .write_event(Event::CData(event.to_owned()))
                             .map_err(|error| {
                                 ThothError::InternalError(format!(
-                                    "Could not write MARCXML: {error}"
+                                    "Could not write {format_name}: {error}"
                                 ))
                             })?;
                     }
@@ -499,7 +337,7 @@ impl OaiService {
                             .write_event(Event::Comment(event.to_owned()))
                             .map_err(|error| {
                                 ThothError::InternalError(format!(
-                                    "Could not write MARCXML: {error}"
+                                    "Could not write {format_name}: {error}"
                                 ))
                             })?;
                     }
@@ -510,7 +348,7 @@ impl OaiService {
                             .write_event(Event::PI(event.to_owned()))
                             .map_err(|error| {
                                 ThothError::InternalError(format!(
-                                    "Could not write MARCXML: {error}"
+                                    "Could not write {format_name}: {error}"
                                 ))
                             })?;
                     }
@@ -528,141 +366,6 @@ impl OaiService {
                 }
             }
         }
-    }
-
-    async fn fetch_record_batch(
-        &self,
-        metadata_prefix: MetadataPrefix,
-        publishers: Option<Vec<Uuid>>,
-        raw_offset: i64,
-    ) -> ThothResult<Vec<Work>> {
-        if metadata_prefix == MetadataPrefix::MarcXml {
-            self.thoth_client
-                .get_oai_books(publishers, PAGE_LIMIT, raw_offset, Self::query_parameters())
-                .await
-        } else {
-            self.thoth_client
-                .get_oai_works(publishers, PAGE_LIMIT, raw_offset, Self::query_parameters())
-                .await
-        }
-    }
-
-    async fn matches_record(
-        &self,
-        work: &Work,
-        metadata_prefix: MetadataPrefix,
-        bounds: Option<&DatestampBounds>,
-    ) -> ThothResult<bool> {
-        if !Self::matches_datestamp_filter(work.updated_at_with_relations, bounds)? {
-            return Ok(false);
-        }
-        self.has_metadata_dissemination(work.work_id, metadata_prefix)
-            .await
-    }
-
-    async fn has_more_matching_records(
-        &self,
-        metadata_prefix: MetadataPrefix,
-        publishers: Option<Vec<Uuid>>,
-        mut raw_offset: i64,
-        total: i64,
-        bounds: Option<&DatestampBounds>,
-    ) -> ThothResult<bool> {
-        while raw_offset < total {
-            let batch = self
-                .fetch_record_batch(metadata_prefix, publishers.clone(), raw_offset)
-                .await?;
-
-            if batch.is_empty() {
-                break;
-            }
-
-            raw_offset += batch.len() as i64;
-            for work in batch {
-                if self.matches_record(&work, metadata_prefix, bounds).await? {
-                    return Ok(true);
-                }
-            }
-        }
-        Ok(false)
-    }
-
-    fn build_datestamp_bounds(token: &ResumptionToken) -> ThothResult<Option<DatestampBounds>> {
-        if token.from.is_none() && token.until.is_none() {
-            return Ok(None);
-        }
-
-        let granularity = token.granularity.ok_or_else(|| {
-            ThothError::RequestError("badResumptionToken: missing date granularity".to_string())
-        })?;
-
-        let from = token
-            .from
-            .as_deref()
-            .map(|value| Self::parse_datestamp_boundary(value, granularity, true))
-            .transpose()?;
-        let until = token
-            .until
-            .as_deref()
-            .map(|value| Self::parse_datestamp_boundary(value, granularity, false))
-            .transpose()?;
-
-        Ok(Some(DatestampBounds { from, until }))
-    }
-
-    fn parse_datestamp_boundary(
-        value: &str,
-        granularity: DatestampGranularity,
-        is_from: bool,
-    ) -> ThothResult<Timestamp> {
-        match granularity {
-            DatestampGranularity::Day => {
-                let date = NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|_| {
-                    ThothError::RequestError(
-                        "badResumptionToken: invalid day datestamp".to_string(),
-                    )
-                })?;
-                let value = if is_from {
-                    format!("{date}T00:00:00Z")
-                } else {
-                    format!("{date}T23:59:59Z")
-                };
-                Timestamp::parse_from_rfc3339(&value)
-            }
-            DatestampGranularity::Second => {
-                let datetime =
-                    DateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%SZ").map_err(|_| {
-                        ThothError::RequestError(
-                            "badResumptionToken: invalid second datestamp".to_string(),
-                        )
-                    })?;
-                let canonical = datetime
-                    .with_timezone(&Utc)
-                    .format("%Y-%m-%dT%H:%M:%SZ")
-                    .to_string();
-                Timestamp::parse_from_rfc3339(&canonical)
-            }
-        }
-    }
-
-    fn matches_datestamp_filter(
-        datestamp: Timestamp,
-        bounds: Option<&DatestampBounds>,
-    ) -> ThothResult<bool> {
-        let Some(bounds) = bounds else {
-            return Ok(true);
-        };
-        if let Some(from) = bounds.from {
-            if datestamp < from {
-                return Ok(false);
-            }
-        }
-        if let Some(until) = bounds.until {
-            if datestamp > until {
-                return Ok(false);
-            }
-        }
-        Ok(true)
     }
 
     fn is_transient_export_error(error: &ThothError) -> bool {
@@ -717,28 +420,6 @@ mod tests {
     }
 
     #[test]
-    fn resumption_token_round_trip() {
-        let token = ResumptionToken {
-            offset: 150,
-            metadata_prefix: MetadataPrefix::MarcXml,
-            set: Some("open-book-publishers".to_string()),
-            identifiers_only: true,
-            from: Some("2024-01-01".to_string()),
-            until: Some("2024-12-31".to_string()),
-            granularity: Some(DatestampGranularity::Day),
-            scan_offset: Some(200),
-            returned_count: Some(75),
-        };
-
-        let encoded = OaiService::encode_resumption_token(token.clone());
-
-        assert_eq!(
-            OaiService::decode_resumption_token(&encoded).unwrap(),
-            token
-        );
-    }
-
-    #[test]
     fn extract_xml_element_returns_record_element() {
         let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <collection xmlns="http://www.loc.gov/MARC21/slim">
@@ -761,25 +442,5 @@ mod tests {
             "oai:another.repo:5a08ff03-7d53-42a9-bfb5-7fc81c099c52"
         )
         .is_err());
-    }
-
-    #[test]
-    fn decode_legacy_resumption_token_without_new_fields() {
-        let legacy = URL_SAFE_NO_PAD.encode(
-            serde_json::to_vec(&serde_json::json!({
-                "offset": 100,
-                "metadata_prefix": "OaiDc",
-                "set": null,
-                "identifiers_only": false
-            }))
-            .unwrap(),
-        );
-        let token = OaiService::decode_resumption_token(&legacy).unwrap();
-        assert_eq!(token.offset, 100);
-        assert_eq!(token.scan_offset, None);
-        assert_eq!(token.returned_count, None);
-        assert_eq!(token.from, None);
-        assert_eq!(token.until, None);
-        assert_eq!(token.granularity, None);
     }
 }

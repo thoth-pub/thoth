@@ -3100,6 +3100,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "oai-pmh-rs"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34323bda5080698bb8595cf2019117a955ba8fdcb7fe8cf349d2ed4982b2957e"
+dependencies = [
+ "actix-web",
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "flate2",
+ "quick-xml 0.39.2",
+ "serde",
+ "serde_json",
+ "url",
+]
+
+[[package]]
 name = "oauth2"
 version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3805,6 +3822,15 @@ name = "quick-xml"
 version = "0.36.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7649a7b4df05aed9ea7ec6f628c67c9953a43869b8bc50929569b2999d443fe"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "quick-xml"
+version = "0.39.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "958f21e8e7ceb5a1aa7fa87fab28e7c75976e0bfe7e23ff069e0a260f894067d"
 dependencies = [
  "memchr",
 ]
@@ -5009,7 +5035,7 @@ dependencies = [
  "lazy_static",
  "log",
  "pulldown-cmark",
- "quick-xml",
+ "quick-xml 0.36.2",
  "rand 0.9.3",
  "regex",
  "scraper",
@@ -5094,7 +5120,7 @@ dependencies = [
  "log",
  "marc",
  "paperclip",
- "quick-xml",
+ "quick-xml 0.36.2",
  "regex",
  "serde",
  "serde_json",
@@ -5111,21 +5137,19 @@ version = "1.0.4"
 dependencies = [
  "actix-cors",
  "actix-web",
+ "async-trait",
  "base64 0.22.1",
  "chrono",
  "env_logger",
  "flate2",
- "log",
- "quick-xml",
+ "oai-pmh-rs",
+ "quick-xml 0.36.2",
  "reqwest",
- "serde",
  "serde_json",
  "thoth-api",
  "thoth-client",
  "thoth-errors",
- "url",
  "uuid",
- "xml-rs",
 ]
 
 [[package]]
