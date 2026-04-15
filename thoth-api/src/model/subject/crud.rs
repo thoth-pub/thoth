@@ -2,6 +2,7 @@ use super::{
     NewSubject, NewSubjectHistory, PatchSubject, Subject, SubjectField, SubjectHistory, SubjectType,
 };
 use crate::graphql::types::inputs::SubjectOrderBy;
+use crate::model::work::WorkStatus;
 use crate::model::{Crud, DbInsert, HistoryEntry, Reorder};
 use crate::schema::{subject, subject_history};
 use diesel::{
@@ -16,7 +17,7 @@ impl Crud for Subject {
     type PatchEntity = PatchSubject;
     type OrderByEntity = SubjectOrderBy;
     type FilterParameter1 = SubjectType;
-    type FilterParameter2 = ();
+    type FilterParameter2 = WorkStatus;
     type FilterParameter3 = ();
     type FilterParameter4 = ();
 
@@ -34,7 +35,7 @@ impl Crud for Subject {
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
         subject_types: Vec<Self::FilterParameter1>,
-        _: Vec<Self::FilterParameter2>,
+        work_statuses: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
         _: Option<Self::FilterParameter4>,
     ) -> ThothResult<Vec<Subject>> {
@@ -77,6 +78,9 @@ impl Crud for Subject {
         if !subject_types.is_empty() {
             query = query.filter(subject_type.eq_any(subject_types));
         }
+        if !work_statuses.is_empty() {
+            query = query.filter(crate::schema::work::work_status.eq_any(work_statuses));
+        }
         if let Some(filter) = filter {
             query = query.filter(subject_code.ilike(format!("%{filter}%")));
         }
@@ -93,15 +97,18 @@ impl Crud for Subject {
         filter: Option<String>,
         _: Vec<Uuid>,
         subject_types: Vec<Self::FilterParameter1>,
-        _: Vec<Self::FilterParameter2>,
+        work_statuses: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
         _: Option<Self::FilterParameter4>,
     ) -> ThothResult<i32> {
         use crate::schema::subject::dsl::*;
         let mut connection = db.get()?;
-        let mut query = subject.into_boxed();
+        let mut query = subject.inner_join(crate::schema::work::table).into_boxed();
         if !subject_types.is_empty() {
             query = query.filter(subject_type.eq_any(subject_types));
+        }
+        if !work_statuses.is_empty() {
+            query = query.filter(crate::schema::work::work_status.eq_any(work_statuses));
         }
         if let Some(filter) = filter {
             query = query.filter(subject_code.ilike(format!("%{filter}%")));

@@ -2008,6 +2008,136 @@ query Root(
 }
 
 #[test]
+fn graphql_subjects_and_subject_count_support_work_status_filters() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-subject-status-filters");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+
+    let publisher = create_with_data(
+        &schema,
+        &context,
+        "createPublisher",
+        "NewPublisher",
+        "publisherId",
+        make_new_publisher("org-subject-status-filters"),
+    );
+    let publisher_id = json_uuid(&publisher["publisherId"]);
+
+    let imprint = create_with_data(
+        &schema,
+        &context,
+        "createImprint",
+        "NewImprint",
+        "imprintId",
+        make_new_imprint(publisher_id),
+    );
+    let imprint_id = json_uuid(&imprint["imprintId"]);
+
+    let active_work = create_with_data(
+        &schema,
+        &context,
+        "createWork",
+        "NewWork",
+        "workId",
+        make_new_work(
+            imprint_id,
+            WorkType::Monograph,
+            Doi::from_str("10.1234/subjects-status-active").unwrap(),
+        ),
+    );
+    let active_work_id = json_uuid(&active_work["workId"]);
+
+    let mut forthcoming_work_input = make_new_work(
+        imprint_id,
+        WorkType::Monograph,
+        Doi::from_str("10.1234/subjects-status-forthcoming").unwrap(),
+    );
+    forthcoming_work_input.work_status = WorkStatus::Forthcoming;
+    forthcoming_work_input.publication_date = None;
+    let forthcoming_work = create_with_data(
+        &schema,
+        &context,
+        "createWork",
+        "NewWork",
+        "workId",
+        forthcoming_work_input,
+    );
+    let forthcoming_work_id = json_uuid(&forthcoming_work["workId"]);
+
+    let active_subject = create_with_data(
+        &schema,
+        &context,
+        "createSubject",
+        "NewSubject",
+        "subjectId",
+        make_new_subject(active_work_id, 1),
+    );
+    let active_subject_id = json_uuid(&active_subject["subjectId"]);
+
+    let forthcoming_subject = create_with_data(
+        &schema,
+        &context,
+        "createSubject",
+        "NewSubject",
+        "subjectId",
+        make_new_subject(forthcoming_work_id, 1),
+    );
+    let forthcoming_subject_id = json_uuid(&forthcoming_subject["subjectId"]);
+
+    let query_plural = r#"
+query SubjectsByStatuses($statuses: [WorkStatus!]) {
+  subjects(limit: 10, workStatuses: $statuses) { subjectId }
+  subjectCount(workStatuses: $statuses)
+}
+"#;
+    let mut plural_vars = Variables::new();
+    insert_var(&mut plural_vars, "statuses", vec![WorkStatus::Forthcoming]);
+    let plural_data = execute_graphql(&schema, &context, query_plural, Some(plural_vars));
+
+    let plural_subjects = plural_data["subjects"]
+        .as_array()
+        .expect("Expected subjects array");
+    assert_eq!(plural_subjects.len(), 1);
+    assert_eq!(
+        json_uuid(&plural_subjects[0]["subjectId"]),
+        forthcoming_subject_id
+    );
+    assert_eq!(plural_data["subjectCount"].as_i64(), Some(1));
+
+    let query_multiple_statuses = r#"
+query SubjectsByMultipleStatuses($statuses: [WorkStatus!]) {
+  subjects(limit: 10, workStatuses: $statuses) { subjectId }
+  subjectCount(workStatuses: $statuses)
+}
+"#;
+    let mut multiple_statuses_vars = Variables::new();
+    insert_var(
+        &mut multiple_statuses_vars,
+        "statuses",
+        vec![WorkStatus::Active, WorkStatus::Forthcoming],
+    );
+    let multiple_statuses_data = execute_graphql(
+        &schema,
+        &context,
+        query_multiple_statuses,
+        Some(multiple_statuses_vars),
+    );
+
+    let multiple_statuses_subjects = multiple_statuses_data["subjects"]
+        .as_array()
+        .expect("Expected subjects array");
+    let multiple_statuses_ids: Vec<Uuid> = multiple_statuses_subjects
+        .iter()
+        .map(|subject| json_uuid(&subject["subjectId"]))
+        .collect();
+    assert_eq!(multiple_statuses_ids.len(), 2);
+    assert!(multiple_statuses_ids.contains(&active_subject_id));
+    assert!(multiple_statuses_ids.contains(&forthcoming_subject_id));
+    assert_eq!(multiple_statuses_data["subjectCount"].as_i64(), Some(2));
+}
+
+#[test]
 fn graphql_books_order_respects_field_and_direction() {
     let (_guard, pool) = test_db::setup_test_db();
     let schema = create_schema();
