@@ -1,5 +1,4 @@
 ALTER TYPE file_type ADD VALUE IF NOT EXISTS 'accessibility_report';
-COMMIT;
 
 ALTER TABLE file DROP CONSTRAINT IF EXISTS file_type_check;
 ALTER TABLE file_upload DROP CONSTRAINT IF EXISTS file_upload_type_check;
