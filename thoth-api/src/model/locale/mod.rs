@@ -1972,6 +1972,13 @@ pub enum LocaleCode {
         graphql(description = "Valencian (Spain Catalan) (ca-ES-valencia)")
     )]
     CaEsValencia,
+    #[cfg_attr(feature = "backend", graphql(description = "Venda (ve)"))]
+    Ve,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "Venda (South Africa) (ve-ZA)")
+    )]
+    VeZa,
     #[cfg_attr(feature = "backend", graphql(description = "Vietnamese (vi)"))]
     Vi,
     #[cfg_attr(
@@ -2384,6 +2391,7 @@ impl From<LocaleCode> for LanguageCode {
             | LocaleCode::VaiLatnLr
             | LocaleCode::VaiVaii
             | LocaleCode::VaiVaiiLr => LanguageCode::Vai,
+            LocaleCode::Ve | LocaleCode::VeZa => LanguageCode::Ven,
             LocaleCode::Vi | LocaleCode::ViVn => LanguageCode::Vie,
             LocaleCode::Wo => LanguageCode::Wol,
             LocaleCode::Xh => LanguageCode::Xho,
