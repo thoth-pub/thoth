@@ -96,6 +96,10 @@ mod conversions {
         assert_eq!(lang, LanguageCode::Tib); // Tibetan
         let lang: LanguageCode = LocaleCode::Si.into();
         assert_eq!(lang, LanguageCode::Sin); // Sinhala
+        let lang: LanguageCode = LocaleCode::Ve.into();
+        assert_eq!(lang, LanguageCode::Ven); // Venda
+        let lang: LanguageCode = LocaleCode::VeZa.into();
+        assert_eq!(lang, LanguageCode::Ven); // Venda (South Africa)
     }
 
     #[test]

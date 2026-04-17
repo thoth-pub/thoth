@@ -117,9 +117,20 @@ impl MutationRoot {
     #[graphql(description = "Create a new series with the specified values")]
     fn create_series(
         context: &Context,
-        #[graphql(description = "Values for series to be created")] data: NewSeries,
+        #[graphql(description = "The markup format of the series description")]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(description = "Values for series to be created")] mut data: NewSeries,
     ) -> FieldResult<Series> {
         SeriesPolicy::can_create(context, &data, ())?;
+
+        let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        data.series_description = data
+            .series_description
+            .map(|series_description| {
+                convert_to_jats(series_description, markup, ConversionLimit::Abstract)
+            })
+            .transpose()?;
+
         Series::create(&context.db, &data).map_err(Into::into)
     }
 
@@ -466,10 +477,20 @@ impl MutationRoot {
     #[graphql(description = "Update an existing series with the specified values")]
     fn update_series(
         context: &Context,
-        #[graphql(description = "Values to apply to existing series")] data: PatchSeries,
+        #[graphql(description = "The markup format of the series description")]
+        markup_format: Option<MarkupFormat>,
+        #[graphql(description = "Values to apply to existing series")] mut data: PatchSeries,
     ) -> FieldResult<Series> {
         let series = context.load_current(&data.series_id)?;
         SeriesPolicy::can_update(context, &series, &data, ())?;
+
+        let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
+        data.series_description = data
+            .series_description
+            .map(|series_description| {
+                convert_to_jats(series_description, markup, ConversionLimit::Abstract)
+            })
+            .transpose()?;
 
         series.update(context, &data).map_err(Into::into)
     }
