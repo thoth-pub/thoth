@@ -120,7 +120,7 @@ impl TryFrom<Work> for KbartOclcRow {
         // but this is not guaranteed, so we select the highest-ranked contributor of the
         // appropriate contribution type who is listed as a "main" contributor.
         // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
-        contributions.sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
+        contributions.sort_by_key(|a| a.contribution_ordinal);
         for contribution in contributions {
             if contribution.main_contribution {
                 if work.work_type == WorkType::EDITED_BOOK {
