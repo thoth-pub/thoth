@@ -1509,8 +1509,11 @@ fn assert_series_resolvers(series: &Series, context: &Context) {
     assert_eq!(series.issn_digital(), series.issn_digital.as_ref());
     assert_eq!(series.series_url(), series.series_url.as_ref());
     assert_eq!(
-        series.series_description(),
-        series.series_description.as_ref()
+        series
+            .series_description(Some(MarkupFormat::JatsXml))
+            .unwrap()
+            .as_ref(),
+        series.series_description.as_ref(),
     );
     assert_eq!(series.series_cfp_url(), series.series_cfp_url.as_ref());
     assert_eq!(series.imprint_id(), series.imprint_id);
@@ -2367,6 +2370,80 @@ fn graphql_award_supports_role_prize_statement_and_new_fields() {
         .as_deref()
         .unwrap_or_default()
         .contains("<bold>"));
+}
+
+#[test]
+fn graphql_series_description_supports_markup_roundtrip() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-series-markup");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+
+    let series = create_with_data_and_markup(
+        &schema,
+        &context,
+        "createSeries",
+        "NewSeries",
+        "seriesId seriesDescription(markupFormat: PLAIN_TEXT)",
+        NewSeries {
+            series_type: SeriesType::Journal,
+            series_name: unique("Series"),
+            issn_print: None,
+            issn_digital: None,
+            series_url: Some("https://example.com/series".to_string()),
+            series_description: Some("**Initial** description".to_string()),
+            series_cfp_url: Some("https://example.com/cfp".to_string()),
+            imprint_id: seed.imprint_id,
+        },
+        MarkupFormat::Markdown,
+    );
+
+    assert_eq!(
+        series["seriesDescription"].as_str(),
+        Some("Initial description")
+    );
+
+    let series_id = json_uuid(&series["seriesId"]);
+    let stored = Series::from_id(pool.as_ref(), &series_id).expect("Failed to fetch series");
+    assert!(stored
+        .series_description
+        .as_deref()
+        .unwrap_or_default()
+        .contains("<bold>"));
+
+    let updated = update_with_data_and_markup(
+        &schema,
+        &context,
+        "updateSeries",
+        "PatchSeries",
+        "seriesId seriesDescription(markupFormat: PLAIN_TEXT)",
+        PatchSeries {
+            series_id,
+            series_type: stored.series_type,
+            series_name: stored.series_name.clone(),
+            issn_print: stored.issn_print.clone(),
+            issn_digital: stored.issn_digital.clone(),
+            series_url: stored.series_url.clone(),
+            series_description: Some("_Updated_ description".to_string()),
+            series_cfp_url: stored.series_cfp_url.clone(),
+            imprint_id: stored.imprint_id,
+        },
+        MarkupFormat::Markdown,
+    );
+
+    assert_eq!(
+        updated["seriesDescription"].as_str(),
+        Some("Updated description")
+    );
+
+    let updated_stored =
+        Series::from_id(pool.as_ref(), &series_id).expect("Failed to fetch series");
+    assert!(updated_stored
+        .series_description
+        .as_deref()
+        .unwrap_or_default()
+        .contains("<italic>"));
 }
 
 #[test]
