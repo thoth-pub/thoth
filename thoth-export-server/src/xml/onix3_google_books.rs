@@ -296,9 +296,8 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                         .any(|c| c.contribution_type.eq(&ContributionType::AUTHOR))
                     {
                         // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
-                        contributions
-                            .sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
-                        contributions.sort_by(|a, b| b.main_contribution.cmp(&a.main_contribution));
+                        contributions.sort_by_key(|a| a.contribution_ordinal);
+                        contributions.sort_by_key(|b| std::cmp::Reverse(b.main_contribution));
                         contributions[0].contribution_type = ContributionType::AUTHOR;
                     }
                     for contribution in &contributions {

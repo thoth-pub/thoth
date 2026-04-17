@@ -761,6 +761,8 @@ impl From<work_query::LocaleCode> for LocaleCode {
             work_query::LocaleCode::VAL => LocaleCode::Val,
             work_query::LocaleCode::VAL_ES => LocaleCode::ValEs,
             work_query::LocaleCode::CA_ES_VALENCIA => LocaleCode::CaEsValencia,
+            work_query::LocaleCode::VE => LocaleCode::Ve,
+            work_query::LocaleCode::VE_ZA => LocaleCode::VeZa,
             work_query::LocaleCode::VI => LocaleCode::Vi,
             work_query::LocaleCode::VI_VN => LocaleCode::ViVn,
             work_query::LocaleCode::VUN => LocaleCode::Vun,

@@ -123,7 +123,7 @@ impl TryFrom<Work> for BibtexThothEntry {
 
         let mut contributions = work.contributions;
         // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
-        contributions.sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
+        contributions.sort_by_key(|a| a.contribution_ordinal);
         let (author, editor) = extract_authors_and_editors(contributions)?;
 
         let shorttitle = work.titles[0]
