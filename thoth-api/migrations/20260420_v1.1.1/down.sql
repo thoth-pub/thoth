@@ -1,3 +1,6 @@
+DROP INDEX IF EXISTS file_accessibility_report_publication_unique_idx;
+DROP INDEX IF EXISTS file_upload_accessibility_report_publication_idx;
+
 ALTER TABLE file DROP CONSTRAINT IF EXISTS file_type_check;
 ALTER TABLE file_upload DROP CONSTRAINT IF EXISTS file_upload_type_check;
 

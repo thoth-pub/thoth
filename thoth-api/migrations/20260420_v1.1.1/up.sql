@@ -1,3 +1,6 @@
+CREATE UNIQUE INDEX file_accessibility_report_publication_unique_idx ON public.file USING btree (publication_id) WHERE (file_type = 'accessibility_report'::public.file_type);
+CREATE INDEX file_upload_accessibility_report_publication_idx ON public.file_upload USING btree (publication_id) WHERE (file_type = 'accessibility_report'::public.file_type);
+
 ALTER TABLE file DROP CONSTRAINT IF EXISTS file_type_check;
 ALTER TABLE file_upload DROP CONSTRAINT IF EXISTS file_upload_type_check;
 
