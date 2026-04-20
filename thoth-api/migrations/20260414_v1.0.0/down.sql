@@ -1,2 +1,1 @@
-BEGIN;
-COMMIT;
+SELECT 1;
