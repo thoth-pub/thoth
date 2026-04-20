@@ -138,7 +138,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
 
                 let mut chapters = self.relations.clone();
                 // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
-                chapters.sort_by(|a, b| a.relation_ordinal.cmp(&b.relation_ordinal));
+                chapters.sort_by_key(|a| a.relation_ordinal);
                 for chapter in chapters
                     .iter()
                     .filter(|r| r.relation_type == RelationType::HAS_CHILD)

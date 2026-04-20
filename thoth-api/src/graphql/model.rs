@@ -1719,8 +1719,25 @@ impl Series {
     }
 
     #[graphql(description = "Description of the series")]
-    pub fn series_description(&self) -> Option<&String> {
-        self.series_description.as_ref()
+    pub fn series_description(
+        &self,
+        #[graphql(
+            default = MarkupFormat::JatsXml,
+            description = "Markup format used for rendering series description",
+        )]
+        markup_format: Option<MarkupFormat>,
+    ) -> FieldResult<Option<String>> {
+        self.series_description
+            .as_ref()
+            .map(|series_description| {
+                convert_from_jats(
+                    series_description,
+                    markup_format.ok_or(ThothError::MissingMarkupFormat)?,
+                    ConversionLimit::Abstract,
+                )
+            })
+            .transpose()
+            .map_err(Into::into)
     }
 
     #[graphql(description = "URL of the series' call for proposals page")]

@@ -1768,16 +1768,10 @@ mod tests {
         // Check that we have a SmallCaps node somewhere in the AST
         fn find_small_caps(node: &Node) -> bool {
             match node {
-                Node::SmallCaps(children) => {
-                    if children.len() == 1 {
-                        match &children[0] {
-                            Node::Text(content) => content == "Small caps text",
-                            _ => false,
-                        }
-                    } else {
-                        false
-                    }
-                }
+                Node::SmallCaps(children) => match children.as_slice() {
+                    [Node::Text(content)] => content == "Small caps text",
+                    _ => false,
+                },
                 Node::Document(children) | Node::Paragraph(children) => {
                     children.iter().any(find_small_caps)
                 }
