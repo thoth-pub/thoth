@@ -1,3 +1,4 @@
+use crate::model::file::File;
 use crate::model::work::{NewWork, PatchWork, Work, WorkProperties, WorkType};
 use crate::policy::{CreatePolicy, DeletePolicy, PolicyContext, UpdatePolicy, UserAccess};
 use thoth_errors::{ThothError, ThothResult};
@@ -7,7 +8,17 @@ use thoth_errors::{ThothError, ThothResult};
 /// This policy layer enforces:
 /// - authentication
 /// - publisher membership derived from the entity / input via `PublisherId`
+/// - preventing manual update of auto-generated Thoth Hosting URLs
 pub struct WorkPolicy;
+
+fn ensure_no_hosted_file(db: &crate::db::PgPool, work_id: uuid::Uuid) -> ThothResult<()> {
+    let file = File::from_work_id(db, &work_id)?;
+    if file.is_some() {
+        Err(ThothError::HostedFileUrlEditError)
+    } else {
+        Ok(())
+    }
+}
 
 impl CreatePolicy<NewWork> for WorkPolicy {
     fn can_create<C: PolicyContext>(ctx: &C, data: &NewWork, _params: ()) -> ThothResult<()> {
@@ -39,6 +50,10 @@ impl UpdatePolicy<Work, PatchWork> for WorkPolicy {
             || patch.withdrawn_date != current.withdrawn_date
         {
             ctx.require_work_lifecycle_for(patch)?;
+        }
+
+        if patch.cover_url != current.cover_url {
+            ensure_no_hosted_file(ctx.db(), current.work_id)?;
         }
 
         patch.validate()?;

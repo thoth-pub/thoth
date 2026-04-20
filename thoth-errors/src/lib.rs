@@ -164,6 +164,8 @@ pub enum ThothError {
     WorkFeaturedVideoFileUploadMissingWorkFeaturedVideoId,
     #[error("Accessibility report file upload missing publication_id")]
     AccessibilityReportFileUploadMissingPublicationId,
+    #[error("URLs of uploaded files cannot be overwritten.")]
+    HostedFileUrlEditError,
 }
 
 impl ThothError {
