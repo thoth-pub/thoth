@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
   - Upgrade `openssl` to v0.10.78
+  - Upgrade `actix-http` to v3.12.1
+  - Upgrade `rustls-webpki` to v0.103.12
+  - Upgrade `rand` to v0.8.6
 
 ## [[1.1.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.1.0) - 2026-04-17
 ### Added
