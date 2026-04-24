@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+  - Upgrade `openssl` to v0.10.78
+
 ## [[1.1.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.1.0) - 2026-04-17
 ### Added
   - [745](https://github.com/thoth-pub/thoth/pull/745) - Add Venda locale support for titles/books with `ve` and `ve-ZA`
