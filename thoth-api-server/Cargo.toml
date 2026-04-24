@@ -13,7 +13,7 @@ thoth-api = { version = "=1.1.0", path = "../thoth-api", features = ["backend"] 
 thoth-errors = { version = "=1.1.0", path = "../thoth-errors" }
 actix-web = "4.10"
 actix-cors = "0.7.1"
-actix-http = "3.10.0"
+actix-http = "3.12.1"
 base64 = "0.22.1"
 env_logger = "0.11.7"
 futures-util = "0.3.31"
