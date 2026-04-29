@@ -39,6 +39,11 @@ impl CreatePolicy<NewLocation> for LocationPolicy {
             return Err(ThothError::ThothLocationError);
         }
 
+        // Only superusers can add a checksum.
+        if !user.is_superuser() && data.checksum.is_some() {
+            return Err(ThothError::CreateLocationChecksumError);
+        }
+
         // Canonical locations must be complete; non-canonical locations must satisfy rules.
         if data.canonical {
             data.canonical_record_complete(ctx.db())?;
@@ -72,6 +77,17 @@ impl UpdatePolicy<Location, PatchLocation> for LocationPolicy {
             && !user.is_superuser()
         {
             return Err(ThothError::ThothUpdateCanonicalError);
+        }
+
+        // Only superusers can add a checksum.
+        if current.checksum.is_none() && patch.checksum.is_some() && !user.is_superuser() {
+            return Err(ThothError::UpdateLocationChecksumError);
+        }
+
+        // Only superusers can update or delete an existing checksum.
+        if current.checksum.is_some() && current.checksum != patch.checksum && !user.is_superuser()
+        {
+            return Err(ThothError::UpdateLocationChecksumError);
         }
 
         // If setting canonical to true, require record completeness.

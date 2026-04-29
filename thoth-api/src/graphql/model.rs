@@ -1916,6 +1916,11 @@ impl Location {
         self.canonical
     }
 
+    #[graphql(description = "Checksum of the full text file as returned by the platform")]
+    pub fn checksum(&self) -> Option<&String> {
+        self.checksum.as_ref()
+    }
+
     #[graphql(description = "Date and time at which the location record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at

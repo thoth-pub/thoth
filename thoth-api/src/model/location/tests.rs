@@ -142,6 +142,7 @@ mod conversions {
             created_at: Default::default(),
             updated_at: Default::default(),
             canonical: true,
+            checksum: Some("examplechecksum".to_string()),
         };
 
         let patch_location = PatchLocation::from(location.clone());
@@ -152,6 +153,7 @@ mod conversions {
         assert_eq!(patch_location.full_text_url, location.full_text_url);
         assert_eq!(patch_location.location_platform, location.location_platform);
         assert_eq!(patch_location.canonical, location.canonical);
+        assert_eq!(patch_location.checksum, location.checksum);
     }
 
     #[cfg(feature = "backend")]
@@ -232,6 +234,7 @@ mod policy {
             full_text_url: None,
             location_platform: LocationPlatform::PublisherWebsite,
             canonical: true,
+            checksum: None,
         };
 
         let location = Location::create(pool.as_ref(), &new_location).expect("Failed to create");
@@ -242,6 +245,7 @@ mod policy {
             full_text_url: None,
             location_platform: location.location_platform,
             canonical: location.canonical,
+            checksum: location.checksum.clone(),
         };
 
         assert!(LocationPolicy::can_create(&ctx, &new_location, ()).is_ok());
@@ -293,6 +297,7 @@ mod policy {
                 full_text_url: None,
                 location_platform: LocationPlatform::PublisherWebsite,
                 canonical: false,
+                checksum: None,
             },
         )
         .expect("Failed to create location");
@@ -304,6 +309,7 @@ mod policy {
             full_text_url: None,
             location_platform: location.location_platform,
             canonical: true,
+            checksum: location.checksum.clone(),
         };
 
         let result = LocationPolicy::can_update(&ctx, &location, &patch, ());
@@ -334,6 +340,7 @@ mod policy {
                 full_text_url: None,
                 location_platform: LocationPlatform::PublisherWebsite,
                 canonical: true,
+                checksum: None,
             },
         )
         .expect("Failed to create location");
@@ -345,6 +352,7 @@ mod policy {
             full_text_url: location.full_text_url.clone(),
             location_platform: location.location_platform,
             canonical: false,
+            checksum: location.checksum.clone(),
         };
 
         assert!(LocationPolicy::can_update(&ctx, &location, &patch, ()).is_ok());
@@ -374,6 +382,7 @@ mod policy {
                 full_text_url: None,
                 location_platform: LocationPlatform::PublisherWebsite,
                 canonical: true,
+                checksum: None,
             },
         )
         .expect("Failed to create canonical location");
@@ -384,6 +393,7 @@ mod policy {
             full_text_url: None,
             location_platform: LocationPlatform::PublisherWebsite,
             canonical: false,
+            checksum: None,
         };
 
         assert!(LocationPolicy::can_create(&ctx, &new_location, ()).is_ok());
@@ -411,6 +421,7 @@ mod policy {
             full_text_url: None,
             location_platform: LocationPlatform::PublisherWebsite,
             canonical: false,
+            checksum: None,
         };
 
         let result = LocationPolicy::can_create(&ctx, &new_location, ());
@@ -438,6 +449,7 @@ mod policy {
             full_text_url: Some("https://example.com/full".to_string()),
             location_platform: LocationPlatform::Thoth,
             canonical: true,
+            checksum: None,
         };
 
         assert!(LocationPolicy::can_create(&ctx, &new_location, ()).is_err());
@@ -470,6 +482,7 @@ mod policy {
                 full_text_url: Some("https://example.com/full".to_string()),
                 location_platform: LocationPlatform::Thoth,
                 canonical: true,
+                checksum: None,
             },
         )
         .expect("Failed to create location");
@@ -481,6 +494,7 @@ mod policy {
             full_text_url: Some("https://example.com/full.pdf".to_string()),
             location_platform: location.location_platform,
             canonical: location.canonical,
+            checksum: location.checksum.clone(),
         };
 
         let update_result = LocationPolicy::can_update(&ctx, &location, &patch, ());
@@ -514,6 +528,7 @@ mod policy {
                 full_text_url: Some("https://example.com/full".to_string()),
                 location_platform: LocationPlatform::Thoth,
                 canonical: true,
+                checksum: None,
             },
         )
         .expect("Failed to create canonical thoth location");
@@ -526,6 +541,7 @@ mod policy {
                 full_text_url: None,
                 location_platform: LocationPlatform::PublisherWebsite,
                 canonical: false,
+                checksum: None,
             },
         )
         .expect("Failed to create location");
@@ -537,10 +553,97 @@ mod policy {
             full_text_url: location.full_text_url.clone(),
             location_platform: location.location_platform,
             canonical: true,
+            checksum: location.checksum.clone(),
         };
 
         let result = LocationPolicy::can_update(&ctx, &location, &patch, ());
         assert!(matches!(result, Err(ThothError::ThothUpdateCanonicalError)));
+    }
+
+    #[test]
+    fn crud_policy_rejects_non_superuser_checksum_create() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("location-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_publication(pool.as_ref(), &work);
+
+        let new_location = NewLocation {
+            publication_id: publication.publication_id,
+            landing_page: Some("https://example.com/landing".to_string()),
+            full_text_url: Some("https://example.com/full".to_string()),
+            location_platform: LocationPlatform::Other,
+            canonical: false,
+            checksum: Some("examplechecksum".to_string()),
+        };
+
+        let result = LocationPolicy::can_create(&ctx, &new_location, ());
+        assert!(matches!(
+            result,
+            Err(ThothError::CreateLocationChecksumError)
+        ));
+
+        let superuser = test_superuser("location-superuser");
+        let super_ctx = test_context_with_user(pool.clone(), superuser);
+        assert!(LocationPolicy::can_create(&super_ctx, &new_location, ()).is_ok());
+    }
+
+    #[test]
+    fn crud_policy_rejects_non_superuser_checksum_update() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("location-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_publication(pool.as_ref(), &work);
+
+        let location = Location::create(
+            pool.as_ref(),
+            &NewLocation {
+                publication_id: publication.publication_id,
+                landing_page: Some("https://example.com/landing".to_string()),
+                full_text_url: Some("https://example.com/full".to_string()),
+                location_platform: LocationPlatform::Other,
+                canonical: false,
+                checksum: Some("examplechecksum".to_string()),
+            },
+        )
+        .expect("Failed to create location");
+
+        let patch = PatchLocation {
+            location_id: location.location_id,
+            publication_id: location.publication_id,
+            landing_page: location.landing_page.clone(),
+            full_text_url: location.full_text_url.clone(),
+            location_platform: location.location_platform,
+            canonical: location.canonical,
+            checksum: Some("updatedchecksum".to_string()),
+        };
+
+        let result = LocationPolicy::can_update(&ctx, &location, &patch, ());
+        assert!(matches!(
+            result,
+            Err(ThothError::UpdateLocationChecksumError)
+        ));
+
+        let superuser = test_superuser("location-superuser");
+        let super_ctx = test_context_with_user(pool.clone(), superuser);
+        assert!(LocationPolicy::can_update(&super_ctx, &location, &patch, ()).is_ok());
     }
 }
 
@@ -563,6 +666,7 @@ mod crud {
         location_platform: LocationPlatform,
         canonical: bool,
         landing_page: Option<String>,
+        checksum: Option<String>,
     ) -> Location {
         let new_location = NewLocation {
             publication_id,
@@ -570,6 +674,7 @@ mod crud {
             full_text_url: None,
             location_platform,
             canonical,
+            checksum,
         };
 
         Location::create(pool, &new_location).expect("Failed to create location")
@@ -590,6 +695,7 @@ mod crud {
             full_text_url: None,
             location_platform: LocationPlatform::PublisherWebsite,
             canonical: true,
+            checksum: None,
         };
 
         let location = Location::create(pool.as_ref(), &new_location).expect("Failed to create");
@@ -604,6 +710,7 @@ mod crud {
             full_text_url: Some("https://example.com/full.pdf".to_string()),
             location_platform: LocationPlatform::Other,
             canonical: true,
+            checksum: location.checksum.clone(),
         };
 
         let ctx = test_context(pool.clone(), "test-user");
@@ -629,6 +736,7 @@ mod crud {
             LocationPlatform::PublisherWebsite,
             true,
             Some("https://example.com/landing".to_string()),
+            None,
         );
         let patch = PatchLocation {
             location_id: location.location_id,
@@ -637,6 +745,7 @@ mod crud {
             full_text_url: location.full_text_url.clone(),
             location_platform: location.location_platform,
             canonical: false,
+            checksum: location.checksum.clone(),
         };
 
         let ctx = test_context(pool.clone(), "test-user");
@@ -659,6 +768,7 @@ mod crud {
             LocationPlatform::PublisherWebsite,
             true,
             Some("https://example.com/canonical".to_string()),
+            None,
         );
         let non_canonical = make_location(
             pool.as_ref(),
@@ -666,6 +776,7 @@ mod crud {
             LocationPlatform::Other,
             false,
             Some("https://example.com/other".to_string()),
+            None,
         );
 
         let patch = PatchLocation {
@@ -675,6 +786,7 @@ mod crud {
             full_text_url: non_canonical.full_text_url.clone(),
             location_platform: non_canonical.location_platform,
             canonical: true,
+            checksum: non_canonical.checksum.clone(),
         };
 
         let ctx = test_context(pool.clone(), "test-user");
@@ -709,6 +821,7 @@ mod crud {
             full_text_url: None,
             location_platform: LocationPlatform::PublisherWebsite,
             canonical: false,
+            checksum: None,
         };
 
         let result = new_location.can_be_non_canonical(pool.as_ref());
@@ -732,6 +845,7 @@ mod crud {
                 full_text_url: Some("https://example.com/full.pdf".to_string()),
                 location_platform: LocationPlatform::PublisherWebsite,
                 canonical: true,
+                checksum: None,
             },
         )
         .expect("Failed to create canonical location");
@@ -742,6 +856,7 @@ mod crud {
             full_text_url: None,
             location_platform: LocationPlatform::Other,
             canonical: false,
+            checksum: None,
         };
 
         assert!(new_location.can_be_non_canonical(pool.as_ref()).is_ok());
@@ -783,6 +898,7 @@ mod crud {
             full_text_url: None,
             location_platform: LocationPlatform::PublisherWebsite,
             canonical: true,
+            checksum: None,
         };
 
         let result = new_location.canonical_record_complete(pool.as_ref());
@@ -804,6 +920,7 @@ mod crud {
             LocationPlatform::PublisherWebsite,
             true,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
         make_location(
             pool.as_ref(),
@@ -811,6 +928,7 @@ mod crud {
             LocationPlatform::Other,
             false,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
 
         let order = LocationOrderBy {
@@ -872,6 +990,7 @@ mod crud {
             LocationPlatform::PublisherWebsite,
             true,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
         make_location(
             pool.as_ref(),
@@ -879,6 +998,7 @@ mod crud {
             LocationPlatform::Other,
             false,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
 
         let count = Location::count(pool.as_ref(), None, vec![], vec![], vec![], None, None)
@@ -901,6 +1021,7 @@ mod crud {
             LocationPlatform::PublisherWebsite,
             true,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
         make_location(
             pool.as_ref(),
@@ -908,6 +1029,7 @@ mod crud {
             LocationPlatform::Other,
             false,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
 
         let count = Location::count(
@@ -938,6 +1060,7 @@ mod crud {
             LocationPlatform::PublisherWebsite,
             true,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
         make_location(
             pool.as_ref(),
@@ -945,6 +1068,7 @@ mod crud {
             LocationPlatform::Other,
             false,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
 
         let filtered = Location::all(
@@ -987,6 +1111,7 @@ mod crud {
             LocationPlatform::PublisherWebsite,
             true,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
         make_location(
             pool.as_ref(),
@@ -994,6 +1119,7 @@ mod crud {
             LocationPlatform::Other,
             false,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
 
         let filtered = Location::all(
@@ -1033,6 +1159,7 @@ mod crud {
             LocationPlatform::PublisherWebsite,
             true,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
 
         let other_publisher = create_publisher(pool.as_ref());
@@ -1045,6 +1172,7 @@ mod crud {
             LocationPlatform::Other,
             false,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
 
         let filtered = Location::all(
@@ -1085,6 +1213,7 @@ mod crud {
             LocationPlatform::PublisherWebsite,
             true,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
         let second = make_location(
             pool.as_ref(),
@@ -1092,6 +1221,7 @@ mod crud {
             LocationPlatform::Other,
             false,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
         let mut ids = [first.location_id, second.location_id];
         ids.sort();
@@ -1153,6 +1283,7 @@ mod crud {
             LocationPlatform::PublisherWebsite,
             true,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
         make_location(
             pool.as_ref(),
@@ -1160,6 +1291,7 @@ mod crud {
             LocationPlatform::Other,
             false,
             Some(format!("https://example.com/{}", Uuid::new_v4())),
+            None,
         );
 
         let fields: Vec<fn() -> LocationField> = vec![
