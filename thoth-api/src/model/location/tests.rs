@@ -581,7 +581,7 @@ mod policy {
             landing_page: Some("https://example.com/landing".to_string()),
             full_text_url: Some("https://example.com/full".to_string()),
             location_platform: LocationPlatform::Other,
-            canonical: false,
+            canonical: true,
             checksum: Some("examplechecksum".to_string()),
         };
 
