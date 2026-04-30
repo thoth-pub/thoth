@@ -85,7 +85,10 @@ impl UpdatePolicy<Location, PatchLocation> for LocationPolicy {
         }
 
         // Only superusers can update or delete an existing checksum.
-        if current.checksum.is_some() && current.checksum != patch.checksum && !user.is_superuser()
+        if ((current.checksum.is_some() && current.checksum != patch.checksum)
+            || (current.checksum_algorithm.is_some()
+                && current.checksum_algorithm != patch.checksum_algorithm))
+            && !user.is_superuser()
         {
             return Err(ThothError::UpdateLocationChecksumError);
         }
