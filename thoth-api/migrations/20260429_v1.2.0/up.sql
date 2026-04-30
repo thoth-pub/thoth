@@ -1,2 +1,2 @@
 ALTER TABLE public.location
-    ADD COLUMN checksum TEXT;
+    ADD COLUMN sha256 TEXT;
