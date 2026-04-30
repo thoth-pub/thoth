@@ -165,7 +165,7 @@ pub enum LocationField {
     FullTextUrl,
     LocationPlatform,
     Canonical,
-    Sha256,
+    Checksum,
     CreatedAt,
     UpdatedAt,
 }
@@ -180,7 +180,7 @@ pub struct Location {
     pub full_text_url: Option<String>,
     pub location_platform: LocationPlatform,
     pub canonical: bool,
-    pub sha256: Option<String>,
+    pub checksum: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
 }
@@ -197,7 +197,7 @@ pub struct NewLocation {
     pub full_text_url: Option<String>,
     pub location_platform: LocationPlatform,
     pub canonical: bool,
-    pub sha256: Option<String>,
+    pub checksum: Option<String>,
 }
 
 #[cfg_attr(
@@ -213,7 +213,7 @@ pub struct PatchLocation {
     pub full_text_url: Option<String>,
     pub location_platform: LocationPlatform,
     pub canonical: bool,
-    pub sha256: Option<String>,
+    pub checksum: Option<String>,
 }
 
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]
@@ -264,7 +264,7 @@ impl From<Location> for PatchLocation {
             full_text_url: location.full_text_url,
             location_platform: location.location_platform,
             canonical: location.canonical,
-            sha256: location.sha256,
+            checksum: location.checksum,
         }
     }
 }

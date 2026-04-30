@@ -142,7 +142,7 @@ mod conversions {
             created_at: Default::default(),
             updated_at: Default::default(),
             canonical: true,
-            sha256: Some("examplesha256".to_string()),
+            checksum: Some("examplechecksum".to_string()),
         };
 
         let patch_location = PatchLocation::from(location.clone());
@@ -153,7 +153,7 @@ mod conversions {
         assert_eq!(patch_location.full_text_url, location.full_text_url);
         assert_eq!(patch_location.location_platform, location.location_platform);
         assert_eq!(patch_location.canonical, location.canonical);
-        assert_eq!(patch_location.sha256, location.sha256);
+        assert_eq!(patch_location.checksum, location.checksum);
     }
 
     #[cfg(feature = "backend")]
@@ -234,7 +234,7 @@ mod policy {
             full_text_url: None,
             location_platform: LocationPlatform::PublisherWebsite,
             canonical: true,
-            sha256: None,
+            checksum: None,
         };
 
         let location = Location::create(pool.as_ref(), &new_location).expect("Failed to create");
@@ -245,7 +245,7 @@ mod policy {
             full_text_url: None,
             location_platform: location.location_platform,
             canonical: location.canonical,
-            sha256: location.sha256.clone(),
+            checksum: location.checksum.clone(),
         };
 
         assert!(LocationPolicy::can_create(&ctx, &new_location, ()).is_ok());
@@ -297,7 +297,7 @@ mod policy {
                 full_text_url: None,
                 location_platform: LocationPlatform::PublisherWebsite,
                 canonical: false,
-                sha256: None,
+                checksum: None,
             },
         )
         .expect("Failed to create location");
@@ -309,7 +309,7 @@ mod policy {
             full_text_url: None,
             location_platform: location.location_platform,
             canonical: true,
-            sha256: location.sha256.clone(),
+            checksum: location.checksum.clone(),
         };
 
         let result = LocationPolicy::can_update(&ctx, &location, &patch, ());
@@ -340,7 +340,7 @@ mod policy {
                 full_text_url: None,
                 location_platform: LocationPlatform::PublisherWebsite,
                 canonical: true,
-                sha256: None,
+                checksum: None,
             },
         )
         .expect("Failed to create location");
@@ -352,7 +352,7 @@ mod policy {
             full_text_url: location.full_text_url.clone(),
             location_platform: location.location_platform,
             canonical: false,
-            sha256: location.sha256.clone(),
+            checksum: location.checksum.clone(),
         };
 
         assert!(LocationPolicy::can_update(&ctx, &location, &patch, ()).is_ok());
@@ -382,7 +382,7 @@ mod policy {
                 full_text_url: None,
                 location_platform: LocationPlatform::PublisherWebsite,
                 canonical: true,
-                sha256: None,
+                checksum: None,
             },
         )
         .expect("Failed to create canonical location");
@@ -393,7 +393,7 @@ mod policy {
             full_text_url: None,
             location_platform: LocationPlatform::PublisherWebsite,
             canonical: false,
-            sha256: None,
+            checksum: None,
         };
 
         assert!(LocationPolicy::can_create(&ctx, &new_location, ()).is_ok());
@@ -421,7 +421,7 @@ mod policy {
             full_text_url: None,
             location_platform: LocationPlatform::PublisherWebsite,
             canonical: false,
-            sha256: None,
+            checksum: None,
         };
 
         let result = LocationPolicy::can_create(&ctx, &new_location, ());
@@ -449,7 +449,7 @@ mod policy {
             full_text_url: Some("https://example.com/full".to_string()),
             location_platform: LocationPlatform::Thoth,
             canonical: true,
-            sha256: None,
+            checksum: None,
         };
 
         assert!(LocationPolicy::can_create(&ctx, &new_location, ()).is_err());
@@ -482,7 +482,7 @@ mod policy {
                 full_text_url: Some("https://example.com/full".to_string()),
                 location_platform: LocationPlatform::Thoth,
                 canonical: true,
-                sha256: None,
+                checksum: None,
             },
         )
         .expect("Failed to create location");
@@ -494,7 +494,7 @@ mod policy {
             full_text_url: Some("https://example.com/full.pdf".to_string()),
             location_platform: location.location_platform,
             canonical: location.canonical,
-            sha256: location.sha256.clone(),
+            checksum: location.checksum.clone(),
         };
 
         let update_result = LocationPolicy::can_update(&ctx, &location, &patch, ());
@@ -528,7 +528,7 @@ mod policy {
                 full_text_url: Some("https://example.com/full".to_string()),
                 location_platform: LocationPlatform::Thoth,
                 canonical: true,
-                sha256: None,
+                checksum: None,
             },
         )
         .expect("Failed to create canonical thoth location");
@@ -541,7 +541,7 @@ mod policy {
                 full_text_url: None,
                 location_platform: LocationPlatform::PublisherWebsite,
                 canonical: false,
-                sha256: None,
+                checksum: None,
             },
         )
         .expect("Failed to create location");
@@ -553,7 +553,7 @@ mod policy {
             full_text_url: location.full_text_url.clone(),
             location_platform: location.location_platform,
             canonical: true,
-            sha256: location.sha256.clone(),
+            checksum: location.checksum.clone(),
         };
 
         let result = LocationPolicy::can_update(&ctx, &location, &patch, ());
@@ -561,7 +561,7 @@ mod policy {
     }
 
     #[test]
-    fn crud_policy_rejects_non_superuser_sha256_create() {
+    fn crud_policy_rejects_non_superuser_checksum_create() {
         let (_guard, pool) = setup_test_db();
 
         let publisher = create_publisher(pool.as_ref());
@@ -582,7 +582,7 @@ mod policy {
             full_text_url: Some("https://example.com/full".to_string()),
             location_platform: LocationPlatform::Other,
             canonical: true,
-            sha256: Some("examplesha256".to_string()),
+            checksum: Some("examplechecksum".to_string()),
         };
 
         let result = LocationPolicy::can_create(&ctx, &new_location, ());
@@ -597,7 +597,7 @@ mod policy {
     }
 
     #[test]
-    fn crud_policy_rejects_non_superuser_sha256_update() {
+    fn crud_policy_rejects_non_superuser_checksum_update() {
         let (_guard, pool) = setup_test_db();
 
         let publisher = create_publisher(pool.as_ref());
@@ -620,7 +620,7 @@ mod policy {
                 full_text_url: Some("https://example.com/full".to_string()),
                 location_platform: LocationPlatform::Other,
                 canonical: false,
-                sha256: Some("examplesha256".to_string()),
+                checksum: Some("examplechecksum".to_string()),
             },
         )
         .expect("Failed to create location");
@@ -632,7 +632,7 @@ mod policy {
             full_text_url: location.full_text_url.clone(),
             location_platform: location.location_platform,
             canonical: location.canonical,
-            sha256: Some("updatedsha256".to_string()),
+            checksum: Some("updatedchecksum".to_string()),
         };
 
         let result = LocationPolicy::can_update(&ctx, &location, &patch, ());
@@ -666,7 +666,7 @@ mod crud {
         location_platform: LocationPlatform,
         canonical: bool,
         landing_page: Option<String>,
-        sha256: Option<String>,
+        checksum: Option<String>,
     ) -> Location {
         let new_location = NewLocation {
             publication_id,
@@ -674,7 +674,7 @@ mod crud {
             full_text_url: None,
             location_platform,
             canonical,
-            sha256,
+            checksum,
         };
 
         Location::create(pool, &new_location).expect("Failed to create location")
@@ -695,7 +695,7 @@ mod crud {
             full_text_url: None,
             location_platform: LocationPlatform::PublisherWebsite,
             canonical: true,
-            sha256: None,
+            checksum: None,
         };
 
         let location = Location::create(pool.as_ref(), &new_location).expect("Failed to create");
@@ -710,7 +710,7 @@ mod crud {
             full_text_url: Some("https://example.com/full.pdf".to_string()),
             location_platform: LocationPlatform::Other,
             canonical: true,
-            sha256: location.sha256.clone(),
+            checksum: location.checksum.clone(),
         };
 
         let ctx = test_context(pool.clone(), "test-user");
@@ -745,7 +745,7 @@ mod crud {
             full_text_url: location.full_text_url.clone(),
             location_platform: location.location_platform,
             canonical: false,
-            sha256: location.sha256.clone(),
+            checksum: location.checksum.clone(),
         };
 
         let ctx = test_context(pool.clone(), "test-user");
@@ -786,7 +786,7 @@ mod crud {
             full_text_url: non_canonical.full_text_url.clone(),
             location_platform: non_canonical.location_platform,
             canonical: true,
-            sha256: non_canonical.sha256.clone(),
+            checksum: non_canonical.checksum.clone(),
         };
 
         let ctx = test_context(pool.clone(), "test-user");
@@ -821,7 +821,7 @@ mod crud {
             full_text_url: None,
             location_platform: LocationPlatform::PublisherWebsite,
             canonical: false,
-            sha256: None,
+            checksum: None,
         };
 
         let result = new_location.can_be_non_canonical(pool.as_ref());
@@ -845,7 +845,7 @@ mod crud {
                 full_text_url: Some("https://example.com/full.pdf".to_string()),
                 location_platform: LocationPlatform::PublisherWebsite,
                 canonical: true,
-                sha256: None,
+                checksum: None,
             },
         )
         .expect("Failed to create canonical location");
@@ -856,7 +856,7 @@ mod crud {
             full_text_url: None,
             location_platform: LocationPlatform::Other,
             canonical: false,
-            sha256: None,
+            checksum: None,
         };
 
         assert!(new_location.can_be_non_canonical(pool.as_ref()).is_ok());
@@ -898,7 +898,7 @@ mod crud {
             full_text_url: None,
             location_platform: LocationPlatform::PublisherWebsite,
             canonical: true,
-            sha256: None,
+            checksum: None,
         };
 
         let result = new_location.canonical_record_complete(pool.as_ref());

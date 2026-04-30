@@ -1916,9 +1916,9 @@ impl Location {
         self.canonical
     }
 
-    #[graphql(description = "SHA-256 checksum of the full text file as returned by the platform")]
-    pub fn sha256(&self) -> Option<&String> {
-        self.sha256.as_ref()
+    #[graphql(description = "Checksum of the full text file as returned by the platform")]
+    pub fn checksum(&self) -> Option<&String> {
+        self.checksum.as_ref()
     }
 
     #[graphql(description = "Date and time at which the location record was created")]

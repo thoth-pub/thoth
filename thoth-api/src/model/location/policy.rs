@@ -40,7 +40,7 @@ impl CreatePolicy<NewLocation> for LocationPolicy {
         }
 
         // Only superusers can add a checksum.
-        if !user.is_superuser() && data.sha256.is_some() {
+        if !user.is_superuser() && data.checksum.is_some() {
             return Err(ThothError::CreateLocationChecksumError);
         }
 
@@ -80,12 +80,13 @@ impl UpdatePolicy<Location, PatchLocation> for LocationPolicy {
         }
 
         // Only superusers can add a checksum.
-        if current.sha256.is_none() && patch.sha256.is_some() && !user.is_superuser() {
+        if current.checksum.is_none() && patch.checksum.is_some() && !user.is_superuser() {
             return Err(ThothError::UpdateLocationChecksumError);
         }
 
         // Only superusers can update or delete an existing checksum.
-        if current.sha256.is_some() && current.sha256 != patch.sha256 && !user.is_superuser() {
+        if current.checksum.is_some() && current.checksum != patch.checksum && !user.is_superuser()
+        {
             return Err(ThothError::UpdateLocationChecksumError);
         }
 

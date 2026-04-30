@@ -1,2 +1,2 @@
 ALTER TABLE public.location
-    DROP COLUMN IF EXISTS sha256;
+    DROP COLUMN IF EXISTS checksum;

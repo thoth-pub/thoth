@@ -724,7 +724,7 @@ impl FileUpload {
         ctx: &C,
         work: &Work,
         cdn_url: &str,
-        cdn_sha256: &str,
+        cdn_checksum: &str,
         featured_video_dimensions: Option<(i32, i32)>,
     ) -> ThothResult<()> {
         match self.file_type {
@@ -742,7 +742,7 @@ impl FileUpload {
                     publication_id,
                     work.landing_page.clone(),
                     cdn_url,
-                    Some(cdn_sha256.to_string()),
+                    Some(cdn_checksum.to_string()),
                 )?;
             }
             FileType::AdditionalResource => {
@@ -794,7 +794,7 @@ impl FileUpload {
         publication_id: Uuid,
         landing_page: Option<String>,
         full_text_url: &str,
-        sha256: Option<String>,
+        checksum: Option<String>,
     ) -> ThothResult<()> {
         use crate::schema::location::dsl;
 
@@ -812,7 +812,7 @@ impl FileUpload {
             patch.full_text_url = Some(full_text_url.to_string());
             patch.landing_page = landing_page;
             patch.canonical = true;
-            patch.sha256 = sha256;
+            patch.checksum = checksum;
             if patch.canonical {
                 patch.canonical_record_complete(ctx.db())?;
             }
@@ -834,7 +834,7 @@ impl FileUpload {
                 full_text_url: Some(full_text_url.to_string()),
                 location_platform: LocationPlatform::Thoth,
                 canonical: false,
-                sha256,
+                checksum,
             };
             let created_location = Location::create(ctx.db(), &new_location)?;
             let mut patch = PatchLocation::from(created_location.clone());
@@ -850,7 +850,7 @@ impl FileUpload {
                 full_text_url: Some(full_text_url.to_string()),
                 location_platform: LocationPlatform::Thoth,
                 canonical: true,
-                sha256,
+                checksum,
             };
             new_location.canonical_record_complete(ctx.db())?;
             Location::create(ctx.db(), &new_location)?;

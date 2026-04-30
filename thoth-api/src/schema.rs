@@ -510,7 +510,7 @@ table! {
         full_text_url -> Nullable<Text>,
         location_platform -> LocationPlatform,
         canonical -> Bool,
-        sha256 -> Nullable<Text>,
+        checksum -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
