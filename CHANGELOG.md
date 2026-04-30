@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-  - [747](https://github.com/thoth-pub/thoth/pull/747) - Add `Location.checksum` field
+  - [747](https://github.com/thoth-pub/thoth/pull/747) - Add `checksum` and `checksum_algorithm` fields to `Location`
 
 ## [[1.1.1]](https://github.com/thoth-pub/thoth/releases/tag/v1.1.1) - 2026-04-24
 ### Security

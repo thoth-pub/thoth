@@ -67,6 +67,9 @@ impl Crud for Location {
             LocationField::Checksum => {
                 apply_directional_order!(query, order.direction, order, checksum)
             }
+            LocationField::ChecksumAlgorithm => {
+                apply_directional_order!(query, order.direction, order, checksum_algorithm)
+            }
             LocationField::CreatedAt => {
                 apply_directional_order!(query, order.direction, order, created_at)
             }

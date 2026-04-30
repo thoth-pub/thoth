@@ -4,7 +4,7 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::types::inputs::Direction;
-use crate::model::Timestamp;
+use crate::model::{file::ChecksumAlgorithm, Timestamp};
 #[cfg(feature = "backend")]
 use crate::schema::location;
 #[cfg(feature = "backend")]
@@ -166,6 +166,7 @@ pub enum LocationField {
     LocationPlatform,
     Canonical,
     Checksum,
+    ChecksumAlgorithm,
     CreatedAt,
     UpdatedAt,
 }
@@ -181,6 +182,7 @@ pub struct Location {
     pub location_platform: LocationPlatform,
     pub canonical: bool,
     pub checksum: Option<String>,
+    pub checksum_algorithm: Option<ChecksumAlgorithm>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
 }
@@ -198,6 +200,7 @@ pub struct NewLocation {
     pub location_platform: LocationPlatform,
     pub canonical: bool,
     pub checksum: Option<String>,
+    pub checksum_algorithm: Option<ChecksumAlgorithm>,
 }
 
 #[cfg_attr(
@@ -214,6 +217,7 @@ pub struct PatchLocation {
     pub location_platform: LocationPlatform,
     pub canonical: bool,
     pub checksum: Option<String>,
+    pub checksum_algorithm: Option<ChecksumAlgorithm>,
 }
 
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]
@@ -265,6 +269,7 @@ impl From<Location> for PatchLocation {
             location_platform: location.location_platform,
             canonical: location.canonical,
             checksum: location.checksum,
+            checksum_algorithm: location.checksum_algorithm,
         }
     }
 }

@@ -50,6 +50,22 @@ pub enum FileType {
     WorkFeaturedVideo,
 }
 
+#[cfg_attr(
+    feature = "backend",
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Algorithm used to create file checksum"),
+    ExistingTypePath = "crate::schema::sql_types::ChecksumAlgorithm"
+)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
+pub enum ChecksumAlgorithm {
+    #[cfg_attr(feature = "backend", db_rename = "MD5")]
+    Md5,
+    #[cfg_attr(feature = "backend", db_rename = "SHA256")]
+    Sha256,
+}
+
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]

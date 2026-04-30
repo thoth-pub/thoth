@@ -82,6 +82,10 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "accessibility_exception"))]
     pub struct AccessibilityException;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "checksum_algorithm"))]
+    pub struct ChecksumAlgorithm;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -501,6 +505,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::ChecksumAlgorithm;
     use super::sql_types::LocationPlatform;
 
     location (location_id) {
@@ -511,6 +516,7 @@ table! {
         location_platform -> LocationPlatform,
         canonical -> Bool,
         checksum -> Nullable<Text>,
+        checksum_algorithm -> Nullable<ChecksumAlgorithm>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }

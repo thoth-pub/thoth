@@ -471,6 +471,7 @@ fn make_new_location(publication_id: Uuid, canonical: bool) -> NewLocation {
         location_platform: LocationPlatform::Other,
         canonical,
         checksum: None,
+        checksum_algorithm: None,
     }
 }
 
@@ -1106,6 +1107,7 @@ fn patch_location(location: &Location) -> PatchLocation {
         location_platform: location.location_platform,
         canonical: location.canonical,
         checksum: location.checksum.clone(),
+        checksum_algorithm: location.checksum_algorithm,
     }
 }
 
