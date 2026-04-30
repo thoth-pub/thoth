@@ -64,6 +64,8 @@ pub enum ChecksumAlgorithm {
     Md5,
     #[cfg_attr(feature = "backend", db_rename = "SHA256")]
     Sha256,
+    #[cfg_attr(feature = "backend", db_rename = "SHA1")]
+    Sha1,
 }
 
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]

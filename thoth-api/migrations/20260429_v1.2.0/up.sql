@@ -1,6 +1,7 @@
 CREATE TYPE public.checksum_algorithm AS ENUM (
     'MD5',
-    'SHA256'
+    'SHA256',
+    'SHA1'
 );
 
 ALTER TABLE public.location

@@ -1921,7 +1921,7 @@ impl Location {
         self.checksum.as_ref()
     }
 
-    #[graphql(description = "Algorithm used to generate the checksum (MD5 or SHA-256)")]
+    #[graphql(description = "Algorithm used to generate the checksum (MD5, SHA-256 or SHA-1)")]
     pub fn checksum_algorithm(&self) -> Option<&ChecksumAlgorithm> {
         self.checksum_algorithm.as_ref()
     }
