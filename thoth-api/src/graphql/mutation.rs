@@ -1488,7 +1488,13 @@ impl MutationRoot {
             &mime_type,
             bytes,
         )?;
-        file_upload.sync_related_metadata(context, &work, &cdn_url, featured_video_dimensions)?;
+        file_upload.sync_related_metadata(
+            context,
+            &work,
+            &cdn_url,
+            &file.sha256,
+            featured_video_dimensions,
+        )?;
 
         reconcile_replaced_object(
             s3_client,
