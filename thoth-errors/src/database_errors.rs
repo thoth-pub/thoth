@@ -65,6 +65,7 @@ static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "issue_series_id_work_id_uniq" => "An issue on the selected series already exists for this work.",
     "issue_issue_ordinal_series_id_uniq" => "An issue with this ordinal number already exists.",
     "language_uniq_work_idx" => "Duplicate language code.",
+    "location_checksum_and_algorithm_all_or_none" => "Location checksum and checksum_algorithm must be provided together, or both must be empty.",
     "location_full_text_url_check" => "Invalid URL.",
     "location_landing_page_check" => "Invalid URL.",
     "location_uniq_canonical_true_idx" => "A canonical location for this publication already exists.",

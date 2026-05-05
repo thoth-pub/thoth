@@ -1520,6 +1520,7 @@ impl MutationRoot {
             &sync_context,
             &work,
             &cdn_url,
+            &file.sha256,
             featured_video_dimensions,
         )?;
 

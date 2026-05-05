@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [744](https://github.com/thoth-pub/thoth/pull/744) - Support accessibility report file upload
 
+## [[1.2.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.2.0) - 2026-05-04
+### Added
+  - [747](https://github.com/thoth-pub/thoth/pull/747) - Add `checksum` and `checksum_algorithm` fields to `Location`
+
+## [[1.1.1]](https://github.com/thoth-pub/thoth/releases/tag/v1.1.1) - 2026-04-24
+### Security
+  - Upgrade `openssl` to v0.10.78
+  - Upgrade `actix-http` to v3.12.1
+  - Upgrade `rustls-webpki` to v0.103.12
+  - Upgrade `rand` to v0.8.6
+
 ## [[1.1.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.1.0) - 2026-04-17
 ### Added
   - [745](https://github.com/thoth-pub/thoth/pull/745) - Add Venda locale support for titles/books with `ve` and `ve-ZA`

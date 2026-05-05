@@ -21,7 +21,7 @@ use crate::model::{
     contribution::{Contribution, ContributionType},
     contributor::Contributor,
     endorsement::{Endorsement, EndorsementOrderBy},
-    file::{File, FileType},
+    file::{ChecksumAlgorithm, File, FileType},
     funding::Funding,
     imprint::{Imprint, ImprintField, ImprintOrderBy},
     institution::Institution,
@@ -1923,6 +1923,16 @@ impl Location {
     )]
     pub fn canonical(&self) -> bool {
         self.canonical
+    }
+
+    #[graphql(description = "Checksum of the full text file as returned by the platform")]
+    pub fn checksum(&self) -> Option<&String> {
+        self.checksum.as_ref()
+    }
+
+    #[graphql(description = "Algorithm used to generate the checksum (MD5, SHA-256 or SHA-1)")]
+    pub fn checksum_algorithm(&self) -> Option<&ChecksumAlgorithm> {
+        self.checksum_algorithm.as_ref()
     }
 
     #[graphql(description = "Date and time at which the location record was created")]

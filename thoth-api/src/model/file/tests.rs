@@ -1446,7 +1446,7 @@ mod crud {
 
         let cover_url = "https://cdn.example.org/10.1234/abc/def_frontcover.jpg";
         upload
-            .sync_related_metadata(&ctx, &work, cover_url, None)
+            .sync_related_metadata(&ctx, &work, cover_url, "checksum", None)
             .expect("Failed to sync frontcover metadata");
 
         let refreshed_work = Work::from_id(pool.as_ref(), &work.work_id)
@@ -1487,7 +1487,7 @@ mod crud {
 
         let video_url = "https://cdn.example.org/10.1234/abc/def/resources/video.mp4";
         upload
-            .sync_related_metadata(&ctx, &work, video_url, Some((1280, 720)))
+            .sync_related_metadata(&ctx, &work, video_url, "checksum", Some((1280, 720)))
             .expect("Failed to sync featured-video metadata");
 
         let refreshed = crate::model::work_featured_video::WorkFeaturedVideo::from_id(

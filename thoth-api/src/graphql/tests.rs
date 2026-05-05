@@ -470,6 +470,8 @@ fn make_new_location(publication_id: Uuid, canonical: bool) -> NewLocation {
         full_text_url: Some("https://example.com/full".to_string()),
         location_platform: LocationPlatform::Other,
         canonical,
+        checksum: None,
+        checksum_algorithm: None,
     }
 }
 
@@ -1104,6 +1106,8 @@ fn patch_location(location: &Location) -> PatchLocation {
         full_text_url: location.full_text_url.clone(),
         location_platform: location.location_platform,
         canonical: location.canonical,
+        checksum: location.checksum.clone(),
+        checksum_algorithm: location.checksum_algorithm,
     }
 }
 

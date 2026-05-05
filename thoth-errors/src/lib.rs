@@ -162,6 +162,10 @@ pub enum ThothError {
     AdditionalResourceFileUploadMissingAdditionalResourceId,
     #[error("Work featured video file upload missing work_featured_video_id")]
     WorkFeaturedVideoFileUploadMissingWorkFeaturedVideoId,
+    #[error("Only superusers can add a Location Checksum.")]
+    CreateLocationChecksumError,
+    #[error("Only superusers can update or delete an existing Location Checksum.")]
+    UpdateLocationChecksumError,
     #[error("Accessibility report file upload missing publication_id")]
     AccessibilityReportFileUploadMissingPublicationId,
     #[error("URLs of uploaded files cannot be overwritten.")]
