@@ -337,7 +337,7 @@ table! {
     endorsement (endorsement_id) {
         endorsement_id -> Uuid,
         work_id -> Uuid,
-        author_name -> Nullable<Text>,
+        author_name -> Text,
         author_role -> Nullable<Text>,
         author_orcid -> Nullable<Text>,
         author_institution_id -> Nullable<Uuid>,
@@ -790,7 +790,7 @@ table! {
     work_featured_video (work_featured_video_id) {
         work_featured_video_id -> Uuid,
         work_id -> Uuid,
-        title -> Nullable<Text>,
+        title -> Text,
         url -> Nullable<Text>,
         width -> Int4,
         height -> Int4,

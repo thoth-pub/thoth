@@ -7,7 +7,7 @@ fn make_endorsement(
     pool: &crate::db::PgPool,
     work_id: Uuid,
     endorsement_ordinal: i32,
-    author_name: Option<String>,
+    author_name: String,
 ) -> Endorsement {
     let data = NewEndorsement {
         work_id,
@@ -87,7 +87,7 @@ mod policy {
         let work = create_work(pool.as_ref(), &imprint);
         let data = NewEndorsement {
             work_id: work.work_id,
-            author_name: Some("Author".to_string()),
+            author_name: "Author".to_string(),
             author_role: Some("Role".to_string()),
             author_orcid: None,
             author_institution_id: None,
@@ -122,8 +122,7 @@ mod policy {
         let publisher = create_publisher(pool.as_ref());
         let imprint = create_imprint(pool.as_ref(), &publisher);
         let work = create_work(pool.as_ref(), &imprint);
-        let endorsement =
-            make_endorsement(pool.as_ref(), work.work_id, 1, Some("Author".to_string()));
+        let endorsement = make_endorsement(pool.as_ref(), work.work_id, 1, "Author".to_string());
 
         let patch = PatchEndorsement {
             endorsement_id: endorsement.endorsement_id,
@@ -142,7 +141,7 @@ mod policy {
 
         let data = NewEndorsement {
             work_id: work.work_id,
-            author_name: Some("Author".to_string()),
+            author_name: "Author".to_string(),
             author_role: Some("Role".to_string()),
             author_orcid: None,
             author_institution_id: None,
@@ -208,7 +207,7 @@ mod policy {
 
         let data = NewEndorsement {
             work_id: chapter.work_id,
-            author_name: Some("Author".to_string()),
+            author_name: "Author".to_string(),
             author_role: Some("Role".to_string()),
             author_orcid: None,
             author_institution_id: None,
@@ -244,7 +243,7 @@ mod crud {
 
         let data = NewEndorsement {
             work_id: work.work_id,
-            author_name: Some("Author".to_string()),
+            author_name: "Author".to_string(),
             author_role: Some("Role".to_string()),
             author_orcid: Some(
                 crate::model::Orcid::from_str("https://orcid.org/0000-0002-1234-5678").unwrap(),
@@ -281,6 +280,54 @@ mod crud {
     }
 
     #[test]
+    fn crud_rejects_empty_author_name() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+
+        let data = NewEndorsement {
+            work_id: work.work_id,
+            author_name: "".to_string(),
+            author_role: Some("Role".to_string()),
+            author_orcid: None,
+            author_institution_id: None,
+            url: Some("https://example.com/endorsement".to_string()),
+            text: Some("Endorsement text".to_string()),
+            endorsement_ordinal: 1,
+        };
+
+        let create_error = Endorsement::create(pool.as_ref(), &data).unwrap_err();
+        assert!(matches!(
+            create_error,
+            thoth_errors::ThothError::DatabaseConstraintError(ref msg)
+                if msg.as_ref() == "Author name must not be an empty string."
+        ));
+
+        let endorsement = make_endorsement(pool.as_ref(), work.work_id, 1, "Author".to_string());
+        let patch = PatchEndorsement {
+            endorsement_id: endorsement.endorsement_id,
+            work_id: endorsement.work_id,
+            author_name: "".to_string(),
+            author_role: endorsement.author_role.clone(),
+            author_orcid: endorsement.author_orcid.clone(),
+            author_institution_id: endorsement.author_institution_id,
+            url: endorsement.url.clone(),
+            text: endorsement.text.clone(),
+            endorsement_ordinal: endorsement.endorsement_ordinal,
+        };
+        let ctx = test_context(pool.clone(), "test-user");
+
+        let update_error = endorsement.update(&ctx, &patch).unwrap_err();
+        assert!(matches!(
+            update_error,
+            thoth_errors::ThothError::DatabaseConstraintError(ref msg)
+                if msg.as_ref() == "Author name must not be an empty string."
+        ));
+    }
+
+    #[test]
     fn deleting_author_institution_nulls_relation() {
         let (_guard, pool) = setup_test_db();
 
@@ -293,7 +340,7 @@ mod crud {
             pool.as_ref(),
             &NewEndorsement {
                 work_id: work.work_id,
-                author_name: Some("Author".to_string()),
+                author_name: "Author".to_string(),
                 author_role: Some("Role".to_string()),
                 author_orcid: Some(
                     crate::model::Orcid::from_str("https://orcid.org/0000-0002-1234-5678").unwrap(),
@@ -324,8 +371,8 @@ mod crud {
         let imprint = create_imprint(pool.as_ref(), &publisher);
         let work = create_work(pool.as_ref(), &imprint);
 
-        let first = make_endorsement(pool.as_ref(), work.work_id, 1, Some("Author 1".to_string()));
-        let second = make_endorsement(pool.as_ref(), work.work_id, 2, Some("Author 2".to_string()));
+        let first = make_endorsement(pool.as_ref(), work.work_id, 1, "Author 1".to_string());
+        let second = make_endorsement(pool.as_ref(), work.work_id, 2, "Author 2".to_string());
         let ctx = test_context(pool.clone(), "test-user");
 
         let moved = second

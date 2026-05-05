@@ -33,7 +33,7 @@ pub enum WorkFeaturedVideoField {
 pub struct WorkFeaturedVideo {
     pub work_featured_video_id: Uuid,
     pub work_id: Uuid,
-    pub title: Option<String>,
+    pub title: String,
     pub url: Option<String>,
     pub width: i32,
     pub height: i32,
@@ -49,7 +49,7 @@ pub struct WorkFeaturedVideo {
 )]
 pub struct NewWorkFeaturedVideo {
     pub work_id: Uuid,
-    pub title: Option<String>,
+    pub title: String,
     pub url: Option<String>,
     pub width: i32,
     pub height: i32,
@@ -64,7 +64,7 @@ pub struct NewWorkFeaturedVideo {
 pub struct PatchWorkFeaturedVideo {
     pub work_featured_video_id: Uuid,
     pub work_id: Uuid,
-    pub title: Option<String>,
+    pub title: String,
     pub url: Option<String>,
     pub width: i32,
     pub height: i32,
