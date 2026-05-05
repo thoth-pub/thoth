@@ -1525,7 +1525,7 @@ mod crud {
         let accessibility_report_url =
             "https://cdn.example.org/10.1234/abc/resources/def_a11yreport.html";
         upload
-            .sync_related_metadata(&ctx, &work, accessibility_report_url, None)
+            .sync_related_metadata(&ctx, &work, accessibility_report_url, "checksum", None)
             .expect("Failed to sync accessibility report metadata");
 
         let refreshed_publication =
