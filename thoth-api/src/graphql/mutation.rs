@@ -45,7 +45,8 @@ use crate::model::{
     Crud, Reorder,
 };
 use crate::policy::{
-    CreatePolicy, DeletePolicy, MovePolicy, PolicyContext, UpdatePolicy, UserAccess,
+    CreatePolicy, DeletePolicy, HostedFileSyncContext, MovePolicy, PolicyContext, UpdatePolicy,
+    UserAccess,
 };
 use crate::storage::{
     additional_resource_cleanup_plan, build_cdn_url, copy_temp_object_to_final, delete_object,
@@ -1514,7 +1515,13 @@ impl MutationRoot {
             &mime_type,
             bytes,
         )?;
-        file_upload.sync_related_metadata(context, &work, &cdn_url, featured_video_dimensions)?;
+        let sync_context = HostedFileSyncContext::new(context);
+        file_upload.sync_related_metadata(
+            &sync_context,
+            &work,
+            &cdn_url,
+            featured_video_dimensions,
+        )?;
 
         reconcile_replaced_object(
             s3_client,

@@ -117,6 +117,11 @@ pub(crate) trait PolicyContext {
     /// Return the authenticated user for the current request, if any.
     fn user(&self) -> Option<&IntrospectedUser>;
 
+    /// Return true while internally syncing metadata from a completed hosted file upload.
+    fn allow_hosted_file_url_update(&self) -> bool {
+        false
+    }
+
     /// Require that a user is authenticated and return the authenticated user.
     ///
     /// # Errors
@@ -234,6 +239,30 @@ pub(crate) trait PolicyContext {
     fn load_current<T: Crud>(&self, id: &Uuid) -> ThothResult<T> {
         self.require_authentication()?;
         T::from_id(self.db(), id)
+    }
+}
+
+pub(crate) struct HostedFileSyncContext<'a, C> {
+    inner: &'a C,
+}
+
+impl<'a, C> HostedFileSyncContext<'a, C> {
+    pub(crate) fn new(inner: &'a C) -> Self {
+        Self { inner }
+    }
+}
+
+impl<C: PolicyContext> PolicyContext for HostedFileSyncContext<'_, C> {
+    fn db(&self) -> &PgPool {
+        self.inner.db()
+    }
+
+    fn user(&self) -> Option<&IntrospectedUser> {
+        self.inner.user()
+    }
+
+    fn allow_hosted_file_url_update(&self) -> bool {
+        true
     }
 }
 

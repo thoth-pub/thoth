@@ -59,7 +59,7 @@ impl UpdatePolicy<AdditionalResource, PatchAdditionalResource> for AdditionalRes
         ensure_work_is_book(ctx.db(), current.work_id)?;
         ensure_work_is_book(ctx.db(), patch.work_id)?;
 
-        if patch.url != current.url {
+        if patch.url != current.url && !ctx.allow_hosted_file_url_update() {
             ensure_no_hosted_file(ctx.db(), current.additional_resource_id)?;
         }
         Ok(())

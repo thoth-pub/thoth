@@ -45,7 +45,9 @@ impl UpdatePolicy<Publication, PatchPublication> for PublicationPolicy {
         ctx.require_publisher_for(current)?;
         ctx.require_publisher_for(patch)?;
 
-        if patch.accessibility_report_url != current.accessibility_report_url {
+        if patch.accessibility_report_url != current.accessibility_report_url
+            && !ctx.allow_hosted_file_url_update()
+        {
             ensure_no_hosted_file(ctx.db(), current.publication_id)?;
         }
 

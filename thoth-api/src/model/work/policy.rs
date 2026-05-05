@@ -52,7 +52,7 @@ impl UpdatePolicy<Work, PatchWork> for WorkPolicy {
             ctx.require_work_lifecycle_for(patch)?;
         }
 
-        if patch.cover_url != current.cover_url {
+        if patch.cover_url != current.cover_url && !ctx.allow_hosted_file_url_update() {
             ensure_no_hosted_file(ctx.db(), current.work_id)?;
         }
 

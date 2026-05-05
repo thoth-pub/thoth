@@ -4,6 +4,9 @@ DROP INDEX IF EXISTS file_upload_accessibility_report_publication_idx;
 ALTER TABLE file DROP CONSTRAINT IF EXISTS file_type_check;
 ALTER TABLE file_upload DROP CONSTRAINT IF EXISTS file_upload_type_check;
 
+DELETE FROM file WHERE file_type = 'accessibility_report';
+DELETE FROM file_upload WHERE file_type = 'accessibility_report';
+
 ALTER TABLE file
   ADD CONSTRAINT file_type_check
   CHECK (
