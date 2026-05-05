@@ -660,6 +660,7 @@ impl MutationRoot {
         mut data: PatchEndorsement,
     ) -> FieldResult<Endorsement> {
         let endorsement = context.load_current(&data.endorsement_id)?;
+        EndorsementPolicy::can_update(context, &endorsement, &data, ())?;
 
         let markup = markup_format.unwrap_or(MarkupFormat::JatsXml);
         data.author_role = data
@@ -670,8 +671,6 @@ impl MutationRoot {
             .text
             .map(|text| convert_to_jats(text, markup, ConversionLimit::Abstract))
             .transpose()?;
-
-        EndorsementPolicy::can_update(context, &endorsement, &data, ())?;
 
         endorsement.update(context, &data).map_err(Into::into)
     }
