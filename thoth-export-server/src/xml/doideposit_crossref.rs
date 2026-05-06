@@ -416,6 +416,7 @@ fn write_abstract_content_with_locale_code<W: Write>(
     locale_code: &str,
     w: &mut EventWriter<W>,
 ) -> ThothResult<()> {
+    let xml_lang = locale_code.replace('_', "-");
     let normalised_content = normalise_crossref_abstract_jats(abstract_content).map_err(|err| {
         ThothError::IncompleteMetadataRecord(
             DEPOSIT_ERROR.to_string(),
@@ -426,7 +427,7 @@ fn write_abstract_content_with_locale_code<W: Write>(
         "jats:abstract",
         Some(vec![
             ("abstract-type", abstract_type),
-            ("xml:lang", locale_code),
+            ("xml:lang", xml_lang.as_str()),
         ]),
         w,
         |w| write_jats_content(&normalised_content, w),
@@ -2542,6 +2543,24 @@ mod tests {
         assert!(output.contains(r#"<jats:p>First line</jats:p>"#));
         assert!(output.contains(r#"<jats:p>Second line</jats:p>"#));
         assert!(!output.contains(r#"<jats:break"#));
+
+        // Locale codes written to xml:lang should use BCP 47 hyphen separators.
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            "<p>Translated abstract.</p>",
+            "long",
+            "ZH_CN",
+            &mut writer,
+        );
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains(r#"<jats:abstract abstract-type="long" xml:lang="ZH-CN">"#));
+        assert!(!output.contains(r#"xml:lang="ZH_CN""#));
     }
 
     #[test]
