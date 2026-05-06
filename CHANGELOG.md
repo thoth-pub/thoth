@@ -5,8 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+  - [749](https://github.com/thoth-pub/thoth/pull/749) - Correct locale code formatting in Crossref metadata output
 ### Changed
-  - Require endorsement author names and featured video titles
+  - [749](https://github.com/thoth-pub/thoth/pull/749) - Remove ISBN limit in Crossref metadata output (introduced in v0.8.7)
+  - [748](https://github.com/thoth-pub/thoth/pull/748) - Require endorsement author names and featured video titles
 
 ## [[1.2.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.2.0) - 2026-05-04
 ### Added

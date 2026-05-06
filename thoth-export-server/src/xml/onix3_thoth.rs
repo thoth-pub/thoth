@@ -2,6 +2,7 @@ use cc_license::License;
 use chrono::Utc;
 use std::io::Write;
 use thoth_api::model::language::LanguageCode as ApiLanguageCode;
+use thoth_api::model::locale::LocaleCode as ApiLocaleCode;
 use thoth_client::{
     AbstractType, AccessibilityException, AccessibilityStandard, ContactType, ContributionType,
     LanguageRelation, LocationPlatform, PublicationType, RelationType, SubjectType, Work,
@@ -10,9 +11,8 @@ use thoth_client::{
 };
 use xml::writer::{EventWriter, XmlEvent};
 
-use super::{write_element_block, XmlElement, XmlSpecification};
+use super::{write_element_block, TitleData, XmlElement, XmlSpecification};
 use crate::xml::{write_full_element_block, XmlElementBlock, ONIX3_NS};
-use thoth_api::model::locale::LocaleCode as ApiLocaleCode;
 use thoth_errors::{ThothError, ThothResult};
 
 #[derive(Copy, Clone)]
@@ -382,12 +382,13 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                 write_element_block("TitleElementLevel", w, |w| {
                                     w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                                 })?;
+                                let api_locale: ApiLocaleCode =
+                                    canonical_title.locale_code().clone().into();
+                                let lang_code: ApiLanguageCode = api_locale.into();
+                                let iso_code = lang_code.to_string().to_lowercase();
                                 write_full_element_block(
                                     "TitleText",
-                                    Some(vec![(
-                                        "language",
-                                        &canonical_title.locale_code.to_string(),
-                                    )]),
+                                    Some(vec![("language", &iso_code)]),
                                     w,
                                     |w| {
                                         w.write(XmlEvent::Characters(&canonical_title.title))
@@ -397,10 +398,7 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                 if let Some(subtitle) = &canonical_title.subtitle {
                                     write_full_element_block(
                                         "Subtitle",
-                                        Some(vec![(
-                                            "language",
-                                            &canonical_title.locale_code.to_string(),
-                                        )]),
+                                        Some(vec![("language", &iso_code)]),
                                         w,
                                         |w| {
                                             w.write(XmlEvent::Characters(subtitle))
@@ -2877,8 +2875,8 @@ mod tests {
       <TitleType>01</TitleType>
       <TitleElement>
         <TitleElementLevel>01</TitleElementLevel>
-        <TitleText language="EN">Book Title</TitleText>
-        <Subtitle language="EN">Book Subtitle</Subtitle>
+        <TitleText language="eng">Book Title</TitleText>
+        <Subtitle language="eng">Book Subtitle</Subtitle>
       </TitleElement>
     </TitleDetail>
     <EditionNumber>2</EditionNumber>
@@ -3529,11 +3527,11 @@ mod tests {
       <TitleType>01</TitleType>
       <TitleElement>
         <TitleElementLevel>01</TitleElementLevel>
-        <TitleText language="EN">Book Title</TitleText>
+        <TitleText language="eng">Book Title</TitleText>
       </TitleElement>
     </TitleDetail>"#
         ));
-        assert!(!output.contains(r#"        <Subtitle language="EN">Book Subtitle</Subtitle>"#));
+        assert!(!output.contains(r#"        <Subtitle language="eng">Book Subtitle</Subtitle>"#));
         assert!(!output.contains(r#"    <Edition>"#));
         assert!(!output.contains(r#"        <Subtitle>Book Subtitle</Subtitle>"#));
         assert!(!output.contains(r#"    <EditionNumber>1</EditionNumber>"#));
