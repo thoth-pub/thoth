@@ -20,21 +20,21 @@ pub struct DoiDepositCrossref {}
 
 const DEPOSIT_ERROR: &str = "doideposit::crossref";
 const CROSSREF_NS: &[(&str, &str)] = &[
-    ("version", "5.3.1"),
-    ("xmlns", "http://www.crossref.org/schema/5.3.1"),
+    ("version", "5.4.0"),
+    ("xmlns", "http://www.crossref.org/schema/5.4.0"),
     ("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance"),
     (
         "xsi:schemaLocation",
-        "http://www.crossref.org/schema/5.3.1 http://www.crossref.org/schemas/crossref5.3.1.xsd",
+        "http://www.crossref.org/schema/5.4.0 http://www.crossref.org/schemas/crossref5.4.0.xsd",
     ),
     ("xmlns:ai", "http://www.crossref.org/AccessIndicators.xsd"),
     ("xmlns:jats", "http://www.ncbi.nlm.nih.gov/JATS1"),
     ("xmlns:fr", "http://www.crossref.org/fundref.xsd"),
 ];
 
-// Output format based on schema documentation at https://data.crossref.org/reports/help/schema_doc/5.3.1/index.html
+// Output format based on schema documentation at https://data.crossref.org/reports/help/schema_doc/5.4.0/index.html
 // (retrieved via https://www.crossref.org/documentation/schema-library/xsd-schema-quick-reference/).
-// Output validity tested using tool at https://www.crossref.org/02publishers/parser.html
+// Output validity previously tested for schema version 5.3.1 using tool at https://www.crossref.org/02publishers/parser.html
 // (retrieved via https://www.crossref.org/documentation/member-setup/direct-deposit-xml/testing-your-xml/).
 impl XmlSpecification for DoiDepositCrossref {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
@@ -496,32 +496,13 @@ fn write_publication_date_content<W: Write>(
 }
 
 fn write_work_publications<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
-    let mut publications: Vec<WorkPublications> = work
+    let publications: Vec<WorkPublications> = work
         .publications
         .clone()
         .into_iter()
         .filter(|p| p.isbn.is_some())
         .collect();
     if !publications.is_empty() {
-        // Workaround for CrossRef's limit of 6 on the number of ISBNs permissible within a deposit file.
-        // We raised this with CrossRef and they believe they should be able to increase the limit.
-        // Remove this workaround once this is done (see https://github.com/thoth-pub/thoth/issues/379).
-        // This was previously encountered with OBP works, which used to have 7 ISBNs as standard,
-        // but currently have 5 as of August 2024.
-        // So, the logic below should never be necessary with current publishers in Thoth.
-        // The least important ISBN is the HTML ISBN, so omit it.
-        if publications.len() > 6 {
-            if let Some(html_index) = publications
-                .iter()
-                .position(|p| p.publication_type == PublicationType::HTML)
-            {
-                publications.swap_remove(html_index);
-            }
-        }
-        // If there are still more than 6 ISBNs, assume they were added in decreasing order of importance.
-        while publications.len() > 6 {
-            publications.pop();
-        }
         for publication in &publications {
             XmlElementBlock::<DoiDepositCrossref>::xml_element(publication, w)?;
         }
@@ -2583,10 +2564,10 @@ mod tests {
     }
 
     #[test]
-    // Test that no more than 6 ISBNs are ever output.
-    // Remove/change this test once the CrossRef 6-ISBN limit is removed/increased -
-    // at this point, we need to remove the workaround and ensure that all ISBNs are included.
-    fn test_doideposit_crossref_isbns_workaround() {
+    // Crossref previously limited the number of ISBNs that could be included in a deposit file to 6,
+    // but this has now been increased in schema version 5.4.0 to 100 (which will never become relevant).
+    // Ensure that our own limit on the number of ISBNs output has been removed accordingly.
+    fn test_doideposit_crossref_isbns_workaround_removed() {
         let mut test_work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
@@ -2814,7 +2795,7 @@ mod tests {
             references: vec![],
         };
 
-        // 7 ISBNs are present and one is HTML - confirm that it is omitted
+        // 7 ISBNs are present - confirm that all are included regardless of type
         let output = generate_test_output(true, &test_work);
         assert!(output.contains(r#"      <isbn media_type="print">978-1-78839-908-1</isbn>"#));
         assert!(output.contains(r#"      <isbn media_type="print">978-1-7343145-0-2</isbn>"#));
@@ -2822,11 +2803,11 @@ mod tests {
         assert!(output.contains(r#"      <isbn media_type="electronic">978-1-56619-909-4</isbn>"#));
         assert!(output.contains(r#"      <isbn media_type="electronic">978-92-95055-02-5</isbn>"#));
         assert!(output.contains(r#"      <isbn media_type="electronic">978-1-4028-9462-6</isbn>"#));
-        assert!(!output.contains(r#"      <isbn media_type="electronic">978-3-16-148410-0</isbn>"#));
+        assert!(output.contains(r#"      <isbn media_type="electronic">978-3-16-148410-0</isbn>"#));
 
         // Change the HTML publication to a different format
         test_work.publications[0].publication_type = PublicationType::MOBI;
-        // 7 ISBNs are present and none are HTML - confirm that the last one is omitted
+        // 7 ISBNs are present and none are HTML - confirm that all are included regardless of type
         let output = generate_test_output(true, &test_work);
         assert!(output.contains(r#"      <isbn media_type="electronic">978-3-16-148410-0</isbn>"#));
         assert!(output.contains(r#"      <isbn media_type="print">978-1-78839-908-1</isbn>"#));
@@ -2834,7 +2815,7 @@ mod tests {
         assert!(output.contains(r#"      <isbn media_type="electronic">978-0-07-063546-3</isbn>"#));
         assert!(output.contains(r#"      <isbn media_type="electronic">978-1-56619-909-4</isbn>"#));
         assert!(output.contains(r#"      <isbn media_type="electronic">978-92-95055-02-5</isbn>"#));
-        assert!(!output.contains(r#"      <isbn media_type="electronic">978-1-4028-9462-6</isbn>"#));
+        assert!(output.contains(r#"      <isbn media_type="electronic">978-1-4028-9462-6</isbn>"#));
     }
 
     #[test]
