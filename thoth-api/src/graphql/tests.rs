@@ -2587,7 +2587,7 @@ fn graphql_endorsement_supports_author_identity_fields() {
         "endorsementId authorRole(markupFormat: PLAIN_TEXT) authorOrcid authorInstitutionId authorInstitution { institutionId ror } text(markupFormat: PLAIN_TEXT)",
         NewEndorsement {
             work_id: seed.book_work_id,
-            author_name: Some("Author".to_string()),
+            author_name: "Author".to_string(),
             author_role: Some("*Visiting Scholar*".to_string()),
             author_orcid: Some(Orcid::from_str("https://orcid.org/0000-0001-2345-6789").unwrap()),
             author_institution_id: Some(institution.institution_id),
@@ -2644,7 +2644,7 @@ fn graphql_update_endorsement_supports_author_role_markup() {
         "endorsementId authorRole(markupFormat: PLAIN_TEXT)",
         NewEndorsement {
             work_id: seed.book_work_id,
-            author_name: Some("Author".to_string()),
+            author_name: "Author".to_string(),
             author_role: Some("Scholar".to_string()),
             author_orcid: None,
             author_institution_id: None,
@@ -2665,7 +2665,7 @@ fn graphql_update_endorsement_supports_author_role_markup() {
         PatchEndorsement {
             endorsement_id,
             work_id: seed.book_work_id,
-            author_name: Some("Author".to_string()),
+            author_name: "Author".to_string(),
             author_role: Some("*Lead Editor*".to_string()),
             author_orcid: None,
             author_institution_id: None,
@@ -2731,7 +2731,7 @@ fn graphql_review_and_endorsement_relations_null_after_institution_delete() {
         pool.as_ref(),
         &NewEndorsement {
             work_id: seed.book_work_id,
-            author_name: Some("Author".to_string()),
+            author_name: "Author".to_string(),
             author_role: Some("Scholar".to_string()),
             author_orcid: Some(Orcid::from_str("https://orcid.org/0000-0001-2345-6789").unwrap()),
             author_institution_id: Some(institution.institution_id),

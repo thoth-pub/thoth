@@ -48,6 +48,7 @@ static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "contributor_website_check" => "Website must not be an empty string.",
     "doi_uniq_idx" => "A work with this DOI already exists.",
     "email_uniq_idx" => "An account with this email already exists.",
+    "endorsement_author_name_check" => "Author name must not be an empty string.",
     "endorsement_endorsement_ordinal_work_id_uniq" => "An endorsement with this ordinal number already exists.",
     "funding_grant_number_check" => "Grant number must not be an empty string.",
     "funding_program_check" => "Program must not be an empty string.",
@@ -184,6 +185,7 @@ static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "work_toc_check" => "Table of content must not be an empty string.",
     "work_video_count_check" => "A video count must be greater than 0.",
     "work_withdrawn_date_after_publication_date_check" => "Publication date must be before withdrawn date.",
+    "work_featured_video_title_check" => "Featured video title must not be an empty string.",
     "work_featured_video_work_id_key" => "A featured video for this work already exists."
 };
 

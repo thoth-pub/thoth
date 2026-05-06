@@ -141,7 +141,7 @@ fn create_work_featured_video(
 
     let new_video = NewWorkFeaturedVideo {
         work_id,
-        title: Some("Hosted video".to_string()),
+        title: "Hosted video".to_string(),
         url: None,
         width: 560,
         height: 315,

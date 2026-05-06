@@ -169,7 +169,7 @@ fn create_work_featured_video(
         pool,
         &NewWorkFeaturedVideo {
             work_id,
-            title: Some("Featured video".to_string()),
+            title: "Featured video".to_string(),
             url: None,
             width: 560,
             height: 315,
