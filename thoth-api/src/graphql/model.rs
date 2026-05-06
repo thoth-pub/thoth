@@ -2419,8 +2419,8 @@ impl Endorsement {
     }
 
     #[graphql(description = "Name of the endorsement author")]
-    pub fn author_name(&self) -> Option<&String> {
-        self.author_name.as_ref()
+    pub fn author_name(&self) -> &String {
+        &self.author_name
     }
 
     #[graphql(description = "Role of the endorsement author")]
@@ -2682,8 +2682,8 @@ impl WorkFeaturedVideo {
     }
 
     #[graphql(description = "Title or caption of the featured video")]
-    pub fn title(&self) -> Option<&String> {
-        self.title.as_ref()
+    pub fn title(&self) -> &String {
+        &self.title
     }
 
     #[graphql(description = "CDN URL of the featured video")]

@@ -33,7 +33,7 @@ pub enum EndorsementField {
 pub struct Endorsement {
     pub endorsement_id: Uuid,
     pub work_id: Uuid,
-    pub author_name: Option<String>,
+    pub author_name: String,
     pub author_role: Option<String>,
     pub author_orcid: Option<Orcid>,
     pub author_institution_id: Option<Uuid>,
@@ -52,7 +52,7 @@ pub struct Endorsement {
 )]
 pub struct NewEndorsement {
     pub work_id: Uuid,
-    pub author_name: Option<String>,
+    pub author_name: String,
     pub author_role: Option<String>,
     pub author_orcid: Option<Orcid>,
     pub author_institution_id: Option<Uuid>,
@@ -70,7 +70,7 @@ pub struct NewEndorsement {
 pub struct PatchEndorsement {
     pub endorsement_id: Uuid,
     pub work_id: Uuid,
-    pub author_name: Option<String>,
+    pub author_name: String,
     pub author_role: Option<String>,
     pub author_orcid: Option<Orcid>,
     pub author_institution_id: Option<Uuid>,

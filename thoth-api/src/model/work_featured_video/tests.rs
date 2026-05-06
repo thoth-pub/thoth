@@ -9,7 +9,7 @@ fn make_work_featured_video(
 ) -> WorkFeaturedVideo {
     let data = NewWorkFeaturedVideo {
         work_id,
-        title: Some("Featured video".to_string()),
+        title: "Featured video".to_string(),
         url,
         width: 560,
         height: 315,
@@ -80,7 +80,7 @@ mod policy {
         let work = create_work(pool.as_ref(), &imprint);
         let data = NewWorkFeaturedVideo {
             work_id: work.work_id,
-            title: Some("Featured video".to_string()),
+            title: "Featured video".to_string(),
             url: Some("https://cdn.example.org/video.mp4".to_string()),
             width: 560,
             height: 315,
@@ -128,7 +128,7 @@ mod policy {
 
         let data = NewWorkFeaturedVideo {
             work_id: work.work_id,
-            title: Some("Featured video".to_string()),
+            title: "Featured video".to_string(),
             url: Some("https://cdn.example.org/video.mp4".to_string()),
             width: 560,
             height: 315,
@@ -190,7 +190,7 @@ mod policy {
 
         let data = NewWorkFeaturedVideo {
             work_id: chapter.work_id,
-            title: Some("Featured video".to_string()),
+            title: "Featured video".to_string(),
             url: Some("https://cdn.example.org/video.mp4".to_string()),
             width: 560,
             height: 315,
@@ -231,7 +231,7 @@ mod crud {
         let patch = PatchWorkFeaturedVideo {
             work_featured_video_id: video.work_featured_video_id,
             work_id: video.work_id,
-            title: Some("Updated featured video".to_string()),
+            title: "Updated featured video".to_string(),
             url: Some("https://cdn.example.org/video-v2.mp4".to_string()),
             width: 640,
             height: 360,
@@ -245,6 +245,52 @@ mod crud {
         assert!(
             WorkFeaturedVideo::from_id(pool.as_ref(), &deleted.work_featured_video_id).is_err()
         );
+    }
+
+    #[test]
+    fn crud_rejects_empty_title() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+
+        let data = NewWorkFeaturedVideo {
+            work_id: work.work_id,
+            title: "".to_string(),
+            url: Some("https://cdn.example.org/video.mp4".to_string()),
+            width: 560,
+            height: 315,
+        };
+
+        let create_error = WorkFeaturedVideo::create(pool.as_ref(), &data).unwrap_err();
+        assert!(matches!(
+            create_error,
+            thoth_errors::ThothError::DatabaseConstraintError(ref msg)
+                if msg.as_ref() == "Featured video title must not be an empty string."
+        ));
+
+        let video = make_work_featured_video(
+            pool.as_ref(),
+            work.work_id,
+            Some("https://cdn.example.org/video.mp4".to_string()),
+        );
+        let patch = PatchWorkFeaturedVideo {
+            work_featured_video_id: video.work_featured_video_id,
+            work_id: video.work_id,
+            title: "".to_string(),
+            url: video.url.clone(),
+            width: video.width,
+            height: video.height,
+        };
+        let ctx = test_context(pool.clone(), "test-user");
+
+        let update_error = video.update(&ctx, &patch).unwrap_err();
+        assert!(matches!(
+            update_error,
+            thoth_errors::ThothError::DatabaseConstraintError(ref msg)
+                if msg.as_ref() == "Featured video title must not be an empty string."
+        ));
     }
 
     #[test]
