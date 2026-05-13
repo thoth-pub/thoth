@@ -315,7 +315,7 @@ pub fn convert_to_jats(
     format: MarkupFormat,
     conversion_limit: ConversionLimit,
 ) -> ThothResult<String> {
-    if format == MarkupFormat::JatsXml {
+    let output = if format == MarkupFormat::JatsXml {
         let content_looks_like_jats = looks_like_markup(&content);
         let ast = if content_looks_like_jats {
             validate_jats_subset(&content, conversion_limit)?;
@@ -332,70 +332,61 @@ pub fn convert_to_jats(
 
         validate_ast_content(&processed_ast, conversion_limit)?;
 
-        return Ok(
-            if content_looks_like_jats || conversion_limit == ConversionLimit::Title {
+        if content_looks_like_jats || conversion_limit == ConversionLimit::Title {
+            ast_to_jats(&processed_ast)
+        } else {
+            plain_text_ast_to_jats(&processed_ast)
+        }
+    } else {
+        validate_format(&content, &format)?;
+
+        match format {
+            MarkupFormat::Html => {
+                let ast = html_to_ast(&content);
+                let processed_ast = if conversion_limit == ConversionLimit::Title {
+                    strip_structural_elements_from_ast_for_conversion(&ast)
+                } else {
+                    ast
+                };
+
+                validate_ast_content(&processed_ast, conversion_limit)?;
                 ast_to_jats(&processed_ast)
-            } else {
-                plain_text_ast_to_jats(&processed_ast)
-            },
-        );
-    }
+            }
 
-    validate_format(&content, &format)?;
+            MarkupFormat::Markdown => {
+                let ast = markdown_to_ast(&content);
+                let processed_ast = if conversion_limit == ConversionLimit::Title {
+                    strip_structural_elements_from_ast_for_conversion(&ast)
+                } else {
+                    ast
+                };
 
-    match format {
-        MarkupFormat::Html => {
-            // Use ast library to parse HTML and convert to JATS
-            let ast = html_to_ast(&content);
-
-            // For title conversion, strip structural elements before validation
-            let processed_ast = if conversion_limit == ConversionLimit::Title {
-                strip_structural_elements_from_ast_for_conversion(&ast)
-            } else {
-                ast
-            };
-
-            validate_ast_content(&processed_ast, conversion_limit)?;
-            Ok(ast_to_jats(&processed_ast))
-        }
-
-        MarkupFormat::Markdown => {
-            // Use ast library to parse Markdown and convert to JATS
-            let ast = markdown_to_ast(&content);
-
-            // For title conversion, strip structural elements before validation
-            let processed_ast = if conversion_limit == ConversionLimit::Title {
-                strip_structural_elements_from_ast_for_conversion(&ast)
-            } else {
-                ast
-            };
-
-            validate_ast_content(&processed_ast, conversion_limit)?;
-            Ok(ast_to_jats(&processed_ast))
-        }
-
-        MarkupFormat::PlainText => {
-            // Use ast library to parse plain text and convert to JATS
-            let ast = plain_text_to_ast(&content);
-
-            // For title conversion, strip structural elements before validation
-            let processed_ast = if conversion_limit == ConversionLimit::Title {
-                strip_structural_elements_from_ast_for_conversion(&ast)
-            } else {
-                ast
-            };
-
-            validate_ast_content(&processed_ast, conversion_limit)?;
-            Ok(if conversion_limit == ConversionLimit::Title {
-                // Title JATS should remain inline (no paragraph wrapper)
+                validate_ast_content(&processed_ast, conversion_limit)?;
                 ast_to_jats(&processed_ast)
-            } else {
-                plain_text_ast_to_jats(&processed_ast)
-            })
-        }
+            }
 
-        MarkupFormat::JatsXml => unreachable!("handled above"),
-    }
+            MarkupFormat::PlainText => {
+                let ast = plain_text_to_ast(&content);
+                let processed_ast = if conversion_limit == ConversionLimit::Title {
+                    strip_structural_elements_from_ast_for_conversion(&ast)
+                } else {
+                    ast
+                };
+
+                validate_ast_content(&processed_ast, conversion_limit)?;
+                if conversion_limit == ConversionLimit::Title {
+                    ast_to_jats(&processed_ast)
+                } else {
+                    plain_text_ast_to_jats(&processed_ast)
+                }
+            }
+
+            MarkupFormat::JatsXml => unreachable!("handled above"),
+        }
+    };
+
+    validate_jats_subset(&output, conversion_limit)?;
+    Ok(output)
 }
 
 /// normalise stored abstract-like markup into the subset we safely emit to Crossref.
@@ -605,6 +596,64 @@ mod tests {
         )
         .unwrap();
         assert_eq!(output, "<p>Hello <uri>https://example.com</uri> world</p>");
+    }
+
+    #[test]
+    fn test_plain_text_abstract_escapes_reserved_xml_chars() {
+        let input = "x < y & z > w";
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::PlainText,
+            ConversionLimit::Abstract,
+        )
+        .unwrap();
+
+        assert_eq!(output, "<p>x &lt; y &amp; z &gt; w</p>");
+    }
+
+    #[test]
+    fn test_plain_text_jatsxml_abstract_escapes_reserved_xml_chars() {
+        let input = "x < y & z > w";
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::JatsXml,
+            ConversionLimit::Abstract,
+        )
+        .unwrap();
+
+        assert_eq!(output, "<p>x &lt; y &amp; z &gt; w</p>");
+    }
+
+    #[test]
+    fn test_plain_text_rich_content_escapes_xml_reserved_chars() {
+        let input = "x < y & user@example.org https://example.org?a=1&b=2 $a < b & c$ > w";
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::PlainText,
+            ConversionLimit::Abstract,
+        )
+        .unwrap();
+
+        assert_eq!(
+            output,
+            "<p>x &lt; y &amp; <email>user@example.org</email> <uri>https://example.org?a=1&amp;b=2</uri> <inline-formula><tex-math>a &lt; b &amp; c</tex-math></inline-formula> &gt; w</p>"
+        );
+    }
+
+    #[test]
+    fn test_html_link_url_escapes_reserved_xml_chars() {
+        let input = r#"<a href="https://example.com?a=1&amp;b=2">Link</a>"#;
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::Html,
+            ConversionLimit::Abstract,
+        )
+        .unwrap();
+
+        assert_eq!(
+            output,
+            r#"<p><ext-link xlink:href="https://example.com?a=1&amp;b=2">Link</ext-link></p>"#
+        );
     }
 
     #[test]

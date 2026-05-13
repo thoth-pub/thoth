@@ -30,6 +30,19 @@ fn inline_text_to_plain_text(nodes: &[Node]) -> String {
     nodes.iter().map(ast_to_plain_text).collect()
 }
 
+fn escape_xml_text(input: &str) -> String {
+    input
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+fn escape_xml_attr(input: &str) -> String {
+    escape_xml_text(input)
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
 fn looks_like_email(text: &str) -> bool {
     regex::Regex::new(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
         .unwrap()
@@ -680,16 +693,16 @@ pub fn plain_text_to_ast(text: &str) -> Node {
 pub fn plain_text_ast_to_jats(node: &Node) -> String {
     fn render_plain_text_inline(node: &Node) -> String {
         match node {
-            Node::Text(text) => text.clone(),
+            Node::Text(text) => escape_xml_text(text),
             Node::Break => "<break/>".to_string(),
             Node::InlineFormula(tex) => {
                 format!(
                     "<inline-formula><tex-math>{}</tex-math></inline-formula>",
-                    tex
+                    escape_xml_text(tex)
                 )
             }
-            Node::Email(email) => format!("<email>{}</email>", email),
-            Node::Uri(uri) => format!("<uri>{}</uri>", uri),
+            Node::Email(email) => format!("<email>{}</email>", escape_xml_text(email)),
+            Node::Uri(uri) => format!("<uri>{}</uri>", escape_xml_text(uri)),
             other => ast_to_jats(other),
         }
     }
@@ -712,16 +725,16 @@ pub fn plain_text_ast_to_jats(node: &Node) -> String {
             let inner: String = children.iter().map(render_plain_text_inline).collect();
             format!("<p>{}</p>", inner)
         }
-        Node::Text(text) => format!("<p>{}</p>", text),
+        Node::Text(text) => format!("<p>{}</p>", escape_xml_text(text)),
         Node::Break => "<p><break/></p>".to_string(),
         Node::InlineFormula(tex) => {
             format!(
                 "<p><inline-formula><tex-math>{}</tex-math></inline-formula></p>",
-                tex
+                escape_xml_text(tex)
             )
         }
-        Node::Email(email) => format!("<p><email>{}</email></p>", email),
-        Node::Uri(uri) => format!("<p><uri>{}</uri></p>", uri),
+        Node::Email(email) => format!("<p><email>{}</email></p>", escape_xml_text(email)),
+        Node::Uri(uri) => format!("<p><uri>{}</uri></p>", escape_xml_text(uri)),
         _ => {
             // For other nodes, use regular ast_to_jats
             ast_to_jats(node)
@@ -780,17 +793,21 @@ pub fn ast_to_jats(node: &Node) -> String {
         }
         Node::Link { url, text } => {
             let inner: String = text.iter().map(ast_to_jats).collect();
-            format!(r#"<ext-link xlink:href="{}">{}</ext-link>"#, url, inner)
+            format!(
+                r#"<ext-link xlink:href="{}">{}</ext-link>"#,
+                escape_xml_attr(url),
+                inner
+            )
         }
         Node::InlineFormula(tex) => {
             format!(
                 "<inline-formula><tex-math>{}</tex-math></inline-formula>",
-                tex
+                escape_xml_text(tex)
             )
         }
-        Node::Email(email) => format!("<email>{}</email>", email),
-        Node::Uri(uri) => format!("<uri>{}</uri>", uri),
-        Node::Text(text) => text.clone(),
+        Node::Email(email) => format!("<email>{}</email>", escape_xml_text(email)),
+        Node::Uri(uri) => format!("<uri>{}</uri>", escape_xml_text(uri)),
+        Node::Text(text) => escape_xml_text(text),
     }
 }
 
@@ -1995,6 +2012,64 @@ mod tests {
             jats,
             r#"<ext-link xlink:href="https://example.com">Link text</ext-link>"#
         );
+    }
+
+    #[test]
+    fn test_ast_to_jats_escapes_reserved_xml_chars() {
+        let ast = Node::Paragraph(vec![
+            Node::Text("x < y & z > w ".to_string()),
+            Node::InlineFormula("a < b & c".to_string()),
+            Node::Text(" ".to_string()),
+            Node::Email("user@example.org".to_string()),
+            Node::Text(" ".to_string()),
+            Node::Uri("https://example.org?a=1&b=2".to_string()),
+        ]);
+
+        let jats = ast_to_jats(&ast);
+        assert_eq!(
+            jats,
+            "<p>x &lt; y &amp; z &gt; w <inline-formula><tex-math>a &lt; b &amp; c</tex-math></inline-formula> <email>user@example.org</email> <uri>https://example.org?a=1&amp;b=2</uri></p>"
+        );
+    }
+
+    #[test]
+    fn test_ast_to_jats_escapes_link_url_attribute() {
+        let ast = Node::Link {
+            url: "https://example.com?a=1&b=2".to_string(),
+            text: vec![Node::Text("Link text".to_string())],
+        };
+
+        let jats = ast_to_jats(&ast);
+        assert_eq!(
+            jats,
+            r#"<ext-link xlink:href="https://example.com?a=1&amp;b=2">Link text</ext-link>"#
+        );
+    }
+
+    #[test]
+    fn test_ast_to_jats_preserves_generated_tags() {
+        let ast = Node::Paragraph(vec![
+            Node::Bold(vec![Node::Text("Bold".to_string())]),
+            Node::Text(" and ".to_string()),
+            Node::Italic(vec![Node::Text("italic".to_string())]),
+        ]);
+
+        let jats = ast_to_jats(&ast);
+        assert_eq!(jats, "<p><bold>Bold</bold> and <italic>italic</italic></p>");
+        assert!(!jats.contains("&lt;bold&gt;"));
+    }
+
+    #[test]
+    fn test_ast_to_jats_preserves_generated_tags_and_escapes() {
+        let ast = Node::Paragraph(vec![
+            Node::Bold(vec![Node::Text("Bo<ld".to_string())]),
+            Node::Text(" & ".to_string()),
+            Node::Italic(vec![Node::Text("ita>lic".to_string())]),
+        ]);
+
+        let jats = ast_to_jats(&ast);
+        assert_eq!(jats, "<p><bold>Bo&lt;ld</bold> &amp; <italic>ita&gt;lic</italic></p>");
+        assert!(!jats.contains("&lt;bold&gt;"));
     }
 
     #[test]
