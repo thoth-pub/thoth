@@ -2068,7 +2068,10 @@ mod tests {
         ]);
 
         let jats = ast_to_jats(&ast);
-        assert_eq!(jats, "<p><bold>Bo&lt;ld</bold> &amp; <italic>ita&gt;lic</italic></p>");
+        assert_eq!(
+            jats,
+            "<p><bold>Bo&lt;ld</bold> &amp; <italic>ita&gt;lic</italic></p>"
+        );
         assert!(!jats.contains("&lt;bold&gt;"));
     }
 
