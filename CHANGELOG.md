@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[1.3.2]](https://github.com/thoth-pub/thoth/releases/tag/v1.3.2) - 2026-05-14
+### Fixed
+  - [751](https://github.com/thoth-pub/thoth/pull/751) - Escape XML reserved characters when writing JATS-formatted text to database
+
 ## [[1.3.1]](https://github.com/thoth-pub/thoth/releases/tag/v1.3.1) - 2026-05-06
 ### Security
   - Upgrade `openssl` to v0.10.79

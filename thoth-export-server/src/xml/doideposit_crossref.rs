@@ -325,16 +325,31 @@ fn write_jats_content<W: Write>(content: &str, w: &mut EventWriter<W>) -> ThothR
                 let mut event_builder = XmlEvent::start_element(&*name);
 
                 // Add attributes
-                let attrs: Vec<(String, String)> = e
+                let attrs: ThothResult<Vec<(String, String)>> = e
                     .attributes()
-                    .flatten()
                     .map(|attr| {
-                        (
+                        let attr = attr.map_err(|err| {
+                            ThothError::InternalError(format!(
+                                "Error parsing JATS content attributes: {}",
+                                err
+                            ))
+                        })?;
+                        let value = attr
+                            .decode_and_unescape_value(reader.decoder())
+                            .map_err(|err| {
+                                ThothError::InternalError(format!(
+                                    "Error decoding JATS content attributes: {}",
+                                    err
+                                ))
+                            })?
+                            .into_owned();
+                        Ok((
                             String::from_utf8_lossy(attr.key.as_ref()).to_string(),
-                            String::from_utf8_lossy(&attr.value).to_string(),
-                        )
+                            value,
+                        ))
                     })
                     .collect();
+                let attrs = attrs?;
 
                 for (key, value) in &attrs {
                     event_builder = event_builder.attr(key.as_str(), value.as_str());
@@ -357,16 +372,31 @@ fn write_jats_content<W: Write>(content: &str, w: &mut EventWriter<W>) -> ThothR
                 let mut event_builder = XmlEvent::start_element(&*name);
 
                 // Add attributes
-                let attrs: Vec<(String, String)> = e
+                let attrs: ThothResult<Vec<(String, String)>> = e
                     .attributes()
-                    .flatten()
                     .map(|attr| {
-                        (
+                        let attr = attr.map_err(|err| {
+                            ThothError::InternalError(format!(
+                                "Error parsing JATS content attributes: {}",
+                                err
+                            ))
+                        })?;
+                        let value = attr
+                            .decode_and_unescape_value(reader.decoder())
+                            .map_err(|err| {
+                                ThothError::InternalError(format!(
+                                    "Error decoding JATS content attributes: {}",
+                                    err
+                                ))
+                            })?
+                            .into_owned();
+                        Ok((
                             String::from_utf8_lossy(attr.key.as_ref()).to_string(),
-                            String::from_utf8_lossy(&attr.value).to_string(),
-                        )
+                            value,
+                        ))
                     })
                     .collect();
+                let attrs = attrs?;
 
                 for (key, value) in &attrs {
                     event_builder = event_builder.attr(key.as_str(), value.as_str());
@@ -2487,7 +2517,7 @@ mod tests {
         // Should not contain any paragraph elements
         assert!(!output.contains(r#"<jats:p>"#));
 
-        // Nested paragraph wrappers should be flattened before writing.
+        // Nested paragraph wrappers are invalid JATS and should be rejected.
         let mut buffer = Vec::new();
         let mut writer = xml::writer::EmitterConfig::new()
             .perform_indent(true)
@@ -2500,13 +2530,9 @@ mod tests {
             &mut writer,
         );
 
-        assert!(result.is_ok());
-        let output = String::from_utf8(buffer).unwrap();
-        assert!(output.contains(r#"<jats:p>Nested paragraph.</jats:p>"#));
-        assert!(!output.contains(r#"<jats:p><jats:p>"#));
-        assert!(!output.contains(r#"<jats:p />"#));
+        assert!(result.is_err());
 
-        // Break elements should be converted into sibling paragraphs.
+        // Break elements are invalid JATS and should be rejected.
         let mut buffer = Vec::new();
         let mut writer = xml::writer::EmitterConfig::new()
             .perform_indent(true)
@@ -2519,11 +2545,7 @@ mod tests {
             &mut writer,
         );
 
-        assert!(result.is_ok());
-        let output = String::from_utf8(buffer).unwrap();
-        assert!(output.contains(r#"<jats:p>First line</jats:p>"#));
-        assert!(output.contains(r#"<jats:p>Second line</jats:p>"#));
-        assert!(!output.contains(r#"<jats:break"#));
+        assert!(result.is_err());
 
         // Locale codes written to xml:lang should use BCP 47 hyphen separators.
         let mut buffer = Vec::new();
@@ -2561,6 +2583,32 @@ mod tests {
         assert!(result.is_err());
         let error = result.unwrap_err().to_string();
         assert!(error.contains("Invalid Crossref abstract markup"));
+    }
+
+    #[test]
+    fn test_write_abstract_content_with_locale_code_escapes_link_attributes_once() {
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+
+        let result = write_abstract_content_with_locale_code(
+            r#"<p><ext-link xlink:href="https://example.org?a=1&amp;b=2&amp;quote=&quot;hi&quot;&amp;apos=&apos;ok&apos;">link</ext-link></p>"#,
+            "long",
+            "EN",
+            &mut writer,
+        );
+
+        assert!(result.is_ok());
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(
+            output.contains(
+                r#"<jats:ext-link xlink:href="https://example.org?a=1&amp;b=2&amp;quote=&quot;hi&quot;&amp;apos=&apos;ok&apos;">link</jats:ext-link>"#
+            )
+        );
+        assert!(!output.contains("&amp;amp;"));
+        assert!(!output.contains("&amp;quot;"));
+        assert!(!output.contains("&amp;apos;"));
     }
 
     #[test]
