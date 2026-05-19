@@ -71,6 +71,61 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                 "Missing License".to_string(),
             ));
         }
+        // Fail if any mandatory OAPEN fields are missing
+        if !self
+            .abstracts
+            .iter()
+            .any(|a| a.abstract_type == AbstractType::LONG && a.canonical)
+        {
+            return Err(ThothError::IncompleteMetadataRecord(
+                ONIX_ERROR.to_string(),
+                "Missing Long Abstract".to_string(),
+            ));
+        }
+        let landing_page = self.landing_page.as_ref().ok_or_else(|| {
+            ThothError::IncompleteMetadataRecord(
+                ONIX_ERROR.to_string(),
+                "Missing Landing Page".to_string(),
+            )
+        })?;
+        if !self.publications.iter().any(|p| p.isbn.is_some()) {
+            return Err(ThothError::IncompleteMetadataRecord(
+                ONIX_ERROR.to_string(),
+                "Missing ISBN".to_string(),
+            ));
+        }
+        if self.languages.is_empty() {
+            return Err(ThothError::IncompleteMetadataRecord(
+                ONIX_ERROR.to_string(),
+                "Missing Language".to_string(),
+            ));
+        }
+        if !self
+            .subjects
+            .iter()
+            .any(|s| s.subject_type == SubjectType::THEMA)
+        {
+            return Err(ThothError::IncompleteMetadataRecord(
+                ONIX_ERROR.to_string(),
+                "No THEMA subject code".to_string(),
+            ));
+        }
+        if !self
+            .subjects
+            .iter()
+            .any(|s| s.subject_type == SubjectType::KEYWORD)
+        {
+            return Err(ThothError::IncompleteMetadataRecord(
+                ONIX_ERROR.to_string(),
+                "No subject keyword".to_string(),
+            ));
+        }
+        let publication_date = self.publication_date.ok_or_else(|| {
+            ThothError::IncompleteMetadataRecord(
+                ONIX_ERROR.to_string(),
+                "Missing Publication Date".to_string(),
+            )
+        })?;
         // We can only generate the document if there's a PDF
         let pdf_publication = self
             .publications
@@ -319,71 +374,62 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                         })
                     })
                 })?;
-                if self
-                    .abstracts
-                    .iter()
-                    .any(|a| a.abstract_type == AbstractType::LONG && a.canonical)
-                    || self.cover_url.is_some()
-                {
-                    write_element_block("CollateralDetail", w, |w| {
-                        if let Some(r#abstract) = &self
+                write_element_block("CollateralDetail", w, |w| {
+                    write_element_block("TextContent", w, |w| {
+                        // 03 Description ("30 Abstract" not implemented in OAPEN)
+                        write_element_block("TextType", w, |w| {
+                            w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
+                        })?;
+                        // 00 Unrestricted
+                        write_element_block("ContentAudience", w, |w| {
+                            w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                        })?;
+                        let r#abstract = &self
                             .abstracts
                             .iter()
                             .find(|a| a.abstract_type == AbstractType::LONG && a.canonical)
-                        {
-                            write_element_block("TextContent", w, |w| {
-                                // 03 Description ("30 Abstract" not implemented in OAPEN)
-                                write_element_block("TextType", w, |w| {
-                                    w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
-                                })?;
-                                // 00 Unrestricted
-                                write_element_block("ContentAudience", w, |w| {
-                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                                })?;
-                                let api_locale: ApiLocaleCode =
-                                    r#abstract.locale_code.clone().into();
-                                let lang_code: ApiLanguageCode = api_locale.into();
-                                let iso_code = lang_code.to_string().to_lowercase();
-                                write_full_element_block(
-                                    "Text",
-                                    Some(vec![("language", &iso_code), ("textformat", "03")]),
-                                    w,
-                                    |w| {
-                                        w.write(XmlEvent::Characters(&r#abstract.content))
-                                            .map_err(|e| e.into())
-                                    },
-                                )
-                            })?;
-                        }
-                        if let Some(cover_url) = &self.cover_url {
-                            write_element_block("SupportingResource", w, |w| {
-                                // 01 Front cover
-                                write_element_block("ResourceContentType", w, |w| {
-                                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                                })?;
-                                // 00 Unrestricted
-                                write_element_block("ContentAudience", w, |w| {
-                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                                })?;
-                                // 03 Image
-                                write_element_block("ResourceMode", w, |w| {
-                                    w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("ResourceVersion", w, |w| {
-                                    // 02 Downloadable file
-                                    write_element_block("ResourceForm", w, |w| {
-                                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("ResourceLink", w, |w| {
-                                        w.write(XmlEvent::Characters(cover_url))
-                                            .map_err(|e| e.into())
-                                    })
-                                })
-                            })?;
-                        }
-                        Ok(())
+                            .unwrap();
+                        let api_locale: ApiLocaleCode = r#abstract.locale_code.clone().into();
+                        let lang_code: ApiLanguageCode = api_locale.into();
+                        let iso_code = lang_code.to_string().to_lowercase();
+                        write_full_element_block(
+                            "Text",
+                            Some(vec![("language", &iso_code), ("textformat", "03")]),
+                            w,
+                            |w| {
+                                w.write(XmlEvent::Characters(&r#abstract.content))
+                                    .map_err(|e| e.into())
+                            },
+                        )
                     })?;
-                }
+                    if let Some(cover_url) = &self.cover_url {
+                        write_element_block("SupportingResource", w, |w| {
+                            // 01 Front cover
+                            write_element_block("ResourceContentType", w, |w| {
+                                w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                            })?;
+                            // 00 Unrestricted
+                            write_element_block("ContentAudience", w, |w| {
+                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                            })?;
+                            // 03 Image
+                            write_element_block("ResourceMode", w, |w| {
+                                w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
+                            })?;
+                            write_element_block("ResourceVersion", w, |w| {
+                                // 02 Downloadable file
+                                write_element_block("ResourceForm", w, |w| {
+                                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("ResourceLink", w, |w| {
+                                    w.write(XmlEvent::Characters(cover_url))
+                                        .map_err(|e| e.into())
+                                })
+                            })
+                        })?;
+                    }
+                    Ok(())
+                })?;
                 write_element_block("PublishingDetail", w, |w| {
                     write_element_block("Imprint", w, |w| {
                         write_element_block("ImprintName", w, |w| {
@@ -410,24 +456,19 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                         })?;
                     }
                     XmlElement::<Onix3Oapen>::xml_element(&self.work_status, w)?;
-                    if let Some(date) = self.publication_date {
-                        write_element_block("PublishingDate", w, |w| {
-                            write_element_block("PublishingDateRole", w, |w| {
-                                // 19 Publication date of print counterpart
-                                w.write(XmlEvent::Characters("19")).map_err(|e| e.into())
-                            })?;
-                            // dateformat="05" YYYY
-                            write_full_element_block(
-                                "Date",
-                                Some(vec![("dateformat", "05")]),
-                                w,
-                                |w| {
-                                    w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
-                                        .map_err(|e| e.into())
-                                },
-                            )
+                    write_element_block("PublishingDate", w, |w| {
+                        write_element_block("PublishingDateRole", w, |w| {
+                            // 19 Publication date of print counterpart
+                            w.write(XmlEvent::Characters("19")).map_err(|e| e.into())
                         })?;
-                    }
+                        // dateformat="05" YYYY
+                        write_full_element_block("Date", Some(vec![("dateformat", "05")]), w, |w| {
+                            w.write(XmlEvent::Characters(
+                                &publication_date.format("%Y").to_string(),
+                            ))
+                            .map_err(|e| e.into())
+                        })
+                    })?;
                     if let Some(date) = &self.withdrawn_date {
                         write_element_block("PublishingDate", w, |w| {
                             write_element_block("PublishingDateRole", w, |w| {
@@ -481,15 +522,13 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                             "Publisher's website: download the title".to_string(),
                         ),
                     );
-                    if let Some(landing_page) = &self.landing_page {
-                        supplies.insert(
-                            landing_page.to_string(),
-                            (
-                                "02".to_string(),
-                                "Publisher's website: web shop".to_string(),
-                            ),
-                        );
-                    }
+                    supplies.insert(
+                        landing_page.to_string(),
+                        (
+                            "02".to_string(),
+                            "Publisher's website: web shop".to_string(),
+                        ),
+                    );
                     for (url, description) in supplies.iter() {
                         write_element_block("SupplyDetail", w, |w| {
                             write_element_block("Supplier", w, |w| {
@@ -1161,7 +1200,10 @@ mod tests {
             },
             issues: vec![],
             contributions: vec![],
-            languages: vec![],
+            languages: vec![WorkLanguages {
+                language_code: LanguageCode::SPA,
+                language_relation: LanguageRelation::ORIGINAL,
+            }],
             publications: vec![WorkPublications {
                 publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
                 publication_type: PublicationType::PDF,
@@ -1189,7 +1231,18 @@ mod tests {
                     canonical: true,
                 }],
             }],
-            subjects: vec![],
+            subjects: vec![
+                WorkSubjects {
+                    subject_code: "JWA".to_string(),
+                    subject_type: SubjectType::THEMA,
+                    subject_ordinal: 1,
+                },
+                WorkSubjects {
+                    subject_code: "keyword1".to_string(),
+                    subject_type: SubjectType::KEYWORD,
+                    subject_ordinal: 2,
+                },
+            ],
             fundings: vec![],
             relations: vec![],
             references: vec![],
@@ -1403,10 +1456,8 @@ mod tests {
         test_work.doi = None;
         test_work.titles[0].subtitle = None;
         test_work.page_count = None;
-        test_work.abstracts.clear();
         test_work.place = None;
-        test_work.publication_date = None;
-        test_work.landing_page = None;
+        test_work.cover_url = None;
         test_work.imprint.publisher.contacts.clear();
         test_work.imprint.publisher.accessibility_statement = None;
         let output = generate_test_output(true, &test_work);
@@ -1420,34 +1471,23 @@ mod tests {
         assert!(!output.contains(r#"      <ExtentType>00</ExtentType>"#));
         assert!(!output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
         assert!(!output.contains(r#"      <ExtentUnit>03</ExtentUnit>"#));
-        // No long abstract supplied: CollateralDetail block only contains cover URL
+        // No cover URL supplied: CollateralDetail block only contains long abstract
         assert!(output.contains(r#"  <CollateralDetail>"#));
-        assert!(output.contains(r#"    <SupportingResource>"#));
-        assert!(output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
-        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
-        assert!(output.contains(r#"      <ResourceVersion>"#));
-        assert!(output.contains(r#"        <ResourceForm>02</ResourceForm>"#));
+        assert!(!output.contains(r#"    <SupportingResource>"#));
+        assert!(!output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
+        assert!(!output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
+        assert!(!output.contains(r#"      <ResourceVersion>"#));
+        assert!(!output.contains(r#"        <ResourceForm>02</ResourceForm>"#));
         assert!(
-            output.contains(r#"        <ResourceLink>https://www.book.com/cover</ResourceLink>"#)
+            !output.contains(r#"        <ResourceLink>https://www.book.com/cover</ResourceLink>"#)
         );
-        assert!(!output.contains(r#"    <TextContent>"#));
-        assert!(!output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(!output.contains(
+        assert!(output.contains(r#"    <TextContent>"#));
+        assert!(output.contains(r#"      <TextType>03</TextType>"#));
+        assert!(output.contains(
             r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet</Text>"#
         ));
         // No place supplied
         assert!(!output.contains(r#"    <CityOfPublication>León, Spain</CityOfPublication>"#));
-        // No publication date supplied
-        assert!(!output.contains(r#"    <PublishingDate>"#));
-        assert!(!output.contains(r#"      <PublishingDateRole>19</PublishingDateRole>"#));
-        assert!(!output.contains(r#"      <Date dateformat="05">1999</Date>"#));
-        // No landing page supplied: only one SupplyDetail block, linking to PDF download
-        assert!(!output.contains(r#"          <WebsiteRole>02</WebsiteRole>"#));
-        assert!(!output.contains(
-            r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
-        ));
-        assert!(!output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
         // No publisher-level accessibility details supplied
         assert!(!output.contains(
             r#"
@@ -1505,24 +1545,21 @@ mod tests {
         assert!(!output
             .contains(r#"        <ResourceLink>"https://www.book.com/cover"</ResourceLink>"#));
 
-        // Remove both cover URL and long abstract
-        // Result: No CollateralDetail block present at all
+        // Remove long abstract. Result: error
         test_work.abstracts.clear();
-        let output = generate_test_output(true, &test_work);
-        assert!(!output.contains(r#"  <CollateralDetail>"#));
-        assert!(!output.contains(r#"    <TextContent>"#));
-        assert!(!output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(!output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(!output.contains(
-            r#"      <Text language="eng" textformat="03">Lorem ipsum dolor sit amet</Text>"#
-        ));
-        assert!(!output.contains(r#"    <SupportingResource>"#));
-        assert!(!output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
-        assert!(!output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
-        assert!(!output.contains(r#"      <ResourceVersion>"#));
-        assert!(!output.contains(r#"        <ResourceForm>02</ResourceForm>"#));
-        assert!(!output
-            .contains(r#"        <ResourceLink>"https://www.book.com/cover"</ResourceLink>"#));
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::oapen: Missing Long Abstract".to_string()
+        );
+        test_work.abstracts.push(thoth_client::WorkAbstracts {
+            abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            content: "Lorem ipsum dolor sit amet".to_string(),
+            locale_code: thoth_client::LocaleCode::EN,
+            abstract_type: thoth_client::AbstractType::LONG,
+            canonical: true,
+        });
 
         // Remove licence. Result: error
         test_work.license = None;
@@ -1531,15 +1568,90 @@ mod tests {
             output,
             "Could not generate onix_3.0::oapen: Missing License".to_string()
         );
-
-        // Replace licence, but remove the only publication, which is the PDF
-        // Result: error (can't generate OAPEN ONIX without PDF URL)
         test_work.license = Some("https://creativecommons.org/licenses/by/4.0/".to_string());
-        test_work.publications.clear();
+
+        // Remove the ISBN from the only publication. Result: error
+        test_work.publications[0].isbn = None;
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::oapen: Missing ISBN".to_string()
+        );
+        test_work.publications[0].isbn = Some(Isbn::from_str("978-3-16-148410-0").unwrap());
+
+        // Remove the only location. Result: error (Missing PDF URL)
+        test_work.publications[0].locations.clear();
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
             "Could not generate onix_3.0::oapen: Missing PDF URL".to_string()
+        );
+        test_work.publications[0]
+            .locations
+            .push(WorkPublicationsLocations {
+                landing_page: Some("https://www.book.com/pdf_landing".to_string()),
+                full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
+                location_platform: LocationPlatform::OTHER,
+                canonical: true,
+            });
+
+        // Remove landing page. Result: error
+        test_work.landing_page = None;
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::oapen: Missing Landing Page".to_string()
+        );
+        test_work.landing_page = Some("https://www.book.com".to_string());
+
+        // Remove languages. Result: error
+        test_work.languages.clear();
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::oapen: Missing Language".to_string()
+        );
+        test_work.languages.push(WorkLanguages {
+            language_code: LanguageCode::SPA,
+            language_relation: LanguageRelation::ORIGINAL,
+        });
+
+        // Remove THEMA subject. Result: error
+        test_work
+            .subjects
+            .retain(|s| s.subject_type != SubjectType::THEMA);
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::oapen: No THEMA subject code".to_string()
+        );
+        test_work.subjects.push(WorkSubjects {
+            subject_code: "JWA".to_string(),
+            subject_type: SubjectType::THEMA,
+            subject_ordinal: 1,
+        });
+
+        // Remove keywords. Result: error
+        test_work
+            .subjects
+            .retain(|s| s.subject_type != SubjectType::KEYWORD);
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::oapen: No subject keyword".to_string()
+        );
+        test_work.subjects.push(WorkSubjects {
+            subject_code: "keyword1".to_string(),
+            subject_type: SubjectType::KEYWORD,
+            subject_ordinal: 2,
+        });
+
+        // Remove publication date. Result: error
+        test_work.publication_date = None;
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::oapen: Missing Publication Date".to_string()
         );
     }
 }
