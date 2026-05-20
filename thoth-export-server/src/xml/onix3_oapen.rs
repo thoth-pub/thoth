@@ -88,12 +88,6 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                 "Missing Landing Page".to_string(),
             )
         })?;
-        if !self.publications.iter().any(|p| p.isbn.is_some()) {
-            return Err(ThothError::IncompleteMetadataRecord(
-                ONIX_ERROR.to_string(),
-                "Missing ISBN".to_string(),
-            ));
-        }
         if self.languages.is_empty() {
             return Err(ThothError::IncompleteMetadataRecord(
                 ONIX_ERROR.to_string(),
@@ -126,6 +120,13 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                 "Missing Publication Date".to_string(),
             )
         })?;
+        let (main_isbn, isbns) = get_publications_data(&self.publications);
+        if main_isbn.is_empty() {
+            return Err(ThothError::IncompleteMetadataRecord(
+                ONIX_ERROR.to_string(),
+                "Missing ISBN".to_string(),
+            ));
+        }
         // We can only generate the document if there's a PDF
         let pdf_publication = self
             .publications
@@ -136,7 +137,6 @@ impl XmlElementBlock<Onix3Oapen> for Work {
             .and_then(|l| l.full_text_url.as_ref())
         {
             let work_id = format!("urn:uuid:{}", self.work_id);
-            let (main_isbn, isbns) = get_publications_data(&self.publications);
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
                     w.write(XmlEvent::Characters(&work_id))
