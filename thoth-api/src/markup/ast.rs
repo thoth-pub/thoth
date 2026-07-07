@@ -13,7 +13,9 @@ impl ListType {
     fn from_jats_value(value: &str) -> Option<Self> {
         match value {
             "bullet" => Some(Self::Bullet),
-            "order" => Some(Self::Order),
+            "order" | "alpha-lower" | "alpha-upper" | "roman-lower" | "roman-upper" => {
+                Some(Self::Order)
+            }
             _ => None,
         }
     }

@@ -79,7 +79,9 @@ fn validate_jats_subset(content: &str, conversion_limit: ConversionLimit) -> Tho
 
     fn validate_list_type(value: &str) -> ThothResult<()> {
         match value {
-            "order" | "bullet" => Ok(()),
+            "order" | "bullet" | "alpha-lower" | "alpha-upper" | "roman-lower" | "roman-upper" => {
+                Ok(())
+            }
             _ => Err(ThothError::RequestError(format!(
                 "Unsupported JATS list-type value: {}",
                 value
@@ -891,6 +893,23 @@ mod tests {
     }
 
     #[test]
+    fn test_jatsxml_ordered_list_style_values_normalise_to_order() {
+        for list_type in ["alpha-lower", "alpha-upper", "roman-lower", "roman-upper"] {
+            let input = format!(
+                r#"<list list-type="{}"><list-item>One</list-item><list-item>Two</list-item></list>"#,
+                list_type
+            );
+            let output =
+                convert_to_jats(input, MarkupFormat::JatsXml, ConversionLimit::Abstract).unwrap();
+
+            assert_eq!(
+                output,
+                r#"<list list-type="order"><list-item>One</list-item><list-item>Two</list-item></list>"#
+            );
+        }
+    }
+
+    #[test]
     fn test_jatsxml_list_type_validation() {
         assert!(validate_jats_subset(
             r#"<list list-type="order"><list-item>One</list-item></list>"#,
@@ -904,6 +923,11 @@ mod tests {
         .is_err());
         assert!(validate_jats_subset(
             r#"<list list-type="decimal"><list-item>One</list-item></list>"#,
+            ConversionLimit::Abstract
+        )
+        .is_err());
+        assert!(validate_jats_subset(
+            r#"<list list-type="foo"><list-item>One</list-item></list>"#,
             ConversionLimit::Abstract
         )
         .is_err());
