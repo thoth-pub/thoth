@@ -979,6 +979,57 @@ mod tests {
     }
 
     #[test]
+    fn test_normalise_crossref_abstract_jats_accepts_pretty_ordered_list() {
+        let input = r#"<list list-type="order">
+                <list-item>One</list-item>
+                <list-item>Two</list-item>
+            </list>"#;
+        let output = normalise_crossref_abstract_jats(input).unwrap();
+
+        assert_eq!(
+            output,
+            r#"<list list-type="order"><list-item><p>One</p></list-item><list-item><p>Two</p></list-item></list>"#
+        );
+    }
+
+    #[test]
+    fn test_normalise_crossref_abstract_jats_accepts_pretty_bullet_list() {
+        let input = r#"<list list-type="bullet">
+                <list-item>One</list-item>
+                <list-item>Two</list-item>
+            </list>"#;
+        let output = normalise_crossref_abstract_jats(input).unwrap();
+
+        assert_eq!(
+            output,
+            r#"<list list-type="bullet"><list-item><p>One</p></list-item><list-item><p>Two</p></list-item></list>"#
+        );
+    }
+
+    #[test]
+    fn test_normalise_crossref_abstract_jats_accepts_pretty_untyped_list() {
+        let input = r#"<list>
+                <list-item>One</list-item>
+                <list-item>Two</list-item>
+            </list>"#;
+        let output = normalise_crossref_abstract_jats(input).unwrap();
+
+        assert_eq!(
+            output,
+            "<list><list-item><p>One</p></list-item><list-item><p>Two</p></list-item></list>"
+        );
+    }
+
+    #[test]
+    fn test_normalise_crossref_abstract_jats_rejects_text_inside_list() {
+        let input = r#"<list list-type="order">
+                stray text
+                <list-item>One</list-item>
+            </list>"#;
+        assert!(normalise_crossref_abstract_jats(input).is_err());
+    }
+
+    #[test]
     fn test_normalise_crossref_abstract_jats_rejects_break_elements() {
         let input = "<p>First line<break/>Second line</p>";
         assert!(normalise_crossref_abstract_jats(input).is_err());

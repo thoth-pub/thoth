@@ -433,6 +433,23 @@ fn normalise_crossref_list_item(children: Vec<Node>) -> ThothResult<Node> {
     Ok(Node::ListItem(normalised))
 }
 
+fn is_whitespace_text_node(node: &Node) -> bool {
+    matches!(node, Node::Text(text) if text.trim().is_empty())
+}
+
+fn normalise_crossref_list_items(items: Vec<Node>) -> ThothResult<Vec<Node>> {
+    items
+        .into_iter()
+        .filter(|item| !is_whitespace_text_node(item))
+        .map(|item| match item {
+            Node::ListItem(children) => normalise_crossref_list_item(children),
+            _ => Err(ThothError::RequestError(
+                "Crossref abstract lists must contain list-item elements.".to_string(),
+            )),
+        })
+        .collect()
+}
+
 /// normalise stored abstract markup into the subset we safely emit to Crossref.
 pub fn normalise_crossref_abstract_ast(node: Node) -> ThothResult<Node> {
     let mut normalised = Vec::new();
@@ -465,16 +482,7 @@ pub fn normalise_crossref_abstract_ast(node: Node) -> ThothResult<Node> {
                         }
                         Node::List { list_type, items } => {
                             flush_crossref_inline_buffer(&mut inline_buffer, &mut normalised)?;
-                            let normalised_items = items
-                                .into_iter()
-                                .map(|item| match item {
-                                    Node::ListItem(children) => normalise_crossref_list_item(children),
-                                    _ => Err(ThothError::RequestError(
-                                        "Crossref abstract lists must contain list-item elements."
-                                            .to_string(),
-                                    )),
-                                })
-                                .collect::<ThothResult<Vec<_>>>()?;
+                            let normalised_items = normalise_crossref_list_items(items)?;
                             normalised.push(Node::List {
                                 list_type,
                                 items: normalised_items,
@@ -511,15 +519,7 @@ pub fn normalise_crossref_abstract_ast(node: Node) -> ThothResult<Node> {
             }
             Node::List { list_type, items } => {
                 flush_crossref_inline_buffer(&mut inline_buffer, &mut normalised)?;
-                let normalised_items = items
-                    .into_iter()
-                    .map(|item| match item {
-                        Node::ListItem(children) => normalise_crossref_list_item(children),
-                        _ => Err(ThothError::RequestError(
-                            "Crossref abstract lists must contain list-item elements.".to_string(),
-                        )),
-                    })
-                    .collect::<ThothResult<Vec<_>>>()?;
+                let normalised_items = normalise_crossref_list_items(items)?;
                 normalised.push(Node::List {
                     list_type,
                     items: normalised_items,
