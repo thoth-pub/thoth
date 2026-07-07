@@ -3,6 +3,29 @@ use pulldown_cmark::{Event, Parser, Tag};
 use scraper::{ElementRef, Html, Selector};
 use thoth_errors::{ThothError, ThothResult};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ListType {
+    Bullet,
+    Order,
+}
+
+impl ListType {
+    fn from_jats_value(value: &str) -> Option<Self> {
+        match value {
+            "bullet" => Some(Self::Bullet),
+            "order" => Some(Self::Order),
+            _ => None,
+        }
+    }
+
+    fn jats_value(self) -> &'static str {
+        match self {
+            Self::Bullet => "bullet",
+            Self::Order => "order",
+        }
+    }
+}
+
 // Simple AST node
 #[derive(Debug, Clone)]
 pub enum Node {
@@ -17,9 +40,15 @@ pub enum Node {
     Superscript(Vec<Node>),
     Subscript(Vec<Node>),
     SmallCaps(Vec<Node>),
-    List(Vec<Node>),
+    List {
+        list_type: Option<ListType>,
+        items: Vec<Node>,
+    },
     ListItem(Vec<Node>),
-    Link { url: String, text: Vec<Node> },
+    Link {
+        url: String,
+        text: Vec<Node>,
+    },
     InlineFormula(String),
     Email(String),
     Uri(String),
@@ -62,8 +91,8 @@ fn push_node_to_top(stack: &mut [Node], node: Node) {
             | Node::Superscript(children)
             | Node::Subscript(children)
             | Node::SmallCaps(children)
-            | Node::List(children)
             | Node::ListItem(children) => children.push(node),
+            Node::List { items, .. } => items.push(node),
             Node::Text(_)
             | Node::Break
             | Node::InlineFormula(_)
@@ -139,7 +168,10 @@ fn normalise_node(node: Node) -> Node {
         Node::Superscript(children) => Node::Superscript(normalise_children(children)),
         Node::Subscript(children) => Node::Subscript(normalise_children(children)),
         Node::SmallCaps(children) => Node::SmallCaps(normalise_children(children)),
-        Node::List(children) => Node::List(normalise_children(children)),
+        Node::List { list_type, items } => Node::List {
+            list_type,
+            items: normalise_children(items),
+        },
         Node::ListItem(children) => Node::ListItem(normalise_children(children)),
         Node::Link { url, text } => {
             let text = normalise_children(text);
@@ -235,8 +267,8 @@ fn has_visible_content(node: &Node) -> bool {
         | Node::Superscript(children)
         | Node::Subscript(children)
         | Node::SmallCaps(children)
-        | Node::List(children)
         | Node::ListItem(children) => children.iter().any(has_visible_content),
+        Node::List { items, .. } => items.iter().any(has_visible_content),
         Node::Link { text, .. } => text.iter().any(has_visible_content),
         Node::Text(text) => has_visible_text(text),
         Node::InlineFormula(tex) => !tex.trim().is_empty(),
@@ -268,10 +300,12 @@ fn normalise_crossref_inline_node(node: Node) -> ThothResult<Vec<Node>> {
             }
             Ok(normalised)
         }
-        Node::Paragraph(_) | Node::List(_) | Node::ListItem(_) => Err(ThothError::RequestError(
-            "Crossref abstracts cannot contain nested block elements inside paragraphs."
-                .to_string(),
-        )),
+        Node::Paragraph(_) | Node::List { .. } | Node::ListItem(_) => {
+            Err(ThothError::RequestError(
+                "Crossref abstracts cannot contain nested block elements inside paragraphs."
+                    .to_string(),
+            ))
+        }
         Node::Break => Err(ThothError::RequestError(
             "Crossref abstracts cannot contain line breaks; use separate paragraphs instead."
                 .to_string(),
@@ -426,7 +460,7 @@ pub fn normalise_crossref_abstract_ast(node: Node) -> ThothResult<Node> {
                                 paragraph_children,
                             )?);
                         }
-                        Node::List(items) => {
+                        Node::List { list_type, items } => {
                             flush_crossref_inline_buffer(&mut inline_buffer, &mut normalised)?;
                             let normalised_items = items
                                 .into_iter()
@@ -438,7 +472,10 @@ pub fn normalise_crossref_abstract_ast(node: Node) -> ThothResult<Node> {
                                     )),
                                 })
                                 .collect::<ThothResult<Vec<_>>>()?;
-                            normalised.push(Node::List(normalised_items));
+                            normalised.push(Node::List {
+                                list_type,
+                                items: normalised_items,
+                            });
                         }
                         Node::Break => {
                             return Err(ThothError::RequestError(
@@ -469,7 +506,7 @@ pub fn normalise_crossref_abstract_ast(node: Node) -> ThothResult<Node> {
                 flush_crossref_inline_buffer(&mut inline_buffer, &mut normalised)?;
                 normalised.extend(normalise_crossref_paragraph_children(paragraph_children)?);
             }
-            Node::List(items) => {
+            Node::List { list_type, items } => {
                 flush_crossref_inline_buffer(&mut inline_buffer, &mut normalised)?;
                 let normalised_items = items
                     .into_iter()
@@ -480,7 +517,10 @@ pub fn normalise_crossref_abstract_ast(node: Node) -> ThothResult<Node> {
                         )),
                     })
                     .collect::<ThothResult<Vec<_>>>()?;
-                normalised.push(Node::List(normalised_items));
+                normalised.push(Node::List {
+                    list_type,
+                    items: normalised_items,
+                });
             }
             Node::Break => return Err(ThothError::RequestError(
                 "Crossref abstracts cannot contain line breaks; use separate paragraphs instead."
@@ -521,7 +561,14 @@ pub fn markdown_to_ast(markdown: &str) -> Node {
                 Tag::Strong => stack.push(Node::Bold(vec![])),
                 Tag::Emphasis => stack.push(Node::Italic(vec![])),
                 Tag::Strikethrough => stack.push(Node::Strikethrough(vec![])),
-                Tag::List(_) => stack.push(Node::List(vec![])),
+                Tag::List(start) => stack.push(Node::List {
+                    list_type: Some(if start.is_some() {
+                        ListType::Order
+                    } else {
+                        ListType::Bullet
+                    }),
+                    items: vec![],
+                }),
                 Tag::Item => stack.push(Node::ListItem(vec![])),
                 Tag::Link { dest_url, .. } => stack.push(Node::Link {
                     url: dest_url.to_string(),
@@ -586,7 +633,14 @@ pub fn html_to_ast(html: &str) -> Node {
             "sup" => Node::Superscript(children),
             "sub" => Node::Subscript(children),
             "text" => Node::SmallCaps(children),
-            "ul" | "ol" => Node::List(children),
+            "ul" => Node::List {
+                list_type: Some(ListType::Bullet),
+                items: children,
+            },
+            "ol" => Node::List {
+                list_type: Some(ListType::Order),
+                items: children,
+            },
             "li" => Node::ListItem(children),
             "span" => {
                 if element
@@ -783,9 +837,16 @@ pub fn ast_to_jats(node: &Node) -> String {
             let inner: String = children.iter().map(ast_to_jats).collect();
             format!("<sc>{}</sc>", inner)
         }
-        Node::List(items) => {
+        Node::List { list_type, items } => {
             let inner: String = items.iter().map(ast_to_jats).collect();
-            format!("<list>{}</list>", inner)
+            match list_type {
+                Some(list_type) => format!(
+                    r#"<list list-type="{}">{}</list>"#,
+                    list_type.jats_value(),
+                    inner
+                ),
+                None => format!("<list>{}</list>", inner),
+            }
         }
         Node::ListItem(children) => {
             let inner: String = children.iter().map(ast_to_jats).collect();
@@ -864,7 +925,21 @@ pub fn jats_to_ast(jats: &str) -> Node {
             "sup" => Node::Superscript(children),
             "sub" => Node::Subscript(children),
             "sc" | "text" => Node::SmallCaps(children),
-            "list" | "ul" | "ol" => Node::List(children),
+            "list" => Node::List {
+                list_type: element
+                    .value()
+                    .attr("list-type")
+                    .and_then(ListType::from_jats_value),
+                items: children,
+            },
+            "ul" => Node::List {
+                list_type: Some(ListType::Bullet),
+                items: children,
+            },
+            "ol" => Node::List {
+                list_type: Some(ListType::Order),
+                items: children,
+            },
             "list-item" | "li" => Node::ListItem(children),
             "span" => {
                 if element
@@ -984,9 +1059,13 @@ pub fn ast_to_html(node: &Node) -> String {
             let inner: String = children.iter().map(ast_to_html).collect();
             format!("<text>{}</text>", inner)
         }
-        Node::List(items) => {
+        Node::List { list_type, items } => {
             let inner: String = items.iter().map(ast_to_html).collect();
-            format!("<ul>{}</ul>", inner)
+            let tag = match list_type {
+                Some(ListType::Order) => "ol",
+                Some(ListType::Bullet) | None => "ul",
+            };
+            format!("<{}>{}</{}>", tag, inner, tag)
         }
         Node::ListItem(children) => {
             let inner: String = children.iter().map(ast_to_html).collect();
@@ -1003,6 +1082,86 @@ pub fn ast_to_html(node: &Node) -> String {
         Node::Uri(uri) => format!(r#"<a href="{}">{}</a>"#, uri, uri),
         Node::Text(text) => text.clone(),
     }
+}
+
+fn append_list_item_markdown_blocks(
+    nodes: &[Node],
+    blocks: &mut Vec<String>,
+    inline_buffer: &mut String,
+) {
+    for node in nodes {
+        match node {
+            Node::Paragraph(children) => {
+                if !inline_buffer.is_empty() {
+                    blocks.push(std::mem::take(inline_buffer));
+                }
+                blocks.push(children.iter().map(ast_to_markdown).collect());
+            }
+            Node::Document(children) => {
+                if !inline_buffer.is_empty() {
+                    blocks.push(std::mem::take(inline_buffer));
+                }
+                append_list_item_markdown_blocks(children, blocks, inline_buffer);
+            }
+            inline if is_inline_node(inline) => {
+                inline_buffer.push_str(&ast_to_markdown(inline));
+            }
+            block => {
+                if !inline_buffer.is_empty() {
+                    blocks.push(std::mem::take(inline_buffer));
+                }
+                blocks.push(ast_to_markdown(block).trim_end_matches('\n').to_string());
+            }
+        }
+    }
+}
+
+fn list_item_markdown_blocks(children: &[Node]) -> Vec<String> {
+    let mut blocks = Vec::new();
+    let mut inline_buffer = String::new();
+    append_list_item_markdown_blocks(children, &mut blocks, &mut inline_buffer);
+    if !inline_buffer.is_empty() {
+        blocks.push(inline_buffer);
+    }
+    if blocks.is_empty() {
+        blocks.push(String::new());
+    }
+    blocks
+}
+
+fn indent_markdown_block(block: &str, indent: &str) -> String {
+    block
+        .lines()
+        .map(|line| {
+            if line.is_empty() {
+                String::new()
+            } else {
+                format!("{}{}", indent, line)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn render_list_item_to_markdown(children: &[Node], marker: &str) -> String {
+    let blocks = list_item_markdown_blocks(children);
+    let continuation_indent = " ".repeat(marker.len());
+    let mut result = String::new();
+
+    result.push_str(marker);
+    result.push_str(blocks[0].trim_end_matches('\n'));
+    result.push('\n');
+
+    for block in blocks.iter().skip(1) {
+        result.push('\n');
+        result.push_str(&indent_markdown_block(
+            block.trim_end_matches('\n'),
+            &continuation_indent,
+        ));
+        result.push('\n');
+    }
+
+    result
 }
 
 // Convert AST to Markdown
@@ -1058,17 +1217,23 @@ pub fn ast_to_markdown(node: &Node) -> String {
             let inner: String = children.iter().map(ast_to_markdown).collect();
             format!("<sc>{}</sc>", inner)
         }
-        Node::List(items) => {
+        Node::List { list_type, items } => {
             let mut result = String::new();
-            for item in items {
-                result.push_str(&ast_to_markdown(item));
+            for (index, item) in items.iter().enumerate() {
+                match item {
+                    Node::ListItem(children) => {
+                        let marker = match list_type {
+                            Some(ListType::Order) => format!("{}. ", index + 1),
+                            Some(ListType::Bullet) | None => "- ".to_string(),
+                        };
+                        result.push_str(&render_list_item_to_markdown(children, &marker));
+                    }
+                    other => result.push_str(&ast_to_markdown(other)),
+                }
             }
             result
         }
-        Node::ListItem(children) => {
-            let inner: String = children.iter().map(ast_to_markdown).collect();
-            format!("- {}\n", inner)
-        }
+        Node::ListItem(children) => render_list_item_to_markdown(children, "- "),
         Node::Link { url, text } => {
             let inner: String = text.iter().map(ast_to_markdown).collect();
             format!("[{}]({})", inner, url)
@@ -1115,7 +1280,7 @@ pub fn ast_to_plain_text(node: &Node) -> String {
             // For plain text, we just extract the text content without formatting
             children.iter().map(ast_to_plain_text).collect()
         }
-        Node::List(items) => {
+        Node::List { items, .. } => {
             let mut result = String::new();
             for item in items {
                 result.push_str(&ast_to_plain_text(item));
@@ -1218,7 +1383,7 @@ pub fn strip_structural_elements_from_ast(node: &Node) -> Node {
                 }
             }
         }
-        Node::List(items) => {
+        Node::List { items, .. } => {
             // Lists are stripped, but their content is preserved
             let mut processed_children = Vec::new();
             for item in items {
@@ -1354,7 +1519,7 @@ pub fn strip_structural_elements_from_ast_for_conversion(node: &Node) -> Node {
                 Node::Document(processed_children)
             }
         }
-        Node::List(items) => {
+        Node::List { items, .. } => {
             // Lists are stripped, but their content is preserved
             let mut processed_children = Vec::new();
             for item in items {
@@ -1535,7 +1700,7 @@ fn validate_title_content(node: &Node) -> ThothResult<()> {
         Node::Text(_) => {
             // Text nodes are allowed
         }
-        Node::List(_) => {
+        Node::List { .. } => {
             return Err(ThothError::TitleListItemError);
         }
         Node::ListItem(_) => {
@@ -1583,7 +1748,7 @@ fn validate_abstract_content(node: &Node) -> ThothResult<()> {
             ))
         }
         Node::InlineFormula(_) | Node::Email(_) | Node::Uri(_) => {}
-        Node::List(children) | Node::ListItem(children) => {
+        Node::List { items: children, .. } | Node::ListItem(children) => {
             for child in children {
                 validate_abstract_content(child)?;
             }
@@ -1708,9 +1873,10 @@ mod tests {
             Node::Document(children) => {
                 assert_eq!(children.len(), 1);
                 match &children[0] {
-                    Node::List(list_children) => {
-                        assert_eq!(list_children.len(), 2);
-                        for child in list_children {
+                    Node::List { list_type, items } => {
+                        assert_eq!(*list_type, Some(ListType::Bullet));
+                        assert_eq!(items.len(), 2);
+                        for child in items {
                             match child {
                                 Node::ListItem(_) => {} // Expected
                                 _ => panic!("Expected list item node"),
@@ -1811,9 +1977,10 @@ mod tests {
             Node::Document(children) => {
                 assert_eq!(children.len(), 1);
                 match &children[0] {
-                    Node::List(list_children) => {
-                        assert_eq!(list_children.len(), 2);
-                        for child in list_children {
+                    Node::List { list_type, items } => {
+                        assert_eq!(*list_type, Some(ListType::Bullet));
+                        assert_eq!(items.len(), 2);
+                        for child in items {
                             match child {
                                 Node::ListItem(_) => {} // Expected
                                 _ => panic!("Expected list item node"),
@@ -1836,8 +2003,9 @@ mod tests {
             Node::Document(children) => {
                 assert_eq!(children.len(), 1);
                 match &children[0] {
-                    Node::List(list_children) => {
-                        assert_eq!(list_children.len(), 2);
+                    Node::List { list_type, items } => {
+                        assert_eq!(*list_type, Some(ListType::Order));
+                        assert_eq!(items.len(), 2);
                     }
                     _ => panic!("Expected list node"),
                 }
@@ -1940,15 +2108,35 @@ mod tests {
 
     #[test]
     fn test_ast_to_jats_list() {
-        let ast = Node::List(vec![
-            Node::ListItem(vec![Node::Text("Item 1".to_string())]),
-            Node::ListItem(vec![Node::Text("Item 2".to_string())]),
-        ]);
+        let ast = Node::List {
+            list_type: None,
+            items: vec![
+                Node::ListItem(vec![Node::Text("Item 1".to_string())]),
+                Node::ListItem(vec![Node::Text("Item 2".to_string())]),
+            ],
+        };
 
         let jats = ast_to_jats(&ast);
         assert_eq!(
             jats,
             "<list><list-item>Item 1</list-item><list-item>Item 2</list-item></list>"
+        );
+    }
+
+    #[test]
+    fn test_ast_to_jats_ordered_list() {
+        let ast = Node::List {
+            list_type: Some(ListType::Order),
+            items: vec![
+                Node::ListItem(vec![Node::Text("Item 1".to_string())]),
+                Node::ListItem(vec![Node::Text("Item 2".to_string())]),
+            ],
+        };
+
+        let jats = ast_to_jats(&ast);
+        assert_eq!(
+            jats,
+            r#"<list list-type="order"><list-item>Item 1</list-item><list-item>Item 2</list-item></list>"#
         );
     }
 
@@ -2102,7 +2290,7 @@ mod tests {
         // Should contain the expected JATS elements
         assert!(jats.contains("<bold>Bold</bold>"));
         assert!(jats.contains("<italic>italic</italic>"));
-        assert!(jats.contains("<list>"));
+        assert!(jats.contains(r#"<list list-type="bullet">"#));
         assert!(jats.contains("<list-item>Item 1</list-item>"));
         assert!(jats.contains("<list-item>Item 2</list-item>"));
     }
@@ -2116,7 +2304,7 @@ mod tests {
         // Should contain the expected JATS elements
         assert!(jats.contains("<bold>Bold</bold>"));
         assert!(jats.contains("<italic>italic</italic>"));
-        assert!(jats.contains("<list>"));
+        assert!(jats.contains(r#"<list list-type="bullet">"#));
         assert!(jats.contains("<list-item>Item 1</list-item>"));
         assert!(jats.contains("<list-item>Item 2</list-item>"));
     }
@@ -2392,9 +2580,10 @@ mod tests {
 
     #[test]
     fn test_validate_title_content_disallows_lists() {
-        let ast = Node::Document(vec![Node::List(vec![Node::ListItem(vec![Node::Text(
-            "Item 1".to_string(),
-        )])])]);
+        let ast = Node::Document(vec![Node::List {
+            list_type: None,
+            items: vec![Node::ListItem(vec![Node::Text("Item 1".to_string())])],
+        }]);
         assert!(validate_ast_content(&ast, ConversionLimit::Title).is_err());
     }
 
@@ -2419,10 +2608,13 @@ mod tests {
 
     #[test]
     fn test_validate_abstract_content_allows_lists() {
-        let ast = Node::Document(vec![Node::List(vec![
-            Node::ListItem(vec![Node::Text("Item 1".to_string())]),
-            Node::ListItem(vec![Node::Text("Item 2".to_string())]),
-        ])]);
+        let ast = Node::Document(vec![Node::List {
+            list_type: None,
+            items: vec![
+                Node::ListItem(vec![Node::Text("Item 1".to_string())]),
+                Node::ListItem(vec![Node::Text("Item 2".to_string())]),
+            ],
+        }]);
         assert!(validate_ast_content(&ast, ConversionLimit::Abstract).is_ok());
     }
 
@@ -2456,9 +2648,10 @@ mod tests {
 
     #[test]
     fn test_validate_abstract_content_disallows_nested_block_elements_inside_paragraphs() {
-        let ast = Node::Document(vec![Node::Paragraph(vec![Node::List(vec![
-            Node::ListItem(vec![Node::Text("Item".to_string())]),
-        ])])]);
+        let ast = Node::Document(vec![Node::Paragraph(vec![Node::List {
+            list_type: None,
+            items: vec![Node::ListItem(vec![Node::Text("Item".to_string())])],
+        }])]);
         assert!(validate_ast_content(&ast, ConversionLimit::Abstract).is_err());
     }
 
@@ -2629,14 +2822,35 @@ mod tests {
             Node::Document(children) => {
                 assert_eq!(children.len(), 1);
                 match &children[0] {
-                    Node::List(list_children) => {
-                        assert_eq!(list_children.len(), 2);
-                        for child in list_children {
+                    Node::List { list_type, items } => {
+                        assert_eq!(*list_type, None);
+                        assert_eq!(items.len(), 2);
+                        for child in items {
                             match child {
                                 Node::ListItem(_) => {} // Expected
                                 _ => panic!("Expected list item node"),
                             }
                         }
+                    }
+                    _ => panic!("Expected list node"),
+                }
+            }
+            _ => panic!("Expected document node"),
+        }
+    }
+
+    #[test]
+    fn test_jats_to_ast_ordered_list() {
+        let jats = r#"<list list-type="order"><list-item>Item 1</list-item><list-item>Item 2</list-item></list>"#;
+        let ast = jats_to_ast(jats);
+
+        match ast {
+            Node::Document(children) => {
+                assert_eq!(children.len(), 1);
+                match &children[0] {
+                    Node::List { list_type, items } => {
+                        assert_eq!(*list_type, Some(ListType::Order));
+                        assert_eq!(items.len(), 2);
                     }
                     _ => panic!("Expected list node"),
                 }
@@ -2667,8 +2881,10 @@ mod tests {
                         | Node::Code(children)
                         | Node::Superscript(children)
                         | Node::Subscript(children)
-                        | Node::List(children)
                         | Node::ListItem(children) => children
+                            .iter()
+                            .any(|child| has_node_type(child, check_subscript)),
+                        Node::List { items, .. } => items
                             .iter()
                             .any(|child| has_node_type(child, check_subscript)),
                         Node::Link { text, .. } => text
@@ -2756,12 +2972,28 @@ mod tests {
 
     #[test]
     fn test_ast_to_html_list() {
-        let ast = Node::List(vec![
-            Node::ListItem(vec![Node::Text("Item 1".to_string())]),
-            Node::ListItem(vec![Node::Text("Item 2".to_string())]),
-        ]);
+        let ast = Node::List {
+            list_type: None,
+            items: vec![
+                Node::ListItem(vec![Node::Text("Item 1".to_string())]),
+                Node::ListItem(vec![Node::Text("Item 2".to_string())]),
+            ],
+        };
         let html = ast_to_html(&ast);
         assert_eq!(html, "<ul><li>Item 1</li><li>Item 2</li></ul>");
+    }
+
+    #[test]
+    fn test_ast_to_html_ordered_list() {
+        let ast = Node::List {
+            list_type: Some(ListType::Order),
+            items: vec![
+                Node::ListItem(vec![Node::Text("Item 1".to_string())]),
+                Node::ListItem(vec![Node::Text("Item 2".to_string())]),
+            ],
+        };
+        let html = ast_to_html(&ast);
+        assert_eq!(html, "<ol><li>Item 1</li><li>Item 2</li></ol>");
     }
 
     #[test]
@@ -2813,12 +3045,28 @@ mod tests {
 
     #[test]
     fn test_ast_to_markdown_list() {
-        let ast = Node::List(vec![
-            Node::ListItem(vec![Node::Text("Item 1".to_string())]),
-            Node::ListItem(vec![Node::Text("Item 2".to_string())]),
-        ]);
+        let ast = Node::List {
+            list_type: None,
+            items: vec![
+                Node::ListItem(vec![Node::Text("Item 1".to_string())]),
+                Node::ListItem(vec![Node::Text("Item 2".to_string())]),
+            ],
+        };
         let markdown = ast_to_markdown(&ast);
         assert_eq!(markdown, "- Item 1\n- Item 2\n");
+    }
+
+    #[test]
+    fn test_ast_to_markdown_ordered_list() {
+        let ast = Node::List {
+            list_type: Some(ListType::Order),
+            items: vec![
+                Node::ListItem(vec![Node::Text("Item 1".to_string())]),
+                Node::ListItem(vec![Node::Text("Item 2".to_string())]),
+            ],
+        };
+        let markdown = ast_to_markdown(&ast);
+        assert_eq!(markdown, "1. Item 1\n2. Item 2\n");
     }
 
     #[test]
@@ -2870,10 +3118,13 @@ mod tests {
 
     #[test]
     fn test_ast_to_plain_text_list() {
-        let ast = Node::List(vec![
-            Node::ListItem(vec![Node::Text("Item 1".to_string())]),
-            Node::ListItem(vec![Node::Text("Item 2".to_string())]),
-        ]);
+        let ast = Node::List {
+            list_type: None,
+            items: vec![
+                Node::ListItem(vec![Node::Text("Item 1".to_string())]),
+                Node::ListItem(vec![Node::Text("Item 2".to_string())]),
+            ],
+        };
         let plain = ast_to_plain_text(&ast);
         assert_eq!(plain, "• Item 1\n• Item 2\n");
     }
