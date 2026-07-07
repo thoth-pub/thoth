@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[1.3.3]](https://github.com/thoth-pub/thoth/releases/tag/v1.3.3) - 2026-07-07
 ### Fixed
   - [754](https://github.com/thoth-pub/thoth/pull/754) - Fixed JATS list handling so ordered, bullet, and untyped lists are preserved across JATS, HTML, and Markdown conversions
 
