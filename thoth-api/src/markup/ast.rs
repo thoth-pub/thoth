@@ -1221,14 +1221,24 @@ pub fn ast_to_markdown(node: &Node) -> String {
         }
         Node::List { list_type, items } => {
             let mut result = String::new();
-            for (index, item) in items.iter().enumerate() {
+            let mut ordinal = 1;
+            for item in items {
                 match item {
                     Node::ListItem(children) => {
                         let marker = match list_type {
-                            Some(ListType::Order) => format!("{}. ", index + 1),
+                            Some(ListType::Order) => {
+                                let marker = format!("{}. ", ordinal);
+                                ordinal += 1;
+                                marker
+                            }
                             Some(ListType::Bullet) | None => "- ".to_string(),
                         };
                         result.push_str(&render_list_item_to_markdown(children, &marker));
+                    }
+                    Node::Text(text) if text.trim().is_empty() => {}
+                    Node::Text(text) => {
+                        result.push_str(text.trim());
+                        result.push('\n');
                     }
                     other => result.push_str(&ast_to_markdown(other)),
                 }

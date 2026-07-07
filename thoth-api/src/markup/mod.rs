@@ -1103,6 +1103,43 @@ mod tests {
     }
 
     #[test]
+    fn test_convert_from_pretty_jats_markdown_ordered_list_ignores_whitespace_items() {
+        let input = r#"<list list-type="order">
+                <list-item>One</list-item>
+                <list-item>Two</list-item>
+            </list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "1. One\n2. Two\n");
+    }
+
+    #[test]
+    fn test_convert_from_pretty_jats_markdown_bullet_list_ignores_whitespace_items() {
+        let input = r#"<list list-type="bullet">
+                <list-item>One</list-item>
+                <list-item>Two</list-item>
+            </list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "- One\n- Two\n");
+    }
+
+    #[test]
+    fn test_convert_from_jats_markdown_ordered_list_extra_text_does_not_consume_number() {
+        let input = r#"<list list-type="order">
+                Note
+                <list-item>One</list-item>
+                <list-item>Two</list-item>
+            </list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "Note\n1. One\n2. Two\n");
+    }
+
+    #[test]
     fn test_convert_from_jats_markdown_ordered_list_item_with_multiple_paragraphs() {
         let input = r#"<list list-type="order"><list-item><p>First paragraph.</p><p>Second paragraph.</p></list-item></list>"#;
         let output =
