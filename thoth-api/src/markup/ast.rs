@@ -16,6 +16,7 @@ impl ListType {
             "order" | "alpha-lower" | "alpha-upper" | "roman-lower" | "roman-upper" => {
                 Some(Self::Order)
             }
+            "simple" => None,
             _ => None,
         }
     }
@@ -1094,14 +1095,18 @@ fn append_list_item_markdown_blocks(
     for node in nodes {
         match node {
             Node::Paragraph(children) => {
-                if !inline_buffer.is_empty() {
+                if !inline_buffer.trim().is_empty() {
                     blocks.push(std::mem::take(inline_buffer));
+                } else {
+                    inline_buffer.clear();
                 }
                 blocks.push(children.iter().map(ast_to_markdown).collect());
             }
             Node::Document(children) => {
-                if !inline_buffer.is_empty() {
+                if !inline_buffer.trim().is_empty() {
                     blocks.push(std::mem::take(inline_buffer));
+                } else {
+                    inline_buffer.clear();
                 }
                 append_list_item_markdown_blocks(children, blocks, inline_buffer);
             }
@@ -1109,8 +1114,10 @@ fn append_list_item_markdown_blocks(
                 inline_buffer.push_str(&ast_to_markdown(inline));
             }
             block => {
-                if !inline_buffer.is_empty() {
+                if !inline_buffer.trim().is_empty() {
                     blocks.push(std::mem::take(inline_buffer));
+                } else {
+                    inline_buffer.clear();
                 }
                 blocks.push(ast_to_markdown(block).trim_end_matches('\n').to_string());
             }
@@ -1122,7 +1129,7 @@ fn list_item_markdown_blocks(children: &[Node]) -> Vec<String> {
     let mut blocks = Vec::new();
     let mut inline_buffer = String::new();
     append_list_item_markdown_blocks(children, &mut blocks, &mut inline_buffer);
-    if !inline_buffer.is_empty() {
+    if !inline_buffer.trim().is_empty() {
         blocks.push(inline_buffer);
     }
     if blocks.is_empty() {
