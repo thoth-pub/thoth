@@ -61,6 +61,33 @@ fn validate_jats_subset(content: &str, conversion_limit: ConversionLimit) -> Tho
         raw_name.rsplit(':').next().unwrap_or(raw_name)
     }
 
+    fn unsupported_jats_element_message(tag_name: &str) -> String {
+        match tag_name {
+            "ol" => concat!(
+                "Unsupported JATS element: <ol>. For JATS ordered lists, use ",
+                r#"<list list-type="order"><list-item>...</list-item></list>."#
+            )
+            .to_string(),
+            "li" => concat!(
+                "Unsupported JATS element: <li>. For JATS list items, use ",
+                "<list-item>...</list-item>."
+            )
+            .to_string(),
+            _ => format!("Unsupported JATS element: <{}>", tag_name),
+        }
+    }
+
+    fn validate_list_type(value: &str) -> ThothResult<()> {
+        match value {
+            "order" | "bullet" | "simple" | "alpha-lower" | "alpha-upper" | "roman-lower"
+            | "roman-upper" => Ok(()),
+            _ => Err(ThothError::RequestError(format!(
+                "Unsupported JATS list-type value: {}",
+                value
+            ))),
+        }
+    }
+
     let allowed_tags: &[&str] = match conversion_limit {
         ConversionLimit::Title => &[
             "bold",
@@ -112,9 +139,8 @@ fn validate_jats_subset(content: &str, conversion_limit: ConversionLimit) -> Tho
                 let tag_name = local_tag_name(&raw_name).to_string();
                 if raw_name != "root" {
                     if !allowed_tags.contains(&tag_name.as_str()) {
-                        return Err(ThothError::RequestError(format!(
-                            "Unsupported JATS element: <{}>",
-                            tag_name
+                        return Err(ThothError::RequestError(unsupported_jats_element_message(
+                            &tag_name,
                         )));
                     }
 
@@ -153,6 +179,16 @@ fn validate_jats_subset(content: &str, conversion_limit: ConversionLimit) -> Tho
                                 key
                             )));
                         }
+                    } else if tag_name == "list" && key == "list-type" {
+                        let value =
+                            attr.decode_and_unescape_value(reader.decoder())
+                                .map_err(|err| {
+                                    ThothError::RequestError(format!(
+                                        "Invalid JATS attribute value: {}",
+                                        err
+                                    ))
+                                })?;
+                        validate_list_type(value.as_ref())?;
                     } else {
                         return Err(ThothError::RequestError(format!(
                             "Unsupported JATS attribute on {}: {}",
@@ -169,9 +205,8 @@ fn validate_jats_subset(content: &str, conversion_limit: ConversionLimit) -> Tho
                 let tag_name = local_tag_name(&raw_name).to_string();
                 if raw_name != "root" {
                     if !allowed_tags.contains(&tag_name.as_str()) {
-                        return Err(ThothError::RequestError(format!(
-                            "Unsupported JATS element: <{}>",
-                            tag_name
+                        return Err(ThothError::RequestError(unsupported_jats_element_message(
+                            &tag_name,
                         )));
                     }
 
@@ -210,6 +245,16 @@ fn validate_jats_subset(content: &str, conversion_limit: ConversionLimit) -> Tho
                                 key
                             )));
                         }
+                    } else if tag_name == "list" && key == "list-type" {
+                        let value =
+                            attr.decode_and_unescape_value(reader.decoder())
+                                .map_err(|err| {
+                                    ThothError::RequestError(format!(
+                                        "Invalid JATS attribute value: {}",
+                                        err
+                                    ))
+                                })?;
+                        validate_list_type(value.as_ref())?;
                     } else {
                         return Err(ThothError::RequestError(format!(
                             "Unsupported JATS attribute on {}: {}",
@@ -512,7 +557,22 @@ mod tests {
         .unwrap();
         assert_eq!(
             output,
-            "<list><list-item>One</list-item><list-item>Two</list-item></list>"
+            r#"<list list-type="bullet"><list-item>One</list-item><list-item>Two</list-item></list>"#
+        );
+    }
+
+    #[test]
+    fn test_html_ordered_list_converts_to_ordered_jats() {
+        let input = "<ol><li>One</li><li>Two</li></ol>";
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::Html,
+            ConversionLimit::Abstract,
+        )
+        .unwrap();
+        assert_eq!(
+            output,
+            r#"<list list-type="order"><list-item>One</list-item><list-item>Two</list-item></list>"#
         );
     }
 
@@ -582,8 +642,23 @@ mod tests {
 
         assert!(
             output.contains(
-                "<list><list-item>Item 1</list-item><list-item>Item 2</list-item></list>"
+                r#"<list list-type="bullet"><list-item>Item 1</list-item><list-item>Item 2</list-item></list>"#
             ) && output.contains("<p>Paragraph text</p>")
+        );
+    }
+
+    #[test]
+    fn test_markdown_ordered_list_converts_to_ordered_jats() {
+        let input = "1. One\n2. Two";
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::Markdown,
+            ConversionLimit::Abstract,
+        )
+        .unwrap();
+        assert_eq!(
+            output,
+            r#"<list list-type="order"><list-item>One</list-item><list-item>Two</list-item></list>"#
         );
     }
 
@@ -793,6 +868,110 @@ mod tests {
     }
 
     #[test]
+    fn test_jatsxml_ordered_list_preserves_list_type() {
+        let input = r#"<list list-type="order"><list-item><p>One</p></list-item><list-item><p>Two</p></list-item></list>"#;
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::JatsXml,
+            ConversionLimit::Abstract,
+        )
+        .unwrap();
+        assert_eq!(output, input);
+    }
+
+    #[test]
+    fn test_jatsxml_ordered_list_with_bare_items_preserves_list_type() {
+        let input = r#"<list list-type="order"><list-item>One</list-item><list-item>Two</list-item></list>"#;
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::JatsXml,
+            ConversionLimit::Abstract,
+        )
+        .unwrap();
+        assert_eq!(output, input);
+    }
+
+    #[test]
+    fn test_jatsxml_ordered_list_style_values_normalise_to_order() {
+        for list_type in ["alpha-lower", "alpha-upper", "roman-lower", "roman-upper"] {
+            let input = format!(
+                r#"<list list-type="{}"><list-item>One</list-item><list-item>Two</list-item></list>"#,
+                list_type
+            );
+            let output =
+                convert_to_jats(input, MarkupFormat::JatsXml, ConversionLimit::Abstract).unwrap();
+
+            assert_eq!(
+                output,
+                r#"<list list-type="order"><list-item>One</list-item><list-item>Two</list-item></list>"#
+            );
+        }
+    }
+
+    #[test]
+    fn test_jatsxml_simple_list_type_normalises_to_untyped_list() {
+        let input = r#"<list list-type="simple"><list-item>One</list-item></list>"#;
+        let output = convert_to_jats(
+            input.to_string(),
+            MarkupFormat::JatsXml,
+            ConversionLimit::Abstract,
+        )
+        .unwrap();
+
+        assert_eq!(output, "<list><list-item>One</list-item></list>");
+    }
+
+    #[test]
+    fn test_jatsxml_list_type_validation() {
+        assert!(validate_jats_subset(
+            r#"<list list-type="order"><list-item>One</list-item></list>"#,
+            ConversionLimit::Abstract
+        )
+        .is_ok());
+        assert!(validate_jats_subset(
+            r#"<list list-type="simple"><list-item>One</list-item></list>"#,
+            ConversionLimit::Abstract
+        )
+        .is_ok());
+        assert!(validate_jats_subset(
+            r#"<list foo="bar"><list-item>One</list-item></list>"#,
+            ConversionLimit::Abstract
+        )
+        .is_err());
+        assert!(validate_jats_subset(
+            r#"<list list-type="decimal"><list-item>One</list-item></list>"#,
+            ConversionLimit::Abstract
+        )
+        .is_err());
+        assert!(validate_jats_subset(
+            r#"<list list-type="foo"><list-item>One</list-item></list>"#,
+            ConversionLimit::Abstract
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_jatsxml_rejects_html_lists() {
+        let ordered = convert_to_jats(
+            "<ol><li>One</li></ol>".to_string(),
+            MarkupFormat::JatsXml,
+            ConversionLimit::Abstract,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(ordered.contains("Unsupported JATS element: <ol>"));
+
+        let item = convert_to_jats(
+            "<li>One</li>".to_string(),
+            MarkupFormat::JatsXml,
+            ConversionLimit::Abstract,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(item.contains("Unsupported JATS element: <li>"));
+    }
+
+    #[test]
     fn test_normalise_crossref_abstract_jats_removes_empty_paragraphs() {
         let input = "<p></p><p>First line</p>";
         let output = normalise_crossref_abstract_jats(input).unwrap();
@@ -859,6 +1038,41 @@ mod tests {
     }
 
     #[test]
+    fn test_convert_from_jats_html_ordered_list() {
+        let input = r#"<list list-type="order"><list-item>One</list-item><list-item>Two</list-item></list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Html, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "<ol><li>One</li><li>Two</li></ol>");
+    }
+
+    #[test]
+    fn test_html_ordered_list_round_trips_through_jats_to_html() {
+        let jats = convert_to_jats(
+            "<ol><li>One</li><li>Two</li></ol>".to_string(),
+            MarkupFormat::Html,
+            ConversionLimit::Abstract,
+        )
+        .unwrap();
+        let html = convert_from_jats(&jats, MarkupFormat::Html, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(
+            jats,
+            r#"<list list-type="order"><list-item>One</list-item><list-item>Two</list-item></list>"#
+        );
+        assert_eq!(html, "<ol><li>One</li><li>Two</li></ol>");
+    }
+
+    #[test]
+    fn test_convert_from_jats_html_bullet_list() {
+        let input = r#"<list list-type="bullet"><list-item>One</list-item><list-item>Two</list-item></list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Html, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "<ul><li>One</li><li>Two</li></ul>");
+    }
+
+    #[test]
     fn test_convert_from_jats_html_no_structure() {
         let input = r#"
             <p>Text</p><list><list-item>Item</list-item></list><bold>Bold</bold>
@@ -894,6 +1108,150 @@ mod tests {
         assert!(output.contains("*It*"));
         assert!(output.contains("**Bold**"));
         assert!(output.contains("[Here](https://link.com)"));
+    }
+
+    #[test]
+    fn test_convert_from_jats_markdown_ordered_list() {
+        let input = r#"<list list-type="order"><list-item>One</list-item><list-item>Two</list-item></list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "1. One\n2. Two\n");
+    }
+
+    #[test]
+    fn test_convert_from_pretty_jats_markdown_ordered_list_ignores_whitespace_items() {
+        let input = r#"<list list-type="order">
+                <list-item>One</list-item>
+                <list-item>Two</list-item>
+            </list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "1. One\n2. Two\n");
+    }
+
+    #[test]
+    fn test_convert_from_pretty_jats_markdown_bullet_list_ignores_whitespace_items() {
+        let input = r#"<list list-type="bullet">
+                <list-item>One</list-item>
+                <list-item>Two</list-item>
+            </list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "- One\n- Two\n");
+    }
+
+    #[test]
+    fn test_convert_from_jats_markdown_ordered_list_extra_text_does_not_consume_number() {
+        let input = r#"<list list-type="order">
+                Note
+                <list-item>One</list-item>
+                <list-item>Two</list-item>
+            </list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "Note\n1. One\n2. Two\n");
+    }
+
+    #[test]
+    fn test_convert_from_jats_markdown_ordered_list_item_with_multiple_paragraphs() {
+        let input = r#"<list list-type="order"><list-item><p>First paragraph.</p><p>Second paragraph.</p></list-item></list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "1. First paragraph.\n\n   Second paragraph.\n");
+    }
+
+    #[test]
+    fn test_convert_from_pretty_jats_markdown_ordered_paragraph_list_item_ignores_leading_whitespace(
+    ) {
+        let input = r#"<list list-type="order">
+                <list-item>
+                    <p>First</p>
+                    <p>Second</p>
+                </list-item>
+            </list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "1. First\n\n   Second\n");
+    }
+
+    #[test]
+    fn test_convert_from_jats_markdown_bullet_list_item_with_multiple_paragraphs() {
+        let input = r#"<list list-type="bullet"><list-item><p>First paragraph.</p><p>Second paragraph.</p></list-item></list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "- First paragraph.\n\n  Second paragraph.\n");
+    }
+
+    #[test]
+    fn test_convert_from_pretty_jats_markdown_bullet_paragraph_list_item_ignores_leading_whitespace(
+    ) {
+        let input = r#"<list list-type="bullet">
+                <list-item>
+                    <p>First</p>
+                    <p>Second</p>
+                </list-item>
+            </list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "- First\n\n  Second\n");
+    }
+
+    #[test]
+    fn test_convert_from_pretty_jats_markdown_single_paragraph_list_item_ignores_leading_whitespace(
+    ) {
+        let input = r#"<list list-type="order">
+                <list-item>
+                    <p>First</p>
+                </list-item>
+            </list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "1. First\n");
+    }
+
+    #[test]
+    fn test_convert_from_jats_markdown_unspecified_list_type_is_unordered() {
+        let input = r#"<list><list-item>One</list-item><list-item>Two</list-item></list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "- One\n- Two\n");
+    }
+
+    #[test]
+    fn test_convert_from_jats_markdown_simple_list_type_is_unordered() {
+        let input = r#"<list list-type="simple"><list-item>One</list-item></list>"#;
+        let output =
+            convert_from_jats(input, MarkupFormat::Markdown, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(output, "- One\n");
+    }
+
+    #[test]
+    fn test_markdown_ordered_list_round_trips_through_jats_to_markdown() {
+        let jats = convert_to_jats(
+            "1. One\n2. Two".to_string(),
+            MarkupFormat::Markdown,
+            ConversionLimit::Abstract,
+        )
+        .unwrap();
+        let markdown =
+            convert_from_jats(&jats, MarkupFormat::Markdown, ConversionLimit::Abstract).unwrap();
+
+        assert_eq!(
+            jats,
+            r#"<list list-type="order"><list-item>One</list-item><list-item>Two</list-item></list>"#
+        );
+        assert_eq!(markdown, "1. One\n2. Two\n");
     }
 
     #[test]
