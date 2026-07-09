@@ -6,6 +6,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[1.3.4]](https://github.com/thoth-pub/thoth/releases/tag/v1.3.4) - 2026-07-09
+### Changed
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `actix-http` to v3.13.1
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `actix-web` to v4.14.0
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `aws-config` to v1.9.0
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `aws-credential-types` to v1.3.0
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `aws-sdk-cloudfront` to v1.124.0
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `aws-sdk-s3` to v1.138.0
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `chrono` to v0.4.45
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `diesel` to v2.3.10
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `diesel-derive-newtype` to v2.1.3
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `env_logger` to v0.11.11
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `jsonwebtoken` to v10.4.0
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `log` to v0.4.33
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `pulldown-cmark` to v0.13.4
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `regex` to v1.12.4
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `serde_json` to v1.0.150
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `tokio` to v1.52.3
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `tonic` to v0.14.6
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `uuid` to v1.23.4
+
+### Security
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `cmov` to v0.5.4
+  - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `openssl` to v0.10.81
+
 ## [[1.3.3]](https://github.com/thoth-pub/thoth/releases/tag/v1.3.3) - 2026-07-07
 ### Fixed
   - [754](https://github.com/thoth-pub/thoth/pull/754) - Fixed JATS list handling so ordered, bullet, and untyped lists are preserved across JATS, HTML, and Markdown conversions
