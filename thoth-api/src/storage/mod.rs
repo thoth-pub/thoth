@@ -279,6 +279,13 @@ impl StorageConfig {
     }
 }
 
+/// Pin to v2025_01_17 rather than using `latest()` to avoid silently picking up
+/// `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` environment variables.
+/// Behaviour version v2025_08_07 introduced automatic proxy support via env vars,
+/// so any deployment with those set would unexpectedly route S3 and CloudFront
+/// traffic through a proxy. Pin to the version before that was added.
+/// Switch to `latest()` when we explicitly handle proxy configuration.
+#[allow(deprecated)]
 async fn load_aws_config(
     access_key_id: &str,
     secret_access_key: &str,
@@ -293,7 +300,7 @@ async fn load_aws_config(
     );
 
     aws_config::ConfigLoader::default()
-        .behavior_version(aws_config::BehaviorVersion::latest())
+        .behavior_version(aws_config::BehaviorVersion::v2025_01_17())
         .credentials_provider(credentials)
         .region(aws_config::Region::new(region.to_string()))
         .load()

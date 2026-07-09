@@ -5,6 +5,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+  - Upgrade `actix-http` to v3.13.1
+  - Upgrade `actix-web` to v4.14.0
+  - Upgrade `aws-config` to v1.9.0
+  - Upgrade `aws-credential-types` to v1.3.0
+  - Upgrade `aws-sdk-cloudfront` to v1.124.0
+  - Upgrade `aws-sdk-s3` to v1.138.0
+  - Upgrade `chrono` to v0.4.45
+  - Upgrade `diesel` to v2.3.10
+  - Upgrade `diesel-derive-newtype` to v2.1.3
+  - Upgrade `env_logger` to v0.11.11
+  - Upgrade `jsonwebtoken` to v10.4.0
+  - Upgrade `log` to v0.4.33
+  - Upgrade `pulldown-cmark` to v0.13.4
+  - Upgrade `regex` to v1.12.4
+  - Upgrade `serde_json` to v1.0.150
+  - Upgrade `tokio` to v1.52.3
+  - Upgrade `tonic` to v0.14.6
+  - Upgrade `uuid` to v1.23.4
+
+### Security
+  - Upgrade `cmov` to v0.5.4
+  - Upgrade `openssl` to v0.10.81
 
 ## [[1.3.3]](https://github.com/thoth-pub/thoth/releases/tag/v1.3.3) - 2026-07-07
 ### Fixed
