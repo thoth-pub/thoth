@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+  - [758](https://github.com/thoth-pub/thoth/pull/758) - Fixed `clippy::useless_borrows_in_formatting` lints raised by newer Rust in formatting macros
 
 ## [[1.3.4]](https://github.com/thoth-pub/thoth/releases/tag/v1.3.4) - 2026-07-09
 ### Changed
