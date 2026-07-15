@@ -112,7 +112,7 @@ pub struct ContributorOrderBy {
 impl fmt::Display for Contributor {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(orcid) = &self.orcid {
-            write!(f, "{} - {}", &self.full_name, orcid)
+            write!(f, "{} - {}", self.full_name, orcid)
         } else {
             write!(f, "{}", self.full_name)
         }

@@ -107,31 +107,31 @@ impl Default for Timestamp {
 
 impl fmt::Display for Doi {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", &self.0.replace(DOI_DOMAIN, ""))
+        write!(f, "{}", self.0.replace(DOI_DOMAIN, ""))
     }
 }
 
 impl fmt::Display for Isbn {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", &self.0)
+        write!(f, "{}", self.0)
     }
 }
 
 impl fmt::Display for Orcid {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", &self.0.replace(ORCID_DOMAIN, ""))
+        write!(f, "{}", self.0.replace(ORCID_DOMAIN, ""))
     }
 }
 
 impl fmt::Display for Ror {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", &self.0.replace(ROR_DOMAIN, ""))
+        write!(f, "{}", self.0.replace(ROR_DOMAIN, ""))
     }
 }
 
 impl fmt::Display for Timestamp {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", &self.0.format("%F %T"))
+        write!(f, "{}", self.0.format("%F %T"))
     }
 }
 

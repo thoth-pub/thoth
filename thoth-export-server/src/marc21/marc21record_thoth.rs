@@ -440,7 +440,7 @@ fn contributor_fields(contributions: &[WorkContributions]) -> ThothResult<Vec<Fi
         let mut key = c.full_name.clone();
         let mut name_indicator = "0\\".to_string();
         if let Some(first_name) = &c.first_name {
-            key = format!("{}, {}", &c.last_name, first_name);
+            key = format!("{}, {}", c.last_name, first_name);
             name_indicator = "1\\".to_string();
         }
         match contributions_by_name.iter_mut().find(|(k, _, _)| *k == key) {
