@@ -39,6 +39,7 @@ struct KbartOclcRow {
     parent_publication_title_id: Option<String>,
     preceding_publication_title_id: Option<String>,
     access_type: String,
+    oclc_number: Option<String>,
 }
 
 impl CsvSpecification for KbartOclc {
@@ -181,6 +182,9 @@ impl TryFrom<Work> for KbartOclcRow {
                 .and_then(|i| i.series.issn_digital.as_ref().map(|s| s.to_string())),
             preceding_publication_title_id: None,
             access_type: "F".to_string(),
+            // OCLC recommends including the OCLC Control Number when available.
+            // Emit the stored value exactly, with no prefixing, stripping or parsing.
+            oclc_number: work.oclc,
         })
     }
 }
@@ -218,12 +222,13 @@ mod tests {
         monograph_edition: String,
         first_editor: String,
         parent_publication_title_id: String,
+        oclc_number: String,
     }
 
     impl fmt::Display for TestResult {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             writeln!(f,
-                "{}{}\t{}\t{}\t\t\t\t\t\t\t{}\t{}\t{}\t\tfulltext\t\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t\tF",
+                "{}{}\t{}\t{}\t\t\t\t\t\t\t{}\t{}\t{}\t\tfulltext\t\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t\tF\t{}",
                 self.headers,
                 self.title,
                 self.print_identifier,
@@ -239,6 +244,7 @@ mod tests {
                 self.monograph_edition,
                 self.first_editor,
                 self.parent_publication_title_id,
+                self.oclc_number,
             )
         }
     }
@@ -299,7 +305,7 @@ mod tests {
             landing_page: Some("https://www.book.com".to_string()),
             toc: None,
             lccn: None,
-            oclc: None,
+            oclc: Some("123456789".to_string()),
             cover_url: Some("https://www.book.com/cover".to_string()),
             cover_caption: None,
             imprint: WorkImprint {
@@ -512,7 +518,7 @@ mod tests {
             references: vec![],
         };
         let mut test_result = TestResult {
-            headers: "publication_title\tprint_identifier\tonline_identifier\tdate_first_issue_online\tnum_first_vol_online\tnum_first_issue_online\tdate_last_issue_online\tnum_last_vol_online\tnum_last_issue_online\ttitle_url\tfirst_author\ttitle_id\tembargo_info\tcoverage_depth\tnotes\tpublisher_name\tpublication_type\tdate_monograph_published_print\tdate_monograph_published_online\tmonograph_volume\tmonograph_edition\tfirst_editor\tparent_publication_title_id\tpreceding_publication_title_id\taccess_type\n".to_string(),
+            headers: "publication_title\tprint_identifier\tonline_identifier\tdate_first_issue_online\tnum_first_vol_online\tnum_first_issue_online\tdate_last_issue_online\tnum_last_vol_online\tnum_last_issue_online\ttitle_url\tfirst_author\ttitle_id\tembargo_info\tcoverage_depth\tnotes\tpublisher_name\tpublication_type\tdate_monograph_published_print\tdate_monograph_published_online\tmonograph_volume\tmonograph_edition\tfirst_editor\tparent_publication_title_id\tpreceding_publication_title_id\taccess_type\toclc_number\n".to_string(),
             title: "Book Title: Book Subtitle".to_string(),
             print_identifier: "978-3-16-148410-0".to_string(),
             online_identifier: "978-1-56619-909-4".to_string(),
@@ -527,10 +533,30 @@ mod tests {
             monograph_edition: "1".to_string(),
             first_editor: "".to_string(),
             parent_publication_title_id: "8765-4321".to_string(),
+            oclc_number: "123456789".to_string(),
         };
         let to_test =
             KbartOclc.generate(&[test_work.clone()], QuoteStyle::Necessary, DELIMITER_TAB);
+        // OCLC number present: row ends with `\tF\t123456789\n`
         assert_eq!(to_test, Ok(test_result.to_string()));
+        assert!(to_test
+            .as_ref()
+            .unwrap()
+            .contains("\taccess_type\toclc_number\n"));
+        assert!(to_test.as_ref().unwrap().ends_with("\tF\t123456789\n"));
+
+        // Remove OCLC number: oclc_number column remains but the final cell is empty,
+        // and the work is still exported. Row ends with `\tF\t\n`.
+        test_work.oclc = None;
+        test_result.oclc_number = "".to_string();
+        let to_test =
+            KbartOclc.generate(&[test_work.clone()], QuoteStyle::Necessary, DELIMITER_TAB);
+        assert_eq!(to_test, Ok(test_result.to_string()));
+        assert!(to_test
+            .as_ref()
+            .unwrap()
+            .contains("\taccess_type\toclc_number\n"));
+        assert!(to_test.as_ref().unwrap().ends_with("\tF\t\n"));
 
         // Remove DOI: title_id falls back to work_id
         test_work.doi = None;
