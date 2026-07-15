@@ -288,19 +288,7 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                             Ok(())
                         })
                     })?;
-                    // Google Books requires at least one contributor coded as A01 (Author) -
-                    // if this is e.g. a wholly edited book, code the first main contributor as an author.
-                    let mut contributions = self.contributions.clone();
-                    if !contributions
-                        .iter()
-                        .any(|c| c.contribution_type.eq(&ContributionType::AUTHOR))
-                    {
-                        // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
-                        contributions.sort_by_key(|a| a.contribution_ordinal);
-                        contributions.sort_by_key(|b| std::cmp::Reverse(b.main_contribution));
-                        contributions[0].contribution_type = ContributionType::AUTHOR;
-                    }
-                    for contribution in &contributions {
+                    for contribution in &self.contributions {
                         // Google Books doesn't support B25, A30, A34 or A51 codes
                         // (or any appropriate "Other" code)
                         match contribution.contribution_type {
@@ -1169,12 +1157,13 @@ mod tests {
         assert!(output.contains(r#"        <TitleElementLevel>01</TitleElementLevel>"#));
         assert!(output.contains(r#"        <TitleText>Book Title</TitleText>"#));
         assert!(output.contains(r#"        <Subtitle>Book Subtitle</Subtitle>"#));
-        // If a book has no Authors, the first main contributor will be marked as an Author
+        // Contributors are exported with their true role code (e.g. editors as B01),
+        // even for a wholly-edited book with no Authors
         assert!(output.contains(r#"    <Contributor>"#));
         assert!(output.contains(r#"      <SequenceNumber>2</SequenceNumber>"#));
-        assert!(output.contains(r#"      <ContributorRole>A01</ContributorRole>"#));
+        assert!(output.contains(r#"      <ContributorRole>B01</ContributorRole>"#));
         assert!(output.contains(r#"      <PersonName>Volume Editor</PersonName>"#));
-        // Music Editors are omitted (unless required to be marked as an Author as above)
+        // Music Editors are omitted
         assert!(!output.contains(r#"      <SequenceNumber>1</SequenceNumber>"#));
         assert!(!output.contains(r#"      <ContributorRole>B25</ContributorRole>"#));
         assert!(!output.contains(r#"      <PersonName>Music Editor</PersonName>"#));
