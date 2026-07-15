@@ -88,11 +88,23 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                 "Missing Publication Date".to_string(),
             ));
         }
-        // Don't output works with no contributors (at least one required for Google Books)
-        if self.contributions.is_empty() {
+        // Google Books requires at least one contributor, and only supports certain
+        // contributor role codes (see the emit loop below). Reject works where none of
+        // the contributors can be represented with a supported code, rather than emitting
+        // a Product with no Contributor element.
+        if !self.contributions.iter().any(|c| {
+            !matches!(
+                c.contribution_type,
+                ContributionType::SOFTWARE_BY
+                    | ContributionType::RESEARCH_BY
+                    | ContributionType::INDEXER
+                    | ContributionType::MUSIC_EDITOR
+                    | ContributionType::Other(_)
+            )
+        }) {
             return Err(ThothError::IncompleteMetadataRecord(
                 ONIX_ERROR.to_string(),
-                "No contributors supplied".to_string(),
+                "No contributors with Google Books-supported roles supplied".to_string(),
             ));
         }
         // We can only generate the document if there's an EPUB or PDF
@@ -1474,13 +1486,23 @@ mod tests {
             "Could not generate onix_3.0::google_books: This work does not have a PDF, EPUB or paperback ISBN".to_string()
         );
 
-        // Replace ISBN but remove all contributors: result is error
+        // Replace ISBN but leave only a contributor with a Google Books-unsupported
+        // role (e.g. Music Editor): result is error, as no Contributor could be emitted
         test_work.publications[0].isbn = Some(Isbn::from_str("978-3-16-148410-0").unwrap());
+        // contributions[0] is a Music Editor; drop the Volume Editor, leaving only it
+        test_work.contributions.truncate(1);
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::google_books: No contributors with Google Books-supported roles supplied".to_string()
+        );
+
+        // Replace ISBN but remove all contributors: result is error
         test_work.contributions.clear();
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
-            "Could not generate onix_3.0::google_books: No contributors supplied".to_string()
+            "Could not generate onix_3.0::google_books: No contributors with Google Books-supported roles supplied".to_string()
         );
     }
 }
