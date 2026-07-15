@@ -307,7 +307,8 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                             ContributionType::SOFTWARE_BY
                             | ContributionType::RESEARCH_BY
                             | ContributionType::INDEXER
-                            | ContributionType::MUSIC_EDITOR => (),
+                            | ContributionType::MUSIC_EDITOR
+                            | ContributionType::Other(_) => (),
                             _ => {
                                 XmlElementBlock::<Onix3GoogleBooks>::xml_element(contribution, w)
                                     .ok();
@@ -1179,6 +1180,27 @@ mod tests {
         assert!(!output.contains(r#"      <SequenceNumber>1</SequenceNumber>"#));
         assert!(!output.contains(r#"      <ContributorRole>B25</ContributorRole>"#));
         assert!(!output.contains(r#"      <PersonName>Music Editor</PersonName>"#));
+        // A contributor with an unsupported "Other" role is omitted, and must not cause
+        // the export to panic when a supported contributor is also present
+        let mut test_work_with_other = test_work.clone();
+        test_work_with_other.contributions.push(WorkContributions {
+            contribution_type: ContributionType::Other("Z99".to_string()),
+            first_name: Some("Other".to_string()),
+            last_name: "Contributor".to_string(),
+            full_name: "Other Contributor".to_string(),
+            main_contribution: false,
+            biographies: vec![],
+            contribution_ordinal: 3,
+            contributor: WorkContributionsContributor {
+                orcid: None,
+                website: None,
+            },
+            affiliations: vec![],
+        });
+        let output_with_other = generate_test_output(true, &test_work_with_other);
+        assert!(!output_with_other.contains(r#"<PersonName>Other Contributor</PersonName>"#));
+        // The supported contributor is still exported
+        assert!(output_with_other.contains(r#"      <PersonName>Volume Editor</PersonName>"#));
         assert!(output.contains(r#"    <Extent>"#));
         assert!(output.contains(r#"      <ExtentType>00</ExtentType>"#));
         assert!(output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
