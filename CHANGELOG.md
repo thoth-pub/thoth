@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
   - [758](https://github.com/thoth-pub/thoth/pull/758) - Fixed `clippy::useless_borrows_in_formatting` lints raised by newer Rust in formatting macros
+  - [760](https://github.com/thoth-pub/thoth/pull/760) - Export contributors with their true role code in Google Books ONIX (`onix3::google_books`), instead of re-coding the first contributor of a wholly-edited book as an author (`A01`)
 
 ## [[1.3.4]](https://github.com/thoth-pub/thoth/releases/tag/v1.3.4) - 2026-07-09
 ### Changed
