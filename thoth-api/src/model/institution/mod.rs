@@ -107,11 +107,11 @@ pub struct InstitutionOrderBy {
 impl fmt::Display for Institution {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(ror) = &self.ror {
-            write!(f, "{} - {}", &self.institution_name, ror)
+            write!(f, "{} - {}", self.institution_name, ror)
         } else if let Some(doi) = &self.institution_doi {
-            write!(f, "{} - {}", &self.institution_name, doi)
+            write!(f, "{} - {}", self.institution_name, doi)
         } else {
-            write!(f, "{}", &self.institution_name)
+            write!(f, "{}", self.institution_name)
         }
     }
 }

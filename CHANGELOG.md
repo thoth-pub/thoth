@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[1.4.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.4.0) - 2026-07-16
+### Added
+  - [757](https://github.com/thoth-pub/thoth/pull/757) - Add `oclc_number` column to OCLC KBART export (`kbart::oclc`)
+
+### Fixed
+  - [758](https://github.com/thoth-pub/thoth/pull/758) - Fixed `clippy::useless_borrows_in_formatting` lints raised by newer Rust in formatting macros
+  - [760](https://github.com/thoth-pub/thoth/pull/760) - Export contributors with their true role code in Google Books ONIX (`onix3::google_books`), instead of re-coding the first contributor of a wholly-edited book as an author (`A01`)
+
 ## [[1.3.4]](https://github.com/thoth-pub/thoth/releases/tag/v1.3.4) - 2026-07-09
 ### Changed
   - [756](https://github.com/thoth-pub/thoth/pull/756) - Upgrade `actix-http` to v3.13.1

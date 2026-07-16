@@ -1225,7 +1225,7 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkFundings {
 
 impl XmlElementBlock<DoiDepositCrossref> for WorkReferences {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        let key = format!("ref{}", &self.reference_ordinal);
+        let key = format!("ref{}", self.reference_ordinal);
         write_full_element_block("citation", Some(vec![("key", key.as_ref())]), w, |w| {
             if let Some(doi) = &self.doi {
                 write_element_block("doi", w, |w| {
