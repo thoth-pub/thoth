@@ -103,6 +103,23 @@ fn make_new_work_featured_video_upload(
 }
 
 #[cfg(feature = "backend")]
+fn make_new_accessibility_report_upload(
+    publication_id: Uuid,
+    extension: impl Into<String>,
+) -> NewFileUpload {
+    NewFileUpload {
+        file_type: FileType::A11yReport,
+        work_id: None,
+        publication_id: Some(publication_id),
+        additional_resource_id: None,
+        work_featured_video_id: None,
+        declared_mime_type: "text/html".to_string(),
+        declared_extension: extension.into(),
+        declared_sha256: TEST_SHA256_HEX.to_string(),
+    }
+}
+
+#[cfg(feature = "backend")]
 fn create_pdf_publication(
     pool: &crate::db::PgPool,
     work_id: Uuid,
@@ -216,6 +233,26 @@ fn make_new_work_featured_video_file(
     }
 }
 
+#[cfg(feature = "backend")]
+fn make_new_accessibility_report_file(
+    publication_id: Uuid,
+    object_key: impl Into<String>,
+) -> NewFile {
+    let object_key = object_key.into();
+    NewFile {
+        file_type: FileType::A11yReport,
+        work_id: None,
+        publication_id: Some(publication_id),
+        additional_resource_id: None,
+        work_featured_video_id: None,
+        object_key: object_key.clone(),
+        cdn_url: format!("https://cdn.example.org/{object_key}"),
+        mime_type: "text/html".to_string(),
+        bytes: 4096,
+        sha256: TEST_SHA256_HEX.to_string(),
+    }
+}
+
 mod display_and_parse {
     use super::*;
 
@@ -231,6 +268,7 @@ mod display_and_parse {
             format!("{}", FileType::WorkFeaturedVideo),
             "work_featured_video"
         );
+        assert_eq!(format!("{}", FileType::A11yReport), "accessibility_report");
     }
 
     #[test]
@@ -253,6 +291,10 @@ mod display_and_parse {
             FileType::from_str("work_featured_video").unwrap(),
             FileType::WorkFeaturedVideo
         );
+        assert_eq!(
+            FileType::from_str("accessibility_report").unwrap(),
+            FileType::A11yReport
+        );
         assert!(FileType::from_str("Publication").is_err());
         assert!(FileType::from_str("cover").is_err());
     }
@@ -270,6 +312,7 @@ mod conversions {
         assert_graphql_enum_roundtrip(FileType::Frontcover);
         assert_graphql_enum_roundtrip(FileType::AdditionalResource);
         assert_graphql_enum_roundtrip(FileType::WorkFeaturedVideo);
+        assert_graphql_enum_roundtrip(FileType::A11yReport);
     }
 
     #[test]
@@ -295,6 +338,11 @@ mod conversions {
             pool.as_ref(),
             "'work_featured_video'::file_type",
             FileType::WorkFeaturedVideo,
+        );
+        assert_db_enum_roundtrip::<FileType, crate::schema::sql_types::FileType>(
+            pool.as_ref(),
+            "'accessibility_report'::file_type",
+            FileType::A11yReport,
         );
     }
 }
@@ -398,6 +446,21 @@ mod validation {
     }
 
     #[test]
+    fn accessibility_report_allows_known_extensions() {
+        for ext in ["html", "pdf"] {
+            assert!(FilePolicy::validate_file_extension(ext, &FileType::A11yReport, None).is_ok());
+        }
+    }
+
+    #[test]
+    fn accessibility_report_rejects_unknown_extensions() {
+        assert_eq!(
+            FilePolicy::validate_file_extension("mp3", &FileType::A11yReport, None).unwrap_err(),
+            ThothError::InvalidFileExtension
+        );
+    }
+
+    #[test]
     fn publication_requires_publication_type_for_validation() {
         assert_eq!(
             FilePolicy::validate_file_extension("pdf", &FileType::Publication, None).unwrap_err(),
@@ -485,6 +548,42 @@ mod validation {
     }
 
     #[test]
+    fn accessibility_report_mime_allows_accepted_aliases() {
+        assert!(FilePolicy::validate_file_mime_type(
+            "html",
+            &FileType::A11yReport,
+            None,
+            "text/html"
+        )
+        .is_ok());
+
+        assert!(FilePolicy::validate_file_mime_type(
+            "pdf",
+            &FileType::A11yReport,
+            None,
+            "application/octet-stream"
+        )
+        .is_ok());
+
+        assert!(FilePolicy::validate_file_mime_type(
+            "pdf",
+            &FileType::A11yReport,
+            None,
+            "application/pdf"
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn accessibility_report_mime_rejects_invalid_values() {
+        assert_eq!(
+            FilePolicy::validate_file_mime_type("mp3", &FileType::A11yReport, None, "audio/mp3")
+                .unwrap_err(),
+            ThothError::InvalidFileMimeType
+        );
+    }
+
+    #[test]
     fn publication_size_limits_are_enforced() {
         let fifty_kib = 50 * 1024;
         let five_gib = 5 * 1024 * 1024 * 1024;
@@ -514,6 +613,23 @@ mod validation {
         );
         assert_eq!(
             FilePolicy::validate_file_size(fifty_mib + 1, &FileType::Frontcover).unwrap_err(),
+            ThothError::FileTooLarge
+        );
+    }
+
+    #[test]
+    fn accessibility_report_size_limits_are_enforced() {
+        let fifty_kib = 50 * 1024;
+        let five_mib = 5 * 1024 * 1024;
+        assert!(FilePolicy::validate_file_size(fifty_kib, &FileType::A11yReport).is_ok());
+        assert!(FilePolicy::validate_file_size(five_mib, &FileType::A11yReport).is_ok());
+
+        assert_eq!(
+            FilePolicy::validate_file_size(fifty_kib - 1, &FileType::A11yReport).unwrap_err(),
+            ThothError::FileTooSmall
+        );
+        assert_eq!(
+            FilePolicy::validate_file_size(five_mib + 1, &FileType::A11yReport).unwrap_err(),
             ThothError::FileTooLarge
         );
     }
@@ -558,6 +674,20 @@ mod validation {
         let upload: NewFileUpload = data.into();
         assert_eq!(upload.file_type, FileType::AdditionalResource);
         assert_eq!(upload.declared_extension, "png");
+    }
+
+    #[test]
+    fn new_file_upload_from_accessibility_report_lowercases_extension() {
+        let data = NewA11yReportFileUpload {
+            publication_id: Uuid::new_v4(),
+            declared_mime_type: "text/html".to_string(),
+            declared_extension: "HTML".to_string(),
+            declared_sha256: TEST_SHA256_HEX.to_string(),
+        };
+
+        let upload: NewFileUpload = data.into();
+        assert_eq!(upload.file_type, FileType::A11yReport);
+        assert_eq!(upload.declared_extension, "html");
     }
 
     #[test]
@@ -890,6 +1020,20 @@ mod crud {
         )
         .expect("Failed to create publication file upload");
 
+        let accessibility_file = File::create(
+            pool.as_ref(),
+            &make_new_accessibility_report_file(
+                publication.publication_id,
+                format!("10.1234/{}/resources/a11yreport.html", Uuid::new_v4()),
+            ),
+        )
+        .expect("Failed to create accessibility-report file");
+        let accessibility_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_accessibility_report_upload(publication.publication_id, "html"),
+        )
+        .expect("Failed to create accessibility-report upload");
+
         publication
             .delete(pool.as_ref())
             .expect("Failed to delete publication");
@@ -897,6 +1041,8 @@ mod crud {
         assert!(Publication::from_id(pool.as_ref(), &publication_id).is_err());
         assert!(File::from_id(pool.as_ref(), &file.file_id).is_err());
         assert!(FileUpload::from_id(pool.as_ref(), &upload.file_upload_id).is_err());
+        assert!(File::from_id(pool.as_ref(), &accessibility_file.file_id).is_err());
+        assert!(FileUpload::from_id(pool.as_ref(), &accessibility_upload.file_upload_id).is_err());
     }
 
     #[test]
@@ -943,6 +1089,14 @@ mod crud {
             ),
         )
         .expect("Failed to create featured-video file");
+        let accessibility_file = File::create(
+            pool.as_ref(),
+            &make_new_accessibility_report_file(
+                publication.publication_id,
+                format!("10.1234/{}/resources/a11yreport.html", Uuid::new_v4()),
+            ),
+        )
+        .expect("Failed to create accessibility-report file");
 
         let cover_upload = FileUpload::create(
             pool.as_ref(),
@@ -967,6 +1121,11 @@ mod crud {
             &make_new_work_featured_video_upload(featured_video.work_featured_video_id, "mp4"),
         )
         .expect("Failed to create featured-video upload");
+        let accessibility_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_accessibility_report_upload(publication.publication_id, "html"),
+        )
+        .expect("Failed to create accessibility-report upload");
 
         work.delete(pool.as_ref()).expect("Failed to delete work");
 
@@ -975,10 +1134,12 @@ mod crud {
         assert!(File::from_id(pool.as_ref(), &publication_file.file_id).is_err());
         assert!(File::from_id(pool.as_ref(), &resource_file.file_id).is_err());
         assert!(File::from_id(pool.as_ref(), &featured_file.file_id).is_err());
+        assert!(File::from_id(pool.as_ref(), &accessibility_file.file_id).is_err());
         assert!(FileUpload::from_id(pool.as_ref(), &cover_upload.file_upload_id).is_err());
         assert!(FileUpload::from_id(pool.as_ref(), &publication_upload.file_upload_id).is_err());
         assert!(FileUpload::from_id(pool.as_ref(), &resource_upload.file_upload_id).is_err());
         assert!(FileUpload::from_id(pool.as_ref(), &featured_upload.file_upload_id).is_err());
+        assert!(FileUpload::from_id(pool.as_ref(), &accessibility_upload.file_upload_id).is_err());
     }
 
     #[test]
@@ -1016,10 +1177,13 @@ mod crud {
             .expect("Expected frontcover file");
         assert_eq!(from_work.file_id, frontcover_file.file_id);
 
-        let from_publication =
-            File::from_publication_id(pool.as_ref(), &publication.publication_id)
-                .expect("Failed to fetch publication file by publication id")
-                .expect("Expected publication file");
+        let from_publication = File::from_publication_id(
+            pool.as_ref(),
+            &publication.publication_id,
+            FileType::Publication,
+        )
+        .expect("Failed to fetch publication file by publication id")
+        .expect("Expected publication file");
         assert_eq!(from_publication.file_id, publication_file.file_id);
 
         let other_work = create_work(pool.as_ref(), &imprint);
@@ -1027,11 +1191,13 @@ mod crud {
         assert!(File::from_work_id(pool.as_ref(), &other_work.work_id)
             .expect("Failed to query frontcover by work id")
             .is_none());
-        assert!(
-            File::from_publication_id(pool.as_ref(), &other_publication.publication_id)
-                .expect("Failed to query publication file by publication id")
-                .is_none()
-        );
+        assert!(File::from_publication_id(
+            pool.as_ref(),
+            &other_publication.publication_id,
+            FileType::Publication
+        )
+        .expect("Failed to query publication file by publication id")
+        .is_none());
     }
 
     #[test]
@@ -1051,6 +1217,10 @@ mod crud {
             publication.publication_id,
             format!("10.1234/{}/publication.pdf", Uuid::new_v4()),
         );
+        let accessibility_report_new_file = make_new_accessibility_report_file(
+            publication.publication_id,
+            format!("10.1234/{}/resources/a11yreport.html", Uuid::new_v4()),
+        );
 
         assert_eq!(
             frontcover_new_file.publisher_id(pool.as_ref()).unwrap(),
@@ -1058,6 +1228,12 @@ mod crud {
         );
         assert_eq!(
             publication_new_file.publisher_id(pool.as_ref()).unwrap(),
+            publisher.publisher_id
+        );
+        assert_eq!(
+            accessibility_report_new_file
+                .publisher_id(pool.as_ref())
+                .unwrap(),
             publisher.publisher_id
         );
 
@@ -1068,6 +1244,8 @@ mod crud {
             &make_new_publication_upload(publication.publication_id, "pdf"),
         )
         .expect("Failed to create file upload");
+        let accessibility_report_file = File::create(pool.as_ref(), &accessibility_report_new_file)
+            .expect("Failed to create file");
 
         assert_eq!(
             frontcover_file.publisher_id(pool.as_ref()).unwrap(),
@@ -1075,6 +1253,12 @@ mod crud {
         );
         assert_eq!(
             publication_upload.publisher_id(pool.as_ref()).unwrap(),
+            publisher.publisher_id
+        );
+        assert_eq!(
+            accessibility_report_file
+                .publisher_id(pool.as_ref())
+                .unwrap(),
             publisher.publisher_id
         );
 
@@ -1130,6 +1314,11 @@ mod crud {
             &make_new_frontcover_upload(work.work_id, "jpg"),
         )
         .expect("Failed to create frontcover upload");
+        let accessibility_report_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_accessibility_report_upload(publication.publication_id, "html"),
+        )
+        .expect("Failed to create accessibility-report upload");
 
         let ctx = test_context(pool.clone(), "file-user");
 
@@ -1153,6 +1342,20 @@ mod crud {
                 .expect("Failed to load frontcover upload scope");
         assert_eq!(loaded_work.work_id, work.work_id);
         assert!(loaded_publication.is_none());
+        assert!(loaded_resource.is_none());
+        assert!(loaded_featured_video.is_none());
+
+        let (loaded_work, loaded_publication, loaded_resource, loaded_featured_video) =
+            accessibility_report_upload
+                .load_scope(&ctx)
+                .expect("Failed to load accessibility reportt upload scope");
+        assert_eq!(loaded_work.work_id, work.work_id);
+        assert_eq!(
+            loaded_publication
+                .expect("Expected publication to be loaded")
+                .publication_id,
+            publication.publication_id
+        );
         assert!(loaded_resource.is_none());
         assert!(loaded_featured_video.is_none());
 
@@ -1298,6 +1501,43 @@ mod crud {
     }
 
     #[test]
+    fn crud_sync_related_metadata_updates_publication_accessibility_report_url() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let publication = create_pdf_publication(pool.as_ref(), work.work_id);
+
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("file-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_accessibility_report_upload(publication.publication_id, "html"),
+        )
+        .expect("Failed to create upload");
+
+        let accessibility_report_url =
+            "https://cdn.example.org/10.1234/abc/resources/def_a11yreport.html";
+        upload
+            .sync_related_metadata(&ctx, &work, accessibility_report_url, "checksum", None)
+            .expect("Failed to sync accessibility report metadata");
+
+        let refreshed_publication =
+            Publication::from_id(pool.as_ref(), &publication.publication_id)
+                .expect("Failed to reload publication after metadata sync");
+        assert_eq!(
+            refreshed_publication.accessibility_report_url.as_deref(),
+            Some(accessibility_report_url)
+        );
+    }
+
+    #[test]
     fn cleanup_candidates_for_publication_includes_file_and_pending_upload() {
         let (_guard, pool) = setup_test_db();
         let publisher = create_publisher(pool.as_ref());
@@ -1317,17 +1557,39 @@ mod crud {
         )
         .expect("Failed to create publication upload");
 
+        let accessibility_report_key =
+            format!("10.1234/{}/resources/a11yreport.html", Uuid::new_v4());
+        File::create(
+            pool.as_ref(),
+            &make_new_accessibility_report_file(
+                publication.publication_id,
+                &accessibility_report_key,
+            ),
+        )
+        .expect("Failed to create accessibility-report file");
+        let accessibility_report_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_accessibility_report_upload(publication.publication_id, "html"),
+        )
+        .expect("Failed to create accessibility-report upload");
+
         let candidates =
             File::cleanup_candidates_for_publication(pool.as_ref(), &publication.publication_id)
                 .expect("Failed to load publication cleanup candidates");
-        assert_eq!(candidates.len(), 2);
+        assert_eq!(candidates.len(), 4);
         assert!(candidates
             .iter()
             .any(|c| c.file_type == FileType::Publication && c.object_key == object_key));
         assert!(candidates
             .iter()
+            .any(|c| c.object_key == accessibility_report_key));
+        assert!(candidates
+            .iter()
             .any(|c| c.file_type == FileType::Publication
                 && c.object_key == temp_key(&upload.file_upload_id)));
+        assert!(candidates
+            .iter()
+            .any(|c| c.object_key == temp_key(&accessibility_report_upload.file_upload_id)));
     }
 
     #[test]
@@ -1448,6 +1710,8 @@ mod crud {
         let featured_video_key = format!("10.1234/{}/resources/featured.mp4", Uuid::new_v4());
         let publication_key = format!("10.1234/{}/publication.pdf", Uuid::new_v4());
         let cover_key = format!("10.1234/{}/cover.jpg", Uuid::new_v4());
+        let accessibility_report_key =
+            format!("10.1234/{}/resources/a11yreport.html", Uuid::new_v4());
 
         File::create(
             pool.as_ref(),
@@ -1475,6 +1739,14 @@ mod crud {
             ),
         )
         .expect("Failed to create featured-video file");
+        File::create(
+            pool.as_ref(),
+            &make_new_accessibility_report_file(
+                publication.publication_id,
+                &accessibility_report_key,
+            ),
+        )
+        .expect("Failed to create accessibility-report file");
         let cover_upload = FileUpload::create(
             pool.as_ref(),
             &make_new_frontcover_upload(work.work_id, "jpg"),
@@ -1498,17 +1770,25 @@ mod crud {
             &make_new_work_featured_video_upload(featured_video.work_featured_video_id, "mp4"),
         )
         .expect("Failed to create featured-video upload");
+        let accessibility_report_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_accessibility_report_upload(publication.publication_id, "html"),
+        )
+        .expect("Failed to create accessibility-report upload");
 
         let candidates = File::cleanup_candidates_for_work(pool.as_ref(), &work.work_id)
             .expect("Failed to load");
 
-        assert_eq!(candidates.len(), 8);
+        assert_eq!(candidates.len(), 10);
         assert!(candidates.iter().any(|c| c.object_key == cover_key));
         assert!(candidates.iter().any(|c| c.object_key == publication_key));
         assert!(candidates.iter().any(|c| c.object_key == resource_key));
         assert!(candidates
             .iter()
             .any(|c| c.object_key == featured_video_key));
+        assert!(candidates
+            .iter()
+            .any(|c| c.object_key == accessibility_report_key));
         assert!(candidates
             .iter()
             .any(|c| c.object_key == temp_key(&cover_upload.file_upload_id)));
@@ -1521,5 +1801,8 @@ mod crud {
         assert!(candidates
             .iter()
             .any(|c| c.object_key == temp_key(&featured_video_upload.file_upload_id)));
+        assert!(candidates
+            .iter()
+            .any(|c| c.object_key == temp_key(&accessibility_report_upload.file_upload_id)));
     }
 }

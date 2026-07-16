@@ -77,6 +77,7 @@ static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "file_publication_unique_idx" => "A publication file for this publication already exists.",
     "file_additional_resource_unique_idx" => "A file for this additional resource already exists.",
     "file_work_featured_video_unique_idx" => "A file for this featured video already exists.",
+    "file_accessibility_report_publication_unique_idx" => "An accessibility report file for this publication already exists.",
     "file_type_check" => "File type is invalid: frontcover must have work_id, publication must have publication_id, additional_resource must have additional_resource_id, work_featured_video must have work_featured_video_id.",
     "file_upload_type_check" => "File upload type is invalid: frontcover must have work_id, publication must have publication_id, additional_resource must have additional_resource_id, work_featured_video must have work_featured_video_id.",
     "orcid_uniq_idx" => "A contributor with this ORCID ID already exists.",

@@ -166,6 +166,10 @@ pub enum ThothError {
     CreateLocationChecksumError,
     #[error("Only superusers can update or delete an existing Location Checksum.")]
     UpdateLocationChecksumError,
+    #[error("Accessibility report file upload missing publication_id")]
+    AccessibilityReportFileUploadMissingPublicationId,
+    #[error("URLs of uploaded files cannot be overwritten.")]
+    HostedFileUrlEditError,
 }
 
 impl ThothError {

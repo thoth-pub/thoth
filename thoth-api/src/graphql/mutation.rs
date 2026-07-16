@@ -18,8 +18,8 @@ use crate::model::{
     endorsement::{Endorsement, EndorsementPolicy, NewEndorsement, PatchEndorsement},
     file::{
         CompleteFileUpload, File, FilePolicy, FileUpload, FileUploadResponse,
-        NewAdditionalResourceFileUpload, NewFileUpload, NewFrontcoverFileUpload,
-        NewPublicationFileUpload, NewWorkFeaturedVideoFileUpload,
+        NewA11yReportFileUpload, NewAdditionalResourceFileUpload, NewFileUpload,
+        NewFrontcoverFileUpload, NewPublicationFileUpload, NewWorkFeaturedVideoFileUpload,
     },
     funding::{Funding, FundingPolicy, NewFunding, PatchFunding},
     imprint::{Imprint, ImprintPolicy, NewImprint, PatchImprint},
@@ -45,7 +45,8 @@ use crate::model::{
     Crud, Reorder,
 };
 use crate::policy::{
-    CreatePolicy, DeletePolicy, MovePolicy, PolicyContext, UpdatePolicy, UserAccess,
+    CreatePolicy, DeletePolicy, HostedFileSyncContext, MovePolicy, PolicyContext, UpdatePolicy,
+    UserAccess,
 };
 use crate::storage::{
     additional_resource_cleanup_plan, build_cdn_url, copy_temp_object_to_final, delete_object,
@@ -1404,6 +1405,31 @@ impl MutationRoot {
     }
 
     #[graphql(
+        description = "Start uploading an accessibility report for a given publication. Returns an upload session ID, a presigned S3 PUT URL, and required PUT headers."
+    )]
+    async fn init_a11yreport_file_upload(
+        context: &Context,
+        #[graphql(description = "Input for starting an accessibility report upload")]
+        data: NewA11yReportFileUpload,
+    ) -> FieldResult<FileUploadResponse> {
+        let publication: Publication = context.load_current(&data.publication_id)?;
+
+        let new_upload: NewFileUpload = data.into();
+        FilePolicy::can_create(context, &new_upload, Some(publication.publication_type))?;
+
+        let work: Work = context.load_current(&publication.work_id)?;
+        work.doi.ok_or(ThothError::WorkMissingDoiForFileUpload)?;
+
+        let imprint: Imprint = context.load_current(&work.imprint_id)?;
+        let storage_config = StorageConfig::from_imprint(&imprint)?;
+
+        new_upload
+            .create_upload_response(&context.db, context.s3_client(), &storage_config, 30)
+            .await
+            .map_err(Into::into)
+    }
+
+    #[graphql(
         description = "Complete a file upload, validate it, and promote it to its final DOI-based location."
     )]
     async fn complete_file_upload(
@@ -1443,7 +1469,8 @@ impl MutationRoot {
                 Some(ResourceType::Video)
             }
             crate::model::file::FileType::Frontcover
-            | crate::model::file::FileType::Publication => None,
+            | crate::model::file::FileType::Publication
+            | crate::model::file::FileType::A11yReport => None,
         };
         FilePolicy::can_complete_upload(
             context,
@@ -1488,8 +1515,9 @@ impl MutationRoot {
             &mime_type,
             bytes,
         )?;
+        let sync_context = HostedFileSyncContext::new(context);
         file_upload.sync_related_metadata(
-            context,
+            &sync_context,
             &work,
             &cdn_url,
             &file.sha256,

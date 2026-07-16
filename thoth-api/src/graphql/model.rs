@@ -1012,6 +1012,12 @@ impl Publication {
         self.accessibility_report_url.as_ref()
     }
 
+    #[graphql(description = "Get the accessibility report file for this publication")]
+    pub fn accessibility_report(&self, context: &Context) -> FieldResult<Option<File>> {
+        File::from_publication_id(&context.db, &self.publication_id, FileType::A11yReport)
+            .map_err(Into::into)
+    }
+
     #[graphql(description = "Get prices linked to this publication")]
     pub fn prices(
         &self,
@@ -1082,7 +1088,8 @@ impl Publication {
 
     #[graphql(description = "Get the publication file for this publication")]
     pub fn file(&self, context: &Context) -> FieldResult<Option<File>> {
-        File::from_publication_id(&context.db, &self.publication_id).map_err(Into::into)
+        File::from_publication_id(&context.db, &self.publication_id, FileType::Publication)
+            .map_err(Into::into)
     }
 
     #[graphql(description = "Get the work to which this publication belongs")]
@@ -1113,7 +1120,9 @@ impl File {
         self.work_id.as_ref()
     }
 
-    #[graphql(description = "Thoth ID of the publication (for publication files)")]
+    #[graphql(
+        description = "Thoth ID of the publication (for publication files and accessibility reports)"
+    )]
     pub fn publication_id(&self) -> Option<&Uuid> {
         self.publication_id.as_ref()
     }
