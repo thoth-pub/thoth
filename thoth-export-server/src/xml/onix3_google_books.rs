@@ -88,11 +88,23 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                 "Missing Publication Date".to_string(),
             ));
         }
-        // Don't output works with no contributors (at least one required for Google Books)
-        if self.contributions.is_empty() {
+        // Google Books requires at least one contributor, and only supports certain
+        // contributor role codes (see the emit loop below). Reject works where none of
+        // the contributors can be represented with a supported code, rather than emitting
+        // a Product with no Contributor element.
+        if !self.contributions.iter().any(|c| {
+            !matches!(
+                c.contribution_type,
+                ContributionType::SOFTWARE_BY
+                    | ContributionType::RESEARCH_BY
+                    | ContributionType::INDEXER
+                    | ContributionType::MUSIC_EDITOR
+                    | ContributionType::Other(_)
+            )
+        }) {
             return Err(ThothError::IncompleteMetadataRecord(
                 ONIX_ERROR.to_string(),
-                "No contributors supplied".to_string(),
+                "No contributors with Google Books-supported roles supplied".to_string(),
             ));
         }
         // We can only generate the document if there's an EPUB or PDF
@@ -288,26 +300,15 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                             Ok(())
                         })
                     })?;
-                    // Google Books requires at least one contributor coded as A01 (Author) -
-                    // if this is e.g. a wholly edited book, code the first main contributor as an author.
-                    let mut contributions = self.contributions.clone();
-                    if !contributions
-                        .iter()
-                        .any(|c| c.contribution_type.eq(&ContributionType::AUTHOR))
-                    {
-                        // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
-                        contributions.sort_by_key(|a| a.contribution_ordinal);
-                        contributions.sort_by_key(|b| std::cmp::Reverse(b.main_contribution));
-                        contributions[0].contribution_type = ContributionType::AUTHOR;
-                    }
-                    for contribution in &contributions {
+                    for contribution in &self.contributions {
                         // Google Books doesn't support B25, A30, A34 or A51 codes
                         // (or any appropriate "Other" code)
                         match contribution.contribution_type {
                             ContributionType::SOFTWARE_BY
                             | ContributionType::RESEARCH_BY
                             | ContributionType::INDEXER
-                            | ContributionType::MUSIC_EDITOR => (),
+                            | ContributionType::MUSIC_EDITOR
+                            | ContributionType::Other(_) => (),
                             _ => {
                                 XmlElementBlock::<Onix3GoogleBooks>::xml_element(contribution, w)
                                     .ok();
@@ -1169,15 +1170,37 @@ mod tests {
         assert!(output.contains(r#"        <TitleElementLevel>01</TitleElementLevel>"#));
         assert!(output.contains(r#"        <TitleText>Book Title</TitleText>"#));
         assert!(output.contains(r#"        <Subtitle>Book Subtitle</Subtitle>"#));
-        // If a book has no Authors, the first main contributor will be marked as an Author
+        // Contributors are exported with their true role code (e.g. editors as B01),
+        // even for a wholly-edited book with no Authors
         assert!(output.contains(r#"    <Contributor>"#));
         assert!(output.contains(r#"      <SequenceNumber>2</SequenceNumber>"#));
-        assert!(output.contains(r#"      <ContributorRole>A01</ContributorRole>"#));
+        assert!(output.contains(r#"      <ContributorRole>B01</ContributorRole>"#));
         assert!(output.contains(r#"      <PersonName>Volume Editor</PersonName>"#));
-        // Music Editors are omitted (unless required to be marked as an Author as above)
+        // Music Editors are omitted
         assert!(!output.contains(r#"      <SequenceNumber>1</SequenceNumber>"#));
         assert!(!output.contains(r#"      <ContributorRole>B25</ContributorRole>"#));
         assert!(!output.contains(r#"      <PersonName>Music Editor</PersonName>"#));
+        // A contributor with an unsupported "Other" role is omitted, and must not cause
+        // the export to panic when a supported contributor is also present
+        let mut test_work_with_other = test_work.clone();
+        test_work_with_other.contributions.push(WorkContributions {
+            contribution_type: ContributionType::Other("Z99".to_string()),
+            first_name: Some("Other".to_string()),
+            last_name: "Contributor".to_string(),
+            full_name: "Other Contributor".to_string(),
+            main_contribution: false,
+            biographies: vec![],
+            contribution_ordinal: 3,
+            contributor: WorkContributionsContributor {
+                orcid: None,
+                website: None,
+            },
+            affiliations: vec![],
+        });
+        let output_with_other = generate_test_output(true, &test_work_with_other);
+        assert!(!output_with_other.contains(r#"<PersonName>Other Contributor</PersonName>"#));
+        // The supported contributor is still exported
+        assert!(output_with_other.contains(r#"      <PersonName>Volume Editor</PersonName>"#));
         assert!(output.contains(r#"    <Extent>"#));
         assert!(output.contains(r#"      <ExtentType>00</ExtentType>"#));
         assert!(output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
@@ -1485,13 +1508,23 @@ mod tests {
             "Could not generate onix_3.0::google_books: This work does not have a PDF, EPUB or paperback ISBN".to_string()
         );
 
-        // Replace ISBN but remove all contributors: result is error
+        // Replace ISBN but leave only a contributor with a Google Books-unsupported
+        // role (e.g. Music Editor): result is error, as no Contributor could be emitted
         test_work.publications[0].isbn = Some(Isbn::from_str("978-3-16-148410-0").unwrap());
+        // contributions[0] is a Music Editor; drop the Volume Editor, leaving only it
+        test_work.contributions.truncate(1);
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::google_books: No contributors with Google Books-supported roles supplied".to_string()
+        );
+
+        // Replace ISBN but remove all contributors: result is error
         test_work.contributions.clear();
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
-            "Could not generate onix_3.0::google_books: No contributors supplied".to_string()
+            "Could not generate onix_3.0::google_books: No contributors with Google Books-supported roles supplied".to_string()
         );
     }
 }
