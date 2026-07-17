@@ -319,9 +319,20 @@ async fn load_aws_config(
     );
 
     aws_config::ConfigLoader::default()
-        // Use the latest behaviour version. Earlier versions (v2025_01_17 and below) are
-        // incompatible with the upgraded AWS SDK crates and fail with "dispatch failure:
-        // No HTTP client was available" on any outbound request.
+        // BehaviourVersion::latest() is required — earlier pinned versions
+        // (v2025_01_17 and below) are incompatible with the upgraded AWS SDK
+        // crates and produce "dispatch failure: No HTTP client was available"
+        // on any outbound request.
+        //
+        // BehaviourVersion::latest() automatically discovers HTTP_PROXY /
+        // HTTPS_PROXY / NO_PROXY environment variables (added in behaviour
+        // v2025_08_07). The old pin to v2025_01_17 was intended to avoid that,
+        // but broke the upgrade. An explicit hyper-rustls connector would also
+        // bypass proxy discovery, but adds two direct dependencies and extra
+        // construction code. Since none of our deployment environments set
+        // these environment variables, the extra complexity is not justified.
+        // If a deployment ever does set them, S3 operations will fail loudly
+        // at dev/staging time and the fix is simply to unset the variables.
         .behavior_version(aws_config::BehaviorVersion::latest())
         .credentials_provider(credentials)
         .region(aws_config::Region::new(region.to_string()))
