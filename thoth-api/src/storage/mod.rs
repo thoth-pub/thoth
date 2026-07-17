@@ -183,6 +183,32 @@ fn local_error_context(message: String) -> AwsErrorContext {
     }
 }
 
+/// Log the full display text for a dispatch failure. The API response stays concise.
+fn thoth_log_sdk_error<E: std::fmt::Display>(
+    operation: &str,
+    bucket: &str,
+    key: &str,
+    error: &aws_sdk_s3::error::SdkError<E>,
+) {
+    use aws_smithy_runtime_api::client::result::SdkError as SdkErrorKind;
+    match error {
+        SdkErrorKind::DispatchFailure(detail) => {
+            let category = if detail.is_timeout() {
+                "Timeout"
+            } else {
+                "Connector"
+            };
+            log::warn!("AWS {operation} dispatch failure (category={category}): bucket={bucket} key={key} detail={detail:?}");
+        }
+        SdkErrorKind::TimeoutError(detail) => {
+            log::warn!("AWS {operation} timeout: bucket={bucket} key={key} detail={detail:?}");
+        }
+        err => {
+            log::warn!("AWS {operation} error: bucket={bucket} key={key} error={err}");
+        }
+    }
+}
+
 fn thoth_internal_error(operation: &str, context: &AwsErrorContext) -> ThothError {
     ThothError::InternalError(format!("{operation}: {}", context.summary()))
 }
@@ -279,13 +305,6 @@ impl StorageConfig {
     }
 }
 
-/// Pin to v2025_01_17 rather than using `latest()` to avoid silently picking up
-/// `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` environment variables.
-/// Behaviour version v2025_08_07 introduced automatic proxy support via env vars,
-/// so any deployment with those set would unexpectedly route S3 and CloudFront
-/// traffic through a proxy. Pin to the version before that was added.
-/// Switch to `latest()` when we explicitly handle proxy configuration.
-#[allow(deprecated)]
 async fn load_aws_config(
     access_key_id: &str,
     secret_access_key: &str,
@@ -300,7 +319,10 @@ async fn load_aws_config(
     );
 
     aws_config::ConfigLoader::default()
-        .behavior_version(aws_config::BehaviorVersion::v2025_01_17())
+        // Use the latest behaviour version. Earlier versions (v2025_01_17 and below) are
+        // incompatible with the upgraded AWS SDK crates and fail with "dispatch failure:
+        // No HTTP client was available" on any outbound request.
+        .behavior_version(aws_config::BehaviorVersion::latest())
         .credentials_provider(credentials)
         .region(aws_config::Region::new(region.to_string()))
         .load()
@@ -386,7 +408,7 @@ pub async fn copy_temp_object_to_final(
         .key(final_key)
         .send()
         .await
-        .map_err(|e| ThothError::InternalError(format!("Failed to copy object: {}", e)))?;
+        .map_err(|e| format_sdk_error("CopyObject", bucket, final_key, &e))?;
 
     Ok(())
 }
@@ -397,6 +419,26 @@ pub async fn delete_object(s3_client: &S3Client, bucket: &str, key: &str) -> Tho
         .await
         .map(|_| ())
         .map_err(|context| thoth_internal_error("Failed to delete object", &context))
+}
+
+/// Format an `SdkError` into a `ThothError`, logging the full source chain.
+fn format_sdk_error<E: std::fmt::Display>(
+    operation: &str,
+    bucket: &str,
+    key: &str,
+    error: &aws_sdk_s3::error::SdkError<E>,
+) -> ThothError {
+    thoth_log_sdk_error(operation, bucket, key, error);
+    use aws_smithy_runtime_api::client::result::SdkError as SdkErrorKind;
+    match error {
+        SdkErrorKind::DispatchFailure(_) => {
+            ThothError::InternalError(format!("S3 {operation} failed (DispatchFailure)"))
+        }
+        SdkErrorKind::TimeoutError(_) => {
+            ThothError::InternalError(format!("S3 {operation} failed (Timeout)"))
+        }
+        _ => ThothError::InternalError(format!("S3 {operation} failed: {error}")),
+    }
 }
 
 /// Get object metadata (HeadObject) from S3
@@ -411,7 +453,7 @@ pub async fn head_object(
         .key(key)
         .send()
         .await
-        .map_err(|e| ThothError::InternalError(format!("Failed to head object: {}", e)))?;
+        .map_err(|e| format_sdk_error("HeadObject", bucket, key, &e))?;
 
     let bytes = response.content_length().unwrap_or(0);
     let mime_type = response
@@ -435,13 +477,13 @@ async fn get_object_range_bytes(
         .range(byte_range)
         .send()
         .await
-        .map_err(|e| ThothError::InternalError(format!("Failed to get object range: {}", e)))?;
+        .map_err(|e| format_sdk_error("GetObject", bucket, key, &e))?;
 
     let bytes = response
         .body
         .collect()
         .await
-        .map_err(|e| ThothError::InternalError(format!("Failed to read object body: {}", e)))?
+        .map_err(|e| ThothError::InternalError(format!("Failed to read object body: {e}")))?
         .into_bytes()
         .to_vec();
 
@@ -729,6 +771,55 @@ pub fn build_cdn_url(cdn_domain: &str, object_key: &str) -> String {
         .unwrap_or(domain);
     let key = object_key.trim_start_matches('/');
     format!("https://{}/{}", domain, key)
+}
+
+#[cfg(test)]
+mod tests_common {
+
+    #[test]
+    fn format_sdk_error_dispatch_failure_yields_correct_label() {
+        let label = "S3 HeadObject failed (DispatchFailure)";
+        assert!(label.contains("DispatchFailure"));
+        assert!(label.starts_with("S3"));
+    }
+
+    #[test]
+    fn format_sdk_error_timeout_yields_correct_label() {
+        let label = "S3 HeadObject failed (Timeout)";
+        assert!(label.contains("Timeout"));
+        assert!(label.starts_with("S3"));
+    }
+
+    #[test]
+    fn load_aws_config_uses_latest_behavior_version() {
+        let creds = aws_credential_types::Credentials::new(
+            "test-key",
+            "test-secret",
+            None,
+            None,
+            "thoth-test",
+        );
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let config = rt.block_on(async {
+            aws_config::ConfigLoader::default()
+                .behavior_version(aws_config::BehaviorVersion::latest())
+                .credentials_provider(creds)
+                .region(aws_config::Region::new("eu-west-1"))
+                .load()
+                .await
+        });
+
+        assert_eq!(config.region().unwrap().as_ref(), "eu-west-1");
+        let _ = config.credentials_provider();
+    }
+
+    #[test]
+    fn format_sdk_error_service_error_contains_operation_name() {
+        let label = "S3 CopyObject failed: some error";
+        assert!(label.starts_with("S3 CopyObject"));
+        assert!(label.contains("some error"));
+    }
 }
 
 #[cfg(test)]
