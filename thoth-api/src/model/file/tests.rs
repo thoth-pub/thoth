@@ -354,8 +354,8 @@ mod validation {
     use thoth_errors::ThothError;
 
     #[test]
-    fn frontcover_allows_known_extensions() {
-        for ext in ["jpg", "jpeg", "png", "webp"] {
+    fn frontcover_allows_only_jpeg_extensions() {
+        for ext in ["jpg", "jpeg"] {
             assert!(FilePolicy::validate_file_extension(ext, &FileType::Frontcover, None).is_ok());
         }
     }
@@ -363,15 +363,19 @@ mod validation {
     #[test]
     fn frontcover_extension_validation_is_case_insensitive() {
         assert!(FilePolicy::validate_file_extension("JPG", &FileType::Frontcover, None).is_ok());
-        assert!(FilePolicy::validate_file_extension("WeBp", &FileType::Frontcover, None).is_ok());
+        assert!(FilePolicy::validate_file_extension("JPEG", &FileType::Frontcover, None).is_ok());
+        assert!(FilePolicy::validate_file_extension("JpEg", &FileType::Frontcover, None).is_ok());
     }
 
     #[test]
-    fn frontcover_rejects_unknown_extensions() {
-        assert_eq!(
-            FilePolicy::validate_file_extension("tiff", &FileType::Frontcover, None).unwrap_err(),
-            ThothError::InvalidFileExtension
-        );
+    fn frontcover_rejects_non_jpeg_extensions() {
+        for ext in ["png", "webp", "gif", "tiff", "svg", "pdf"] {
+            assert_eq!(
+                FilePolicy::validate_file_extension(ext, &FileType::Frontcover, None).unwrap_err(),
+                ThothError::InvalidFileExtension,
+                "extension {ext:?} should be rejected for front covers"
+            );
+        }
     }
 
     #[test]
@@ -419,7 +423,18 @@ mod validation {
     }
 
     #[test]
-    fn frontcover_requires_mime_to_match_extension() {
+    fn frontcover_accepts_only_image_jpeg_mime() {
+        for ext in ["jpg", "jpeg"] {
+            assert!(FilePolicy::validate_file_mime_type(
+                ext,
+                &FileType::Frontcover,
+                None,
+                "image/jpeg"
+            )
+            .is_ok());
+        }
+
+        // MIME matching is case-insensitive and ignores optional parameters.
         assert!(FilePolicy::validate_file_mime_type(
             "jpg",
             &FileType::Frontcover,
@@ -427,12 +442,38 @@ mod validation {
             "IMAGE/JPEG"
         )
         .is_ok());
+        assert!(FilePolicy::validate_file_mime_type(
+            "jpeg",
+            &FileType::Frontcover,
+            None,
+            "image/jpeg; charset=binary"
+        )
+        .is_ok());
 
-        assert_eq!(
-            FilePolicy::validate_file_mime_type("jpg", &FileType::Frontcover, None, "image/png")
-                .unwrap_err(),
-            ThothError::InvalidFileMimeType
-        );
+        for mime in [
+            "image/png",
+            "image/webp",
+            "image/jpg",
+            "application/octet-stream",
+            "text/plain",
+        ] {
+            assert_eq!(
+                FilePolicy::validate_file_mime_type("jpg", &FileType::Frontcover, None, mime)
+                    .unwrap_err(),
+                ThothError::InvalidFileMimeType,
+                "MIME type {mime:?} should be rejected for front covers"
+            );
+        }
+
+        // Disallowed extensions fail extension validation even with a JPEG MIME type.
+        for ext in ["png", "webp"] {
+            assert_eq!(
+                FilePolicy::validate_file_mime_type(ext, &FileType::Frontcover, None, "image/jpeg")
+                    .unwrap_err(),
+                ThothError::InvalidFileExtension,
+                "extension {ext:?} should be rejected for front covers"
+            );
+        }
     }
 
     #[test]
@@ -558,6 +599,32 @@ mod validation {
         let upload: NewFileUpload = data.into();
         assert_eq!(upload.file_type, FileType::AdditionalResource);
         assert_eq!(upload.declared_extension, "png");
+    }
+
+    #[test]
+    fn additional_resource_image_formats_remain_unchanged() {
+        // The JPEG-only restriction applies to front covers only: additional-resource
+        // images must keep supporting their existing formats, including PNG and WebP.
+        for ext in ["jpg", "jpeg", "png", "webp", "gif", "svg", "tif", "tiff"] {
+            assert!(
+                FilePolicy::validate_resource_file_extension(ext, ResourceType::Image).is_ok(),
+                "extension {ext:?} should remain valid for additional-resource images"
+            );
+        }
+        for mime in [
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/gif",
+            "image/svg+xml",
+            "image/tiff",
+            "application/octet-stream",
+        ] {
+            assert!(
+                FilePolicy::validate_resource_file_mime_type(ResourceType::Image, mime).is_ok(),
+                "MIME type {mime:?} should remain valid for additional-resource images"
+            );
+        }
     }
 
     #[test]
@@ -1163,6 +1230,18 @@ mod crud {
         );
         assert_eq!(
             frontcover_upload.canonical_key(&doi).unwrap(),
+            "10.1234/abc/def_frontcover.jpg"
+        );
+
+        // Front covers always canonicalize to `.jpg`, even when declared as `.jpeg`.
+        let other_work = create_work(pool.as_ref(), &imprint);
+        let jpeg_declared_upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_frontcover_upload(other_work.work_id, "jpeg"),
+        )
+        .expect("Failed to create jpeg-declared frontcover upload");
+        assert_eq!(
+            jpeg_declared_upload.canonical_key(&doi).unwrap(),
             "10.1234/abc/def_frontcover.jpg"
         );
     }

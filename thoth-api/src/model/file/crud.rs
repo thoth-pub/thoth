@@ -614,11 +614,9 @@ impl FileUpload {
                 doi_suffix,
                 &self.declared_extension,
             )),
-            FileType::Frontcover => Ok(canonical_frontcover_key(
-                doi_prefix,
-                doi_suffix,
-                &self.declared_extension,
-            )),
+            // Front covers always use the canonical `.jpg` extension, regardless of
+            // whether the client declared `jpg` or `jpeg`.
+            FileType::Frontcover => Ok(canonical_frontcover_key(doi_prefix, doi_suffix)),
             FileType::AdditionalResource => {
                 let additional_resource_id = self
                     .additional_resource_id

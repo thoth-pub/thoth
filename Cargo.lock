@@ -5029,6 +5029,7 @@ dependencies = [
  "aws-credential-types",
  "aws-sdk-cloudfront",
  "aws-sdk-s3",
+ "aws-smithy-runtime-api",
  "base64 0.22.1",
  "chrono",
  "deadpool-redis",

@@ -145,7 +145,8 @@ impl FilePolicy {
     ) -> ThothResult<()> {
         match file_type {
             FileType::Frontcover => {
-                let valid_extensions = ["jpg", "jpeg", "png", "webp"];
+                // Front covers must be JPEG; clients may declare either `.jpg` or `.jpeg`.
+                let valid_extensions = ["jpg", "jpeg"];
                 if !valid_extensions.contains(&extension.to_lowercase().as_str()) {
                     return Err(ThothError::InvalidFileExtension);
                 }
@@ -199,14 +200,14 @@ impl FilePolicy {
         let mime_type = Self::normalize_mime_type(mime_type);
         match file_type {
             FileType::Frontcover => {
-                let expected = match extension.to_ascii_lowercase().as_str() {
-                    "jpg" | "jpeg" => "image/jpeg",
-                    "png" => "image/png",
-                    "webp" => "image/webp",
+                // Front covers must be JPEG: only `image/jpeg` is accepted (never the
+                // non-standard `image/jpg` or `application/octet-stream`).
+                match extension.to_ascii_lowercase().as_str() {
+                    "jpg" | "jpeg" => {}
                     _ => return Err(ThothError::InvalidFileExtension),
                 };
 
-                if mime_type == expected {
+                if mime_type == "image/jpeg" {
                     Ok(())
                 } else {
                     Err(ThothError::InvalidFileMimeType)
