@@ -1312,7 +1312,7 @@ impl MutationRoot {
     }
 
     #[graphql(
-        description = "Start uploading a front cover image for a given work. Returns an upload session ID, a presigned S3 PUT URL, and required PUT headers."
+        description = "Start uploading a front cover image for a given work. Front covers must be JPEG ('image/jpeg', '.jpg' or '.jpeg' filenames); the hosted cover is stored under a canonical '.jpg' key. Returns an upload session ID, a presigned S3 PUT URL, and required PUT headers."
     )]
     async fn init_frontcover_file_upload(
         context: &Context,
