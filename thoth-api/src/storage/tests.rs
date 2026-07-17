@@ -56,9 +56,9 @@ fn canonical_publication_key_lowercases_parts() {
 }
 
 #[test]
-fn canonical_frontcover_key_lowercases_parts() {
-    let key = canonical_frontcover_key("10.1234", "AbC/Def", "PNG");
-    assert_eq!(key, "10.1234/abc/def_frontcover.png");
+fn canonical_frontcover_key_lowercases_parts_and_always_uses_jpg() {
+    let key = canonical_frontcover_key("10.1234", "AbC/Def");
+    assert_eq!(key, "10.1234/abc/def_frontcover.jpg");
 }
 
 #[test]

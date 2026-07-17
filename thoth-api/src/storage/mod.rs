@@ -691,13 +691,15 @@ pub fn canonical_publication_key(doi_prefix: &str, doi_suffix: &str, extension: 
     )
 }
 
-/// Compute the canonical object key for a frontcover file
-pub fn canonical_frontcover_key(doi_prefix: &str, doi_suffix: &str, extension: &str) -> String {
+/// Compute the canonical object key for a frontcover file.
+///
+/// Front covers are always stored as JPEG under a canonical `.jpg` extension,
+/// regardless of whether the client declared `jpg` or `jpeg`.
+pub fn canonical_frontcover_key(doi_prefix: &str, doi_suffix: &str) -> String {
     format!(
-        "{}/{}_frontcover.{}",
+        "{}/{}_frontcover.jpg",
         doi_prefix.to_lowercase(),
         doi_suffix.to_lowercase(),
-        extension.to_lowercase()
     )
 }
 

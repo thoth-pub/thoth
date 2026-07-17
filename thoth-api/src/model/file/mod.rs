@@ -166,14 +166,16 @@ pub struct NewPublicationFileUpload {
 
 #[cfg(feature = "backend")]
 #[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Input for starting a front cover upload for a work.")]
+#[graphql(
+    description = "Input for starting a front cover upload for a work. Front covers must be JPEG images: the declared MIME type must be 'image/jpeg' and the declared extension must be 'jpg' or 'jpeg'. The hosted cover is always stored under a canonical '.jpg' key."
+)]
 pub struct NewFrontcoverFileUpload {
     #[graphql(description = "Thoth ID of the work this front cover belongs to.")]
     pub work_id: Uuid,
-    #[graphql(description = "MIME type declared by the client (e.g. 'image/jpeg').")]
+    #[graphql(description = "MIME type declared by the client; must be 'image/jpeg'.")]
     pub declared_mime_type: String,
     #[graphql(
-        description = "File extension to use in the final canonical key, e.g. 'jpg', 'png', 'webp'."
+        description = "File extension of the original file; must be 'jpg' or 'jpeg' (case-insensitive). The hosted object always uses the canonical '.jpg' extension."
     )]
     pub declared_extension: String,
     #[graphql(description = "SHA-256 checksum of the file, hex-encoded.")]
