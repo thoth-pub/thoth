@@ -654,11 +654,38 @@ pub async fn invalidate_cloudfront(
         .map_err(|context| thoth_internal_error("Failed to create invalidation", &context))
 }
 
-/// Invalidate and clean up an existing canonical object, if one exists.
+/// Decide what to delete and invalidate when installing a new canonical object.
 ///
-/// When replacing an existing object at a new key, the old object is deleted and both old and
-/// new paths are invalidated. When replacing in place (same key), only the canonical path is
-/// invalidated.
+/// Returns `(key_to_delete, keys_to_invalidate)`. The canonical key is **always**
+/// invalidated, even when there is no previous managed object: a freshly uploaded
+/// cover may be replacing bytes already cached at the canonical URL (e.g. a legacy
+/// cover that was served from this exact path before it was brought under
+/// management), and without an invalidation CloudFront would keep serving the stale
+/// object until its TTL expired. A previous object at a *different* key is also
+/// deleted and invalidated.
+fn plan_object_reconciliation<'a>(
+    old_object_key: Option<&'a str>,
+    canonical_key: &'a str,
+) -> (Option<&'a str>, Vec<&'a str>) {
+    let mut delete_key = None;
+    let mut invalidate_keys = Vec::new();
+
+    if let Some(old_key) = old_object_key {
+        if old_key != canonical_key {
+            delete_key = Some(old_key);
+            invalidate_keys.push(old_key);
+        }
+    }
+
+    invalidate_keys.push(canonical_key);
+    (delete_key, invalidate_keys)
+}
+
+/// Invalidate and clean up after installing a new canonical object.
+///
+/// The canonical path is always invalidated so a fresh upload never serves stale
+/// CDN content. When a previous object existed at a different key, it is also
+/// deleted and its path invalidated. See [`plan_object_reconciliation`].
 pub async fn reconcile_replaced_object(
     s3_client: &S3Client,
     cloudfront_client: &CloudFrontClient,
@@ -667,16 +694,16 @@ pub async fn reconcile_replaced_object(
     old_object_key: Option<&str>,
     canonical_key: &str,
 ) -> ThothResult<()> {
-    let Some(old_key) = old_object_key else {
-        return Ok(());
-    };
+    let (delete_key, invalidate_keys) = plan_object_reconciliation(old_object_key, canonical_key);
 
-    if old_key != canonical_key {
+    if let Some(old_key) = delete_key {
         delete_object(s3_client, bucket, old_key).await?;
-        invalidate_cloudfront(cloudfront_client, distribution_id, old_key).await?;
     }
 
-    invalidate_cloudfront(cloudfront_client, distribution_id, canonical_key).await?;
+    for key in invalidate_keys {
+        invalidate_cloudfront(cloudfront_client, distribution_id, key).await?;
+    }
+
     Ok(())
 }
 

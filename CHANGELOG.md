@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+  - [762](https://github.com/thoth-pub/thoth/pull/762) - Always invalidate the CloudFront cache for the canonical object key when completing a file upload (`storage::reconcile_replaced_object`), so replacing a cover already cached at that URL no longer serves the stale object when no managed file record existed before
 
 ## [[1.5.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.5.0) - 2026-07-17
 ### Changed
