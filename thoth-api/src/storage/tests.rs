@@ -62,6 +62,41 @@ fn canonical_frontcover_key_lowercases_parts_and_always_uses_jpg() {
 }
 
 #[test]
+fn reconciliation_always_invalidates_canonical_key_without_prior_object() {
+    // Regression: a first-time migration of a legacy cover has no previous managed
+    // File record (old_object_key = None), but the bytes may already be cached at
+    // the canonical URL. The canonical key must still be invalidated, and nothing
+    // is deleted.
+    let (delete_key, invalidate_keys) =
+        plan_object_reconciliation(None, "10.1234/abc_frontcover.jpg");
+    assert_eq!(delete_key, None);
+    assert_eq!(invalidate_keys, vec!["10.1234/abc_frontcover.jpg"]);
+}
+
+#[test]
+fn reconciliation_in_place_replace_invalidates_canonical_only() {
+    let (delete_key, invalidate_keys) = plan_object_reconciliation(
+        Some("10.1234/abc_frontcover.jpg"),
+        "10.1234/abc_frontcover.jpg",
+    );
+    assert_eq!(delete_key, None);
+    assert_eq!(invalidate_keys, vec!["10.1234/abc_frontcover.jpg"]);
+}
+
+#[test]
+fn reconciliation_replace_at_new_key_deletes_and_invalidates_both() {
+    let (delete_key, invalidate_keys) = plan_object_reconciliation(
+        Some("10.1234/abc_frontcover.png"),
+        "10.1234/abc_frontcover.jpg",
+    );
+    assert_eq!(delete_key, Some("10.1234/abc_frontcover.png"));
+    assert_eq!(
+        invalidate_keys,
+        vec!["10.1234/abc_frontcover.png", "10.1234/abc_frontcover.jpg"]
+    );
+}
+
+#[test]
 fn canonical_resource_key_uses_resource_subpath() {
     let resource_id = Uuid::parse_str("0f97fb46-4ed2-4bc0-98dd-f2f8ce0ebe11").unwrap();
     let key = canonical_resource_key("10.1234", "AbC/Def", &resource_id, "MP4");
