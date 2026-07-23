@@ -716,6 +716,45 @@ impl FileUpload {
         Ok((file, old_object_key))
     }
 
+    /// Validate, WITHOUT writing, everything `sync_related_metadata` will later
+    /// enforce, so a predictable validation failure aborts the upload before any
+    /// irreversible side effect (copying the temp object to its final canonical
+    /// key, inserting the file record). Without this, such a failure leaves an
+    /// orphaned file record and/or S3 object while reporting failure, because
+    /// `complete_file_upload` copies the object and persists the record before
+    /// `sync_related_metadata` runs, and the two are not in one transaction.
+    ///
+    /// Only publication uploads currently have a pre-commit check to mirror: the
+    /// canonical Thoth location that `sync_related_metadata` upserts must, for a
+    /// digital publication, carry both a landing page and a full-text URL. The
+    /// landing page comes from `work.landing_page` and the full-text URL is the
+    /// CDN URL, so both are known here.
+    pub(crate) fn precheck_related_metadata<C: PolicyContext>(
+        &self,
+        ctx: &C,
+        work: &Work,
+        cdn_url: &str,
+    ) -> ThothResult<()> {
+        if let FileType::Publication = self.file_type {
+            let publication_id = self
+                .publication_id
+                .ok_or(ThothError::PublicationFileUploadMissingPublicationId)?;
+            // The upserted Thoth location is always canonical; reuse its
+            // read-only completeness check with the exact URLs the upsert uses.
+            let probe = NewLocation {
+                publication_id,
+                landing_page: work.landing_page.clone(),
+                full_text_url: Some(cdn_url.to_string()),
+                location_platform: LocationPlatform::Thoth,
+                canonical: true,
+                checksum: None,
+                checksum_algorithm: None,
+            };
+            probe.canonical_record_complete(ctx.db())?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn sync_related_metadata<C: PolicyContext>(
         &self,
         ctx: &C,
