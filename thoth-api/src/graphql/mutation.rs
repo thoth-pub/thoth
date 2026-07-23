@@ -1471,6 +1471,13 @@ impl MutationRoot {
         };
 
         let canonical_key = file_upload.canonical_key(doi)?;
+        let cdn_url = build_cdn_url(&storage_config.cdn_domain, &canonical_key);
+
+        // Validate related metadata BEFORE the irreversible S3 copy and the file
+        // record insert. persist_file_record and sync_related_metadata are not in
+        // a single transaction, so letting sync_related_metadata fail here would
+        // leave an orphaned file record and final S3 object behind.
+        file_upload.precheck_related_metadata(context, &work, &cdn_url)?;
 
         copy_temp_object_to_final(
             s3_client,
@@ -1480,7 +1487,6 @@ impl MutationRoot {
         )
         .await?;
 
-        let cdn_url = build_cdn_url(&storage_config.cdn_domain, &canonical_key);
         let (file, old_object_key) = file_upload.persist_file_record(
             context,
             &canonical_key,

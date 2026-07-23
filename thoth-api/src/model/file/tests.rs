@@ -1601,4 +1601,45 @@ mod crud {
             .iter()
             .any(|c| c.object_key == temp_key(&featured_video_upload.file_upload_id)));
     }
+
+    // A digital publication's canonical Thoth location needs both a landing page
+    // and a full-text URL. The landing page is taken from work.landing_page, so a
+    // null there must make precheck_related_metadata reject the upload BEFORE any
+    // S3 copy or file-record insert, rather than letting complete_file_upload
+    // leave an orphaned record/object when the later location upsert fails.
+    #[test]
+    fn crud_precheck_related_metadata_requires_landing_page_for_digital_publication() {
+        let (_guard, pool) = setup_test_db();
+
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint); // landing_page: None
+        let publication = create_pdf_publication(pool.as_ref(), work.work_id);
+
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("file-user", Role::CdnWrite, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+
+        let upload = FileUpload::create(
+            pool.as_ref(),
+            &make_new_publication_upload(publication.publication_id, "pdf"),
+        )
+        .expect("Failed to create publication upload");
+
+        let cdn_url = "https://cdn.example.org/10.1234/abc/def.pdf";
+
+        // No landing page -> incomplete canonical location -> reject up front.
+        let result = upload.precheck_related_metadata(&ctx, &work, cdn_url);
+        assert!(matches!(result, Err(ThothError::LocationUrlError)));
+
+        // With a landing page present, precheck passes (both URLs available).
+        let mut work_with_landing_page = work.clone();
+        work_with_landing_page.landing_page = Some("https://example.org/landing".to_string());
+        upload
+            .precheck_related_metadata(&ctx, &work_with_landing_page, cdn_url)
+            .expect("precheck should pass once a landing page is present");
+    }
 }
