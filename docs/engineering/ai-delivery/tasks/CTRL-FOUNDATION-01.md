@@ -193,9 +193,9 @@ Operational runbook changes: none.
 - [x] stale CTRL/CG references identified by review are corrected;
 - [x] one top-level engineering index exists;
 - [x] changelog entry exists;
-- [ ] final `git diff --check` passes at the remediation review head;
-- [ ] all required CI succeeds at the remediation review head;
-- [ ] the implementation report records exact evidence;
+- [x] `git diff --check` passes through remediation head `104ffaa16b2436cea2b4e2779c241b016916f083`;
+- [x] all required CI succeeds at remediation head `104ffaa16b2436cea2b4e2779c241b016916f083`;
+- [x] the implementation report records exact evidence through remediation head `104ffaa16b2436cea2b4e2779c241b016916f083`;
 - [ ] an independent reviewer inspects the complete final diff;
 - [ ] final independent decision is `APPROVED`.
 

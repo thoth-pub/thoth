@@ -1,6 +1,6 @@
 # Independent Review Brief - CTRL-FOUNDATION-01
 
-Review status: READY AFTER REVIEW-BLOCKER REMEDIATION
+Review status: READY FOR FRESH INDEPENDENT REVIEW
 Task: `CTRL-FOUNDATION-01`
 Repository: `thoth-pub/thoth`
 Pull request: [#764](https://github.com/thoth-pub/thoth/pull/764)

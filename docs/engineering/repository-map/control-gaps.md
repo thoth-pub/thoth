@@ -7,7 +7,7 @@ Evidence date: 2026-07-24
 
 ### CG-01 - Independent review of PR #764
 
-The engineering-control foundation has implementation and remediation work but is not independently approved. Required: completed implementation report, final diff/CI review, finding resolution, CTO merge approval and merge into `develop`.
+The engineering-control foundation has a completed implementation report through remediation head `104ffaa16b2436cea2b4e2779c241b016916f083` but is not independently approved. Required: final-head CI review, independent approval, CTO merge approval and merge into `develop`.
 
 ### CG-02 - External Metrics design spelling
 
