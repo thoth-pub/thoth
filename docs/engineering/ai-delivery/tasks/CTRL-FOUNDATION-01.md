@@ -298,7 +298,7 @@ Return `BLOCKED` when:
 
 Use:
 
-`docs/engineering/ai-delivery/reports/CTRL-FOUNDATION-01-implementation-report.md`
+`docs/engineering/ai-delivery/implementation-reports/CTRL-FOUNDATION-01-implementation-report.md`
 
 The report must record the exact base, implementation/remediation head, commit list, material files, commands/results, CI run IDs, no-runtime-effect statement, known limitations and review focus.
 

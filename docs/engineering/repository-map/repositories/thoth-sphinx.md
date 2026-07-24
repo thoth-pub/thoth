@@ -9,11 +9,11 @@ Planned metrics collection, normalization, orchestration, rollup application, OP
 Visibility: private
 GitHub default branch: `main`
 Active development branch: `develop`
-Repository content: empty as of 2026-07-24
+Repository content: placeholder-only `README.md` on `main` and `develop` as of 2026-07-24
 CI: none
 Deployment: none verified
 
-Both branches exist, but the repository remains non-implementation-ready because it has no workspace, code, CI, protection evidence or runtime.
+Both branches exist and contain only the placeholder `README.md`. The repository remains non-implementation-ready because it has no workspace, implementation, CI, protection evidence or runtime.
 
 ## Canonical naming
 
@@ -69,7 +69,7 @@ SPHINX-BOOT-01 must add:
 - Cargo workspace;
 - stable Rust toolchain policy;
 - crate/module boundaries;
-- README and root `AGENTS.md`;
+- replace or expand the placeholder README and add a root `AGENTS.md`;
 - license;
 - formatting, clippy and tests;
 - GitHub CI and secret-scanning baseline;

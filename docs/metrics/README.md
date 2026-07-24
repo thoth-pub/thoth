@@ -108,7 +108,7 @@ Blocking controls:
 1. Engineering-control foundation is unmerged.
 2. `ADR-0001` is `PROPOSED`.
 3. `ADR-0002` is `PROPOSED`.
-4. `thoth-sphinx` is empty.
+4. `thoth-sphinx` is placeholder-only and has not been bootstrapped.
 5. Thoth Diesel generation procedure is unresolved.
 6. Branch topology differs in Sphinx and client repositories.
 7. Service-role codes require approval before WP5.

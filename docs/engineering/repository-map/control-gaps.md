@@ -15,9 +15,9 @@ The private Metrics design contains an obsolete repository/component spelling. T
 
 ## Blocking before programme implementation
 
-### CG-03 - `thoth-sphinx` is empty
+### CG-03 - `thoth-sphinx` is placeholder-only
 
-`main` and `develop` exist, but the repository has no workspace, CI, protections or runtime. Complete BR-SPHINX-01 and SPHINX-BOOT-01 before WP6 or driver work.
+`main` and `develop` exist and contain only a placeholder README. The repository has no workspace, implementation, CI, protections or runtime. Complete BR-SPHINX-01 and SPHINX-BOOT-01 before WP6 or driver work.
 
 ### CG-04 - Branch topology differs
 

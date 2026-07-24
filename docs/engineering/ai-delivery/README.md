@@ -12,7 +12,7 @@ These documents apply across Thoth engineering programmes unless a stricter appr
 - `model-selection.md` - implementation and review model guidance.
 - `task-specification-template.md` - required specification before implementation.
 - `implementation-report-template.md` - required agent completion report.
-- `reports/` - completed task-specific implementation evidence.
+- `implementation-reports/` - completed task-specific implementation evidence.
 - `independent-review-template.md` - evidence-based review format.
 - `release-gates.md` - merge, staging, production and closure gates.
 - `decision-record-template.md` - lightweight ADR/programme decision template.

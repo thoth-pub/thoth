@@ -17,7 +17,7 @@ The reviewer must not be the ChatGPT conversation that authored these documents.
 Review the versions at the exact PR head:
 
 1. [`../tasks/CTRL-FOUNDATION-01.md`](../tasks/CTRL-FOUNDATION-01.md)
-2. [`../reports/CTRL-FOUNDATION-01-implementation-report.md`](../reports/CTRL-FOUNDATION-01-implementation-report.md)
+2. [`../implementation-reports/CTRL-FOUNDATION-01-implementation-report.md`](../implementation-reports/CTRL-FOUNDATION-01-implementation-report.md)
 3. [Private Publisher Services design](https://docs.google.com/document/d/1kr2Ft0Y4pxgcXGyFAKs_wfFx4I0jlxEvaceswE5Dus8/edit), Drive revision `3`
 4. [Private Thoth Metrics design](https://docs.google.com/document/d/11AeQFGpm0kUZajBM5PrAqsttmzJlpUrt89tGYyVM8c0/edit), Drive revision `6`
 5. [`../../design-references.md`](../../design-references.md)

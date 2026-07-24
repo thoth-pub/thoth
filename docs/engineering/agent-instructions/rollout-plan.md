@@ -10,7 +10,7 @@ Owner: CTO
 | `thoth` | root and scoped hierarchy added by the engineering-control foundation PR | independently review and merge |
 | `thoth-app` | no verified root `AGENTS.md` | create from approved repository map |
 | `thoth-dissemination` | existing root `AGENTS.md`, incomplete control coverage | revise without losing useful local guidance |
-| `thoth-sphinx` | empty repository | add `AGENTS.md` during bootstrap |
+| `thoth-sphinx` | placeholder-only README; no verified `AGENTS.md` | add `AGENTS.md` and replace or expand the README during bootstrap |
 | `metrics-dashboard` | no verified root `AGENTS.md` | create before metrics client migration |
 | `metrics-widget` | no verified root `AGENTS.md` | create before metrics API migration/release |
 | `cc-license` | no verified root `AGENTS.md` | create before LIC-01 |

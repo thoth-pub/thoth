@@ -38,7 +38,7 @@ The Metrics design requires one repository-local `feature/metrics` integration b
 | `thoth` | `master` | `develop` | `develop -> master` | conforms |
 | `thoth-app` | `main` | `dev` | `dev -> main` | normalization required |
 | `thoth-dissemination` | `main` | `develop` | `develop -> main` | release-branch normalization required |
-| `thoth-sphinx` | `main` | `develop` | none; repository empty | `master`/protection/bootstrap required |
+| `thoth-sphinx` | `main` | `develop` | none; placeholder-only README | `master`/protection/bootstrap required |
 | `metrics-dashboard` | `main` | `develop` | `develop -> main` | release/Vercel normalization required |
 | `metrics-widget` | `main` | `dev` | releases from `main` | normalization required |
 | `cc-license` | `main` | `develop` | release branch `main` | release-branch normalization required |

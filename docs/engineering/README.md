@@ -36,7 +36,7 @@ Stop when authoritative sources conflict. Record cross-programme resolutions in 
 
 - [Private approved-design references](./design-references.md)
 
-Reviewers must use the snapshots committed at the exact PR head. The mutable Google Drive documents remain provenance sources, not substitutes for immutable review inputs.
+Reviewers must use the exact Google Drive file and revision metadata recorded in `design-references.md` and must have authorized access to those private revisions. The repository intentionally does not contain the design bodies.
 
 ## 5. Repository and environment orientation
 
