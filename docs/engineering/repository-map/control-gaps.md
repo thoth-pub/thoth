@@ -7,125 +7,70 @@ Evidence date: 2026-07-24
 
 ### CG-01 - Incorrect Sphinx naming in authoritative design
 
-The canonical component is `thoth-sphinx` / `Sphinx`.
-
-The Thoth Metrics design uses an obsolete spelling for the Sphinx repository and component. Correct the source document and replace the Project source rather than retaining two versions.
+Canonical: `thoth-sphinx` / `Sphinx`. Correct the Metrics design source and replace the Project source.
 
 ### CG-02 - `thoth-sphinx` is empty
 
-The repository has no workspace, CI, tests, branch topology, agent instructions or release boundary.
+No workspace, CI, tests, branch topology, instructions or release boundary. Bootstrap before WP6/drivers.
 
-A bootstrap specification is required.
+### CG-03 - Branch topology differs
 
-### CG-03 - Branch topology differs from approved policy
+Use actual branches until normalization/exception tasks complete.
 
-See `branch-topology.md`.
+### CG-04 - Repository-local instructions incomplete
 
-Agents must use actual branches until explicit normalization tasks complete.
+Thoth hierarchy is in PR #764. Dissemination has partial instructions. App, Sphinx, dashboard, widget and cc-license still need root instructions.
 
-### CG-04 - Repository-local AI instructions are incomplete
+### CG-05 - Shared ADRs unapproved
 
-The `thoth` repository instruction hierarchy is included in the engineering-control foundation PR.
+ADR-0001 and ADR-0002 remain proposed. Do not start dependent implementation.
 
-`thoth-dissemination` has an existing root `AGENTS.md`, but it does not yet include the complete control, authorization, operational and review requirements.
+### CG-06 - Publisher Services controls incomplete
 
-The following repositories still need root instructions:
+Documents exist, but P0-01 needs master issue, recorded number, independent approval/merge and final ADR blockers. ADR-01 must finalize distribution enum.
 
-- `thoth-app`
-- `thoth-sphinx`
-- `metrics-dashboard`
-- `metrics-widget`
-- `cc-license`
+### CG-07 - Metrics controls incomplete
 
-Track the rollout in `docs/engineering/agent-instructions/rollout-plan.md`.
+Documents exist, but MET-CTRL-01 needs master issue, recorded number, independent approval/merge and final ADR blockers. Implementation remains blocked on Sphinx bootstrap, Diesel control and branch readiness.
 
-### CG-05 - Shared package and platform ADRs require CTO approval
+## Required before production slices
 
-The following complete proposals exist:
+### CG-08 - Metrics service roles unapproved
 
-- `docs/engineering/decisions/ADR-0001-publisher-package-capability-model.md`
-- `docs/engineering/decisions/ADR-0002-platform-domain-boundaries.md`
+Approve role codes/scope/rotation/audit before WP5. Do not use superuser as a shortcut.
 
-They remain `PROPOSED`.
+### CG-09 - Source fixtures/mappings incomplete
 
-Do not start implementation that depends on either decision until the CTO:
+Representative period/dimension/regenerated files, COUNTER mappings, finalization settings and OPERAS projections are missing.
 
-- approves or amends the package-capability matrix;
-- approves upgrade, downgrade and historical OPERAS export semantics;
-- approves strict separation of distribution and metrics platform types;
-- records the approval in the ADRs.
+### CG-10 - OPERAS inbound completeness unavailable
 
-### CG-06 - Publisher Services control foundation is not complete
+No verified cursor, replication or complete snapshot. Rolling scans must state unverified completeness.
 
-The required repository documents exist under `docs/publisher-services/`.
+### CG-11 - `thoth-app` CI incomplete
 
-P0-01 remains incomplete until:
+Missing explicit lint, production build and codegen verification.
 
-- the master GitHub issue is created from `master-issue.md`;
-- its number is recorded in `task-status.md`;
-- PR #764 receives independent approval and merges;
-- ADR-0001 and ADR-0002 are approved or remain explicit implementation blockers.
+### CG-12 - Dashboard CI/tests missing
 
-Publisher Services ADR-01 must still finalize the distribution enum. The current platform inventory is a verified baseline, not an approved enum.
+Add CI, transformation tests, lint/build and comparison fixtures.
 
-## Required before affected production slices
+### CG-13 - Widget unit tests missing
 
-### CG-07 - `thoth-app` CI is incomplete
+Add data/coverage/partial/rendering tests before migration/publication.
 
-Current GitHub CI runs coverage tests but does not independently run:
+### CG-14 - cc-license CI old
 
-- lint;
-- production build;
-- GraphQL generation consistency.
+Modernize in a bounded task.
 
-Vercel build success is useful evidence but is not a replacement for explicit repository CI gates.
+### CG-15 - Thoth schema generation unclear
 
-### CG-08 - `metrics-dashboard` lacks detected CI and tests
+Resolve `thoth-api/src/schema.rs` vs root `diesel.toml` before migrations.
 
-Before client migration:
+### CG-16 - Thoth runtime operations unmapped
 
-- add CI;
-- add at least service/data transformation tests;
-- require lint and production build;
-- add comparison fixtures for old/new data paths.
-
-### CG-09 - `metrics-widget` lacks detected unit tests
-
-Current CI covers lint, build and consumer smoke only.
-
-Add tests for data fetching, coverage semantics, partial results and rendering before the canonical API migration.
-
-### CG-10 - `cc-license` CI uses old actions
-
-Modernize checkout/toolchain actions before or alongside LIC-01, without mixing functional licence changes into the CI-only PR.
-
-### CG-11 - Thoth schema generation is unclear
-
-`thoth-api/src/schema.rs` exists, but the root `diesel.toml` declares `src/schema.rs`.
-
-Confirm and document the canonical command and working directory before metrics or publisher-service migrations.
-
-### CG-12 - Thoth runtime operations are not mapped
-
-Document:
-
-- runtime platform;
-- deployment trigger;
-- database migration execution;
-- rollback;
-- backup/restore verification;
-- production approvers.
+Document runtime, deployment, migration execution, rollback, backup/restore and approvers.
 
 ## Verification gaps
 
-The connector did not verify:
-
-- branch-protection rules;
-- required GitHub checks;
-- environment reviewers;
-- current crate publication process;
-- all secret names or owners;
-- production database version/configuration;
-- Thoth API/export hosting.
-
-Missing evidence is missing work.
+Branch protections, required checks, environment reviewers, crate publication, secret ownership, production DB config and Thoth hosting/rollback remain unverified. Missing evidence is missing work.
