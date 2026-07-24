@@ -130,7 +130,7 @@ For example:
 
 ```text
 thoth:             feature/metrics
-thoth-sphynx:      feature/metrics
+thoth-sphinx:      feature/metrics
 thoth-app:         feature/metrics
 metrics-dashboard: feature/metrics
 ```
