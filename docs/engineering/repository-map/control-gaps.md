@@ -23,11 +23,21 @@ See `branch-topology.md`.
 
 Agents must use actual branches until explicit normalization tasks complete.
 
-### CG-04 - Repository-local AI instructions missing
+### CG-04 - Repository-local AI instructions are incomplete
 
-Only `thoth-dissemination` has an `AGENTS.md`.
+The `thoth` repository instruction hierarchy is included in the engineering-control foundation PR.
 
-Create repository-specific files from this approved map in a separate bounded task per repository or a coordinated documentation rollout.
+`thoth-dissemination` has an existing root `AGENTS.md`, but it does not yet include the complete control, authorization, operational and review requirements.
+
+The following repositories still need root instructions:
+
+- `thoth-app`
+- `thoth-sphinx`
+- `metrics-dashboard`
+- `metrics-widget`
+- `cc-license`
+
+Track the rollout in `docs/engineering/agent-instructions/rollout-plan.md`.
 
 ## Required before affected production slices
 
