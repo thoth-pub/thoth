@@ -3,74 +3,64 @@
 Status: Active findings  
 Evidence date: 2026-07-24
 
+## Foundation closeout
+
+### CG-01 - Independent review of PR #764
+
+The engineering-control foundation is implemented but not independently approved. Required: final diff/CI review, finding resolution, CTO merge approval and merge into `develop`.
+
+### CG-02 - External Metrics design spelling
+
+Repository documents use `thoth-sphinx` / `Sphinx`. The external Metrics design source still needs correction and Project-source replacement.
+
 ## Blocking before programme implementation
 
-### CG-01 - Incorrect Sphinx naming in authoritative design
+### CG-03 - `thoth-sphinx` is empty
 
-Canonical: `thoth-sphinx` / `Sphinx`. Correct the Metrics design source and replace the Project source.
+Bootstrap before WP6 or driver work.
 
-### CG-02 - `thoth-sphinx` is empty
+### CG-04 - Branch topology differs
 
-No workspace, CI, tests, branch topology, instructions or release boundary. Bootstrap before WP6/drivers.
+Use actual branches until normalization or explicit exceptions.
 
-### CG-03 - Branch topology differs
+### CG-05 - Related repositories lack complete instructions
 
-Use actual branches until normalization/exception tasks complete.
+App, Sphinx, dashboard, widget and cc-license remain outstanding. Dissemination has incomplete controls.
 
-### CG-04 - Repository-local instructions incomplete
+### CG-06 - Shared ADRs remain proposed
 
-Thoth hierarchy is in PR #764. Dissemination has partial instructions. App, Sphinx, dashboard, widget and cc-license still need root instructions.
+ADR-0001 and ADR-0002 require CTO approval and independent review.
 
-### CG-05 - Shared ADRs unapproved
+### CG-07 - Publisher Services platform ADR open
 
-ADR-0001 and ADR-0002 remain proposed. Do not start dependent implementation.
+Issue #765 exists. ADR-01 must finalize enum, mappings and ambiguous destinations.
 
-### CG-06 - Publisher Services controls incomplete
+### CG-08 - Metrics readiness open
 
-Documents exist, but P0-01 needs master issue, recorded number, independent approval/merge and final ADR blockers. ADR-01 must finalize distribution enum.
+Issue #766 exists. Sphinx bootstrap, Diesel control, branch readiness and service-role decisions remain prerequisites.
 
-### CG-07 - Metrics controls incomplete
-
-Documents exist, but MET-CTRL-01 needs master issue, recorded number, independent approval/merge and final ADR blockers. Implementation remains blocked on Sphinx bootstrap, Diesel control and branch readiness.
-
-## Required before production slices
-
-### CG-08 - Metrics service roles unapproved
-
-Approve role codes/scope/rotation/audit before WP5. Do not use superuser as a shortcut.
+## Production-slice controls
 
 ### CG-09 - Source fixtures/mappings incomplete
 
-Representative period/dimension/regenerated files, COUNTER mappings, finalization settings and OPERAS projections are missing.
+Metrics fixtures, COUNTER mappings, finalization and OPERAS projections are missing.
 
 ### CG-10 - OPERAS inbound completeness unavailable
 
-No verified cursor, replication or complete snapshot. Rolling scans must state unverified completeness.
+No verified complete cursor, replication or snapshot route exists.
 
-### CG-11 - `thoth-app` CI incomplete
+### CG-11 - CI gaps
 
-Missing explicit lint, production build and codegen verification.
+App lacks explicit lint/build/codegen; dashboard lacks detected CI/tests; widget lacks unit tests; cc-license uses old Actions.
 
-### CG-12 - Dashboard CI/tests missing
+### CG-12 - Thoth schema generation unclear
 
-Add CI, transformation tests, lint/build and comparison fixtures.
+Resolve `thoth-api/src/schema.rs` versus root `diesel.toml` before schema changes.
 
-### CG-13 - Widget unit tests missing
+### CG-13 - Thoth runtime operations unmapped
 
-Add data/coverage/partial/rendering tests before migration/publication.
-
-### CG-14 - cc-license CI old
-
-Modernize in a bounded task.
-
-### CG-15 - Thoth schema generation unclear
-
-Resolve `thoth-api/src/schema.rs` vs root `diesel.toml` before migrations.
-
-### CG-16 - Thoth runtime operations unmapped
-
-Document runtime, deployment, migration execution, rollback, backup/restore and approvers.
+Document runtime, deployment, migration execution, rollback, restore verification and approvers.
 
 ## Verification gaps
 
-Branch protections, required checks, environment reviewers, crate publication, secret ownership, production DB config and Thoth hosting/rollback remain unverified. Missing evidence is missing work.
+Branch protections, required checks, environment reviewers, crate publication, secret ownership, production database configuration and Thoth hosting/rollback remain unverified. Missing evidence is missing work.
