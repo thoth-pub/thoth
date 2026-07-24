@@ -464,3 +464,69 @@ scope is added. Publisher Services and Metrics implementation scopes remain
 distinct. P0-01 remains `MERGED`, not `CLOSED`, until remediation receives fresh
 independent approval, PR #767 is merged by the CTO, and issue #765 is
 synchronized under separate authorization.
+
+## Approved Scope Amendment 2 - Remaining foundation status and synchronization guard
+
+Approved by: Javi, CTO
+
+Approval date: 2026-07-24
+
+Review Cycle 2 decision: `CHANGES REQUIRED`
+
+Reviewed head: `d55ef26a0cc29d28d9c7d69ecbce60eb0082146e`
+
+Reviewer context: fresh Codex context, not the assigned Claude reviewer
+
+Risk: LOW, unchanged
+
+Review Cycle 2 found two remaining P1 issues:
+
+1. the active agent-instruction rollout plan still described the already-merged
+   PR #764 engineering-control foundation as awaiting independent review and
+   merge, and the Metrics task tracker used obsolete PR-to-target coordinates
+   for ADR-0001 and ADR-0002;
+2. the exact proposed issue #765 body did not itself contain the synchronization
+   guard requiring the complete live body and `updatedAt` to be re-fetched and
+   compared before any write.
+
+This amendment authorizes:
+
+* editing
+  `docs/engineering/agent-instructions/rollout-plan.md` only to correct obsolete
+  active statements about the PR #764 foundation merge and remaining PR #767
+  closeout;
+* correcting the ADR-0001 and ADR-0002 provenance coordinates in
+  `docs/metrics/task-status.md` while keeping both ADRs `PROPOSED`, their
+  dependency as a CTO decision, `MET-CTRL-01` as `CHANGES REQUIRED`, and every
+  Metrics work package `BLOCKED`;
+* placing the concurrency and synchronization guard inside the exact proposed
+  issue #765 body in the closeout implementation report; and
+* updating the closeout implementation report with Review Cycle 2, both P1
+  findings, this scope amendment, their exact remediation and the retained final
+  independent-review requirement.
+
+The complete cumulative allowlist for PR #767 is:
+
+* `CHANGELOG.md`;
+* `docs/engineering/README.md`;
+* `docs/engineering/agent-instructions/rollout-plan.md`;
+* `docs/engineering/ai-delivery/implementation-reports/CTRL-FOUNDATION-01-implementation-report.md`;
+* `docs/engineering/ai-delivery/implementation-reports/P0-01-CLOSEOUT-implementation-report.md`;
+* `docs/engineering/ai-delivery/tasks/P0-01-CLOSEOUT.md`;
+* `docs/engineering/repository-map/control-gaps.md`;
+* `docs/metrics/README.md`;
+* `docs/metrics/task-status.md`;
+* `docs/publisher-services/README.md`;
+* `docs/publisher-services/rollout-plan.md`;
+* `docs/publisher-services/task-status.md`.
+
+No runtime, Rust, SQL, migration, GraphQL, generated-contract, workflow,
+repository-configuration, deployment, release, production-activation, Metrics
+architecture or implementation scope is added. This amendment does not approve
+ADR-0001 or ADR-0002, change the Metrics private design, advance
+`MET-CTRL-01`, advance any Metrics or Publisher Services implementation task,
+authorize issue #765 modification or close P0-01.
+
+Review Cycle 2 did not approve PR #767 and does not replace the assigned final
+reviewer. Claude, in a separate context with high reasoning, remains required to
+perform the final independent review after this remediation.
