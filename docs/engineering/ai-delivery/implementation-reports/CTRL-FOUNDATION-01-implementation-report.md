@@ -8,7 +8,7 @@ Base commit: `652a499dfdfbaa7594537e0865c41ec617f52dc2`
 PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/ai-delivery-operating-model`
-Implementation and remediation head: `104ffaa16b2436cea2b4e2779c241b016916f083`
+Implementation and remediation head: `a7634bf9dbb2a0573826053be6d73e19eb2b4ca2`
 Pull request: [#764](https://github.com/thoth-pub/thoth/pull/764)
 Expected branch deletion after merge: YES
 Final programme PR required: NO
@@ -17,7 +17,7 @@ Reasoning level: high
 
 The final review head is the report commit that contains this file. Git commits
 cannot embed their own hash. The independent reviewer must record the exact PR
-head and verify that the delta after `104ffaa16b2436cea2b4e2779c241b016916f083` contains only this
+head and verify that the delta after `a7634bf9dbb2a0573826053be6d73e19eb2b4ca2` contains only this
 report and the associated evidence-status updates.
 
 ## 1. Scope confirmation
@@ -35,7 +35,7 @@ metadata, and review/release gates.
 
 Out-of-scope changes made: NONE
 
-## 2. Commits through the remediation head
+## 2. Commits through the dashboard remediation head
 
 - `2bc1c9e3436c87b9969b093b2af72ff2bd7a9d2a` - docs: add AI-led engineering delivery controls
 - `ce9d5a1fc22884b6acdcc7ec43d2b5edb38def2a` - Update changelog
@@ -49,6 +49,9 @@ Out-of-scope changes made: NONE
 - `fb38b2f5d85247d7d05ddf799dfe5191df2471e4` - docs: remove trailing whitespace from control documents
 - `ea687e88330aea3a9e44c69448c20b2d34422b3a` - docs: address foundation review blockers
 - `104ffaa16b2436cea2b4e2779c241b016916f083` - docs: correct foundation review evidence
+- `b502532735a734895aa17c0922163f85596abbf2` - docs: add foundation implementation report
+- `330f101dae870fe4b583eead3eb1bd3a27a25208` - docs: correct foundation verification evidence
+- `a7634bf9dbb2a0573826053be6d73e19eb2b4ca2` - docs: correct metrics dashboard branch map
 
 ## 3. Actual files changed through the remediation head
 
@@ -64,6 +67,7 @@ docs/engineering/ai-delivery/README.md
 docs/engineering/ai-delivery/branching-and-release-workflow.md
 docs/engineering/ai-delivery/decision-record-template.md
 docs/engineering/ai-delivery/implementation-report-template.md
+docs/engineering/ai-delivery/implementation-reports/CTRL-FOUNDATION-01-implementation-report.md
 docs/engineering/ai-delivery/independent-review-template.md
 docs/engineering/ai-delivery/model-selection.md
 docs/engineering/ai-delivery/operating-model.md
@@ -125,7 +129,8 @@ Diff summary:
  docs/engineering/ai-delivery/README.md             |  61 ++++
  .../ai-delivery/branching-and-release-workflow.md  | 250 +++++++++++++++
  .../ai-delivery/decision-record-template.md        |  96 ++++++
- .../ai-delivery/implementation-report-template.md  | 191 ++++++++++++
+ .../ai-delivery/implementation-report-template.md  | 191 +++++++++++
+ .../CTRL-FOUNDATION-01-implementation-report.md    | 363 +++++++++++++++++++++
  .../ai-delivery/independent-review-template.md     | 180 +++++++++++
  docs/engineering/ai-delivery/model-selection.md    |  83 +++++
  docs/engineering/ai-delivery/operating-model.md    | 248 +++++++++++++++
@@ -141,11 +146,11 @@ Diff summary:
  .../decisions/package-capability-matrix.md         | 157 ++++++++++
  docs/engineering/design-references.md              |  41 +++
  docs/engineering/repository-map/README.md          |  31 ++
- docs/engineering/repository-map/branch-topology.md | 135 ++++++++
+ docs/engineering/repository-map/branch-topology.md | 142 ++++++++
  docs/engineering/repository-map/control-gaps.md    |  66 ++++
- docs/engineering/repository-map/environments.md    |  97 ++++++
+ docs/engineering/repository-map/environments.md    | 103 ++++++
  .../repository-map/repositories/cc-license.md      |  52 ++++
- .../repositories/metrics-dashboard.md              |  75 +++++
+ .../repositories/metrics-dashboard.md              |  90 +++++
  .../repository-map/repositories/metrics-widget.md  |  64 ++++
  .../repository-map/repositories/thoth-app.md       | 108 +++++++
  .../repositories/thoth-dissemination.md            |  97 ++++++
@@ -159,7 +164,7 @@ Diff summary:
  docs/metrics/migration-inventory.md                |  50 +++
  docs/metrics/rollout-plan.md                       |  57 ++++
  docs/metrics/source-inventory.md                   |  79 +++++
- docs/metrics/task-status.md                        |  59 ++++
+ docs/metrics/task-status.md                        |  64 ++++
  docs/publisher-services/README.md                  | 119 ++++++++
  docs/publisher-services/acceptance-matrix.md       | 104 +++++++
  docs/publisher-services/decisions.md               | 148 +++++++++
@@ -172,7 +177,7 @@ Diff summary:
  thoth-client/AGENTS.md                             |  60 ++++
  thoth-errors/AGENTS.md                             |  39 +++
  thoth-export-server/AGENTS.md                      |  77 +++++
- 57 files changed, 6621 insertions(+)
+ 58 files changed, 7017 insertions(+)
 ```
 
 All changed files are documentation, `AGENTS.md` instruction files, or the
@@ -211,6 +216,9 @@ Behavioural effect: documentation and engineering-control evidence only.
    README, but no workspace, implementation, CI, protections or runtime.
 7. Store completed implementation reports under `implementation-reports/`,
    avoiding the repository's broad ignored `reports/` pattern.
+8. Correct the observed `metrics-dashboard` branch map to record `dev` as active
+   development, `main` as default/release and `develop` as a stale legacy
+   branch. BR-DASH-01 remains a separate HIGH-risk normalization task.
 
 Deviation from the approved specification: NONE after review remediation.
 
@@ -233,7 +241,7 @@ Backwards compatibility: unaffected
 Command:
 
 ```text
-git diff --check 652a499dfdfbaa7594537e0865c41ec617f52dc2...104ffaa16b2436cea2b4e2779c241b016916f083
+git diff --check 652a499dfdfbaa7594537e0865c41ec617f52dc2...a7634bf9dbb2a0573826053be6d73e19eb2b4ca2
 ```
 
 Result: no output; PASS.
@@ -287,7 +295,7 @@ Result: no output; PASS.
 Command:
 
 ```text
-git diff --name-only 652a499dfdfbaa7594537e0865c41ec617f52dc2...104ffaa16b2436cea2b4e2779c241b016916f083
+git diff --name-only 652a499dfdfbaa7594537e0865c41ec617f52dc2...a7634bf9dbb2a0573826053be6d73e19eb2b4ca2
 ```
 
 Result: only the files recorded in section 3; PASS.
@@ -297,14 +305,29 @@ Result: only the files recorded in section 3; PASS.
 No executable behaviour or migration was changed. Existing build, tests, lint,
 formatting and migrations were exercised by current-head GitHub Actions.
 
+### Metrics Dashboard branch verification
+
+Authenticated GitHub evidence on 2026-07-24:
+
+- default/release `main`: `92d90380e948b3f11f88821054fbad9a5a07f387`;
+- active development `dev`: `1f81745e6d9e812baab62a19e41a0c0f3b9ff0c9`;
+- stale legacy `develop`: `1619899076d16de81abf5c2c6abdd40d985512e6`;
+- `dev` is 10 commits ahead of `develop` and zero commits behind;
+- recent merged pull requests use `dev -> main`.
+
+PR #764 changed documentation only. It did not alter any
+`metrics-dashboard` branch, GitHub setting, protection or Vercel configuration.
+BR-DASH-01 remains a separate HIGH-risk normalization task.
+
 ## 8. CI at the implementation/remediation head
 
-All required workflows completed successfully for `104ffaa16b2436cea2b4e2779c241b016916f083`:
+All required workflows completed successfully for
+`a7634bf9dbb2a0573826053be6d73e19eb2b4ca2`:
 
-- `build-test-and-check`: `completed/success`, run `30106043628`, https://github.com/thoth-pub/thoth/actions/runs/30106043628
-- `check-changelog`: `completed/success`, run `30106043479`, https://github.com/thoth-pub/thoth/actions/runs/30106043479
-- `publish-to-dockerhub`: `completed/success`, run `30106043646`, https://github.com/thoth-pub/thoth/actions/runs/30106043646
-- `run-migrations`: `completed/success`, run `30106043610`, https://github.com/thoth-pub/thoth/actions/runs/30106043610
+- `build-test-and-check`: `completed/success`, run `30110290679`, https://github.com/thoth-pub/thoth/actions/runs/30110290679
+- `check-changelog`: `completed/success`, run `30110290690`, https://github.com/thoth-pub/thoth/actions/runs/30110290690
+- `publish-to-dockerhub`: `completed/success`, run `30110290733`, https://github.com/thoth-pub/thoth/actions/runs/30110290733
+- `run-migrations`: `completed/success`, run `30110290632`, https://github.com/thoth-pub/thoth/actions/runs/30110290632
 
 The independent reviewer must also verify all required CI on the final
 report-containing review head.
@@ -317,6 +340,9 @@ report-containing review head.
 - ADR-0001 and ADR-0002 remain `PROPOSED`.
 - `thoth-sphinx` `main` and `develop` contain only a placeholder README; no
   workflow, protection or runtime evidence exists.
+- `metrics-dashboard` uses active `dev -> main`; stale `develop` requires
+  reconciliation under BR-DASH-01 before it can become the target development
+  branch.
 - Repository-relative control links were checked during the independent review.
 
 ## 10. Rollout and rollback
@@ -334,6 +360,8 @@ Monitoring: none for this documentation-only task.
 
 - ADR-0001 and ADR-0002 remain proposed.
 - Sphinx normalization and bootstrap are separate tasks.
+- Metrics Dashboard branch and Vercel normalization remains the separate
+  HIGH-risk BR-DASH-01 task.
 - Related repositories still require complete `AGENTS.md` rollout.
 - Client CI, Thoth Diesel generation and runtime operations remain incomplete or
   unverified as recorded in the control-gap register.
