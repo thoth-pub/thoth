@@ -12,7 +12,7 @@ Risk: LOW
 Owner: CTO
 Approved by: Javi, CTO
 Approval date: 2026-07-24
-Independent reviewer: Claude, separate context, high reasoning
+Independent reviewer: independent reviewer, separate non-implementing context, high reasoning
 Dependencies:
 
 * PR #764 merged into `develop`;
@@ -377,7 +377,7 @@ The report must not issue the approval decision.
 
 Implementation model: Codex
 Implementation reasoning: High
-Independent reviewer: separate Claude or other independent model family
+Independent reviewer: separate non-implementing context
 Review reasoning: High
 
 The independent reviewer must inspect actual diffs and evidence, not only the implementation report.
@@ -405,7 +405,9 @@ Notes:
 * Documentation and programme-control changes only.
 * This approval does not approve any ADR, implementation, migration, workflow, deployment, release or production activation.
 * This approval does not constitute retrospective independent approval of PR #764.
-* The assigned Claude reviewer must inspect PR #764 and the closeout PR and return `APPROVED` before P0-01 may be marked `CLOSED`.
+* An independent reviewer in a separate non-implementing context must inspect
+  PR #764 and the closeout PR and return `APPROVED` before P0-01 may be marked
+  `CLOSED`.
 * The implementing agent may create the task branch, commit, push and open a draft PR, but may not approve or merge it.
 
 ## Approved Scope Amendment 1 - Shared foundation status consistency
@@ -527,6 +529,65 @@ ADR-0001 or ADR-0002, change the Metrics private design, advance
 `MET-CTRL-01`, advance any Metrics or Publisher Services implementation task,
 authorize issue #765 modification or close P0-01.
 
-Review Cycle 2 did not approve PR #767 and does not replace the assigned final
-reviewer. Claude, in a separate context with high reasoning, remains required to
-perform the final independent review after this remediation.
+Review Cycle 2 did not approve PR #767 and does not replace the required final
+independent review in a separate non-implementing context with high reasoning.
+
+## Approved Scope Amendment 3 - Reviewer Independence Criteria
+
+Approved by: Javi, CTO
+
+Approval date: 2026-07-24
+
+Procedural review decision: `BLOCKED`
+
+Reviewed head: `00988232e40f0357d002ede998fbc31d149ed27f`
+
+Reviewing model: Codex
+
+Risk: LOW, unchanged
+
+The procedural review at `00988232e40f0357d002ede998fbc31d149ed27f`
+confirmed that every substantive review criterion passed:
+
+* all six P1 findings from Review Cycles 1 and 2 were resolved;
+* the repository, cumulative diff and final remediation delta matched the
+  approved scope;
+* the Publisher Services private design was verified at Drive revision `3`;
+* issue #765 preservation and synchronization controls passed;
+* required final-head CI was green;
+* no runtime, migration, API, authorization, workflow, deployment, release or
+  production effect existed.
+
+The sole blocker was procedural: the specification named Claude while the
+available independent reviewer was Codex. Reviewer independence is the control
+objective for this LOW-risk documentation/control task; a particular human,
+product or model-family name is no longer mandatory.
+
+The final reviewer may be a human or AI model and must:
+
+* not have implemented PR #764 or PR #767;
+* not have authored the remediation commits being reviewed;
+* work from a fresh context without relying on the implementing context's
+  private reasoning;
+* use high reasoning;
+* have direct access to the repository, complete diffs, CI, issue #765 and
+  Publisher Services design revision `3`;
+* review the actual evidence rather than accepting the implementation summary;
+* return exactly `APPROVED`, `CHANGES REQUIRED` or `BLOCKED`;
+* not modify, approve and merge the same work in one role.
+
+A different model family is preferred where practical but is not required. A
+fresh Codex context is eligible only if it did not implement or remediate PR
+#767 and conducts the complete review independently.
+
+This amendment replaces the previous named-Claude requirement everywhere it was
+active. Historical references to the earlier Claude assignment and decisions
+remain historical evidence only. Neither previous Codex review becomes final
+approval retrospectively. A new exact-head independent review remains required
+after this amendment is committed.
+
+The context implementing this amendment is ineligible to review or approve its
+own amendment. This amendment changes no risk classification, runtime scope,
+file scope beyond the two amendment records, rollout, issue-write
+authorization, merge authority, deployment authority, release authority or
+production authorization.

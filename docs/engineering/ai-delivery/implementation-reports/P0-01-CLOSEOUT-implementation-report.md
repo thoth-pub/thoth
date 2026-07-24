@@ -13,7 +13,7 @@ Implementation content commit: `3d51e7a1`
 Original independently reviewed PR head:
 `4f5c3491815e8d5ce4d1d6b15f316508494e503e`
 First independent-review decision: `CHANGES REQUIRED`
-Independent reviewer: Claude, separate context, high reasoning
+Review Cycle 1 reviewer (historical): Claude, separate context, high reasoning
 Scope Amendment 1 commit: `425eab61`
 Shared-status remediation commit: `08411cfe`
 Review Cycle 2 decision: `CHANGES REQUIRED`
@@ -23,6 +23,14 @@ Review Cycle 2 reviewed head:
 `d55ef26a0cc29d28d9c7d69ecbce60eb0082146e`
 Scope Amendment 2 commit: `2348f130`
 Scope Amendment 2 remediation commit: `8c76b3ca`
+Procedural Review Cycle 3 decision: `BLOCKED`
+Procedural Review Cycle 3 reviewed head:
+`00988232e40f0357d002ede998fbc31d149ed27f`
+Procedural Review Cycle 3 reviewing model: Codex
+Procedural Review Cycle 3 substantive assessment: every substantive criterion
+passed; the sole blocker was the then-active named-Claude reviewer requirement
+Scope Amendment 3: approved by Javi, CTO on 2026-07-24; replaces the named-model
+requirement with capability-based independence criteria
 Remediation evidence-record commit and exact final PR head: recorded in PR #767
 and the final implementation handoff. A tracked file cannot contain the SHA and
 CI outcome of the commit that contains that same file without creating a
@@ -55,9 +63,10 @@ Out-of-scope changes made: NONE
 - `d55ef26a` - docs: correct P0-01 closeout review evidence
 - `2348f130` - docs: approve final P0-01 remediation scope
 - `8c76b3ca` - docs: complete P0-01 closeout remediation
+- `00988232` - docs: record final P0-01 remediation evidence
 
-The remediation evidence-record commit containing this updated report is
-recorded externally in PR #767, together with its exact final-head CI.
+The Scope Amendment 3 commit containing this updated report is recorded
+externally in PR #767, together with its exact final-head CI.
 
 ## 4. Files changed
 
@@ -133,8 +142,13 @@ Reviewed without modification because no concrete inconsistency was found:
 6. Apply the CTO-approved Scope Amendment 2 only to the remaining active
    foundation-status statements, factual Metrics ADR provenance and the
    synchronization guard inside the exact proposed issue body.
+7. Apply the CTO-approved Scope Amendment 3 only to replace the named-model
+   reviewer requirement with capability-based independence criteria and record
+   the procedural `BLOCKED` review at
+   `00988232e40f0357d002ede998fbc31d149ed27f`.
 
-Deviation from the specification: NONE after approved Scope Amendments 1 and 2.
+Deviation from the specification: NONE after approved Scope Amendments 1, 2 and
+3.
 
 ### Scope Amendment 1 and first-review remediation
 
@@ -180,10 +194,54 @@ The two P1 findings and their remediation are:
    A mismatch requires the replacement to stop, be regenerated as a minimal
    diff and receive fresh independent review.
 
-Claude, in a separate context with high reasoning, remains the assigned final
-independent reviewer. The external final-head evidence model is unchanged: the
-exact remediation head and its complete final-head CI are recorded in PR #767
-after CI completes.
+Review Cycle 2 remains historical and did not approve PR #767. Scope Amendment
+3 replaces its then-active named-Claude final-review requirement with
+capability-based independence criteria.
+
+### Scope Amendment 3 and Procedural Review Cycle 3
+
+Procedural Review Cycle 3 used a fresh Codex context and reviewed exact head
+`00988232e40f0357d002ede998fbc31d149ed27f`. It returned `BLOCKED`.
+
+That review verified:
+
+* all six prior P1 findings were fully resolved;
+* all 12 cumulative changed files were authorized;
+* both previous `CHANGES REQUIRED` decisions and reviewer contexts were
+  represented accurately;
+* the private design was current at Drive revision `3` with status
+  `Approved for phased implementation`;
+* issue #765 still matched baseline `2026-07-24T17:17:09Z`, and the exact
+  proposed replacement preserved all ten original authority links, all 23
+  checkbox rows and every unrelated control;
+* the synchronization guard protected both the complete body and `updatedAt`;
+* all required final-head CI passed;
+* there was no runtime, database, migration, GraphQL/API, authorization,
+  workflow, deployment, release or production effect.
+
+The sole blocker was that the approved task still named Claude while the
+available reviewer was Codex. Javi, CTO approved Scope Amendment 3 on
+2026-07-24 to make reviewer independence, evidence access and fresh
+non-implementing context the requirements. Claude is no longer mandatory.
+
+The replacement reviewer must:
+
+- not have implemented any part of PR #764 or PR #767;
+- not have authored any remediation commit under review;
+- not rely on private chain-of-thought or hidden implementation context from
+  the implementing agent;
+- use high reasoning effort;
+- directly inspect the complete repository evidence, PR #764 and PR #767, CI,
+  issue #765, and design revision 3;
+- review the actual evidence rather than an implementing-agent summary;
+- return exactly one verdict: `APPROVED`, `CHANGES REQUIRED`, or `BLOCKED`; and
+- not modify, approve, or merge the same work.
+
+Neither prior Codex review becomes final approval retrospectively. The context
+implementing Scope Amendment 3 is not eligible to approve its own amendment. A
+new exact-head independent review remains required after the amendment commit.
+The external final-head evidence model remains unchanged: the exact amendment
+head and complete final-head CI are recorded in PR #767 after CI completes.
 
 ## 6. Database and migration effects
 
@@ -565,17 +623,24 @@ Baseline closeout head
 checks: `build`, `build_and_push_staging_docker_image`, `check-changelog`,
 `format_check`, `lint`, `run_migrations` and `test`.
 
-The remediation head requires a fresh complete CI run and fresh independent
-review. The exact remediation head SHA, workflow run IDs and final-head
-conclusions are authoritative in PR #767 and GitHub because they are produced
-only after the tracked implementation report has been committed.
+The exact pre-amendment head
+`00988232e40f0357d002ede998fbc31d149ed27f` passed all seven required checks.
+The Scope Amendment 3 head requires a fresh complete CI run and fresh
+independent review. Its exact SHA, workflow run IDs and final-head conclusions
+are authoritative in PR #767 and GitHub because they are produced only after
+the tracked implementation report has been committed.
 
 PR #764 final-head CI was green, but it is not evidence of independent
 approval.
 
 Review Cycle 2 returned `CHANGES REQUIRED` against
 `d55ef26a0cc29d28d9c7d69ecbce60eb0082146e`; it did not approve PR #767 and
-does not replace the assigned final Claude review.
+remains historical rather than final approval.
+
+Procedural Review Cycle 3 returned `BLOCKED` against
+`00988232e40f0357d002ede998fbc31d149ed27f`. Scope Amendment 3 resolves its sole
+named-reviewer blocker but does not turn that review into approval. A new
+independent review of the exact amendment head remains required.
 
 ## 12. Rollout and rollback
 
@@ -593,11 +658,16 @@ Monitoring required: none
 
 ## 13. Known limitations and deferred work
 
-- The first independent Claude review returned `CHANGES REQUIRED`; this
-  remediation requires fresh exact-head independent review and approval.
+- The historical Review Cycle 1 Claude review returned `CHANGES REQUIRED`.
 - Review Cycle 2, performed in a fresh Codex context against
   `d55ef26a0cc29d28d9c7d69ecbce60eb0082146e`, returned
   `CHANGES REQUIRED` and did not approve the PR.
+- Procedural Review Cycle 3, performed in a fresh Codex context against
+  `00988232e40f0357d002ede998fbc31d149ed27f`, returned `BLOCKED` solely because
+  the then-active task named Claude. Scope Amendment 3 removes that named-model
+  requirement without granting retrospective approval.
+- The exact Scope Amendment 3 head requires fresh final-head CI and a new
+  independent review from an eligible non-implementing context.
 - The closeout PR requires CTO merge approval.
 - Issue #765 remains unchanged and requires separate post-merge CTO
   authorization.
@@ -609,7 +679,7 @@ Monitoring required: none
 
 ## 14. Unresolved issues
 
-- Fresh independent approval of the exact remediation head: PENDING.
+- Fresh independent approval of the exact Scope Amendment 3 head: PENDING.
 - Closeout PR merge: PENDING.
 - Authorized post-merge issue synchronization: PENDING.
 
