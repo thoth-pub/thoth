@@ -75,8 +75,9 @@ Reasons:
 
 1. The P0-01 control foundation merged through
    [PR #764](https://github.com/thoth-pub/thoth/pull/764) at
-   `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`, but independent closeout
-   review remains outstanding and P0-01 is not yet `CLOSED`.
+   `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`, but the first independent
+   closeout review returned `CHANGES REQUIRED`; remediation and fresh
+   independent approval remain outstanding, and P0-01 is not yet `CLOSED`.
 2. `ADR-0001` package capability model is `PROPOSED`.
 3. `ADR-0002` platform domain boundaries is `PROPOSED`.
 4. Publisher Services `ADR-01` has not finalized or approved the

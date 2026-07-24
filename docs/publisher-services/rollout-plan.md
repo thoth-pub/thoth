@@ -34,8 +34,8 @@ Achieved evidence:
 
 Outstanding evidence:
 
-- assigned independent closeout review covering the complete PR #764 diff,
-  its final-head CI, design revision `3` and the closeout diff;
+- resolve the first independent closeout review's `CHANGES REQUIRED` findings
+  and obtain fresh approval of the exact PR #767 remediation head;
 - closeout PR merge and separately authorized issue #765 synchronization
   before P0-01 is marked `CLOSED`;
 - ADR-0001 and ADR-0002 approval;
