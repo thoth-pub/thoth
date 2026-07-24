@@ -7,7 +7,7 @@ Owner: CTO
 
 | Repository | Current instruction state | Required action |
 |---|---|---|
-| `thoth` | root and scoped hierarchy added by the engineering-control foundation PR | independently review and merge |
+| `thoth` | root and scoped instruction hierarchy added and merged through PR #764 as `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`; retrospective closeout remediation and fresh independent approval remain outstanding | complete PR #767 closeout remediation, fresh independent approval and CTO closeout merge |
 | `thoth-app` | no verified root `AGENTS.md` | create from approved repository map |
 | `thoth-dissemination` | existing root `AGENTS.md`, incomplete control coverage | revise without losing useful local guidance |
 | `thoth-sphinx` | placeholder-only README; no verified `AGENTS.md` | add `AGENTS.md` and replace or expand the README during bootstrap |
@@ -17,7 +17,7 @@ Owner: CTO
 
 ## 2. Rollout sequence
 
-1. Approve and merge the `thoth` control foundation.
+1. Complete retrospective closeout of the already-merged `thoth` control foundation through PR #767, fresh independent approval and CTO merge authorization.
 2. Update `thoth-dissemination`, because it already performs production-capable workflows.
 3. Add `thoth-app` instructions before Publisher Services or metrics upload UI implementation.
 4. Add `thoth-sphinx` instructions as part of its no-production bootstrap task.

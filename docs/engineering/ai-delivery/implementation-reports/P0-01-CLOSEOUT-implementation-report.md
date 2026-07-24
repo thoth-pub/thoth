@@ -16,6 +16,12 @@ First independent-review decision: `CHANGES REQUIRED`
 Independent reviewer: Claude, separate context, high reasoning
 Scope Amendment 1 commit: `425eab61`
 Shared-status remediation commit: `08411cfe`
+Review Cycle 2 decision: `CHANGES REQUIRED`
+Review Cycle 2 reviewer context: fresh Codex context, not the assigned Claude
+reviewer
+Review Cycle 2 reviewed head:
+`d55ef26a0cc29d28d9c7d69ecbce60eb0082146e`
+Scope Amendment 2 commit: `2348f130`
 Remediation evidence-record commit and exact final PR head: recorded in PR #767
 and the final implementation handoff. A tracked file cannot contain the SHA and
 CI outcome of the commit that contains that same file without creating a
@@ -45,6 +51,8 @@ Out-of-scope changes made: NONE
 - `4f5c3491` - docs: link Publisher Services closeout PR
 - `425eab61` - docs: approve P0-01 closeout remediation scope
 - `08411cfe` - docs: reconcile merged foundation control status
+- `d55ef26a` - docs: correct P0-01 closeout review evidence
+- `2348f130` - docs: approve final P0-01 remediation scope
 
 The remediation evidence-record commit containing this updated report is
 recorded externally in PR #767, together with its exact final-head CI.
@@ -89,8 +97,13 @@ recorded externally in PR #767, together with its exact final-head CI.
   - reason: correct only the shared foundation merge-state blocker;
   - behavioural effect: none.
 - `docs/metrics/task-status.md`
-  - reason: record `MET-CTRL-01` as `CHANGES REQUIRED` without advancing any
-    Metrics implementation task;
+  - reason: record `MET-CTRL-01` as `CHANGES REQUIRED` and correct the
+    ADR-0001/ADR-0002 provenance coordinates without advancing any Metrics
+    implementation task;
+  - behavioural effect: none.
+- `docs/engineering/agent-instructions/rollout-plan.md`
+  - reason: replace active instructions to merge the already-merged PR #764
+    foundation with the factual PR #767 closeout action;
   - behavioural effect: none.
 
 Reviewed without modification because no concrete inconsistency was found:
@@ -115,8 +128,11 @@ Reviewed without modification because no concrete inconsistency was found:
 5. Apply the CTO-approved Scope Amendment 1 only to factual shared foundation
    status and review evidence. Publisher Services and Metrics implementation
    scopes remain distinct.
+6. Apply the CTO-approved Scope Amendment 2 only to the remaining active
+   foundation-status statements, factual Metrics ADR provenance and the
+   synchronization guard inside the exact proposed issue body.
 
-Deviation from the specification: NONE after approved Scope Amendment 1.
+Deviation from the specification: NONE after approved Scope Amendments 1 and 2.
 
 ### Scope Amendment 1 and first-review remediation
 
@@ -139,6 +155,33 @@ The four P1 findings and their remediation are:
 
 No runtime, migration, API, authorization, deployment, release or production
 scope was added.
+
+### Scope Amendment 2 and Review Cycle 2 remediation
+
+Review Cycle 2 used a fresh Codex context and reviewed head
+`d55ef26a0cc29d28d9c7d69ecbce60eb0082146e`. It returned
+`CHANGES REQUIRED`; it was not a Claude review and did not approve PR #767.
+Javi, CTO approved Scope Amendment 2 on 2026-07-24. Risk remains LOW.
+
+The two P1 findings and their remediation are:
+
+1. Remaining stale foundation instructions: the agent-instruction rollout plan
+   now records that PR #764 merged as
+   `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06` and directs agents to complete
+   PR #767 remediation, fresh independent approval and CTO closeout merge. The
+   Metrics tracker now records ADR-0001 and ADR-0002 as proposals present on
+   `develop` via merged PR #764, while both remain `PROPOSED`, dependent on a CTO
+   decision, and all Metrics work packages remain `BLOCKED`.
+2. Missing in-body synchronization guard: the exact proposed issue #765 body
+   now requires the complete live body and `updatedAt` to be re-fetched and
+   compared with the reviewed `2026-07-24T17:17:09Z` baseline before any write.
+   A mismatch requires the replacement to stop, be regenerated as a minimal
+   diff and receive fresh independent review.
+
+Claude, in a separate context with high reasoning, remains the assigned final
+independent reviewer. The external final-head evidence model is unchanged: the
+exact remediation head and its complete final-head CI are recorded in PR #767
+after CI completes.
 
 ## 6. Database and migration effects
 
@@ -235,8 +278,13 @@ git diff --name-only \
   5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06...HEAD
 
 grep -RniE \
-  'foundation is unmerged|merge PR #764 into|independent review; merge|Required:.*merge into `develop`' \
-  docs/engineering docs/metrics docs/publisher-services \
+  'independently review and merge|Approve and merge the `thoth` control foundation|PR #764 -> `develop`|foundation is unmerged|merge PR #764 into `develop`|Required:.*merge into `develop`|independent review; merge' \
+  docs \
+  || true
+
+grep -Rni \
+  'checked during the independent review' \
+  docs \
   || true
 
 grep -n '^Status: PROPOSED$' \
@@ -245,6 +293,11 @@ grep -n '^Status: PROPOSED$' \
 
 grep -n 'FINAL ENUM NOT APPROVED' \
   docs/publisher-services/platform-inventory.md
+
+git diff --name-only \
+  5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06...HEAD \
+  | grep -Ev '^(CHANGELOG\.md|docs/)' \
+  && exit 1 || true
 ```
 
 Result:
@@ -253,6 +306,7 @@ Result:
 Changed files:
 CHANGELOG.md
 docs/engineering/README.md
+docs/engineering/agent-instructions/rollout-plan.md
 docs/engineering/ai-delivery/implementation-reports/P0-01-CLOSEOUT-implementation-report.md
 docs/engineering/ai-delivery/implementation-reports/CTRL-FOUNDATION-01-implementation-report.md
 docs/engineering/ai-delivery/tasks/P0-01-CLOSEOUT.md
@@ -273,7 +327,10 @@ Reviewed-only file diff: no output.
 Runtime-surface diff: no output.
 Changed-file allowlist: exact match.
 Issue proposal: all ten authority links and all non-P0 gates/tasks preserved;
-one PR #767 authority link added; only the P0-01 gate and task were checked.
+one PR #767 authority link added; all 23 checkbox rows retained; only the P0-01
+gate and task were checked; synchronization guard present inside the exact body
+with the reviewed timestamp, complete-body re-fetch, `updatedAt` comparison and
+stop/regenerate/re-review instructions.
 Relative links:
 docs/publisher-services/README.md: ../engineering/design-references.md -> OK
 docs/engineering/ai-delivery/implementation-reports/P0-01-CLOSEOUT-implementation-report.md: ../tasks/P0-01-CLOSEOUT.md -> OK
@@ -294,7 +351,13 @@ Steps:
 6. checked the statuses of ADR-0001, ADR-0002 and the platform inventory;
 7. recorded Scope Amendment 1 before editing its newly authorized files;
 8. compared the proposed issue body with the captured live body for a minimal
-   semantic diff.
+   semantic diff;
+9. re-fetched the complete live issue #765 body and `updatedAt` and confirmed
+   that both still matched the reviewed baseline;
+10. recorded Scope Amendment 2 before editing its newly authorized
+    agent-instruction rollout-plan file;
+11. ran the repository-wide stale-state search and manually inspected every
+    result.
 
 Observed result:
 
@@ -310,6 +373,8 @@ Observed result:
   `check-changelog`, `format_check`, `lint`, `run_migrations` and `test` all
   reported `pass`;
 - issue #765 was `OPEN`, last updated `2026-07-24T17:17:09Z`;
+- the live issue #765 body and `updatedAt` still matched the reviewed baseline
+  when Scope Amendment 2 remediation was performed;
 - the private design's current Drive revision was `3`, modified
   `2026-07-23T20:32:36.556Z`;
 - ADR-0001 and ADR-0002 remained `PROPOSED`;
@@ -423,6 +488,10 @@ Implement the approved Publisher Services and Distribution Configuration design 
 
 The Publisher Services design requires one fresh task branch and one PR per task. There is no long-lived `feature/publisher-services` integration branch.
 
+## Synchronization guard
+
+Before applying this replacement, re-fetch the complete live issue body and confirm that its `updatedAt` still matches the reviewed baseline `2026-07-24T17:17:09Z`. If either the live body or `updatedAt` differs, do not apply this replacement. Regenerate the minimal diff from the new live body and obtain fresh independent review before writing.
+
 ## Current gate
 
 - [x] P0-01 independently approved and merged
@@ -477,7 +546,13 @@ Minimal semantic diff from the captured live issue:
 
 - all ten existing authority links and their labels are preserved exactly;
 - one authority link to PR #767 is added;
+- all 23 checkbox rows are retained;
 - only the P0-01 gate and P0-01 task change from unchecked to checked;
+- the synchronization guard is added inside the exact proposed issue body;
+- the guard requires the complete live issue body to be re-fetched and its
+  `updatedAt` compared with the reviewed baseline before any write;
+- any body or `updatedAt` mismatch requires the replacement to stop, be
+  regenerated as a minimal diff and receive fresh independent review;
 - no other gate, task or control rule is removed or changed.
 
 ## 11. CI
@@ -494,6 +569,10 @@ only after the tracked implementation report has been committed.
 
 PR #764 final-head CI was green, but it is not evidence of independent
 approval.
+
+Review Cycle 2 returned `CHANGES REQUIRED` against
+`d55ef26a0cc29d28d9c7d69ecbce60eb0082146e`; it did not approve PR #767 and
+does not replace the assigned final Claude review.
 
 ## 12. Rollout and rollback
 
@@ -513,6 +592,9 @@ Monitoring required: none
 
 - The first independent Claude review returned `CHANGES REQUIRED`; this
   remediation requires fresh exact-head independent review and approval.
+- Review Cycle 2, performed in a fresh Codex context against
+  `d55ef26a0cc29d28d9c7d69ecbce60eb0082146e`, returned
+  `CHANGES REQUIRED` and did not approve the PR.
 - The closeout PR requires CTO merge approval.
 - Issue #765 remains unchanged and requires separate post-merge CTO
   authorization.
