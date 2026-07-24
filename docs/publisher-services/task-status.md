@@ -18,7 +18,7 @@ No task moves to `READY` without an approved specification, architecture depende
 
 | Task | Repository | Risk | Status | Verified base / PR target | Blocking dependencies | Issue | PR | Acceptance |
 |---|---|---:|---|---|---|---|---|---|
-| P0-01 Control documents and tracker | `thoth` | LOW | MERGED | `develop` at `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06` / `develop` | Independent review of PR #764 and the closeout PR; closeout PR merge; authorized issue synchronization | [#765](https://github.com/thoth-pub/thoth/issues/765) | Foundation [#764](https://github.com/thoth-pub/thoth/pull/764); closeout PR pending | DELIVERABLES MERGED; INDEPENDENT CLOSEOUT EVIDENCE PENDING |
+| P0-01 Control documents and tracker | `thoth` | LOW | MERGED | `develop` at `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06` / `develop` | Independent review of PR #764 and the closeout PR; closeout PR merge; authorized issue synchronization | [#765](https://github.com/thoth-pub/thoth/issues/765) | Foundation [#764](https://github.com/thoth-pub/thoth/pull/764); closeout [#767](https://github.com/thoth-pub/thoth/pull/767) | DELIVERABLES MERGED; INDEPENDENT CLOSEOUT EVIDENCE PENDING |
 | ADR-01 Platform inventory/final architecture | `thoth` | MEDIUM | BLOCKED | `develop` / `develop` | P0-01; ADR-0002 approval | #765 | TBD | NOT STARTED |
 | LIC-01 Expand `cc-license` | `cc-license` | MEDIUM | BLOCKED | `develop` / `develop` | P0-01; BR-LIC-01 or CTO exception; approved spec | #765 | TBD | NOT STARTED |
 | LIC-02 Enforce supported licences | `thoth` | HIGH | BLOCKED | `develop` / `develop` | LIC-01 release; production licence audit plan | #765 | TBD | NOT STARTED |

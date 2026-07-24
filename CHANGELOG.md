@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [764](https://github.com/thoth-pub/thoth/pull/764) - Add the AI-led engineering operating model, task and review templates, risk classification, release gates, and GitHub Flow controls
 
 ### Changed
-  - Reconcile the Publisher Services programme controls with the merged P0-01 foundation while preserving the remaining independent-review, ADR, inventory and branch-readiness gates
+  - [767](https://github.com/thoth-pub/thoth/pull/767) - Reconcile the Publisher Services programme controls with the merged P0-01 foundation while preserving the remaining independent-review, ADR, inventory and branch-readiness gates
 
 ## [[1.6.1]](https://github.com/thoth-pub/thoth/releases/tag/v1.6.1) - 2026-07-23
 ### Fixed

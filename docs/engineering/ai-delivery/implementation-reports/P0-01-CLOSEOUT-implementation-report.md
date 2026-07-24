@@ -10,8 +10,10 @@ PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/publisher-services/p0-01-closeout`
 Implementation content commit: `3d51e7a1`
-Final PR head: PENDING FINAL PR-NUMBER COMMIT
-Pull request: PENDING
+Final PR head: the commit containing this report; its exact SHA is recorded in
+PR #767 final-head CI and the final implementation handoff because a tracked
+file cannot contain its own commit hash.
+Pull request: [#767](https://github.com/thoth-pub/thoth/pull/767)
 Expected branch deletion after merge: YES
 Final programme PR required: NO
 Implementing model: Codex
@@ -32,7 +34,7 @@ Out-of-scope changes made: NONE
 
 - `c9b00e14` - docs: approve Publisher Services P0-01 closeout task
 - `3d51e7a1` - docs: reconcile Publisher Services foundation status
-- PENDING - docs: link Publisher Services closeout PR
+- final PR-head commit - docs: link Publisher Services closeout PR
 
 ## 4. Files changed
 
@@ -326,8 +328,7 @@ Do not close a task at PR creation or CI success. Close only after independent a
 
 This replacement is proposed only for use after the assigned reviewer returns
 `APPROVED`, the CTO merges the closeout PR, and the CTO separately authorizes
-the issue edit. `CLOSEOUT_PR_NUMBER` must be replaced with the actual closeout
-PR number before review.
+the issue edit.
 
 ```markdown
 ## Objective
@@ -338,13 +339,13 @@ Implement the approved Publisher Services and Distribution Configuration design 
 
 - [Private approved design](https://docs.google.com/document/d/1kr2Ft0Y4pxgcXGyFAKs_wfFx4I0jlxEvaceswE5Dus8/edit) - Drive revision `3`
 - [P0-01 foundation PR #764](https://github.com/thoth-pub/thoth/pull/764) - merged as `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`
-- [P0-01 closeout PR #CLOSEOUT_PR_NUMBER](https://github.com/thoth-pub/thoth/pull/CLOSEOUT_PR_NUMBER)
+- [P0-01 closeout PR #767](https://github.com/thoth-pub/thoth/pull/767)
 
 The Publisher Services design requires one fresh task branch and one PR per task. There is no long-lived `feature/publisher-services` integration branch.
 
 ## Current gate
 
-- [x] P0-01 independently approved and merged through foundation PR #764 and closeout PR #CLOSEOUT_PR_NUMBER
+- [x] P0-01 independently approved and merged through foundation PR #764 and closeout PR #767
 - [ ] ADR-0001 approved
 - [ ] ADR-0002 approved
 - [ ] ADR-01 platform inventory approved
@@ -356,7 +357,7 @@ No production implementation begins before the applicable gate passes.
 
 ### Foundation
 
-- [x] P0-01 - Project control documents and tracker - CLOSED after independent approval, foundation PR #764, closeout PR #CLOSEOUT_PR_NUMBER and repository/issue synchronization
+- [x] P0-01 - Project control documents and tracker - CLOSED after independent approval, foundation PR #764, closeout PR #767 and repository/issue synchronization
 - [ ] ADR-01 - Platform inventory and final architecture
 - [ ] LIC-01 - Expand cc-license
 - [ ] LIC-02 - Enforce supported licences in Thoth
@@ -392,8 +393,8 @@ P0-01 closure records control-foundation completion only. It does not approve an
 
 ## 11. CI
 
-CI status: PENDING
-Checks: closeout PR not yet opened
+CI status at report commit: PENDING
+Checks: run at the exact pushed PR #767 head and recorded in GitHub
 Failures or warnings: none known
 
 PR #764 final-head CI was green, but it is not evidence of independent approval.
