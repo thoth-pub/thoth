@@ -39,9 +39,25 @@ The following repositories still need root instructions:
 
 Track the rollout in `docs/engineering/agent-instructions/rollout-plan.md`.
 
+### CG-05 - Shared package and platform ADRs require CTO approval
+
+The following complete proposals exist:
+
+- `docs/engineering/decisions/ADR-0001-publisher-package-capability-model.md`
+- `docs/engineering/decisions/ADR-0002-platform-domain-boundaries.md`
+
+They remain `PROPOSED`.
+
+Do not start implementation that depends on either decision until the CTO:
+
+- approves or amends the package-capability matrix;
+- approves upgrade, downgrade and historical OPERAS export semantics;
+- approves strict separation of distribution and metrics platform types;
+- records the approval in the ADRs.
+
 ## Required before affected production slices
 
-### CG-05 - `thoth-app` CI is incomplete
+### CG-06 - `thoth-app` CI is incomplete
 
 Current GitHub CI runs coverage tests but does not independently run:
 
@@ -51,7 +67,7 @@ Current GitHub CI runs coverage tests but does not independently run:
 
 Vercel build success is useful evidence but is not a replacement for explicit repository CI gates.
 
-### CG-06 - `metrics-dashboard` lacks detected CI and tests
+### CG-07 - `metrics-dashboard` lacks detected CI and tests
 
 Before client migration:
 
@@ -60,23 +76,23 @@ Before client migration:
 - require lint and production build;
 - add comparison fixtures for old/new data paths.
 
-### CG-07 - `metrics-widget` lacks detected unit tests
+### CG-08 - `metrics-widget` lacks detected unit tests
 
 Current CI covers lint, build and consumer smoke only.
 
 Add tests for data fetching, coverage semantics, partial results and rendering before the canonical API migration.
 
-### CG-08 - `cc-license` CI uses old actions
+### CG-09 - `cc-license` CI uses old actions
 
 Modernize checkout/toolchain actions before or alongside LIC-01, without mixing functional licence changes into the CI-only PR.
 
-### CG-09 - Thoth schema generation is unclear
+### CG-10 - Thoth schema generation is unclear
 
 `thoth-api/src/schema.rs` exists, but the root `diesel.toml` declares `src/schema.rs`.
 
 Confirm and document the canonical command and working directory before metrics or publisher-service migrations.
 
-### CG-10 - Thoth runtime operations are not mapped
+### CG-11 - Thoth runtime operations are not mapped
 
 Document:
 
