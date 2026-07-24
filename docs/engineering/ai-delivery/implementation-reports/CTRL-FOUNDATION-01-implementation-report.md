@@ -238,15 +238,29 @@ git diff --check 652a499dfdfbaa7594537e0865c41ec617f52dc2...104ffaa16b2436cea2b4
 
 Result: no output; PASS.
 
-### Stale control references
+### Stale task and placeholder references
 
 Command:
 
 ```text
-grep -RniE '(^|[^[:alnum:]_-])CTRL-(01|02)([^[:digit:]]|$)|CG-(05|06|09)|NOT YET CREATE[D]' docs || true
+grep -RniE '(^|[^[:alnum:]_-])CTRL-(01|02)([^[:digit:]]|$)|NOT YET CREATE[D]' docs || true
 ```
 
 Result: no output; PASS.
+
+### Stale control references in repository-map consumers
+
+Command:
+
+```text
+grep -RniE 'CG-(05|06|09)'   docs/engineering/repository-map/environments.md   docs/engineering/repository-map/repositories   || true
+```
+
+Result: no output; PASS.
+
+The canonical definitions of `CG-05`, `CG-06`, and `CG-09` in
+`docs/engineering/repository-map/control-gaps.md` are expected and are not
+stale references.
 
 ### Canonical Sphinx spelling
 
