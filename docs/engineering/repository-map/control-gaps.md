@@ -1,27 +1,27 @@
 # Repository Control Gaps
 
-Status: Active findings
+Status: ACTIVE FINDINGS
 Evidence date: 2026-07-24
 
 ## Foundation closeout
 
 ### CG-01 - Independent review of PR #764
 
-The engineering-control foundation is implemented but not independently approved. Required: final diff/CI review, finding resolution, CTO merge approval and merge into `develop`.
+The engineering-control foundation has implementation and remediation work but is not independently approved. Required: completed implementation report, final diff/CI review, finding resolution, CTO merge approval and merge into `develop`.
 
 ### CG-02 - External Metrics design spelling
 
-Repository documents use `thoth-sphinx` / `Sphinx`. The external Metrics design source still needs correction and Project-source replacement.
+The private Metrics design contains an obsolete repository/component spelling. The exact Google Doc and Drive revision are recorded in `docs/engineering/design-references.md`. Repository documents use `thoth-sphinx` / `Sphinx`. Correcting the private source remains a source-owner follow-up and does not imply a second component.
 
 ## Blocking before programme implementation
 
 ### CG-03 - `thoth-sphinx` is empty
 
-Bootstrap before WP6 or driver work.
+`main` and `develop` exist, but the repository has no workspace, CI, protections or runtime. Complete BR-SPHINX-01 and SPHINX-BOOT-01 before WP6 or driver work.
 
 ### CG-04 - Branch topology differs
 
-Use actual branches until normalization or explicit exceptions.
+Use verified actual branches until normalization or explicit exceptions complete. Publisher Services uses standard task branches. Metrics uses repository-local integration branches only after readiness.
 
 ### CG-05 - Related repositories lack complete instructions
 
@@ -29,21 +29,21 @@ App, Sphinx, dashboard, widget and cc-license remain outstanding. Dissemination 
 
 ### CG-06 - Shared ADRs remain proposed
 
-ADR-0001 and ADR-0002 require CTO approval and independent review.
+ADR-0001 and ADR-0002 require explicit CTO approval and independent review before dependent implementation.
 
 ### CG-07 - Publisher Services platform ADR open
 
-Issue #765 exists. ADR-01 must finalize enum, mappings and ambiguous destinations.
+Issue #765 exists. ADR-01 must finalize enum values, mechanisms and ambiguous destinations.
 
 ### CG-08 - Metrics readiness open
 
-Issue #766 exists. Sphinx bootstrap, Diesel control, branch readiness and service-role decisions remain prerequisites.
+Issue #766 exists. Sphinx normalization/bootstrap, Diesel control, branch readiness and service-role decisions remain prerequisites.
 
 ## Production-slice controls
 
 ### CG-09 - Source fixtures/mappings incomplete
 
-Metrics fixtures, COUNTER mappings, finalization and OPERAS projections are missing.
+Metrics fixtures, COUNTER mappings, finalization settings and OPERAS projections are missing.
 
 ### CG-10 - OPERAS inbound completeness unavailable
 

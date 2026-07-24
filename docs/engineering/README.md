@@ -32,7 +32,13 @@ Stop when authoritative sources conflict. Record cross-programme resolutions in 
 - [Implementation report template](./ai-delivery/implementation-report-template.md)
 - [Independent review template](./ai-delivery/independent-review-template.md)
 
-## 4. Repository and environment orientation
+## 4. Approved design references
+
+- [Private approved-design references](./design-references.md)
+
+Reviewers must use the snapshots committed at the exact PR head. The mutable Google Drive documents remain provenance sources, not substitutes for immutable review inputs.
+
+## 5. Repository and environment orientation
 
 - [Repository map](./repository-map/README.md)
 - [Branch topology](./repository-map/branch-topology.md)
@@ -42,7 +48,7 @@ Stop when authoritative sources conflict. Record cross-programme resolutions in 
 
 Agents must use observed repository state until an approved normalization task changes it.
 
-## 5. Cross-programme decisions
+## 6. Cross-programme decisions
 
 - [Decision process](./decisions/README.md)
 - [Decision register](./decisions/decision-register.md)
@@ -51,7 +57,7 @@ Agents must use observed repository state until an approved normalization task c
 
 A committed proposed ADR is not approved. Dependent implementation remains blocked until the CTO decision is recorded and independently reviewed.
 
-## 6. Active programmes
+## 7. Active programmes
 
 ### Publisher Services
 
@@ -69,14 +75,14 @@ Current implementation decision: `BLOCKED`.
 
 Current implementation decision: `BLOCKED`.
 
-## 7. Canonical names
+## 8. Canonical names
 
 ```text
 thoth-pub/thoth-sphinx
 Sphinx
 ```
 
-## 8. Current foundation gate
+## 9. Current foundation gate
 
 - [ ] complete final repository consistency checks;
 - [ ] obtain independent review of the complete PR diff and CI;

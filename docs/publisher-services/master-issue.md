@@ -9,6 +9,8 @@ The GitHub issue is the live programme tracker.
 
 Repository authorities:
 
+- [Private approved design](https://docs.google.com/document/d/1kr2Ft0Y4pxgcXGyFAKs_wfFx4I0jlxEvaceswE5Dus8/edit)
+
 - [README](./README.md)
 - [Decisions](./decisions.md)
 - [Task status](./task-status.md)

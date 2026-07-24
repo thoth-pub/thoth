@@ -72,7 +72,7 @@ npm ci
 npm test -- --run --coverage
 ```
 
-Lint, production build and codegen consistency are not current GitHub gates and must be run manually until CG-05 is resolved.
+Lint, production build and codegen consistency are not current GitHub gates and must be run manually until [CG-11](../control-gaps.md#cg-11---ci-gaps) is resolved.
 
 ## Deployment
 

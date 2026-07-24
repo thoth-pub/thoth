@@ -57,8 +57,8 @@ from the latest `develop`.
 Examples:
 
 ```text
-feature/publisher-services
 feature/metrics
+feature/large-programme
 ```
 
 Each independently reviewable slice then branches from the programme integration branch:
@@ -70,10 +70,9 @@ feature/<programme>/<task-id-or-slice>
 Examples:
 
 ```text
-feature/publisher-services/be-01
-feature/publisher-services/be-02
 feature/metrics/db-foundation
 feature/metrics/ingestion-core
+feature/large-programme/slice-01
 ```
 
 Each slice pull request targets the programme integration branch, not `develop`.
@@ -120,7 +119,32 @@ Use a programme integration branch when:
 
 Do not create a programme integration branch merely because a programme is large. Prefer direct-to-`develop`, additive, inactive slices when they are independently safe. Long-lived branches increase divergence and integration risk.
 
-## 5. Multi-repository programmes
+
+## 5. Programme-specific workflow authority
+
+An approved programme design may require either the standard flow or the programme-integration flow. Record the selected flow in the programme controls and every task specification.
+
+### Publisher Services
+
+The approved Publisher Services design requires:
+
+```text
+development branch -> feature/publisher-services/<task> -> development branch
+```
+
+Every task uses a fresh branch and one PR. Do not create a long-lived `feature/publisher-services` integration branch.
+
+### Thoth Metrics
+
+The Metrics design requires repository-local integration branches after branch readiness:
+
+```text
+develop -> feature/metrics -> feature/metrics/<slice> -> feature/metrics -> develop
+```
+
+Each affected repository owns its own branch and final PR. No physical branch spans repositories.
+
+## 6. Multi-repository programmes
 
 Branches are repository-local.
 
@@ -130,7 +154,7 @@ For example:
 
 ```text
 thoth:             feature/metrics
-thoth-sphinx:      feature/metrics
+thoth-sphinx:       feature/metrics
 thoth-app:         feature/metrics
 metrics-dashboard: feature/metrics
 ```
@@ -151,7 +175,7 @@ Where a downstream repository needs an API contract before the upstream final PR
 
 Do not allow downstream code to guess an unmerged contract.
 
-## 6. Keeping integration branches current
+## 7. Keeping integration branches current
 
 For programme integration branches:
 
@@ -164,7 +188,7 @@ For programme integration branches:
 
 The task specification must state whether the repository convention uses merge or rebase for refreshing the programme branch.
 
-## 7. Pull-request review boundaries
+## 8. Pull-request review boundaries
 
 Every slice PR must still be independently reviewable.
 
@@ -189,7 +213,7 @@ The final programme PR must additionally verify:
 - programme-wide acceptance criteria pass;
 - rollout, rollback and observation are approved.
 
-## 8. Release flow
+## 9. Release flow
 
 The normal release path is:
 
@@ -213,7 +237,7 @@ A release from `develop` to `master` must:
 - receive required CTO approval;
 - preserve traceability from release to tasks and PRs.
 
-## 9. Prohibited branch patterns
+## 10. Prohibited branch patterns
 
 Do not:
 

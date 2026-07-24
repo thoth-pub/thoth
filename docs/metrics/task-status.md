@@ -3,6 +3,7 @@
 Status: ACTIVE TRACKER
 Programme owner: CTO
 Master issue: [#766](https://github.com/thoth-pub/thoth/issues/766)
+Approved design: [private Google Doc](https://docs.google.com/document/d/11AeQFGpm0kUZajBM5PrAqsttmzJlpUrt89tGYyVM8c0/edit), Drive revision `6`
 Last updated: 2026-07-24
 
 ## 1. Control rule
@@ -16,7 +17,7 @@ A work package is not one implementation task. Each must be decomposed into boun
 | MET-CTRL-01 Programme controls | `thoth` | LOW | IN PROGRESS | PR #764 -> `develop` | independent review; merge | [#766](https://github.com/thoth-pub/thoth/issues/766) |
 | ADR-0001 Package capability model | `thoth` | MEDIUM | PROPOSED | PR #764 -> `develop` | CTO decision | #766 |
 | ADR-0002 Platform boundaries | `thoth` | MEDIUM | PROPOSED | PR #764 -> `develop` | CTO decision | #766 |
-| SPHINX-BOOT-01 Repository bootstrap | `thoth-sphinx` | MEDIUM | BLOCKED | current `main`; approved bootstrap required | MET-CTRL-01; branch decision | #766 |
+| SPHINX-BOOT-01 Repository bootstrap | `thoth-sphinx` | MEDIUM | BLOCKED | current `develop`; target `develop` after BR-SPHINX-01 verification | MET-CTRL-01; BR-SPHINX-01; approved bootstrap spec | #766 |
 | THOTH-DB-CTRL-01 Diesel generation procedure | `thoth` | MEDIUM | BLOCKED | `develop` -> `develop` | verified procedure | #766 |
 | BR-DASH-01 Dashboard branch readiness | dashboard | HIGH | BLOCKED | actual `develop`/`main` | Vercel rollback | #766 |
 | BR-WIDGET-01 Widget branch readiness | widget | HIGH | BLOCKED | actual `dev`/`main` | npm release protection | #766 |

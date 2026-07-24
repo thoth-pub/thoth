@@ -50,7 +50,7 @@ No automated test script was detected.
 
 No GitHub Actions workflow was detected.
 
-CG-06 must be resolved before the final client migration:
+[CG-11](../control-gaps.md#cg-11---ci-gaps) must be resolved before the final client migration:
 
 - add CI;
 - add tests for data transformations and failure semantics;

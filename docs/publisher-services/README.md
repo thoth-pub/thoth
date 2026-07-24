@@ -17,7 +17,7 @@ Deferred implementation:
 
 This directory is the repository-backed control surface for implementing publisher packages, explicit distribution-platform assignments, durable back-catalogue jobs, licence enforcement, staff interfaces, dissemination cutover, OCLC KB feed discovery and later OAI-PMH eligibility.
 
-The approved technical design remains the architectural source. These files turn that design into:
+The approved design is the [private Google Doc](https://docs.google.com/document/d/1kr2Ft0Y4pxgcXGyFAKs_wfFx4I0jlxEvaceswE5Dus8/edit), Drive revision `3`, indexed in [`docs/engineering/design-references.md`](../engineering/design-references.md). These files turn that design into:
 
 - a decision register;
 - an executable task/dependency tracker;
@@ -56,7 +56,7 @@ This programme does not initially:
 
 Read in this order:
 
-1. approved Publisher Services technical design;
+1. [private approved Publisher Services design](https://docs.google.com/document/d/1kr2Ft0Y4pxgcXGyFAKs_wfFx4I0jlxEvaceswE5Dus8/edit);
 2. approved cross-programme ADRs under `docs/engineering/decisions/`;
 3. this directory;
 4. task specifications;

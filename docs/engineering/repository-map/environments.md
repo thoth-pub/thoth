@@ -43,7 +43,7 @@ Release artefact: container image in GHCR
 Trigger: published GitHub release
 Image: `ghcr.io/thoth-pub/thoth`
 
-The production compute platform, database migration execution path, deployment approval and rollback procedure were not verified in CTRL-02 and require a follow-up operations inventory.
+The production compute platform, database migration execution path, deployment approval and rollback procedure remain unverified under control gap [CG-13](./control-gaps.md#cg-13---thoth-runtime-operations-unmapped) and require a separately specified operations inventory.
 
 ### Thoth Dissemination
 

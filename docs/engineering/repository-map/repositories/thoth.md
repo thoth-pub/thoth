@@ -101,7 +101,7 @@ Every schema task must verify:
 
 `thoth-api/src/schema.rs` is a generated/derived Diesel schema file.
 
-The exact regeneration procedure is a control gap because root `diesel.toml` declares `src/schema.rs`. Do not regenerate or relocate the schema without first resolving CG-09.
+The exact regeneration procedure is a control gap because root `diesel.toml` declares `src/schema.rs`. Do not regenerate or relocate the schema without first resolving [CG-12](../control-gaps.md#cg-12---thoth-schema-generation-unclear).
 
 ## CI and release
 

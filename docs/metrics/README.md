@@ -18,7 +18,7 @@ Related repository:
 
 This directory is the repository-backed control surface for making Thoth the canonical owner of usage and sales metrics.
 
-It turns the approved technical design into:
+It turns the [private approved Metrics design](https://docs.google.com/document/d/11AeQFGpm0kUZajBM5PrAqsttmzJlpUrt89tGYyVM8c0/edit), Drive revision `6`, into:
 
 - an explicit decision summary;
 - a bounded work-package tracker;

@@ -8,11 +8,12 @@ Planned metrics collection, normalization, orchestration, rollup application, OP
 
 Visibility: private
 GitHub default branch: `main`
+Active development branch: `develop`
 Repository content: empty as of 2026-07-24
 CI: none
 Deployment: none verified
 
-The repository is not implementation-ready.
+Both branches exist, but the repository remains non-implementation-ready because it has no workspace, code, CI, protection evidence or runtime.
 
 ## Canonical naming
 
@@ -23,25 +24,28 @@ thoth-sphinx
 Sphinx
 ```
 
-Use only `thoth-sphinx` and `Sphinx` in new material.
+The private Metrics design contains an obsolete spelling. Its exact Drive revision is recorded in `docs/engineering/design-references.md`.
 
-## Required branch bootstrap
+## Required branch normalization
 
-BR-SPHINX-01 must establish:
+BR-SPHINX-01 must:
+
+- create `master` from current `main`;
+- retain and verify the existing `develop` branch;
+- align `develop` with the approved bootstrap base;
+- make `master` the release/default branch;
+- protect `master` and `develop`;
+- retain `main` until references are confirmed absent.
+
+The resulting flow is:
 
 ```text
-develop -> master
-```
-
-Task branches then follow:
-
-```text
-feature/metrics/<slice> -> feature/metrics -> develop -> master
+develop -> feature/metrics -> feature/metrics/<slice> -> feature/metrics -> develop -> master
 ```
 
 ## Planned stack and boundaries
 
-The approved metrics design expects a Rust workspace with boundaries equivalent to:
+The private Metrics design expects a Rust workspace with boundaries equivalent to:
 
 - core normalized types and driver traits;
 - Thoth GraphQL client;
@@ -60,25 +64,23 @@ Sphinx:
 
 ## Required bootstrap task
 
-The bootstrap must add:
+SPHINX-BOOT-01 must add:
 
 - Cargo workspace;
 - stable Rust toolchain policy;
 - crate/module boundaries;
-- README;
-- AGENTS.md;
+- README and root `AGENTS.md`;
 - license;
 - formatting, clippy and tests;
-- GitHub CI;
-- secret-scanning baseline;
+- GitHub CI and secret-scanning baseline;
 - configuration conventions;
-- a no-op executable/driver test;
+- no-op executable/driver test;
 - branch/release documentation;
 - no AWS resources and no production behaviour.
 
 ## Planned runtime
 
-Not yet provisioned:
+Not provisioned:
 
 - ECS/Fargate;
 - EventBridge;
