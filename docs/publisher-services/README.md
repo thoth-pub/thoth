@@ -1,6 +1,6 @@
 # Publisher Services and Distribution Configuration
 
-Status: CONTROL FOUNDATION IN PROGRESS
+Status: CONTROL FOUNDATION MERGED; IMPLEMENTATION BLOCKED
 Programme owner: CTO
 Primary coordinating repository: `thoth-pub/thoth`
 Related repositories:
@@ -73,13 +73,20 @@ BLOCKED FOR IMPLEMENTATION
 
 Reasons:
 
-1. `P0-01` is still part of the unmerged engineering-control foundation.
+1. The P0-01 control foundation merged through
+   [PR #764](https://github.com/thoth-pub/thoth/pull/764) at
+   `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`, but independent closeout
+   review remains outstanding and P0-01 is not yet `CLOSED`.
 2. `ADR-0001` package capability model is `PROPOSED`.
 3. `ADR-0002` platform domain boundaries is `PROPOSED`.
-4. Publisher Services `ADR-01` has not finalized the distribution-platform enum.
-5. Branch-readiness tasks are required before work in repositories whose current topology differs from policy.
+4. Publisher Services `ADR-01` has not finalized or approved the
+   distribution-platform enum.
+5. Branch-readiness tasks are required before work in repositories whose
+   current topology differs from policy.
 
-Discovery and documentation may continue. Production implementation must not start.
+Discovery, review and documentation may continue. The P0-01 merge does not
+authorize production implementation, which must not start until its applicable
+architecture, specification and branch-readiness gates pass.
 
 ## 6. Files
 

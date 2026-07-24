@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [764](https://github.com/thoth-pub/thoth/pull/764) - Add the AI-led engineering operating model, task and review templates, risk classification, release gates, and GitHub Flow controls
 
+### Changed
+  - Reconcile the Publisher Services programme controls with the merged P0-01 foundation while preserving the remaining independent-review, ADR, inventory and branch-readiness gates
+
 ## [[1.6.1]](https://github.com/thoth-pub/thoth/releases/tag/v1.6.1) - 2026-07-23
 ### Fixed
   - [763](https://github.com/thoth-pub/thoth/pull/763) - Validate a publication upload's canonical location before copying the object to its final key and inserting the file record in `complete_file_upload`, so a `LocationUrlError` (e.g. a work with no landing page) no longer leaves an orphaned file record and S3 object behind (`FileUpload::precheck_related_metadata`)
