@@ -22,6 +22,7 @@ reviewer
 Review Cycle 2 reviewed head:
 `d55ef26a0cc29d28d9c7d69ecbce60eb0082146e`
 Scope Amendment 2 commit: `2348f130`
+Scope Amendment 2 remediation commit: `8c76b3ca`
 Remediation evidence-record commit and exact final PR head: recorded in PR #767
 and the final implementation handoff. A tracked file cannot contain the SHA and
 CI outcome of the commit that contains that same file without creating a
@@ -53,6 +54,7 @@ Out-of-scope changes made: NONE
 - `08411cfe` - docs: reconcile merged foundation control status
 - `d55ef26a` - docs: correct P0-01 closeout review evidence
 - `2348f130` - docs: approve final P0-01 remediation scope
+- `8c76b3ca` - docs: complete P0-01 closeout remediation
 
 The remediation evidence-record commit containing this updated report is
 recorded externally in PR #767, together with its exact final-head CI.
@@ -307,8 +309,8 @@ Changed files:
 CHANGELOG.md
 docs/engineering/README.md
 docs/engineering/agent-instructions/rollout-plan.md
-docs/engineering/ai-delivery/implementation-reports/P0-01-CLOSEOUT-implementation-report.md
 docs/engineering/ai-delivery/implementation-reports/CTRL-FOUNDATION-01-implementation-report.md
+docs/engineering/ai-delivery/implementation-reports/P0-01-CLOSEOUT-implementation-report.md
 docs/engineering/ai-delivery/tasks/P0-01-CLOSEOUT.md
 docs/engineering/repository-map/control-gaps.md
 docs/metrics/README.md
@@ -319,7 +321,8 @@ docs/publisher-services/task-status.md
 
 Stale-wording search: one match in this report's quoted verification command;
 no active control statement matches.
-Inaccurate-review search: no matches.
+Inaccurate-review search: one match in this report's quoted verification
+command; no active inaccurate historical-review claim matches.
 ADR-0001: line 3, Status: PROPOSED.
 ADR-0002: line 3, Status: PROPOSED.
 Platform inventory: line 3, Status: VERIFIED BASELINE; FINAL ENUM NOT APPROVED.
