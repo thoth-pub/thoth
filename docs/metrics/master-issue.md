@@ -1,8 +1,8 @@
 # Thoth Metrics Master Issue
 
-Status: OPEN  
-Issue: [#766 - Thoth Metrics: canonical ingestion, Sphinx orchestration and client cutover](https://github.com/thoth-pub/thoth/issues/766)  
-Created: 2026-07-24  
+Status: OPEN
+Issue: [#766 - Thoth Metrics: canonical ingestion, Sphinx orchestration and client cutover](https://github.com/thoth-pub/thoth/issues/766)
+Created: 2026-07-24
 Owner: CTO
 
 The GitHub issue is the live programme tracker.

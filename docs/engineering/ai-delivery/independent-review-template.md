@@ -4,10 +4,10 @@ Review the actual diff and evidence. Do not approve from the implementation repo
 
 # [TASK-ID] Independent Review
 
-Reviewer model:  
-Reasoning level:  
-Reviewed commit:  
-Pull request:  
+Reviewer model:
+Reasoning level:
+Reviewed commit:
+Pull request:
 Specification:
 
 ## 1. Decision

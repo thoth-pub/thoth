@@ -1,7 +1,7 @@
 # Metrics Source and Driver Inventory
 
-Status: INITIAL DESIGN INVENTORY; SOURCE MAPPINGS NOT APPROVED  
-Owner: Thoth Metrics programme  
+Status: INITIAL DESIGN INVENTORY; SOURCE MAPPINGS NOT APPROVED
+Owner: Thoth Metrics programme
 Evidence date: 2026-07-24
 
 ## 1. Purpose

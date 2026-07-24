@@ -6,9 +6,9 @@ Embeddable React/JavaScript metrics package published to npm.
 
 ## Branches
 
-GitHub default/release: `main`  
-Development: `dev`  
-CI branch filters: `main`, `dev`  
+GitHub default/release: `main`
+Development: `dev`
+CI branch filters: `main`, `dev`
 Target: `develop -> master`
 
 BR-WIDGET-01 must normalize branch names and preserve release automation.

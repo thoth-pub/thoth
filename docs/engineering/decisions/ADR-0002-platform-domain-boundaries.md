@@ -1,11 +1,11 @@
 # ADR-0002 - Distribution and Metrics Platform Domain Boundaries
 
-Status: PROPOSED  
-Date: 2026-07-24  
-Decision owner: CTO  
-Programmes affected: Publisher Services, Thoth Metrics  
-Repositories affected: `thoth`, `thoth-app`, `thoth-dissemination`, `thoth-sphinx`, `metrics-dashboard`, `metrics-widget`  
-Supersedes: None  
+Status: PROPOSED
+Date: 2026-07-24
+Decision owner: CTO
+Programmes affected: Publisher Services, Thoth Metrics
+Repositories affected: `thoth`, `thoth-app`, `thoth-dissemination`, `thoth-sphinx`, `metrics-dashboard`, `metrics-widget`
+Supersedes: None
 Superseded by: None
 
 ## 1. Context
@@ -292,7 +292,7 @@ Rollback:
 
 ## 10. Approval
 
-Approval required from: CTO  
-Approved by:  
-Approval date:  
+Approval required from: CTO
+Approved by:
+Approval date:
 Notes:

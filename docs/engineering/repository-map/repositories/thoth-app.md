@@ -6,9 +6,9 @@ Authenticated publisher and staff management UI for Thoth metadata and administr
 
 ## Branches
 
-GitHub default/release: `main`  
-Development: `dev`  
-Observed release: `dev -> main`  
+GitHub default/release: `main`
+Development: `dev`
+Observed release: `dev -> main`
 Target: `develop -> master`
 
 BR-APP-01 must normalize the branch topology before a long-lived programme integration branch is created, unless the CTO records a temporary exception.
@@ -76,10 +76,10 @@ Lint, production build and codegen consistency are not current GitHub gates and 
 
 ## Deployment
 
-Vercel team: Thoth  
-Node: 22.x  
-Production domain: `admin.thoth.pub`  
-Production branch observed: `main`  
+Vercel team: Thoth
+Node: 22.x
+Production domain: `admin.thoth.pub`
+Production branch observed: `main`
 Preview branch observed: `dev`
 
 Changing branch topology requires coordinated Vercel configuration and rollback evidence.

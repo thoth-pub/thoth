@@ -1,8 +1,8 @@
 # Distribution Platform Inventory
 
-Status: VERIFIED BASELINE; FINAL ENUM NOT APPROVED  
-Inventory owner: Publisher Services ADR-01  
-Evidence date: 2026-07-24  
+Status: VERIFIED BASELINE; FINAL ENUM NOT APPROVED
+Inventory owner: Publisher Services ADR-01
+Evidence date: 2026-07-24
 Observed `thoth-dissemination` reference: commit `5e88ce1b58e5f962cc4f4ef6fb00c08f50b57add`
 
 ## 1. Purpose

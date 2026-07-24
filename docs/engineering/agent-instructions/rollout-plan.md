@@ -1,6 +1,6 @@
 # Agent Instruction Rollout Plan
 
-Status: IN PROGRESS  
+Status: IN PROGRESS
 Owner: CTO
 
 ## 1. Current state

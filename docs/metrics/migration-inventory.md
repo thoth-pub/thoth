@@ -1,7 +1,7 @@
 # Thoth Metrics Historical Migration Inventory
 
-Status: TEMPLATE; DISCOVERY REQUIRED  
-Owner: Thoth Metrics programme  
+Status: TEMPLATE; DISCOVERY REQUIRED
+Owner: Thoth Metrics programme
 Production migration risk: CRITICAL
 
 ## 1. Source table

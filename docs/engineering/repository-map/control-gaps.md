@@ -1,6 +1,6 @@
 # Repository Control Gaps
 
-Status: Active findings  
+Status: Active findings
 Evidence date: 2026-07-24
 
 ## Foundation closeout

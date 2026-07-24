@@ -1,7 +1,7 @@
 # Engineering Decision Register
 
-Status: ACTIVE  
-Owner: CTO  
+Status: ACTIVE
+Owner: CTO
 Last updated: 2026-07-24
 
 | ADR | Decision | Status | Programmes | Approval blocker |

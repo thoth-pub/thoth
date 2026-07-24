@@ -8,24 +8,24 @@ Do not write `passed` without the exact command and result.
 
 ## 1. Repository state
 
-Repository:  
-Workflow: STANDARD | PROGRAMME_INTEGRATION  
-Base branch:  
-Base commit:  
-PR target:  
-Programme integration branch:  
-Task branch:  
-Head commit:  
-Pull request:  
-Expected branch deletion after merge: YES  
-Final programme PR required: YES | NO  
-Implementing model:  
+Repository:
+Workflow: STANDARD | PROGRAMME_INTEGRATION
+Base branch:
+Base commit:
+PR target:
+Programme integration branch:
+Task branch:
+Head commit:
+Pull request:
+Expected branch deletion after merge: YES
+Final programme PR required: YES | NO
+Implementing model:
 Reasoning level:
 
 ## 2. Scope confirmation
 
-Approved specification:  
-Implemented objective:  
+Approved specification:
+Implemented objective:
 
 Out-of-scope changes made: NONE | [explain and link to approval]
 
@@ -71,18 +71,18 @@ If yes:
 
 ## 7. API and compatibility effects
 
-GraphQL/API changes:  
-Generated schema/client updates:  
-Backwards compatibility:  
-Deprecations:  
+GraphQL/API changes:
+Generated schema/client updates:
+Backwards compatibility:
+Deprecations:
 Cross-repository dependencies:
 
 ## 8. Authorization and security
 
-Authorization paths changed:  
-Roles/scopes involved:  
-Negative authorization tests:  
-Secret or personal-data handling:  
+Authorization paths changed:
+Roles/scopes involved:
+Negative authorization tests:
+Secret or personal-data handling:
 Security limitations:
 
 ## 9. Tests and checks
@@ -151,24 +151,24 @@ Result:
 
 ## 10. Manual verification
 
-Environment:  
-Steps:  
-Observed result:  
+Environment:
+Steps:
+Observed result:
 Evidence link/screenshot/log reference:
 
 ## 11. CI
 
-CI status: PASSING | FAILING | PENDING | NOT AVAILABLE  
-Checks:  
+CI status: PASSING | FAILING | PENDING | NOT AVAILABLE
+Checks:
 Failures or warnings:
 
 ## 12. Rollout and rollback
 
-Initial state after merge:  
-Activation required:  
-Feature flag/configuration:  
-Migration sequence:  
-Rollback/disable procedure:  
+Initial state after merge:
+Activation required:
+Feature flag/configuration:
+Migration sequence:
+Rollback/disable procedure:
 Monitoring required:
 
 ## 13. Known limitations and deferred work

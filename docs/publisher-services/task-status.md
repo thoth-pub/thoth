@@ -1,8 +1,8 @@
 # Publisher Services Task Status
 
-Status: ACTIVE TRACKER  
-Programme owner: CTO  
-Master issue: [#765](https://github.com/thoth-pub/thoth/issues/765)  
+Status: ACTIVE TRACKER
+Programme owner: CTO
+Master issue: [#765](https://github.com/thoth-pub/thoth/issues/765)
 Last updated: 2026-07-24
 
 ## 1. Control rule

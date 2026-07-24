@@ -6,8 +6,8 @@ Canonical Rust parser and metadata authority for Creative Commons licence URLs r
 
 ## Branches
 
-GitHub default/release: `main`  
-Development: `develop`  
+GitHub default/release: `main`
+Development: `develop`
 Target: `develop -> master`
 
 BR-LIC-01 must normalize the release branch before publication.

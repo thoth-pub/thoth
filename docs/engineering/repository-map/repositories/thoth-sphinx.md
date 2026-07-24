@@ -6,10 +6,10 @@ Planned metrics collection, normalization, orchestration, rollup application, OP
 
 ## Current state
 
-Visibility: private  
-GitHub default branch: `main`  
-Repository content: empty as of 2026-07-24  
-CI: none  
+Visibility: private
+GitHub default branch: `main`
+Repository content: empty as of 2026-07-24
+CI: none
 Deployment: none verified
 
 The repository is not implementation-ready.

@@ -1,34 +1,34 @@
 # Environment and Deployment Map
 
-Status: Partially verified  
+Status: Partially verified
 Evidence date: 2026-07-24
 
 ## 1. Verified environments
 
 ### Thoth App
 
-Hosting: Vercel  
-Framework: Next.js  
-Node: 22.x  
-Production branch observed: `main`  
-Preview branch observed: `dev`  
+Hosting: Vercel
+Framework: Next.js
+Node: 22.x
+Production branch observed: `main`
+Preview branch observed: `dev`
 Production domain: `admin.thoth.pub`
 
 Production deployments are created from merges into `main`. Feature/development commits receive Vercel preview deployments.
 
 ### Metrics Dashboard
 
-Hosting: Vercel  
-Framework: Next.js  
-Node: 22.x  
-Production branch observed: `main`  
-Development branch: `develop`  
+Hosting: Vercel
+Framework: Next.js
+Node: 22.x
+Production branch observed: `main`
+Development branch: `develop`
 Production domain: `metrics.thoth.pub`
 
 ### Metrics Widget
 
-Delivery: npm package  
-Release trigger: published GitHub release  
+Delivery: npm package
+Release trigger: published GitHub release
 Validation before publish:
 
 - release tag equals `v<package.json version>`;
@@ -39,23 +39,23 @@ Validation before publish:
 
 ### Thoth
 
-Release artefact: container image in GHCR  
-Trigger: published GitHub release  
+Release artefact: container image in GHCR
+Trigger: published GitHub release
 Image: `ghcr.io/thoth-pub/thoth`
 
 The production compute platform, database migration execution path, deployment approval and rollback procedure were not verified in CTRL-02 and require a follow-up operations inventory.
 
 ### Thoth Dissemination
 
-Release artefact: Docker Hub image  
-Trigger: published GitHub release  
+Release artefact: Docker Hub image
+Trigger: published GitHub release
 Image: `openbookpublishers/thoth-dissemination`
 
 Operational execution also occurs through GitHub Actions. Some workflows can write to Thoth and external platforms and use protected credentials/environments.
 
 ### Thoth Sphinx
 
-Current environment: none verified  
+Current environment: none verified
 Planned architecture:
 
 - scheduled ECS/Fargate tasks;
@@ -69,8 +69,8 @@ Planned architecture must not be documented as deployed state.
 
 ### cc-license
 
-Delivery: Rust crate  
-Registry: crates.io is documented in the repository README.  
+Delivery: Rust crate
+Registry: crates.io is documented in the repository README.
 The exact publication procedure and release owner were not verified.
 
 ## 2. API endpoints referenced by repositories

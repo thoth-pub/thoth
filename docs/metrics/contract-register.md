@@ -1,6 +1,6 @@
 # Thoth Metrics Contract Register
 
-Status: ACTIVE DESIGN REGISTER  
+Status: ACTIVE DESIGN REGISTER
 Owner: Thoth Metrics programme
 
 ## 1. Normalized observation

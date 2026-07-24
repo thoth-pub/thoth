@@ -6,9 +6,9 @@ Canonical bibliographic and metrics domain, PostgreSQL model, GraphQL API, autho
 
 ## Branches
 
-GitHub default/release: `master`  
-Development: `develop`  
-Normal task: `feature/... -> develop`  
+GitHub default/release: `master`
+Development: `develop`
+Normal task: `feature/... -> develop`
 Release: `develop -> master`
 
 This repository conforms to the approved target topology.

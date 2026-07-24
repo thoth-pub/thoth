@@ -6,9 +6,9 @@ Existing execution engine for delivering metadata and files to external distribu
 
 ## Branches
 
-GitHub default/release: `main`  
-Development: `develop`  
-Normal feature PRs currently target `develop`  
+GitHub default/release: `main`
+Development: `develop`
+Normal feature PRs currently target `develop`
 Target release branch: `master`
 
 BR-DIS-01 must normalize the release branch before final programme release.

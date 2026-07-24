@@ -1,6 +1,6 @@
 # Publisher Services Acceptance Matrix
 
-Status: ACTIVE CONTROL MATRIX  
+Status: ACTIVE CONTROL MATRIX
 Owner: CTO
 
 This matrix records the minimum evidence required for programme acceptance. Task specifications may add stricter criteria.

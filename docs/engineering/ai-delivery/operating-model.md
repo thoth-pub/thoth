@@ -1,6 +1,6 @@
 # AI-led Engineering Operating Model
 
-Status: Proposed until merged and approved  
+Status: Proposed until merged and approved
 Owner: CTO
 
 ## 1. Purpose

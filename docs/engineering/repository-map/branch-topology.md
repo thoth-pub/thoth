@@ -1,6 +1,6 @@
 # Branch Topology
 
-Status: Verified observed state plus approved target policy  
+Status: Verified observed state plus approved target policy
 Evidence date: 2026-07-24
 
 ## 1. Approved target policy
@@ -17,8 +17,8 @@ Large programme flow:
 feature/<programme>/<slice> -> feature/<programme> -> develop -> master
 ```
 
-`develop` is the development integration branch.  
-`master` is the release/default branch.  
+`develop` is the development integration branch.
+`master` is the release/default branch.
 Merged task and slice branches are deleted.
 
 ## 2. Observed state

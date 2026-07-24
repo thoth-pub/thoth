@@ -1,6 +1,6 @@
 # Thoth Metrics Acceptance Matrix
 
-Status: ACTIVE CONTROL MATRIX  
+Status: ACTIVE CONTROL MATRIX
 Owner: CTO
 
 | Requirement | Work | Evidence | Gate |

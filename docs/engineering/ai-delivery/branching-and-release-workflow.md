@@ -1,7 +1,7 @@
 # Branching and Release Workflow
 
-Status: Proposed until merged and approved  
-Owner: CTO  
+Status: Proposed until merged and approved
+Owner: CTO
 Workflow: GitHub Flow (`ghf`)
 
 ## 1. Standard delivery flow

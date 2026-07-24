@@ -1,8 +1,8 @@
 # Thoth Engineering Control
 
-Status: ACTIVE AFTER MERGE  
-Owner: CTO  
-Foundation task: `CTRL-FOUNDATION-01`  
+Status: ACTIVE AFTER MERGE
+Owner: CTO
+Foundation task: `CTRL-FOUNDATION-01`
 Foundation pull request: [#764](https://github.com/thoth-pub/thoth/pull/764)
 
 ## 1. Purpose

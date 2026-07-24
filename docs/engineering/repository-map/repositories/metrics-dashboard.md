@@ -8,9 +8,9 @@ Current implementation combines Thoth metadata with the OPERAS metrics API. The 
 
 ## Branches
 
-GitHub default/release: `main`  
-Development: `develop`  
-Observed release: `develop -> main`  
+GitHub default/release: `main`
+Development: `develop`
+Observed release: `develop -> main`
 Target: `develop -> master`
 
 BR-DASH-01 must normalize the release branch and Vercel production branch.
@@ -59,9 +59,9 @@ CG-06 must be resolved before the final client migration:
 
 ## Deployment
 
-Vercel team: Thoth  
-Node: 22.x  
-Production domain: `metrics.thoth.pub`  
+Vercel team: Thoth
+Node: 22.x
+Production domain: `metrics.thoth.pub`
 Production branch observed: `main`
 
 ## Metrics migration invariants

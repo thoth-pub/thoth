@@ -1,7 +1,7 @@
 # Publisher Services Decision Summary
 
-Status: ACTIVE SUMMARY  
-Last updated: 2026-07-24  
+Status: ACTIVE SUMMARY
+Last updated: 2026-07-24
 Owner: CTO
 
 This file summarizes decisions. The approved technical design and approved ADRs remain authoritative.

@@ -1,6 +1,6 @@
 # Engineering Decisions
 
-Status: ACTIVE decision process  
+Status: ACTIVE decision process
 Owner: CTO
 
 This directory contains cross-programme Architecture Decision Records and their normative appendices.

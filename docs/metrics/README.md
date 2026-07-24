@@ -1,6 +1,6 @@
 # Thoth Metrics
 
-Status: CONTROL FOUNDATION IN PROGRESS  
+Status: CONTROL FOUNDATION IN PROGRESS
 Programme owner: CTO
 
 Primary repositories:

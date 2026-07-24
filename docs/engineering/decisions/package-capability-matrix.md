@@ -1,7 +1,7 @@
 # Package Capability Matrix
 
-Status: PROPOSED  
-Normative owner after approval: `ADR-0001`  
+Status: PROPOSED
+Normative owner after approval: `ADR-0001`
 Decision owner: CTO
 
 ## 1. Package order

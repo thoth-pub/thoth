@@ -1,8 +1,8 @@
 # Publisher Services and Distribution Configuration
 
-Status: CONTROL FOUNDATION IN PROGRESS  
-Programme owner: CTO  
-Primary coordinating repository: `thoth-pub/thoth`  
+Status: CONTROL FOUNDATION IN PROGRESS
+Programme owner: CTO
+Primary coordinating repository: `thoth-pub/thoth`
 Related repositories:
 
 - `thoth-pub/thoth-app`

@@ -1,11 +1,11 @@
 # Independent Review Brief - CTRL-FOUNDATION-01
 
-Review status: READY AFTER FINAL CONSOLIDATION COMMIT  
-Task: `CTRL-FOUNDATION-01`  
-Repository: `thoth-pub/thoth`  
-Pull request: [#764](https://github.com/thoth-pub/thoth/pull/764)  
-Base: `develop` at `652a499dfdfbaa7594537e0865c41ec617f52dc2`  
-Risk: LOW, documentation-only  
+Review status: READY AFTER FINAL CONSOLIDATION COMMIT
+Task: `CTRL-FOUNDATION-01`
+Repository: `thoth-pub/thoth`
+Pull request: [#764](https://github.com/thoth-pub/thoth/pull/764)
+Base: `develop` at `652a499dfdfbaa7594537e0865c41ec617f52dc2`
+Risk: LOW, documentation-only
 Production effect: None
 
 ## Reviewer independence

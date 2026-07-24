@@ -1,7 +1,7 @@
 # Thoth Metrics Rollout Plan
 
-Status: PROPOSED CONTROLLED SEQUENCE  
-Owner: CTO  
+Status: PROPOSED CONTROLLED SEQUENCE
+Owner: CTO
 Production activation: explicit CTO approval required
 
 ## 1. Principles

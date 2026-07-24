@@ -1,17 +1,17 @@
 # CTRL-FOUNDATION-01 - Engineering Control Foundation
 
-Status: IMPLEMENTATION COMPLETE; INDEPENDENT REVIEW REQUIRED  
-Programme: Shared Engineering Control  
-Repository: `thoth-pub/thoth`  
-Risk: LOW  
-Workflow: STANDARD  
-Base branch: `develop`  
-Base commit: `652a499dfdfbaa7594537e0865c41ec617f52dc2`  
-Task branch: `feature/ai-delivery-operating-model`  
-PR target: `develop`  
-Pull request: [#764](https://github.com/thoth-pub/thoth/pull/764)  
-Publisher Services issue: [#765](https://github.com/thoth-pub/thoth/issues/765)  
-Thoth Metrics issue: [#766](https://github.com/thoth-pub/thoth/issues/766)  
+Status: IMPLEMENTATION COMPLETE; INDEPENDENT REVIEW REQUIRED
+Programme: Shared Engineering Control
+Repository: `thoth-pub/thoth`
+Risk: LOW
+Workflow: STANDARD
+Base branch: `develop`
+Base commit: `652a499dfdfbaa7594537e0865c41ec617f52dc2`
+Task branch: `feature/ai-delivery-operating-model`
+PR target: `develop`
+Pull request: [#764](https://github.com/thoth-pub/thoth/pull/764)
+Publisher Services issue: [#765](https://github.com/thoth-pub/thoth/issues/765)
+Thoth Metrics issue: [#766](https://github.com/thoth-pub/thoth/issues/766)
 Production effect: None
 
 ## 1. Objective

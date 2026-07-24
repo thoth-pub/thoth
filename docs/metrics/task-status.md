@@ -1,8 +1,8 @@
 # Thoth Metrics Task Status
 
-Status: ACTIVE TRACKER  
-Programme owner: CTO  
-Master issue: [#766](https://github.com/thoth-pub/thoth/issues/766)  
+Status: ACTIVE TRACKER
+Programme owner: CTO
+Master issue: [#766](https://github.com/thoth-pub/thoth/issues/766)
 Last updated: 2026-07-24
 
 ## 1. Control rule

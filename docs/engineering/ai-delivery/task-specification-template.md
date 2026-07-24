@@ -8,17 +8,17 @@ A task may not enter implementation with unresolved required fields.
 
 # [TASK-ID] - [Task title]
 
-Status: DRAFT | APPROVED | IMPLEMENTING | IN REVIEW | MERGE READY | RELEASED | CLOSED  
-Programme: [programme]  
-Repository: [owner/repository]  
-Workflow: STANDARD | PROGRAMME_INTEGRATION  
-Base branch: [normally `develop`; otherwise approved `feature/<programme>`]  
-PR target: [`develop` or approved `feature/<programme>`]  
-Programme integration branch: [branch or `None`]  
-Risk: LOW | MEDIUM | HIGH | CRITICAL  
-Owner: [role/person]  
-Approved by: [CTO/approver]  
-Dependencies: [task IDs, PRs, releases or `None`]  
+Status: DRAFT | APPROVED | IMPLEMENTING | IN REVIEW | MERGE READY | RELEASED | CLOSED
+Programme: [programme]
+Repository: [owner/repository]
+Workflow: STANDARD | PROGRAMME_INTEGRATION
+Base branch: [normally `develop`; otherwise approved `feature/<programme>`]
+PR target: [`develop` or approved `feature/<programme>`]
+Programme integration branch: [branch or `None`]
+Risk: LOW | MEDIUM | HIGH | CRITICAL
+Owner: [role/person]
+Approved by: [CTO/approver]
+Dependencies: [task IDs, PRs, releases or `None`]
 Target branch name: `feature/[programme-or-area]/[task-id-or-short-name]`
 
 ## 1. Objective
@@ -180,9 +180,9 @@ The agent must use:
 
 ## 15. Recommended execution
 
-Implementation model: [model]  
-Reasoning level: [level]  
-Independent reviewer: [model/family]  
+Implementation model: [model]
+Reasoning level: [level]
+Independent reviewer: [model/family]
 Review reasoning level: [level]
 
 ## 16. Branch and integration plan
@@ -197,6 +197,6 @@ Review reasoning level: [level]
 
 ## 17. Approval
 
-Approved for implementation by:  
-Date:  
+Approved for implementation by:
+Date:
 Notes:

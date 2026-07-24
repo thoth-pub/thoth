@@ -1,6 +1,6 @@
 # Repository-local Agent Instructions
 
-Status: ACTIVE after the containing PR is approved and merged  
+Status: ACTIVE after the containing PR is approved and merged
 Owner: CTO
 
 ## Purpose

@@ -4,12 +4,12 @@ Use for an ADR or programme decision that constrains implementation.
 
 # ADR-[NUMBER] - [Decision title]
 
-Status: PROPOSED | APPROVED | SUPERSEDED | REJECTED  
-Date:  
-Decision owner:  
-Programmes affected:  
-Repositories affected:  
-Supersedes:  
+Status: PROPOSED | APPROVED | SUPERSEDED | REJECTED
+Date:
+Decision owner:
+Programmes affected:
+Repositories affected:
+Supersedes:
 Superseded by:
 
 ## 1. Context
@@ -26,16 +26,16 @@ Describe the problem, current state, constraints and why a decision is required.
 
 ### Option A - [name]
 
-Description:  
-Advantages:  
-Disadvantages:  
+Description:
+Advantages:
+Disadvantages:
 Operational implications:
 
 ### Option B - [name]
 
-Description:  
-Advantages:  
-Disadvantages:  
+Description:
+Advantages:
+Disadvantages:
 Operational implications:
 
 ## 4. Decision
@@ -76,10 +76,10 @@ Include:
 
 ## 7. Implementation impact
 
-Affected tasks:  
-Required sequencing:  
-Required migrations:  
-Required client changes:  
+Affected tasks:
+Required sequencing:
+Required migrations:
+Required client changes:
 Required operational changes:
 
 ## 8. Validation
@@ -91,6 +91,6 @@ Evidence required to prove the decision works:
 
 ## 9. Approval
 
-Approved by:  
-Approval date:  
+Approved by:
+Approval date:
 Notes:
