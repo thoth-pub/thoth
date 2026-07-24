@@ -407,3 +407,60 @@ Notes:
 * This approval does not constitute retrospective independent approval of PR #764.
 * The assigned Claude reviewer must inspect PR #764 and the closeout PR and return `APPROVED` before P0-01 may be marked `CLOSED`.
 * The implementing agent may create the task branch, commit, push and open a draft PR, but may not approve or merge it.
+
+## Approved Scope Amendment 1 - Shared foundation status consistency
+
+Approved by: Javi, CTO
+
+Approval date: 2026-07-24
+
+Independent-review decision being addressed: `CHANGES REQUIRED`
+
+Risk: LOW, unchanged
+
+The first independent review of the complete PR #764 foundation and PR #767
+closeout found four P1 issues:
+
+1. repository-wide engineering and Metrics control documents still described
+   PR #764 as unmerged or awaiting merge;
+2. the foundation implementation report incorrectly implied that an independent
+   review occurred before PR #764 merged;
+3. the proposed issue #765 replacement removed existing authority links instead
+   of changing only the P0-01 status;
+4. the closeout implementation report did not contain a sufficiently exact
+   commit and CI evidence record.
+
+This amendment authorizes factual reconciliation in these additional files:
+
+* `docs/engineering/README.md`;
+* `docs/engineering/repository-map/control-gaps.md`;
+* `docs/engineering/ai-delivery/implementation-reports/CTRL-FOUNDATION-01-implementation-report.md`;
+* `docs/metrics/README.md`;
+* `docs/metrics/task-status.md`.
+
+The complete amended allowlist is:
+
+* `CHANGELOG.md`;
+* `docs/engineering/README.md`;
+* `docs/engineering/repository-map/control-gaps.md`;
+* `docs/engineering/ai-delivery/implementation-reports/CTRL-FOUNDATION-01-implementation-report.md`;
+* `docs/engineering/ai-delivery/implementation-reports/P0-01-CLOSEOUT-implementation-report.md`;
+* `docs/engineering/ai-delivery/tasks/P0-01-CLOSEOUT.md`;
+* `docs/metrics/README.md`;
+* `docs/metrics/task-status.md`;
+* `docs/publisher-services/README.md`;
+* `docs/publisher-services/rollout-plan.md`;
+* `docs/publisher-services/task-status.md`.
+
+This is a narrow cross-programme control-consistency exception because every
+newly authorized statement concerns the factual merge and review state of the
+shared foundation PR #764. It does not combine Publisher Services and Metrics
+implementation scopes, approve Metrics architecture or work packages, close
+`MET-CTRL-01`, make any Publisher Services or Metrics implementation task
+`READY`, or authorize future cross-programme changes.
+
+No runtime, migration, API, authorization, deployment, release or production
+scope is added. Publisher Services and Metrics implementation scopes remain
+distinct. P0-01 remains `MERGED`, not `CLOSED`, until remediation receives fresh
+independent approval, PR #767 is merged by the CTO, and issue #765 is
+synchronized under separate authorization.
