@@ -9,7 +9,8 @@ Base commit: `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`
 PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/publisher-services/p0-01-closeout`
-Head commit: PENDING FINAL PR-NUMBER COMMIT
+Implementation content commit: `3d51e7a1`
+Final PR head: PENDING FINAL PR-NUMBER COMMIT
 Pull request: PENDING
 Expected branch deletion after merge: YES
 Final programme PR required: NO
@@ -30,7 +31,7 @@ Out-of-scope changes made: NONE
 ## 3. Commits
 
 - `c9b00e14` - docs: approve Publisher Services P0-01 closeout task
-- PENDING - docs: reconcile Publisher Services foundation status
+- `3d51e7a1` - docs: reconcile Publisher Services foundation status
 - PENDING - docs: link Publisher Services closeout PR
 
 ## 4. Files changed
@@ -122,7 +123,7 @@ git diff --check \
 Result:
 
 ```text
-PENDING FINAL COMMITTED HEAD
+No output; exit status 0 at implementation content commit `3d51e7a1`.
 ```
 
 ### Unit tests
@@ -169,8 +170,7 @@ No code/static-analysis surface changed.
 
 ### Other required checks
 
-Commands and results will be replaced with final committed-head evidence before
-independent review:
+Commands:
 
 ```text
 git diff --name-only \
@@ -192,7 +192,22 @@ grep -n 'FINAL ENUM NOT APPROVED' \
 Result:
 
 ```text
-PENDING FINAL COMMITTED HEAD
+Changed files:
+CHANGELOG.md
+docs/engineering/ai-delivery/implementation-reports/P0-01-CLOSEOUT-implementation-report.md
+docs/engineering/ai-delivery/tasks/P0-01-CLOSEOUT.md
+docs/publisher-services/README.md
+docs/publisher-services/rollout-plan.md
+docs/publisher-services/task-status.md
+
+Stale-wording search: no matches.
+ADR-0001: line 3, Status: PROPOSED.
+ADR-0002: line 3, Status: PROPOSED.
+Platform inventory: line 3, Status: VERIFIED BASELINE; FINAL ENUM NOT APPROVED.
+Reviewed-only file diff: no output.
+Relative links:
+docs/publisher-services/README.md: ../engineering/design-references.md -> OK
+docs/engineering/ai-delivery/implementation-reports/P0-01-CLOSEOUT-implementation-report.md: ../tasks/P0-01-CLOSEOUT.md -> OK
 ```
 
 ## 10. Manual verification
