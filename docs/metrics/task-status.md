@@ -19,7 +19,7 @@ A work package is not one implementation task. Each must be decomposed into boun
 | ADR-0002 Platform boundaries | `thoth` | MEDIUM | PROPOSED | PR #764 -> `develop` | CTO decision | #766 |
 | SPHINX-BOOT-01 Repository bootstrap | `thoth-sphinx` | MEDIUM | BLOCKED | current `develop`; target `develop` after BR-SPHINX-01 verification | MET-CTRL-01; BR-SPHINX-01; approved bootstrap spec | #766 |
 | THOTH-DB-CTRL-01 Diesel generation procedure | `thoth` | MEDIUM | BLOCKED | `develop` -> `develop` | verified procedure | #766 |
-| BR-DASH-01 Dashboard branch readiness | dashboard | HIGH | BLOCKED | actual `develop`/`main` | Vercel rollback | #766 |
+| BR-DASH-01 Dashboard branch readiness | dashboard | HIGH | BLOCKED | observed `dev -> main`; reconcile stale `develop`, then normalize to `develop -> master` | Vercel rollback | #766 |
 | BR-WIDGET-01 Widget branch readiness | widget | HIGH | BLOCKED | actual `dev`/`main` | npm release protection | #766 |
 | BR-APP-01 App branch readiness | app | HIGH | BLOCKED | actual `dev`/`main` | Vercel branch plan | #766 |
 
@@ -47,6 +47,11 @@ develop -> feature/metrics -> feature/metrics/<slice> -> feature/metrics -> deve
 ```
 
 Do not create integration branches until a verified `develop` branch and release-protection decision exist.
+
+For `metrics-dashboard`, do not create `feature/metrics` from the stale
+`develop` branch. BR-DASH-01 must first reconcile active `dev` history into the
+target `develop` branch, or an explicit CTO exception must authorize another
+verified base.
 
 ## 5. Immediate next actions
 

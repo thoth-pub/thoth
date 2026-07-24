@@ -22,8 +22,14 @@ Hosting: Vercel
 Framework: Next.js
 Node: 22.x
 Production branch observed: `main`
-Development branch: `develop`
+Active development branch observed: `dev`
 Production domain: `metrics.thoth.pub`
+
+Production deployments are associated with `main`. Active development is
+observed on `dev`. The existing `develop` branch is stale and must not be used
+as an implementation base before BR-DASH-01 reconciles it. Vercel production
+and preview branch behaviour must be reverified during BR-DASH-01 rather than
+inferred from Git branch names.
 
 ### Metrics Widget
 

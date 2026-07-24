@@ -1,5 +1,7 @@
 # Repository: thoth-pub/metrics-dashboard
 
+Evidence date: 2026-07-24
+
 ## Responsibility
 
 Publisher-facing analytics dashboard.
@@ -9,11 +11,24 @@ Current implementation combines Thoth metadata with the OPERAS metrics API. The 
 ## Branches
 
 GitHub default/release: `main`
-Development: `develop`
-Observed release: `develop -> main`
-Target: `develop -> master`
+Active development: `dev`
+Legacy stale branch: `develop`
+Observed release: `dev -> main`
+Target after BR-DASH-01: `develop -> master`
 
-BR-DASH-01 must normalize the release branch and Vercel production branch.
+Verified branch evidence:
+
+- `main`: `92d90380e948b3f11f88821054fbad9a5a07f387`;
+- `dev`: `1f81745e6d9e812baab62a19e41a0c0f3b9ff0c9`;
+- stale `develop`: `1619899076d16de81abf5c2c6abdd40d985512e6`;
+- `dev` is 10 commits ahead of `develop`, with no commits behind.
+
+Until BR-DASH-01 reconciles the branches, implementation work must branch from
+the verified `dev` branch. Another base requires an explicit CTO exception.
+
+BR-DASH-01 must reconcile the active development history before normalizing the
+development branch, release branch and Vercel configuration. PR #764 does not
+perform that normalization.
 
 ## Stack
 

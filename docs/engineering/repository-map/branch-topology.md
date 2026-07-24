@@ -39,7 +39,7 @@ The Metrics design requires one repository-local `feature/metrics` integration b
 | `thoth-app` | `main` | `dev` | `dev -> main` | normalization required |
 | `thoth-dissemination` | `main` | `develop` | `develop -> main` | release-branch normalization required |
 | `thoth-sphinx` | `main` | `develop` | none; placeholder-only README | `master`/protection/bootstrap required |
-| `metrics-dashboard` | `main` | `develop` | `develop -> main` | release/Vercel normalization required |
+| `metrics-dashboard` | `main` | `dev` | `dev -> main` | development/release/Vercel normalization required |
 | `metrics-widget` | `main` | `dev` | releases from `main` | normalization required |
 | `cc-license` | `main` | `develop` | release branch `main` | release-branch normalization required |
 
@@ -93,11 +93,18 @@ Risk: MEDIUM before runtime exists.
 
 ### BR-DASH-01 - Normalize `metrics-dashboard`
 
-- create `master` from current `main`;
-- retain `develop`;
-- update Vercel production branch, default branch and protections;
-- verify preview/production domains;
-- retain `main` through an observation window.
+- verify `dev`, `develop`, `main`, recent merged pull requests and Vercel branch
+  settings;
+- reconcile the active `dev` history into the target `develop` branch, using a
+  fast-forward only when Git proves it is safe;
+- otherwise use a separately reviewed merge or replacement plan that preserves
+  history;
+- create `master` from the verified current `main`;
+- update the default branch, protections and Vercel production branch only under
+  this separately approved HIGH-risk task;
+- retain `main`, `dev` and the old `develop` reference until all external
+  references and rollback requirements are verified;
+- prohibit creation of `feature/metrics` from stale `develop`.
 
 Risk: HIGH because production deployment routing changes.
 
