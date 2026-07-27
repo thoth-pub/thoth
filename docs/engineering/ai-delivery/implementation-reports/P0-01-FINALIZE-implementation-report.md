@@ -10,8 +10,7 @@ PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/publisher-services/p0-01-finalize`
 Task specification: [`P0-01-FINALIZE.md`](../tasks/P0-01-FINALIZE.md)
-Pull request: [#NNN](https://github.com/thoth-pub/thoth/pull/NNN) (draft; number
-recorded after the branch is pushed)
+Pull request: [#768](https://github.com/thoth-pub/thoth/pull/768) (draft)
 Implementing model: Codex
 Reasoning level: High
 Independent reviewer: fresh non-implementing context, high reasoning
@@ -246,7 +245,7 @@ Implement the approved Publisher Services and Distribution Configuration design 
 - [Foundation implementation report](https://github.com/thoth-pub/thoth/blob/b5b1622e54cb3c6fb372dcf02366c8dc4e38654e/docs/engineering/ai-delivery/implementation-reports/CTRL-FOUNDATION-01-implementation-report.md)
 - [Foundation PR #764](https://github.com/thoth-pub/thoth/pull/764)
 - [P0-01 closeout PR #767](https://github.com/thoth-pub/thoth/pull/767)
-- [P0-01 finalization PR #NNN](https://github.com/thoth-pub/thoth/pull/NNN)
+- [P0-01 finalization PR #768](https://github.com/thoth-pub/thoth/pull/768)
 
 The Publisher Services design requires one fresh task branch and one PR per task. There is no long-lived `feature/publisher-services` integration branch.
 

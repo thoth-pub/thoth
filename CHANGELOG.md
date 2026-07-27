@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
   - [767](https://github.com/thoth-pub/thoth/pull/767) - Reconcile the Publisher Services programme controls with the merged P0-01 foundation while preserving the remaining independent-review, ADR, inventory and branch-readiness gates
+  - [768](https://github.com/thoth-pub/thoth/pull/768) - Finalize the Publisher Services P0-01 repository closeout: record the merged closeout PR #767's independent approval and final-head CI evidence, mark P0-01 closed as the authoritative repository record, and replace the issue-synchronization rollback with a guarded procedure (documentation and control records only)
 
 ## [[1.6.1]](https://github.com/thoth-pub/thoth/releases/tag/v1.6.1) - 2026-07-23
 ### Fixed
