@@ -71,7 +71,14 @@ Where sources conflict, stop and escalate. Chat history is not authoritative.
 BLOCKED FOR IMPLEMENTATION
 ```
 
-Reasons:
+Achieved:
+
+- `ADR-0002` platform domain boundaries is `APPROVED` (CTO, 2026-07-27, approval
+  PR [#769](https://github.com/thoth-pub/thoth/pull/769)). This removes one
+  shared-ADR dependency and does not, by itself, make ADR-01, BE-02 or any other
+  task ready.
+
+Reasons still blocking:
 
 1. The P0-01 control foundation is `CLOSED`. It merged through
    [PR #764](https://github.com/thoth-pub/thoth/pull/764) at
@@ -83,15 +90,14 @@ Reasons:
    final inventory, satisfy branch readiness, or make any implementation task
    ready. The remaining reasons below keep the programme blocked.
 2. `ADR-0001` package capability model is `PROPOSED`.
-3. `ADR-0002` platform domain boundaries is `PROPOSED`.
-4. Publisher Services `ADR-01` has not finalized or approved the
+3. Publisher Services `ADR-01` has not finalized or approved the
    distribution-platform enum.
-5. Branch-readiness tasks are required before work in repositories whose
+4. Branch-readiness tasks are required before work in repositories whose
    current topology differs from policy.
 
-Discovery, review and documentation may continue. P0-01 closure does not
-authorize production implementation, which must not start until its applicable
-architecture, specification and branch-readiness gates pass.
+Discovery, review and documentation may continue. P0-01 closure and ADR-0002
+approval do not authorize production implementation, which must not start until
+its applicable architecture, specification and branch-readiness gates pass.
 
 ## 6. Files
 

@@ -2,12 +2,12 @@
 
 Status: ACTIVE
 Owner: CTO
-Last updated: 2026-07-24
+Last updated: 2026-07-27
 
 | ADR | Decision | Status | Programmes | Approval blocker |
 |---|---|---|---|---|
 | `ADR-0001` | Publisher package capability model | PROPOSED | Publisher Services, Thoth Metrics, OAI-PMH | CTO approval of ownership, matrix and upgrade/export semantics |
-| `ADR-0002` | Distribution and metrics platform domain boundaries | PROPOSED | Publisher Services, Thoth Metrics | CTO approval of strict type separation and no initial cross-domain mapping |
+| `ADR-0002` | Distribution and metrics platform domain boundaries | APPROVED | Publisher Services, Thoth Metrics | Satisfied - CTO approved strict type separation and no initial cross-domain mapping on 2026-07-27 through PR [#769](https://github.com/thoth-pub/thoth/pull/769) |
 
 ## Merge and implementation rules
 

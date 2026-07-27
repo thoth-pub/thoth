@@ -103,6 +103,14 @@ The initial programme does not store raw clickstream events in Thoth, create a s
 BLOCKED FOR IMPLEMENTATION
 ```
 
+Achieved:
+
+- `ADR-0002` platform domain boundaries is `APPROVED` (CTO, 2026-07-27, approval
+  PR [#769](https://github.com/thoth-pub/thoth/pull/769)) and is no longer a
+  blocking control. `MetricPlatform` remains separate from `DistributionPlatform`
+  with no initial cross-domain mapping. Approval removes one shared-ADR
+  dependency and does not make any work package ready.
+
 Blocking controls:
 
 1. The shared engineering-control foundation is closed: PR #764 merged, and its
@@ -111,13 +119,12 @@ Blocking controls:
    programme control task `MET-CTRL-01` nevertheless remains `CHANGES REQUIRED`
    and is not yet closed.
 2. `ADR-0001` is `PROPOSED`.
-3. `ADR-0002` is `PROPOSED`.
-4. `thoth-sphinx` is placeholder-only and has not been bootstrapped.
-5. Thoth Diesel generation procedure is unresolved.
-6. Branch topology differs in Sphinx and client repositories.
-7. Service-role codes require approval before WP5.
-8. Representative source fixtures and COUNTER mappings are missing for source-specific work.
-9. Guaranteed OPERAS inbound discovery is unavailable.
+3. `thoth-sphinx` is placeholder-only and has not been bootstrapped.
+4. Thoth Diesel generation procedure is unresolved.
+5. Branch topology differs in Sphinx and client repositories.
+6. Service-role codes require approval before WP5.
+7. Representative source fixtures and COUNTER mappings are missing for source-specific work.
+8. Guaranteed OPERAS inbound discovery is unavailable.
 
 Discovery, benchmarking, fixture collection and task specification may continue.
 

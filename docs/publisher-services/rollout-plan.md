@@ -35,14 +35,16 @@ Achieved evidence:
   [#767](https://github.com/thoth-pub/thoth/pull/767) (reviewed content head
   `d72137893ddea512c0d05c81d310eb59d045cd2b`) was independently `APPROVED` and
   merged into `develop` as `bac598e32abbd0d7e69ff467c82945ee00df02ba` on
-  2026-07-27, making the repository the authoritative P0-01 closure record.
+  2026-07-27, making the repository the authoritative P0-01 closure record;
+- issue #765 synchronized on 2026-07-27 as an external mirror of the completed
+  repository closeout; issue #765 remains open;
+- `ADR-0002` platform domain boundaries approved by the CTO on 2026-07-27
+  (approval PR [#769](https://github.com/thoth-pub/thoth/pull/769)); this removes
+  one shared-ADR dependency and does not unlock implementation.
 
 Outstanding evidence:
 
-- separately authorized issue #765 synchronization as an external mirror of the
-  completed repository closeout (it does not approve architecture or unlock
-  implementation);
-- ADR-0001 and ADR-0002 approval;
+- ADR-0001 approval;
 - Publisher Services ADR-01 specification and final platform-inventory
   approval;
 - applicable repository/branch-readiness decisions;

@@ -47,11 +47,11 @@ The target is daily country-level `title_sessions` using GET 200/206 requests, D
 
 Outbound uses durable Thoth claims. Sphinx delivers idempotently. Direct mappings are excluded inbound. Local corrections after remote delivery create divergence issues. Inbound completeness is not guaranteed without cursor, replication or complete snapshots.
 
-## 2. Proposed shared decisions
+## 2. Shared decisions
 
-`ADR-0001` is required for entitlements, serving, imports, export and collection policy.
+`ADR-0001` remains `PROPOSED`. It is required for entitlements, serving, imports, export and collection policy.
 
-`ADR-0002` is required for metric platform implementation. `MetricPlatform` remains separate from `DistributionPlatform`.
+`ADR-0002` is `APPROVED` (CTO, 2026-07-27, approval PR [#769](https://github.com/thoth-pub/thoth/pull/769)) as written, and is required for metric platform implementation. `MetricPlatform` remains a separate domain type from `DistributionPlatform`, with no name-based conversion and no initial cross-domain mapping.
 
 ## 3. Decisions still required
 

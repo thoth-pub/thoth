@@ -4,7 +4,7 @@ Status: ACTIVE TRACKER
 Programme owner: CTO
 Master issue: [#765](https://github.com/thoth-pub/thoth/issues/765)
 Approved design: [private Google Doc](https://docs.google.com/document/d/1kr2Ft0Y4pxgcXGyFAKs_wfFx4I0jlxEvaceswE5Dus8/edit), Drive revision `3`
-Last updated: 2026-07-24
+Last updated: 2026-07-27
 
 ## 1. Control rule
 
@@ -19,11 +19,11 @@ No task moves to `READY` without an approved specification, architecture depende
 | Task | Repository | Risk | Status | Verified base / PR target | Blocking dependencies | Issue | PR | Acceptance |
 |---|---|---:|---|---|---|---|---|---|
 | P0-01 Control documents and tracker | `thoth` | LOW | CLOSED | `develop` at `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06` / `develop` | None; issue #765 synchronization is a separately authorized external mirror of the completed repository closeout | [#765](https://github.com/thoth-pub/thoth/issues/765) | Foundation [#764](https://github.com/thoth-pub/thoth/pull/764); closeout [#767](https://github.com/thoth-pub/thoth/pull/767) merged as `bac598e3`; finalization [#768](https://github.com/thoth-pub/thoth/pull/768) | CLOSED - PR #767 independently `APPROVED` and merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba` on 2026-07-27; reviewed content head `d72137893ddea512c0d05c81d310eb59d045cd2b`; repository-finalized |
-| ADR-01 Platform inventory/final architecture | `thoth` | MEDIUM | BLOCKED | `develop` / `develop` | P0-01; ADR-0002 approval | #765 | TBD | NOT STARTED |
+| ADR-01 Platform inventory/final architecture | `thoth` | MEDIUM | BLOCKED | `develop` / `develop` | missing approved bounded ADR-01 specification; final distribution-platform inventory decision | #765 | TBD | NOT STARTED |
 | LIC-01 Expand `cc-license` | `cc-license` | MEDIUM | BLOCKED | `develop` / `develop` | P0-01; BR-LIC-01 or CTO exception; approved spec | #765 | TBD | NOT STARTED |
 | LIC-02 Enforce supported licences | `thoth` | HIGH | BLOCKED | `develop` / `develop` | LIC-01 release; production licence audit plan | #765 | TBD | NOT STARTED |
 | BE-01 Publisher package model | `thoth` | MEDIUM | BLOCKED | `develop` / `develop` | P0-01; ADR-0001 approval | #765 | TBD | NOT STARTED |
-| BE-02 Distribution platform model | `thoth` | HIGH | BLOCKED | `develop` / `develop` | ADR-01; ADR-0002 approval | #765 | TBD | NOT STARTED |
+| BE-02 Distribution platform model | `thoth` | HIGH | BLOCKED | `develop` / `develop` | ADR-01 | #765 | TBD | NOT STARTED |
 | BE-03 Protected service configuration | `thoth` | HIGH | BLOCKED | `develop` / `develop` | BE-01; BE-02 | #765 | TBD | NOT STARTED |
 | BE-04 Durable distribution jobs | `thoth` | HIGH | BLOCKED | `develop` / `develop` | BE-02; BE-03 | #765 | TBD | NOT STARTED |
 | MIG-01 Audit/production backfill | `thoth` + operations | CRITICAL | BLOCKED | dedicated task branch -> `develop`; separately approved production run | BE-01/02/03; licence audit; dry run | #765 | TBD | NOT STARTED |
@@ -51,10 +51,11 @@ Each branch starts from the repository's verified development branch and targets
 
 ## 4. Next actions
 
-1. apply the separately authorized issue #765 synchronization as an external
-   mirror of the completed repository closeout; it does not approve architecture
-   or unlock implementation;
-2. approve or amend ADR-0001 and ADR-0002;
+1. `ADR-0002` platform domain boundaries is `APPROVED` (CTO, 2026-07-27, approval
+   PR [#769](https://github.com/thoth-pub/thoth/pull/769)); this removes one
+   shared-ADR dependency and does not approve architecture or unlock
+   implementation;
+2. approve or amend `ADR-0001` (immediate decision);
 3. prepare and approve the bounded ADR-01 specification before architecture
    implementation starts;
 4. finalize and approve the distribution-platform inventory through ADR-01;

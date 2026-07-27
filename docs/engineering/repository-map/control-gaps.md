@@ -35,9 +35,14 @@ Use verified actual branches until normalization or explicit exceptions complete
 
 App, Sphinx, dashboard, widget and cc-license remain outstanding. Dissemination has incomplete controls.
 
-### CG-06 - Shared ADRs remain proposed
+### CG-06 - Shared ADR-0001 remains proposed
 
-ADR-0001 and ADR-0002 require explicit CTO approval and independent review before dependent implementation.
+ADR-0002 was approved by the CTO on 2026-07-27 and recorded as `APPROVED` through
+approval PR [#769](https://github.com/thoth-pub/thoth/pull/769); its independent
+review and merge close this part of the gate. ADR-0001 remains the unresolved
+shared-ADR gate and requires explicit CTO approval and independent review before
+its dependent implementation. Approving ADR-0002 removes one dependency and does
+not make any implementation task ready.
 
 ### CG-07 - Publisher Services platform ADR open
 

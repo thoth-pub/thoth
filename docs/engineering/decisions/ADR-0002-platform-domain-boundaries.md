@@ -1,6 +1,6 @@
 # ADR-0002 - Distribution and Metrics Platform Domain Boundaries
 
-Status: PROPOSED
+Status: APPROVED
 Date: 2026-07-24
 Decision owner: CTO
 Programmes affected: Publisher Services, Thoth Metrics
@@ -293,6 +293,7 @@ Rollback:
 ## 10. Approval
 
 Approval required from: CTO
-Approved by:
-Approval date:
-Notes:
+Approved by: Javi, CTO
+Approval date: 2026-07-27
+Notes: Approved as written. DistributionPlatform and MetricPlatform remain
+separate domain types, with no initial cross-domain mapping.
