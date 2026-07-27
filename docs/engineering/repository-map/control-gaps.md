@@ -5,14 +5,17 @@ Evidence date: 2026-07-24
 
 ## Foundation closeout
 
-### CG-01 - Independent review of PR #764
+### CG-01 - Independent review of PR #764 (RESOLVED 2026-07-27)
 
 PR #764 merged into `develop` as
 `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06` without a submitted independent
-review. The subsequent retrospective independent review of the complete PR #764
-foundation and PR #767 closeout returned `CHANGES REQUIRED`. Remediation through
-PR #767 and fresh independent approval of its exact final head remain
-outstanding.
+review. This gap is now resolved retrospectively. After remediation, the
+complete PR #764 foundation and PR #767 closeout received an independent
+`APPROVED` review at content head
+`d72137893ddea512c0d05c81d310eb59d045cd2b`, and PR #767 merged into `develop`
+as `bac598e32abbd0d7e69ff467c82945ee00df02ba` on 2026-07-27, closing P0-01. The
+merged repository is the authoritative P0-01 closure record. The earlier
+`CHANGES REQUIRED` and `BLOCKED` review cycles are historical evidence only.
 
 ### CG-02 - External Metrics design spelling
 

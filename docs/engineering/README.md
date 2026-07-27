@@ -88,14 +88,18 @@ Achieved:
 
 - [x] PR #764 merged into `develop` as
   `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`;
-- [x] PR #764 final-head CI passed.
+- [x] PR #764 final-head CI passed;
+- [x] the retrospective independent review's P1 findings were resolved;
+- [x] closeout PR [#767](https://github.com/thoth-pub/thoth/pull/767) (reviewed
+  content head `d72137893ddea512c0d05c81d310eb59d045cd2b`) received an
+  independent `APPROVED` review;
+- [x] PR #767 merged into `develop` as
+  `bac598e32abbd0d7e69ff467c82945ee00df02ba` on 2026-07-27, closing P0-01;
+- [x] the repository programme trackers record the completed closeout.
 
 Outstanding:
 
-- [ ] resolve the retrospective independent review's P1 findings;
-- [ ] obtain fresh independent approval of the PR #767 remediation head;
-- [ ] obtain CTO merge approval for PR #767;
-- [ ] synchronize the programme trackers only after reviewed merge evidence
-  exists.
+- [ ] apply the separately authorized issue #765 synchronization as an external
+  mirror of the completed repository closeout.
 
 The implementing conversation cannot approve its own work.

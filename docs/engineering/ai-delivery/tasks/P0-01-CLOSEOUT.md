@@ -186,7 +186,7 @@ Migration required: NO
 * Locking or downtime: none.
 * Backfill: none.
 * Generated schema: unchanged.
-* Rollback: documentation revert and issue-body restoration only.
+* Rollback: documentation revert only; any issue-body reversal follows the guarded rollback in section 12.
 
 ## 8. Observability and operations
 
@@ -343,10 +343,15 @@ Data rollback:
 
 * not applicable.
 
-Issue rollback:
+Issue rollback (guarded; no unconditional full-body overwrite):
 
-* capture the complete issue #765 body immediately before editing;
-* restore that exact body if the closeout PR is reverted or the synchronization is incorrect.
+* re-fetch the complete live issue #765 body and its current `updatedAt`;
+* compare against the exact state expected by the rollback plan;
+* if either the body or `updatedAt` differs, stop;
+* generate a minimal reversal that preserves all later unrelated edits;
+* obtain fresh independent review and explicit CTO authorization;
+* apply only the reviewed minimal reversal;
+* never overwrite the complete issue body with an old snapshot blindly.
 
 External side effects: none beyond GitHub documentation metadata.
 

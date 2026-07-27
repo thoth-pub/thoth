@@ -105,8 +105,11 @@ BLOCKED FOR IMPLEMENTATION
 
 Blocking controls:
 
-1. The engineering-control foundation is merged but is not yet independently
-   approved and closed; its closeout remediation remains outstanding.
+1. The shared engineering-control foundation is closed: PR #764 merged, and its
+   closeout PR #767 was independently `APPROVED` and merged as
+   `bac598e32abbd0d7e69ff467c82945ee00df02ba`, closing P0-01. The Metrics
+   programme control task `MET-CTRL-01` nevertheless remains `CHANGES REQUIRED`
+   and is not yet closed.
 2. `ADR-0001` is `PROPOSED`.
 3. `ADR-0002` is `PROPOSED`.
 4. `thoth-sphinx` is placeholder-only and has not been bootstrapped.

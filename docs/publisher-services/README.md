@@ -1,6 +1,6 @@
 # Publisher Services and Distribution Configuration
 
-Status: CONTROL FOUNDATION MERGED; IMPLEMENTATION BLOCKED
+Status: CONTROL FOUNDATION CLOSED; IMPLEMENTATION BLOCKED
 Programme owner: CTO
 Primary coordinating repository: `thoth-pub/thoth`
 Related repositories:
@@ -73,11 +73,15 @@ BLOCKED FOR IMPLEMENTATION
 
 Reasons:
 
-1. The P0-01 control foundation merged through
+1. The P0-01 control foundation is `CLOSED`. It merged through
    [PR #764](https://github.com/thoth-pub/thoth/pull/764) at
-   `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`, but the first independent
-   closeout review returned `CHANGES REQUIRED`; remediation and fresh
-   independent approval remain outstanding, and P0-01 is not yet `CLOSED`.
+   `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`, and its closeout was
+   independently `APPROVED` and merged through
+   [PR #767](https://github.com/thoth-pub/thoth/pull/767) at
+   `bac598e32abbd0d7e69ff467c82945ee00df02ba`. P0-01 closure records the
+   engineering-control foundation only; it does not approve an ADR, approve the
+   final inventory, satisfy branch readiness, or make any implementation task
+   ready. The remaining reasons below keep the programme blocked.
 2. `ADR-0001` package capability model is `PROPOSED`.
 3. `ADR-0002` platform domain boundaries is `PROPOSED`.
 4. Publisher Services `ADR-01` has not finalized or approved the
@@ -85,7 +89,7 @@ Reasons:
 5. Branch-readiness tasks are required before work in repositories whose
    current topology differs from policy.
 
-Discovery, review and documentation may continue. The P0-01 merge does not
+Discovery, review and documentation may continue. P0-01 closure does not
 authorize production implementation, which must not start until its applicable
 architecture, specification and branch-readiness gates pass.
 

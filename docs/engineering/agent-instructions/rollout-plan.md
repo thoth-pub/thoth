@@ -7,7 +7,7 @@ Owner: CTO
 
 | Repository | Current instruction state | Required action |
 |---|---|---|
-| `thoth` | root and scoped instruction hierarchy added and merged through PR #764 as `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`; retrospective closeout remediation and fresh independent approval remain outstanding | complete PR #767 closeout remediation, fresh independent approval and CTO closeout merge |
+| `thoth` | root and scoped instruction hierarchy added and merged through PR #764 as `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`; retrospective closeout independently `APPROVED` and merged through PR #767 as `bac598e32abbd0d7e69ff467c82945ee00df02ba`; P0-01 `CLOSED` | none in `thoth`; apply the separately authorized issue #765 synchronization as an external mirror |
 | `thoth-app` | no verified root `AGENTS.md` | create from approved repository map |
 | `thoth-dissemination` | existing root `AGENTS.md`, incomplete control coverage | revise without losing useful local guidance |
 | `thoth-sphinx` | placeholder-only README; no verified `AGENTS.md` | add `AGENTS.md` and replace or expand the README during bootstrap |
@@ -17,7 +17,7 @@ Owner: CTO
 
 ## 2. Rollout sequence
 
-1. Complete retrospective closeout of the already-merged `thoth` control foundation through PR #767, fresh independent approval and CTO merge authorization.
+1. The retrospective closeout of the already-merged `thoth` control foundation is complete: PR #767 was independently `APPROVED` and merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba`, closing P0-01. The only remaining step is the separately authorized issue #765 synchronization, an external mirror of the completed repository closeout.
 2. Update `thoth-dissemination`, because it already performs production-capable workflows.
 3. Add `thoth-app` instructions before Publisher Services or metrics upload UI implementation.
 4. Add `thoth-sphinx` instructions as part of its no-production bootstrap task.
