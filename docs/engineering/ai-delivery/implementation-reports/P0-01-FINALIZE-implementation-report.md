@@ -11,7 +11,8 @@ Programme integration branch: None
 Task branch: `feature/publisher-services/p0-01-finalize`
 Task specification: [`P0-01-FINALIZE.md`](../tasks/P0-01-FINALIZE.md)
 Pull request: [#768](https://github.com/thoth-pub/thoth/pull/768) (draft)
-Implementing model: Codex
+Implementing agent: Claude Code
+Model: Claude Opus 4.8
 Reasoning level: High
 Independent reviewer: fresh non-implementing context, high reasoning
 
@@ -351,3 +352,19 @@ Suggested review focus:
 - confirm the proposed issue #765 body preserves all unrelated content and
   contains both guards;
 - confirm issue #765 was not edited.
+
+## 16. Pre-review provenance correction
+
+- A pre-review control check found inconsistent implementing-agent provenance
+  between the tracked implementation report and the PR #768 description: the
+  report recorded `Implementing model: Codex` while the PR description footer
+  recorded `Generated with Claude Code`.
+- The inconsistency was corrected to match the actual implementation
+  environment. Every commit on this branch carries the trailer
+  `Co-Authored-By: Claude Opus 4.8` and the PR description records Claude Code,
+  so the report now records the implementing agent as Claude Code (model
+  Claude Opus 4.8). The inaccurate `Implementing model: Codex` line was removed.
+- No repository scope, acceptance criterion, architecture, runtime behaviour or
+  issue state changed as part of this correction.
+- This correction does not constitute independent review or approval, and it
+  does not rewrite any historical review decision.
