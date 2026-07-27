@@ -18,7 +18,7 @@ No task moves to `READY` without an approved specification, architecture depende
 
 | Task | Repository | Risk | Status | Verified base / PR target | Blocking dependencies | Issue | PR | Acceptance |
 |---|---|---:|---|---|---|---|---|---|
-| P0-01 Control documents and tracker | `thoth` | LOW | MERGED | `develop` at `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06` / `develop` | Resolve first review's `CHANGES REQUIRED` findings; fresh approval of PR #767; closeout PR merge; authorized issue synchronization | [#765](https://github.com/thoth-pub/thoth/issues/765) | Foundation [#764](https://github.com/thoth-pub/thoth/pull/764); closeout [#767](https://github.com/thoth-pub/thoth/pull/767) | DELIVERABLES MERGED; REMEDIATION AND FRESH INDEPENDENT APPROVAL PENDING |
+| P0-01 Control documents and tracker | `thoth` | LOW | CLOSED | `develop` at `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06` / `develop` | None; issue #765 synchronization is a separately authorized external mirror of the completed repository closeout | [#765](https://github.com/thoth-pub/thoth/issues/765) | Foundation [#764](https://github.com/thoth-pub/thoth/pull/764); closeout [#767](https://github.com/thoth-pub/thoth/pull/767) merged as `bac598e3`; finalization [#768](https://github.com/thoth-pub/thoth/pull/768) | CLOSED - PR #767 independently `APPROVED` and merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba` on 2026-07-27; reviewed content head `d72137893ddea512c0d05c81d310eb59d045cd2b`; repository-finalized |
 | ADR-01 Platform inventory/final architecture | `thoth` | MEDIUM | BLOCKED | `develop` / `develop` | P0-01; ADR-0002 approval | #765 | TBD | NOT STARTED |
 | LIC-01 Expand `cc-license` | `cc-license` | MEDIUM | BLOCKED | `develop` / `develop` | P0-01; BR-LIC-01 or CTO exception; approved spec | #765 | TBD | NOT STARTED |
 | LIC-02 Enforce supported licences | `thoth` | HIGH | BLOCKED | `develop` / `develop` | LIC-01 release; production licence audit plan | #765 | TBD | NOT STARTED |
@@ -51,9 +51,9 @@ Each branch starts from the repository's verified development branch and targets
 
 ## 4. Next actions
 
-1. complete the PR #767 remediation, obtain fresh independent approval of its
-   exact head, then obtain CTO merge approval and separately authorized issue
-   synchronization before marking P0-01 `CLOSED`;
+1. apply the separately authorized issue #765 synchronization as an external
+   mirror of the completed repository closeout; it does not approve architecture
+   or unlock implementation;
 2. approve or amend ADR-0001 and ADR-0002;
 3. prepare and approve the bounded ADR-01 specification before architecture
    implementation starts;

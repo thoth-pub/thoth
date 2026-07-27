@@ -31,10 +31,17 @@ Procedural Review Cycle 3 substantive assessment: every substantive criterion
 passed; the sole blocker was the then-active named-Claude reviewer requirement
 Scope Amendment 3: approved by Javi, CTO on 2026-07-24; replaces the named-model
 requirement with capability-based independence criteria
-Remediation evidence-record commit and exact final PR head: recorded in PR #767
-and the final implementation handoff. A tracked file cannot contain the SHA and
-CI outcome of the commit that contains that same file without creating a
-self-referential evidence loop.
+Reviewed content head (PR #767): `d72137893ddea512c0d05c81d310eb59d045cd2b`
+Final independent-review decision: `APPROVED` (fresh non-implementing context,
+high reasoning)
+Closeout merge commit: `bac598e32abbd0d7e69ff467c82945ee00df02ba`
+Closeout merged at: `2026-07-27T09:29:57Z`
+Post-merge finalization: task P0-01-FINALIZE recorded this concrete final-head,
+review, CI and merge evidence in a separate finalization commit and PR (see
+[`P0-01-FINALIZE-implementation-report.md`](./P0-01-FINALIZE-implementation-report.md)).
+Recording it separately, rather than inside PR #767 itself, avoids a
+self-referential loop and does not alter the content reviewed and merged through
+PR #767.
 Pull request: [#767](https://github.com/thoth-pub/thoth/pull/767)
 Expected branch deletion after merge: YES
 Final programme PR required: NO
@@ -528,6 +535,13 @@ This replacement is proposed only for use after the assigned reviewer returns
 `APPROVED`, the CTO merges the closeout PR, and the CTO separately authorizes
 the issue edit.
 
+> Superseded (2026-07-27): PR #767 has since been independently `APPROVED` and
+> merged. The authoritative post-merge issue #765 synchronization proposal is
+> now the regenerated body in
+> [`P0-01-FINALIZE-implementation-report.md`](./P0-01-FINALIZE-implementation-report.md),
+> which reflects the completed repository closeout. The body below is retained
+> as historical evidence of what PR #767 proposed at review time.
+
 ```markdown
 ## Objective
 
@@ -625,10 +639,25 @@ checks: `build`, `build_and_push_staging_docker_image`, `check-changelog`,
 
 The exact pre-amendment head
 `00988232e40f0357d002ede998fbc31d149ed27f` passed all seven required checks.
-The Scope Amendment 3 head requires a fresh complete CI run and fresh
-independent review. Its exact SHA, workflow run IDs and final-head conclusions
-are authoritative in PR #767 and GitHub because they are produced only after
-the tracked implementation report has been committed.
+
+Final reviewed content head `d72137893ddea512c0d05c81d310eb59d045cd2b`
+passed all four required workflow runs and all seven required jobs, each
+concluding `success`:
+
+- run `30125538102` (build-test-and-check): `build`, `format_check`, `lint`,
+  `test`;
+- run `30125538127` (publish-to-dockerhub):
+  `build_and_push_staging_docker_image`;
+- run `30125538103` (check-changelog);
+- run `30125538058` (run-migrations): `run_migrations`.
+
+PR #767 merged into `develop` as
+`bac598e32abbd0d7e69ff467c82945ee00df02ba` on `2026-07-27T09:29:57Z` after an
+independent `APPROVED` review of that content head. GitHub's PR, review and
+Actions records remain the external authorities; this report now records their
+immutable identifiers. `d7213789...` is the independently reviewed content head;
+`bac598e3...` is the merge commit. A later evidence-record commit does not
+change the reviewed content that was merged through PR #767.
 
 PR #764 final-head CI was green, but it is not evidence of independent
 approval.
@@ -651,9 +680,12 @@ issue synchronization; production implementation remains blocked.
 Activation required: none
 Feature flag/configuration: none
 Migration sequence: none
-Rollback/disable procedure: revert the documentation PR; if issue #765 is later
-synchronized and the closeout is reverted, restore the exact captured issue
-body.
+Rollback/disable procedure: revert the documentation PR. If issue #765 is later
+synchronized and the closeout is reverted, do not restore an old snapshot
+blindly. Follow the guarded issue rollback: re-fetch the complete live issue
+body and its current `updatedAt`, compare against the expected state, stop on
+any mismatch, generate a minimal reversal that preserves later unrelated edits,
+and apply it only after fresh independent review and explicit CTO authorization.
 Monitoring required: none
 
 ## 13. Known limitations and deferred work
@@ -666,11 +698,15 @@ Monitoring required: none
   `00988232e40f0357d002ede998fbc31d149ed27f`, returned `BLOCKED` solely because
   the then-active task named Claude. Scope Amendment 3 removes that named-model
   requirement without granting retrospective approval.
-- The exact Scope Amendment 3 head requires fresh final-head CI and a new
-  independent review from an eligible non-implementing context.
-- The closeout PR requires CTO merge approval.
+- RESOLVED: the final content head
+  `d72137893ddea512c0d05c81d310eb59d045cd2b` passed fresh final-head CI and
+  received an independent `APPROVED` review from an eligible non-implementing
+  context.
+- RESOLVED: the closeout PR received CTO merge authorization and PR #767 merged
+  as `bac598e32abbd0d7e69ff467c82945ee00df02ba` on 2026-07-27.
 - Issue #765 remains unchanged and requires separate post-merge CTO
-  authorization.
+  authorization; see the guarded synchronization in
+  `P0-01-FINALIZE-implementation-report.md`.
 - ADR-0001 and ADR-0002 remain `PROPOSED`.
 - Publisher Services ADR-01 and the final platform inventory remain unapproved.
 - Applicable repository branch-readiness decisions remain outstanding.
@@ -679,9 +715,14 @@ Monitoring required: none
 
 ## 14. Unresolved issues
 
-- Fresh independent approval of the exact Scope Amendment 3 head: PENDING.
-- Closeout PR merge: PENDING.
-- Authorized post-merge issue synchronization: PENDING.
+- Fresh independent approval of the final content head
+  `d72137893ddea512c0d05c81d310eb59d045cd2b`: RESOLVED - `APPROVED` before
+  merge.
+- Closeout PR merge: RESOLVED - PR #767 merged as
+  `bac598e32abbd0d7e69ff467c82945ee00df02ba` on `2026-07-27T09:29:57Z`.
+- Authorized post-merge issue synchronization: PENDING - a separately authorized
+  external mirror of the completed repository closeout; see
+  `P0-01-FINALIZE-implementation-report.md`.
 
 ## 15. Agent self-assessment
 
@@ -698,3 +739,58 @@ Suggested review focus:
   deployment or production effect;
 - verify the exact proposed issue #765 body before any separately authorized
   post-merge synchronization.
+
+## 16. Final review cycle, merge and post-merge findings (recorded by P0-01-FINALIZE)
+
+This section was added by task P0-01-FINALIZE on 2026-07-27 to record concrete
+final evidence. It does not rewrite the historical `CHANGES REQUIRED` and
+`BLOCKED` review cycles above, which remain accurate historical evidence.
+
+### Final independent review cycle
+
+- Decision: `APPROVED`.
+- Reviewed content head: `d72137893ddea512c0d05c81d310eb59d045cd2b`.
+- Reviewer: fresh non-implementing context, high reasoning.
+- Independence attestation: the final reviewer did not implement PR #764 or
+  PR #767, did not author any PR #767 commit, and did not author Scope
+  Amendments 1-3. It independently inspected the repository, the complete
+  cumulative diff, the Scope Amendment 3 delta, required CI, issue #765 and
+  Publisher Services design revision `3`.
+- The review concluded that all six prior substantive P1 findings were resolved,
+  the cumulative diff contained exactly the authorised documentation/control
+  files, all required exact-head CI runs succeeded, issue #765 still matched the
+  reviewed baseline `updatedAt: 2026-07-24T17:17:09Z`, the proposed issue body
+  preserved all unrelated content and contained the synchronization guard, and
+  no runtime, migration, API, authorization, workflow, deployment, release or
+  production effect existed. No unresolved P0 or P1 remained at approval time.
+- Neither prior Codex review (`CHANGES REQUIRED`, `BLOCKED`) became final
+  approval retrospectively; this is a distinct, new review cycle.
+
+### Merge
+
+PR #767 merged into `develop` as
+`bac598e32abbd0d7e69ff467c82945ee00df02ba` on `2026-07-27T09:29:57Z`. The merged
+repository is the authoritative P0-01 closure record.
+
+### Post-merge Codex findings and resolution
+
+A Codex review posted after PR #767 merged identified three findings, each
+addressed by task P0-01-FINALIZE:
+
+1. **P1 - repository and issue closure would disagree.** Applying the proposed
+   issue body immediately would mark P0-01 `CLOSED` while the merged repository
+   still recorded `MERGED` with review, merge and synchronization pending.
+   Resolution: P0-01-FINALIZE corrects the repository first (this report and the
+   Publisher Services, engineering and Metrics control documents), then defers
+   the issue #765 write to a separately authorized external-mirror step, so the
+   two authoritative sources converge repository-first.
+2. **P2 - final content head and CI not explicit in the tracked report.**
+   Resolution: sections 1 and 11 now record reviewed content head
+   `d72137893ddea512c0d05c81d310eb59d045cd2b`, merge commit
+   `bac598e32abbd0d7e69ff467c82945ee00df02ba`, the independent `APPROVED`
+   decision, the four workflow run IDs and all seven `success` jobs directly.
+3. **P2 - rollback could overwrite later issue edits.** Resolution: sections 11
+   and 12 and the associated task specification now require a guarded rollback -
+   fresh body and `updatedAt` re-fetch, comparison, stop on mismatch, reviewed
+   minimal reversal, and explicit CTO authorization - instead of an
+   unconditional snapshot restore.

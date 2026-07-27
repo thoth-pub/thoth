@@ -30,14 +30,18 @@ Achieved evidence:
 - PR #764 merged into `develop` as
   `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`;
 - master issue [#765](https://github.com/thoth-pub/thoth/issues/765) exists and
-  links every programme task.
+  links every programme task;
+- P0-01 `CLOSED`: closeout PR
+  [#767](https://github.com/thoth-pub/thoth/pull/767) (reviewed content head
+  `d72137893ddea512c0d05c81d310eb59d045cd2b`) was independently `APPROVED` and
+  merged into `develop` as `bac598e32abbd0d7e69ff467c82945ee00df02ba` on
+  2026-07-27, making the repository the authoritative P0-01 closure record.
 
 Outstanding evidence:
 
-- resolve the first independent closeout review's `CHANGES REQUIRED` findings
-  and obtain fresh approval of the exact PR #767 remediation head;
-- closeout PR merge and separately authorized issue #765 synchronization
-  before P0-01 is marked `CLOSED`;
+- separately authorized issue #765 synchronization as an external mirror of the
+  completed repository closeout (it does not approve architecture or unlock
+  implementation);
 - ADR-0001 and ADR-0002 approval;
 - Publisher Services ADR-01 specification and final platform-inventory
   approval;
