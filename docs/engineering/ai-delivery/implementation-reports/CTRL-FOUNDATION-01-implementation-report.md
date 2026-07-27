@@ -343,7 +343,10 @@ report-containing review head.
 - `metrics-dashboard` uses active `dev -> main`; stale `develop` requires
   reconciliation under BR-DASH-01 before it can become the target development
   branch.
-- Repository-relative control links were checked during the independent review.
+- Repository-relative control links were checked during implementation
+  verification. Independent review remained outstanding when PR #764 merged.
+  The subsequent retrospective independent review returned `CHANGES REQUIRED`;
+  remediation is tracked through PR #767.
 
 ## 10. Rollout and rollback
 

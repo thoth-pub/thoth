@@ -82,13 +82,20 @@ thoth-pub/thoth-sphinx
 Sphinx
 ```
 
-## 9. Current foundation gate
+## 9. Current foundation closeout gate
 
-- [ ] complete final repository consistency checks;
-- [ ] obtain independent review of the complete PR diff and CI;
-- [ ] resolve blocking findings;
-- [ ] obtain CTO merge approval;
-- [ ] merge PR #764 into `develop`;
-- [ ] replace stale Project sources with merged repository versions.
+Achieved:
+
+- [x] PR #764 merged into `develop` as
+  `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`;
+- [x] PR #764 final-head CI passed.
+
+Outstanding:
+
+- [ ] resolve the retrospective independent review's P1 findings;
+- [ ] obtain fresh independent approval of the PR #767 remediation head;
+- [ ] obtain CTO merge approval for PR #767;
+- [ ] synchronize the programme trackers only after reviewed merge evidence
+  exists.
 
 The implementing conversation cannot approve its own work.

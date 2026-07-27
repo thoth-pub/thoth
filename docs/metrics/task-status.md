@@ -14,9 +14,9 @@ A work package is not one implementation task. Each must be decomposed into boun
 
 | Task | Repository | Risk | Status | Base / target | Dependencies | Issue |
 |---|---|---:|---|---|---|---|
-| MET-CTRL-01 Programme controls | `thoth` | LOW | IN PROGRESS | PR #764 -> `develop` | independent review; merge | [#766](https://github.com/thoth-pub/thoth/issues/766) |
-| ADR-0001 Package capability model | `thoth` | MEDIUM | PROPOSED | PR #764 -> `develop` | CTO decision | #766 |
-| ADR-0002 Platform boundaries | `thoth` | MEDIUM | PROPOSED | PR #764 -> `develop` | CTO decision | #766 |
+| MET-CTRL-01 Programme controls | `thoth` | LOW | CHANGES REQUIRED | PR #764 merged into `develop` as `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06` | PR #767 remediation; fresh independent approval; CTO closeout merge | [#766](https://github.com/thoth-pub/thoth/issues/766) |
+| ADR-0001 Package capability model | `thoth` | MEDIUM | PROPOSED | `develop` - proposal introduced by merged PR #764 | CTO decision | #766 |
+| ADR-0002 Platform boundaries | `thoth` | MEDIUM | PROPOSED | `develop` - proposal introduced by merged PR #764 | CTO decision | #766 |
 | SPHINX-BOOT-01 Repository bootstrap | `thoth-sphinx` | MEDIUM | BLOCKED | current `develop`; target `develop` after BR-SPHINX-01 verification | MET-CTRL-01; BR-SPHINX-01; approved bootstrap spec | #766 |
 | THOTH-DB-CTRL-01 Diesel generation procedure | `thoth` | MEDIUM | BLOCKED | `develop` -> `develop` | verified procedure | #766 |
 | BR-DASH-01 Dashboard branch readiness | dashboard | HIGH | BLOCKED | observed `dev -> main`; reconcile stale `develop`, then normalize to `develop -> master` | Vercel rollback | #766 |
@@ -55,10 +55,10 @@ verified base.
 
 ## 5. Immediate next actions
 
-1. Independently review PR #764.
-2. Resolve review findings.
+1. Complete PR #767 remediation and obtain fresh independent approval.
+2. Obtain CTO merge approval for PR #767 and reconcile the shared foundation
+   closeout record.
 3. Approve or amend ADR-0001 and ADR-0002.
-4. Merge the engineering-control foundation.
-5. Scope SPHINX-BOOT-01.
-6. Resolve THOTH-DB-CTRL-01.
-7. Prepare the first bounded WP1 slice only after those gates.
+4. Scope SPHINX-BOOT-01.
+5. Resolve THOTH-DB-CTRL-01.
+6. Prepare the first bounded WP1 slice only after those gates.

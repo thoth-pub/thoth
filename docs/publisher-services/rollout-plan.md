@@ -25,10 +25,24 @@ Required:
 - repository/branch readiness recorded;
 - task specifications and review assignments.
 
-Exit evidence:
+Achieved evidence:
 
-- PR #764 independently approved and merged;
-- master issue links every task;
+- PR #764 merged into `develop` as
+  `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`;
+- master issue [#765](https://github.com/thoth-pub/thoth/issues/765) exists and
+  links every programme task.
+
+Outstanding evidence:
+
+- resolve the first independent closeout review's `CHANGES REQUIRED` findings
+  and obtain fresh approval of the exact PR #767 remediation head;
+- closeout PR merge and separately authorized issue #765 synchronization
+  before P0-01 is marked `CLOSED`;
+- ADR-0001 and ADR-0002 approval;
+- Publisher Services ADR-01 specification and final platform-inventory
+  approval;
+- applicable repository/branch-readiness decisions;
+- approved task specifications and review assignments for implementation work;
 - no unresolved control contradiction.
 
 Rollback:

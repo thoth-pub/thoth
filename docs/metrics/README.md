@@ -105,7 +105,8 @@ BLOCKED FOR IMPLEMENTATION
 
 Blocking controls:
 
-1. Engineering-control foundation is unmerged.
+1. The engineering-control foundation is merged but is not yet independently
+   approved and closed; its closeout remediation remains outstanding.
 2. `ADR-0001` is `PROPOSED`.
 3. `ADR-0002` is `PROPOSED`.
 4. `thoth-sphinx` is placeholder-only and has not been bootstrapped.
