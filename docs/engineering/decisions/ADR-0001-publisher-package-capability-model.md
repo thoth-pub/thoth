@@ -1,8 +1,11 @@
 # ADR-0001 - Publisher Package Capability Model
 
-Status: PROPOSED
+Status: APPROVED
 Date: 2026-07-24
 Decision owner: CTO
+Approved by: Javi, CTO
+Approval date: 2026-07-28
+Approval PR: [#772](https://github.com/thoth-pub/thoth/pull/772)
 Programmes affected: Publisher Services, Thoth Metrics, OAI-PMH
 Repositories affected: `thoth`, `thoth-app`, `thoth-sphinx`, `metrics-dashboard`, `metrics-widget`
 Supersedes: None
@@ -156,11 +159,18 @@ Every package and capability pair must be covered by tests.
 
 Feature code calls `has_capability`. It must not compare package names directly except inside the mapping implementation or its tests.
 
-The normative proposed matrix is:
+The normative approved matrix is:
 
 ```text
 docs/engineering/decisions/package-capability-matrix.md
 ```
+
+| Package | OAI_PMH | METRICS_COLLECT | METRICS_IMPORT | METRICS_DASHBOARD | METRICS_WIDGET | METRICS_OPERAS_EXPORT |
+|---|---:|---:|---:|---:|---:|---:|
+| OASIS | No | No | No | No | No | No |
+| OBELISK | Yes | Yes | No | No | No | No |
+| SPHINX | Yes | Yes | Yes | Yes | Yes | Yes |
+| PYRAMID | Yes | Yes | Yes | Yes | Yes | Yes |
 
 ### 4.3 Capability set
 
@@ -219,6 +229,19 @@ Actual operation may additionally require:
 - schedules;
 - rollout approval.
 
+A package capability never fabricates operational configuration or metric data.
+In particular:
+
+- OASIS has no managed collection capability because Thoth does not distribute
+  OASIS files and therefore has no managed usage-data source for those
+  publishers;
+- OBELISK background collection is private and may run only when a valid source
+  account, credentials and source-specific operational configuration exist;
+- missing OBELISK source configuration, source outages, retries, reconciliation
+  and collection failures must not block distribution, metadata, package changes
+  or other unrelated publisher services;
+- missing or unavailable metric data must not be treated as zero.
+
 ### 4.7 Upgrade and downgrade
 
 The upgrade and downgrade semantics in `package-capability-matrix.md` are part of this decision.
@@ -227,7 +250,14 @@ In particular:
 
 - retained canonical metrics may become visible when serving capability is gained;
 - a package upgrade does not automatically bulk-export historical metrics to OPERAS;
-- a downgrade does not delete canonical metrics;
+- historical OPERAS export requires a separately scoped, reviewed and explicitly
+  activated backfill;
+- a downgrade to OBELISK stops publisher import, dashboard, widget and OPERAS
+  export behaviour, while validly configured private background collection may
+  continue;
+- a downgrade to OASIS stops Thoth-managed collection as well as publisher
+  import, dashboard, widget and OPERAS export behaviour;
+- neither downgrade deletes retained canonical metrics;
 - package changes never modify distribution-platform assignments.
 
 ## 5. Consequences
@@ -250,9 +280,11 @@ In particular:
 
 ### Risks
 
-- The proposed matrix may not match final commercial packaging.
-- `METRICS_COLLECT` for all packages has storage and operational cost.
-- Treating PYRAMID as cumulative with SPHINX must be confirmed.
+- OBELISK private collection has storage and operational cost even though the
+  package has no metrics serving, import or export capability.
+- Missing source configuration or source outages could accidentally couple
+  collection to unrelated operations unless the non-blocking invariant is
+  enforced.
 - In-flight work could cross a downgrade unless entitlement is rechecked.
 
 ## 6. Invariants created by this decision
@@ -265,6 +297,10 @@ In particular:
 6. Historical OPERAS export is an explicit operation, not an upgrade side effect.
 7. Publisher users cannot mutate their package.
 8. Capability mappings are identical across environments running the same version.
+9. OASIS has no managed metrics collection.
+10. OBELISK collection remains private, configured and non-blocking for
+    unrelated operations.
+11. Missing or unavailable metric data is not fabricated or treated as zero.
 
 ## 7. Implementation impact
 
@@ -332,8 +368,8 @@ Rollback:
 ## 10. Approval
 
 Approval required from: CTO
-Approved by:
-Approval date:
-Notes:
-
-The CTO must complete the checklist in `package-capability-matrix.md` before changing this ADR to `APPROVED`.
+Approved by: Javi, CTO
+Approval date: 2026-07-28
+Approval PR: [#772](https://github.com/thoth-pub/thoth/pull/772)
+Notes: Approved with the final matrix and operational decisions recorded above.
+This approval does not state that implementation has started or completed.

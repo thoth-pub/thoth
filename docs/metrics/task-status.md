@@ -4,7 +4,7 @@ Status: ACTIVE TRACKER
 Programme owner: CTO
 Master issue: [#766](https://github.com/thoth-pub/thoth/issues/766)
 Approved design: [private Google Doc](https://docs.google.com/document/d/11AeQFGpm0kUZajBM5PrAqsttmzJlpUrt89tGYyVM8c0/edit), Drive revision `6`
-Last updated: 2026-07-27
+Last updated: 2026-07-28
 
 ## 1. Control rule
 
@@ -15,7 +15,7 @@ A work package is not one implementation task. Each must be decomposed into boun
 | Task | Repository | Risk | Status | Base / target | Dependencies | Issue |
 |---|---|---:|---|---|---|---|
 | MET-CTRL-01 Programme controls | `thoth` | LOW | CHANGES REQUIRED | PR #764 merged into `develop` as `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06` | Shared foundation closed (P0-01 closeout PR #767 independently `APPROVED` and merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba`); MET-CTRL-01's own `CHANGES REQUIRED` remediation outstanding | [#766](https://github.com/thoth-pub/thoth/issues/766) |
-| ADR-0001 Package capability model | `thoth` | MEDIUM | PROPOSED | `develop` - proposal introduced by merged PR #764 | CTO decision | #766 |
+| ADR-0001 Package capability model | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-28; approval PR [#772](https://github.com/thoth-pub/thoth/pull/772) | #766 |
 | ADR-0002 Platform boundaries | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-27; approval PR [#769](https://github.com/thoth-pub/thoth/pull/769) | #766 |
 | SPHINX-BOOT-01 Repository bootstrap | `thoth-sphinx` | MEDIUM | BLOCKED | current `develop`; target `develop` after BR-SPHINX-01 verification | MET-CTRL-01; BR-SPHINX-01; approved bootstrap spec | #766 |
 | THOTH-DB-CTRL-01 Diesel generation procedure | `thoth` | MEDIUM | BLOCKED | `develop` -> `develop` | verified procedure | #766 |
@@ -27,11 +27,11 @@ A work package is not one implementation task. Each must be decomposed into boun
 
 | WP | Scope | Repositories | Risk | Status | Blocking dependencies | Issue |
 |---|---|---|---:|---|---|---|
-| WP1 | Domain and database foundation | `thoth` | HIGH | BLOCKED | MET-CTRL-01; ADR-0001; Diesel control | #766 |
+| WP1 | Domain and database foundation | `thoth` | HIGH | BLOCKED | MET-CTRL-01; Diesel control; approved bounded slice specification | #766 |
 | WP2 | Canonical ingestion | `thoth` | CRITICAL | BLOCKED | WP1 | #766 |
-| WP3 | Upload API and publisher UI | `thoth`, app | HIGH | BLOCKED | WP1/WP2; ADR-0001; BR-APP-01 | #766 |
+| WP3 | Upload API and publisher UI | `thoth`, app | HIGH | BLOCKED | WP1/WP2; BR-APP-01; approved bounded slice specifications | #766 |
 | WP4 | Rollups and GraphQL | `thoth` | HIGH | BLOCKED | WP1/WP2; benchmark dataset | #766 |
-| WP5 | Service auth and entitlements | `thoth`, clients | CRITICAL | BLOCKED | ADR-0001; role decision; WP4 | #766 |
+| WP5 | Service auth and entitlements | `thoth`, clients | CRITICAL | BLOCKED | role decision; WP4; approved bounded slice specifications | #766 |
 | WP6 | Sphinx core | `thoth-sphinx` | HIGH | BLOCKED | bootstrap; pinned API contract | #766 |
 | WP7 | CloudFront driver | `thoth-sphinx` | HIGH | BLOCKED | WP6; fixtures; methodology confirmation | #766 |
 | WP8 | Additional drivers and COUNTER | Sphinx/app | HIGH | BLOCKED | WP6; source fixtures; COUNTER decision | #766 |
@@ -39,6 +39,12 @@ A work package is not one implementation task. Each must be decomposed into boun
 | WP10 | Dashboard and widget clients | clients/Thoth | HIGH | BLOCKED | WP4/WP5; client CI/tests | #766 |
 | WP11 | Deployment, monitoring, migration | multiple | CRITICAL | BLOCKED | WP1-WP10 | #766 |
 | MET-E2E-01 | Integrated acceptance/cutover | multiple | CRITICAL | BLOCKED | all production slices | #766 |
+
+ADR-0001 approval removes one shared architectural dependency only. WP1 and
+every later work package remain blocked by their listed programme-control,
+Diesel, repository-readiness, design, fixture, contract and bounded-specification
+dependencies. `MET-CTRL-01` remains `CHANGES REQUIRED`; no Metrics
+implementation package is ready.
 
 ## 4. Branch strategy
 
@@ -59,10 +65,14 @@ verified base.
    `APPROVED` and merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba`, closing
    P0-01, and the repository closeout record is reconciled. `MET-CTRL-01`
    remains `CHANGES REQUIRED` pending its own remediation.
-2. `ADR-0002` platform domain boundaries is `APPROVED` (CTO, 2026-07-27, approval
+2. `ADR-0001` package capabilities is `APPROVED` (Javi, CTO, 2026-07-28,
+   approval PR [#772](https://github.com/thoth-pub/thoth/pull/772)); this removes
+   one shared architecture dependency and does not make WP1 or any later work
+   package ready.
+3. `ADR-0002` platform domain boundaries is `APPROVED` (CTO, 2026-07-27, approval
    PR [#769](https://github.com/thoth-pub/thoth/pull/769)); this removes one
    shared-ADR dependency and does not make any work package ready.
-3. Approve or amend `ADR-0001`.
 4. Scope SPHINX-BOOT-01.
 5. Resolve THOTH-DB-CTRL-01.
-6. Prepare the first bounded WP1 slice only after those gates.
+6. Remediate `MET-CTRL-01`.
+7. Prepare and approve the first bounded WP1 slice only after those gates.

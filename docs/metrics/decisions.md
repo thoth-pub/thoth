@@ -1,7 +1,7 @@
 # Thoth Metrics Decision Summary
 
 Status: ACTIVE SUMMARY
-Last updated: 2026-07-24
+Last updated: 2026-07-28
 Owner: CTO
 
 The approved technical design and approved ADRs remain authoritative.
@@ -49,7 +49,37 @@ Outbound uses durable Thoth claims. Sphinx delivers idempotently. Direct mapping
 
 ## 2. Shared decisions
 
-`ADR-0001` remains `PROPOSED`. It is required for entitlements, serving, imports, export and collection policy.
+`ADR-0001` is `APPROVED` (Javi, CTO, 2026-07-28, approval PR
+[#772](https://github.com/thoth-pub/thoth/pull/772)). It establishes the
+code-owned exhaustive package-capability model for later entitlement, serving,
+import, export and collection tasks:
+
+| Package | OAI_PMH | METRICS_COLLECT | METRICS_IMPORT | METRICS_DASHBOARD | METRICS_WIDGET | METRICS_OPERAS_EXPORT |
+|---|---:|---:|---:|---:|---:|---:|
+| OASIS | No | No | No | No | No | No |
+| OBELISK | Yes | Yes | No | No | No | No |
+| SPHINX | Yes | Yes | Yes | Yes | Yes | Yes |
+| PYRAMID | Yes | Yes | Yes | Yes | Yes | Yes |
+
+OASIS collection is excluded because Thoth does not distribute OASIS files and
+has no managed usage-data source for those publishers. OBELISK collection is
+private: there is no publisher import, dashboard serving, widget serving or
+OPERAS export. It requires a valid source account, credentials and
+source-specific configuration, and missing configuration, source outages,
+retries, reconciliation or collection failure must not block unrelated
+distribution, metadata, package-change or publisher-service operations. Missing
+data is not zero.
+
+Retained canonical history becomes available after an upgrade only when the new
+package grants the relevant serving capability. Historical OPERAS export
+requires a separately scoped, reviewed and explicitly activated backfill.
+Downgrades retain canonical history and stop newly prohibited behaviour;
+validly configured private collection may continue after downgrade to OBELISK,
+while managed collection stops after downgrade to OASIS. Package changes never
+modify distribution-platform assignments.
+
+This approval settles the shared matrix but does not start implementation or
+make any Metrics work package ready.
 
 `ADR-0002` is `APPROVED` (CTO, 2026-07-27, approval PR [#769](https://github.com/thoth-pub/thoth/pull/769)) as written, and is required for metric platform implementation. `MetricPlatform` remains a separate domain type from `DistributionPlatform`, with no name-based conversion and no initial cross-domain mapping.
 
@@ -95,3 +125,6 @@ Select report types and metric mappings only after representative reports are su
 8. Sphinx runs are restartable.
 9. Every row receives an explicit classification.
 10. Every source mapping is versioned and deterministic.
+11. OBELISK collection failures and missing configuration do not block unrelated
+    operations.
+12. Missing or unavailable metric data is never fabricated or treated as zero.

@@ -1,8 +1,11 @@
 # Package Capability Matrix
 
-Status: PROPOSED
-Normative owner after approval: `ADR-0001`
+Status: APPROVED
+Normative owner: `ADR-0001`
 Decision owner: CTO
+Approved by: Javi, CTO
+Approval date: 2026-07-28
+Approval PR: [#772](https://github.com/thoth-pub/thoth/pull/772)
 
 ## 1. Package order
 
@@ -32,38 +35,48 @@ This matrix does not make package selection imply distribution-platform assignme
 
 Capability codes are stable API identifiers. Display labels are separate.
 
-## 3. Recommended initial mapping
+## 3. Approved initial mapping
 
 | Package | OAI_PMH | METRICS_COLLECT | METRICS_IMPORT | METRICS_DASHBOARD | METRICS_WIDGET | METRICS_OPERAS_EXPORT |
 |---|---:|---:|---:|---:|---:|---:|
-| OASIS | No | Yes | No | No | No | No |
+| OASIS | No | No | No | No | No | No |
 | OBELISK | Yes | Yes | No | No | No | No |
 | SPHINX | Yes | Yes | Yes | Yes | Yes | Yes |
 | PYRAMID | Yes | Yes | Yes | Yes | Yes | Yes |
 
 ## 4. Rationale
 
-### Collection for every package
+### OASIS has no managed collection
 
-`METRICS_COLLECT` is an internal collection permission, not a promise that metrics are served or exported.
+Thoth does not distribute OASIS files and therefore has no managed usage-data
+source for OASIS publishers. OASIS has no `METRICS_COLLECT` capability, and the
+system must not fabricate data or treat missing data as zero.
+
+### Private, non-blocking OBELISK collection
+
+OBELISK permits private background collection but does not permit publisher
+import, dashboard serving, widget serving or OPERAS export.
 
 Collection still requires all of:
 
 - an enabled metric source account;
+- valid source credentials;
 - an enabled platform/measure mapping;
 - direct collection configured for that mapping;
 - an enabled operational schedule;
 - successful source-specific validation.
 
-Giving every package `METRICS_COLLECT` allows Thoth to retain history without exposing a paid service before entitlement.
-
-If this operational cost is not acceptable, the CTO may remove it from OASIS and/or OBELISK before approval.
+OBELISK collection is operationally non-blocking. Missing configuration, source
+outages, retries, reconciliation and collection failures must not block
+distribution, metadata, package changes or other unrelated publisher services.
+Non-blocking does not mean unconfigured collection.
 
 ### SPHINX and PYRAMID metrics access
 
-The recommendation treats PYRAMID as including the metrics capabilities of SPHINX.
-
-If PYRAMID is intended to be a separate non-cumulative product rather than the highest package, its row must be amended before approval.
+SPHINX has every initial metrics capability. PYRAMID includes all SPHINX metrics
+capabilities. Both packages permit collection, publisher import, dashboard and
+widget serving, and OPERAS export when the additional configuration,
+authorization and rollout requirements are satisfied.
 
 ### OAI-PMH
 
@@ -93,7 +106,7 @@ A package capability alone must never:
 
 ## 6. Upgrade behaviour
 
-Recommended behaviour:
+Approved behaviour:
 
 - changing to SPHINX or PYRAMID enables dashboard and widget access to retained canonical history;
 - existing retained history is not rewritten;
@@ -114,10 +127,11 @@ Historical OPERAS export requires a separate, bounded, reviewed administrative b
 
 ## 7. Downgrade behaviour
 
-Recommended behaviour:
+Approved behaviour:
 
 - canonical metric history is retained;
-- collection may continue while `METRICS_COLLECT` remains present;
+- on downgrade to OBELISK, validly configured private collection may continue;
+- on downgrade to OASIS, Thoth-managed collection stops;
 - new publisher imports are denied;
 - dashboard and widget service responses are denied;
 - no new OPERAS export work is created or delivered;
@@ -148,10 +162,17 @@ It must also test:
 
 The CTO must explicitly confirm:
 
-- [ ] OASIS has `METRICS_COLLECT`.
-- [ ] OBELISK has `METRICS_COLLECT` but no metrics serving/import/export.
-- [ ] SPHINX has all metrics capabilities.
-- [ ] PYRAMID includes all SPHINX metrics capabilities.
-- [ ] Retained history becomes visible after upgrade.
-- [ ] Historical OPERAS export requires an explicit backfill.
-- [ ] Downgrade retains canonical data and does not change distribution assignments.
+- [x] OASIS has no `METRICS_COLLECT` capability because Thoth has no managed
+  OASIS usage-data source.
+- [x] OBELISK has `METRICS_COLLECT` but no metrics serving/import/export.
+- [x] OBELISK collection is configured, private and non-blocking for unrelated
+  operations.
+- [x] SPHINX has all metrics capabilities.
+- [x] PYRAMID includes all SPHINX metrics capabilities.
+- [x] Retained history becomes visible after upgrade.
+- [x] Historical OPERAS export requires an explicit backfill.
+- [x] Downgrade retains canonical data and does not change distribution assignments.
+
+Approved by: Javi, CTO
+
+Approval date: 2026-07-28
