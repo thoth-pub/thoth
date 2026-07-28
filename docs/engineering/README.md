@@ -53,9 +53,9 @@ Agents must use observed repository state until an approved normalization task c
 - [Decision process](./decisions/README.md)
 - [Decision register](./decisions/decision-register.md)
 - [ADR-0001: publisher package capabilities](./decisions/ADR-0001-publisher-package-capability-model.md) - `PROPOSED`
-- [ADR-0002: platform domain boundaries](./decisions/ADR-0002-platform-domain-boundaries.md) - `PROPOSED`
+- [ADR-0002: platform domain boundaries](./decisions/ADR-0002-platform-domain-boundaries.md) - `APPROVED` (CTO, 2026-07-27, PR [#769](https://github.com/thoth-pub/thoth/pull/769))
 
-A committed proposed ADR is not approved. Dependent implementation remains blocked until the CTO decision is recorded and independently reviewed.
+A committed proposed ADR is not approved. ADR-0002 is approved; dependent implementation remains blocked by its other prerequisites. ADR-0001 remains proposed, and dependent implementation stays blocked until the CTO decision is recorded and independently reviewed.
 
 ## 7. Active programmes
 
@@ -95,11 +95,17 @@ Achieved:
   independent `APPROVED` review;
 - [x] PR #767 merged into `develop` as
   `bac598e32abbd0d7e69ff467c82945ee00df02ba` on 2026-07-27, closing P0-01;
-- [x] the repository programme trackers record the completed closeout.
+- [x] the repository programme trackers record the completed closeout;
+- [x] issue #765 was synchronized on 2026-07-27 as an external mirror of the
+  completed repository closeout; issue #765 remains open.
 
 Outstanding:
 
-- [ ] apply the separately authorized issue #765 synchronization as an external
-  mirror of the completed repository closeout.
+- None for the foundation closeout gate. Dependent Publisher Services and Metrics
+  implementation remains blocked by the ADR-0001, Publisher Services ADR-01 and
+  final-inventory, branch-readiness and task-specification gates recorded in the
+  programme controls. ADR-0002 was approved on 2026-07-27 through PR
+  [#769](https://github.com/thoth-pub/thoth/pull/769); it removes one shared-ADR
+  dependency and does not make either programme implementation-ready.
 
 The implementing conversation cannot approve its own work.

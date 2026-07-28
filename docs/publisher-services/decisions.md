@@ -67,9 +67,12 @@ Keep separate:
 
 This programme initially implements desired state and durable publisher back-catalogue jobs only.
 
-## 2. Proposed shared decisions awaiting CTO approval
+## 2. Shared decisions
 
 ### ADR-0001 - Package capability model
+
+Status: `PROPOSED` - awaiting its separate CTO decision on ownership, the
+capability matrix and upgrade/export semantics.
 
 Proposes:
 
@@ -87,12 +90,18 @@ Implementation dependency:
 
 ### ADR-0002 - Platform domain boundaries
 
-Proposes:
+Status: `APPROVED` (CTO, 2026-07-27, approval PR
+[#769](https://github.com/thoth-pub/thoth/pull/769)). Approved as written.
+
+Approved architecture:
 
 - `DistributionPlatform` and `MetricPlatform` remain separate types;
 - no name-based conversion;
 - no initial cross-domain mapping table;
 - OAPEN/DOAB linkage exists only in the distribution domain unless separately approved.
+
+Approval removes one dependency; it does not make `ADR-01`, `BE-02` or the
+metrics platform registry ready.
 
 Implementation dependency:
 
