@@ -25,7 +25,11 @@ behaviour.
   complete proposed issue bodies and no trailing whitespace;
 - `3c48daf183a1065d1aae8af258df5fd4aaf9bf24` - reconcile the active agent
   rollout plan with the engineering README;
-- this evidence report commit, whose exact SHA is authoritative in GitHub and the
+- `dd292df8276c0b8d024dd772a96672925b9b8268` - create this corrective
+  implementation report;
+- `8b1647e9f77ec478c0209a82086f638d20ffe16a` - record the no-changelog scope
+  amendment after the initial changelog check failed;
+- this evidence update commit, whose exact SHA is authoritative in GitHub and the
   final handoff.
 
 ## 4. Files changed
@@ -74,7 +78,16 @@ Resolved. The flawed embedded diff was removed. The replacement report was
 constructed without trailing whitespace. Final review must verify the exact branch
 with `git diff --check` before approval.
 
-## 6. Invariants
+## 6. Scope amendment: changelog check
+
+This internal engineering-control correction has no user-visible product effect.
+The initial `check-changelog` run correctly failed because `CHANGELOG.md` was not
+changed. The task specification was amended to use the repository-supported
+`no changelog` label instead. The label was applied before this commit so the fresh
+workflow event can evaluate the labelled PR. This is not a waiver of any other CI
+or independent-review requirement.
+
+## 7. Invariants
 
 ```text
 ADR-0001: PROPOSED
@@ -88,20 +101,20 @@ Issues #765 and #766: unchanged
 No runtime effect
 ```
 
-## 7. Runtime, migration and authorization effects
+## 8. Runtime, migration and authorization effects
 
 None. No Rust, SQL, migration, GraphQL, generated code, workflow, deployment,
 repository-protection or authorization file changed. No deployment, release or
 production activation occurred.
 
-## 8. Issue-write controls
+## 9. Issue-write controls
 
 The complete proposed bodies are review evidence only. They do not authorize issue
 writes. Each future write still requires an immediate live-body and `updatedAt`
 re-fetch, exact baseline match, stop on mismatch, fresh review where needed and
 separate explicit CTO authorization.
 
-## 9. CI and independent review
+## 10. CI and independent review
 
 All required jobs must succeed at the exact final PR head. A fresh non-implementing
 high-reasoning reviewer must inspect the full cumulative diff and return exactly
@@ -109,7 +122,7 @@ high-reasoning reviewer must inspect the full cumulative diff and return exactly
 
 The implementing context must not approve or merge PR #770.
 
-## 10. Post-merge action
+## 11. Post-merge action
 
 After PR #770 is independently approved and merged, reply to each of the three
 unresolved PR #769 review threads with the corrective merge commit and resolve the
