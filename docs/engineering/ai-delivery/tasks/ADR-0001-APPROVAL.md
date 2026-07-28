@@ -85,9 +85,10 @@ The following matrix is final and normative:
 
 Approved decisions:
 
-1. OASIS has no metrics-collection capability because Thoth does not distribute
-   OASIS files and therefore has no managed usage-data source for those
-   publishers.
+1. OASIS has no `METRICS_COLLECT` capability as an independent
+   package-entitlement decision. At the time of approval, Thoth has no managed
+   OASIS usage-data source because it does not operationally distribute OASIS
+   files. That operational context does not create a package-to-platform rule.
 2. OBELISK permits background collection when a valid source and operational
    configuration exist.
 3. Metrics collected for OBELISK remain private:
@@ -115,10 +116,64 @@ Approved decisions:
 10. Historical OPERAS export requires a separately scoped, reviewed and
     explicitly activated backfill.
 11. Downgrades retain canonical metrics.
-12. Downgrades stop newly prohibited import, serving and export behaviour.
+12. Downgrades stop only import, serving, collection or export behaviour whose
+    capability is absent from the resulting package.
 13. Package changes never modify distribution-platform assignments.
+14. ADR-0001 does not disable or remove OASIS distribution assignments, prevent
+    superuser platform configuration, define dissemination eligibility, create
+    a distribution capability or change distribution-job behaviour.
+15. Metrics collection must not infer entitlement from a distribution-platform
+    assignment or remote location.
 
 Approved by: Javi, CTO. Approval date: 2026-07-28.
+
+### 3.1 Independent-review correction
+
+Independent review of draft PR [#772](https://github.com/thoth-pub/thoth/pull/772)
+at reviewed head `4af692490875c66a9a0c7fb32354f10f136889e6` returned:
+
+```text
+Decision: CHANGES REQUIRED
+P0: none
+P1: one - decouple OASIS metrics entitlement from distribution
+P2: one - make package-change behaviour capability-based
+```
+
+The correction preserves the normative matrix byte-for-byte. It clarifies:
+
+- OASIS metrics entitlement is independent from distribution configuration and
+  dissemination behaviour;
+- the absence of a managed OASIS metrics source is current operational context,
+  not a permanent distribution invariant created by ADR-0001;
+- any permanent rule prohibiting OASIS distribution requires a separately
+  approved Publisher Services decision through ADR-01 or another
+  cross-programme ADR;
+- every package change is evaluated from the resulting package's capabilities:
+  - `PYRAMID -> SPHINX` removes no initial capability;
+  - `SPHINX` or `PYRAMID -> OBELISK` retains `OAI_PMH` and configured private
+    collection while denying import, dashboard, widget and OPERAS export;
+  - any package `-> OASIS` denies all six initial capabilities and stops
+    Thoth-managed collection;
+- every downgrade retains canonical history, leaves distribution-platform
+  assignments unchanged and rechecks the relevant capability at the final
+  boundary.
+
+The correction may modify exactly:
+
+```text
+docs/engineering/ai-delivery/tasks/ADR-0001-APPROVAL.md
+docs/engineering/ai-delivery/implementation-reports/ADR-0001-APPROVAL-implementation-report.md
+docs/engineering/decisions/ADR-0001-publisher-package-capability-model.md
+docs/engineering/decisions/package-capability-matrix.md
+docs/publisher-services/decisions.md
+docs/metrics/decisions.md
+```
+
+It requires one new bounded commit,
+`docs: clarify package distribution and downgrade semantics`, fresh exact-head
+CI, a new immutable observation comment, fresh independent exact-head review and
+explicit CTO authorization before merge. The existing three commits and
+historical CI observation comment must not be amended, rewritten or replaced.
 
 ## 4. Explicit scope
 
@@ -214,8 +269,11 @@ The final branch must preserve:
 5. Product entitlement remains separate from source accounts, credentials,
    source-specific configuration, feature flags, schedules and rollout
    approval.
-6. Package changes never alter distribution-platform assignments.
-7. OASIS has no managed collection source and no initial capability.
+6. Package changes never alter distribution-platform assignments,
+   distribution-job eligibility or dissemination behaviour.
+7. OASIS has no initial capability. At approval time, Thoth has no managed OASIS
+   usage-data source; that operational fact is not a permanent
+   package-to-platform rule.
 8. OBELISK private collection is permitted only when configured and is
    operationally non-blocking for unrelated work.
 9. Missing or unavailable metric data is never fabricated or treated as zero.
@@ -227,6 +285,14 @@ The final branch must preserve:
 13. No documentation claim treats approval as implementation or readiness.
 14. No runtime, migration, API, workflow, production, deployment or release
     effect occurs.
+15. OASIS distribution assignments and superuser platform configuration remain
+    unaffected; any permanent distribution prohibition requires ADR-01 or
+    another approved cross-programme ADR.
+16. Metrics collection never infers package entitlement from a distribution
+    assignment or remote location.
+17. Every package change uses the resulting package's capabilities, retains
+    canonical history on downgrade and rechecks the relevant capability at the
+    final boundary.
 
 ## 8. Required documentation behaviour
 
@@ -237,8 +303,10 @@ The ADR must:
 - show `Status: APPROVED`;
 - contain the exact matrix in Section 3;
 - remove statements suggesting OASIS permits collection;
-- explain that Thoth has no managed OASIS collection because it does not
-  distribute OASIS files;
+- state that OASIS is not entitled to Thoth-managed metrics collection and that,
+  under current operations, Thoth has no managed OASIS usage-data source;
+- state that this operational context does not define or alter distribution
+  assignments, distribution-job eligibility or dissemination behaviour;
 - define OBELISK background collection as private, configured and non-blocking;
 - distinguish downgrade to OBELISK, where configured private collection may
   continue, from downgrade to OASIS, where managed collection stops;
@@ -297,6 +365,14 @@ implementation readiness and retain all remaining blockers specified in Section
   credentials, and is non-blocking for unrelated work.
 - [ ] Upgrade, historical export and both downgrade paths match the approved CTO
   decisions.
+- [ ] `PYRAMID -> SPHINX` preserves all six initial capabilities.
+- [ ] A resulting OBELISK package permits only `OAI_PMH` and configured private
+  collection; a resulting OASIS package denies all six initial capabilities.
+- [ ] Every downgrade retains canonical history, leaves distribution assignments
+  unchanged and rechecks the relevant capability at its final boundary.
+- [ ] No text makes ADR-0001 define OASIS distribution or dissemination
+  eligibility, and collection never infers entitlement from an assignment or
+  remote location.
 - [ ] Every package-capability approval checklist item is checked.
 - [ ] Approver, approval date and actual approval PR are consistent.
 - [ ] The ADR's code-owned mapping, ownership, API-code, no-row, no-override and
@@ -337,6 +413,14 @@ Verify:
 - OASIS has no capability;
 - OBELISK has only `OAI_PMH` and `METRICS_COLLECT`;
 - SPHINX and PYRAMID have all six capabilities;
+- `PYRAMID -> SPHINX` removes no initial capability;
+- transition to OBELISK and transition to OASIS use the resulting capability
+  set;
+- canonical history and distribution assignments remain unchanged on downgrade;
+- in-flight work rechecks the relevant capability at its final boundary;
+- no text makes package choice define distribution or dissemination eligibility;
+- metrics collection does not infer entitlement from a distribution assignment
+  or remote location;
 - every checklist item is checked;
 - approver, approval date and actual PR number are consistent;
 - internal links and paths resolve;
@@ -394,6 +478,8 @@ Post one top-level PR evidence comment containing:
 
 Do not mark CI-DOCS-01 operationally complete. Exact final-head run IDs belong in
 the immutable PR evidence comment, not in a later evidence-only commit.
+If remediation creates a new exact head, post a new immutable top-level evidence
+comment and leave every earlier observation comment unchanged.
 
 ## 12. Implementation report
 
@@ -436,6 +522,14 @@ docs: record ADR-0001 approval evidence
 ```
 
 Do not amend, squash or rewrite the specification-first commit.
+
+Independent-review remediation adds exactly one further bounded commit:
+
+```text
+docs: clarify package distribution and downgrade semantics
+```
+
+Do not amend, squash, rebase or rewrite any of the existing three commits.
 
 ## 14. Rollout
 

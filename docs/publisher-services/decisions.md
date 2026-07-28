@@ -83,7 +83,8 @@ Approved architecture:
   operational configuration;
 - retained metrics visible after an entitled upgrade;
 - no automatic historical OPERAS bulk export after upgrade;
-- downgrades retain canonical metrics and stop newly prohibited behaviour;
+- package changes use the resulting package's capabilities, and downgrades
+  retain canonical metrics;
 - package changes never alter distribution assignments.
 
 The approved package matrix is:
@@ -95,11 +96,32 @@ The approved package matrix is:
 | SPHINX | Yes | Yes | Yes | Yes | Yes | Yes |
 | PYRAMID | Yes | Yes | Yes | Yes | Yes | Yes |
 
-Thoth has no managed OASIS collection source because it does not distribute
-OASIS files. OBELISK collection is private, requires valid source credentials
-and source-specific configuration, and must not block distribution, metadata,
-package changes or unrelated publisher services when configuration is missing or
-a source fails.
+OASIS is not entitled to Thoth-managed metrics collection. Under current
+operations Thoth has no managed OASIS usage-data source because it does not
+operationally distribute OASIS files. This metrics-entitlement decision does not
+disable or remove OASIS distribution-platform assignments, prevent superuser
+platform configuration, define dissemination eligibility, create a distribution
+capability or change distribution-job behaviour. Any permanent OASIS
+distribution prohibition requires a separately approved decision through ADR-01
+or another cross-programme ADR.
+
+Metrics collection must not infer entitlement from a distribution assignment or
+remote location. OBELISK collection is private, requires valid source
+credentials and source-specific configuration, and must not block distribution,
+metadata, package changes or unrelated publisher services when configuration is
+missing or a source fails.
+
+Package changes use the resulting package's capabilities:
+
+- `PYRAMID -> SPHINX` removes no initial capability;
+- `SPHINX` or `PYRAMID -> OBELISK` retains OAI-PMH and configured private
+  collection while denying publisher import, dashboard, widget and OPERAS
+  export;
+- any package `-> OASIS` denies all six initial capabilities and stops
+  Thoth-managed collection;
+- every downgrade retains canonical metric history, leaves distribution
+  assignments unchanged and rechecks the relevant capability at the final
+  boundary.
 
 Approval settles the shared architecture but does not start or complete `BE-01`,
 metrics entitlement work or `OAI-01`. Each remains subject to its own approved

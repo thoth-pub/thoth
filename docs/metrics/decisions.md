@@ -61,11 +61,20 @@ import, export and collection tasks:
 | SPHINX | Yes | Yes | Yes | Yes | Yes | Yes |
 | PYRAMID | Yes | Yes | Yes | Yes | Yes | Yes |
 
-OASIS collection is excluded because Thoth does not distribute OASIS files and
-has no managed usage-data source for those publishers. OBELISK collection is
-private: there is no publisher import, dashboard serving, widget serving or
-OPERAS export. It requires a valid source account, credentials and
-source-specific configuration, and missing configuration, source outages,
+OASIS has no `METRICS_COLLECT` entitlement. Under current operations Thoth has no
+managed OASIS usage-data source because it does not operationally distribute
+OASIS files. That context does not create a package-to-platform rule: ADR-0001
+does not disable or remove OASIS distribution assignments, prevent superuser
+platform configuration, define dissemination eligibility, create a distribution
+capability or change distribution-job behaviour. Any permanent OASIS
+distribution prohibition requires a separately approved Publisher Services
+decision through ADR-01 or another cross-programme ADR.
+
+Metrics collection must check `METRICS_COLLECT` on the current package and must
+not infer entitlement from a distribution assignment or remote location.
+OBELISK collection is private: there is no publisher import, dashboard serving,
+widget serving or OPERAS export. It requires a valid source account, credentials
+and source-specific configuration, and missing configuration, source outages,
 retries, reconciliation or collection failure must not block unrelated
 distribution, metadata, package-change or publisher-service operations. Missing
 data is not zero.
@@ -73,10 +82,19 @@ data is not zero.
 Retained canonical history becomes available after an upgrade only when the new
 package grants the relevant serving capability. Historical OPERAS export
 requires a separately scoped, reviewed and explicitly activated backfill.
-Downgrades retain canonical history and stop newly prohibited behaviour;
-validly configured private collection may continue after downgrade to OBELISK,
-while managed collection stops after downgrade to OASIS. Package changes never
-modify distribution-platform assignments.
+Every package change uses the resulting package's capabilities:
+
+- `PYRAMID -> SPHINX` removes no initial capability; collection, import,
+  dashboard, widget, OAI-PMH and eligible OPERAS export remain subject to normal
+  configuration, authorization and rollout requirements;
+- `SPHINX` or `PYRAMID -> OBELISK` retains OAI-PMH and validly configured private
+  collection while denying publisher import, dashboard, widget and OPERAS
+  export;
+- any package `-> OASIS` denies all six initial capabilities and stops
+  Thoth-managed collection;
+- every downgrade retains canonical history, leaves distribution-platform
+  assignments unchanged and rechecks the relevant capability at the final
+  boundary.
 
 This approval settles the shared matrix but does not start implementation or
 make any Metrics work package ready.

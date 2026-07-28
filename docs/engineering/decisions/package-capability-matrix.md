@@ -46,11 +46,19 @@ Capability codes are stable API identifiers. Display labels are separate.
 
 ## 4. Rationale
 
-### OASIS has no managed collection
+### OASIS entitlement and current operational context
 
-Thoth does not distribute OASIS files and therefore has no managed usage-data
-source for OASIS publishers. OASIS has no `METRICS_COLLECT` capability, and the
-system must not fabricate data or treat missing data as zero.
+OASIS has no `METRICS_COLLECT` capability as an independent package-entitlement
+decision. Under current operations Thoth has no managed OASIS usage-data source
+because it does not operationally distribute OASIS files. The system must not
+fabricate data or treat missing data as zero.
+
+That operational context does not create a package-to-platform rule. ADR-0001
+does not disable or remove OASIS distribution-platform assignments, prevent a
+superuser from configuring platforms, define dissemination eligibility, create a
+distribution capability or change distribution-job behaviour. Any permanent
+rule that OASIS publishers cannot be distributed requires a separately approved
+Publisher Services decision through ADR-01 or another cross-programme ADR.
 
 ### Private, non-blocking OBELISK collection
 
@@ -104,6 +112,10 @@ A package capability alone must never:
 - bypass publisher-platform upload approval;
 - bypass work-level licence or lifecycle checks.
 
+Metrics collection must not infer entitlement from a distribution-platform
+assignment or remote location. It must check `METRICS_COLLECT` on the current
+package.
+
 ## 6. Upgrade behaviour
 
 Approved behaviour:
@@ -129,16 +141,22 @@ Historical OPERAS export requires a separate, bounded, reviewed administrative b
 
 Approved behaviour:
 
-- canonical metric history is retained;
-- on downgrade to OBELISK, validly configured private collection may continue;
-- on downgrade to OASIS, Thoth-managed collection stops;
-- new publisher imports are denied;
-- dashboard and widget service responses are denied;
-- no new OPERAS export work is created or delivered;
-- distribution assignments remain unchanged;
-- no canonical records are deleted.
+Every package change is evaluated using the resulting package's capabilities:
 
-In-flight work must re-check entitlement at the final write/delivery boundary and fail closed.
+- `PYRAMID -> SPHINX` removes no initial capability. Collection, publisher
+  import, dashboard, widget, OAI-PMH and eligible OPERAS export remain permitted
+  subject to their normal configuration, authorization and rollout
+  requirements.
+- `SPHINX` or `PYRAMID -> OBELISK` retains OAI-PMH and validly configured private
+  collection. Publisher import, dashboard, widget and OPERAS export are denied
+  because OBELISK lacks those capabilities.
+- any package `-> OASIS` denies all six initial capabilities and stops
+  Thoth-managed collection.
+
+Every downgrade retains canonical metric history and leaves
+distribution-platform assignments unchanged. In-flight work must re-check the
+relevant capability at its final write, serving or delivery boundary and fail
+closed if the resulting package lacks it.
 
 ## 8. Implementation tests
 
@@ -156,14 +174,22 @@ It must also test:
 - OAI eligibility uses `OAI_PMH` plus licence/lifecycle checks;
 - retained metrics remain inaccessible without dashboard/widget capability;
 - upgrade does not enqueue uncontrolled historical OPERAS exports;
-- downgrade stops new protected serving/export without deleting data.
+- `PYRAMID -> SPHINX` removes no initial capability;
+- downgrade to OBELISK retains OAI-PMH and configured private collection while
+  denying import, dashboard, widget and OPERAS export;
+- downgrade to OASIS denies all six initial capabilities and stops managed
+  collection;
+- every downgrade retains canonical history and distribution assignments;
+- in-flight work rechecks the relevant capability at its final boundary;
+- metrics collection does not infer entitlement from distribution assignments
+  or remote locations.
 
 ## 9. Approval checklist
 
 The CTO must explicitly confirm:
 
-- [x] OASIS has no `METRICS_COLLECT` capability because Thoth has no managed
-  OASIS usage-data source.
+- [x] OASIS has no `METRICS_COLLECT` entitlement; the absence of a managed OASIS
+  source is current operational context and not a package-to-platform rule.
 - [x] OBELISK has `METRICS_COLLECT` but no metrics serving/import/export.
 - [x] OBELISK collection is configured, private and non-blocking for unrelated
   operations.
@@ -172,6 +198,9 @@ The CTO must explicitly confirm:
 - [x] Retained history becomes visible after upgrade.
 - [x] Historical OPERAS export requires an explicit backfill.
 - [x] Downgrade retains canonical data and does not change distribution assignments.
+- [x] `PYRAMID -> SPHINX` removes no initial capability.
+- [x] Package changes use resulting capabilities and recheck in-flight work at
+  the final boundary.
 
 Approved by: Javi, CTO
 

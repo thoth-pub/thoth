@@ -10,6 +10,7 @@ PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/engineering/adr-0001-approval`
 Approval content commit: `55fc33fe4ea5251ab941002ed9480f3b78aceaa7`
+Previous reviewed head: `4af692490875c66a9a0c7fb32354f10f136889e6`
 Pull request: [#772](https://github.com/thoth-pub/thoth/pull/772) (draft)
 Expected branch deletion after merge: YES
 Final programme PR required: NO
@@ -24,6 +25,14 @@ report, so the report cannot contain its own commit SHA. The immutable final
 head, exact-head workflow run IDs and final conclusions are recorded in the
 top-level PR evidence comment and final implementation handoff. No later
 repository commit is covered by that evidence.
+
+Independent review of the previous head returned `CHANGES REQUIRED` with no P0,
+one P1 finding on distribution/metrics-entitlement coupling and one P2 finding
+on downgrade semantics. The bounded correction commit contains this report, so
+its exact SHA, the new final head, revised exact-head CI and new immutable
+observation-comment URL are likewise recorded externally after push. This
+preserves the required one-commit correction without amending history or
+creating an endless evidence-only commit chain.
 
 ## 2. Scope confirmation
 
@@ -68,8 +77,17 @@ The recorded decision preserves:
 
 The final operational decisions are:
 
-- Thoth has no managed OASIS collection because it does not distribute OASIS
-  files;
+- OASIS has no `METRICS_COLLECT` capability as an independent entitlement
+  decision; under current operations Thoth has no managed OASIS usage-data
+  source because it does not operationally distribute OASIS files;
+- that operational context does not disable or remove OASIS distribution
+  assignments, prevent superuser platform configuration, define dissemination
+  eligibility, create a distribution capability or change distribution-job
+  behaviour;
+- any permanent prohibition on OASIS distribution requires ADR-01 or another
+  separately approved cross-programme ADR;
+- metrics collection does not infer entitlement from a distribution assignment
+  or remote location;
 - OBELISK collection is configured, private and non-blocking for unrelated
   operations;
 - missing source configuration or source outages do not become zero and do not
@@ -80,9 +98,17 @@ The final operational decisions are:
   relevant serving capability;
 - historical OPERAS export requires a separately scoped, reviewed and activated
   backfill;
-- downgrades retain canonical history and stop newly prohibited behaviour;
-- configured private collection may continue after downgrade to OBELISK;
-- managed collection stops after downgrade to OASIS.
+- every package change uses the resulting package's capabilities;
+- every downgrade retains canonical history, leaves distribution assignments
+  unchanged and rechecks the relevant capability at the final boundary.
+
+Corrected package-change semantics:
+
+| Package change | Capability effect |
+|---|---|
+| `PYRAMID -> SPHINX` | No initial capability is removed; collection, import, dashboard, widget, OAI-PMH and eligible OPERAS export remain permitted subject to normal configuration, authorization and rollout requirements |
+| `SPHINX` or `PYRAMID -> OBELISK` | OAI-PMH and configured private collection remain permitted; publisher import, dashboard, widget and OPERAS export are denied |
+| Any package `-> OASIS` | All six initial capabilities are denied and Thoth-managed collection stops |
 
 ## 4. Commits
 
@@ -93,9 +119,13 @@ The final operational decisions are:
   `docs: approve publisher package capability model`
   - the ADR, matrix, changelog and bounded control/programme records were
     reconciled after draft PR #772 supplied the actual approval PR number.
-- `docs: record ADR-0001 approval evidence`
-  - this report; its exact SHA is recorded externally because a commit cannot
-    contain its own SHA.
+- `4af692490875c66a9a0c7fb32354f10f136889e6` -
+  `docs: record ADR-0001 approval evidence`
+  - the implementation report at the previous reviewed head.
+- `docs: clarify package distribution and downgrade semantics`
+  - one bounded correction across the six approved documentation files; its
+    exact SHA and the resulting final head are recorded externally because the
+    commit contains this report.
 
 No commit was amended, squashed or rewritten.
 
@@ -136,6 +166,17 @@ The complete pull request changes exactly the following eleven approved paths:
 
 No file outside the approved allowlist changed.
 
+The independent-review correction changes exactly:
+
+```text
+docs/engineering/ai-delivery/tasks/ADR-0001-APPROVAL.md
+docs/engineering/ai-delivery/implementation-reports/ADR-0001-APPROVAL-implementation-report.md
+docs/engineering/decisions/ADR-0001-publisher-package-capability-model.md
+docs/engineering/decisions/package-capability-matrix.md
+docs/publisher-services/decisions.md
+docs/metrics/decisions.md
+```
+
 ## 6. Implementation decisions and deviations
 
 Implementation decisions within the approved specification:
@@ -151,6 +192,10 @@ Implementation decisions within the approved specification:
    bounded specifications and remaining programme controls.
 4. Exact-head CI evidence is kept in one immutable top-level PR comment, avoiding
    evidence-only commits that would create a new unevidenced head.
+5. The P1 correction treats OASIS metrics entitlement as independent from
+   distribution configuration and current operational source availability.
+6. The P2 correction evaluates every package change through the resulting
+   capability set rather than applying generic downgrade denials.
 
 Deviations from the approved specification: NONE.
 
@@ -285,6 +330,36 @@ Result:
 {"docs_only": "true", "run_build": "false", "run_docker": "false", "run_migrations": "false"}
 ```
 
+### Independent-review correction
+
+Commands:
+
+```text
+git diff --check bafd4cbf752f9d6153036fc7f47115220fed3fbd...HEAD
+git diff --name-only 4af692490875c66a9a0c7fb32354f10f136889e6...HEAD
+```
+
+Result:
+
+```text
+The cumulative diff is whitespace-clean.
+The correction changes exactly the six approved documentation files.
+The four normative matrix copies remain byte-identical and unchanged.
+No runtime, workflow, migration, tracker, register, control-gap, changelog or issue file changes in the correction.
+```
+
+Semantic inspection confirms:
+
+- OASIS retains no initial capability without creating a distribution rule;
+- OBELISK retains only OAI-PMH and configured private collection;
+- SPHINX and PYRAMID retain all six capabilities;
+- `PYRAMID -> SPHINX` removes no initial capability;
+- downgrade to OBELISK and transition to OASIS are explicitly
+  capability-scoped;
+- every downgrade retains canonical history and distribution assignments;
+- in-flight work rechecks the relevant capability at its final boundary;
+- collection does not infer entitlement from an assignment or remote location.
+
 ### Internal path and terminology inspection
 
 Result:
@@ -363,6 +438,33 @@ Successful evidence satisfies only the controlled documentation-only
 observation. The mixed-source and next-three-PR observations remain outstanding,
 and CI-DOCS-01 must not be marked operationally complete.
 
+### 12.1 Historical reviewed-head evidence
+
+The immutable observation for previous reviewed head
+`4af692490875c66a9a0c7fb32354f10f136889e6` remains unchanged:
+
+- build-test-and-check run `30390801269`;
+- run-migrations run `30390801250`;
+- publish-to-dockerhub run `30390801048`;
+- check-changelog run `30390801277`;
+- [historical observation comment](https://github.com/thoth-pub/thoth/pull/772#issuecomment-5108602642).
+
+That evidence is historical and does not cover the correction commit.
+
+### 12.2 Corrective exact-head evidence
+
+Status at correction-report creation: PENDING push and exact-head CI.
+
+The correction remains documentation-only. At its new exact head, all three
+classifiers must succeed; build, test, lint, format, migrations and Docker must
+be skipped with no executed heavy steps; and `check-changelog` must succeed.
+
+After those terminal conclusions, a new immutable top-level PR comment records
+the correction commit, new final head, revised workflow run IDs, job/step
+conclusions and its own URL. The comment is the authoritative location because
+the correction commit cannot contain its own SHA or CI runs. The historical
+comment above must not be edited.
+
 ## 13. Rollout and rollback
 
 Initial state after merge:
@@ -402,16 +504,19 @@ release or production rollback is required.
   completeness and other work-package dependencies remain unresolved.
 - Every Metrics work package remains `BLOCKED`.
 - The CI-DOCS-01 mixed-source and next-three-PR observations remain outstanding.
-- Exact-head CI and fresh independent review remain pending at report creation.
+- Corrective exact-head CI and fresh independent review remain pending at
+  correction-report creation.
 - Explicit CTO merge authorization remains pending.
 
 ## 15. Unresolved issues
 
-- Exact-final-head CI evidence and the top-level observation comment are pending.
+- Corrective exact-final-head CI evidence and the new top-level observation
+  comment are pending at correction-report creation.
 - Fresh independent review is pending.
 - Explicit CTO merge authorization is pending.
 
-No implementation defect or scope deviation is known at report creation.
+The previous P1 and P2 documentation findings are addressed by the bounded
+correction. No runtime defect or scope deviation is known.
 
 ## 16. Agent self-assessment
 
