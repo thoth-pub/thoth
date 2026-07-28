@@ -38,3 +38,30 @@ Each root `AGENTS.md` must record:
 - deployment or package-publishing effects;
 - prohibited production actions;
 - completion report and independent review requirements;
+- stop conditions.
+
+## 4. Delivery model
+
+Instruction rollout to other repositories requires repository-local PRs.
+
+Use the repository's current verified development branch until an approved branch-normalization task completes.
+
+Do not combine:
+
+- branch normalization;
+- CI modernization;
+- functional implementation;
+- agent-instruction rollout
+
+unless the approved specification proves they are inseparable.
+
+## 5. Source authority
+
+Generate each file from:
+
+- the merged repository/environment map;
+- live repository code and workflows;
+- the approved operating model;
+- current deployment/release evidence.
+
+Do not copy the `thoth` root file verbatim into another repository.

@@ -9,6 +9,9 @@ Base commit: `e124221f8444bd738228f1b609c536639be8789e`
 Task branch: `feature/engineering/adr-0002-post-merge-correction`
 Pull request: [#770](https://github.com/thoth-pub/thoth/pull/770) (draft)
 Risk: MEDIUM
+Reviewed evidence head: `8158603b30e87074326b5729bcf661678a4dccd5`
+Implementing agent/model: Codex / GPT-5
+Independent reviewer: fresh non-implementing high-reasoning context
 
 ## 2. Objective
 
@@ -29,8 +32,11 @@ behaviour.
   implementation report;
 - `8b1647e9f77ec478c0209a82086f638d20ffe16a` - record the no-changelog scope
   amendment after the initial changelog check failed;
-- this evidence update commit, whose exact SHA is authoritative in GitHub and the
-  final handoff.
+- `8158603b30e87074326b5729bcf661678a4dccd5` - record the changelog-check
+  amendment and reviewed evidence state.
+
+The independent-review correction commit is identified separately by exact SHA
+in the final implementation handoff after it is created.
 
 ## 4. Files changed
 
@@ -114,7 +120,206 @@ writes. Each future write still requires an immediate live-body and `updatedAt`
 re-fetch, exact baseline match, stop on mismatch, fresh review where needed and
 separate explicit CTO authorization.
 
-## 10. CI and independent review
+### Live read-only baselines
+
+```text
+Issue #765
+state: OPEN
+updatedAt: 2026-07-27T15:50:33Z
+baseline body sha256:
+96c31089a3046eadf51a0fc39b12d0275ce26f4d752c64282f5dcb933f78ca15
+
+proposed body sha256:
+da12243b2a1898fd3fd574aada1dede3296ff13f38943e4fbb78a3dcb5ae1a35
+
+Issue #766
+state: OPEN
+updatedAt: 2026-07-24T17:17:11Z
+baseline body sha256:
+6b1bb092f3f0b436c01faaabbf4fb5df331268f4d687463b3c715fb4ea9d6dbc
+
+proposed body sha256:
+f4e8aa7e855b2b3c44b4cf38c60475861079698cc7f5cd95a6ac319b892cb772
+```
+
+Neither issue was written.
+
+## 10. Tests and checks
+
+### Reviewed-head whitespace check
+
+Command:
+
+```bash
+git diff --check \
+  e124221f8444bd738228f1b609c536639be8789e...8158603b30e87074326b5729bcf661678a4dccd5
+```
+
+Result:
+
+```text
+exit 0
+no output
+```
+
+### Corrected working-tree whitespace check
+
+Command:
+
+```bash
+git diff --check e124221f8444bd738228f1b609c536639be8789e
+```
+
+Result:
+
+```text
+exit 0
+no output
+```
+
+The final handoff records the same check against the new committed and pushed
+exact head.
+
+### Cumulative changed-file boundary
+
+Command:
+
+```bash
+git diff --name-only \
+  e124221f8444bd738228f1b609c536639be8789e...HEAD
+```
+
+Result at reviewed evidence head `8158603b30e87074326b5729bcf661678a4dccd5`:
+
+```text
+docs/engineering/agent-instructions/rollout-plan.md
+docs/engineering/ai-delivery/implementation-reports/ADR-0002-APPROVE-implementation-report.md
+docs/engineering/ai-delivery/implementation-reports/ADR-0002-POST-MERGE-CORRECTION-implementation-report.md
+docs/engineering/ai-delivery/tasks/ADR-0002-POST-MERGE-CORRECTION.md
+```
+
+### Rollout-plan cumulative diff
+
+Command used against the corrected working tree:
+
+```bash
+git diff --unified=0 \
+  e124221f8444bd738228f1b609c536639be8789e -- \
+  docs/engineering/agent-instructions/rollout-plan.md
+```
+
+Result:
+
+```text
+exit 0
+exactly two one-line replacement hunks:
+- the thoth current-state row
+- rollout-sequence item 1
+```
+
+All unrelated content is byte-for-byte restored from the base.
+
+### Live issue baseline hashes
+
+Commands:
+
+```bash
+gh api repos/thoth-pub/thoth/issues/765 \
+  --jq '{state: .state, updatedAt: .updated_at}'
+gh api repos/thoth-pub/thoth/issues/765 |
+  jq -r .body |
+  shasum -a 256
+
+gh api repos/thoth-pub/thoth/issues/766 \
+  --jq '{state: .state, updatedAt: .updated_at}'
+gh api repos/thoth-pub/thoth/issues/766 |
+  jq -r .body |
+  shasum -a 256
+```
+
+`jq -r` emits the decoded issue body followed by a final newline, matching the
+reviewed baseline-hash convention.
+
+Results:
+
+```text
+#765: state open; updatedAt 2026-07-27T15:50:33Z
+96c31089a3046eadf51a0fc39b12d0275ce26f4d752c64282f5dcb933f78ca15
+
+#766: state open; updatedAt 2026-07-24T17:17:11Z
+6b1bb092f3f0b436c01faaabbf4fb5df331268f4d687463b3c715fb4ea9d6dbc
+```
+
+### Embedded proposed-body hashes
+
+Commands:
+
+```bash
+git show 8158603b30e87074326b5729bcf661678a4dccd5:docs/engineering/ai-delivery/implementation-reports/ADR-0002-APPROVE-implementation-report.md |
+  awk '/^## 8\. Exact proposed body/{section=1}
+       section && /^```markdown$/{capture=1;next}
+       capture && /^```$/{exit}
+       capture{print}' |
+  shasum -a 256
+
+git show 8158603b30e87074326b5729bcf661678a4dccd5:docs/engineering/ai-delivery/implementation-reports/ADR-0002-APPROVE-implementation-report.md |
+  awk '/^## 9\. Exact proposed body/{section=1}
+       section && /^```markdown$/{capture=1;next}
+       capture && /^```$/{exit}
+       capture{print}' |
+  shasum -a 256
+```
+
+The `awk` `print` action preserves the embedded lines and supplies the final
+newline included in each reviewed proposed-body hash.
+
+Results:
+
+```text
+#765: da12243b2a1898fd3fd574aada1dede3296ff13f38943e4fbb78a3dcb5ae1a35
+#766: f4e8aa7e855b2b3c44b4cf38c60475861079698cc7f5cd95a6ac319b892cb772
+```
+
+## 11. Concrete CI for reviewed evidence head
+
+All required workflows and jobs succeeded at
+`8158603b30e87074326b5729bcf661678a4dccd5`:
+
+```text
+30348170518 - build-test-and-check: success
+  build: success
+  test: success
+  lint: success
+  format_check: success
+
+30348170455 - run-migrations: success
+  run_migrations: success
+
+30348170375 - check-changelog: success
+  check-changelog: success
+
+30348170534 - publish-to-dockerhub: success
+  build_and_push_staging_docker_image: success
+```
+
+The `build`, `test`, `lint`, `format_check` and `run_migrations` jobs used their
+existing lightweight `Run echo "No build required"` paths. The Docker workflow
+performed a real registry login and `Build and push` operation successfully.
+
+## 12. Final-head evidence model
+
+The report records complete concrete CI evidence for reviewed evidence head
+`8158603b30e87074326b5729bcf661678a4dccd5`.
+
+This correction creates a new final PR head. Its exact SHA and fresh workflow
+run/job IDs are live GitHub evidence produced only after this commit is pushed.
+They must be recorded in the final implementation handoff and top-level PR
+comment, and independently verified before approval.
+
+The previous CI is not reused for the new head. All required jobs must succeed at
+the new exact head before fresh independent review.
+
+## 13. Residual blockers and independent review
 
 All required jobs must succeed at the exact final PR head. A fresh non-implementing
 high-reasoning reviewer must inspect the full cumulative diff and return exactly
@@ -122,7 +327,19 @@ high-reasoning reviewer must inspect the full cumulative diff and return exactly
 
 The implementing context must not approve or merge PR #770.
 
-## 11. Post-merge action
+PR #770 remains draft. The three PR #769 review threads remain unresolved until a
+separately authorized post-merge action. Issues #765 and #766 remain open and
+unchanged.
+
+## 14. Rollout and rollback
+
+Rollout is merge-only documentation reconciliation. No activation, deployment,
+migration or production write follows.
+
+Rollback is a normal revert of PR #770. No issue rollback is required because
+neither issue is changed by this task.
+
+## 15. Post-merge action
 
 After PR #770 is independently approved and merged, reply to each of the three
 unresolved PR #769 review threads with the corrective merge commit and resolve the
