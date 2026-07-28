@@ -27,6 +27,19 @@ Resolve the three P1 findings raised by the automated Codex review after PR #769
 had already merged, without changing ADR-0002, changing runtime behaviour, or
 writing GitHub issues #765 or #766.
 
+## Dependencies
+
+- PR #769 merged as `e124221f8444bd738228f1b609c536639be8789e`.
+- The corrective branch was created from that exact `develop` commit.
+- ADR-0002 remains `APPROVED`; this task does not alter the ADR decision.
+- The three post-merge P1 findings on PR #769 remain the authoritative correction
+  targets.
+- Issues #765 and #766 must remain open and must match their reviewed timestamps
+  and body hashes.
+- The approved four-file correction scope must be preserved except for the
+  separately approved changelog amendment below.
+- All exact-head CI jobs and fresh independent review must succeed before merge.
+
 ## 2. Authoritative findings
 
 The follow-up must address all three unresolved review threads on PR #769:
@@ -60,14 +73,29 @@ The task must:
 - reply to the three PR #769 review threads after the corrective PR is independently
   approved and merged, linking the corrective merge commit, then resolve them.
 
-## 3.1 Scope amendment: no changelog
+## 3.1 Superseded scope amendment: no changelog
 
 This correction changes only internal engineering-control evidence and does not
 change user-visible product behaviour. The repository's supported `no changelog`
-PR label is therefore used instead of modifying `CHANGELOG.md`. This amendment was
-recorded after the changelog check correctly failed on the initial branch head.
-The label must cause the required check to rerun and conclude successfully; it is
-not a bypass of any other CI or review gate.
+PR label was therefore initially used instead of modifying `CHANGELOG.md`. This
+amendment was recorded after the changelog check correctly failed on the initial
+branch head.
+
+Post-ready review confirmed that the root `AGENTS.md` requires every PR to update
+`CHANGELOG.md`. Repository instructions take precedence over this earlier
+amendment, so the no-changelog amendment is superseded before merge.
+
+## 3.2 Scope amendment: required changelog entry
+
+The root repository instruction requires every pull request to update
+`CHANGELOG.md` under `## [Unreleased]`.
+
+This corrective amendment therefore:
+
+- adds `CHANGELOG.md` to the approved file allowlist;
+- requires one PR #770 entry under `### Changed`;
+- removes the `no changelog` label before final CI;
+- does not alter the runtime or migration scope.
 
 ## 4. Non-goals
 
@@ -87,6 +115,7 @@ This task must not:
 ## 5. Approved file allowlist
 
 ```text
+CHANGELOG.md
 docs/engineering/agent-instructions/rollout-plan.md
 docs/engineering/ai-delivery/tasks/ADR-0002-POST-MERGE-CORRECTION.md
 docs/engineering/ai-delivery/implementation-reports/ADR-0002-APPROVE-implementation-report.md
@@ -123,7 +152,8 @@ No runtime effect
 - [ ] The exact proposed-body hashes in the report match the embedded bodies.
 - [ ] The agent rollout plan no longer contradicts the engineering README.
 - [ ] `git diff --check` passes with no trailing-whitespace errors.
-- [ ] The `no changelog` label is present and the changelog check succeeds.
+- [ ] `CHANGELOG.md` contains one PR #770 entry under Unreleased / Changed, the
+      `no changelog` label is absent, and the changelog check succeeds.
 - [ ] No ADR, runtime, migration, API, workflow, generated or deployment file changes.
 - [ ] The corrective implementation report records base, branch, PR, commits,
       changed files, findings addressed, tests, CI, no-runtime assessment, issue
@@ -132,6 +162,46 @@ No runtime effect
 - [ ] A fresh non-implementing reviewer returns `APPROVED` before merge.
 - [ ] After merge, the three PR #769 review threads receive a reply linking the
       corrective merge commit and are resolved.
+
+## Required tests
+
+- `git diff --check <base>...HEAD` exits 0 with no output.
+- The cumulative changed-file set matches the approved allowlist.
+- The rollout-plan cumulative diff contains only the two approved one-line
+  replacements.
+- The complete embedded proposed issue bodies reproduce the approved SHA-256
+  hashes, including final-newline handling.
+- Issues #765 and #766 retain their reviewed state, `updatedAt` values and
+  baseline hashes.
+- `CHANGELOG.md` contains exactly one PR #770 entry under `## [Unreleased]` /
+  `### Changed`.
+- The `no changelog` label is absent before final CI.
+- All required exact-head workflows and all seven jobs succeed.
+
+## Migration effect
+
+None.
+
+This task changes documentation and engineering-control records only. It adds no
+SQL migration, data migration, schema change, backfill, generated schema output
+or rollback migration.
+
+## Stop conditions
+
+Stop without merging if:
+
+- the PR base or head changes unexpectedly;
+- the cumulative changed-file set exceeds the approved allowlist;
+- either issue #765 or #766 differs from its reviewed timestamp or body hash;
+- either embedded proposed-body hash differs;
+- the rollout-plan diff changes anything outside the two approved status lines;
+- `git diff --check` fails;
+- the changelog entry is missing, duplicated or outside `## [Unreleased]`;
+- any required workflow or job fails or remains pending;
+- a new unresolved P0 or P1 review finding exists;
+- fresh independent review has not returned `APPROVED`;
+- any runtime, migration, issue-write, deployment or production effect is
+  detected.
 
 ## 8. Rollout and rollback
 

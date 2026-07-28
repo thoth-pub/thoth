@@ -10,6 +10,7 @@ Task branch: `feature/engineering/adr-0002-post-merge-correction`
 Pull request: [#770](https://github.com/thoth-pub/thoth/pull/770) (draft)
 Risk: MEDIUM
 Reviewed evidence head: `8158603b30e87074326b5729bcf661678a4dccd5`
+Prior independently approved head: `ca8e90645957c50c25fecd8b220772837bb522d3`
 Implementing agent/model: Codex / GPT-5
 Independent reviewer: fresh non-implementing high-reasoning context
 
@@ -43,6 +44,7 @@ in the final implementation handoff after it is created.
 The cumulative branch changes are limited to:
 
 ```text
+CHANGELOG.md
 docs/engineering/agent-instructions/rollout-plan.md
 docs/engineering/ai-delivery/tasks/ADR-0002-POST-MERGE-CORRECTION.md
 docs/engineering/ai-delivery/implementation-reports/ADR-0002-APPROVE-implementation-report.md
@@ -50,6 +52,14 @@ docs/engineering/ai-delivery/implementation-reports/ADR-0002-POST-MERGE-CORRECTI
 ```
 
 No file outside the approved documentation/control allowlist changed.
+
+The bounded post-ready correction commit changes only:
+
+```text
+CHANGELOG.md
+docs/engineering/ai-delivery/tasks/ADR-0002-POST-MERGE-CORRECTION.md
+docs/engineering/ai-delivery/implementation-reports/ADR-0002-POST-MERGE-CORRECTION-implementation-report.md
+```
 
 ## 5. Findings addressed
 
@@ -84,16 +94,50 @@ Resolved. The flawed embedded diff was removed. The replacement report was
 constructed without trailing whitespace. Final review must verify the exact branch
 with `git diff --check` before approval.
 
-## 6. Scope amendment: changelog check
+## 6. Post-ready automated review
+
+Post-ready automated review completed:
+`2026-07-28T12:06:55Z`
+
+Reviewed head:
+`ca8e90645957c50c25fecd8b220772837bb522d3`
+
+Decision:
+`CHANGES REQUIRED`
+
+The review raised these three threads:
+
+1. `PRRT_kwDODkn0bc6UZAcG` - mandatory task-specification fields. Valid and
+   corrected by adding explicit Dependencies, Required tests, Migration effect
+   and Stop conditions sections.
+2. `PRRT_kwDODkn0bc6UZAcH` - required changelog entry. Valid and corrected; the
+   earlier no-changelog amendment is superseded.
+3. `PRRT_kwDODkn0bc6UZAcI` - claimed merged state. The finding was based on an
+   incorrect premise: PR #770 was open and unmerged when the comment was posted.
+
+PR #770 remains open, draft and unmerged.
+
+No merge commit, merged timestamp, merged actor or post-merge PR #769 thread
+state exists yet. Those facts must be recorded only after the merge occurs.
+
+The implementation report is a pre-merge evidence record. Final merge and
+post-merge closeout evidence will be recorded in GitHub comments after the
+corresponding operations complete.
+
+## 7. Superseded scope amendment: no changelog
 
 This internal engineering-control correction has no user-visible product effect.
 The initial `check-changelog` run correctly failed because `CHANGELOG.md` was not
 changed. The task specification was amended to use the repository-supported
-`no changelog` label instead. The label was applied before this commit so the fresh
-workflow event can evaluate the labelled PR. This is not a waiver of any other CI
-or independent-review requirement.
+`no changelog` label instead. Post-ready review confirmed that the root
+`AGENTS.md` requires every PR to update `CHANGELOG.md`, so that amendment is
+superseded before merge.
 
-## 7. Invariants
+The corrected scope adds exactly one PR #770 entry under `## [Unreleased]` /
+`### Changed`, removes the `no changelog` label before final CI, and does not
+alter the runtime or migration scope.
+
+## 8. Invariants
 
 ```text
 ADR-0001: PROPOSED
@@ -107,13 +151,13 @@ Issues #765 and #766: unchanged
 No runtime effect
 ```
 
-## 8. Runtime, migration and authorization effects
+## 9. Runtime, migration and authorization effects
 
 None. No Rust, SQL, migration, GraphQL, generated code, workflow, deployment,
 repository-protection or authorization file changed. No deployment, release or
 production activation occurred.
 
-## 9. Issue-write controls
+## 10. Issue-write controls
 
 The complete proposed bodies are review evidence only. They do not authorize issue
 writes. Each future write still requires an immediate live-body and `updatedAt`
@@ -144,7 +188,7 @@ f4e8aa7e855b2b3c44b4cf38c60475861079698cc7f5cd95a6ac319b892cb772
 
 Neither issue was written.
 
-## 10. Tests and checks
+## 11. Tests and checks
 
 ### Reviewed-head whitespace check
 
@@ -280,7 +324,7 @@ Results:
 #766: f4e8aa7e855b2b3c44b4cf38c60475861079698cc7f5cd95a6ac319b892cb772
 ```
 
-## 11. Concrete CI for reviewed evidence head
+## 12. Concrete CI for reviewed evidence head
 
 All required workflows and jobs succeeded at
 `8158603b30e87074326b5729bcf661678a4dccd5`:
@@ -306,7 +350,7 @@ The `build`, `test`, `lint`, `format_check` and `run_migrations` jobs used their
 existing lightweight `Run echo "No build required"` paths. The Docker workflow
 performed a real registry login and `Build and push` operation successfully.
 
-## 12. Final-head evidence model
+## 13. Final-head evidence model
 
 The report records complete concrete CI evidence for reviewed evidence head
 `8158603b30e87074326b5729bcf661678a4dccd5`.
@@ -319,7 +363,7 @@ comment, and independently verified before approval.
 The previous CI is not reused for the new head. All required jobs must succeed at
 the new exact head before fresh independent review.
 
-## 13. Residual blockers and independent review
+## 14. Residual blockers and independent review
 
 All required jobs must succeed at the exact final PR head. A fresh non-implementing
 high-reasoning reviewer must inspect the full cumulative diff and return exactly
@@ -331,7 +375,7 @@ PR #770 remains draft. The three PR #769 review threads remain unresolved until 
 separately authorized post-merge action. Issues #765 and #766 remain open and
 unchanged.
 
-## 14. Rollout and rollback
+## 15. Rollout and rollback
 
 Rollout is merge-only documentation reconciliation. No activation, deployment,
 migration or production write follows.
@@ -339,7 +383,7 @@ migration or production write follows.
 Rollback is a normal revert of PR #770. No issue rollback is required because
 neither issue is changed by this task.
 
-## 15. Post-merge action
+## 16. Post-merge action
 
 After PR #770 is independently approved and merged, reply to each of the three
 unresolved PR #769 review threads with the corrective merge commit and resolve the
