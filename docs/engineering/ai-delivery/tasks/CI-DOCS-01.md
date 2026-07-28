@@ -255,7 +255,7 @@ No claim may be made that post-merge skipped-job behaviour has been observed bef
 - [ ] the two no-action workflows are deleted;
 - [ ] `check_changelog.yml` remains unchanged;
 - [ ] deterministic classifier tests pass;
-- [ ] `actionlint` passes;
+- [ ] `actionlint` v1.7.12 produces an accepted baseline-equivalent result with exactly the two approved pre-existing findings and no new findings;
 - [ ] `git diff --check` passes;
 - [ ] all seven implementation-PR contexts succeed at the final exact head;
 - [ ] changelog and implementation report are complete;
@@ -284,7 +284,7 @@ actionlint
 git diff --check
 ```
 
-Also inspect triggers, branches, workflow/job names, `needs`, job-level conditions, permissions, secrets/credentials, manual dispatch, failure propagation and context preservation. Do not dispatch production or write-capable workflows.
+The actionlint command must use version 1.7.12 and the approved baseline-equivalence procedure in section 19. Also inspect triggers, branches, workflow/job names, `needs`, job-level conditions, permissions, secrets/credentials, manual dispatch, failure propagation and context preservation. Do not dispatch production or write-capable workflows.
 
 ## 12. Rollout
 
@@ -326,7 +326,7 @@ Stop and return `BLOCKED` if:
 - any file outside the approved allowlist is required;
 - testing requires production secrets or a production dispatch;
 - classifier tests do not cover the full PR diff;
-- `actionlint` fails;
+- `actionlint` v1.7.12 does not reproduce the approved exact-base baseline or the implementation adds, removes or materially changes a normalized finding;
 - the implementation PR lacks any of the seven contexts;
 - any final exact-head CI job fails;
 - a cross-programme architecture decision is discovered.
@@ -370,3 +370,88 @@ Protected-context amendment approved by: Javi, CTO
 Amendment date: 2026-07-28
 
 The amendment establishes six protected required contexts and one additional mandatory Docker workflow-validation context. It authorizes implementation, commit, push, draft PR creation and exact-head CI evidence gathering, but not merge, deployment, release, branch-protection changes, issue edits or production activation.
+
+## 19. Approved actionlint baseline amendment
+
+Approved by: Javi, CTO
+
+Approval date: 2026-07-28
+
+Required actionlint version: `1.7.12`
+
+At exact base `0af9fbae940464a8f94aa1d9a857bad7a55ac54c`, repository-wide actionlint validation reports exactly two pre-existing obsolete-action findings:
+
+```text
+.github/workflows/docker_build_and_push_to_dockerhub.yml
+docker/metadata-action@v4
+obsolete-action diagnostic
+
+.github/workflows/docker_build_and_push_to_dockerhub_release.yml
+docker/metadata-action@v4
+obsolete-action diagnostic
+```
+
+The release workflow remains outside CI-DOCS-01 scope. No action upgrade is authorized. In particular, this task must not change:
+
+```text
+docker/metadata-action@v4
+docker/setup-qemu-action@v3
+docker/setup-buildx-action@v3
+docker/login-action@v3
+docker/build-push-action@v5
+```
+
+The repository-wide actionlint requirement is amended for CI-DOCS-01 only. Exit status `1` is acceptable only when the complete diagnostic set contains exactly the two approved findings and no other finding.
+
+### Normalized comparison procedure
+
+1. Run repository-wide `actionlint` v1.7.12 in an immutable temporary worktree at the exact base.
+2. Capture the exact command, version, exit status and complete stdout/stderr.
+3. Run the identical repository-wide command in the implementation worktree and capture the same evidence.
+4. Normalize only line number, column number and any absolute local filesystem prefix.
+5. Do not normalize workflow path, action reference, diagnostic category, diagnostic message or diagnostic count.
+6. Require the implementation findings to equal the approved two-entry baseline exactly.
+7. Run actionlint explicitly against every surviving changed workflow. The build/test and migration workflows must have no finding. The PR Docker workflow may have only its one approved obsolete `docker/metadata-action@v4` finding.
+8. Verify deleted no-action workflows through the cumulative diff and classifier tests.
+9. Verify the release workflow is byte-for-byte unchanged and all listed action versions are unchanged.
+
+No actionlint suppression comment, global exclusion or configuration may be added.
+
+### Revised actionlint acceptance
+
+The actionlint gate is satisfied only when:
+
+- the exact-base repository-wide run reproduces exactly the two approved findings;
+- the implementation repository-wide run produces exactly the same two normalized findings;
+- the changed build/test workflow has no finding;
+- the changed migration workflow has no finding;
+- the changed PR Docker workflow has only its approved baseline finding;
+- no diagnostic is added, removed, broadened, suppressed or materially changed;
+- the release workflow is byte-for-byte unchanged;
+- all listed action versions remain unchanged.
+
+The implementation report must state:
+
+```text
+actionlint v1.7.12: accepted baseline-equivalent result;
+exit 1 with exactly two approved pre-existing findings and no new findings
+```
+
+It must not state that actionlint passed cleanly.
+
+### Revised actionlint stop conditions
+
+Stop and return `BLOCKED` if:
+
+- the exact-base run does not reproduce exactly the two approved findings;
+- the implementation adds any finding;
+- either approved finding disappears because an action reference or release workflow changed;
+- either diagnostic changes materially;
+- a third workflow produces a finding;
+- the release workflow or an action version changes;
+- a suppression or exclusion is introduced;
+- validation uses a version other than 1.7.12 without another approved amendment;
+- any changed workflow has a non-baseline finding;
+- the normalized comparison cannot be made deterministically.
+
+The implementation report must include a section titled `Actionlint baseline and deferred maintenance`, record all base and implementation commands and findings, and recommend a separate bounded task to upgrade both Docker workflows. That separate maintenance task is not part of CI-DOCS-01.
