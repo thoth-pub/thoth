@@ -7,7 +7,7 @@ Owner: CTO
 
 | Repository | Current instruction state | Required action |
 |---|---|---|
-| `thoth` | root and scoped instruction hierarchy added and merged through PR #764 as `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`; retrospective closeout independently `APPROVED` and merged through PR #767 as `bac598e32abbd0d7e69ff467c82945ee00df02ba`; P0-01 `CLOSED` | none in `thoth`; apply the separately authorized issue #765 synchronization as an external mirror |
+| `thoth` | root and scoped instruction hierarchy added and merged through PR #764 as `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`; retrospective closeout independently `APPROVED` and merged through PR #767 as `bac598e32abbd0d7e69ff467c82945ee00df02ba`; P0-01 `CLOSED`; issue #765 synchronized on 2026-07-27 and remains open | none for the completed `thoth` foundation closeout; continue with the remaining programme and repository-readiness gates |
 | `thoth-app` | no verified root `AGENTS.md` | create from approved repository map |
 | `thoth-dissemination` | existing root `AGENTS.md`, incomplete control coverage | revise without losing useful local guidance |
 | `thoth-sphinx` | placeholder-only README; no verified `AGENTS.md` | add `AGENTS.md` and replace or expand the README during bootstrap |
@@ -17,7 +17,7 @@ Owner: CTO
 
 ## 2. Rollout sequence
 
-1. The retrospective closeout of the already-merged `thoth` control foundation is complete: PR #767 was independently `APPROVED` and merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba`, closing P0-01. The only remaining step is the separately authorized issue #765 synchronization, an external mirror of the completed repository closeout.
+1. The retrospective closeout of the already-merged `thoth` control foundation is complete: PR #767 was independently `APPROVED` and merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba`, closing P0-01. Issue #765 was synchronized on 2026-07-27 and remains open as the external programme mirror. No foundation-closeout action remains in `thoth`.
 2. Update `thoth-dissemination`, because it already performs production-capable workflows.
 3. Add `thoth-app` instructions before Publisher Services or metrics upload UI implementation.
 4. Add `thoth-sphinx` instructions as part of its no-production bootstrap task.
@@ -38,30 +38,3 @@ Each root `AGENTS.md` must record:
 - deployment or package-publishing effects;
 - prohibited production actions;
 - completion report and independent review requirements;
-- stop conditions.
-
-## 4. Delivery model
-
-Instruction rollout to other repositories requires repository-local PRs.
-
-Use the repository's current verified development branch until an approved branch-normalization task completes.
-
-Do not combine:
-
-- branch normalization;
-- CI modernization;
-- functional implementation;
-- agent-instruction rollout
-
-unless the approved specification proves they are inseparable.
-
-## 5. Source authority
-
-Generate each file from:
-
-- the merged repository/environment map;
-- live repository code and workflows;
-- the approved operating model;
-- current deployment/release evidence.
-
-Do not copy the `thoth` root file verbatim into another repository.
