@@ -9,9 +9,25 @@ Base commit: `f2e09bd9b138e8ba2ca47a791533f4aae4ffab28`
 PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/engineering/adr-0002-approve`
-Head commit: recorded in the handoff; this evidence report is the third and final
-commit on the branch, so its own SHA becomes the exact final head and is captured
-after push (the two preceding commits are `ddf635fd` and `7a82680c`).
+
+Pre-review evidence head:
+`f4ef99c97c21f86d0dccd29081a450e3bdf4ce54`
+
+This was the exact head at which:
+
+- the three original commits (`ddf635fd`, `7a82680c`, `f4ef99c9`) were present;
+- the 14-file cumulative diff versus `origin/develop` was inspected;
+- all four workflow runs and all seven required jobs succeeded;
+- both issue baselines (#765 and #766) were reconfirmed.
+
+This pre-review evidence head is not the final PR head after this evidence
+correction commit is created.
+
+This correction commit cannot contain its own SHA without creating a
+self-referential evidence loop. Its exact SHA and the resulting final PR head
+are authoritative in GitHub and the post-push handoff. The independent reviewer
+must inspect that new exact head and its fresh CI.
+
 Pull request: [#769](https://github.com/thoth-pub/thoth/pull/769) (draft)
 Expected branch deletion after merge: YES
 Final programme PR required: NO
@@ -41,16 +57,28 @@ REQUIRED` report was triggered.
 
 ## 3. Commits
 
-- `ddf635fd` - docs: approve ADR-0002 recording task (task specification only,
+Existing commits:
+
+- `ddf635fd...` - docs: approve ADR-0002 recording task (task specification only,
   committed first)
-- `7a82680c` - docs: record ADR-0002 approval (approval metadata and control-record
-  reconciliation)
-- `<this report>` - docs: record ADR-0002 approval evidence (final head; SHA in
-  handoff)
+- `7a82680c...` - docs: record ADR-0002 approval (approval metadata and
+  control-record reconciliation)
+- `f4ef99c97c21f86d0dccd29081a450e3bdf4ce54` - docs: record ADR-0002 approval
+  evidence
+
+Correction commit (this change), recorded by purpose and message; it cannot embed
+its own SHA:
+
+- docs: correct ADR-0002 approval evidence (pre-review evidence correction to the
+  implementation report only)
+
+The post-push handoff provides this correction commit's exact SHA, which becomes
+the final PR head.
 
 ## 4. Files changed
 
-Cumulative changed-file set versus `origin/develop` (a subset of the allowlist):
+The cumulative PR changes exactly 14 files versus `origin/develop`. All 14 files
+remain within the approved file allowlist:
 
 - `docs/engineering/ai-delivery/tasks/ADR-0002-APPROVE.md`
   - reason: approved task specification, committed before any other change.
@@ -112,6 +140,10 @@ Cumulative changed-file set versus `origin/develop` (a subset of the allowlist):
 - `CHANGELOG.md`
   - reason: one bounded `Changed` entry referencing PR #769.
   - behavioural effect: none.
+- `docs/engineering/ai-delivery/implementation-reports/ADR-0002-APPROVE-implementation-report.md`
+  - reason: Records implementation, verification, issue-baseline and
+    independent-review evidence.
+  - behavioural effect: None; documentation only.
 
 ## 5. Implementation decisions
 
@@ -232,24 +264,35 @@ Evidence: recorded in this report and the PR #769 diff.
 
 ## 11. CI
 
-CI status: PENDING at report authoring - the required jobs run at the exact final
-head (this evidence commit).
-
-Required jobs at the final head (all must conclude `success` before review
-approval):
+CI evidence at the pre-review evidence head
+`f4ef99c97c21f86d0dccd29081a450e3bdf4ce54`:
 
 ```text
-build
-format_check
-lint
-test
-build_and_push_staging_docker_image
-check-changelog
-run_migrations
+30284414011 - build-test-and-check
+  build: success
+  format_check: success
+  lint: success
+  test: success
+
+30284414051 - run-migrations
+  run_migrations: success
+
+30284414066 - check-changelog
+  check-changelog: success
+
+30284414243 - publish-to-dockerhub
+  build_and_push_staging_docker_image: success
 ```
 
-The actual workflow run IDs and the seven job conclusions at the final head are
-recorded in the handoff and visible on PR #769. A documentation-only no-build
+All seven required jobs (`build`, `format_check`, `lint`, `test`,
+`build_and_push_staging_docker_image`, `check-changelog`, `run_migrations`)
+concluded `success` at that head.
+
+This evidence-correction commit creates a new head. That new correction head
+requires a fresh, complete CI run before independent approval. The four runs above
+were executed at `f4ef99c9...` and must not be reused as the final-head CI for the
+new correction commit. The reviewer must inspect the new exact head's own fresh CI
+and confirm all seven jobs conclude `success` there. A documentation-only no-build
 path is acceptable but is not a substitute for independent review.
 
 ## 12. Rollout and rollback
@@ -438,3 +481,35 @@ Suggested review focus:
 - confirm both proposed issue bodies are minimal and the issues were not written.
 
 The agent may identify risks but may not approve the task.
+
+## 20. Pre-review correction
+
+Pre-review control decision: `CHANGES REQUIRED`.
+
+Findings identified and corrected before independent review:
+
+- **P1 - Incomplete tracked final-head/commit/CI evidence.** The report's Section 1
+  head-commit field was a placeholder deferring the head to the handoff, Section 3
+  did not record the third commit's SHA, and Section 11 left CI `PENDING`. This
+  correction records the pre-review evidence head
+  `f4ef99c97c21f86d0dccd29081a450e3bdf4ce54`, the three existing commit SHAs, and
+  the concrete CI evidence (four workflow run IDs, all seven jobs `success`) at
+  that head.
+- **P2 - Changed-file count understated and self-omission.** The report stated 13
+  changed files and omitted the implementation report itself. This correction
+  states the cumulative PR changes exactly 14 files, all within the approved
+  allowlist, and adds the implementation report to the Section 4 file list.
+
+Both findings were corrected in this single bounded evidence-correction commit,
+before any independent review or approval.
+
+Scope of this correction: only
+`docs/engineering/ai-delivery/implementation-reports/ADR-0002-APPROVE-implementation-report.md`
+changed. No architectural, decision-register, programme-tracker, CHANGELOG, task
+specification, GitHub issue or runtime content changed. All historical evidence
+and both issue synchronization proposals are preserved.
+
+Because this correction commit creates a new head, a fresh complete CI run is
+required at that new exact head before independent approval; the four runs recorded
+in Section 11 belong to `f4ef99c9...` and are not the final-head CI for the new
+correction commit.
