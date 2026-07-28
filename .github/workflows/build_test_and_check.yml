@@ -5,23 +5,8 @@ on:
     branches:
       - master
       - develop
-    paths:
-      - '**.rs'
-      - '**.js'
-      - '**.json'
-      - '**.html'
-      - 'Cargo.lock'
-      - '**Cargo.toml'
-      - 'diesel.toml'
   pull_request:
-    paths:
-      - '**.rs'
-      - '**.js'
-      - '**.json'
-      - '**.html'
-      - 'Cargo.lock'
-      - '**Cargo.toml'
-      - 'diesel.toml'
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -30,7 +15,21 @@ env:
   TEST_REDIS_URL: redis://localhost:6379
 
 jobs:
+  classify:
+    runs-on: ubuntu-latest
+    outputs:
+      run_build: ${{ steps.classify.outputs.run_build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Classify CI changes
+        id: classify
+        run: python3 .github/scripts/classify_ci_changes.py
   build:
+    needs: classify
+    if: needs.classify.outputs.run_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +45,8 @@ jobs:
       - name: Build binary
         run: cargo build -vv
   test:
+    needs: classify
+    if: needs.classify.outputs.run_build == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -84,6 +85,8 @@ jobs:
       - name: Run tests
         run: cargo test --workspace -vv
   lint:
+    needs: classify
+    if: needs.classify.outputs.run_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -99,6 +102,8 @@ jobs:
       - name: Run linting
         run: cargo clippy --all --all-targets --all-features -- -D warnings
   format_check:
+    needs: classify
+    if: needs.classify.outputs.run_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
