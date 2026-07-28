@@ -175,6 +175,54 @@ CI, a new immutable observation comment, fresh independent exact-head review and
 explicit CTO authorization before merge. The existing three commits and
 historical CI observation comment must not be amended, rewritten or replaced.
 
+### 3.2 Post-ready active-entry-point correction
+
+Automated post-ready review of PR
+[#772](https://github.com/thoth-pub/thoth/pull/772) at exact head
+`1124262dd28e0b51f33259be1b70e1396e3bdb1c` returned one P1 finding:
+
+```text
+P1 - Reconcile the stale active ADR indexes
+```
+
+The normative decision and tracker records were correct, but these three active
+repository entry points still described ADR-0001 as `PROPOSED` or as an
+outstanding approval blocker:
+
+```text
+docs/engineering/README.md
+docs/metrics/README.md
+docs/publisher-services/README.md
+```
+
+These are active contradictions rather than historical review evidence. Active
+entry points must agree with the normative decision and tracker records while
+preserving the real remaining Publisher Services, Metrics, Diesel and
+repository-readiness blockers.
+
+Javi, CTO, approved a narrow allowlist amendment on 2026-07-28. The correction
+may modify exactly:
+
+```text
+docs/engineering/ai-delivery/tasks/ADR-0001-APPROVAL.md
+docs/engineering/ai-delivery/implementation-reports/ADR-0001-APPROVAL-implementation-report.md
+docs/engineering/README.md
+docs/metrics/README.md
+docs/publisher-services/README.md
+```
+
+Before repository changes, PR #772 must return to draft. The correction requires
+one new bounded commit, `docs: reconcile ADR-0001 programme entry points`, fresh
+exact-head CI, a new immutable observation comment, a reply to and resolution
+of the P1 only after exact-head evidence is terminal, fresh independent
+exact-head review and fresh explicit CTO authorization before merge.
+
+Creating the correction commit invalidates the prior independent approval for
+head `1124262dd28e0b51f33259be1b70e1396e3bdb1c` and the CTO merge authorization
+bound to that head. Those records remain immutable historical evidence and must
+not be rewritten or erased. No existing commit may be amended, squashed,
+rebased, reset, force-pushed or otherwise rewritten.
+
 ## 4. Explicit scope
 
 The task must:
@@ -213,6 +261,11 @@ The task must:
 11. Observe the final exact-head GitHub Actions jobs and post one top-level PR
     evidence comment with immutable CI evidence.
 12. Keep the pull request draft and hand it off for fresh independent review.
+13. Reconcile the three active README entry points so ADR-0001 is shown as
+    approved by Javi, CTO, on 2026-07-28 through PR #772, pending merge of the
+    approval record, without claiming implementation or merge.
+14. Preserve every genuine programme blocker and prove that active entry points
+    agree with the normative decision and tracker records.
 
 ## 5. Approved file allowlist
 
@@ -226,15 +279,22 @@ docs/engineering/decisions/ADR-0001-publisher-package-capability-model.md
 docs/engineering/decisions/package-capability-matrix.md
 docs/engineering/decisions/decision-register.md
 docs/engineering/repository-map/control-gaps.md
+docs/engineering/README.md
 docs/publisher-services/decisions.md
 docs/publisher-services/task-status.md
+docs/publisher-services/README.md
 docs/metrics/decisions.md
 docs/metrics/task-status.md
+docs/metrics/README.md
 ```
 
 The actual changed-file set may be a subset of this allowlist. If another
 repository file requires modification, stop and report the exact stale reference
 as follow-up work rather than expanding scope.
+
+The post-ready active-entry-point correction is restricted to the exact five
+files listed in Section 3.2. It must not modify any other file in the cumulative
+allowlist.
 
 ## 6. Non-goals
 
@@ -381,6 +441,12 @@ implementation readiness and retain all remaining blockers specified in Section
 - [ ] `BE-01` remains `BLOCKED` pending its own approved bounded specification.
 - [ ] `MET-CTRL-01` remains `CHANGES REQUIRED`.
 - [ ] Metrics WP1 and later work packages remain `BLOCKED`.
+- [ ] No active README describes ADR-0001 as proposed or lists its approval as
+  an outstanding blocker.
+- [ ] All three active README entry points record the approver, date, approval
+  PR and pending-merge status consistently.
+- [ ] All three active README entry points preserve genuine remaining
+  programme, task-specification, Diesel and repository-readiness blockers.
 - [ ] No document claims implementation is ready, started or complete.
 - [ ] The changelog records approval without describing runtime functionality as
   implemented.
@@ -407,6 +473,7 @@ Verify:
 
 - every changed path is under `docs/**` or exactly `CHANGELOG.md`;
 - the changed-file set is a subset of Section 5;
+- the post-ready correction changes exactly the five files in Section 3.2;
 - no runtime or workflow file changed;
 - every active ADR-0001 status in the approved scope is consistent;
 - matrices are identical in the ADR, appendix and programme summaries;
@@ -426,6 +493,27 @@ Verify:
 - internal links and paths resolve;
 - canonical repository and programme terminology is used;
 - no active document claims implementation readiness.
+
+Search all active documentation for stale ADR-0001 state:
+
+```bash
+rg -n \
+  'ADR-0001.*PROPOSED|ADR-0001 remains proposed|ADR-0001.*blocking|blocked.*ADR-0001' \
+  docs \
+  --glob '*.md'
+```
+
+Classify every result as an active entry point/current control record,
+historical task/report/review evidence, or ambiguous. Active contradictions must
+be corrected; historical evidence must be preserved; ambiguous results are a
+stop condition.
+
+Run `.github/scripts/classify_ci_changes.py` over the exact cumulative path set
+and require:
+
+```json
+{"docs_only": "true", "run_build": "false", "run_docker": "false", "run_migrations": "false"}
+```
 
 Rust, database, migration, GraphQL and authorization tests are not applicable
 because the approved task is documentation-only and changes none of those
@@ -531,6 +619,15 @@ docs: clarify package distribution and downgrade semantics
 
 Do not amend, squash, rebase or rewrite any of the existing three commits.
 
+Post-ready remediation adds exactly one further bounded commit:
+
+```text
+docs: reconcile ADR-0001 programme entry points
+```
+
+That commit must contain exactly the five files listed in Section 3.2. Do not
+amend, squash, rebase, reset, force-push or rewrite any existing commit.
+
 ## 14. Rollout
 
 Initial state after merge:
@@ -580,6 +677,8 @@ Stop and report `BLOCKED` if:
 - a heavy Rust, migration or Docker step executes for this documentation-only
   pull request;
 - the branch ceases to be a documentation-only diff;
+- another active entry point or current control record requires correction
+  outside the five-file post-ready amendment;
 - independent review or explicit CTO merge authorization is unavailable.
 
 ## 17. Independent review and merge authorization

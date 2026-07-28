@@ -11,6 +11,10 @@ Programme integration branch: None
 Task branch: `feature/engineering/adr-0001-approval`
 Approval content commit: `55fc33fe4ea5251ab941002ed9480f3b78aceaa7`
 Previous reviewed head: `4af692490875c66a9a0c7fb32354f10f136889e6`
+Independent-review correction head:
+`1124262dd28e0b51f33259be1b70e1396e3bdb1c`
+Post-ready automated reviewed head:
+`1124262dd28e0b51f33259be1b70e1396e3bdb1c`
 Pull request: [#772](https://github.com/thoth-pub/thoth/pull/772) (draft)
 Expected branch deletion after merge: YES
 Final programme PR required: NO
@@ -34,6 +38,14 @@ observation-comment URL are likewise recorded externally after push. This
 preserves the required one-commit correction without amending history or
 creating an endless evidence-only commit chain.
 
+After the PR was marked ready, the automated review submitted against exact
+head `1124262dd28e0b51f33259be1b70e1396e3bdb1c` opened one P1 finding:
+the active engineering, Metrics and Publisher Services README entry points still
+described ADR-0001 as proposed or as an outstanding approval blocker. The PR
+returned to draft before this correction. The prior exact-head independent
+approval and CTO merge authorization are now historical and inapplicable to the
+new correction head.
+
 ## 2. Scope confirmation
 
 Approved specification:
@@ -43,6 +55,10 @@ Implemented objective: record the CTO approval of ADR-0001 and the final
 publisher package-capability matrix, reconcile only the approved engineering,
 Publisher Services and Metrics records, and prepare PR #772 as the first
 controlled CI-DOCS-01 documentation-only observation.
+
+The CTO-approved post-ready scope amendment additionally reconciles the three
+active README entry points with the normative decision and tracker records while
+preserving every genuine programme blocker.
 
 Out-of-scope changes made: NONE.
 
@@ -122,16 +138,20 @@ Corrected package-change semantics:
 - `4af692490875c66a9a0c7fb32354f10f136889e6` -
   `docs: record ADR-0001 approval evidence`
   - the implementation report at the previous reviewed head.
-- `docs: clarify package distribution and downgrade semantics`
+- `1124262dd28e0b51f33259be1b70e1396e3bdb1c` -
+  `docs: clarify package distribution and downgrade semantics`
   - one bounded correction across the six approved documentation files; its
-    exact SHA and the resulting final head are recorded externally because the
-    commit contains this report.
+    exact SHA is the post-ready automated reviewed head.
+- `docs: reconcile ADR-0001 programme entry points`
+  - one bounded post-ready correction across the five amended documentation
+    files; its exact SHA and the resulting final head are recorded externally
+    because the commit contains this report.
 
 No commit was amended, squashed or rewritten.
 
 ## 5. Files changed
 
-The complete pull request changes exactly the following eleven approved paths:
+The complete pull request changes exactly the following fourteen approved paths:
 
 - `CHANGELOG.md`
   - records the architectural approval and the final OASIS/OBELISK collection
@@ -152,17 +172,27 @@ The complete pull request changes exactly the following eleven approved paths:
 - `docs/engineering/repository-map/control-gaps.md`
   - resolves only the shared-ADR CG-06 gate while preserving all unrelated
     control gaps and implementation blockers.
+- `docs/engineering/README.md`
+  - records both cross-programme ADRs as approved while distinguishing the
+    pending PR #772 merge and preserving genuine implementation blockers.
 - `docs/publisher-services/decisions.md`
   - summarizes the approved architecture and exact final matrix.
 - `docs/publisher-services/task-status.md`
   - removes ADR-0001 as an unresolved dependency while retaining `BE-01` and all
     implementation work as blocked.
+- `docs/publisher-services/README.md`
+  - records the approved ADR-0001 control pending merge and preserves ADR-01,
+    inventory, task-specification and branch-readiness blockers.
 - `docs/metrics/decisions.md`
   - summarizes the exact final matrix, OASIS exclusion, private/non-blocking
     OBELISK collection and upgrade/downgrade/export rules.
 - `docs/metrics/task-status.md`
   - records ADR-0001 approval while retaining `MET-CTRL-01` as
     `CHANGES REQUIRED` and every work package as `BLOCKED`.
+- `docs/metrics/README.md`
+  - records the approved ADR-0001 control pending merge and preserves
+    `MET-CTRL-01`, Sphinx, Diesel, branch, service-role, fixture and OPERAS
+    blockers.
 
 No file outside the approved allowlist changed.
 
@@ -175,6 +205,16 @@ docs/engineering/decisions/ADR-0001-publisher-package-capability-model.md
 docs/engineering/decisions/package-capability-matrix.md
 docs/publisher-services/decisions.md
 docs/metrics/decisions.md
+```
+
+The post-ready active-entry-point correction changes exactly:
+
+```text
+docs/engineering/ai-delivery/tasks/ADR-0001-APPROVAL.md
+docs/engineering/ai-delivery/implementation-reports/ADR-0001-APPROVAL-implementation-report.md
+docs/engineering/README.md
+docs/metrics/README.md
+docs/publisher-services/README.md
 ```
 
 ## 6. Implementation decisions and deviations
@@ -196,12 +236,16 @@ Implementation decisions within the approved specification:
    distribution configuration and current operational source availability.
 6. The P2 correction evaluates every package change through the resulting
    capability set rather than applying generic downgrade denials.
+7. The post-ready correction treats the three README files as active entry
+   points, not historical evidence, so they must agree with the normative
+   decision and tracker records without erasing genuine implementation
+   blockers.
 
 Deviations from the approved specification: NONE.
 
-Additional stale active references requiring follow-up: NONE found within the
-approved scope. Historical task specifications, implementation reports and
-review records were not rewritten.
+The stale active references found by post-ready review are reconciled under the
+CTO-approved five-file scope amendment. Historical task specifications,
+implementation reports and review records remain intact.
 
 ## 7. Database and migration effects
 
@@ -267,7 +311,7 @@ git diff --name-only bafd4cbf752f9d6153036fc7f47115220fed3fbd...HEAD
 Result:
 
 ```text
-Exactly eleven paths: CHANGELOG.md and the ten approved docs/** paths listed in Section 5.
+Exactly fourteen paths: CHANGELOG.md and the thirteen approved docs/** paths listed in Section 5.
 No runtime or workflow path.
 ```
 
@@ -321,7 +365,7 @@ WP1-WP11 and MET-E2E-01: BLOCKED.
 Command:
 
 ```text
-python3 .github/scripts/classify_ci_changes.py --paths <the exact eleven changed paths>
+python3 .github/scripts/classify_ci_changes.py --paths <the exact fourteen changed paths>
 ```
 
 Result:
@@ -360,6 +404,40 @@ Semantic inspection confirms:
 - in-flight work rechecks the relevant capability at its final boundary;
 - collection does not infer entitlement from an assignment or remote location.
 
+### Post-ready active-entry-point correction
+
+Commands:
+
+```text
+git diff --check bafd4cbf752f9d6153036fc7f47115220fed3fbd...HEAD
+git diff --name-only 1124262dd28e0b51f33259be1b70e1396e3bdb1c...HEAD
+rg -n \
+  'ADR-0001.*PROPOSED|ADR-0001 remains proposed|ADR-0001.*blocking|blocked.*ADR-0001' \
+  docs \
+  --glob '*.md'
+```
+
+Result:
+
+```text
+The cumulative diff is whitespace-clean.
+The post-ready correction changes exactly the five CTO-authorized files.
+No active README describes ADR-0001 as proposed or lists ADR-0001 approval as
+an outstanding blocker.
+Remaining search matches are historical task/report/review evidence,
+baseline/change-history statements in the current specification, or the
+validation command and result text in the current task/report. No result is
+ambiguous.
+```
+
+The engineering, Metrics and Publisher Services README entry points consistently
+record ADR-0001 as approved by Javi, CTO, on 2026-07-28 through PR #772, pending
+merge of the approval record. They preserve Publisher Services ADR-01 and final
+inventory, task-specific specifications including BE-01, branch readiness,
+`MET-CTRL-01`, Sphinx bootstrap, Diesel generation, service-role, fixture,
+COUNTER and OPERAS completeness blockers. No implementation task is marked
+ready.
+
 ### Internal path and terminology inspection
 
 Result:
@@ -368,7 +446,8 @@ Result:
 Referenced repository paths exist.
 Canonical repository and programme names are used.
 No active scoped document claims that approval starts or completes implementation.
-No stale active ADR-0001 PROPOSED reference remains in the approved scope.
+No stale active README describes ADR-0001 as PROPOSED or an outstanding
+approval blocker.
 ```
 
 ### Rust, database and workflow tests
@@ -385,7 +464,8 @@ Verified:
 
 1. the specification is the only file in the first commit;
 2. PR #772 is draft and targets `develop`;
-3. every changed path is allowlisted and documentation-only;
+3. all fourteen cumulative changed paths are allowlisted and
+   documentation-only;
 4. all four matrix copies are identical;
 5. OASIS, OBELISK, SPHINX and PYRAMID match the CTO decision;
 6. every checklist item is complete;
@@ -396,6 +476,10 @@ Verified:
 10. issues #765 and #766 were not modified;
 11. no runtime, migration, workflow, deployment, release or production action
     occurred.
+12. the PR returned to draft before post-ready repository changes;
+13. the post-ready correction changes exactly the five amended files;
+14. active README entry points agree with the normative decision and tracker
+    records while programme implementation remains blocked.
 
 ## 11. CI
 
@@ -465,6 +549,22 @@ conclusions and its own URL. The comment is the authoritative location because
 the correction commit cannot contain its own SHA or CI runs. The historical
 comment above must not be edited.
 
+### 12.3 Post-ready active-entry-point evidence
+
+Status at post-ready correction-report creation: PENDING push and exact-head CI.
+
+The automated post-ready P1 reviewed head
+`1124262dd28e0b51f33259be1b70e1396e3bdb1c`. The correction commit and its new
+final head are recorded in the immutable top-level evidence comment and handoff
+after push because this report is part of that commit.
+
+At the new exact head, all three classifiers must succeed; build, test, lint,
+format, migrations and Docker must be skipped with no executed heavy steps; and
+`check-changelog` must succeed. Only after that evidence is terminal may the
+implementation reply to and resolve the post-ready P1 thread. The previous
+independent approval and CTO authorization remain historical and do not cover
+the new head.
+
 ## 13. Rollout and rollback
 
 Initial state after merge:
@@ -504,19 +604,23 @@ release or production rollback is required.
   completeness and other work-package dependencies remain unresolved.
 - Every Metrics work package remains `BLOCKED`.
 - The CI-DOCS-01 mixed-source and next-three-PR observations remain outstanding.
-- Corrective exact-head CI and fresh independent review remain pending at
-  correction-report creation.
-- Explicit CTO merge authorization remains pending.
+- Post-ready corrective exact-head CI and P1 thread resolution remain pending
+  at correction-report creation.
+- Fresh independent exact-head review and fresh explicit CTO authorization are
+  required for the new head.
 
 ## 15. Unresolved issues
 
-- Corrective exact-final-head CI evidence and the new top-level observation
+- Post-ready corrective exact-final-head CI evidence and the new top-level observation
   comment are pending at correction-report creation.
+- The post-ready P1 reply and resolution are pending exact-head CI.
 - Fresh independent review is pending.
 - Explicit CTO merge authorization is pending.
 
-The previous P1 and P2 documentation findings are addressed by the bounded
-correction. No runtime defect or scope deviation is known.
+The earlier distribution and downgrade findings are addressed. The
+active-entry-point P1 is addressed in the working correction but remains open
+until pushed exact-head validation and CI permit an immutable reply and
+resolution. No runtime defect or scope deviation is known.
 
 ## 16. Agent self-assessment
 
@@ -529,6 +633,8 @@ Suggested independent-review focus:
   bespoke overrides and entitlement/configuration separation;
 - upgrade, downgrade and historical OPERAS export behaviour;
 - residual Publisher Services and Metrics blockers;
+- consistency of the three active README entry points with the normative
+  decision and tracker records;
 - specification-first commit order and exact allowlist;
 - exact-head CI context and job-step evidence;
 - absence of runtime, migration, workflow, issue, deployment, release and

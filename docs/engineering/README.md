@@ -52,10 +52,16 @@ Agents must use observed repository state until an approved normalization task c
 
 - [Decision process](./decisions/README.md)
 - [Decision register](./decisions/decision-register.md)
-- [ADR-0001: publisher package capabilities](./decisions/ADR-0001-publisher-package-capability-model.md) - `PROPOSED`
+- [ADR-0001: publisher package capabilities](./decisions/ADR-0001-publisher-package-capability-model.md) - `APPROVED` (Javi, CTO, 2026-07-28, approval PR [#772](https://github.com/thoth-pub/thoth/pull/772); approval record pending merge)
 - [ADR-0002: platform domain boundaries](./decisions/ADR-0002-platform-domain-boundaries.md) - `APPROVED` (CTO, 2026-07-27, PR [#769](https://github.com/thoth-pub/thoth/pull/769))
 
-A committed proposed ADR is not approved. ADR-0002 is approved; dependent implementation remains blocked by its other prerequisites. ADR-0001 remains proposed, and dependent implementation stays blocked until the CTO decision is recorded and independently reviewed.
+ADR-0001 and ADR-0002 are approved. ADR-0001 is approved by the CTO
+through PR [#772](https://github.com/thoth-pub/thoth/pull/772), pending merge
+of that independently reviewed approval record, and becomes
+repository-authoritative only after that PR merges. ADR approval removes the
+shared decision blocker but does not make any implementation task ready.
+Publisher Services and Metrics implementation remain blocked by their genuine
+programme, task-specification and repository-readiness prerequisites.
 
 ## 7. Active programmes
 
@@ -102,10 +108,11 @@ Achieved:
 Outstanding:
 
 - None for the foundation closeout gate. Dependent Publisher Services and Metrics
-  implementation remains blocked by the ADR-0001, Publisher Services ADR-01 and
-  final-inventory, branch-readiness and task-specification gates recorded in the
-  programme controls. ADR-0002 was approved on 2026-07-27 through PR
-  [#769](https://github.com/thoth-pub/thoth/pull/769); it removes one shared-ADR
-  dependency and does not make either programme implementation-ready.
+  implementation remains blocked by Publisher Services ADR-01 and its final
+  distribution-platform inventory, task-specific approved specifications,
+  applicable branch-readiness controls, and the Metrics programme-control,
+  Diesel-generation and repository-readiness gates recorded in the programme
+  controls. ADR-0001 and ADR-0002 approval remove shared decision dependencies
+  without making either programme implementation-ready.
 
 The implementing conversation cannot approve its own work.
