@@ -5,17 +5,7 @@ on:
     branches:
       - master
       - develop
-    paths:
-      - '**up.sql'
-      - '**down.sql'
-      - '**db.rs'
-      - 'src/bin/**'
   pull_request:
-    paths:
-      - '**up.sql'
-      - '**down.sql'
-      - '**db.rs'
-      - 'src/bin/**'
   workflow_dispatch:
 
 env:
@@ -25,7 +15,31 @@ env:
   DATABASE_URL: postgres://thoth:thoth@localhost:5432/thoth
 
 jobs:
+  classify:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    outputs:
+      run_migrations: ${{ steps.classify.outputs.run_migrations }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Classify CI changes
+        id: classify
+        run: python3 .github/scripts/classify_ci_changes.py
   run_migrations:
+    needs: classify
+    if: >-
+      ${{
+        always() &&
+        !cancelled() &&
+        (
+          needs.classify.result != 'success' ||
+          needs.classify.outputs.run_migrations == 'true'
+        )
+      }}
     runs-on: ubuntu-latest
     services:
       postgres:
