@@ -12,7 +12,10 @@ Risk: MEDIUM
 Reviewed evidence head: `8158603b30e87074326b5729bcf661678a4dccd5`
 Prior independently approved head: `ca8e90645957c50c25fecd8b220772837bb522d3`
 Implementing agent/model: Codex / GPT-5
-Independent reviewer: fresh non-implementing high-reasoning context
+Designated independent reviewer/model: ChatGPT / GPT-5.6 Thinking
+Independent review context: fresh and non-implementing
+Implementation reasoning: High
+Independent review reasoning: High
 
 ## 2. Objective
 
@@ -39,6 +42,9 @@ behaviour.
 The independent-review correction commit is identified separately by exact SHA
 in the final implementation handoff after it is created.
 
+The evidence-restoration correction commit is also identified separately by exact
+SHA in the final implementation handoff after it is created.
+
 ## 4. Files changed
 
 The cumulative branch changes are limited to:
@@ -58,6 +64,14 @@ The bounded post-ready correction commit changes only:
 ```text
 CHANGELOG.md
 docs/engineering/ai-delivery/tasks/ADR-0002-POST-MERGE-CORRECTION.md
+docs/engineering/ai-delivery/implementation-reports/ADR-0002-POST-MERGE-CORRECTION-implementation-report.md
+```
+
+The bounded evidence-restoration correction changes only:
+
+```text
+docs/engineering/ai-delivery/tasks/ADR-0002-POST-MERGE-CORRECTION.md
+docs/engineering/ai-delivery/implementation-reports/ADR-0002-APPROVE-implementation-report.md
 docs/engineering/ai-delivery/implementation-reports/ADR-0002-POST-MERGE-CORRECTION-implementation-report.md
 ```
 
@@ -123,6 +137,33 @@ state exists yet. Those facts must be recorded only after the merge occurs.
 The implementation report is a pre-merge evidence record. Final merge and
 post-merge closeout evidence will be recorded in GitHub comments after the
 corresponding operations complete.
+
+### Subsequent post-ready evidence-restoration review
+
+Post-ready automated review timestamp:
+`2026-07-28T13:33:57Z` / `2026-07-28T13:33:58Z`
+
+Reviewed head:
+`cb82ce799ca3afecf8f243faa7ebb9d10c5d049b`
+
+Decision:
+`CHANGES REQUIRED`
+
+The review raised two valid P1 findings:
+
+1. `PRRT_kwDODkn0bc6Ualwk` - restore mandatory ADR-0002 approval
+   implementation evidence, including the 14-file per-path assessment, exact
+   commands and truthful results, authorization assessment, rollout, rollback,
+   known limitations and deferred work.
+2. `PRRT_kwDODkn0bc6Ualwt` - record concrete implementing and independent
+   reviewer agent/model identities in the task and implementation report.
+
+The prior independent `APPROVED` decision at
+`cb82ce799ca3afecf8f243faa7ebb9d10c5d049b` is superseded by these subsequent
+P1 findings. The next exact head requires fresh CI and a fresh independent review.
+
+PR #770 was converted back to draft before this evidence-restoration edit and
+remains open, draft and unmerged.
 
 ## 7. Superseded scope amendment: no changelog
 
@@ -324,6 +365,32 @@ Results:
 #766: f4e8aa7e855b2b3c44b4cf38c60475861079698cc7f5cd95a6ac319b892cb772
 ```
 
+The restored current report preserves the same complete bodies. Working-tree
+verification commands:
+
+```bash
+awk '/^## 15\. Exact proposed body/{section=1}
+     section && /^```markdown$/{capture=1;next}
+     capture && /^```$/{exit}
+     capture{print}' \
+  docs/engineering/ai-delivery/implementation-reports/ADR-0002-APPROVE-implementation-report.md |
+  shasum -a 256
+
+awk '/^## 16\. Exact proposed body/{section=1}
+     section && /^```markdown$/{capture=1;next}
+     capture && /^```$/{exit}
+     capture{print}' \
+  docs/engineering/ai-delivery/implementation-reports/ADR-0002-APPROVE-implementation-report.md |
+  shasum -a 256
+```
+
+Results:
+
+```text
+#765: da12243b2a1898fd3fd574aada1dede3296ff13f38943e4fbb78a3dcb5ae1a35
+#766: f4e8aa7e855b2b3c44b4cf38c60475861079698cc7f5cd95a6ac319b892cb772
+```
+
 ## 12. Concrete CI for reviewed evidence head
 
 All required workflows and jobs succeeded at
@@ -365,9 +432,12 @@ the new exact head before fresh independent review.
 
 ## 14. Residual blockers and independent review
 
-All required jobs must succeed at the exact final PR head. A fresh non-implementing
-high-reasoning reviewer must inspect the full cumulative diff and return exactly
-`APPROVED`, `CHANGES REQUIRED` or `BLOCKED` before merge.
+All required jobs must succeed at the exact final PR head. The designated
+independent reviewer, ChatGPT / GPT-5.6 Thinking operating in a fresh
+non-implementing context at High reasoning, must inspect the full cumulative diff
+and return exactly `APPROVED`, `CHANGES REQUIRED` or `BLOCKED` before merge. If
+the actual final reviewer/model differs, the review must record the actual
+concrete identity and stop until the task record is explicitly updated.
 
 The implementing context must not approve or merge PR #770.
 

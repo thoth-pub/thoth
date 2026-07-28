@@ -17,6 +17,9 @@ Risk: MEDIUM
 Owner: CTO
 Approved by: Javi, CTO
 Approval date: 2026-07-28
+Implementing agent/model: Codex / GPT-5
+Independent reviewer/model: ChatGPT / GPT-5.6 Thinking, operating in a fresh
+non-implementing review context
 Implementation reasoning: High
 Independent review reasoning: High
 Target branch: `feature/engineering/adr-0002-post-merge-correction`
@@ -38,6 +41,9 @@ writing GitHub issues #765 or #766.
   and body hashes.
 - The approved four-file correction scope must be preserved except for the
   separately approved changelog amendment below.
+- The final independent reviewer must record its actual concrete agent/model
+  identity. If that identity differs from the designated reviewer/model above,
+  stop and update this task record under explicit CTO approval before review.
 - All exact-head CI jobs and fresh independent review must succeed before merge.
 
 ## 2. Authoritative findings
@@ -158,6 +164,8 @@ No runtime effect
 - [ ] The corrective implementation report records base, branch, PR, commits,
       changed files, findings addressed, tests, CI, no-runtime assessment, issue
       baselines and residual blockers.
+- [ ] The task and implementation report record the concrete implementing
+      agent/model and independent reviewer/model identities.
 - [ ] All required final-head CI jobs succeed.
 - [ ] A fresh non-implementing reviewer returns `APPROVED` before merge.
 - [ ] After merge, the three PR #769 review threads receive a reply linking the
@@ -199,6 +207,8 @@ Stop without merging if:
 - the changelog entry is missing, duplicated or outside `## [Unreleased]`;
 - any required workflow or job fails or remains pending;
 - a new unresolved P0 or P1 review finding exists;
+- the final independent reviewer/model differs from the designated identity and
+  this approved task record has not been explicitly updated;
 - fresh independent review has not returned `APPROVED`;
 - any runtime, migration, issue-write, deployment or production effect is
   detected.
