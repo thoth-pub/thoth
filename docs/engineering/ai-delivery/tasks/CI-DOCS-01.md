@@ -474,3 +474,44 @@ Stop and return `BLOCKED` if:
 - the normalized comparison cannot be made deterministically.
 
 The implementation report must include a section titled `Actionlint baseline and deferred maintenance`, record all base and implementation commands and findings, and recommend a separate bounded task to upgrade both Docker workflows. That separate maintenance task is not part of CI-DOCS-01.
+
+## 20. Approved classifier least-privilege amendment
+
+Automated post-ready review at the previously approved head
+`7c2ad5e63cbbcde2789174db727e654a80556c7a` raised a P1 finding because
+`persist-credentials: false` prevents checkout credentials from being stored in
+Git configuration but does not reduce the permissions of the `GITHUB_TOKEN`
+available while the classifier job executes.
+
+Approved by: Javi, CTO
+
+Approval date: 2026-07-28
+
+The original non-goal prohibiting workflow-permission changes is amended only
+to authorize the following job-level declaration on the `classify` job in
+exactly these workflows:
+
+```text
+.github/workflows/build_test_and_check.yml
+.github/workflows/run_migrations.yml
+.github/workflows/docker_build_and_push_to_dockerhub.yml
+```
+
+```yaml
+permissions:
+  contents: read
+```
+
+Each classifier job must have only repository-content read access. No
+workflow-level permission declaration, heavy-job permission, release-workflow
+permission or write permission may be added or changed. Docker package and
+registry access, secrets, credentials, protected environments, action versions,
+workflow triggers, job identities, classifier outputs, heavy-job conditions,
+release workflows, branch protection and rulesets remain outside this
+amendment.
+
+The corrective commit invalidates the previous independent approval and CTO
+merge authorization. The PR must be returned to draft before correction and
+must remain draft afterward. The new exact head requires successful exact-head
+CI, fresh independent review and fresh CTO merge authorization before it can be
+marked ready or merged.

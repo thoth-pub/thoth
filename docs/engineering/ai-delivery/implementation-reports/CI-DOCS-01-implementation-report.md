@@ -18,9 +18,11 @@ Task branch: `feature/engineering/ci-docs-only-gating`
 
 Implementation head before the evidence commit: `b6668d2183c2931d62ae56fd968407804252ac5d`
 
-Independent-review head: `822b823a44087a51eb8e8ee06d3db375cb60e1db`
+First independent-review head: `822b823a44087a51eb8e8ee06d3db375cb60e1db`
 
-Correction commit and final exact head: recorded externally in draft PR [#771](https://github.com/thoth-pub/thoth/pull/771) and the implementation handoff after the bounded correction commit is pushed
+Previous approved head before automated post-ready review: `7c2ad5e63cbbcde2789174db727e654a80556c7a`
+
+Least-privilege correction commit and new exact head: recorded externally in draft PR [#771](https://github.com/thoth-pub/thoth/pull/771) and the implementation handoff after the bounded correction commit is pushed
 
 Pull request: [#771](https://github.com/thoth-pub/thoth/pull/771) (draft)
 
@@ -38,7 +40,7 @@ Independent review reasoning: High
 
 ### Final-head evidence model
 
-A commit cannot contain its own Git SHA or the IDs and conclusions of CI runs that are created only after that commit is pushed. This report therefore records the complete local evidence, the independently reviewed head and the exact correction commit subject. The immutable correction SHA, exact final head, run IDs and conclusions are recorded in PR #771 and the implementation handoff after fresh CI completes on that head. No later repository commit may be treated as covered by earlier CI.
+A commit cannot contain its own Git SHA or the IDs and conclusions of CI runs that are created only after that commit is pushed. This report therefore records the complete local evidence, the previously approved head and the exact least-privilege correction commit subject. The immutable correction SHA, new exact head, run IDs and conclusions are recorded in PR #771 and the implementation handoff after fresh CI completes on that head. No later repository commit may be treated as covered by earlier CI.
 
 ## 2. Scope confirmation
 
@@ -54,9 +56,10 @@ Out-of-scope changes made: NONE
 - `6b4ae12f132412de5c394bbdb57451bd96f0c6f9` - `docs: approve CI actionlint baseline`
 - `b6668d2183c2931d62ae56fd968407804252ac5d` - `ci: gate heavy jobs for docs-only changes`
 - `822b823a44087a51eb8e8ee06d3db375cb60e1db` - `docs: record CI docs-only gating evidence`
-- bounded correction commit - `ci: fail closed when CI classification fails`; exact SHA recorded externally after creation
+- `7c2ad5e63cbbcde2789174db727e654a80556c7a` - `ci: fail closed when CI classification fails`
+- bounded least-privilege correction commit - `ci: restrict classifier token permissions`; exact SHA recorded externally after creation
 
-The existing four commits were not amended, squashed, rebased or rewritten.
+The existing five commits were not amended, squashed, rebased or rewritten.
 
 ## 3.1 Independent review correction
 
@@ -70,26 +73,64 @@ Correction: all six gated heavy jobs now use `always()`, reject workflow cancell
 
 Why previous successful CI was insufficient: it proved only the normal path where checkout, Python, classification and output emission all succeeded. It did not exercise or prove the GitHub Actions dependency semantics for a failed classifier job with missing outputs.
 
+## 3.2 Automated post-ready least-privilege correction
+
+Automated review submission at
+`7c2ad5e63cbbcde2789174db727e654a80556c7a`: `COMMENTED` by
+`chatgpt-codex-connector` on 2026-07-28.
+
+Finding severity: P1
+
+Unresolved review-thread identifier before correction:
+`PRRT_kwDODkn0bc6UfGbJ`
+
+Finding: the three newly introduced classifier jobs inherited the repository's
+default `GITHUB_TOKEN` permissions even though they require repository-content
+read access only.
+
+Why `persist-credentials: false` was insufficient: it prevents the checkout
+token from being persisted in Git configuration, but it does not reduce the
+token permissions available while `actions/checkout` and the classifier job
+execute.
+
+CTO-approved correction: add exactly this job-level declaration to each of the
+three classifier jobs:
+
+```yaml
+permissions:
+  contents: read
+```
+
+The permission is not declared at workflow level. No other classifier
+permission is present, no write permission is introduced, and all heavy-job,
+Docker, release-workflow and existing workflow-level permission behaviour
+remains unchanged.
+
+PR #771 was returned to draft before the worktree was edited. Creating this
+correction invalidated the previous independent approval and CTO merge
+authorization. Fresh exact-head CI, fresh independent review and fresh CTO
+merge authorization are required.
+
 ## 4. Files changed
 
 - `.github/scripts/classify_ci_changes.py`
   - reason: repository-owned complete-range classifier and deterministic self-test interface;
   - behavioural effect: emits `docs_only`, `run_build`, `run_migrations` and `run_docker` outputs; fails closed to heavy execution.
 - `.github/workflows/build_test_and_check.yml`
-  - reason: replace top-level positive path filters with classification and job-level gating;
-  - behavioural effect: preserves `build`, `test`, `lint` and `format_check` job identities while safely skipping them for documentation-only changes.
+  - reason: replace top-level positive path filters with classification and job-level gating, then restrict the classifier token to repository-content read access;
+  - behavioural effect: preserves `build`, `test`, `lint` and `format_check` job identities while safely skipping them for documentation-only changes; the classifier receives only `contents: read`.
 - `.github/workflows/build_test_and_check_no_action.yml`
   - reason: deleted after the main workflow became responsible for all protected contexts;
   - behavioural effect: removes the paired no-action workflow without removing any protected job identity.
 - `.github/workflows/run_migrations.yml`
-  - reason: replace top-level positive path filters with classification and job-level gating;
-  - behavioural effect: preserves `run_migrations` while safely skipping its build/run/revert steps for documentation-only changes.
+  - reason: replace top-level positive path filters with classification and job-level gating, then restrict the classifier token to repository-content read access;
+  - behavioural effect: preserves `run_migrations` while safely skipping its build/run/revert steps for documentation-only changes; the classifier receives only `contents: read`.
 - `.github/workflows/run_migrations_no_action.yml`
   - reason: deleted after the main workflow became responsible for the protected migration context;
   - behavioural effect: removes the paired no-action workflow without removing the protected job identity.
 - `.github/workflows/docker_build_and_push_to_dockerhub.yml`
-  - reason: add classification and job-level Docker gating;
-  - behavioural effect: documentation-only changes skip the complete heavy Docker job before checkout, metadata, QEMU, Buildx, login, build or push; non-documentation changes retain the existing job.
+  - reason: add classification and job-level Docker gating, then restrict the classifier token to repository-content read access;
+  - behavioural effect: documentation-only changes skip the complete heavy Docker job before checkout, metadata, QEMU, Buildx, login, build or push; non-documentation changes retain the existing job; the classifier receives only `contents: read`.
 - `CHANGELOG.md`
   - reason: required PR entry under `## [Unreleased]` / `### Changed`;
   - behavioural effect: none.
@@ -137,6 +178,7 @@ docs/engineering/ai-delivery/implementation-reports/CI-DOCS-01-implementation-re
 7. Heavy jobs retain their existing IDs and names and are gated at job level through `needs: classify`.
 8. A successful classifier job follows the relevant output, while classifier-job failure runs the dependent heavy job conservatively and workflow cancellation does not force expensive execution.
 9. The Docker action sequence and versions are unchanged.
+10. Each classifier job declares exactly `permissions: { contents: read }` at job level; no heavy job, workflow-level declaration or write permission changed.
 
 Deviation from the approved specification: NONE
 
@@ -235,10 +277,18 @@ Negative authorization tests: not applicable
 
 Secrets or personal-data handling: no secrets or personal data were accessed or printed.
 
-Permissions: no workflow permission configuration changed.
+Permissions:
+
+```text
+Only the three classifier jobs gained an explicit least-privilege
+permissions declaration of contents: read. No heavy-job,
+workflow-level, release-workflow or write permission changed.
+```
 
 Credential assessment:
 
+- each classifier receives only `contents: read`;
+- no write permission was introduced;
 - classifier checkout steps set `persist-credentials: false`;
 - a job skipped by its job-level condition receives no runner and does not receive heavy-job credentials;
 - the existing Docker login remains inside the gated heavy Docker job;
@@ -343,6 +393,64 @@ PASS .github/workflows/run_migrations.yml:run_migrations: run_migrations
 PASS .github/workflows/docker_build_and_push_to_dockerhub.yml:build_and_push_staging_docker_image: run_docker
 PASS all_gated_job_conditions: 6 jobs
 ```
+
+### Least-privilege correction validation
+
+Classifier regression command:
+
+```text
+PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/classify_ci_changes.py --self-test
+```
+
+Result: exit 0; all 14 existing cases passed. The classifier script was
+unchanged by this correction.
+
+Python compile command:
+
+```text
+PYTHONPYCACHEPREFIX=/private/tmp/ci-docs-01-pycache-771 python3 -m py_compile .github/scripts/classify_ci_changes.py
+```
+
+Result: exit 0; no output.
+
+Uncommitted deterministic permission assertion:
+
+```text
+python3 /private/tmp/ci-docs-01-permission-assert.py
+```
+
+Exact output:
+
+```text
+PASS .github/workflows/build_test_and_check.yml: classify_count=1 permissions={contents: read} workflow_level_permissions=absent
+PASS .github/workflows/run_migrations.yml: classify_count=1 permissions={contents: read} workflow_level_permissions=absent
+PASS .github/workflows/docker_build_and_push_to_dockerhub.yml: classify_count=1 permissions={contents: read} workflow_level_permissions=absent
+PASS heavy_job_permissions_unchanged: 6 jobs
+PASS fail_closed_heavy_job_conditions_unchanged: 6 jobs
+PASS workflow_and_heavy_job_ids_unchanged: 3 workflows, 6 heavy jobs
+PASS release_workflow_unchanged: sha256=3691b8b6927dfcca8fd4f2fdc351d0e50edf5d01f5de6fc236931d607a231b80
+PASS all_permission_assertions
+```
+
+The assertion proves:
+
+1. each workflow contains exactly one `classify` job;
+2. each classifier has exactly `permissions: { contents: read }`;
+3. no classifier has another permission and no workflow-level declaration was
+   added;
+4. all six heavy-job permission declarations remain unchanged;
+5. the release Docker workflow remains byte-for-byte unchanged;
+6. all six fail-closed heavy-job conditions remain unchanged from
+   `7c2ad5e63cbbcde2789174db727e654a80556c7a`;
+7. all workflow and heavy-job IDs remain unchanged.
+
+Correction worktree whitespace command:
+
+```text
+git diff --check
+```
+
+Result: exit 0; no output.
 
 ### Rust, database and integration checks
 
@@ -540,6 +648,55 @@ The release workflow's exact-base and correction-worktree SHA-256 values are bot
 
 The correction diff contains no action-reference change, suppression or upgrade.
 
+### Least-privilege correction actionlint validation
+
+The same checksum-verified `actionlint` v1.7.12 binary and immutable exact-base
+export were reused.
+
+Exact-base repository-wide result:
+
+```text
+exit 1
+.github/workflows/docker_build_and_push_to_dockerhub.yml:18:15
+.github/workflows/docker_build_and_push_to_dockerhub_release.yml:18:15
+```
+
+Least-privilege correction repository-wide result:
+
+```text
+exit 1
+.github/workflows/docker_build_and_push_to_dockerhub.yml:42:15
+.github/workflows/docker_build_and_push_to_dockerhub_release.yml:18:15
+```
+
+Normalized comparison command and result:
+
+```text
+python3 /private/tmp/ci-docs-01-actionlint-compare.py
+PASS actionlint_v1.7.12_exit_statuses: base=1 implementation=1
+PASS actionlint_normalized_findings: exactly 2 baseline-equivalent findings
+```
+
+Changed-workflow results:
+
+```text
+build_test_and_check.yml: exit 0; no findings
+run_migrations.yml: exit 0; no findings
+docker_build_and_push_to_dockerhub.yml: exit 1; only the approved docker/metadata-action@v4 finding
+```
+
+Required statement:
+
+```text
+actionlint v1.7.12: accepted baseline-equivalent result;
+exit 1 with exactly two approved pre-existing findings and no new findings
+```
+
+The release workflow remains byte-for-byte identical to the exact base with
+SHA-256
+`3691b8b6927dfcca8fd4f2fdc351d0e50edf5d01f5de6fc236931d607a231b80`.
+No action version, suppression or exclusion changed.
+
 ## 12. Manual workflow inspection
 
 Trigger events and branches:
@@ -561,7 +718,10 @@ Dependencies and conditions:
 
 Permissions, secrets and failure propagation:
 
-- no workflow permissions, environments, concurrency or secret references changed;
+- only the three `classify` jobs gained the explicit job-level declaration
+  `permissions: { contents: read }`;
+- no workflow-level, heavy-job, release-workflow or write permission changed;
+- no environment, concurrency or secret reference changed;
 - classifier checkout credentials are not persisted;
 - Docker login and `GITHUB_TOKEN` use remain only inside the heavy Docker job;
 - manual dispatch returns all-heavy outputs;
@@ -588,7 +748,24 @@ Initial classifier observations on draft PR #771:
 
 The initial run is not final-head acceptance evidence.
 
-Final CI status: PENDING until the evidence commit is pushed.
+Previous approved-head CI at
+`7c2ad5e63cbbcde2789174db727e654a80556c7a` completed successfully:
+
+```text
+build-test-and-check: run 30378482858
+  classify, build, test, lint, format_check: success
+run-migrations: run 30378482943
+  classify, run_migrations: success
+publish-to-dockerhub: run 30378482867
+  classify, build_and_push_staging_docker_image: success
+check-changelog: run 30378482934
+  check-changelog: success
+```
+
+Those runs and the independent approval at that head are invalidated as final
+evidence by the least-privilege correction.
+
+New final CI status: PENDING until the least-privilege correction is pushed.
 
 Final acceptance requires all seven contexts on the final exact head:
 
@@ -604,9 +781,13 @@ build_and_push_staging_docker_image
 
 Their exact run IDs and conclusions must be recorded externally in PR #771 and the implementation handoff. A failure on the final head is a stop condition.
 
-### Independent review remediation
+### Exact-head correction gate
 
-The previous successful runs on `822b823a44087a51eb8e8ee06d3db375cb60e1db` are not final-head acceptance evidence for this correction. They exercised successful classifier jobs and could not prove classifier-job failure fallback. The bounded correction changes `.github/**`, so all heavy jobs must run again at the new exact head.
+The successful runs and independent approval on
+`7c2ad5e63cbbcde2789174db727e654a80556c7a` are not final-head acceptance
+evidence for the least-privilege correction. The bounded correction changes
+`.github/**`, so all classifiers and heavy jobs must run again at the new exact
+head. The PR remains draft and unmerged while that evidence is gathered.
 
 ## 14. Rollout and rollback
 
@@ -649,6 +830,9 @@ No database, data or production-state rollback is required.
 
 ## 16. Unresolved issues
 
+- Automated P1 thread `PRRT_kwDODkn0bc6UfGbJ` remains unresolved until the
+  correction is pushed, actionlint is complete, exact-head CI succeeds and the
+  immutable correction SHA is included in the reply.
 - Revised exact-head CI is pending.
 - Fresh independent review is pending.
 - Explicit CTO merge authorization is pending.
@@ -661,6 +845,9 @@ Suggested independent-review focus:
 - complete PR diff use of `base...head`, including deleted control paths;
 - fail-closed behaviour for malformed, empty, all-zero and unavailable ranges;
 - Docker job-level gating before checkout, metadata and credentials;
+- exact job-level `contents: read` permissions on only the three classifier
+  jobs, with no workflow-level, heavy-job, release-workflow or write permission
+  change;
 - preservation of all job identities, action versions and release workflow bytes;
 - exact actionlint baseline equivalence;
 - final exact-head execution of all seven contexts because this PR changes `.github/**`.

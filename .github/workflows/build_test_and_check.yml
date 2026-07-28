@@ -16,6 +16,8 @@ env:
 
 jobs:
   classify:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     outputs:
       run_build: ${{ steps.classify.outputs.run_build }}

@@ -9,6 +9,8 @@ env:
 
 jobs:
   classify:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     outputs:
       run_docker: ${{ steps.classify.outputs.run_docker }}
