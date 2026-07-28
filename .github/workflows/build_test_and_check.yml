@@ -29,7 +29,15 @@ jobs:
         run: python3 .github/scripts/classify_ci_changes.py
   build:
     needs: classify
-    if: needs.classify.outputs.run_build == 'true'
+    if: >-
+      ${{
+        always() &&
+        !cancelled() &&
+        (
+          needs.classify.result != 'success' ||
+          needs.classify.outputs.run_build == 'true'
+        )
+      }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +54,15 @@ jobs:
         run: cargo build -vv
   test:
     needs: classify
-    if: needs.classify.outputs.run_build == 'true'
+    if: >-
+      ${{
+        always() &&
+        !cancelled() &&
+        (
+          needs.classify.result != 'success' ||
+          needs.classify.outputs.run_build == 'true'
+        )
+      }}
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -86,7 +102,15 @@ jobs:
         run: cargo test --workspace -vv
   lint:
     needs: classify
-    if: needs.classify.outputs.run_build == 'true'
+    if: >-
+      ${{
+        always() &&
+        !cancelled() &&
+        (
+          needs.classify.result != 'success' ||
+          needs.classify.outputs.run_build == 'true'
+        )
+      }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -103,7 +127,15 @@ jobs:
         run: cargo clippy --all --all-targets --all-features -- -D warnings
   format_check:
     needs: classify
-    if: needs.classify.outputs.run_build == 'true'
+    if: >-
+      ${{
+        always() &&
+        !cancelled() &&
+        (
+          needs.classify.result != 'success' ||
+          needs.classify.outputs.run_build == 'true'
+        )
+      }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

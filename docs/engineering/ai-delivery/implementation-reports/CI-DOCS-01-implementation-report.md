@@ -18,7 +18,9 @@ Task branch: `feature/engineering/ci-docs-only-gating`
 
 Implementation head before the evidence commit: `b6668d2183c2931d62ae56fd968407804252ac5d`
 
-Final exact head: recorded externally in draft PR [#771](https://github.com/thoth-pub/thoth/pull/771) and the implementation handoff after the evidence commit is pushed
+Independent-review head: `822b823a44087a51eb8e8ee06d3db375cb60e1db`
+
+Correction commit and final exact head: recorded externally in draft PR [#771](https://github.com/thoth-pub/thoth/pull/771) and the implementation handoff after the bounded correction commit is pushed
 
 Pull request: [#771](https://github.com/thoth-pub/thoth/pull/771) (draft)
 
@@ -36,7 +38,7 @@ Independent review reasoning: High
 
 ### Final-head evidence model
 
-A commit cannot contain its own Git SHA or the IDs and conclusions of CI runs that are created only after that commit is pushed. This report therefore records the complete local evidence and the pre-evidence implementation head. The immutable final evidence commit, exact final head, run IDs and conclusions are recorded in PR #771 and the implementation handoff after fresh CI completes on that head. No later repository commit may be treated as covered by earlier CI.
+A commit cannot contain its own Git SHA or the IDs and conclusions of CI runs that are created only after that commit is pushed. This report therefore records the complete local evidence, the independently reviewed head and the exact correction commit subject. The immutable correction SHA, exact final head, run IDs and conclusions are recorded in PR #771 and the implementation handoff after fresh CI completes on that head. No later repository commit may be treated as covered by earlier CI.
 
 ## 2. Scope confirmation
 
@@ -51,9 +53,22 @@ Out-of-scope changes made: NONE
 - `4f08af91c92b41efae180abaea5acf274acd6213` - `docs: specify CI docs-only gating`
 - `6b4ae12f132412de5c394bbdb57451bd96f0c6f9` - `docs: approve CI actionlint baseline`
 - `b6668d2183c2931d62ae56fd968407804252ac5d` - `ci: gate heavy jobs for docs-only changes`
-- final evidence commit - `docs: record CI docs-only gating evidence`; exact SHA recorded externally after creation
+- `822b823a44087a51eb8e8ee06d3db375cb60e1db` - `docs: record CI docs-only gating evidence`
+- bounded correction commit - `ci: fail closed when CI classification fails`; exact SHA recorded externally after creation
 
-The specification-first commit was not amended, rebased or rewritten.
+The existing four commits were not amended, squashed, rebased or rewritten.
+
+## 3.1 Independent review correction
+
+Independent review decision at `822b823a44087a51eb8e8ee06d3db375cb60e1db`: `CHANGES REQUIRED`
+
+Finding severity: P1
+
+Precise failure mode: expected script-level `ClassificationError` cases emitted all-heavy outputs and allowed `classify` to succeed, but a failure of the `classify` job itself caused downstream jobs with a normal `needs: classify` dependency to be skipped before their output-only conditions could run. Checkout failure, failure to start Python, an unexpected exception, or failure to write `GITHUB_OUTPUT` could therefore silently skip required heavy work.
+
+Correction: all six gated heavy jobs now use `always()`, reject workflow cancellation with `!cancelled()`, execute when `needs.classify.result != 'success'`, and otherwise execute only when their relevant classifier output is `'true'`.
+
+Why previous successful CI was insufficient: it proved only the normal path where checkout, Python, classification and output emission all succeeded. It did not exercise or prove the GitHub Actions dependency semantics for a failed classifier job with missing outputs.
 
 ## 4. Files changed
 
@@ -101,6 +116,16 @@ branch protection and rulesets
 Docker action versions
 ```
 
+Corrective commit changed-file set:
+
+```text
+.github/workflows/build_test_and_check.yml
+.github/workflows/run_migrations.yml
+.github/workflows/docker_build_and_push_to_dockerhub.yml
+docs/engineering/ai-delivery/tasks/CI-DOCS-01.md
+docs/engineering/ai-delivery/implementation-reports/CI-DOCS-01-implementation-report.md
+```
+
 ## 5. Implementation decisions
 
 1. Pull requests use `base...head`, which asks Git for the complete merge-base-to-head PR change set and therefore retains earlier source commits when the latest commit changes only documentation.
@@ -110,7 +135,8 @@ Docker action versions
 5. `git diff --name-only --no-renames -z` preserves deleted control paths and treats renames conservatively.
 6. Classifier checkouts use full history and do not persist checkout credentials.
 7. Heavy jobs retain their existing IDs and names and are gated at job level through `needs: classify`.
-8. The Docker action sequence and versions are unchanged.
+8. A successful classifier job follows the relevant output, while classifier-job failure runs the dependent heavy job conservatively and workflow cancellation does not force expensive execution.
+9. The Docker action sequence and versions are unchanged.
 
 Deviation from the approved specification: NONE
 
@@ -278,7 +304,45 @@ git diff --check 0af9fbae940464a8f94aa1d9a857bad7a55ac54c...HEAD
 
 Result before evidence commit: exit 0; no output.
 
-The same command must be rerun after the evidence commit.
+Correction working-tree command:
+
+```text
+git diff --check
+```
+
+Correction working-tree result: exit 0; no output.
+
+The cumulative command against the exact final correction head must be rerun after the bounded correction commit.
+
+### Gated-job condition assertion
+
+An uncommitted deterministic temporary assertion verifies all six gated heavy jobs. For each job it requires:
+
+```text
+needs: classify
+always()
+!cancelled()
+needs.classify.result != 'success'
+the relevant run_build, run_migrations or run_docker output
+```
+
+Command:
+
+```text
+python3 /private/tmp/ci-docs-01-condition-assert.py
+```
+
+Result: exit 0; all six jobs passed:
+
+```text
+PASS .github/workflows/build_test_and_check.yml:build: run_build
+PASS .github/workflows/build_test_and_check.yml:test: run_build
+PASS .github/workflows/build_test_and_check.yml:lint: run_build
+PASS .github/workflows/build_test_and_check.yml:format_check: run_build
+PASS .github/workflows/run_migrations.yml:run_migrations: run_migrations
+PASS .github/workflows/docker_build_and_push_to_dockerhub.yml:build_and_push_staging_docker_image: run_docker
+PASS all_gated_job_conditions: 6 jobs
+```
 
 ### Rust, database and integration checks
 
@@ -394,6 +458,88 @@ Both Docker workflows retain `docker/metadata-action@v4`. The release workflow i
 
 Known limitation and deferred recommendation: `docker/metadata-action@v4` remains obsolete in both Docker workflows. A separate bounded action-upgrade task should update and validate both workflows; CI-DOCS-01 does not create or implement that task.
 
+### Correction validation
+
+The approved v1.7.12 release archive was verified against its official release checksum before execution.
+
+Correction version command:
+
+```text
+/var/folders/5k/n37bfyj51zj6b6y8c436jn380000gn/T/ci-docs-01-correction.QVv7AoJFAw/actionlint -version
+```
+
+Version result:
+
+```text
+1.7.12
+installed by downloading from release page
+built with go1.26.1 compiler for darwin/arm64
+```
+
+The exact base was exported with `git archive`, extracted to the temporary validation directory and initialized only with local Git metadata for actionlint discovery.
+
+Correction exact-base repository-wide command:
+
+```text
+(cd /var/folders/5k/n37bfyj51zj6b6y8c436jn380000gn/T/ci-docs-01-correction.QVv7AoJFAw/base && /var/folders/5k/n37bfyj51zj6b6y8c436jn380000gn/T/ci-docs-01-correction.QVv7AoJFAw/actionlint)
+```
+
+Exit status: `1`; exactly the two approved obsolete-action findings at:
+
+```text
+.github/workflows/docker_build_and_push_to_dockerhub.yml:18:15
+.github/workflows/docker_build_and_push_to_dockerhub_release.yml:18:15
+```
+
+Correction implementation repository-wide command:
+
+```text
+(cd /Users/ja573/thoth && /var/folders/5k/n37bfyj51zj6b6y8c436jn380000gn/T/ci-docs-01-correction.QVv7AoJFAw/actionlint)
+```
+
+Exit status: `1`; exactly the same two approved obsolete-action findings, with the PR Docker workflow finding moved only by the new condition lines:
+
+```text
+.github/workflows/docker_build_and_push_to_dockerhub.yml:40:15
+.github/workflows/docker_build_and_push_to_dockerhub_release.yml:18:15
+```
+
+Correction normalized comparison command:
+
+```text
+python3 /private/tmp/ci-docs-01-actionlint-compare.py
+```
+
+Comparison result:
+
+```text
+PASS actionlint_v1.7.12_exit_statuses: base=1 implementation=1
+PASS actionlint_normalized_findings: exactly 2 baseline-equivalent findings
+```
+
+Correction changed-workflow results:
+
+```text
+build_test_and_check.yml: exit 0; no findings
+run_migrations.yml: exit 0; no findings
+docker_build_and_push_to_dockerhub.yml: exit 1; only the approved docker/metadata-action@v4 finding
+```
+
+Correction required statement:
+
+```text
+actionlint v1.7.12: accepted baseline-equivalent result;
+exit 1 with exactly two approved pre-existing findings and no new findings
+```
+
+The release workflow's exact-base and correction-worktree SHA-256 values are both:
+
+```text
+3691b8b6927dfcca8fd4f2fdc351d0e50edf5d01f5de6fc236931d607a231b80
+```
+
+The correction diff contains no action-reference change, suppression or upgrade.
+
 ## 12. Manual workflow inspection
 
 Trigger events and branches:
@@ -407,9 +553,11 @@ Dependencies and conditions:
 
 - each heavy workflow has one `classify` job;
 - heavy jobs declare `needs: classify`;
-- job-level `if` expressions require the relevant output to equal `'true'`;
-- a missing or invalid event/range emits all-heavy outputs, so uncertainty never selects skipping;
-- if output emission itself fails, the classifier job fails and blocks dependent work.
+- job-level `if` expressions use `always() && !cancelled()` and run when the classifier job failed or the relevant output is `'true'`;
+- a successful classifier with output `'false'` skips the corresponding heavy job;
+- a missing or invalid event/range handled as `ClassificationError` emits all-heavy outputs, so uncertainty never selects skipping;
+- checkout, Python startup, unexpected-exception or output-emission failure makes the classifier job fail and causes dependent heavy work to run conservatively;
+- workflow cancellation does not force expensive dependent jobs to start.
 
 Permissions, secrets and failure propagation:
 
@@ -456,6 +604,10 @@ build_and_push_staging_docker_image
 
 Their exact run IDs and conclusions must be recorded externally in PR #771 and the implementation handoff. A failure on the final head is a stop condition.
 
+### Independent review remediation
+
+The previous successful runs on `822b823a44087a51eb8e8ee06d3db375cb60e1db` are not final-head acceptance evidence for this correction. They exercised successful classifier jobs and could not prove classifier-job failure fallback. The bounded correction changes `.github/**`, so all heavy jobs must run again at the new exact head.
+
 ## 14. Rollout and rollback
 
 Initial state after merge: documentation-only PRs are classified in each relevant workflow and heavy jobs are skipped at job level. No production application behaviour changes.
@@ -497,7 +649,7 @@ No database, data or production-state rollback is required.
 
 ## 16. Unresolved issues
 
-- Final exact-head CI is pending.
+- Revised exact-head CI is pending.
 - Fresh independent review is pending.
 - Explicit CTO merge authorization is pending.
 

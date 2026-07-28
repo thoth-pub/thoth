@@ -22,7 +22,15 @@ jobs:
         run: python3 .github/scripts/classify_ci_changes.py
   build_and_push_staging_docker_image:
     needs: classify
-    if: needs.classify.outputs.run_docker == 'true'
+    if: >-
+      ${{
+        always() &&
+        !cancelled() &&
+        (
+          needs.classify.result != 'success' ||
+          needs.classify.outputs.run_docker == 'true'
+        )
+      }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

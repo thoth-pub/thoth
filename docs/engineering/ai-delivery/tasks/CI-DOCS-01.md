@@ -152,6 +152,21 @@ All six protected contexts and the additional Docker context must remain present
 
 Manual dispatches must default to heavy execution. Classifier failure must block or fail closed and must never silently classify an uncertain change as documentation-only. Skipped jobs must not receive credentials.
 
+Failure handling is explicitly divided into three cases:
+
+```text
+Script-level classification error:
+emit all-heavy outputs and allow the classifier job to succeed.
+
+Classifier-job or prerequisite failure:
+dependent heavy jobs execute conservatively rather than being skipped.
+
+Workflow cancellation:
+do not force heavy execution.
+```
+
+Classifier-job or prerequisite failure includes checkout failure, inability to start Python, an unexpected exception, or inability to write `GITHUB_OUTPUT`. Every gated heavy-job condition must therefore inspect both the classifier job result and the relevant output, while guarding cancellation.
+
 ## 7. Required behaviour
 
 ### 7.1 Classification
@@ -191,7 +206,9 @@ Docker must run whenever any changed path is outside `docs/**` and `CHANGELOG.md
 - Pushes to `develop` or `master` use the complete `before`-to-`github.sha` range.
 - An all-zero or unavailable push `before` SHA fails closed to heavy execution.
 - `workflow_dispatch` sets `docs_only=false` and all heavy outputs to true.
-- Unknown events and classifier errors must fail or default all heavy outputs to true with a clear diagnostic.
+- Unknown events and expected script-level `ClassificationError` cases must emit all-heavy outputs with a clear diagnostic and allow the classifier job to succeed.
+- If the classifier job or one of its prerequisites fails before valid outputs are available, each dependent heavy job must execute conservatively.
+- Workflow cancellation must not force expensive dependent jobs to start.
 
 ### 7.3 Workflow behaviour
 
@@ -244,6 +261,8 @@ No claim may be made that post-merge skipped-job behaviour has been observed bef
 
 - [ ] the complete changed-file set is classified deterministically;
 - [ ] empty, invalid and uncertain inputs fail closed;
+- [ ] classifier-job and prerequisite failures run dependent heavy jobs conservatively;
+- [ ] workflow cancellation does not force dependent heavy jobs to start;
 - [ ] full PR history remains represented when the latest commit is documentation-only;
 - [ ] manual dispatch runs all heavy work;
 - [ ] all six protected contexts retain their identities;

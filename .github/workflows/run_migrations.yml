@@ -29,7 +29,15 @@ jobs:
         run: python3 .github/scripts/classify_ci_changes.py
   run_migrations:
     needs: classify
-    if: needs.classify.outputs.run_migrations == 'true'
+    if: >-
+      ${{
+        always() &&
+        !cancelled() &&
+        (
+          needs.classify.result != 'success' ||
+          needs.classify.outputs.run_migrations == 'true'
+        )
+      }}
     runs-on: ubuntu-latest
     services:
       postgres:
