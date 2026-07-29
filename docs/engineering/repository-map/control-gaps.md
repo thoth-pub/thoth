@@ -71,9 +71,29 @@ No verified complete cursor, replication or snapshot route exists.
 
 App lacks explicit lint/build/codegen; dashboard lacks detected CI/tests; widget lacks unit tests; cc-license uses old Actions.
 
-### CG-12 - Thoth schema generation unclear
+### CG-12 - Thoth schema generation unclear (SPECIFICATION DRAFTED - IMPLEMENTATION NOT STARTED)
 
-Resolve `thoth-api/src/schema.rs` versus root `diesel.toml` before schema changes.
+Task `THOTH-DB-CTRL-01` is specified in
+[`docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md`](../ai-delivery/tasks/THOTH-DB-CTRL-01.md)
+through draft specification PR
+[#775](https://github.com/thoth-pub/thoth/pull/775). Disposable PostgreSQL 17
+testing established that root `diesel.toml` is syntactically and semantically
+invalid, its output path does not identify canonical
+`thoth-api/src/schema.rs`, and raw Diesel output does not preserve the compiled
+contract's aliases, supplemental type, timestamp semantics, column order, or
+formatting.
+
+The selected implementation is an exact-version, fail-closed structural
+synchronizer: root `diesel.toml` remains authoritative,
+`thoth-api/src/schema.rs` remains canonical, current intentional conventions
+become explicit control data, clean generation is byte-identical, and only a
+declared expected structural delta may be written.
+
+This specification PR does not resolve CG-12 and does not start the
+implementation. BE-01 remains `BLOCKED`. CG-12 closes only after
+`THOTH-DB-CTRL-01` receives independent approval, passes its complete
+acceptance evidence at the exact head, and merges with explicit CTO
+authorization.
 
 ### CG-13 - Thoth runtime operations unmapped
 

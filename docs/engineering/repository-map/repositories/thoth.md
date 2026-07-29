@@ -101,7 +101,22 @@ Every schema task must verify:
 
 `thoth-api/src/schema.rs` is a generated/derived Diesel schema file.
 
-The exact regeneration procedure is a control gap because root `diesel.toml` declares `src/schema.rs`. Do not regenerate or relocate the schema without first resolving [CG-12](../control-gaps.md#cg-12---thoth-schema-generation-unclear).
+The selected canonical procedure is specified by
+[`THOTH-DB-CTRL-01`](../../ai-delivery/tasks/THOTH-DB-CTRL-01.md): run from the
+repository root; retain root `diesel.toml`; use exact Diesel CLI `2.3.10`;
+introspect only a proven disposable local PostgreSQL database; preserve
+`thoth-api/src/schema.rs` as canonical; and pass raw Diesel output through a
+fail-closed structural synchronizer that preserves explicit repository
+conventions and admits only a declared expected change.
+
+The implementation is not approved or started. Until `THOTH-DB-CTRL-01` is
+independently approved and merged with its acceptance evidence, do not
+regenerate, overwrite, or relocate `thoth-api/src/schema.rs`; dependent schema
+work, including BE-01, remains blocked under
+[CG-12](../control-gaps.md#cg-12---thoth-schema-generation-unclear).
+Production migration, deployment, rollback, restore verification, and approver
+mapping remain separately blocked on
+[CG-13](../control-gaps.md#cg-13---thoth-runtime-operations-unmapped).
 
 ## CI and release
 
