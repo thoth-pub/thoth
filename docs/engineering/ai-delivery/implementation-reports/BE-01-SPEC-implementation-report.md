@@ -8,7 +8,7 @@ Programme: Publisher Services and Distribution Configuration
 
 Task ID: `BE-01-SPEC`
 
-Risk: MEDIUM
+Risk: HIGH
 
 Workflow: STANDARD
 
@@ -68,6 +68,31 @@ The exact-head independent approval and CTO authorization for
 `85a83d857b56873f95a0d2011ac06ad0d61319ed` become historical when this
 corrective commit creates a new head.
 
+Historical head after the ADR-0001 rollback alignment:
+`9b68bc3d4008e5aba1c243c523e4c5b2d36d308e`
+
+Post-ready review: `PRR_kwDODkn0bc8AAAABHsstmA`
+
+Decision: `CHANGES REQUIRED`.
+
+P1 thread `PRRT_kwDODkn0bc6U3SZ9`: BE-01 must be HIGH risk.
+
+P1 thread `PRRT_kwDODkn0bc6U3SaA`: GraphQL enum representations must be
+mandatory.
+
+The review correctly identified that the former MEDIUM classification
+conflicted with repository risk policy and that optional GraphQL wording
+conflicted with ADR-0001 and the specification's own tests. A populated-table
+migration and package entitlements independently trigger HIGH, and the highest
+applicable classification applies. No design or ADR amendment was required.
+The correction changes control classification and future implementation
+requirements only; no code, migration, schema, GraphQL runtime, database, or
+external action occurred.
+
+The exact-head independent approval and CTO authorization for
+`9b68bc3d4008e5aba1c243c523e4c5b2d36d308e` become historical when this
+corrective commit creates a new head.
+
 Pull request: [#774](https://github.com/thoth-pub/thoth/pull/774)
 
 Expected branch deletion after merge: YES
@@ -76,7 +101,7 @@ Final programme PR required: NO
 
 Implementing model: Codex / GPT-5
 
-Reasoning level: Medium
+Reasoning level: High
 
 Independent reviewer/model: OpenAI ChatGPT / GPT-5.6 Thinking
 
@@ -92,6 +117,14 @@ bounded implementation specification for BE-01 Publisher package model without
 implementing the model.
 
 Out-of-scope changes made: NONE.
+
+This PR is documentation-only. Nevertheless, its repository-authoritative
+specification governs a HIGH-risk implementation task. Recording HIGH
+consistently in the specification, tracker, report, and PR body prevents the
+future implementation from receiving MEDIUM-risk controls. Migration of the
+populated `publisher` table and establishment of package entitlements each
+independently trigger HIGH under the repository policy, which requires the
+highest applicable classification.
 
 The final cumulative PR changes exactly:
 
@@ -125,6 +158,16 @@ docs/engineering/ai-delivery/tasks/BE-01.md
 It changes no ADR and performs no code, migration, schema, runtime, database, or
 operational action.
 
+The seventh, risk-and-GraphQL correction changes exactly:
+
+```text
+docs/engineering/ai-delivery/implementation-reports/BE-01-SPEC-implementation-report.md
+docs/engineering/ai-delivery/tasks/BE-01.md
+docs/publisher-services/task-status.md
+```
+
+It changes control classification and future implementation requirements only.
+
 ## 3. Commits
 
 1. `b325eaa1d46a672d69961597cf1c8d8740cf7996` -
@@ -137,11 +180,13 @@ operational action.
    `docs: block BE-01 on shared Diesel control`
 5. `85a83d857b56873f95a0d2011ac06ad0d61319ed` -
    `docs: clarify BE-01 migration rollback evidence`
-6. The bounded correction commit aligning BE-01 rollback with ADR-0001 in the
-   specification and this report is recorded in the superseding immutable
-   evidence comment after it exists.
+6. `9b68bc3d4008e5aba1c243c523e4c5b2d36d308e` -
+   `docs: align BE-01 rollback with ADR-0001`
+7. The bounded correction classifying BE-01 HIGH and requiring GraphQL enum
+   representations in the specification, this report, and the tracker is
+   recorded in the superseding immutable evidence comment after it exists.
 
-No evidence-only seventh commit is permitted.
+No evidence-only eighth commit is permitted.
 
 ## 4. Files changed
 
@@ -157,8 +202,9 @@ No evidence-only seventh commit is permitted.
     BE-01/BE-03 boundary;
   - behavioural effect: none.
 - `docs/publisher-services/task-status.md`
-  - reason: keep BE-01 `BLOCKED` on `THOTH-DB-CTRL-01` after specification
-    merge while preserving all later gates;
+  - reason: classify BE-01 HIGH while keeping it `BLOCKED` on
+    `THOTH-DB-CTRL-01` after specification merge and preserving all later
+    gates;
   - behavioural effect: none.
 - `docs/engineering/ai-delivery/implementation-reports/BE-01-SPEC-implementation-report.md`
   - reason: record scope, evidence, effects, handoff, and the corrected
@@ -238,10 +284,17 @@ default and ordinary mutations cannot alter a package.
 `thoth-api/src/graphql/model.rs`. Existing public publisher queries are
 anonymous-readable and expose no package or capability field.
 
-BE-01 may derive GraphQL enum representations but must not add a public field,
-query, filter, report, protected configuration surface, or mutation. If an
-unreferenced enum does not enter Juniper's generated SDL, BE-01 records that
-fact and does not add an artificial public reference.
+`ThothPackage` and `PublisherCapability` must implement or derive the
+repository-standard Juniper GraphQL enum representation with the exact stable
+ADR-0001 codes. Rust, serde, and GraphQL use the same screaming-snake-case
+semantic codes without aliases, lowercase values, `OTHER`, wildcards, or
+fallbacks.
+
+BE-01 must not add a public field, query, filter, report, protected
+configuration surface, or mutation. If an unreferenced enum does not enter
+Juniper's generated SDL, BE-01 records that reachability result and does not add
+an artificial public reference. SDL reachability does not make the mandatory
+type-level GraphQL representation optional.
 
 ### 6.3 Authorization boundary
 
@@ -314,6 +367,18 @@ Decisions established within the approved design:
     change requires a separately reviewed release.
 20. Removing the package foundation requires an approved ADR change and a
     separate authorized migration and data-preservation task.
+21. BE-01 is HIGH risk because populated-table migration and package
+    entitlements each independently trigger HIGH under repository policy.
+22. The future implementation requires high or maximum reasoning, independent
+    cross-model review, empty and populated migration evidence, failure-path and
+    authorization tests, rollout/rollback controls, and explicit CTO merge
+    approval.
+23. `ThothPackage` and `PublisherCapability` must implement the
+    repository-standard Juniper GraphQL enum representation with the exact
+    stable ADR-0001 codes.
+24. Generated-SDL omission caused solely by an enum being unreferenced is
+    acceptable and recorded; it does not weaken the mandatory type-level
+    GraphQL contract or authorize public exposure.
 
 Deviation from the specification: NONE.
 
@@ -642,11 +707,9 @@ The final checks cover:
 
 ### 14.7 ADR-0001 rollback-alignment correction validation
 
-The exact final six-commit/five-path commands and outputs cannot be recorded
-inside the correction commit that they validate. They are run immediately
-after the bounded two-file correction commit, then recorded in a new
-superseding immutable top-level PR evidence comment without creating a seventh
-commit.
+The exact six-commit/five-path commands and outputs were recorded after the
+bounded two-file ADR-0001 rollback-alignment correction in its superseding
+immutable top-level PR evidence comment.
 
 The final checks cover:
 
@@ -659,6 +722,37 @@ The final checks cover:
 - separate disposable migration-reversibility and operational-rollback
   evidence;
 - no ADR, Rust, SQL, migration, schema, tooling, workflow, or runtime change;
+- exactly one `Changed` heading within `Unreleased`;
+- exactly one PR #774 changelog entry;
+- no unresolved specification placeholders;
+- the five-path documentation classifier.
+
+### 14.8 HIGH-risk and GraphQL-enum correction validation
+
+The exact final seven-commit/five-path commands and outputs cannot be recorded
+inside the correction commit that they validate. They are run immediately
+after the bounded three-file correction commit, then recorded in a new
+superseding immutable top-level PR evidence comment without creating an eighth
+commit.
+
+The final checks cover:
+
+- whitespace;
+- exactly seven ordered commits;
+- exactly five cumulative paths;
+- `1 / 3 / 1 / 4 / 2 / 2 / 3` commit path scopes;
+- corrective scope exactly the BE-01 specification, this report, and the BE-01
+  tracker row;
+- HIGH risk everywhere authoritative for BE-01 implementation;
+- populated-table migration and package-entitlement HIGH-risk triggers;
+- high or maximum reasoning, independent cross-model review, and explicit CTO
+  controls;
+- mandatory `ThothPackage` and `PublisherCapability` GraphQL enum
+  representations;
+- exact stable Rust, serde, and GraphQL codes;
+- preserved non-exposure and generated-SDL reachability boundaries;
+- no ADR, Rust, SQL, migration, schema, GraphQL runtime, tooling, or workflow
+  change;
 - exactly one `Changed` heading within `Unreleased`;
 - exactly one PR #774 changelog entry;
 - no unresolved specification placeholders;
@@ -700,9 +794,20 @@ disposable down-migration reversibility testing while making operational
 rollback retain the package schema, stored values, domain types, mapping
 foundation, package history, and canonical Metrics history.
 
+The fresh post-ready review at
+`9b68bc3d4008e5aba1c243c523e4c5b2d36d308e` then correctly identified two
+remaining authoritative-control conflicts. BE-01 must be `HIGH` risk because
+it migrates a populated publisher table and defines package entitlements, and
+both package-domain enums must have mandatory standard Juniper GraphQL enum
+representations even though they are not made reachable in the public schema
+by this task. The bounded correction changes documentation only; it neither
+changes the approved architecture nor authorizes implementation.
+
 Evidence: PR #774, the historical head-bound evidence comments, post-ready P1
-threads `PRRT_kwDODkn0bc6U18En` and `PRRT_kwDODkn0bc6U2xH6`, and the new
-superseding corrected-head evidence comment.
+threads `PRRT_kwDODkn0bc6U18En`, `PRRT_kwDODkn0bc6U2xH6`,
+`PRRT_kwDODkn0bc6U3SZ9`, and `PRRT_kwDODkn0bc6U3SaA`, review
+`PRR_kwDODkn0bc8AAAABHsstmA`, and the new superseding corrected-head evidence
+comment.
 
 ## 16. CI
 
@@ -718,6 +823,11 @@ Historical CI at post-ready reviewed head
 `85a83d857b56873f95a0d2011ac06ad0d61319ed`: PASSING, but its independent
 approval and CTO authorization are historical after the ADR-alignment
 correction.
+
+Historical CI at post-ready reviewed head
+`9b68bc3d4008e5aba1c243c523e4c5b2d36d308e`: PASSING, but its independent
+approval and CTO authorization are historical after the HIGH-risk and
+GraphQL-enum correction.
 
 New corrected-head CI status inside this correction commit: not yet available
 by design. It is recorded in the new superseding immutable evidence comment
@@ -784,6 +894,13 @@ Monitoring required: repository PR/CI and review evidence only.
   shared Diesel procedure before BE-01 can become `READY`.
 - BE-01 may verify but may not independently establish or redefine that merged
   procedure.
+- BE-01 implementation is `HIGH` risk. It requires high or maximum
+  implementation and review reasoning, an independent cross-model reviewer,
+  the complete HIGH-risk evidence set, and explicit CTO approval before the
+  implementation PR may merge.
+- `ThothPackage` and `PublisherCapability` must expose exact, closed,
+  repo-standard Juniper GraphQL enum representations. BE-01 does not add a
+  public field solely to make those enum types reachable in generated SDL.
 - CG-13 runtime and production migration ownership remains open.
 - ADR-01 and final distribution-platform inventory remain unresolved.
 - BE-01 implementation has not started.
@@ -810,5 +927,11 @@ Suggested independent review focus:
 - separation of complete-chain rollback evidence from populated forward
   preservation;
 - consistency with ADR-0001's retained-foundation operational rollback;
+- consistency of `HIGH` risk across the specification, report, and tracker;
+- completeness of the required HIGH-risk implementation and approval controls;
+- exact `ThothPackage` and `PublisherCapability` Rust, serde, and GraphQL enum
+  codes without aliases or fallback values;
+- preservation of the GraphQL non-exposure and SDL-reachability boundary;
 - tracker accuracy without unlocking later work;
-- exact six-commit/five-path evidence and exact-head skipped-job behaviour.
+- exact seven-commit/five-path evidence, the three-file corrective scope, and
+  exact-head skipped-job behaviour.
