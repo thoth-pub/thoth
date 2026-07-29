@@ -29,9 +29,22 @@ Independent review at that head: `CHANGES REQUIRED` with one P1 because BE-01
 was prematurely marked `READY` while the shared `THOTH-DB-CTRL-01` Diesel
 control remained blocked.
 
-Corrective commit and exact corrected head: recorded after this report
-correction is committed in the superseding immutable top-level PR evidence
-comment.
+First corrective commit and exact corrected head:
+`537656cb2187ab91eec30fbbd64c89e495b3a4e9`, recorded in the prior superseding
+immutable top-level PR evidence comment.
+
+Historical post-ready reviewed head:
+`537656cb2187ab91eec30fbbd64c89e495b3a4e9`
+
+The post-ready automated review at that head raised P1 thread
+`PRRT_kwDODkn0bc6U18En`. It correctly identified ambiguity in the
+migration-evidence description: the repository's `--revert` command reverts the
+complete migration history, so it cannot independently prove preservation of a
+populated pre-BE-01 baseline after an isolated BE-01 rollback.
+
+The exact-head approval and CTO authorization for
+`537656cb2187ab91eec30fbbd64c89e495b3a4e9` are historical after the bounded
+rollback-evidence correction creates a new head.
 
 Pull request: [#774](https://github.com/thoth-pub/thoth/pull/774)
 
@@ -70,6 +83,16 @@ docs/publisher-services/task-status.md
 
 No other path is authorized or changed.
 
+The fifth, rollback-evidence correction changes exactly:
+
+```text
+docs/engineering/ai-delivery/implementation-reports/BE-01-SPEC-implementation-report.md
+docs/engineering/ai-delivery/tasks/BE-01.md
+```
+
+It adds no migration command or implementation mechanism and changes no Rust,
+SQL, migration, schema, tooling, workflow, or runtime path.
+
 ## 3. Commits
 
 1. `b325eaa1d46a672d69961597cf1c8d8740cf7996` -
@@ -78,11 +101,13 @@ No other path is authorized or changed.
    `docs: register BE-01 implementation readiness`
 3. `6d4067d4ee196976e9d06074d3bd790cd3b0096a` -
    `docs: report BE-01 specification task`
-4. The bounded correction commit updating the specification, README, tracker,
-   and this report is recorded in the superseding immutable evidence comment
-   after it exists.
+4. `537656cb2187ab91eec30fbbd64c89e495b3a4e9` -
+   `docs: block BE-01 on shared Diesel control`
+5. The bounded correction commit clarifying migration rollback evidence in the
+   specification and this report is recorded in the superseding immutable
+   evidence comment after it exists.
 
-No evidence-only fifth commit is permitted.
+No evidence-only sixth commit is permitted.
 
 ## 4. Files changed
 
@@ -102,8 +127,8 @@ No evidence-only fifth commit is permitted.
     merge while preserving all later gates;
   - behavioural effect: none.
 - `docs/engineering/ai-delivery/implementation-reports/BE-01-SPEC-implementation-report.md`
-  - reason: record scope, evidence, effects, and handoff for this specification
-    task;
+  - reason: record scope, evidence, effects, handoff, and the corrected
+    rollback-evidence distinction for this specification task;
   - behavioural effect: none.
 
 ## 5. Authoritative sources inspected
@@ -240,6 +265,13 @@ Decisions established within the approved design:
     any implementation edit occurs.
 14. The exact BE-01 base is recorded only after the shared control passes, when
     the branch is created from then-current verified `develop`.
+15. The repository's existing `cargo run migrate --revert` command intentionally
+    tests reversal of the complete migration chain on a disposable database;
+    it is not evidence of an isolated BE-01-only revert.
+16. Representative populated-database validation proves forward-migration
+    preservation without running the full-history revert against its fixtures.
+17. No additional migration command, test-only Rust harness, direct `down.sql`
+    execution, or implementation mechanism is required by this clarification.
 
 Deviation from the specification: NONE.
 
@@ -319,9 +351,13 @@ be withdrawn; no data repair is involved.
 
 Idempotency: not applicable; no runtime or database operation occurs.
 
-The approved future BE-01 specification requires empty and representative
-populated disposable-database apply/revert/reapply evidence, PostgreSQL-version
-locking and rewrite analysis, and the conditional data-preserving rollback.
+The approved future BE-01 specification requires a disposable complete-chain
+apply/revert/reapply smoke test and a separate representative populated-database
+forward-migration preservation test. The former demonstrates that every
+committed down migration, including BE-01's, executes as part of the full
+reversible chain. The latter does not run the full-history revert against its
+fixtures. PostgreSQL-version locking and rewrite analysis and the conditional
+data-preserving rollback remain required.
 
 ## 11. API and compatibility effects
 
@@ -520,14 +556,13 @@ Result:
 {"docs_only":"true","run_build":"false","run_docker":"false","run_migrations":"false"}
 ```
 
-### 14.5 Corrected cumulative validation
+### 14.5 First corrected cumulative validation
 
-The exact final four-commit/five-path commands and outputs cannot be recorded
-inside the correction commit that they validate. They are run immediately
-after the bounded correction commit, then recorded in the superseding immutable
-top-level PR evidence comment without creating a fifth commit.
+The four-commit/five-path validation was recorded for historical head
+`537656cb2187ab91eec30fbbd64c89e495b3a4e9` in its superseding immutable
+evidence comment.
 
-The final checks cover:
+Those historical checks covered:
 
 - whitespace;
 - exactly four ordered commits;
@@ -535,6 +570,29 @@ The final checks cover:
 - `1 / 3 / 1 / 4` commit path scopes;
 - required specification and control terms;
 - explicit `THOTH-DB-CTRL-01` dependency and `BLOCKED` state;
+- exactly one `Changed` heading within `Unreleased`;
+- exactly one PR #774 changelog entry;
+- no unresolved specification placeholders;
+- the five-path documentation classifier.
+
+### 14.6 Rollback-evidence correction validation
+
+The exact final five-commit/five-path commands and outputs cannot be recorded
+inside the correction commit that they validate. They are run immediately
+after the bounded two-file correction commit, then recorded in a new
+superseding immutable top-level PR evidence comment without creating a sixth
+commit.
+
+The final checks cover:
+
+- whitespace;
+- exactly five ordered commits;
+- exactly five cumulative paths;
+- `1 / 3 / 1 / 4 / 2` commit path scopes;
+- corrective scope exactly the BE-01 specification and this report;
+- unchanged migration commands;
+- separate complete-chain rollback and populated forward-preservation evidence;
+- no new Rust, SQL, migration, schema, tooling, or workflow path;
 - exactly one `Changed` heading within `Unreleased`;
 - exactly one PR #774 changelog entry;
 - no unresolved specification placeholders;
@@ -561,8 +619,16 @@ GraphQL boundary, but independent review correctly identified that shared
 Diesel control resolution cannot occur inside BE-01. The corrected records keep
 implementation blocked on `THOTH-DB-CTRL-01`.
 
-Evidence: PR #774, the historical head-bound evidence comment, and the
-superseding corrected-head evidence comment.
+The post-ready review at
+`537656cb2187ab91eec30fbbd64c89e495b3a4e9` then correctly identified an
+ambiguity in the migration-evidence wording. No additional command or
+implementation mechanism was required. The bounded correction distinguishes
+full-chain rollback smoke evidence from populated forward-migration
+preservation.
+
+Evidence: PR #774, the historical head-bound evidence comments, post-ready P1
+thread `PRRT_kwDODkn0bc6U18En`, and the new superseding corrected-head evidence
+comment.
 
 ## 16. CI
 
@@ -570,9 +636,13 @@ Historical CI at reviewed head
 `6d4067d4ee196976e9d06074d3bd790cd3b0096a`: PASSING, but superseded by the
 correction.
 
-Corrected-head CI status inside this correction commit: not yet available by
-design. It is recorded in the superseding immutable evidence comment after the
-commit is pushed.
+Historical CI at post-ready reviewed head
+`537656cb2187ab91eec30fbbd64c89e495b3a4e9`: PASSING, but its approval and CTO
+authorization are superseded by the new correction.
+
+New corrected-head CI status inside this correction commit: not yet available
+by design. It is recorded in the new superseding immutable evidence comment
+after the commit is pushed.
 
 Required exact-head checks:
 
@@ -614,6 +684,11 @@ Monitoring required: repository PR/CI and review evidence only.
 
 - The report cannot contain its own commit SHA or post-push exact-head CI;
   those are finalized in the immutable PR evidence comment.
+- The repository has no dedicated single-migration rollback command. The
+  complete-chain disposable rollback smoke test is not evidence of isolated
+  BE-01 rollback preservation.
+- Representative populated-database validation covers forward-migration
+  preservation without applying the full-history revert to its fixtures.
 - `THOTH-DB-CTRL-01` remains blocked and must independently establish the
   shared Diesel procedure before BE-01 can become `READY`.
 - BE-01 may verify but may not independently establish or redefine that merged
@@ -641,5 +716,7 @@ Suggested independent review focus:
 - completeness and internal consistency of all BE-01 requirements;
 - exact BE-01/BE-03 and package/platform boundaries;
 - migration, history, rollback, and CG-12/CG-13 controls;
+- separation of complete-chain rollback evidence from populated forward
+  preservation;
 - tracker accuracy without unlocking later work;
-- exact four-commit/five-path evidence and exact-head skipped-job behaviour.
+- exact five-commit/five-path evidence and exact-head skipped-job behaviour.
