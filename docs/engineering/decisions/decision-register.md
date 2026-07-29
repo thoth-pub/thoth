@@ -2,11 +2,11 @@
 
 Status: ACTIVE
 Owner: CTO
-Last updated: 2026-07-28
+Last updated: 2026-07-29
 
 | ADR | Decision | Status | Programmes | Approval blocker |
 |---|---|---|---|---|
-| `ADR-0001` | Publisher package capability model | APPROVED | Publisher Services, Thoth Metrics, OAI-PMH | Satisfied - CTO approved the final package matrix, OASIS/OBELISK collection distinction and upgrade/downgrade/export semantics on 2026-07-28 through PR [#772](https://github.com/thoth-pub/thoth/pull/772) |
+| `ADR-0001` | Publisher package capability model | APPROVED | Publisher Services, Thoth Metrics, OAI-PMH | Satisfied - CTO approved the final package matrix, OASIS/OBELISK collection distinction and upgrade/downgrade/export semantics on 2026-07-28; independently reviewed PR [#772](https://github.com/thoth-pub/thoth/pull/772) merged into `develop` on 2026-07-29 as `b2c91ff25b95ab0e10a477ff21dbd4702f5db8d4` |
 | `ADR-0002` | Distribution and metrics platform domain boundaries | APPROVED | Publisher Services, Thoth Metrics | Satisfied - CTO approved strict type separation and no initial cross-domain mapping on 2026-07-27 through PR [#769](https://github.com/thoth-pub/thoth/pull/769) |
 
 ## Merge and implementation rules
@@ -23,7 +23,14 @@ No implementation task may rely on them until:
 
 ## Approval sequence
 
-Merge the independently approved `ADR-0001` approval PR before:
+The ADR-0001 approval-and-merge gate is satisfied. The independently reviewed
+approval PR [#772](https://github.com/thoth-pub/thoth/pull/772) merged into
+`develop` on 2026-07-29 as
+`b2c91ff25b95ab0e10a477ff21dbd4702f5db8d4`.
+
+The following work no longer waits on ADR-0001 approval or merge, but remains
+subject to its own approved bounded specification, dependencies, review,
+migration, rollout and activation controls:
 
 - Publisher Services `BE-01`;
 - metrics entitlement implementation;
