@@ -223,6 +223,54 @@ bound to that head. Those records remain immutable historical evidence and must
 not be rewritten or erased. No existing commit may be amended, squashed,
 rebased, reset, force-pushed or otherwise rewritten.
 
+### 3.3 Second post-ready rollout-gate correction
+
+A second automated post-ready review of PR
+[#772](https://github.com/thoth-pub/thoth/pull/772) at exact head
+`56c4f873c27fa83e6358c1f207cd718cb3dde679` returned one unresolved P1:
+
+```text
+P1 - Reconcile the ADR-0001 Publisher Services rollout gate
+```
+
+Stage 0 in the active Publisher Services rollout control correctly required
+`ADR-0001 approved`, but its `Outstanding evidence` list still contained the
+stale current blocker:
+
+```text
+docs/publisher-services/rollout-plan.md
+- ADR-0001 approval;
+```
+
+Javi, CTO, approved a narrow three-file amendment on 2026-07-28. The correction
+may modify exactly:
+
+```text
+docs/engineering/ai-delivery/tasks/ADR-0001-APPROVAL.md
+docs/engineering/ai-delivery/implementation-reports/ADR-0001-APPROVAL-implementation-report.md
+docs/publisher-services/rollout-plan.md
+```
+
+Before repository changes, PR #772 must return to draft. The rollout plan must
+preserve ADR-0001 approval as a Stage 0 requirement, move the approval record to
+achieved evidence, remove only the stale approval blocker, preserve every
+genuine Publisher Services blocker and make no readiness or implementation
+claim.
+
+Because this is the second post-ready stale-reference finding, the correction
+also requires exhaustive classification of every ADR-0001 reference in active
+documentation, excluding only historical task and implementation-report
+evidence. Any additional active contradiction outside the three-file amendment
+is a stop condition.
+
+Creating this correction invalidates the exact-head independent approval and CTO
+authorization for `56c4f873c27fa83e6358c1f207cd718cb3dde679`. Fresh exact-head
+CI, a new immutable CI-DOCS-01 observation comment, a reply to and resolution of
+the P1 only after CI is terminal, fresh independent review, fresh CTO
+authorization and a new automated post-ready review are required. Existing
+commits, reviews, authorizations and CI comments remain immutable historical
+evidence.
+
 ## 4. Explicit scope
 
 The task must:
@@ -266,6 +314,14 @@ The task must:
     approval record, without claiming implementation or merge.
 14. Preserve every genuine programme blocker and prove that active entry points
     agree with the normative decision and tracker records.
+15. Reconcile the active Publisher Services Stage 0 rollout gate by recording
+    ADR-0001 approval under achieved evidence and removing it only from
+    outstanding evidence.
+16. Exhaustively list and classify every active-document ADR-0001 reference,
+    with no uncorrected or ambiguous current status remaining.
+17. Preserve Publisher Services ADR-01, inventory, repository/branch-readiness,
+    bounded-task-specification, independent-review-assignment and
+    control-consistency blockers without marking any stage or task ready.
 
 ## 5. Approved file allowlist
 
@@ -283,6 +339,7 @@ docs/engineering/README.md
 docs/publisher-services/decisions.md
 docs/publisher-services/task-status.md
 docs/publisher-services/README.md
+docs/publisher-services/rollout-plan.md
 docs/metrics/decisions.md
 docs/metrics/task-status.md
 docs/metrics/README.md
@@ -294,6 +351,10 @@ as follow-up work rather than expanding scope.
 
 The post-ready active-entry-point correction is restricted to the exact five
 files listed in Section 3.2. It must not modify any other file in the cumulative
+allowlist.
+
+The second post-ready rollout-gate correction is restricted to the exact three
+files listed in Section 3.3. It must not modify any other file in the cumulative
 allowlist.
 
 ## 6. Non-goals
@@ -447,6 +508,16 @@ implementation readiness and retain all remaining blockers specified in Section
   PR and pending-merge status consistently.
 - [ ] All three active README entry points preserve genuine remaining
   programme, task-specification, Diesel and repository-readiness blockers.
+- [ ] The Publisher Services Stage 0 required controls still include ADR-0001
+  approval, and achieved evidence records Javi, CTO, 2026-07-28 and PR #772.
+- [ ] ADR-0001 approval is absent from Stage 0 outstanding evidence while
+  ADR-01, final inventory, repository/branch readiness, bounded task
+  specifications, independent review assignments and control consistency remain
+  outstanding.
+- [ ] Every active-document ADR-0001 reference is classified and no active
+  document describes approval as proposed, outstanding, awaiting or blocking.
+- [ ] No stage, `BE-01`, `OAI-01` or programme is marked ready, complete,
+  activated or rolled out.
 - [ ] No document claims implementation is ready, started or complete.
 - [ ] The changelog records approval without describing runtime functionality as
   implemented.
@@ -474,6 +545,8 @@ Verify:
 - every changed path is under `docs/**` or exactly `CHANGELOG.md`;
 - the changed-file set is a subset of Section 5;
 - the post-ready correction changes exactly the five files in Section 3.2;
+- the second post-ready correction changes exactly the three files in Section
+  3.3;
 - no runtime or workflow file changed;
 - every active ADR-0001 status in the approved scope is consistent;
 - matrices are identical in the ADR, appendix and programme summaries;
@@ -503,10 +576,34 @@ rg -n \
   --glob '*.md'
 ```
 
-Classify every result as an active entry point/current control record,
-historical task/report/review evidence, or ambiguous. Active contradictions must
-be corrected; historical evidence must be preserved; ambiguous results are a
-stop condition.
+For the second post-ready correction, list every ADR-0001 reference in active
+documentation while excluding historical task and implementation-report
+evidence:
+
+```bash
+rg -n 'ADR-0001' docs \
+  --glob '*.md' \
+  --glob '!docs/engineering/ai-delivery/tasks/**' \
+  --glob '!docs/engineering/ai-delivery/implementation-reports/**'
+```
+
+Also run:
+
+```bash
+rg -n \
+  'ADR-0001.*(PROPOSED|proposed|outstanding|awaiting|pending approval|block)|((outstanding|awaiting|pending approval|block).*)ADR-0001' \
+  docs \
+  --glob '*.md'
+```
+
+Classify every result as an active normative decision, current control/status
+record, reference-only document, historical task/report/review evidence or
+ambiguous. Active contradictions must be corrected; historical evidence must be
+preserved; ambiguous results are a stop condition. No active document may
+describe ADR-0001 as proposed, list approval as outstanding, treat obtaining
+approval as a current blocker or claim the approved runtime behaviour is
+implemented. References to approval as an already satisfied requirement and
+statements that other dependencies still block implementation are permitted.
 
 Run `.github/scripts/classify_ci_changes.py` over the exact cumulative path set
 and require:
@@ -628,6 +725,15 @@ docs: reconcile ADR-0001 programme entry points
 That commit must contain exactly the five files listed in Section 3.2. Do not
 amend, squash, rebase, reset, force-push or rewrite any existing commit.
 
+Second post-ready remediation adds exactly one further bounded commit:
+
+```text
+docs: reconcile ADR-0001 rollout gate
+```
+
+That commit must contain exactly the three files listed in Section 3.3. Do not
+amend, squash, rebase, reset, force-push or rewrite any existing commit.
+
 ## 14. Rollout
 
 Initial state after merge:
@@ -678,7 +784,7 @@ Stop and report `BLOCKED` if:
   pull request;
 - the branch ceases to be a documentation-only diff;
 - another active entry point or current control record requires correction
-  outside the five-file post-ready amendment;
+  outside the three-file second post-ready amendment;
 - independent review or explicit CTO merge authorization is unavailable.
 
 ## 17. Independent review and merge authorization
@@ -694,6 +800,9 @@ A fresh non-implementing reviewer must inspect:
 - local validation evidence;
 - exact-head GitHub Actions run and job-step evidence;
 - the CI-DOCS-01 top-level evidence comment;
+- exhaustive active-document ADR-0001 search results and classification;
+- the corrected Publisher Services Stage 0 achieved/outstanding evidence and
+  preservation of all genuine rollout blockers;
 - remaining blockers and the absence of implementation/readiness claims;
 - absence of runtime, migration, workflow, issue, deployment, release and
   production changes;

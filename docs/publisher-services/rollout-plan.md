@@ -40,11 +40,14 @@ Achieved evidence:
   repository closeout; issue #765 remains open;
 - `ADR-0002` platform domain boundaries approved by the CTO on 2026-07-27
   (approval PR [#769](https://github.com/thoth-pub/thoth/pull/769)); this removes
-  one shared-ADR dependency and does not unlock implementation.
+  one shared-ADR dependency and does not unlock implementation;
+- `ADR-0001` publisher package capabilities approved by Javi, CTO, on
+  2026-07-28 through approval PR
+  [#772](https://github.com/thoth-pub/thoth/pull/772); this removes the shared
+  decision dependency and does not unlock Publisher Services implementation.
 
 Outstanding evidence:
 
-- ADR-0001 approval;
 - Publisher Services ADR-01 specification and final platform-inventory
   approval;
 - applicable repository/branch-readiness decisions;
