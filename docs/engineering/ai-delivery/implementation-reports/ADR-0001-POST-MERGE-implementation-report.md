@@ -18,10 +18,15 @@ Implementation content commit:
 `f062e96a463c2a80b9476dd30807c47e2c09dd6b`
 Implementation content head:
 `f062e96a463c2a80b9476dd30807c47e2c09dd6b`
+Previous exact PR head:
+`8a51790f6a473432f1c6bb30eb0a72d3f18307a0`
 Implementing agent/model: Codex / GPT-5
 Implementation reasoning: Medium
-Independent reviewer/model: fresh non-implementing reviewer required; concrete
-identity must be recorded by the review
+Independent reviewer/model: OpenAI ChatGPT / GPT-5.6 Thinking
+Independent review comment:
+https://github.com/thoth-pub/thoth/pull/773#issuecomment-5118851221
+Historical reviewed head:
+`8a51790f6a473432f1c6bb30eb0a72d3f18307a0`
 Expected branch deletion after merge: YES
 Final programme PR required: NO
 
@@ -34,9 +39,14 @@ Approval: Javi, CTO, 2026-07-29
 
 Approved scope amendment: Javi, CTO, 2026-07-29. The amendment added the active
 decision register after the pre-implementation scan found its stale future-tense
-ADR-0001 merge requirement. It established the exact seven-file cumulative and
-five-file implementation scopes below while preserving all normative decision
+ADR-0001 merge requirement. It established the original seven-file cumulative
+and five-file implementation scopes while preserving all normative decision
 documents.
+
+Approved post-ready correction: Javi, CTO, 2026-07-29. The correction addresses
+only the mandatory changelog entry and concrete independent reviewer/model. It
+expands the cumulative allowlist to eight paths without changing the five-file
+active-control implementation scope.
 
 Implemented objective: reconcile active repository controls with PR #772's
 completed merge while preserving every task-specific and programme-readiness
@@ -44,12 +54,13 @@ gate.
 
 Out-of-scope changes made: NONE
 
-### 2.1 Exact seven-file cumulative scope
+### 2.1 Exact eight-file cumulative scope
 
-The final pull request contains exactly one specification, five active control
-documents and this implementation report:
+The final pull request contains exactly one changelog, one specification, five
+active control documents and this implementation report:
 
 ```text
+CHANGELOG.md
 docs/engineering/ai-delivery/tasks/ADR-0001-POST-MERGE.md
 docs/engineering/ai-delivery/implementation-reports/ADR-0001-POST-MERGE-implementation-report.md
 docs/engineering/README.md
@@ -71,25 +82,32 @@ docs/publisher-services/README.md
 docs/metrics/README.md
 ```
 
+### 2.3 Exact three-file corrective scope
+
+The fourth corrective commit changes exactly:
+
+```text
+CHANGELOG.md
+docs/engineering/ai-delivery/tasks/ADR-0001-POST-MERGE.md
+docs/engineering/ai-delivery/implementation-reports/ADR-0001-POST-MERGE-implementation-report.md
+```
+
 ## 3. Commits
 
-Completed ordered history before the report-finalization commit:
+The exact ordered history is:
 
 1. `3006abba82aedc296f6c761aaa743395988c5ea6` -
    `docs: specify ADR-0001 post-merge reconciliation`;
 2. `f062e96a463c2a80b9476dd30807c47e2c09dd6b` -
-   `docs: reconcile ADR-0001 merged state`.
+   `docs: reconcile ADR-0001 merged state`;
+3. `8a51790f6a473432f1c6bb30eb0a72d3f18307a0` -
+   `docs: report ADR-0001 post-merge reconciliation`;
+4. corrective commit - `docs: address PR 773 review findings`.
 
-The third and final task commit is:
-
-```text
-docs: report ADR-0001 post-merge reconciliation
-```
-
-Its SHA cannot be embedded in the commit it identifies. The exact
-report-finalization commit, final PR head and complete three-commit sequence are
-recorded after push in the immutable PR evidence comment and implementation
-handoff under the approved finalization mechanism.
+The fourth commit's SHA cannot be embedded in the commit it identifies. Its SHA,
+the new final PR head, fresh exact-head CI and the new immutable evidence-comment
+URL are recorded after push under the approved finalization mechanism. No later
+evidence-only commit will be created.
 
 ## 4. Active-document corrections
 
@@ -159,6 +177,66 @@ Corrected state:
 
 No metrics collection, entitlement enforcement, serving, import or export
 behaviour was activated.
+
+### 4.6 Post-ready findings and corrective evidence
+
+The automated review submitted at `2026-07-29T14:17:27Z` against historical head
+`8a51790f6a473432f1c6bb30eb0a72d3f18307a0` raised:
+
+```text
+P1 mandatory changelog entry:
+  Thread PRRT_kwDODkn0bc6Uycpt
+  Inline comment 3675117373
+
+P1 concrete independent reviewer/model:
+  Thread PRRT_kwDODkn0bc6Uycp7
+  Inline comment 3675117389
+```
+
+The correction adds the mandatory PR #773 entry under the existing Unreleased
+`Changed` heading and records OpenAI ChatGPT / GPT-5.6 Thinking as the actual
+independent reviewer/model. The historical review evidence is:
+
+```markdown
+  - [773](https://github.com/thoth-pub/thoth/pull/773) - Reconcile active engineering, Publisher Services, and Metrics control records with ADR-0001's merged state while preserving all implementation and rollout blockers
+```
+
+```text
+Comment 5118851221
+Reviewed head 8a51790f6a473432f1c6bb30eb0a72d3f18307a0
+Review decision APPROVED
+```
+
+The independent reviewer/model was not concretely recorded before the active
+document changes began. This was a process deviation from `AGENTS.md`.
+
+A fresh non-implementing review was nevertheless completed before merge and
+before the first ready transition. The actual reviewer/model and review evidence
+are now recorded explicitly.
+
+The previous exact-head approval is historical after this corrective commit.
+Fresh independent review is required for the new head. The previous CTO
+authorization is likewise historical and fresh explicit CTO authorization is
+required after the fresh independent approval.
+
+The earlier no-changelog approach was attempted under CTO authorization but is
+superseded by the repository-level requirement and this correction. Historical
+evidence is preserved:
+
+```text
+Original check-changelog failure:
+  run 30454621431, attempt 1, job 90584906474
+no changelog label added:
+  2026-07-29T13:39:04Z
+Failed rerun with the original pre-label event payload:
+  run 30454621431, attempt 2, job 90594807733
+CTO-authorized close:
+  2026-07-29T13:53:05Z
+CTO-authorized reopen:
+  2026-07-29T13:53:25Z
+no changelog label removed:
+  2026-07-29T14:24:59Z
+```
 
 ## 5. Preserved blockers and invariants
 
@@ -315,9 +393,11 @@ exit 0
 no output
 ```
 
-At the implementation content head, the cumulative diff contains exactly the
-specification and five active documents. This report adds only the seventh
-authorized path in the final report commit.
+At the implementation content head, the cumulative diff contained exactly the
+specification and five active documents. The report-finalization commit added
+only the seventh original path. The fourth corrective commit adds `CHANGELOG.md`
+and changes exactly the specification, report and changelog, producing eight
+unique cumulative paths.
 
 Per-commit checks:
 
@@ -385,8 +465,8 @@ Result:
 {"docs_only": "true", "run_build": "false", "run_docker": "false", "run_migrations": "false"}
 ```
 
-The same classifier must be rerun over the exact final seven-file range after
-this report commit.
+The classifier must be rerun over the exact final eight-file range after the
+corrective commit.
 
 ## 7. Database and migration effects
 
@@ -421,11 +501,13 @@ protection or ruleset file changed.
 
 No issue, deployment, release, production, secret, branch-protection or ruleset
 write occurred. Issues #765 and #766 were not modified. No production service,
-database, credential or secret was accessed.
+database, credential or secret was accessed. The authorized PR metadata changes
+were returning PR #773 to draft and removing exactly the obsolete `no changelog`
+label.
 
 ## 10. CI
 
-Status before the report-finalization push: PENDING
+Status before the corrective push: PENDING
 
 Required exact-head result:
 
@@ -449,9 +531,10 @@ check-changelog:
   check-changelog: success
 ```
 
-Every skipped heavy job must have an empty step array. Exact report-finalization
-commit, workflow run IDs, final conclusions and immutable evidence-comment URL
-are recorded after push under the approved finalization mechanism.
+Every skipped heavy job must have an empty step array. The corrective commit's
+own SHA, new final head, workflow run and job IDs, final conclusions and immutable
+evidence-comment URL are recorded externally after push under the approved
+finalization mechanism; they are not claimed or embedded in this report.
 
 ## 11. Rollout and rollback
 
@@ -475,18 +558,19 @@ deployment, release, production or data rollback is required.
 
 ## 13. Approved task-specific reporting deviation
 
-The report-finalization commit cannot embed its own SHA or exact-head CI created
-after push. Under the CTO-approved finalization mechanism, those facts are
-recorded in one immutable top-level PR evidence comment and the implementation
-handoff. No later evidence-only commit will be created merely to add the report
-commit's own SHA or CI to this report.
+The corrective commit cannot embed its own SHA or exact-head CI created after
+push. Under the CTO-approved finalization mechanism, the new final head, fresh
+exact-head CI and final evidence URL are recorded externally in one immutable
+top-level PR evidence comment and the implementation handoff. No later
+evidence-only commit will be created merely to add the corrective commit's own
+SHA or CI to this report.
 
 ## 14. Independent review requirement
 
 PR #773 must remain draft and unmerged. A fresh non-implementing reviewer must
-review the approved specification and amendment, exact seven-file cumulative
-diff, exact five-file implementation commit, validation evidence, exact-head CI
-payloads and unresolved-thread state.
+review the approved specification and amendments, exact eight-file cumulative
+diff, exact five-file implementation commit, exact three-file corrective commit,
+validation evidence, exact-head CI payloads and unresolved-thread state.
 
 The implementing agent does not approve this task. Explicit CTO authorization is
 required after independent approval and before the PR may be marked ready or
@@ -500,6 +584,7 @@ Suggested review focus:
   merge state;
 - verify the decision-register amendment did not alter ADR-0002;
 - verify all Publisher Services, Metrics and OAI-PMH blockers remain effective;
-- verify the three-commit and seven-file boundaries;
+- verify the four-commit, eight-file cumulative and three-file corrective
+  boundaries;
 - verify exact-head skipped-job payloads contain empty step arrays; and
 - verify the immutable evidence is bound to the final exact head.
