@@ -13,8 +13,8 @@ Base commit: `35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`
 PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/repository-controls/thoth-db-ctrl-01-spec`
-Head commit: the second report commit; its exact SHA is recorded in the
-immutable PR #775 evidence comment after the commit exists
+Head commit: the review-remediation commit; its exact SHA is recorded in the
+superseding immutable PR #775 evidence comment after the commit exists
 Pull request: [#775](https://github.com/thoth-pub/thoth/pull/775), draft
 Expected branch deletion after merge: YES
 Final programme PR required: NO
@@ -37,6 +37,12 @@ Dependencies: PR #774 merged as 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8
 Implementing agent/model: Codex / GPT-5, HIGH reasoning
 Independent reviewer/model: separate cross-model reviewer, HIGH or MAXIMUM reasoning
 ```
+
+The independent review of exact head
+`3f0affd0e375975dd18ea895219ab77477b41325` did not state the reviewer's exact
+model. This report does not infer one. The review returned `CHANGES REQUIRED`
+with one P1 safe-target finding, which the third bounded documentation commit
+addresses.
 
 ## 2. Scope confirmation
 
@@ -68,6 +74,10 @@ future separately reviewed implementation
 No final Diesel control, migration, schema change, BE-01 object, Rust code,
 GraphQL contract, workflow, Makefile target, or Diesel configuration was
 implemented.
+
+Review remediation changed only this report and the output task specification.
+It corrected the safe-target contract without rerunning or recharacterizing the
+completed discovery.
 
 ## 3. Preconditions and branch evidence
 
@@ -187,11 +197,16 @@ Concise result:
 - `bfee1ca8356ac191521e112f835bf3a4af0993d3` -
   `docs: specify THOTH-DB-CTRL-01 Diesel control`
 - the report commit containing this file -
-  `docs: report THOTH-DB-CTRL-01 specification`; exact SHA is recorded in the
-  immutable PR evidence after creation
+  `docs: report THOTH-DB-CTRL-01 specification`, recorded in the original
+  immutable PR evidence as
+  `3f0affd0e375975dd18ea895219ab77477b41325`
+- the review-remediation commit containing the safe-target correction -
+  `docs: correct THOTH-DB-CTRL-01 target safety`; exact SHA is recorded in the
+  superseding immutable PR evidence after creation
 
-No commit was amended, squashed, rebased, or force-pushed. No evidence-only
-third commit will be created.
+No commit was amended, squashed, rebased, or force-pushed. The third commit is
+the bounded two-file P1 remediation, not an evidence-only commit. No separate
+evidence-only commit will be created.
 
 ## 6. Files changed
 
@@ -200,7 +215,8 @@ third commit will be created.
     section;
   - behavioural effect: none.
 - `docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md`
-  - reason: define the implementation-ready Diesel control;
+  - reason: define the implementation-ready Diesel control and correct its
+    Docker/GitHub Actions safe-target contract after exact-head review;
   - behavioural effect: establishes a draft control specification only.
 - `docs/engineering/repository-map/control-gaps.md`
   - reason: mark CG-12 as specified but not implemented or resolved;
@@ -210,7 +226,8 @@ third commit will be created.
     regeneration prohibition;
   - behavioural effect: none.
 - `docs/engineering/ai-delivery/implementation-reports/THOTH-DB-CTRL-01-SPEC-implementation-report.md`
-  - reason: preserve exact discovery, test, decision, and handoff evidence;
+  - reason: preserve exact discovery, test, decision, review-remediation, and
+    handoff evidence;
   - behavioural effect: none.
 
 ## 7. Tooling discovery
@@ -274,9 +291,9 @@ schema text to stdout. Migration commands update the configured
 ### 8.1 Target
 
 ```text
-host: 127.0.0.1
-host classification: loopback
-port: 55432
+client endpoint host: 127.0.0.1
+client endpoint classification: loopback
+client endpoint port: 55432
 database: thoth_ctrl_01_spec
 user: thoth_ctrl
 connection source: explicit task-local environment variable
@@ -290,6 +307,16 @@ production, staging, shared-development, and public network access: none
 
 The disposable password and complete URL are intentionally not recorded. No
 production credential or secret was used.
+
+This discovery proved that the client-facing endpoint was loopback and that the
+database was the task-created disposable Docker container. It did not query or
+record `inet_server_addr()`, `inet_server_port()`, `inet_client_addr()`, or
+`inet_client_port()`. It therefore does not establish that PostgreSQL's
+server-side accepted address was loopback. Under Docker port publication, that
+address may instead be the container's private bridge address. The corrected
+implementation specification requires those values to be queried, recorded,
+classified, and tied to the verified local Docker or GitHub Actions
+provenance.
 
 Creation command, with the task-local credential variable redacted from the
 report:
@@ -569,14 +596,17 @@ CLI `2.3.10`; add explicit convention control data; and add a fail-closed
 structural synchronizer that:
 
 1. proves the target is local and disposable;
-2. captures raw Diesel output privately;
-3. compares physical database structure with the canonical contract through
+2. requires a loopback client endpoint, inspects server/client connection
+   addresses and ports, and ties any private server address to verified local
+   Docker or GitHub Actions provenance;
+3. captures raw Diesel output privately;
+4. compares physical database structure with the canonical contract through
    enumerated aliases, type overrides, supplemental types, and order;
-4. preserves unchanged canonical bytes;
-5. permits only an exact task-local expected-change manifest;
-6. atomically writes only the canonical schema;
-7. compiles a candidate and rejects unrelated file changes;
-8. runs identically in local and CI verification.
+5. preserves unchanged canonical bytes;
+6. permits only an exact task-local expected-change manifest;
+7. atomically writes only the canonical schema;
+8. compiles a candidate and rejects unrelated file changes;
+9. runs identically in local and CI verification.
 
 This approach follows the evidence: database introspection is deterministic,
 while the compiled repository contract has intentional semantics that raw
@@ -634,7 +664,9 @@ Negative authorization tests: not applicable to documentation/discovery
 Secret or personal-data handling: no production credentials, URLs, table
 contents, personal data, or unbounded database output were logged
 Security limitations: database target safety is specified but not implemented
-by this task
+by this task; the completed discovery proved a loopback client endpoint and
+task-created disposable container, but did not record the PostgreSQL
+server/client connection address and port functions
 
 ## 17. Tests and checks
 
@@ -681,7 +713,8 @@ git diff --name-only \
   35e4dc20864ae4896dccc2b20cbcdbe3fb733db8...HEAD
 git log --oneline \
   35e4dc20864ae4896dccc2b20cbcdbe3fb733db8..HEAD
-git show --stat --oneline HEAD~1
+git show --stat --oneline bfee1ca8356ac191521e112f835bf3a4af0993d3
+git show --stat --oneline 3f0affd0e375975dd18ea895219ab77477b41325
 git show --stat --oneline HEAD
 python3 .github/scripts/classify_ci_changes.py --paths \
   CHANGELOG.md \
@@ -692,14 +725,16 @@ python3 .github/scripts/classify_ci_changes.py --paths \
 git status --short
 ```
 
-The exact outputs, final head, two commit scopes, and classifier JSON are
-recorded in the immutable PR evidence after the report commit exists. This
-report does not create a third evidence-only commit.
+The exact outputs, final head, three commit scopes (`4 / 1 / 2`), and classifier
+JSON are recorded in the superseding immutable PR evidence after the
+review-remediation commit exists. This report does not create a separate
+evidence-only commit.
 
 ## 18. Manual verification
 
 Environment: repository checkout at the exact authorized base plus a unique
-loopback-only PostgreSQL 17 container and isolated Diesel CLI `2.3.10`.
+PostgreSQL 17 container with a loopback-published client endpoint and isolated
+Diesel CLI `2.3.10`.
 
 Steps:
 
@@ -720,14 +755,18 @@ Steps:
 Observed result: discovery completed without production effect or repository
 experiment residue.
 
-Evidence: this report and the immutable top-level PR #775 evidence comment.
+Evidence: this report, the original immutable top-level PR #775 evidence
+comment, and its superseding post-remediation evidence comment.
 
 ## 19. CI
 
-CI status: PENDING at report authoring time
-Checks: exact-head workflow and job IDs will be recorded in immutable PR
-evidence after all required checks reach terminal state
-Failures or warnings: none claimed before exact-head CI completes
+CI status: PENDING for the review-remediation head
+Checks: the reviewed head `3f0affd0e375975dd18ea895219ab77477b41325`
+completed its documentation-only checks successfully; the new exact-head
+workflow and job IDs will be recorded in superseding immutable PR evidence
+after all required checks reach terminal state
+Failures or warnings: no success is claimed for the remediation head before
+its exact-head CI completes
 
 ## 20. Rollout and rollback
 
@@ -747,6 +786,8 @@ ambiguous again, CG-12 reopens and all dependent schema work returns to
 ## 21. Known limitations and deferred work
 
 - The selected control is specified but not implemented.
+- The completed discovery did not record PostgreSQL's server/client connection
+  addresses or ports; the implementation must add and test that evidence.
 - The initial convention file must enumerate and independently verify every
   existing timestamp override and ordering rule during implementation.
 - CI does not yet run the exact-version structural check.
@@ -757,6 +798,9 @@ ambiguous again, CG-12 reopens and all dependent schema work returns to
 
 ## 22. Unresolved issues
 
+- The exact-head P1 review finding about Docker and GitHub Actions server
+  addresses is corrected in the bounded remediation commit; a fresh reviewer
+  must verify the corrected contract.
 - Fresh independent cross-model review of this specification is required.
 - Fresh explicit CTO authorization is required before the specification PR may
   be marked ready or merged.
@@ -773,7 +817,9 @@ Suggested review focus:
   without making the current canonical file subordinate to raw formatting;
 - whether every current manual convention can be represented as bounded,
   reviewable control data;
-- whether safe target proof prevents accidental shared or production access;
+- whether loopback client-endpoint enforcement, server/client address
+  inspection, local Docker identity/mount/storage proof, and GitHub Actions
+  workflow/job provenance prevent accidental shared or production access;
 - whether the controlled probe, compile gate, and CI sequence establish both
   clean no-op and isolated expected-diff behaviour;
 - whether the exact implementation path list is sufficient without scope

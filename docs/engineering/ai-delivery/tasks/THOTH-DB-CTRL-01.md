@@ -210,18 +210,68 @@ Diesel already adds its `SqlType` derive. Application model paths and
    variable and never log it;
 2. require `THOTH_DIESEL_CONFIRM_DATABASE` to exactly equal the name parsed
    from the URL and returned by `SELECT current_database()`;
-3. require URL and server addresses to be loopback (`localhost`, `127.0.0.1`,
-   or `::1`);
-4. require a non-default, explicit port for local developer mode and a database
-   name beginning `thoth_diesel_`;
-5. permit the GitHub Actions PostgreSQL service only when
-   `GITHUB_ACTIONS=true`, the server address is loopback, and the explicit
-   confirmation still matches;
-6. query and report only safe target metadata: host class, port, database name,
-   database user, server version, migration count, table count, and enum count;
-7. reject public, staging, production, shared-development, ambiguous, or
+3. require the parsed client-facing URL host to be exactly `localhost`,
+   `127.0.0.1`, or `::1`;
+4. query and record `inet_server_addr()`, `inet_server_port()`,
+   `inet_client_addr()`, and `inet_client_port()` over the established
+   PostgreSQL connection;
+5. classify the server-side accepted address independently from the
+   client-facing URL and accept it only when it is:
+   - loopback; or
+   - a private container-network address whose provenance is established by
+     the local Docker or GitHub Actions checks below;
+6. reject a public, externally routable, unexplained, null, or unverified
+   server-side address;
+7. query and report only safe target metadata: provenance mode, client endpoint
+   class and port, server and client connection addresses and ports, database
+   name, database user, server version, migration count, table count, and enum
+   count;
+8. reject public, staging, production, shared-development, ambiguous, or
    unconfirmed targets before running Diesel;
-8. never print credentials, the full URL, table contents, or personal data.
+9. never print credentials, the full URL, table contents, or personal data.
+
+The client-facing database endpoint must always be loopback. PostgreSQL's
+server-side accepted address is evidence to inspect and classify, but it is not
+required to be loopback when Docker or GitHub Actions maps a loopback host port
+to a PostgreSQL service on a private bridge network.
+
+#### 6.2.1 Local Docker provenance
+
+Local developer mode must additionally:
+
+1. require a non-default explicit client port and a database name beginning
+   `thoth_diesel_`;
+2. require the test wrapper to supply the exact task-created container identity
+   through `THOTH_DIESEL_CONTAINER`;
+3. inspect that exact container and require it to be running, task-disposable,
+   and mapped from the URL's loopback host and explicit port to PostgreSQL port
+   `5432`;
+4. require the queried server-side address to match an address assigned to that
+   container and to be loopback or private container-network space;
+5. require the URL, `THOTH_DIESEL_CONFIRM_DATABASE`, `current_database()`, and
+   the container's expected database identity to agree;
+6. require the connected database user to match the expected disposable user;
+7. reject host or repository bind mounts, named or externally managed durable
+   storage, and any container that cannot be tied to the task wrapper;
+8. require the wrapper's cleanup proof to show that the container and its
+   anonymous disposable storage no longer exist after the test.
+
+#### 6.2.2 GitHub Actions provenance
+
+The GitHub Actions PostgreSQL service is permitted only when all of the
+following hold:
+
+1. `GITHUB_ACTIONS=true`;
+2. `GITHUB_REPOSITORY=thoth-pub/thoth`;
+3. `GITHUB_WORKFLOW_REF` identifies
+   `.github/workflows/run_migrations.yml` and `GITHUB_JOB=run_migrations`;
+4. the workflow-controlled URL is `localhost:5432`, with database `thoth` and
+   user `thoth`;
+5. `THOTH_DIESEL_CONFIRM_DATABASE`, the parsed URL name, and
+   `current_database()` all equal `thoth`;
+6. the queried server-side address is loopback or private container-network
+   space;
+7. execution outside that approved migration job context fails closed.
 
 ### 6.3 Configuration and CLI validation
 
@@ -343,6 +393,8 @@ THOTH_DIESEL_TARGET=SAFE_DISPOSABLE_LOCAL
 THOTH_DIESEL_CLI=2.3.10
 THOTH_DIESEL_CONFIG=diesel.toml
 THOTH_DIESEL_SCHEMA=thoth-api/src/schema.rs
+THOTH_DIESEL_CLIENT_ENDPOINT=LOOPBACK
+THOTH_DIESEL_SERVER_ADDRESS=LOOPBACK_OR_VERIFIED_PRIVATE_CONTAINER
 THOTH_DIESEL_REPEAT=IDENTICAL
 THOTH_DIESEL_DIFF=CLEAN
 ```
@@ -468,7 +520,16 @@ runbook change is required. CG-13 remains open.
 - [ ] An unexpected repository file change fails.
 - [ ] Unchanged schema content receives no unrelated formatting change.
 - [ ] Local and CI checks call the same synchronizer.
-- [ ] Database target validation fails closed and logs no credential or URL.
+- [ ] The client-facing database endpoint is loopback in local and CI modes.
+- [ ] Server and client connection addresses and ports are queried, recorded,
+      classified, and public or unexplained server addresses fail closed.
+- [ ] Local execution is tied to the exact task-created disposable Docker
+      container, loopback-published port, expected database/user, mount policy,
+      and cleanup proof.
+- [ ] CI execution is tied to the `thoth-pub/thoth`
+      `run_migrations.yml`/`run_migrations` job, expected endpoint,
+      database/user, and private service-container address.
+- [ ] Database target validation logs no credential or URL.
 - [ ] The generated candidate passes the focused backend compile check.
 - [ ] Rollback restores repository state without touching database data.
 - [ ] BE-01 remains blocked and no BE-01 implementation object is created.
@@ -503,9 +564,19 @@ runbook change is required. CG-13 remains open.
 
 ### Authorization/security
 
-- Reject public and non-loopback hosts before connection.
+- Reject a non-loopback client URL before connection.
+- Query and record `inet_server_addr()`, `inet_server_port()`,
+  `inet_client_addr()`, and `inet_client_port()`; accept only loopback or
+  provenance-verified private container-network server addresses.
+- Reject public, externally routable, null, unexplained, or unverified
+  server-side addresses.
 - Reject a database confirmation mismatch, default local developer port, wrong
   database prefix, symlink escape, and production-like name.
+- Reject local execution without the exact task-created container identity,
+  expected port mapping, database/user match, disposable storage, mount policy,
+  or cleanup proof.
+- Reject CI execution outside the expected repository, migration workflow and
+  job, loopback endpoint, database/user, and service-address classification.
 - Verify safe output contains no URL, credential, table content, or personal
   data.
 
@@ -538,10 +609,14 @@ PostgreSQL 17 job:
 
 1. installs exact PostgreSQL-only Diesel CLI `2.3.10` with `--locked`;
 2. applies all migrations;
-3. runs `make check-diesel-schema` against the ephemeral service;
+3. supplies the expected CI database confirmation and runs
+   `make check-diesel-schema` against the workflow-controlled
+   `localhost:5432` service;
 4. runs the existing full-chain revert;
 5. reapplies migrations and repeats the schema check;
-6. fails on any non-zero control result.
+6. records the queried server/client addresses and ports plus the verified
+   GitHub Actions provenance status;
+7. fails on any non-zero control or provenance result.
 
 The workflow must retain explicit job-level `contents: read`, use no production
 environment or secret, and preserve the existing protected check identity. The
