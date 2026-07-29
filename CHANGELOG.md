@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [764](https://github.com/thoth-pub/thoth/pull/764) - Add the AI-led engineering operating model, task and review templates, risk classification, release gates, and GitHub Flow controls
 
 ### Changed
+  - [774](https://github.com/thoth-pub/thoth/pull/774) - Approve the bounded BE-01 publisher package model implementation specification, defining the non-null OASIS default, exhaustive package capabilities, migration evidence, protected GraphQL boundary, and inactive rollout controls
   - [773](https://github.com/thoth-pub/thoth/pull/773) - Reconcile active engineering, Publisher Services, and Metrics control records with ADR-0001's merged state while preserving all implementation and rollout blockers
   - [772](https://github.com/thoth-pub/thoth/pull/772) - Approve the shared publisher-package capability model, excluding managed OASIS metrics collection while permitting configured, private and non-blocking OBELISK collection
   - [771](https://github.com/thoth-pub/thoth/pull/771) - Skip heavy Rust, migration, and Docker jobs for documentation-only changes while preserving protected check contexts through complete-range, fail-closed CI classification

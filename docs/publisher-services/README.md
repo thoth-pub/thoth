@@ -1,6 +1,6 @@
 # Publisher Services and Distribution Configuration
 
-Status: CONTROL FOUNDATION CLOSED; IMPLEMENTATION BLOCKED
+Status: CONTROL FOUNDATION CLOSED; BE-01 SPECIFIED AND READY AFTER PR #774 MERGES; ALL OTHER IMPLEMENTATION GATED
 Programme owner: CTO
 Primary coordinating repository: `thoth-pub/thoth`
 Related repositories:
@@ -68,7 +68,9 @@ Where sources conflict, stop and escalate. Chat history is not authoritative.
 ## 5. Current programme decision
 
 ```text
-BLOCKED FOR IMPLEMENTATION
+CONTROL FOUNDATION CLOSED
+BE-01 SPECIFIED AND READY AFTER PR #774 MERGES
+ALL OTHER IMPLEMENTATION REMAINS GATED
 ```
 
 Achieved:
@@ -85,8 +87,14 @@ Achieved:
   PR [#769](https://github.com/thoth-pub/thoth/pull/769)). This removes one
   shared-ADR dependency and does not, by itself, make ADR-01, BE-02 or any other
   task ready.
+- The bounded
+  [`BE-01` implementation specification](../engineering/ai-delivery/tasks/BE-01.md)
+  is approved through this documentation-only specification
+  [PR #774](https://github.com/thoth-pub/thoth/pull/774). When PR #774 merges,
+  BE-01 may begin on `feature/publisher-services/be-01` from a freshly verified
+  then-current `develop` base.
 
-Reasons still blocking:
+Bounded BE-01 readiness:
 
 1. The P0-01 control foundation is `CLOSED`. It merged through
    [PR #764](https://github.com/thoth-pub/thoth/pull/764) at
@@ -96,19 +104,33 @@ Reasons still blocking:
    `bac598e32abbd0d7e69ff467c82945ee00df02ba`. P0-01 closure records the
    engineering-control foundation only; it does not approve an ADR, approve the
    final inventory, satisfy branch readiness, or make any implementation task
-   ready. The remaining reasons below keep the programme blocked.
-2. Publisher Services `ADR-01` has not finalized or approved the
-   distribution-platform enum or final distribution-platform inventory.
-3. Task-specific approved specifications remain required, including for
-   `BE-01`.
-4. Branch-readiness tasks are required before work in repositories whose
-   current topology differs from policy.
+   ready.
+2. BE-01 adds only the package-storage and code-owned capability foundation.
+   It creates no public or protected package query, no package mutation, no
+   distribution-platform behaviour, and no OAI-PMH or Metrics activation.
+3. CG-12 schema-generation discovery is mandatory before the first BE-01
+   migration or schema edit. If the canonical schema cannot be generated or
+   verified without an out-of-scope tooling change, BE-01 remains blocked.
+4. Protected package and effective-capability reads and the dedicated
+   superuser package mutation remain BE-03 scope.
 
-Discovery, review and documentation may continue. P0-01 closure and ADR-0002
-approval do not authorize production implementation, which must not start until
-its applicable architecture, specification and branch-readiness gates pass.
-ADR-0001 approval does not authorize `BE-01`, `OAI-01` or any production
-implementation.
+Reasons all other implementation remains gated:
+
+1. Publisher Services `ADR-01` has not finalized or approved the
+   distribution-platform enum or final distribution-platform inventory.
+2. Every task other than BE-01 still requires its own approved bounded
+   specification and applicable dependencies.
+3. Branch-readiness tasks are required before work in repositories whose
+   current topology differs from policy.
+4. BE-01-SPEC changes documentation and control state only. It changes no
+   runtime code, migration, database, GraphQL/API, authorization, deployment,
+   release, production service or production behaviour.
+
+Discovery, review and documentation may continue. BE-01 implementation
+authority becomes effective only after PR #774 is independently approved and
+merged, the then-current `develop` base is freshly verified, and CG-12 passes.
+No BE-02, BE-03, OAI-PMH, release, deployment or production work is unlocked by
+BE-01-SPEC.
 
 ## 6. Files
 
