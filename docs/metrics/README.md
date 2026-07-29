@@ -105,12 +105,13 @@ BLOCKED FOR IMPLEMENTATION
 
 Achieved:
 
-- `ADR-0001` publisher package capabilities is `APPROVED` (Javi, CTO,
+- `ADR-0001` publisher package capabilities is `APPROVED AND MERGED` (Javi, CTO,
   2026-07-28, approval PR
-  [#772](https://github.com/thoth-pub/thoth/pull/772)); the independently
-  reviewed approval record is pending merge. It establishes the
-  package-capability model without starting metrics collection, entitlement
-  enforcement, serving, imports or exports.
+  [#772](https://github.com/thoth-pub/thoth/pull/772)). The independently
+  reviewed approval record merged on 2026-07-29 as
+  `b2c91ff25b95ab0e10a477ff21dbd4702f5db8d4`. The shared
+  package-capability dependency is satisfied without activating metrics
+  collection, entitlement enforcement, serving, imports or exports.
 - `ADR-0002` platform domain boundaries is `APPROVED` (CTO, 2026-07-27, approval
   PR [#769](https://github.com/thoth-pub/thoth/pull/769)) and is no longer a
   blocking control. `MetricPlatform` remains separate from `DistributionPlatform`

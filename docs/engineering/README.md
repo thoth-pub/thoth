@@ -52,16 +52,18 @@ Agents must use observed repository state until an approved normalization task c
 
 - [Decision process](./decisions/README.md)
 - [Decision register](./decisions/decision-register.md)
-- [ADR-0001: publisher package capabilities](./decisions/ADR-0001-publisher-package-capability-model.md) - `APPROVED` (Javi, CTO, 2026-07-28, approval PR [#772](https://github.com/thoth-pub/thoth/pull/772); approval record pending merge)
+- [ADR-0001: publisher package capabilities](./decisions/ADR-0001-publisher-package-capability-model.md) - `APPROVED AND MERGED` (approved by Javi, CTO, on 2026-07-28; approval PR [#772](https://github.com/thoth-pub/thoth/pull/772) merged on 2026-07-29 as `b2c91ff25b95ab0e10a477ff21dbd4702f5db8d4`)
 - [ADR-0002: platform domain boundaries](./decisions/ADR-0002-platform-domain-boundaries.md) - `APPROVED` (CTO, 2026-07-27, PR [#769](https://github.com/thoth-pub/thoth/pull/769))
 
-ADR-0001 and ADR-0002 are approved. ADR-0001 is approved by the CTO
-through PR [#772](https://github.com/thoth-pub/thoth/pull/772), pending merge
-of that independently reviewed approval record, and becomes
-repository-authoritative only after that PR merges. ADR approval removes the
-shared decision blocker but does not make any implementation task ready.
+ADR-0001 and ADR-0002 are approved and their approval records are merged.
+ADR-0001 was approved by Javi, CTO, on 2026-07-28. Its independently reviewed
+approval PR [#772](https://github.com/thoth-pub/thoth/pull/772) merged on
+2026-07-29 as `b2c91ff25b95ab0e10a477ff21dbd4702f5db8d4`. The shared ADR
+approval-and-merge dependency is satisfied, but no implementation task is ready.
 Publisher Services and Metrics implementation remain blocked by their genuine
-programme, task-specification and repository-readiness prerequisites.
+programme, task-specification and repository-readiness prerequisites. PR #772
+changed engineering-control documentation only and implemented or activated no
+runtime behaviour.
 
 ## 7. Active programmes
 

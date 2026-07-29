@@ -1,7 +1,7 @@
 # Repository Control Gaps
 
 Status: ACTIVE FINDINGS
-Evidence date: 2026-07-24
+Evidence date: 2026-07-29
 
 ## Foundation closeout
 
@@ -35,17 +35,19 @@ Use verified actual branches until normalization or explicit exceptions complete
 
 App, Sphinx, dashboard, widget and cc-license remain outstanding. Dissemination has incomplete controls.
 
-### CG-06 - Shared ADR approvals (RESOLVED 2026-07-28)
+### CG-06 - Shared ADR approvals (RESOLVED 2026-07-29)
 
 ADR-0002 was approved by the CTO on 2026-07-27 and recorded as `APPROVED` through
 approval PR [#769](https://github.com/thoth-pub/thoth/pull/769); its independent
 review and merge close this part of the gate. ADR-0001 was approved by the CTO on
 2026-07-28 with the final OASIS/OBELISK collection distinction and recorded
-through approval PR [#772](https://github.com/thoth-pub/thoth/pull/772).
-Dependent implementation still requires PR #772 to merge after fresh independent
-review, plus each task's own approved bounded specification and remaining
-programme controls. Resolving this shared-ADR gap does not make any implementation
-task ready.
+through independently reviewed approval PR
+[#772](https://github.com/thoth-pub/thoth/pull/772), which merged on 2026-07-29
+as `b2c91ff25b95ab0e10a477ff21dbd4702f5db8d4`. Both approval records are
+merged, so CG-06 is fully resolved and no remaining dependency requires PR #772
+to merge. Dependent work still requires its own approved bounded specification
+and remaining programme controls. Resolving this shared-ADR gap does not make
+any implementation task ready.
 
 ### CG-07 - Publisher Services platform ADR open
 
