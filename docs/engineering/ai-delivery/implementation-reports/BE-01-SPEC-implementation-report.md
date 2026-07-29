@@ -46,6 +46,28 @@ The exact-head approval and CTO authorization for
 `537656cb2187ab91eec30fbbd64c89e495b3a4e9` are historical after the bounded
 rollback-evidence correction creates a new head.
 
+Historical head after the rollback-evidence correction:
+`85a83d857b56873f95a0d2011ac06ad0d61319ed`
+
+Post-ready review: `PRR_kwDODkn0bc8AAAABHsdgiA`
+
+P1 thread: `PRRT_kwDODkn0bc6U2xH6`
+
+Decision: `CHANGES REQUIRED`.
+
+The post-ready review correctly identified that the specification allowed
+destructive removal of the package foundation even though higher-authority
+ADR-0001 requires operational rollback to retain the package column and mapping
+code. No ADR change was approved or necessary. This correction distinguishes
+disposable down-migration testing from approved operational rollback, retains
+the schema, stored values, domain types, and canonical mapping foundation
+operationally, and requires an ADR change plus a separate authorized migration
+task before any foundation removal.
+
+The exact-head independent approval and CTO authorization for
+`85a83d857b56873f95a0d2011ac06ad0d61319ed` become historical when this
+corrective commit creates a new head.
+
 Pull request: [#774](https://github.com/thoth-pub/thoth/pull/774)
 
 Expected branch deletion after merge: YES
@@ -93,6 +115,16 @@ docs/engineering/ai-delivery/tasks/BE-01.md
 It adds no migration command or implementation mechanism and changes no Rust,
 SQL, migration, schema, tooling, workflow, or runtime path.
 
+The sixth, ADR-0001 rollback-alignment correction changes exactly:
+
+```text
+docs/engineering/ai-delivery/implementation-reports/BE-01-SPEC-implementation-report.md
+docs/engineering/ai-delivery/tasks/BE-01.md
+```
+
+It changes no ADR and performs no code, migration, schema, runtime, database, or
+operational action.
+
 ## 3. Commits
 
 1. `b325eaa1d46a672d69961597cf1c8d8740cf7996` -
@@ -103,11 +135,13 @@ SQL, migration, schema, tooling, workflow, or runtime path.
    `docs: report BE-01 specification task`
 4. `537656cb2187ab91eec30fbbd64c89e495b3a4e9` -
    `docs: block BE-01 on shared Diesel control`
-5. The bounded correction commit clarifying migration rollback evidence in the
+5. `85a83d857b56873f95a0d2011ac06ad0d61319ed` -
+   `docs: clarify BE-01 migration rollback evidence`
+6. The bounded correction commit aligning BE-01 rollback with ADR-0001 in the
    specification and this report is recorded in the superseding immutable
    evidence comment after it exists.
 
-No evidence-only sixth commit is permitted.
+No evidence-only seventh commit is permitted.
 
 ## 4. Files changed
 
@@ -257,8 +291,9 @@ Decisions established within the approved design:
 8. Package and platform configuration remain independent.
 9. BE-03 owns protected reads and the dedicated superuser mutation.
 10. MIG-01 owns the later approved production package mapping and backfill.
-11. A non-OASIS value or later dependency changes the safe rollback from a
-    tested down migration to coordinated data-preserving repair.
+11. Approved operational rollback always retains
+    `publisher.subscription_package`, `thoth_package`, stored package values,
+    required domain types, and the canonical mapping foundation.
 12. Specification approval does not make BE-01 implementation-ready.
 13. `THOTH-DB-CTRL-01` must be independently approved and merged before BE-01
     moves from `BLOCKED` to `READY`, its implementation branch is created, or
@@ -272,6 +307,13 @@ Decisions established within the approved design:
     preservation without running the full-history revert against its fixtures.
 17. No additional migration command, test-only Rust harness, direct `down.sql`
     execution, or implementation mechanism is required by this clarification.
+18. Execution of the BE-01 down migration is required only as disposable
+    complete-chain reversibility evidence and is not authorized as normal
+    post-merge operational rollback.
+19. Operational defects use a reviewed forward repair; mapping-code reversal or
+    change requires a separately reviewed release.
+20. Removing the package foundation requires an approved ADR change and a
+    separate authorized migration and data-preservation task.
 
 Deviation from the specification: NONE.
 
@@ -356,8 +398,10 @@ apply/revert/reapply smoke test and a separate representative populated-database
 forward-migration preservation test. The former demonstrates that every
 committed down migration, including BE-01's, executes as part of the full
 reversible chain. The latter does not run the full-history revert against its
-fixtures. PostgreSQL-version locking and rewrite analysis and the conditional
-data-preserving rollback remain required.
+fixtures. PostgreSQL-version locking, rewrite analysis, and operational
+assessment remain required. Approved operational rollback retains
+the package schema, stored values, domain types, canonical mapping foundation,
+package history, and canonical Metrics history.
 
 ## 11. API and compatibility effects
 
@@ -577,11 +621,9 @@ Those historical checks covered:
 
 ### 14.6 Rollback-evidence correction validation
 
-The exact final five-commit/five-path commands and outputs cannot be recorded
-inside the correction commit that they validate. They are run immediately
-after the bounded two-file correction commit, then recorded in a new
-superseding immutable top-level PR evidence comment without creating a sixth
-commit.
+The exact five-commit/five-path commands and outputs were recorded after the
+bounded two-file rollback-evidence correction in its superseding immutable
+top-level PR evidence comment.
 
 The final checks cover:
 
@@ -593,6 +635,30 @@ The final checks cover:
 - unchanged migration commands;
 - separate complete-chain rollback and populated forward-preservation evidence;
 - no new Rust, SQL, migration, schema, tooling, or workflow path;
+- exactly one `Changed` heading within `Unreleased`;
+- exactly one PR #774 changelog entry;
+- no unresolved specification placeholders;
+- the five-path documentation classifier.
+
+### 14.7 ADR-0001 rollback-alignment correction validation
+
+The exact final six-commit/five-path commands and outputs cannot be recorded
+inside the correction commit that they validate. They are run immediately
+after the bounded two-file correction commit, then recorded in a new
+superseding immutable top-level PR evidence comment without creating a seventh
+commit.
+
+The final checks cover:
+
+- whitespace;
+- exactly six ordered commits;
+- exactly five cumulative paths;
+- `1 / 3 / 1 / 4 / 2 / 2` commit path scopes;
+- corrective scope exactly the BE-01 specification and this report;
+- consistency with ADR-0001's retained-foundation rollback requirements;
+- separate disposable migration-reversibility and operational-rollback
+  evidence;
+- no ADR, Rust, SQL, migration, schema, tooling, workflow, or runtime change;
 - exactly one `Changed` heading within `Unreleased`;
 - exactly one PR #774 changelog entry;
 - no unresolved specification placeholders;
@@ -626,9 +692,17 @@ implementation mechanism was required. The bounded correction distinguishes
 full-chain rollback smoke evidence from populated forward-migration
 preservation.
 
+The post-ready review at
+`85a83d857b56873f95a0d2011ac06ad0d61319ed` then correctly identified that the
+specification's destructive operational rollback conflicted with ADR-0001.
+No ADR change was approved or required. The bounded correction retains
+disposable down-migration reversibility testing while making operational
+rollback retain the package schema, stored values, domain types, mapping
+foundation, package history, and canonical Metrics history.
+
 Evidence: PR #774, the historical head-bound evidence comments, post-ready P1
-thread `PRRT_kwDODkn0bc6U18En`, and the new superseding corrected-head evidence
-comment.
+threads `PRRT_kwDODkn0bc6U18En` and `PRRT_kwDODkn0bc6U2xH6`, and the new
+superseding corrected-head evidence comment.
 
 ## 16. CI
 
@@ -639,6 +713,11 @@ correction.
 Historical CI at post-ready reviewed head
 `537656cb2187ab91eec30fbbd64c89e495b3a4e9`: PASSING, but its approval and CTO
 authorization are superseded by the new correction.
+
+Historical CI at post-ready reviewed head
+`85a83d857b56873f95a0d2011ac06ad0d61319ed`: PASSING, but its independent
+approval and CTO authorization are historical after the ADR-alignment
+correction.
 
 New corrected-head CI status inside this correction commit: not yet available
 by design. It is recorded in the new superseding immutable evidence comment
@@ -678,6 +757,14 @@ Rollback/disable procedure: revert PR #774 through a separately reviewed
 documentation correction if the approved control state must be withdrawn. No
 runtime disable or data repair is required.
 
+For the future BE-01 implementation, disposable complete-chain reversal remains
+required migration-reversibility evidence only. Approved operational rollback
+retains the package column, PostgreSQL enum, stored values, required domain
+types, canonical mapping foundation, package history, and canonical Metrics
+history; it leaves the additive foundation inactive and uses reviewed forward
+repair for defects. Foundation removal requires an approved ADR change and a
+separately authorized migration and data-preservation task.
+
 Monitoring required: repository PR/CI and review evidence only.
 
 ## 18. Known limitations and deferred work
@@ -689,6 +776,10 @@ Monitoring required: repository PR/CI and review evidence only.
   BE-01 rollback preservation.
 - Representative populated-database validation covers forward-migration
   preservation without applying the full-history revert to its fixtures.
+- The tested down migration is not authorized as normal operational rollback;
+  operational rollback retains the package foundation and canonical mapping.
+- Foundation removal requires an approved ADR change and a separately scoped,
+  independently reviewed, CTO-authorized migration and data-preservation task.
 - `THOTH-DB-CTRL-01` remains blocked and must independently establish the
   shared Diesel procedure before BE-01 can become `READY`.
 - BE-01 may verify but may not independently establish or redefine that merged
@@ -718,5 +809,6 @@ Suggested independent review focus:
 - migration, history, rollback, and CG-12/CG-13 controls;
 - separation of complete-chain rollback evidence from populated forward
   preservation;
+- consistency with ADR-0001's retained-foundation operational rollback;
 - tracker accuracy without unlocking later work;
-- exact five-commit/five-path evidence and exact-head skipped-job behaviour.
+- exact six-commit/five-path evidence and exact-head skipped-job behaviour.
