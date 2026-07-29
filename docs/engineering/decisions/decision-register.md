@@ -2,11 +2,11 @@
 
 Status: ACTIVE
 Owner: CTO
-Last updated: 2026-07-27
+Last updated: 2026-07-28
 
 | ADR | Decision | Status | Programmes | Approval blocker |
 |---|---|---|---|---|
-| `ADR-0001` | Publisher package capability model | PROPOSED | Publisher Services, Thoth Metrics, OAI-PMH | CTO approval of ownership, matrix and upgrade/export semantics |
+| `ADR-0001` | Publisher package capability model | APPROVED | Publisher Services, Thoth Metrics, OAI-PMH | Satisfied - CTO approved the final package matrix, OASIS/OBELISK collection distinction and upgrade/downgrade/export semantics on 2026-07-28 through PR [#772](https://github.com/thoth-pub/thoth/pull/772) |
 | `ADR-0002` | Distribution and metrics platform domain boundaries | APPROVED | Publisher Services, Thoth Metrics | Satisfied - CTO approved strict type separation and no initial cross-domain mapping on 2026-07-27 through PR [#769](https://github.com/thoth-pub/thoth/pull/769) |
 
 ## Merge and implementation rules
@@ -23,7 +23,7 @@ No implementation task may rely on them until:
 
 ## Approval sequence
 
-Approve `ADR-0001` before:
+Merge the independently approved `ADR-0001` approval PR before:
 
 - Publisher Services `BE-01`;
 - metrics entitlement implementation;

@@ -105,6 +105,12 @@ BLOCKED FOR IMPLEMENTATION
 
 Achieved:
 
+- `ADR-0001` publisher package capabilities is `APPROVED` (Javi, CTO,
+  2026-07-28, approval PR
+  [#772](https://github.com/thoth-pub/thoth/pull/772)); the independently
+  reviewed approval record is pending merge. It establishes the
+  package-capability model without starting metrics collection, entitlement
+  enforcement, serving, imports or exports.
 - `ADR-0002` platform domain boundaries is `APPROVED` (CTO, 2026-07-27, approval
   PR [#769](https://github.com/thoth-pub/thoth/pull/769)) and is no longer a
   blocking control. `MetricPlatform` remains separate from `DistributionPlatform`
@@ -118,15 +124,15 @@ Blocking controls:
    `bac598e32abbd0d7e69ff467c82945ee00df02ba`, closing P0-01. The Metrics
    programme control task `MET-CTRL-01` nevertheless remains `CHANGES REQUIRED`
    and is not yet closed.
-2. `ADR-0001` is `PROPOSED`.
-3. `thoth-sphinx` is placeholder-only and has not been bootstrapped.
-4. Thoth Diesel generation procedure is unresolved.
-5. Branch topology differs in Sphinx and client repositories.
-6. Service-role codes require approval before WP5.
-7. Representative source fixtures and COUNTER mappings are missing for source-specific work.
-8. Guaranteed OPERAS inbound discovery is unavailable.
+2. `thoth-sphinx` is placeholder-only and has not been bootstrapped.
+3. Thoth Diesel generation procedure is unresolved.
+4. Branch topology differs in Sphinx and client repositories.
+5. Service-role codes require approval before WP5.
+6. Representative source fixtures and COUNTER mappings are missing for source-specific work.
+7. Guaranteed OPERAS inbound discovery is unavailable.
 
 Discovery, benchmarking, fixture collection and task specification may continue.
+ADR-0001 approval does not mark WP1 or any later work package ready.
 
 ## 7. Files
 

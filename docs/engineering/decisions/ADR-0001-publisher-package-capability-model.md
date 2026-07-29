@@ -1,8 +1,11 @@
 # ADR-0001 - Publisher Package Capability Model
 
-Status: PROPOSED
+Status: APPROVED
 Date: 2026-07-24
 Decision owner: CTO
+Approved by: Javi, CTO
+Approval date: 2026-07-28
+Approval PR: [#772](https://github.com/thoth-pub/thoth/pull/772)
 Programmes affected: Publisher Services, Thoth Metrics, OAI-PMH
 Repositories affected: `thoth`, `thoth-app`, `thoth-sphinx`, `metrics-dashboard`, `metrics-widget`
 Supersedes: None
@@ -156,11 +159,18 @@ Every package and capability pair must be covered by tests.
 
 Feature code calls `has_capability`. It must not compare package names directly except inside the mapping implementation or its tests.
 
-The normative proposed matrix is:
+The normative approved matrix is:
 
 ```text
 docs/engineering/decisions/package-capability-matrix.md
 ```
+
+| Package | OAI_PMH | METRICS_COLLECT | METRICS_IMPORT | METRICS_DASHBOARD | METRICS_WIDGET | METRICS_OPERAS_EXPORT |
+|---|---:|---:|---:|---:|---:|---:|
+| OASIS | No | No | No | No | No | No |
+| OBELISK | Yes | Yes | No | No | No | No |
+| SPHINX | Yes | Yes | Yes | Yes | Yes | Yes |
+| PYRAMID | Yes | Yes | Yes | Yes | Yes | Yes |
 
 ### 4.3 Capability set
 
@@ -219,6 +229,31 @@ Actual operation may additionally require:
 - schedules;
 - rollout approval.
 
+A package capability never fabricates operational configuration or metric data.
+In particular:
+
+- OASIS has no `METRICS_COLLECT` capability as an independent package
+  entitlement; under current operations Thoth has no managed OASIS usage-data
+  source because it does not operationally distribute OASIS files;
+- OBELISK background collection is private and may run only when a valid source
+  account, credentials and source-specific operational configuration exist;
+- missing OBELISK source configuration, source outages, retries, reconciliation
+  and collection failures must not block distribution, metadata, package changes
+  or other unrelated publisher services;
+- missing or unavailable metric data must not be treated as zero.
+
+The current absence of a managed OASIS metrics source does not create a
+package-to-platform rule. This ADR does not disable or remove OASIS
+distribution-platform assignments, prevent a superuser from configuring
+platforms, define dissemination eligibility, create a distribution capability or
+change distribution-job behaviour. Any permanent rule that OASIS publishers
+cannot be distributed requires a separately approved Publisher Services
+decision through ADR-01 or another cross-programme ADR.
+
+Metrics collection must not infer entitlement from the presence of a
+distribution-platform assignment or remote location. It must check the package's
+`METRICS_COLLECT` capability directly.
+
 ### 4.7 Upgrade and downgrade
 
 The upgrade and downgrade semantics in `package-capability-matrix.md` are part of this decision.
@@ -227,8 +262,21 @@ In particular:
 
 - retained canonical metrics may become visible when serving capability is gained;
 - a package upgrade does not automatically bulk-export historical metrics to OPERAS;
-- a downgrade does not delete canonical metrics;
-- package changes never modify distribution-platform assignments.
+- historical OPERAS export requires a separately scoped, reviewed and explicitly
+  activated backfill;
+- every package change is evaluated using the resulting package's capabilities;
+- `PYRAMID -> SPHINX` removes no initial capability: collection, import,
+  dashboard, widget, OAI-PMH and eligible OPERAS export remain permitted subject
+  to their normal configuration, authorization and rollout requirements;
+- `SPHINX` or `PYRAMID -> OBELISK` retains OAI-PMH and validly configured private
+  collection, while publisher import, dashboard, widget and OPERAS export are
+  denied because the resulting package lacks those capabilities;
+- any package `-> OASIS` denies all six initial capabilities and stops
+  Thoth-managed collection;
+- every downgrade retains canonical metrics and leaves distribution-platform
+  assignments unchanged;
+- in-flight work rechecks the relevant capability at its final write, serving or
+  delivery boundary and fails closed if the resulting package lacks it.
 
 ## 5. Consequences
 
@@ -250,21 +298,34 @@ In particular:
 
 ### Risks
 
-- The proposed matrix may not match final commercial packaging.
-- `METRICS_COLLECT` for all packages has storage and operational cost.
-- Treating PYRAMID as cumulative with SPHINX must be confirmed.
-- In-flight work could cross a downgrade unless entitlement is rechecked.
+- OBELISK private collection has storage and operational cost even though the
+  package has no metrics serving, import or export capability.
+- Missing source configuration or source outages could accidentally couple
+  collection to unrelated operations unless the non-blocking invariant is
+  enforced.
+- In-flight work could cross a package change unless the relevant capability is
+  rechecked at its final boundary.
 
 ## 6. Invariants created by this decision
 
 1. Package capability checks are centralized in Thoth.
 2. Feature code does not hardcode package-name combinations.
-3. Package changes do not change distribution assignments.
+3. Package changes do not change distribution assignments, distribution-job
+   eligibility or dissemination behaviour.
 4. Capabilities do not bypass authorization or feature-specific configuration.
 5. Canonical metrics are not deleted on downgrade.
 6. Historical OPERAS export is an explicit operation, not an upgrade side effect.
 7. Publisher users cannot mutate their package.
 8. Capability mappings are identical across environments running the same version.
+9. OASIS has no `METRICS_COLLECT` entitlement. The current absence of a managed
+   OASIS source does not define a permanent distribution rule.
+10. OBELISK collection remains private, configured and non-blocking for
+    unrelated operations.
+11. Missing or unavailable metric data is not fabricated or treated as zero.
+12. Metrics collection does not infer entitlement from distribution assignments
+    or remote locations.
+13. Package changes are evaluated using the resulting package's capabilities,
+    and in-flight work rechecks the relevant capability at its final boundary.
 
 ## 7. Implementation impact
 
@@ -306,8 +367,17 @@ Required evidence:
 - exhaustive package/capability unit test;
 - migration tests for existing and new publishers;
 - authorization tests;
-- downgrade and upgrade tests;
+- `PYRAMID -> SPHINX` test proving no initial capability is removed;
+- downgrade-to-OBELISK test proving only OAI-PMH and configured private
+  collection remain permitted;
+- downgrade-to-OASIS test proving all six initial capabilities are denied and
+  Thoth-managed collection stops;
+- tests proving every downgrade retains canonical history;
 - tests proving distribution assignments are unchanged;
+- tests proving in-flight work rechecks the relevant capability at its final
+  boundary;
+- tests proving metrics collection does not infer entitlement from distribution
+  assignments or remote locations;
 - tests proving metrics and OAI call capability methods;
 - test proving no automatic historical export is created;
 - GraphQL compatibility review.
@@ -332,8 +402,8 @@ Rollback:
 ## 10. Approval
 
 Approval required from: CTO
-Approved by:
-Approval date:
-Notes:
-
-The CTO must complete the checklist in `package-capability-matrix.md` before changing this ADR to `APPROVED`.
+Approved by: Javi, CTO
+Approval date: 2026-07-28
+Approval PR: [#772](https://github.com/thoth-pub/thoth/pull/772)
+Notes: Approved with the final matrix and operational decisions recorded above.
+This approval does not state that implementation has started or completed.

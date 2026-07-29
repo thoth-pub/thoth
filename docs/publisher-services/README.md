@@ -73,6 +73,12 @@ BLOCKED FOR IMPLEMENTATION
 
 Achieved:
 
+- `ADR-0001` publisher package capabilities is `APPROVED` (Javi, CTO,
+  2026-07-28, approval PR
+  [#772](https://github.com/thoth-pub/thoth/pull/772)); the independently
+  reviewed approval record is pending merge. Approval preserves package and
+  distribution-platform independence and does not implement package storage,
+  capability enforcement or distribution behaviour.
 - `ADR-0002` platform domain boundaries is `APPROVED` (CTO, 2026-07-27, approval
   PR [#769](https://github.com/thoth-pub/thoth/pull/769)). This removes one
   shared-ADR dependency and does not, by itself, make ADR-01, BE-02 or any other
@@ -89,15 +95,18 @@ Reasons still blocking:
    engineering-control foundation only; it does not approve an ADR, approve the
    final inventory, satisfy branch readiness, or make any implementation task
    ready. The remaining reasons below keep the programme blocked.
-2. `ADR-0001` package capability model is `PROPOSED`.
-3. Publisher Services `ADR-01` has not finalized or approved the
-   distribution-platform enum.
+2. Publisher Services `ADR-01` has not finalized or approved the
+   distribution-platform enum or final distribution-platform inventory.
+3. Task-specific approved specifications remain required, including for
+   `BE-01`.
 4. Branch-readiness tasks are required before work in repositories whose
    current topology differs from policy.
 
 Discovery, review and documentation may continue. P0-01 closure and ADR-0002
 approval do not authorize production implementation, which must not start until
 its applicable architecture, specification and branch-readiness gates pass.
+ADR-0001 approval does not authorize `BE-01`, `OAI-01` or any production
+implementation.
 
 ## 6. Files
 

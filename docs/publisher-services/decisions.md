@@ -1,7 +1,7 @@
 # Publisher Services Decision Summary
 
 Status: ACTIVE SUMMARY
-Last updated: 2026-07-24
+Last updated: 2026-07-28
 Owner: CTO
 
 This file summarizes decisions. The approved technical design and approved ADRs remain authoritative.
@@ -71,22 +71,61 @@ This programme initially implements desired state and durable publisher back-cat
 
 ### ADR-0001 - Package capability model
 
-Status: `PROPOSED` - awaiting its separate CTO decision on ownership, the
-capability matrix and upgrade/export semantics.
+Status: `APPROVED` (Javi, CTO, 2026-07-28, approval PR
+[#772](https://github.com/thoth-pub/thoth/pull/772)).
 
-Proposes:
+Approved architecture:
 
 - code-owned exhaustive capability mappings;
-- metrics collection permitted independently of serving/export;
+- Thoth ownership and stable GraphQL capability codes;
+- no database capability rows or bespoke publisher overrides;
+- entitlement remains separate from source accounts, credentials and other
+  operational configuration;
 - retained metrics visible after an entitled upgrade;
 - no automatic historical OPERAS bulk export after upgrade;
+- package changes use the resulting package's capabilities, and downgrades
+  retain canonical metrics;
 - package changes never alter distribution assignments.
 
-Implementation dependency:
+The approved package matrix is:
 
-- `BE-01`
-- metrics entitlement tasks
-- `OAI-01`
+| Package | OAI_PMH | METRICS_COLLECT | METRICS_IMPORT | METRICS_DASHBOARD | METRICS_WIDGET | METRICS_OPERAS_EXPORT |
+|---|---:|---:|---:|---:|---:|---:|
+| OASIS | No | No | No | No | No | No |
+| OBELISK | Yes | Yes | No | No | No | No |
+| SPHINX | Yes | Yes | Yes | Yes | Yes | Yes |
+| PYRAMID | Yes | Yes | Yes | Yes | Yes | Yes |
+
+OASIS is not entitled to Thoth-managed metrics collection. Under current
+operations Thoth has no managed OASIS usage-data source because it does not
+operationally distribute OASIS files. This metrics-entitlement decision does not
+disable or remove OASIS distribution-platform assignments, prevent superuser
+platform configuration, define dissemination eligibility, create a distribution
+capability or change distribution-job behaviour. Any permanent OASIS
+distribution prohibition requires a separately approved decision through ADR-01
+or another cross-programme ADR.
+
+Metrics collection must not infer entitlement from a distribution assignment or
+remote location. OBELISK collection is private, requires valid source
+credentials and source-specific configuration, and must not block distribution,
+metadata, package changes or unrelated publisher services when configuration is
+missing or a source fails.
+
+Package changes use the resulting package's capabilities:
+
+- `PYRAMID -> SPHINX` removes no initial capability;
+- `SPHINX` or `PYRAMID -> OBELISK` retains OAI-PMH and configured private
+  collection while denying publisher import, dashboard, widget and OPERAS
+  export;
+- any package `-> OASIS` denies all six initial capabilities and stops
+  Thoth-managed collection;
+- every downgrade retains canonical metric history, leaves distribution
+  assignments unchanged and rechecks the relevant capability at the final
+  boundary.
+
+Approval settles the shared architecture but does not start or complete `BE-01`,
+metrics entitlement work or `OAI-01`. Each remains subject to its own approved
+bounded specification and other tracker dependencies.
 
 ### ADR-0002 - Platform domain boundaries
 
