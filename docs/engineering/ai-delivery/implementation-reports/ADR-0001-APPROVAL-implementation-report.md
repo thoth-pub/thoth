@@ -17,6 +17,12 @@ Post-ready automated reviewed head:
 `1124262dd28e0b51f33259be1b70e1396e3bdb1c`
 Second post-ready automated reviewed head:
 `56c4f873c27fa83e6358c1f207cd718cb3dde679`
+Evidence-basis head:
+`896da62baf7302ecac468b1da87d16a6cd05bb39`
+Implementation-evidence automated reviewed head:
+`896da62baf7302ecac468b1da87d16a6cd05bb39`
+Reporting finalization: Task-specific self-referential evidence exception
+approved by Javi, CTO, on 2026-07-29
 Pull request: [#772](https://github.com/thoth-pub/thoth/pull/772) (draft)
 Expected branch deletion after merge: YES
 Final programme PR required: NO
@@ -26,19 +32,22 @@ Independent reviewer/model: ChatGPT / GPT-5.6 Thinking in a fresh,
 non-implementing context
 Risk: MEDIUM
 
-The exact final branch head necessarily includes the commit containing this
-report, so the report cannot contain its own commit SHA. The immutable final
-head, exact-head workflow run IDs and final conclusions are recorded in the
-top-level PR evidence comment and final implementation handoff. No later
-repository commit is covered by that evidence.
+The exact evidence-basis head is the immediate predecessor commit whose complete
+repository contents, CI and review evidence were known before this report's
+finalization commit. Because the reporting-amendment commit changes this report,
+it cannot embed its own SHA, and its exact-head CI exists only after push.
+Under the task-specific exception approved by Javi, CTO, on 2026-07-29, the
+report therefore records the exact base, exact evidence-basis head and all
+completed evidence through that head. The immutable top-level finalization
+comment and implementation handoff record the reporting-amendment commit, final
+head, post-push exact-head CI and evidence-comment URL. No additional
+evidence-only commit is permitted.
 
-Independent review of the previous head returned `CHANGES REQUIRED` with no P0,
-one P1 finding on distribution/metrics-entitlement coupling and one P2 finding
-on downgrade semantics. The bounded correction commit contains this report, so
-its exact SHA, the new final head, revised exact-head CI and new immutable
-observation-comment URL are likewise recorded externally after push. This
-preserves the required one-commit correction without amending history or
-creating an endless evidence-only commit chain.
+Independent review of the first reviewed head returned `CHANGES REQUIRED` with
+no P0, one P1 finding on distribution/metrics-entitlement coupling and one P2
+finding on downgrade semantics. Those findings and every later correction,
+review and CI record through the evidence-basis head are retained below as
+completed historical evidence.
 
 After the PR was marked ready, the automated review submitted against exact
 head `1124262dd28e0b51f33259be1b70e1396e3bdb1c` opened one P1 finding:
@@ -54,6 +63,20 @@ Publisher Services rollout plan still listed `ADR-0001 approval` as outstanding
 Stage 0 evidence. The PR returned to draft before this correction. The
 independent approval and CTO authorization for that reviewed head are now
 historical and inapplicable to the new correction head.
+
+Automated post-ready review against exact evidence-basis head
+`896da62baf7302ecac468b1da87d16a6cd05bb39` opened one P1:
+
+```text
+Finding: Record the final head in the implementation report
+Review: https://github.com/thoth-pub/thoth/pull/772#pullrequestreview-4807148805
+Thread: PRRT_kwDODkn0bc6UuG-L
+```
+
+This reporting correction resolves the specification/report mismatch by
+approving and documenting the evidence-basis and immutable-finalization
+mechanism. The independent approval and CTO authorization for the evidence-basis
+head are historical and inapplicable to the reporting-amendment head.
 
 ## 2. Scope confirmation
 
@@ -75,6 +98,12 @@ outstanding to achieved evidence while preserving it as a requirement and
 preserving every genuine rollout blocker. The rollout plan is an active control
 document because it governs the current staged implementation, evidence and
 activation gates rather than recording historical review evidence.
+
+The CTO-approved implementation-evidence reporting amendment additionally
+reconciles the report with its specification. It records the exact
+evidence-basis head and all completed evidence through that head, replaces stale
+current-state `PENDING` statements, documents the approved self-referential
+exception and defines the immutable post-push finalization evidence.
 
 Out-of-scope changes made: NONE.
 
@@ -162,12 +191,19 @@ Corrected package-change semantics:
   `docs: reconcile ADR-0001 programme entry points`
   - one bounded post-ready correction across the five amended documentation
     files; its exact SHA is the second post-ready automated reviewed head.
-- `docs: reconcile ADR-0001 rollout gate`
+- `896da62baf7302ecac468b1da87d16a6cd05bb39` -
+  `docs: reconcile ADR-0001 rollout gate`
   - one bounded second post-ready correction across the three amended
-    documentation files; its exact SHA and the resulting final head are recorded
-    externally because the commit contains this report.
+    documentation files; its exact SHA is the implementation-evidence automated
+    reviewed head and the evidence-basis head for the reporting amendment.
+- `docs: clarify implementation evidence finalization`
+  - one bounded reporting correction across the two CTO-authorized files. Under
+    the approved self-referential exception, its exact SHA and the resulting
+    final head are recorded in the immutable finalization comment and
+    implementation handoff after push.
 
-No commit was amended, squashed or rewritten.
+No commit was amended, squashed or rewritten. No later evidence-only commit is
+permitted.
 
 ## 5. Files changed
 
@@ -248,6 +284,13 @@ docs/engineering/ai-delivery/implementation-reports/ADR-0001-APPROVAL-implementa
 docs/publisher-services/rollout-plan.md
 ```
 
+The implementation-evidence reporting correction changes exactly:
+
+```text
+docs/engineering/ai-delivery/tasks/ADR-0001-APPROVAL.md
+docs/engineering/ai-delivery/implementation-reports/ADR-0001-APPROVAL-implementation-report.md
+```
+
 ## 6. Implementation decisions and deviations
 
 Implementation decisions within the approved specification:
@@ -274,12 +317,26 @@ Implementation decisions within the approved specification:
 8. The second post-ready correction treats the Publisher Services rollout plan
    as an active control: approval moves to achieved evidence, but Stage 0 and
    implementation remain blocked by their genuine remaining gates.
+9. The implementation-evidence correction uses the exact predecessor
+   `896da62baf7302ecac468b1da87d16a6cd05bb39` as the evidence-basis head and
+   records the reporting-amendment commit's self-referential final fields
+   through the required immutable comment and handoff.
 
-Deviations from the approved specification: NONE.
+Approved task-specific reporting deviation:
+
+Because a commit cannot embed its own SHA or the CI generated only after that
+commit is pushed, the report records the exact evidence-basis head and all
+completed evidence through that head. The final reporting-amendment commit, its
+exact-head CI and immutable evidence-comment URL are recorded externally in the
+required top-level PR comment and implementation handoff.
+
+Approved by Javi, CTO, on 2026-07-29.
 
 The stale active references found by both post-ready reviews are reconciled
 under their CTO-approved five-file and three-file scope amendments. Historical
 task specifications, implementation reports and review records remain intact.
+The reporting exception is approved and task-specific; it does not amend
+`AGENTS.md` or the general implementation-report template.
 
 ## 7. Database and migration effects
 
@@ -539,6 +596,45 @@ No stale active README describes ADR-0001 as PROPOSED or an outstanding
 approval blocker.
 ```
 
+### Implementation-evidence reporting correction
+
+Commands:
+
+```text
+git diff --check
+git diff --check bafd4cbf752f9d6153036fc7f47115220fed3fbd
+git diff --name-only
+git diff --name-only bafd4cbf752f9d6153036fc7f47115220fed3fbd
+python3 .github/scripts/classify_ci_changes.py --paths <the exact fifteen paths>
+rg -n 'PENDING|pending' \
+  docs/engineering/ai-delivery/implementation-reports/ADR-0001-APPROVAL-implementation-report.md
+```
+
+Pre-finalization result:
+
+```text
+Working correction and cumulative diff: whitespace-clean.
+Working correction: exactly the two CTO-authorized files.
+Cumulative pull request: exactly the existing fifteen approved paths.
+Classifier:
+{"docs_only": "true", "run_build": "false", "run_docker": "false", "run_migrations": "false"}
+```
+
+The `PENDING|pending` search returned only:
+
+- historical explanation of the stale `PENDING` wording removed by this
+  correction;
+- active approval records whose merge is genuinely still future;
+- the validation expression itself;
+- validation statements confirming that no completed evidence remains pending;
+- `BE-01`'s genuine future bounded-specification gate.
+
+No completed CI or completed review evidence is currently labelled pending.
+The evidence-basis head, approved self-referential deviation, approver,
+completed evidence and immutable finalization mechanism are explicit. The
+report does not claim to embed the reporting-amendment commit's own SHA, and no
+additional evidence-only commit is planned.
+
 ### Rust, database and workflow tests
 
 Not run and not applicable. This task changes no Rust, SQL, migration, GraphQL,
@@ -574,47 +670,47 @@ Verified:
 17. every active-document ADR-0001 reference is classified without ambiguity;
 18. Stage 0 records ADR-0001 approval as achieved while all genuine Publisher
     Services rollout and implementation blockers remain.
+19. the PR returned to draft before the implementation-evidence correction;
+20. the working reporting correction changes exactly the two amended files;
+21. the exact evidence-basis head and its completed CI/review evidence are
+    recorded without stale current-state `PENDING` claims;
+22. the approved deviation and immutable finalization mechanism are explicit,
+    with no later evidence-only commit permitted.
 
 ## 11. CI
 
-CI status at report creation: PENDING
+Evidence-basis CI status: COMPLETE
 
-Required final exact-head conclusions:
+Exact evidence-basis head:
+`896da62baf7302ecac468b1da87d16a6cd05bb39`
 
-| Workflow/job | Required conclusion |
-|---|---|
-| all three classifier jobs | `success` |
-| `build` | `skipped` |
-| `test` | `skipped` |
-| `lint` | `skipped` |
-| `format_check` | `skipped` |
-| `run_migrations` | `skipped` |
-| `build_and_push_staging_docker_image` | `skipped` |
-| `check-changelog` | `success` |
+| Workflow | Run | Classifier | Protected or mandatory jobs |
+|---|---:|---|---|
+| `build-test-and-check` | `30443967190` | `success` | `build`, `test`, `lint`, `format_check`: `skipped` |
+| `run-migrations` | `30443967171` | `success` | `run_migrations`: `skipped` |
+| `publish-to-dockerhub` | `30443967257` | `success` | `build_and_push_staging_docker_image`: `skipped` |
+| `check-changelog` | `30443969310` | Not applicable | `check-changelog`: `success` |
 
-The exact final head, workflow run IDs, classifier conclusions, protected and
-mandatory job conclusions, step-level heavy-work inspection and evidence-comment
-URL are recorded externally after CI completes. A failure, missing/pending
-context or executed heavy step is a stop condition.
+Immutable evidence:
+[issue comment 5116555883](https://github.com/thoth-pub/thoth/pull/772#issuecomment-5116555883)
+
+Every skipped heavy job had an empty step array. No Rust build, test, lint or
+format step executed; no migration build, apply or revert step executed; and no
+Docker checkout, registry-login, image-build or image-push step executed. All
+protected and mandatory contexts were terminal and merge-safe at the
+evidence-basis head.
+
+The reporting-amendment commit creates a new exact head after this report is
+finalized. Under the approved self-referential exception, that commit SHA, the
+final head, exact-head workflow runs and conclusions, step-array evidence and
+immutable evidence-comment URL are recorded in the required top-level
+finalization comment and implementation handoff.
 
 ## 12. CI-DOCS-01 observation
 
-Observation at report creation: PENDING exact-final-head CI.
-
-PR #772 is the first controlled documentation-only observation after CI-DOCS-01
-merged through PR #771. The final evidence comment must prove:
-
-- no Rust build, test or lint step executed;
-- no migration build, apply or revert step executed;
-- no Docker login, build or push step executed;
-- all six protected contexts and the additional mandatory Docker context reached
-  terminal merge-safe conclusions;
-- `check-changelog` remained active;
-- no required context remained pending.
-
-Successful evidence satisfies only the controlled documentation-only
-observation. The mixed-source and next-three-PR observations remain outstanding,
-and CI-DOCS-01 must not be marked operationally complete.
+The controlled documentation-only observation is complete through the exact
+evidence-basis head. It does not mark CI-DOCS-01 operationally complete: the
+mixed-source and next-three-PR observations remain outstanding.
 
 ### 12.1 Historical reviewed-head evidence
 
@@ -627,56 +723,85 @@ The immutable observation for previous reviewed head
 - check-changelog run `30390801277`;
 - [historical observation comment](https://github.com/thoth-pub/thoth/pull/772#issuecomment-5108602642).
 
-That evidence is historical and does not cover the correction commit.
+That completed evidence is historical and does not cover later correction
+commits.
 
-### 12.2 Corrective exact-head evidence
+### 12.2 Independent-review correction evidence
 
-Status at correction-report creation: PENDING push and exact-head CI.
+The immutable observation for exact head
+`1124262dd28e0b51f33259be1b70e1396e3bdb1c` records:
 
-The correction remains documentation-only. At its new exact head, all three
-classifiers must succeed; build, test, lint, format, migrations and Docker must
-be skipped with no executed heavy steps; and `check-changelog` must succeed.
+- build-test-and-check run `30392747002`;
+- run-migrations run `30392747178`;
+- publish-to-dockerhub run `30392746874`;
+- check-changelog run `30392747661`;
+- [historical correction observation](https://github.com/thoth-pub/thoth/pull/772#issuecomment-5108844930).
 
-After those terminal conclusions, a new immutable top-level PR comment records
-the correction commit, new final head, revised workflow run IDs, job/step
-conclusions and its own URL. The comment is the authoritative location because
-the correction commit cannot contain its own SHA or CI runs. The historical
-comment above must not be edited.
+All classifiers succeeded, every heavy job was skipped with an empty step array,
+and `check-changelog` succeeded. That completed evidence is historical and does
+not cover later correction commits.
 
-### 12.3 Post-ready active-entry-point evidence
+### 12.3 Active-entry-point correction evidence
 
-Status at post-ready correction-report creation: PENDING push and exact-head CI.
+The immutable observation for exact head
+`56c4f873c27fa83e6358c1f207cd718cb3dde679` records:
 
-The automated post-ready P1 reviewed head
-`1124262dd28e0b51f33259be1b70e1396e3bdb1c`. The correction commit and its new
-final head are recorded in the immutable top-level evidence comment and handoff
-after push because this report is part of that commit.
+- build-test-and-check run `30395532247`;
+- run-migrations run `30395530997`;
+- publish-to-dockerhub run `30395530567`;
+- check-changelog run `30395532530`;
+- [historical active-entry-point observation](https://github.com/thoth-pub/thoth/pull/772#issuecomment-5109211041).
 
-At the new exact head, all three classifiers must succeed; build, test, lint,
-format, migrations and Docker must be skipped with no executed heavy steps; and
-`check-changelog` must succeed. Only after that evidence is terminal may the
-implementation reply to and resolve the post-ready P1 thread. The previous
-independent approval and CTO authorization remain historical and do not cover
-the new head.
+All classifiers succeeded, every heavy job was skipped with an empty step array,
+and `check-changelog` succeeded. That completed evidence is historical and does
+not cover later correction commits.
 
-### 12.4 Second post-ready rollout-gate evidence
+### 12.4 Evidence-basis rollout-gate correction evidence
 
-Status at second post-ready correction-report creation: PENDING push and
-exact-head CI.
+The immutable observation for exact evidence-basis head
+`896da62baf7302ecac468b1da87d16a6cd05bb39` records:
 
-The second automated post-ready P1 reviewed exact head
-`56c4f873c27fa83e6358c1f207cd718cb3dde679`. The correction commit, new final
-head, exact-head workflow runs, immutable observation-comment URL and review
-thread reply are recorded externally after push because this report is part of
-the correction commit.
+- build-test-and-check run `30443967190`: classifier `success`; `build`, `test`,
+  `lint` and `format_check` `skipped`;
+- run-migrations run `30443967171`: classifier `success`; `run_migrations`
+  `skipped`;
+- publish-to-dockerhub run `30443967257`: classifier `success`;
+  `build_and_push_staging_docker_image` `skipped`;
+- check-changelog run `30443969310`: `check-changelog` `success`;
+- [immutable evidence-basis observation](https://github.com/thoth-pub/thoth/pull/772#issuecomment-5116555883).
 
-At the new exact head, all three classifiers must succeed; build, test, lint,
-format, migrations and Docker must be skipped with empty step arrays; and
-`check-changelog` must succeed. Only after that terminal evidence may the
-implementation reply to and resolve thread `PRRT_kwDODkn0bc6UtkFD`. The prior
-independent approval and CTO authorization remain historical and do not cover
-the new head. Fresh exact-head independent review, fresh CTO authorization and a
-new automated post-ready review are required before merge.
+Every skipped heavy job had an empty step array. No Rust, migration,
+Docker-login, image-build or image-push step executed. The rollout-gate P1 reply
+was posted and thread `PRRT_kwDODkn0bc6UtkFD` was resolved. This evidence is
+complete for the evidence-basis head.
+
+### 12.5 Finalization evidence mechanism
+
+After the reporting-amendment commit is pushed and its exact-head CI is
+terminal, a new immutable top-level PR comment records:
+
+- exact base SHA;
+- evidence-basis head;
+- reporting-amendment commit SHA;
+- final exact PR head;
+- complete seven-commit sequence;
+- exact two-file correction diff;
+- cumulative fifteen-file scope;
+- exact workflow run IDs;
+- classifier conclusions;
+- protected and Docker job conclusions;
+- empty step arrays and confirmation that no Rust, migration, Docker-login,
+  image-build or image-push step executed;
+- reporting P1 thread `PRRT_kwDODkn0bc6UuG-L`, its top-level reply target and
+  the required reply-then-resolution sequence;
+- unresolved-thread result, draft state and unmerged state;
+- no runtime, migration, API, workflow, issue, deployment, release, production,
+  secret or override effect.
+
+The immutable comment is posted before the P1 reply because that reply must link
+to the comment. The implementation handoff records the resulting reply URL,
+resolved thread and final unresolved-thread count without editing the immutable
+comment. No later evidence-only commit is permitted.
 
 ## 13. Rollout and rollback
 
@@ -697,14 +822,19 @@ Migration sequence: none.
 
 Deployment/release: none.
 
-Merge gate: fresh independent `APPROVED` review followed by explicit CTO
-authorization. The implementing agent must not approve or merge.
+Merge gate: fresh independent `APPROVED` review, fresh explicit CTO
+authorization and a new automated post-ready review against the same exact head
+with no P0/P1 finding. The implementing agent must not approve or merge.
 
 Rollback: normal revert of PR #772, preserving unrelated later changes. No
 database, data, source-account, API, authorization, distribution, deployment,
 release or production rollback is required.
 
 ## 14. Known limitations and remaining blockers
+
+Implementation defects within approved scope: NONE KNOWN
+
+Genuine programme and control limitations:
 
 - Publisher Services `ADR-01` and the final distribution-platform inventory
   remain unresolved.
@@ -717,23 +847,32 @@ release or production rollback is required.
   completeness and other work-package dependencies remain unresolved.
 - Every Metrics work package remains `BLOCKED`.
 - The CI-DOCS-01 mixed-source and next-three-PR observations remain outstanding.
-- Second post-ready corrective exact-head CI and P1 thread resolution remain
-  pending at correction-report creation.
-- Fresh independent exact-head review and fresh explicit CTO authorization are
-  required for the new head.
+
+Remaining delivery gates:
+
+- push the reporting-amendment commit;
+- complete exact-head CI;
+- post immutable finalization evidence;
+- reply to and resolve the reporting P1;
+- complete fresh independent exact-head review;
+- obtain fresh CTO authorization;
+- complete a new post-ready automated review.
+
+These are future delivery gates for the reporting-amendment head, not missing
+implementation evidence for the completed evidence-basis head.
 
 ## 15. Unresolved issues
 
-- Second post-ready corrective exact-final-head CI evidence and the new
-  top-level observation comment are pending at correction-report creation.
-- The second post-ready P1 reply and resolution are pending exact-head CI.
-- Fresh independent review is pending.
-- Explicit CTO merge authorization is pending.
+Implementation defects within approved scope: NONE KNOWN
 
-The earlier distribution, downgrade and active-entry-point findings are
-addressed. The rollout-gate P1 is addressed in the working correction but
-remains open until pushed exact-head validation and CI permit an immutable reply
-and resolution. No runtime defect or scope deviation is known.
+The distribution, downgrade, active-entry-point and rollout-gate findings are
+resolved historical findings with completed evidence. The current reporting P1
+is addressed by this working two-file correction and remains a delivery gate
+until the correction is pushed, exact-head CI is terminal, immutable
+finalization evidence is posted, and the reply and thread resolution are
+complete. Fresh independent review, CTO authorization and post-ready automated
+review are then required. No runtime defect or unapproved scope deviation is
+known.
 
 ## 16. Agent self-assessment
 
@@ -750,6 +889,8 @@ Suggested independent-review focus:
   decision and tracker records;
 - exhaustive active-document ADR-0001 classification and the corrected
   Publisher Services rollout gate;
+- exact evidence-basis reporting, completed evidence through that head, the
+  approved self-referential deviation and immutable finalization mechanism;
 - specification-first commit order and exact allowlist;
 - exact-head CI context and job-step evidence;
 - absence of runtime, migration, workflow, issue, deployment, release and

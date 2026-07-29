@@ -271,6 +271,74 @@ authorization and a new automated post-ready review are required. Existing
 commits, reviews, authorizations and CI comments remain immutable historical
 evidence.
 
+### 3.4 Post-ready implementation-evidence reporting correction
+
+Automated post-ready review of PR
+[#772](https://github.com/thoth-pub/thoth/pull/772) at exact head
+`896da62baf7302ecac468b1da87d16a6cd05bb39` returned one unresolved P1:
+
+```text
+P1 - Record the final head in the implementation report
+Review: https://github.com/thoth-pub/thoth/pull/772#pullrequestreview-4807148805
+Thread: PRRT_kwDODkn0bc6UuG-L
+```
+
+The implementation report correctly identified the self-referential
+commit-SHA and post-push CI problem, but the approved specification still
+required the report itself to contain the final head, exact-head CI status and
+evidence-comment link. It also left completed evidence described as `PENDING`
+and claimed there was no deviation from the approved specification. Those
+requirements could not simultaneously be satisfied.
+
+Javi, CTO, approved a task-specific reporting amendment on 2026-07-29. The
+correction may modify exactly:
+
+```text
+docs/engineering/ai-delivery/tasks/ADR-0001-APPROVAL.md
+docs/engineering/ai-delivery/implementation-reports/ADR-0001-APPROVAL-implementation-report.md
+```
+
+The implementation report must use
+`896da62baf7302ecac468b1da87d16a6cd05bb39` as its exact evidence-basis head:
+the immediate predecessor whose complete repository contents, CI and review
+evidence are known when the report-finalization commit is created.
+
+When a final corrective commit modifies the implementation report itself:
+
+1. the report cannot embed that commit's own SHA because the SHA depends on the
+   report's contents;
+2. the report cannot embed that commit's exact-head CI results because those
+   runs exist only after the commit is pushed;
+3. the report must record the exact base, exact evidence-basis head, all
+   completed evidence through that head, this approved exception and the exact
+   immutable-finalization fields;
+4. the final PR head, exact-head CI conclusions and immutable evidence-comment
+   URL must be recorded after push in a new immutable top-level PR evidence
+   comment and the implementation handoff;
+5. completed evidence must not remain described as currently `PENDING`;
+6. the exception must be listed as an approved implementation deviation;
+7. no additional evidence-only commit may be created merely to insert the
+   reporting-finalization commit's own SHA or subsequent CI into the report.
+
+The immutable finalization comment is required acceptance evidence. It must
+record the exact base, evidence-basis head, reporting-amendment commit and final
+head, complete seven-commit sequence, exact two-file correction diff,
+cumulative fifteen-file scope, exact workflow runs and job conclusions,
+classifier and empty-step-array evidence, the P1 reply-and-resolution gate,
+draft/unmerged state, unresolved-thread result and the complete no-effect
+assessment. Because the P1 reply must link to that immutable comment, the
+comment records the thread, reply target and resolution sequence; the
+resulting reply URL and resolved state are then recorded in the implementation
+handoff without editing the immutable comment.
+
+Creating the reporting-amendment commit invalidates the independent approval and
+CTO authorization for `896da62baf7302ecac468b1da87d16a6cd05bb39`.
+Fresh exact-head CI, a new immutable finalization comment, a reply to and
+resolution of the reporting P1, fresh independent review, fresh CTO
+authorization and a new post-ready automated review are required. The PR must
+remain draft at handoff. Existing commits, reviews, authorizations, comments and
+resolved threads remain immutable historical evidence.
+
 ## 4. Explicit scope
 
 The task must:
@@ -322,6 +390,17 @@ The task must:
 17. Preserve Publisher Services ADR-01, inventory, repository/branch-readiness,
     bounded-task-specification, independent-review-assignment and
     control-consistency blockers without marking any stage or task ready.
+18. Record the automated reporting P1 against exact head
+    `896da62baf7302ecac468b1da87d16a6cd05bb39` and the CTO-approved
+    evidence-basis/finalization mechanism.
+19. Replace stale current-state `PENDING` evidence with completed outcomes or
+    clearly labelled historical state, and list the reporting exception as an
+    approved task-specific deviation.
+20. Create one bounded two-file reporting-amendment commit, complete fresh
+    exact-head CI, post a new immutable finalization comment, and reply to and
+    resolve thread `PRRT_kwDODkn0bc6UuG-L`.
+21. Return the draft, unmerged PR for fresh independent exact-head review,
+    fresh CTO authorization and a new post-ready automated review.
 
 ## 5. Approved file allowlist
 
@@ -355,6 +434,10 @@ allowlist.
 
 The second post-ready rollout-gate correction is restricted to the exact three
 files listed in Section 3.3. It must not modify any other file in the cumulative
+allowlist.
+
+The implementation-evidence reporting correction is restricted to the exact two
+files listed in Section 3.4. It must not modify any other file in the cumulative
 allowlist.
 
 ## 6. Non-goals
@@ -521,8 +604,15 @@ implementation readiness and retain all remaining blockers specified in Section
 - [ ] No document claims implementation is ready, started or complete.
 - [ ] The changelog records approval without describing runtime functionality as
   implemented.
-- [ ] The implementation report records the exact final head, commits, changed
-  files, validation, CI and no-effect assessment.
+- [ ] The implementation report records the exact base and exact evidence-basis
+  head, all completed evidence available before its finalization commit, and the
+  approved self-referential finalization mechanism.
+- [ ] When the report is not changed by the final commit, it records the exact
+  final head and exact-head CI directly.
+- [ ] When the report is changed by the final commit, the exact final PR head,
+  post-push CI conclusions and immutable evidence-comment URL are recorded in
+  the required top-level PR evidence comment and implementation handoff. This is
+  an approved task-specific exception and is listed as such in the report.
 - [ ] Local documentation validation passes.
 - [ ] Exact-head CI satisfies Section 11.
 - [ ] One top-level immutable PR evidence comment satisfies Section 11.
@@ -616,6 +706,25 @@ Rust, database, migration, GraphQL and authorization tests are not applicable
 because the approved task is documentation-only and changes none of those
 surfaces.
 
+For the implementation-evidence reporting correction, also run:
+
+```bash
+git diff --name-only \
+  896da62baf7302ecac468b1da87d16a6cd05bb39...HEAD
+
+rg -n 'PENDING|pending' \
+  docs/engineering/ai-delivery/implementation-reports/ADR-0001-APPROVAL-implementation-report.md
+```
+
+The correction diff must contain exactly the two files in Section 3.4. Every
+`PENDING` or `pending` match must refer only to a genuinely future delivery gate
+or clearly marked historical state. Completed CI or review evidence must not be
+currently labelled pending. The report must explicitly record the evidence-basis
+head, completed evidence through that head, the approved deviation, its
+approver, and the immutable finalization mechanism. No report statement may
+claim that the reporting-amendment commit embeds its own SHA, and no additional
+evidence-only commit may be planned.
+
 ## 11. Documentation-only CI observation
 
 This pull request is the first controlled documentation-only observation for
@@ -675,18 +784,28 @@ Create:
 The report must record:
 
 - task and actual draft pull request;
-- exact base and final head;
 - implementing agent/model and independent-review requirement;
 - approved decisions and normative matrix;
 - ordered commits and actual changed files;
 - exact local validation commands and results;
-- exact-head CI status and the evidence-comment link;
 - CI-DOCS-01 documentation-only observation status;
 - absence of runtime, migration, API, authorization, workflow, production,
   deployment and release effects;
 - rollout and rollback;
 - all remaining Publisher Services, Metrics, Diesel and repository-readiness
   blockers.
+
+The implementation report must record the exact base and exact evidence-basis
+head, all completed evidence available before its finalization commit, and the
+approved self-referential finalization mechanism.
+
+When the report is not changed by the final commit, it must record the exact
+final head and exact-head CI directly.
+
+When the report is changed by the final commit, the exact final PR head,
+post-push CI conclusions and immutable evidence-comment URL must be recorded in
+the required top-level PR evidence comment and implementation handoff. This is
+an approved task-specific exception and must be listed as such in the report.
 
 The implementing agent may self-assess risks but may not approve the task.
 
@@ -734,6 +853,18 @@ docs: reconcile ADR-0001 rollout gate
 That commit must contain exactly the three files listed in Section 3.3. Do not
 amend, squash, rebase, reset, force-push or rewrite any existing commit.
 
+Implementation-evidence reporting remediation adds exactly one further bounded
+commit:
+
+```text
+docs: clarify implementation evidence finalization
+```
+
+That commit must contain exactly the two files listed in Section 3.4. Its SHA,
+the resulting final head and post-push CI are recorded through the approved
+immutable-finalization mechanism. Do not create a later evidence-only commit and
+do not amend, squash, rebase, reset, force-push or rewrite any existing commit.
+
 ## 14. Rollout
 
 Initial state after merge:
@@ -752,7 +883,8 @@ Pilot: none.
 Production activation: none.
 
 Merge requires a fresh independent `APPROVED` review followed by explicit CTO
-authorization. The implementing agent must not merge.
+authorization and a new automated post-ready review against the same exact head
+with no P0/P1 finding. The implementing agent must not merge.
 
 ## 15. Rollback
 
@@ -803,6 +935,8 @@ A fresh non-implementing reviewer must inspect:
 - exhaustive active-document ADR-0001 search results and classification;
 - the corrected Publisher Services Stage 0 achieved/outstanding evidence and
   preservation of all genuine rollout blockers;
+- the approved evidence-basis/finalization exception, completed evidence through
+  the evidence-basis head, immutable finalization comment and P1 resolution;
 - remaining blockers and the absence of implementation/readiness claims;
 - absence of runtime, migration, workflow, issue, deployment, release and
   production changes;
@@ -823,3 +957,11 @@ Decision date: 2026-07-28
 
 Notes: This approval authorizes only the bounded documentation and CI-observation
 task defined above.
+
+Reporting amendment approved by: Javi, CTO
+
+Reporting amendment decision date: 2026-07-29
+
+Reporting amendment notes: this task-specific exception authorizes only the
+two-file evidence-basis/finalization mechanism in Section 3.4. It does not amend
+the repository-wide implementation-report controls.
