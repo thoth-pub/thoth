@@ -13,8 +13,9 @@ Base commit: `35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`
 PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/repository-controls/thoth-db-ctrl-01-spec`
-Head commit: the review-remediation commit; its exact SHA is recorded in the
-superseding immutable PR #775 evidence comment after the commit exists
+Head commit: the latest review-remediation commit; its exact SHA is recorded in
+the latest superseding immutable PR #775 evidence comment after the commit
+exists
 Pull request: [#775](https://github.com/thoth-pub/thoth/pull/775), draft
 Expected branch deletion after merge: YES
 Final programme PR required: NO
@@ -43,6 +44,14 @@ The independent review of exact head
 model. This report does not infer one. The review returned `CHANGES REQUIRED`
 with one P1 safe-target finding, which the third bounded documentation commit
 addresses.
+
+The independent review of exact head
+`9247cc5e4dbc82a5f4ecc381f8b8b5084c9bc628` also did not state the reviewer's
+exact model. It confirmed the safe-target correction and returned
+`CHANGES REQUIRED` with one new P1: the future schema-only publisher-column
+probe could not satisfy the required focused compile check. The fourth bounded
+documentation commit replaces that future acceptance probe with a compile-valid
+standalone table and explicit five-entry manifest.
 
 ## 2. Scope confirmation
 
@@ -75,9 +84,12 @@ No final Diesel control, migration, schema change, BE-01 object, Rust code,
 GraphQL contract, workflow, Makefile target, or Diesel configuration was
 implemented.
 
-Review remediation changed only this report and the output task specification.
-It corrected the safe-target contract without rerunning or recharacterizing the
-completed discovery.
+Both review remediations changed only this report and the output task
+specification. The first corrected the safe-target contract without rerunning
+or recharacterizing the completed discovery. The second preserves the
+historical publisher-column experiment as rejection evidence but replaces the
+future acceptance probe with a standalone table whose schema-only candidate was
+validated by focused compilation in a detached temporary worktree.
 
 ## 3. Preconditions and branch evidence
 
@@ -201,12 +213,16 @@ Concise result:
   immutable PR evidence as
   `3f0affd0e375975dd18ea895219ab77477b41325`
 - the review-remediation commit containing the safe-target correction -
-  `docs: correct THOTH-DB-CTRL-01 target safety`; exact SHA is recorded in the
-  superseding immutable PR evidence after creation
+  `docs: correct THOTH-DB-CTRL-01 target safety`, recorded in the superseding
+  immutable PR evidence as
+  `9247cc5e4dbc82a5f4ecc381f8b8b5084c9bc628`
+- the review-remediation commit containing the compile-valid probe correction -
+  `docs: make THOTH-DB-CTRL-01 probe compile-valid`; exact SHA is recorded in
+  the latest superseding immutable PR evidence after creation
 
-No commit was amended, squashed, rebased, or force-pushed. The third commit is
-the bounded two-file P1 remediation, not an evidence-only commit. No separate
-evidence-only commit will be created.
+No commit was amended, squashed, rebased, or force-pushed. The third and fourth
+commits are bounded two-file P1 remediations, not evidence-only commits. No
+separate evidence-only commit will be created.
 
 ## 6. Files changed
 
@@ -216,7 +232,8 @@ evidence-only commit will be created.
   - behavioural effect: none.
 - `docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md`
   - reason: define the implementation-ready Diesel control and correct its
-    Docker/GitHub Actions safe-target contract after exact-head review;
+    Docker/GitHub Actions safe-target contract and controlled compile probe
+    after exact-head reviews;
   - behavioural effect: establishes a draft control specification only.
 - `docs/engineering/repository-map/control-gaps.md`
   - reason: mark CG-12 as specified but not implemented or resolved;
@@ -226,8 +243,8 @@ evidence-only commit will be created.
     regeneration prohibition;
   - behavioural effect: none.
 - `docs/engineering/ai-delivery/implementation-reports/THOTH-DB-CTRL-01-SPEC-implementation-report.md`
-  - reason: preserve exact discovery, test, decision, review-remediation, and
-    handoff evidence;
+  - reason: preserve exact discovery, test, decision, review-remediation,
+    compile-validation, and handoff evidence;
   - behavioural effect: none.
 
 ## 7. Tooling discovery
@@ -588,6 +605,44 @@ untranslated `title` joinable after the module alias, and many Diesel
 struct fields in count, order, and type. This rejects both raw replacement and
 the reduced patch as safe canonical generation.
 
+### 11.3 Compile-valid acceptance-probe validation
+
+The exact-head review of
+`9247cc5e4dbc82a5f4ecc381f8b8b5084c9bc628` correctly identified that the
+historical publisher-column experiment could not also serve as a successful
+schema-only compile probe. `Publisher` has nine positional Diesel `Queryable`
+fields, while its list and `by_zitadel_ids` paths load the complete
+`publisher` table row; adding a tenth schema column without a model change is
+therefore intentionally compile-incompatible.
+
+The corrected future acceptance probe is instead:
+
+```sql
+CREATE TABLE public.thoth_db_ctrl_probe (
+    probe_id uuid PRIMARY KEY,
+    probe_value text
+);
+```
+
+Its expected manifest explicitly declares the table, both columns, primary key,
+and `allow_tables_to_appear_in_same_query!` membership. It creates no join and
+has no consuming application model.
+
+Before this documentation correction, a detached temporary worktree at
+`9247cc5e4dbc82a5f4ecc381f8b8b5084c9bc628` was given only the equivalent
+standalone Diesel `table!` block and allow-table membership in its temporary
+`thoth-api/src/schema.rs`. Command:
+
+```bash
+cargo check -q -p thoth-api --features backend
+```
+
+Result: exit 0 with no output. The temporary candidate was not committed, and
+the detached worktree and its build artifacts were removed. This validates only
+that the chosen schema-only acceptance candidate compiles without a model; the
+future synchronizer must still prove manifest equality, deterministic
+generation, table removal, and byte-identical baseline restoration.
+
 ## 12. Selected implementation approach
 
 Selected: retain root `diesel.toml` and
@@ -606,7 +661,9 @@ structural synchronizer that:
 6. permits only an exact task-local expected-change manifest;
 7. atomically writes only the canonical schema;
 8. compiles a candidate and rejects unrelated file changes;
-9. runs identically in local and CI verification.
+9. uses a standalone, model-independent table for the controlled expected-diff
+   and compile-success probe;
+10. runs identically in local and CI verification.
 
 This approach follows the evidence: database introspection is deterministic,
 while the compiled repository contract has intentional semantics that raw
@@ -695,7 +752,9 @@ Commands and exact results are recorded in sections 8 through 11:
 - full reapply: exit 0, four migrations, 55 tables, 21 enums;
 - exact CLI `2.3.10` generation twice: both exit 0 and `cmp` exit 0;
 - raw/reduced replacement compile: exit 101 with 86 errors;
-- controlled full-patch generation: non-zero at patch hunk 16.
+- controlled full-patch generation: non-zero at patch hunk 16;
+- standalone-table schema-only compile validation:
+  `cargo check -q -p thoth-api --features backend`, exit 0 with no output.
 
 ### Lint/static analysis
 
@@ -715,6 +774,7 @@ git log --oneline \
   35e4dc20864ae4896dccc2b20cbcdbe3fb733db8..HEAD
 git show --stat --oneline bfee1ca8356ac191521e112f835bf3a4af0993d3
 git show --stat --oneline 3f0affd0e375975dd18ea895219ab77477b41325
+git show --stat --oneline 9247cc5e4dbc82a5f4ecc381f8b8b5084c9bc628
 git show --stat --oneline HEAD
 python3 .github/scripts/classify_ci_changes.py --paths \
   CHANGELOG.md \
@@ -725,10 +785,10 @@ python3 .github/scripts/classify_ci_changes.py --paths \
 git status --short
 ```
 
-The exact outputs, final head, three commit scopes (`4 / 1 / 2`), and classifier
-JSON are recorded in the superseding immutable PR evidence after the
-review-remediation commit exists. This report does not create a separate
-evidence-only commit.
+The exact outputs, final head, four commit scopes (`4 / 1 / 2 / 2`), and
+classifier JSON are recorded in the latest superseding immutable PR evidence
+after the review-remediation commit exists. This report does not create a
+separate evidence-only commit.
 
 ## 18. Manual verification
 
@@ -755,16 +815,21 @@ Steps:
 Observed result: discovery completed without production effect or repository
 experiment residue.
 
+For the second review remediation, the standalone-table schema candidate was
+also compiled successfully without a consuming model in a detached temporary
+worktree, after which that worktree and its artifacts were removed.
+
 Evidence: this report, the original immutable top-level PR #775 evidence
-comment, and its superseding post-remediation evidence comment.
+comment, and the successive superseding post-remediation evidence comments.
 
 ## 19. CI
 
-CI status: PENDING for the review-remediation head
-Checks: the reviewed head `3f0affd0e375975dd18ea895219ab77477b41325`
-completed its documentation-only checks successfully; the new exact-head
-workflow and job IDs will be recorded in superseding immutable PR evidence
-after all required checks reach terminal state
+CI status: PENDING for the latest review-remediation head
+Checks: reviewed heads `3f0affd0e375975dd18ea895219ab77477b41325` and
+`9247cc5e4dbc82a5f4ecc381f8b8b5084c9bc628` completed their
+documentation-only checks successfully; the new exact-head workflow and job
+IDs will be recorded in the latest superseding immutable PR evidence after all
+required checks reach terminal state
 Failures or warnings: no success is claimed for the remediation head before
 its exact-head CI completes
 
@@ -788,6 +853,9 @@ ambiguous again, CG-12 reopens and all dependent schema work returns to
 - The selected control is specified but not implemented.
 - The completed discovery did not record PostgreSQL's server/client connection
   addresses or ports; the implementation must add and test that evidence.
+- The standalone-table candidate is compile-valid, but only the future
+  synchronizer can prove the exact five-entry manifest, deterministic rendering,
+  removal, and byte-identical restoration end to end.
 - The initial convention file must enumerate and independently verify every
   existing timestamp override and ordering rule during implementation.
 - CI does not yet run the exact-version structural check.
@@ -798,9 +866,12 @@ ambiguous again, CG-12 reopens and all dependent schema work returns to
 
 ## 22. Unresolved issues
 
-- The exact-head P1 review finding about Docker and GitHub Actions server
-  addresses is corrected in the bounded remediation commit; a fresh reviewer
-  must verify the corrected contract.
+- The safe-target P1 was corrected at `9247cc5e4dbc82a5f4ecc381f8b8b5084c9bc628`
+  and the next exact-head review identified no further issue in that
+  correction.
+- The exact-head P1 about the compile-incompatible publisher-column acceptance
+  probe is corrected in the latest bounded remediation commit; a fresh reviewer
+  must verify the standalone-table contract.
 - Fresh independent cross-model review of this specification is required.
 - Fresh explicit CTO authorization is required before the specification PR may
   be marked ready or merged.
@@ -820,8 +891,10 @@ Suggested review focus:
 - whether loopback client-endpoint enforcement, server/client address
   inspection, local Docker identity/mount/storage proof, and GitHub Actions
   workflow/job provenance prevent accidental shared or production access;
-- whether the controlled probe, compile gate, and CI sequence establish both
-  clean no-op and isolated expected-diff behaviour;
+- whether the standalone probe's exact table, two columns, primary key, and
+  allow-table manifest entries fully describe its generated structural delta;
+- whether the compile-valid standalone probe, removal, compile gate, and CI
+  sequence establish both clean no-op and isolated expected-diff behaviour;
 - whether the exact implementation path list is sufficient without scope
   expansion.
 

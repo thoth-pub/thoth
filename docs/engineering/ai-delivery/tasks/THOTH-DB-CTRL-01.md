@@ -349,7 +349,13 @@ The manifest is a task-local UTF-8 TOML file with:
 
 ```toml
 version = 1
-add = ["column:public.publisher.thoth_db_ctrl_probe"]
+add = [
+  "allow-table:public.thoth_db_ctrl_probe",
+  "column:public.thoth_db_ctrl_probe.probe_id",
+  "column:public.thoth_db_ctrl_probe.probe_value",
+  "primary-key:public.thoth_db_ctrl_probe",
+  "table:public.thoth_db_ctrl_probe",
+]
 remove = []
 change = []
 ```
@@ -361,6 +367,7 @@ sql-type:<schema>.<type>
 table:<schema>.<table>
 column:<schema>.<table>.<column>
 primary-key:<schema>.<table>
+allow-table:<schema>.<table>
 join:<child-schema>.<child-table>-><parent-schema>.<parent-table>
 type:<schema>.<table>.<column>:<old-type>-><new-type>
 nullability:<schema>.<table>.<column>:<old>-><new>
@@ -369,10 +376,25 @@ nullability:<schema>.<table>.<column>:<old>-><new>
 Entries are unique and sorted. The synchronizer must calculate the structural
 database delta before writing and require exact equality with the manifest.
 Manifest entries do not override database truth and cannot exempt unrelated
-differences. The implementation task's controlled probe must use only the
-example `thoth_db_ctrl_probe` column on its disposable database and must remove
-it after testing; it must not create or mention a BE-01 database object in
-generated output.
+differences. A new table requires explicit entries for the table, every column,
+its primary key, every generated join, and its
+`allow_tables_to_appear_in_same_query!` membership; none of those structural
+effects may be inferred or hidden by another manifest entry.
+
+The implementation task's controlled probe must create only this standalone
+table on its disposable database:
+
+```sql
+CREATE TABLE public.thoth_db_ctrl_probe (
+    probe_id uuid PRIMARY KEY,
+    probe_value text
+);
+```
+
+Its expected manifest is exactly the five-entry `add` list above. The probe has
+no consuming Rust model and must create no join. It must be dropped after
+testing and must not create or mention a BE-01 database object in generated
+output.
 
 ### 6.6 Canonical commands
 
@@ -419,12 +441,14 @@ Repeated generation must be identical. When the database matches committed
 migrations, check mode must report no structural or textual difference and
 must not change the worktree.
 
-A controlled disposable test column must produce exactly one manifest-approved
-isolated schema addition. Repeating generation must reproduce the same
-candidate. Removing the test column and using an empty manifest must restore
-the byte-for-byte clean baseline. The candidate must pass
+The controlled standalone disposable probe table must produce exactly the five
+manifest-approved structural additions: its table, two columns, primary key,
+and `allow_tables_to_appear_in_same_query!` membership. Repeating generation
+must reproduce the same candidate. The schema-only candidate, with no
+application-model fixture, must pass
 `cargo check -p thoth-api --features backend` when substituted only in a
-temporary worktree.
+temporary worktree. Dropping the probe table and using an empty manifest must
+restore the byte-for-byte clean baseline.
 
 ### 6.8 Required failure behaviour
 
@@ -514,7 +538,9 @@ runbook change is required. CG-13 remains open.
 - [ ] A clean migrated PostgreSQL 17 database produces a byte-identical no-op.
 - [ ] Two consecutive candidates are byte-identical.
 - [ ] `MarkupFormat`, aliases, timestamp semantics, model-compatible column order, and required derives are preserved.
-- [ ] A controlled expected-diff test admits only its isolated manifest entry.
+- [ ] A controlled standalone-table expected-diff test admits exactly its five
+      explicit manifest entries, including primary-key and allow-table
+      membership.
 - [ ] Removing the controlled change restores the clean baseline.
 - [ ] Any stale or unexpected schema difference fails non-zero before writing.
 - [ ] An unexpected repository file change fails.
@@ -530,7 +556,8 @@ runbook change is required. CG-13 remains open.
       `run_migrations.yml`/`run_migrations` job, expected endpoint,
       database/user, and private service-container address.
 - [ ] Database target validation logs no credential or URL.
-- [ ] The generated candidate passes the focused backend compile check.
+- [ ] The standalone-table schema candidate passes the focused backend compile
+      check without any application-model fixture.
 - [ ] Rollback restores repository state without touching database data.
 - [ ] BE-01 remains blocked and no BE-01 implementation object is created.
 - [ ] CG-12 closes only after this implementation passes independent review and merges with acceptance evidence.
@@ -546,7 +573,8 @@ runbook change is required. CG-13 remains open.
 - Parse representative SQL types, aliases, table blocks, primary keys,
   joinables, nullable types, and ordered columns.
 - Render unchanged blocks byte-for-byte and new structures deterministically.
-- Validate sorted, unique expected-change manifests.
+- Validate sorted, unique expected-change manifests, including explicit
+  `allow-table` entries and complete new-table structural effects.
 - Invoke subprocesses with argument arrays and `shell=False`; prove literal
   metacharacters cannot become shell syntax.
 
@@ -556,8 +584,12 @@ runbook change is required. CG-13 remains open.
 - Revert the full chain on that disposable database and reapply it.
 - Run no-op generation twice and require `cmp` success.
 - Preserve custom SQL types, derives, aliases, overrides, and order.
-- Add only `publisher.thoth_db_ctrl_probe text`, require exactly one expected
-  addition, repeat it deterministically, then remove it and restore clean.
+- Create only `public.thoth_db_ctrl_probe(probe_id uuid PRIMARY KEY,
+  probe_value text)`, require exactly the five expected table, column,
+  primary-key, and allow-table additions, and prove no join is generated.
+- Compile the schema-only standalone-table candidate successfully without a
+  consuming model, repeat generation deterministically, drop the table, and
+  restore the byte-identical clean baseline with an empty manifest.
 - Reject a stale canonical schema.
 - Reject an unlisted database change.
 - Reject an unexpected output path or unrelated changed file.
@@ -582,7 +614,9 @@ runbook change is required. CG-13 remains open.
 
 ### Regression
 
-- `cargo check -p thoth-api --features backend` with the no-op candidate.
+- `cargo check -p thoth-api --features backend` with both the no-op candidate
+  and the standalone-table schema candidate, without an application-model
+  fixture.
 - `cargo test --workspace`.
 - `cargo check --workspace`.
 - `cargo clippy --all --all-targets --all-features -- -D warnings`.
