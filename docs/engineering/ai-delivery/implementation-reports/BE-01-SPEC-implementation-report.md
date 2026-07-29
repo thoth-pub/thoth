@@ -22,12 +22,16 @@ Programme integration branch: None
 
 Task branch: `feature/publisher-services/be-01-spec`
 
-Pre-report head:
-`f7c06b7e8c946e29d754e36a44da9419264a0e6c`
+Historical reviewed head:
+`6d4067d4ee196976e9d06074d3bd790cd3b0096a`
 
-Final report commit and exact final head: recorded after this report is
-committed in the immutable top-level PR evidence comment, as required by the
-approved finalization mechanism.
+Independent review at that head: `CHANGES REQUIRED` with one P1 because BE-01
+was prematurely marked `READY` while the shared `THOTH-DB-CTRL-01` Diesel
+control remained blocked.
+
+Corrective commit and exact corrected head: recorded after this report
+correction is committed in the superseding immutable top-level PR evidence
+comment.
 
 Pull request: [#774](https://github.com/thoth-pub/thoth/pull/774)
 
@@ -72,10 +76,13 @@ No other path is authorized or changed.
    `docs: specify BE-01 publisher package model`
 2. `f7c06b7e8c946e29d754e36a44da9419264a0e6c` -
    `docs: register BE-01 implementation readiness`
-3. The report commit containing this file is recorded in the immutable
-   top-level PR evidence comment after it exists.
+3. `6d4067d4ee196976e9d06074d3bd790cd3b0096a` -
+   `docs: report BE-01 specification task`
+4. The bounded correction commit updating the specification, README, tracker,
+   and this report is recorded in the superseding immutable evidence comment
+   after it exists.
 
-No evidence-only fourth commit is permitted.
+No evidence-only fifth commit is permitted.
 
 ## 4. Files changed
 
@@ -87,11 +94,12 @@ No evidence-only fourth commit is permitted.
   - reason: add the required Unreleased Changed entry for PR #774;
   - behavioural effect: none.
 - `docs/publisher-services/README.md`
-  - reason: record partial programme readiness and the BE-01/BE-03 boundary;
+  - reason: record specification approval, blocked implementation, and the
+    BE-01/BE-03 boundary;
   - behavioural effect: none.
 - `docs/publisher-services/task-status.md`
-  - reason: make BE-01 `READY` when this specification PR merges while
-    preserving all other gates;
+  - reason: keep BE-01 `BLOCKED` on `THOTH-DB-CTRL-01` after specification
+    merge while preserving all later gates;
   - behavioural effect: none.
 - `docs/engineering/ai-delivery/implementation-reports/BE-01-SPEC-implementation-report.md`
   - reason: record scope, evidence, effects, and handoff for this specification
@@ -201,9 +209,11 @@ would be required.
 
 `thoth-api/src/schema.rs` is a generated/derived Diesel schema. Root
 `diesel.toml` currently points to `src/schema.rs`, not explicitly to
-`thoth-api/src/schema.rs`. The specification makes CG-12 discovery the first
-implementation precondition and prohibits guessing, hand-copying generated
-output, or changing tooling in BE-01 without separate approval.
+`thoth-api/src/schema.rs`. Repository controls already assign resolution of
+CG-12 to the shared blocked task `THOTH-DB-CTRL-01`. The corrected specification
+requires BE-01 to consume and verify that independently approved, merged
+procedure and prohibits establishing, redefining, or repairing it inside
+BE-01.
 
 ## 7. Implementation decisions
 
@@ -224,6 +234,12 @@ Decisions established within the approved design:
 10. MIG-01 owns the later approved production package mapping and backfill.
 11. A non-OASIS value or later dependency changes the safe rollback from a
     tested down migration to coordinated data-preserving repair.
+12. Specification approval does not make BE-01 implementation-ready.
+13. `THOTH-DB-CTRL-01` must be independently approved and merged before BE-01
+    moves from `BLOCKED` to `READY`, its implementation branch is created, or
+    any implementation edit occurs.
+14. The exact BE-01 base is recorded only after the shared control passes, when
+    the branch is created from then-current verified `develop`.
 
 Deviation from the specification: NONE.
 
@@ -251,12 +267,22 @@ the enums before BE-03.
 
 ## 9. CG-12 and CG-13 treatment
 
-### CG-12
+### THOTH-DB-CTRL-01 / CG-12
 
-Before the first migration or schema edit, the BE-01 implementing agent must
-prove the exact migration and Diesel schema-generation or verification
-procedure, working directory, root `diesel.toml` relationship, baseline diff,
-and absence of unrelated generated changes.
+`THOTH-DB-CTRL-01` is the existing shared repository task for establishing the
+Diesel generation procedure. It remains `BLOCKED` and is now an explicit BE-01
+dependency.
+
+The shared task must be independently approved and merged before BE-01 becomes
+`READY`, before `feature/publisher-services/be-01` is created, or before any
+migration, `schema.rs`, model, test, or other implementation edit.
+
+After the shared control passes, the BE-01 implementing agent must consume and
+verify the merged repository-authoritative procedure, including its exact
+source commit, working directory, commands, root `diesel.toml` relationship,
+baseline diff, canonical `thoth-api/src/schema.rs` result, and absence of
+unrelated generated changes. It must not independently establish or redefine
+the shared procedure.
 
 Failure returns:
 
@@ -264,7 +290,8 @@ Failure returns:
 BLOCKED - CG-12 SCHEMA GENERATION CONTROL
 ```
 
-BE-01 cannot silently repair `diesel.toml`, `Makefile`, or schema tooling.
+BE-01 cannot silently repair `diesel.toml`, `Makefile`, schema tooling, or the
+shared procedure. Any such correction requires a separate shared-control task.
 
 ### CG-13
 
@@ -332,14 +359,18 @@ Tracker:
 
 ```text
 BE-01 Publisher package model
-Status: READY
+Status: BLOCKED
 Verified base / PR target:
-latest verified develop after BE-01-SPEC merge / develop
+exact base recorded after THOTH-DB-CTRL-01 passes;
+then-current develop / develop
 Blocking dependencies:
 approved BE-01 specification merged;
-CG-12 schema-generation discovery must pass before schema changes
+THOTH-DB-CTRL-01 independently approved and merged;
+separate BLOCKED -> READY control update
 Acceptance:
-APPROVED SPECIFICATION - IMPLEMENTATION NOT STARTED
+APPROVED SPECIFICATION
+IMPLEMENTATION BLOCKED ON THOTH-DB-CTRL-01
+IMPLEMENTATION NOT STARTED
 ```
 
 The row links both this specification and PR #774. BE-02 and all later
@@ -350,14 +381,15 @@ README:
 
 ```text
 CONTROL FOUNDATION CLOSED
-BE-01 SPECIFIED AND READY AFTER PR #774 MERGES
+BE-01 SPECIFICATION APPROVED AFTER PR #774 MERGES
+BE-01 IMPLEMENTATION BLOCKED ON SHARED DIESEL CONTROL
 ALL OTHER IMPLEMENTATION REMAINS GATED
 ```
 
 It records that BE-01 adds only the inactive package/capability foundation,
-BE-03 retains protected reads and mutation, CG-12 precedes migration edits,
-ADR-01 and final platform inventory remain unresolved, and this PR has no
-runtime effect.
+BE-03 retains protected reads and mutation, `THOTH-DB-CTRL-01` must resolve
+CG-12 before BE-01 becomes `READY`, ADR-01 and final platform inventory remain
+unresolved, and this PR has no runtime effect.
 
 Changelog:
 
@@ -488,20 +520,21 @@ Result:
 {"docs_only":"true","run_build":"false","run_docker":"false","run_migrations":"false"}
 ```
 
-### 14.5 Final cumulative validation
+### 14.5 Corrected cumulative validation
 
-The exact final three-commit/five-path commands and outputs cannot be recorded
-inside the report commit that they validate. They are run immediately after
-this report commit, then recorded in the immutable top-level PR evidence
-comment without creating a fourth commit.
+The exact final four-commit/five-path commands and outputs cannot be recorded
+inside the correction commit that they validate. They are run immediately
+after the bounded correction commit, then recorded in the superseding immutable
+top-level PR evidence comment without creating a fifth commit.
 
 The final checks cover:
 
 - whitespace;
-- exactly three ordered commits;
+- exactly four ordered commits;
 - exactly five cumulative paths;
-- `1 / 3 / 1` commit path scopes;
+- `1 / 3 / 1 / 4` commit path scopes;
 - required specification and control terms;
+- explicit `THOTH-DB-CTRL-01` dependency and `BLOCKED` state;
 - exactly one `Changed` heading within `Unreleased`;
 - exactly one PR #774 changelog entry;
 - no unresolved specification placeholders;
@@ -524,15 +557,22 @@ Steps:
 7. verified issue #765 remained read-only.
 
 Observed result: the approved BE-01 specification fits the existing model and
-GraphQL boundary without changing an active implementation path or requiring
-an additional specification-task file.
+GraphQL boundary, but independent review correctly identified that shared
+Diesel control resolution cannot occur inside BE-01. The corrected records keep
+implementation blocked on `THOTH-DB-CTRL-01`.
 
-Evidence: PR #774 and its final immutable evidence comment.
+Evidence: PR #774, the historical head-bound evidence comment, and the
+superseding corrected-head evidence comment.
 
 ## 16. CI
 
-CI status at report authorship: PENDING by design because the report commit is
-not yet pushed.
+Historical CI at reviewed head
+`6d4067d4ee196976e9d06074d3bd790cd3b0096a`: PASSING, but superseded by the
+correction.
+
+Corrected-head CI status inside this correction commit: not yet available by
+design. It is recorded in the superseding immutable evidence comment after the
+commit is pushed.
 
 Required exact-head checks:
 
@@ -550,13 +590,15 @@ No workflow is manually dispatched.
 
 ## 17. Rollout and rollback
 
-Initial state after merge: the approved BE-01 implementation specification and
-partial-readiness controls become repository-authoritative. No application or
-database behaviour changes.
+Initial state after merge: the approved BE-01 implementation specification
+becomes repository-authoritative, while BE-01 remains `BLOCKED` on
+`THOTH-DB-CTRL-01`. No application or database behaviour changes.
 
-Activation required: BE-01 implementation requires this PR to be independently
-approved and merged, a fresh `develop` base verification, and successful CG-12
-schema-generation discovery.
+Activation required: after this PR is independently approved and merged,
+`THOTH-DB-CTRL-01` must be independently approved and merged. A separate
+control update may then mark BE-01 `READY`; only after that transition may the
+implementation branch be created from and record the then-current verified
+`develop`.
 
 Feature flag/configuration: none.
 
@@ -572,8 +614,10 @@ Monitoring required: repository PR/CI and review evidence only.
 
 - The report cannot contain its own commit SHA or post-push exact-head CI;
   those are finalized in the immutable PR evidence comment.
-- CG-12 schema-generation discovery remains the first BE-01 implementation
-  precondition.
+- `THOTH-DB-CTRL-01` remains blocked and must independently establish the
+  shared Diesel procedure before BE-01 can become `READY`.
+- BE-01 may verify but may not independently establish or redefine that merged
+  procedure.
 - CG-13 runtime and production migration ownership remains open.
 - ADR-01 and final distribution-platform inventory remain unresolved.
 - BE-01 implementation has not started.
@@ -598,4 +642,4 @@ Suggested independent review focus:
 - exact BE-01/BE-03 and package/platform boundaries;
 - migration, history, rollback, and CG-12/CG-13 controls;
 - tracker accuracy without unlocking later work;
-- exact three-commit/five-path evidence and exact-head skipped-job behaviour.
+- exact four-commit/five-path evidence and exact-head skipped-job behaviour.

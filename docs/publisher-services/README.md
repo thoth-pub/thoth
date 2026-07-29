@@ -1,6 +1,6 @@
 # Publisher Services and Distribution Configuration
 
-Status: CONTROL FOUNDATION CLOSED; BE-01 SPECIFIED AND READY AFTER PR #774 MERGES; ALL OTHER IMPLEMENTATION GATED
+Status: CONTROL FOUNDATION CLOSED; BE-01 SPECIFICATION APPROVED AFTER PR #774 MERGES; BE-01 IMPLEMENTATION BLOCKED ON SHARED DIESEL CONTROL; ALL OTHER IMPLEMENTATION GATED
 Programme owner: CTO
 Primary coordinating repository: `thoth-pub/thoth`
 Related repositories:
@@ -69,7 +69,8 @@ Where sources conflict, stop and escalate. Chat history is not authoritative.
 
 ```text
 CONTROL FOUNDATION CLOSED
-BE-01 SPECIFIED AND READY AFTER PR #774 MERGES
+BE-01 SPECIFICATION APPROVED AFTER PR #774 MERGES
+BE-01 IMPLEMENTATION BLOCKED ON SHARED DIESEL CONTROL
 ALL OTHER IMPLEMENTATION REMAINS GATED
 ```
 
@@ -91,10 +92,11 @@ Achieved:
   [`BE-01` implementation specification](../engineering/ai-delivery/tasks/BE-01.md)
   is approved through this documentation-only specification
   [PR #774](https://github.com/thoth-pub/thoth/pull/774). When PR #774 merges,
-  BE-01 may begin on `feature/publisher-services/be-01` from a freshly verified
-  then-current `develop` base.
+  the specification becomes repository-authoritative and read-only orientation
+  may continue. BE-01 implementation remains blocked on the shared
+  `THOTH-DB-CTRL-01` Diesel generation procedure.
 
-Bounded BE-01 readiness:
+BE-01 specification approval and blocked implementation:
 
 1. The P0-01 control foundation is `CLOSED`. It merged through
    [PR #764](https://github.com/thoth-pub/thoth/pull/764) at
@@ -105,13 +107,20 @@ Bounded BE-01 readiness:
    engineering-control foundation only; it does not approve an ADR, approve the
    final inventory, satisfy branch readiness, or make any implementation task
    ready.
-2. BE-01 adds only the package-storage and code-owned capability foundation.
+2. BE-01 will add only the package-storage and code-owned capability foundation.
    It creates no public or protected package query, no package mutation, no
    distribution-platform behaviour, and no OAI-PMH or Metrics activation.
-3. CG-12 schema-generation discovery is mandatory before the first BE-01
-   migration or schema edit. If the canonical schema cannot be generated or
-   verified without an out-of-scope tooling change, BE-01 remains blocked.
-4. Protected package and effective-capability reads and the dedicated
+3. `THOTH-DB-CTRL-01` is the shared repository task that must resolve CG-12.
+   It must be independently approved and merged before BE-01 moves to `READY`,
+   before `feature/publisher-services/be-01` is created, or before any
+   migration, `schema.rs`, model, test, or other implementation edit.
+4. The BE-01 implementing agent must consume and verify the merged
+   repository-authoritative Diesel procedure. It must not independently
+   establish, redefine, or repair that shared procedure inside BE-01.
+5. The exact BE-01 base is recorded only after the shared control passes, when
+   the implementation branch is created from the then-current verified
+   `develop`.
+6. Protected package and effective-capability reads and the dedicated
    superuser package mutation remain BE-03 scope.
 
 Reasons all other implementation remains gated:
@@ -126,11 +135,12 @@ Reasons all other implementation remains gated:
    runtime code, migration, database, GraphQL/API, authorization, deployment,
    release, production service or production behaviour.
 
-Discovery, review and documentation may continue. BE-01 implementation
-authority becomes effective only after PR #774 is independently approved and
-merged, the then-current `develop` base is freshly verified, and CG-12 passes.
-No BE-02, BE-03, OAI-PMH, release, deployment or production work is unlocked by
-BE-01-SPEC.
+Discovery, review, documentation, and read-only orientation may continue. After
+PR #774 merges, `THOTH-DB-CTRL-01` must resolve the shared procedure; only then
+may a separate control update move BE-01 from `BLOCKED` to `READY`, followed by
+fresh `develop` verification and implementation-branch creation. No BE-01
+implementation edit, BE-02, BE-03, OAI-PMH, release, deployment or production
+work is unlocked by BE-01-SPEC.
 
 ## 6. Files
 

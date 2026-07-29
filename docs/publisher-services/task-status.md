@@ -22,7 +22,7 @@ No task moves to `READY` without an approved specification, architecture depende
 | ADR-01 Platform inventory/final architecture | `thoth` | MEDIUM | BLOCKED | `develop` / `develop` | missing approved bounded ADR-01 specification; final distribution-platform inventory decision | #765 | TBD | NOT STARTED |
 | LIC-01 Expand `cc-license` | `cc-license` | MEDIUM | BLOCKED | `develop` / `develop` | P0-01; BR-LIC-01 or CTO exception; approved spec | #765 | TBD | NOT STARTED |
 | LIC-02 Enforce supported licences | `thoth` | HIGH | BLOCKED | `develop` / `develop` | LIC-01 release; production licence audit plan | #765 | TBD | NOT STARTED |
-| [BE-01 Publisher package model](../engineering/ai-delivery/tasks/BE-01.md) | `thoth` | MEDIUM | READY | latest verified `develop` after BE-01-SPEC merge / `develop` | approved BE-01 specification merged; CG-12 schema-generation discovery must pass before schema changes | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#774](https://github.com/thoth-pub/thoth/pull/774); TBD for implementation | APPROVED SPECIFICATION - IMPLEMENTATION NOT STARTED |
+| [BE-01 Publisher package model](../engineering/ai-delivery/tasks/BE-01.md) | `thoth` | MEDIUM | BLOCKED | exact base recorded after `THOTH-DB-CTRL-01` passes; then-current `develop` / `develop` | approved BE-01 specification merged; `THOTH-DB-CTRL-01` independently approved and merged; separate `BLOCKED` -> `READY` control update | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#774](https://github.com/thoth-pub/thoth/pull/774); TBD for implementation | APPROVED SPECIFICATION - IMPLEMENTATION BLOCKED ON THOTH-DB-CTRL-01 - IMPLEMENTATION NOT STARTED |
 | BE-02 Distribution platform model | `thoth` | HIGH | BLOCKED | `develop` / `develop` | ADR-01 | #765 | TBD | NOT STARTED |
 | BE-03 Protected service configuration | `thoth` | HIGH | BLOCKED | `develop` / `develop` | BE-01; BE-02 | #765 | TBD | NOT STARTED |
 | BE-04 Durable distribution jobs | `thoth` | HIGH | BLOCKED | `develop` / `develop` | BE-02; BE-03 | #765 | TBD | NOT STARTED |
@@ -52,16 +52,20 @@ Each branch starts from the repository's verified development branch and targets
 ## 4. Next actions
 
 1. The
-   [`BE-01` specification](../engineering/ai-delivery/tasks/BE-01.md) is
-   approved and becomes repository-authoritative when specification
-   [PR #774](https://github.com/thoth-pub/thoth/pull/774) merges.
-2. BE-01 implementation may then begin on
-   `feature/publisher-services/be-01` from the freshly verified latest
-   `develop`.
-3. CG-12 schema-generation discovery is the first BE-01 implementation
-   precondition and must pass before a migration or schema edit.
-4. ADR-01 specification and final distribution-platform inventory work may
+   [`BE-01` specification](../engineering/ai-delivery/tasks/BE-01.md) becomes
+   repository-authoritative when specification
+   [PR #774](https://github.com/thoth-pub/thoth/pull/774) is independently
+   approved and merged; BE-01 remains `BLOCKED`.
+2. `THOTH-DB-CTRL-01` must then establish the shared Diesel procedure through
+   its own independent approval and merge.
+3. After that shared control passes, a separate control update may move BE-01
+   from `BLOCKED` to `READY`.
+4. Only then may `feature/publisher-services/be-01` be created from the freshly
+   verified then-current `develop`, with the exact base recorded before any
+   implementation edit.
+5. ADR-01 specification and final distribution-platform inventory work may
    proceed separately under their own approval gates.
-5. BE-01-SPEC unlocks no BE-02, BE-03, OAI-PMH, deployment, release or
+6. BE-01-SPEC unlocks no BE-01 implementation edit, BE-02, BE-03, OAI-PMH,
+   deployment, release or
    production work; all licence, migration, app, dissemination and operational
    tasks remain blocked.
