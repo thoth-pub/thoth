@@ -28,6 +28,11 @@ Fresh review result: `BLOCKED - POST-READY REVIEW FINDING`
 Fresh review thread: `PRRT_kwDODkn0bc6WFMd5`
 Fresh review comment: `3706670604`
 Enum-projection content head: `76d73ebbd29eff0b1c4bdd0f29b342e0ae3197db`
+Catalog-baseline reviewed base: `35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`
+Catalog-baseline reviewed head: `c507583c5873a31f0cdd9eeb9a983f42eccdfac0`
+Catalog-baseline review decision: `CHANGES REQUIRED`
+Catalog-baseline finding: `P1 - The catalog delta has no authoritative pre-change baseline`
+Catalog-baseline correction content head: `b50b2fdbab3e53c479f51235d0bf3237b83485a7`
 Final specification status: `DRAFT`
 Pull request: [#775](https://github.com/thoth-pub/thoth/pull/775), draft
 Expected branch deletion after merge: YES
@@ -41,13 +46,13 @@ Independent reviewer: separate cross-model reviewer, HIGH or MAXIMUM reasoning
 ```text
 Programme: Shared Repository Controls
 Repository: thoth-pub/thoth
-Task ID: THOTH-DB-CTRL-01-SPEC enum-projection remediation
-Approved specification: attached enum-projection remediation specification for PR #775
+Task ID: THOTH-DB-CTRL-01-SPEC catalog-baseline remediation
+Approved specification: attached independent-review catalog-baseline correction for PR #775
 Risk: HIGH
 Base branch and commit: develop at 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8
 PR target: develop
 Task branch: feature/repository-controls/thoth-db-ctrl-01-spec
-Dependencies: PR #774 merged as 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8; fresh post-ready review 4847351391 of PR #775 head 7f8c4939f6b3a8b0bc08b955be26c2422b626990; unresolved thread PRRT_kwDODkn0bc6WFMd5
+Dependencies: PR #774 merged as 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8; independent CHANGES REQUIRED review of PR #775 head c507583c5873a31f0cdd9eeb9a983f42eccdfac0 against the same base
 Implementing agent/model: Codex / GPT-5, HIGH reasoning
 Independent reviewer/model: separate cross-model reviewer, HIGH or MAXIMUM reasoning
 ```
@@ -101,18 +106,29 @@ enum-projection content head
 returns the corrected specification to `DRAFT`. This report-finalization commit
 changes only this report and cannot embed its own SHA.
 
+A fresh independent review then assessed exact base
+`35e4dc20864ae4896dccc2b20cbcdbe3fb733db8` and exact head
+`c507583c5873a31f0cdd9eeb9a983f42eccdfac0`, returning `CHANGES REQUIRED` with
+one P1: the catalog delta had no authoritative independently observed
+pre-change baseline. Exact catalog-baseline correction content head
+`b50b2fdbab3e53c479f51235d0bf3237b83485a7` defines a two-phase
+baseline-to-candidate acquisition and retains `DRAFT`, `NOT STARTED`, and `NOT
+AUTHORIZED` states. The following report-only finalization commit cannot embed
+its own SHA.
+
 ## 2. Scope confirmation
 
-Approved remediation specification: correct the enum projection P1 on PR #775
-without implementing `THOTH-DB-CTRL-01`
+Approved remediation specification: correct the missing authoritative catalog
+baseline P1 on PR #775 without implementing `THOTH-DB-CTRL-01`
 
 Implemented objective: perform read-only repository discovery and isolated
 disposable-database experiments, select one evidence-backed implementation
 design, create the implementation-ready specification for
-`THOTH-DB-CTRL-01`, remediate exact-head review findings, and correct the
-enum-projection comparison model in only the authorized documentation and
-control records. The corrected written specification is `DRAFT` pending fresh
-independent review and fresh explicit CTO specification approval.
+`THOTH-DB-CTRL-01`, remediate exact-head review findings, correct the
+enum-projection comparison model, and add an authoritative
+baseline-to-candidate catalog acquisition in only the authorized documentation.
+The corrected written specification remains `DRAFT` pending fresh independent
+review and fresh explicit CTO specification approval.
 
 Out-of-scope changes made: NONE
 
@@ -121,7 +137,7 @@ This task is:
 ```text
 THOTH-DB-CTRL-01-SPEC:
 documentation, discovery, review remediation, approval history, and
-enum-projection correction
+enum-projection and catalog-baseline correction
 ```
 
 It is not:
@@ -142,7 +158,9 @@ post-ready specification-content correction changes only the output task
 specification. The approval-state correction changes only the task
 specification, CG-12 record, and repository map. The enum-projection correction
 changes exactly those same three normative/control paths, and this finalization
-changes only this report. No implementation surface is changed.
+changes only this report. The catalog-baseline correction changes only the task
+specification, and its finalization changes only this report. No implementation
+surface is changed.
 
 ## 3. Preconditions and branch evidence
 
@@ -167,6 +185,28 @@ PR #775 was then returned to draft before editing. Immediate verification
 confirmed open, draft, unmerged, mergeable state with base, head, commit count,
 and path count unchanged. No reset, clean, stash, amend, rebase, squash, or
 force-push operation was used.
+
+Before the catalog-baseline correction, live verification established:
+
+```text
+PR state: open
+Draft: true
+Merged: false
+Mergeable: true
+Base: 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8
+Head: c507583c5873a31f0cdd9eeb9a983f42eccdfac0
+Commits: 10
+Changed paths: 5
+Unresolved review threads: 0
+Live develop: 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8
+Evidence 5170349756: present and unedited
+Exact-head CI: four required workflows successful
+Worktree: clean
+```
+
+The PR already remained draft, so no state transition was required. No review
+thread write was required because the independent finding was supplied as a
+read-only decision rather than an unresolved GitHub thread.
 
 Commands:
 
@@ -299,15 +339,19 @@ Concise result:
   `docs: report THOTH-DB-CTRL-01 specification approval`
 - `76d73ebbd29eff0b1c4bdd0f29b342e0ae3197db` -
   `docs: correct THOTH-DB-CTRL-01 enum projections`
-- the following report-finalization commit, which changes only this file -
+- `c507583c5873a31f0cdd9eeb9a983f42eccdfac0` -
   `docs: report enum-projection remediation`
+- `b50b2fdbab3e53c479f51235d0bf3237b83485a7` -
+  `docs: define THOTH-DB-CTRL-01 catalog baseline`
+- the following report-finalization commit, which changes only this file -
+  `docs: report catalog-baseline remediation`
 
-These are the ten ordered commit positions, with path scopes
-`4 / 1 / 2 / 2 / 1 / 1 / 3 / 1 / 3 / 1`. A Git commit cannot embed its own SHA
-in a file contained by that commit; the exact immutable enum-projection content
-head is recorded above, while the final report-only head is recorded in the PR
-body and superseding immutable evidence after creation. No commit was amended,
-squashed, rebased, or force-pushed.
+These are the twelve ordered commit positions, with path scopes
+`4 / 1 / 2 / 2 / 1 / 1 / 3 / 1 / 3 / 1 / 1 / 1`. A Git commit cannot embed
+its own SHA in a file contained by that commit; the exact immutable
+catalog-baseline content head is recorded above, while the final report-only
+head is recorded in the PR body and superseding immutable evidence after
+creation. No commit was amended, squashed, rebased, or force-pushed.
 
 ## 6. Files changed
 
@@ -321,7 +365,9 @@ squashed, rebased, or force-pushed.
     and address the post-ready automatic-output, manifest, tracked-tooling, and
     authoritative-AGENTS findings; record the historical CTO approval; and
     replace impossible complete four-representation equality with
-    capability-aware exact projection comparison;
+    capability-aware exact projection comparison; then define independently
+    observed baseline-to-candidate snapshots and manifest before/after
+    enforcement;
   - behavioural effect: resets the corrected written specification to `DRAFT`;
     it does not authorize implementation.
 - `docs/engineering/repository-map/control-gaps.md`
@@ -338,7 +384,8 @@ squashed, rebased, or force-pushed.
   - reason: preserve exact discovery, test, decision, review-remediation,
     compile-validation, post-ready review, immutable specification-content
     head, approval-state review, immutable approval-state content head,
-    enum-projection review and content head, and handoff evidence;
+    enum-projection review and content head, catalog-baseline review and content
+    head, and handoff evidence;
   - behavioural effect: none.
 
 ## 7. Tooling discovery
@@ -872,6 +919,82 @@ implementation. This correction has no migration, schema, runtime, API,
 workflow, configuration, deployment, release, production, or external-service
 effect.
 
+### 11.7 Catalog-baseline review and disposition
+
+The fresh independent review of exact base
+`35e4dc20864ae4896dccc2b20cbcdbe3fb733db8` and exact head
+`c507583c5873a31f0cdd9eeb9a983f42eccdfac0` returned:
+
+```text
+P0: none
+P1: 1
+P2: none
+Decision: CHANGES REQUIRED
+```
+
+The P1 found that the capability-aware projection model specified an observed
+catalog delta but supplied only one post-migration database state. It could
+verify complete candidate labels against manifest `after`, but it could not
+independently verify manifest `before`, actual baseline label order, absence for
+an `add`, presence for a `remove`, or whether the claimed delta occurred. A
+fabricated or stale `before` could therefore pass when `after` matched.
+
+Catalog-baseline correction content head
+`b50b2fdbab3e53c479f51235d0bf3237b83485a7` defines the authoritative
+two-phase model on one continuously proven disposable database:
+
+1. require `THOTH_DIESEL_BASE_REF` as the full immutable authorized base SHA and
+   prove it is ancestral to the exact candidate head;
+2. create and verify a clean detached temporary worktree at that base;
+3. apply baseline migrations from the base worktree to an empty database;
+4. capture independent baseline catalog and raw-Diesel snapshots and obtain the
+   canonical baseline from
+   `git show "${THOTH_DIESEL_BASE_REF}:thoth-api/src/schema.rs"`;
+5. require the baseline migration ledger to prefix the candidate ledger;
+6. apply only candidate pending migrations to the same database without reset
+   or substitution;
+7. capture independent candidate catalog and raw-Diesel snapshots and the
+   current or validated generated canonical candidate;
+8. compute actual baseline-to-candidate deltas and compare each with its
+   capability-aware manifest projection;
+9. remove the base worktree, database state, snapshots, generated artifacts,
+   container, and disposable storage on success or failure before promotion.
+
+The candidate control's pinned CLI and validated configuration capture both raw
+snapshots against the independently established database states. The base
+worktree supplies the baseline migrations and canonical bytes. Catalog, raw,
+canonical, and manifest facts remain independent; no snapshot is reconstructed
+from manifest claims or another comparison leg.
+
+Manifest enforcement is now exact for every projected representation:
+
+```text
+add: absent at baseline; exactly present in candidate
+remove: complete object exactly present at baseline; absent in candidate
+change.before: exactly equal to the independently observed baseline object
+change.after: exactly equal to the independently observed candidate object
+```
+
+For a label-only enum change, baseline catalog labels must exactly equal
+`change.before`, candidate labels must exactly equal `change.after`, and the
+baseline-to-candidate raw and canonical deltas must be empty. For a new enum,
+the type must be absent from the baseline catalog, exactly present with ordered
+labels in the candidate catalog, and newly present by SQL-type identity in raw
+and canonical deltas.
+
+Focused future tests now reject a false `before` even when `after` matches,
+false baseline order, pre-existing baseline mismatch, undeclared removal,
+rename, or reorder, wrong or non-ancestral base refs, cleanup residue, and any
+migration-bearing candidate whose pending migrations produce an empty
+structural delta. Correct label append, ordered insertion, new-enum, and
+controlled standalone-table cases use the same two-phase mechanism.
+
+The specification remains `DRAFT`; `THOTH-DB-CTRL-01` implementation remains
+`NOT STARTED`; its branch remains `NOT AUTHORIZED`; CG-12 remains in correction
+review; CG-13 remains open; and BE-01 remains blocked. The correction has no
+migration, schema, runtime, API, workflow, configuration, AGENTS, deployment,
+release, production, secret, or external-service effect.
+
 ## 12. Selected implementation approach
 
 Selected: retain root `diesel.toml` and canonical
@@ -884,27 +1007,34 @@ synchronizer under tracked `.github/scripts/` that:
 2. requires a loopback client endpoint, inspects server/client connection
    addresses and ports, and ties any private server address to verified local
    Docker or GitHub Actions provenance;
-3. captures raw Diesel output privately and ignores or deletes automatic
-   staging output;
-4. compares physical database structure with the canonical contract through
+3. requires the exact full authorized base SHA, verifies ancestry, and creates
+   a detached clean base worktree;
+4. applies base migrations to an empty proven disposable database, captures
+   independent baseline catalog/raw/canonical snapshots, then applies only
+   candidate pending migrations to the same database and captures candidate
+   snapshots;
+5. captures raw Diesel output privately for both phases and ignores or deletes
+   automatic staging output;
+6. compares physical database structure with the canonical contract through
    enumerated aliases, type overrides, supplemental types, and order;
-5. preserves unchanged canonical bytes;
-6. permits only an exact task-local structured version-2 expected-change
+7. preserves unchanged canonical bytes;
+8. permits only an exact task-local structured version-2 expected-change
    manifest with complete column, key, join, allow-table and enum semantics;
-7. requires capability-aware exact comparison of independently derived
-   catalog, raw-Diesel, and convention-adjusted canonical deltas against their
-   respective manifest projections, plus exact mapped shared-field checks;
-8. acts as the sole canonical writer and atomically writes only after every
-   validation and compile check passes;
-9. proves direct Diesel commands and staging-file changes cannot write or
+9. requires capability-aware exact comparison of independently observed
+   baseline-to-candidate catalog, raw-Diesel, and convention-adjusted canonical
+   deltas against their respective manifest projections, including exact
+   add/remove/before/after semantics and mapped shared-field checks;
+10. acts as the sole canonical writer and atomically writes only after every
+   validation, compile, and cleanup check passes;
+11. proves direct Diesel commands and staging-file changes cannot write or
    promote the canonical schema;
-10. preserves canonical bytes on every failure;
-11. compiles a candidate and rejects unrelated file changes;
-12. uses a standalone, model-independent table for the controlled expected-diff
+12. preserves canonical bytes on every failure;
+13. compiles a candidate and rejects unrelated file changes;
+14. uses a standalone, model-independent table for the controlled expected-diff
     and compile-success probe;
-13. updates root `AGENTS.md` and `thoth-api/AGENTS.md` to the same implemented
+15. updates root `AGENTS.md` and `thoth-api/AGENTS.md` to the same implemented
     procedure while preserving CG-13 as separate;
-14. runs identically in local and CI verification.
+16. runs the same two-phase procedure in local and CI verification.
 
 This approach follows the evidence: database introspection is deterministic,
 while the compiled repository contract has intentional semantics that raw
@@ -952,6 +1082,9 @@ separate implementation-branch authorization.
    and relocation is prohibited.
 6. **Diesel version change:** rejected because exact locked `2.3.10` is
    deterministic and version changes cannot infer model conventions.
+7. **Candidate-final catalog comparison:** rejected because final state cannot
+   independently prove manifest `before`, baseline label order, `add` absence,
+   `remove` presence, or the actual baseline-to-candidate delta.
 
 ## 14. Database and migration effects
 
@@ -1037,13 +1170,13 @@ git diff --check \
 git diff --name-only \
   35e4dc20864ae4896dccc2b20cbcdbe3fb733db8...HEAD
 git diff --name-only \
-  7f8c4939f6b3a8b0bc08b955be26c2422b626990...HEAD
+  c507583c5873a31f0cdd9eeb9a983f42eccdfac0...HEAD
 git log --oneline \
   35e4dc20864ae4896dccc2b20cbcdbe3fb733db8..HEAD
-git show --stat --oneline 76d73ebbd29eff0b1c4bdd0f29b342e0ae3197db
+git show --stat --oneline b50b2fdbab3e53c479f51235d0bf3237b83485a7
 git show --stat --oneline HEAD
 rg -n \
-  'capability-aware|representable projection|enum labels|label-only|raw Diesel projection|catalog projection|canonical projection|PRRT_kwDODkn0bc6WFMd5|3706670604|Status: DRAFT' \
+  'THOTH_DIESEL_BASE_REF|baseline-to-candidate|change.before|change.after|pending candidate|detached temporary worktree|catalog-baseline|Status: DRAFT' \
   docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md \
   docs/engineering/ai-delivery/implementation-reports/THOTH-DB-CTRL-01-SPEC-implementation-report.md \
   docs/engineering/repository-map/control-gaps.md \
@@ -1057,14 +1190,14 @@ python3 .github/scripts/classify_ci_changes.py --paths \
 git status --short
 ```
 
-The exact outputs, final head, ten commit scopes
-(`4 / 1 / 2 / 2 / 1 / 1 / 3 / 1 / 3 / 1`), and classifier JSON are recorded in
-the superseding immutable PR evidence after the report-finalization commit
-exists. The cumulative path set must remain the same five documentation paths.
-The corrective range after `7f8c4939f6b3a8b0bc08b955be26c2422b626990`
-must contain exactly the task specification, CG-12 record, repository map, and
-this report, with commit scopes `3 / 1`. The complete five-path classifier must
-return:
+The exact outputs, final head, twelve commit scopes
+(`4 / 1 / 2 / 2 / 1 / 1 / 3 / 1 / 3 / 1 / 1 / 1`), and classifier JSON are
+recorded in the superseding immutable PR evidence after the report-finalization
+commit exists. The cumulative path set must remain the same five documentation
+paths. The catalog-baseline corrective range after
+`c507583c5873a31f0cdd9eeb9a983f42eccdfac0` must contain exactly the task
+specification and this report, with commit scopes `1 / 1`. The complete
+five-path classifier must return:
 
 ```json
 {"docs_only":"true","run_build":"false","run_docker":"false","run_migrations":"false"}
@@ -1099,16 +1232,22 @@ For the second review remediation, the standalone-table schema candidate was
 also compiled successfully without a consuming model in a detached temporary
 worktree, after which that worktree and its artifacts were removed.
 
+For the catalog-baseline remediation, no migration or executable control was
+run or changed. The review finding was traced through the specification's
+manifest, projection, command, migration, CI, acceptance, test, cleanup, and
+rejected-alternative sections; only the future normative two-phase procedure
+and this report changed.
+
 Evidence: this report, the original immutable top-level PR #775 evidence
 comment, and the successive superseding post-remediation evidence comments.
 
 ## 19. CI
 
-CI status: PENDING for the enum-projection report-finalization head
+CI status: PENDING for the catalog-baseline report-finalization head
 
 All CI evidence for head
-`7f8c4939f6b3a8b0bc08b955be26c2422b626990` and earlier heads is historical
-after the enum-projection commits. Fresh exact-head PR CI must prove:
+`c507583c5873a31f0cdd9eeb9a983f42eccdfac0` and earlier heads is historical
+after the catalog-baseline commits. Fresh exact-head PR CI must prove:
 
 ```text
 build-test-and-check:
@@ -1160,11 +1299,12 @@ that reopens ambiguity, dependent schema work blocks again.
 
 Previous approvals, including independent approval `5170076717`, the
 pre-correction written-specification approval, and CTO merge authorization
-`5170138791`, are historical after the normative enum-projection correction.
-Fresh exact-head independent review and fresh explicit CTO specification
-approval are required before the corrected specification may return to
-`APPROVED`. A separate fresh CTO merge authorization and another clean
-post-ready automated review are then required before merge.
+`5170138791`, are historical after the subsequent normative enum-projection
+and catalog-baseline corrections. Fresh exact-head independent review and
+fresh explicit CTO specification approval are required before the corrected
+specification may return to `APPROVED`. A separate fresh CTO merge
+authorization and another clean post-ready automated review are then required
+before merge.
 
 If the future implementation is rolled back and schema generation becomes
 ambiguous again, CG-12 reopens and all dependent schema work returns to
@@ -1172,7 +1312,7 @@ ambiguous again, CG-12 reopens and all dependent schema work returns to
 
 ## 21. Known limitations and deferred work
 
-- The enum-projection-corrected control specification is `DRAFT` and not
+- The catalog-baseline-corrected control specification is `DRAFT` and not
   implemented.
 - Root `diesel.toml` still has its discovered invalid configuration; no staging
   path, synchronizer, or canonical sole-writer enforcement exists until the
@@ -1186,8 +1326,9 @@ ambiguous again, CG-12 reopens and all dependent schema work returns to
   addresses or ports; the implementation must add and test that evidence.
 - The standalone-table candidate is compile-valid, but only the future
   synchronizer can prove the exact five complete version-2 objects,
-  capability-aware exact projection comparisons, deterministic rendering,
-  removal, and byte-identical restoration end to end.
+  capability-aware exact projection comparisons, independently observed
+  baseline-to-candidate deltas, deterministic rendering, cleanup, removal, and
+  byte-identical restoration end to end.
 - The initial convention file must enumerate and independently verify every
   existing timestamp override and ordering rule during implementation.
 - CI does not yet run the exact-version structural check.
@@ -1209,8 +1350,15 @@ ambiguous again, CG-12 reopens and all dependent schema work returns to
   `b74113c95cdf1e952f8c45d928cbf178f8b1e485`.
 - The fresh enum-projection P1 in `PRRT_kwDODkn0bc6WFMd5`, comment
   `3706670604`, is normatively corrected at immutable content head
-  `76d73ebbd29eff0b1c4bdd0f29b342e0ae3197db`. Its reply and resolution remain
-  gated on pushed successful exact-head CI.
+  `76d73ebbd29eff0b1c4bdd0f29b342e0ae3197db`. Response comment `3706778991`
+  records the correction, the thread is resolved, and superseding immutable
+  evidence comment `5170349756` records the successful exact-head CI and
+  zero-unresolved-thread state.
+- The independent catalog-baseline P1 against exact head
+  `c507583c5873a31f0cdd9eeb9a983f42eccdfac0` is normatively corrected at
+  immutable content head `b50b2fdbab3e53c479f51235d0bf3237b83485a7`.
+  Fresh exact-head CI and a new superseding immutable evidence comment remain
+  pending until the report-finalization commit is pushed.
 - Fresh independent cross-model exact-head review of the corrected
   specification is required.
 - Fresh explicit CTO specification approval is required before the status may
@@ -1238,9 +1386,19 @@ Suggested review focus:
 - whether structured version-2 add/remove/change objects retain complete intent
   while catalog, raw Diesel, and canonical schema are compared exactly only over
   independently representable projections;
+- whether the exact full authorized `THOTH_DIESEL_BASE_REF`, ancestry check,
+  and detached clean base worktree establish the correct immutable baseline;
+- whether baseline migrations and candidate pending migrations run in two
+  phases on the same continuously proven disposable database and produce
+  independent baseline and candidate catalog, raw-Diesel, and canonical
+  snapshots;
+- whether `add`, `remove`, `change.before`, and `change.after` are enforced
+  exactly against independently observed states, including rejection of a
+  false `before` even when `after` matches;
 - whether catalog/manifest ordered enum-label equality, raw/canonical SQL-type
-  identity, label-only empty projections, and parser-source independence close
-  the P1 without enriching either Diesel leg from catalog data;
+  identity, label-only empty baseline-to-candidate deltas, new-enum
+  absent/present deltas, and parser-source independence close the P1 without
+  enriching either Diesel leg from catalog data;
 - whether every current manual convention can be represented as bounded,
   reviewable control data;
 - whether loopback client-endpoint enforcement, server/client address
@@ -1249,8 +1407,11 @@ Suggested review focus:
 - whether the future thirteen-path scope correctly includes root `AGENTS.md`,
   `thoth-api/AGENTS.md`, and tracked `.github/scripts/` without `.gitignore` or
   canonical-schema changes;
-- whether this report binds the normative enum-projection content to exact head
-  `76d73ebbd29eff0b1c4bdd0f29b342e0ae3197db` and accurately separates the
+- whether cleanup is fail-closed on success and failure, and whether a
+  migration-bearing candidate that produces an empty structural delta is
+  rejected;
+- whether this report binds the normative catalog-baseline content to exact
+  head `b50b2fdbab3e53c479f51235d0bf3237b83485a7` and accurately separates the
   following report-only finalization commit;
 - whether the compile-valid standalone probe, removal, compile gate, and CI
   sequence establish both clean no-op and isolated expected-diff behaviour;
