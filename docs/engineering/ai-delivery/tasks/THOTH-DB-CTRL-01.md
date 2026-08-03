@@ -103,7 +103,8 @@ The implementation task must:
 
 1. establish the repository root as the only supported working directory;
 2. retain root `diesel.toml` as the authoritative Diesel configuration;
-3. correct that config to target `thoth-api/src/schema.rs`;
+3. correct that config so automatic Diesel output targets only ignored,
+   untrusted staging at `target/diesel-schema.rs`, never the canonical schema;
 4. replace invalid `custom_type_derives` entries with the minimal valid derive
    set required for generated SQL types;
 5. pin Diesel CLI compatibility to exact `2.3.10`, matching the locked Diesel
@@ -111,11 +112,12 @@ The implementation task must:
 6. add `thoth-api/diesel-schema-control.toml`, explicitly enumerating every
    current supplemental SQL type, physical-to-Rust table or column alias,
    database-to-contract type override, and order-preservation rule;
-7. add `scripts/diesel_schema.py`, a literal-safe structural synchronizer with
-   `check` and `generate` modes;
+7. add `.github/scripts/diesel_schema.py`, a literal-safe structural
+   synchronizer with `check` and `generate` modes;
 8. make the synchronizer introspect a proven disposable local PostgreSQL
-   database through raw `diesel print-schema` output captured in a temporary
-   directory;
+   database through raw `diesel print-schema` output captured in a private
+   temporary file, ignoring or deleting automatic staging output before
+   validation;
 9. preserve `thoth-api/src/schema.rs` byte-for-byte when the database matches
    committed migrations and the convention file accounts for every intentional
    difference;
@@ -123,14 +125,18 @@ The implementation task must:
     fail if the observed structural delta is smaller, larger, or different;
 11. preserve required custom PostgreSQL type derives, supplemental types,
     aliases, column order, and unchanged formatting;
-12. permit `generate` to write only `thoth-api/src/schema.rs`, atomically, after
-    all safety and expected-diff checks pass;
+12. make the synchronizer's validated `generate` mode the sole canonical writer
+    and permit it to write only `thoth-api/src/schema.rs`, atomically, after all
+    safety, structural-equality, expected-diff, and compile checks pass;
 13. add bounded Makefile targets for local check and generation;
 14. extend migration CI to install the exact compatible CLI, validate the
     migrated schema, and fail on stale, nondeterministic, or unexpected output;
-15. add focused parser, target-safety, expected-diff, literal-safety, and
-    integration tests;
-16. update `CHANGELOG.md`, repository control records, and the implementation
+15. add focused parser, target-safety, expected-diff, automatic-output-bypass,
+    literal-safety, and integration tests;
+16. replace the stale Diesel control-gap instructions in root `AGENTS.md` and
+    `thoth-api/AGENTS.md` with the implemented canonical procedure while
+    preserving CG-13 as a separate open control;
+17. update `CHANGELOG.md`, repository control records, and the implementation
     report.
 
 ## 4. Non-goals
@@ -185,16 +191,18 @@ All commands run from the repository root.
 | Full-chain revert on disposable targets only | `cargo run migrate --revert --database-url "$DATABASE_URL"` |
 | Diesel configuration | `diesel.toml` |
 | Diesel CLI | exact `2.3.10`, PostgreSQL feature |
+| Automatic Diesel staging output | `target/diesel-schema.rs` |
 | Canonical schema | `thoth-api/src/schema.rs` |
 | Convention file | `thoth-api/diesel-schema-control.toml` |
-| Synchronizer | `scripts/diesel_schema.py` |
+| Synchronizer | `.github/scripts/diesel_schema.py` |
+| Synchronizer tests | `.github/scripts/test_diesel_schema.py` |
 
 The implementation must correct root `diesel.toml` to the following effective
 configuration:
 
 ```toml
 [print_schema]
-file = "thoth-api/src/schema.rs"
+file = "target/diesel-schema.rs"
 custom_type_derives = ["diesel::query_builder::QueryId"]
 ```
 
@@ -202,9 +210,21 @@ Diesel already adds its `SqlType` derive. Application model paths and
 `diesel::sql_types::*` are imports, not derives, and must not appear in
 `custom_type_derives`.
 
+`target/` is already ignored by the repository. The configured
+`target/diesel-schema.rs` is untrusted raw staging only;
+`thoth-api/src/schema.rs` remains the canonical compiled contract and must never
+be the configured automatic `print_schema.file`.
+
+The synchronizer's validated `generate` mode is the sole canonical writer. A
+direct `diesel print-schema`, `diesel migration run`, `diesel migration redo`,
+`diesel migration revert`, or any other Diesel CLI command must never write
+`thoth-api/src/schema.rs`. Automatic Diesel output may land only at
+`target/diesel-schema.rs`, and changing that staging file must never cause
+canonical promotion.
+
 ### 6.2 Safe target gate
 
-`scripts/diesel_schema.py` must:
+`.github/scripts/diesel_schema.py` must:
 
 1. accept the database URL only through the existing `DATABASE_URL` environment
    variable and never log it;
@@ -279,13 +299,16 @@ Before database introspection the synchronizer must:
 
 1. require `Path.cwd()` and `git rev-parse --show-toplevel` to equal the
    repository root containing the script;
-2. resolve `diesel.toml`, the convention file, and the canonical schema through
-   absolute paths beneath that root;
-3. parse `diesel.toml` and assert its effective output path is exactly the
-   canonical path;
+2. resolve `diesel.toml`, the automatic staging file, the convention file, and
+   the canonical schema through absolute paths beneath that root;
+3. parse `diesel.toml` and assert its effective output path is exactly
+   `target/diesel-schema.rs`, is beneath the ignored `target/` directory, and is
+   not the canonical path;
 4. execute `diesel --version` and require exact `diesel 2.3.10`;
 5. reject symlinks or resolved output paths outside the repository;
-6. capture raw schema with the equivalent of:
+6. record the canonical file's bytes before invoking Diesel;
+7. invoke exact Diesel CLI `2.3.10` and capture raw schema with the equivalent
+   of:
 
    ```bash
    diesel print-schema \
@@ -293,7 +316,14 @@ Before database introspection the synchronizer must:
      --database-url "$DATABASE_URL"
    ```
 
-   into a private temporary file, never a repository path.
+   into a private temporary file, never the canonical path;
+8. ignore or delete `target/diesel-schema.rs` before structural processing and
+   never treat its content or modification as an authorization to promote;
+9. apply convention and expected-change validation, compile the candidate, and
+   atomically write the canonical file only in validated `generate` mode after
+   every check passes;
+10. prove the canonical bytes remain unchanged after every failed validation and
+    after any direct Diesel CLI migration command.
 
 The implementation documentation must provide this isolated installation
 command:
@@ -345,41 +375,93 @@ closed.
 
 ### 6.5 Expected-change manifest
 
-The manifest is a task-local UTF-8 TOML file with:
+The manifest is a task-local UTF-8 TOML document with `version = 2`. Every
+`add`, `remove`, and `change` entry is an independently parsed and validated
+object; string tokens, partial names, wildcards, catch-all entries, and broad
+exemptions are prohibited.
+
+The complete structural object schemas are:
+
+| `kind` | Required fields |
+|---|---|
+| `table` | `schema`, `name` |
+| `column` | `schema`, `table`, `name`, `postgres_type`, `diesel_type`, `nullable`, `ordinal` |
+| `primary-key` | `schema`, `table`, ordered `columns` |
+| `allow-table` | `schema`, `table` |
+| `join` | `child_schema`, `child_table`, ordered `child_columns`, `parent_schema`, `parent_table`, ordered `parent_columns` |
+| `sql-type` | `schema`, physical `name`, canonical `diesel_type`, and a complete `definition` |
+
+For an enum `sql-type`, `definition` must contain `kind = "enum"` and ordered
+database `labels`. This prevents a future `thoth_package` enum from matching by
+name while containing the wrong labels or label order. Unsupported SQL-type
+definitions fail closed rather than being represented incompletely.
+
+The controlled probe manifest is exactly:
 
 ```toml
-version = 1
-add = [
-  "allow-table:public.thoth_db_ctrl_probe",
-  "column:public.thoth_db_ctrl_probe.probe_id",
-  "column:public.thoth_db_ctrl_probe.probe_value",
-  "primary-key:public.thoth_db_ctrl_probe",
-  "table:public.thoth_db_ctrl_probe",
-]
-remove = []
-change = []
+version = 2
+
+[[add]]
+kind = "table"
+schema = "public"
+name = "thoth_db_ctrl_probe"
+
+[[add]]
+kind = "column"
+schema = "public"
+table = "thoth_db_ctrl_probe"
+name = "probe_id"
+postgres_type = "uuid"
+diesel_type = "Uuid"
+nullable = false
+ordinal = 1
+
+[[add]]
+kind = "column"
+schema = "public"
+table = "thoth_db_ctrl_probe"
+name = "probe_value"
+postgres_type = "text"
+diesel_type = "Text"
+nullable = true
+ordinal = 2
+
+[[add]]
+kind = "primary-key"
+schema = "public"
+table = "thoth_db_ctrl_probe"
+columns = ["probe_id"]
+
+[[add]]
+kind = "allow-table"
+schema = "public"
+table = "thoth_db_ctrl_probe"
 ```
 
-Allowed entry forms are exactly:
+A `remove` entry must contain the complete existing structural object being
+removed, using the same schema as an `add` entry. A `change` entry must contain
+complete `before` and `after` structural objects. Neither operation may be
+expressed only as a name, a field-specific token, or a broad exemption.
 
-```text
-sql-type:<schema>.<type>
-table:<schema>.<table>
-column:<schema>.<table>.<column>
-primary-key:<schema>.<table>
-allow-table:<schema>.<table>
-join:<child-schema>.<child-table>-><parent-schema>.<parent-table>
-type:<schema>.<table>.<column>:<old-type>-><new-type>
-nullability:<schema>.<table>.<column>:<old>-><new>
-```
+The synchronizer must calculate and require exact equality among all four
+representations of the change:
 
-Entries are unique and sorted. The synchronizer must calculate the structural
-database delta before writing and require exact equality with the manifest.
-Manifest entries do not override database truth and cannot exempt unrelated
-differences. A new table requires explicit entries for the table, every column,
-its primary key, every generated join, and its
-`allow_tables_to_appear_in_same_query!` membership; none of those structural
-effects may be inferred or hidden by another manifest entry.
+1. database/catalog structural delta;
+2. raw Diesel structural delta;
+3. convention-adjusted canonical structural delta;
+4. expected-change manifest.
+
+Any difference in PostgreSQL or Diesel type, nullability, ordinal position,
+ordered primary-key columns, ordered enum labels, join endpoints or columns, or
+allow-table membership must fail closed. Manifest entries do not override
+database truth and cannot exempt unrelated differences. A new table requires
+explicit complete objects for the table, every column, its primary key, every
+generated join, and its `allow_tables_to_appear_in_same_query!` membership;
+none of those structural effects may be inferred or hidden by another entry.
+
+Indexes, check constraints, and other structures not represented by Diesel's
+schema contract remain responsibilities of migration validation. This manifest
+must not claim or imply that it validates those structures.
 
 The implementation task's controlled probe must create only this standalone
 table on its disposable database:
@@ -391,7 +473,7 @@ CREATE TABLE public.thoth_db_ctrl_probe (
 );
 ```
 
-Its expected manifest is exactly the five-entry `add` list above. The probe has
+Its expected manifest is exactly the five `[[add]]` objects above. The probe has
 no consuming Rust model and must create no join. It must be dropped after
 testing and must not create or mention a BE-01 database object in generated
 output.
@@ -424,15 +506,15 @@ THOTH_DIESEL_DIFF=CLEAN
 The controlled generation command is:
 
 ```bash
-python3 scripts/diesel_schema.py generate \
+python3 .github/scripts/diesel_schema.py generate \
   --expected-change "$THOTH_DIESEL_EXPECTED_CHANGE_FILE" \
   --output thoth-api/src/schema.rs
 ```
 
-It must atomically replace only the canonical schema after all checks pass. It
-must print only safe named statuses and an aggregate added/removed/changed
-count. With an empty manifest on a clean migrated database it is a byte-for-byte
-no-op.
+It is the sole canonical writer and must atomically replace only the canonical
+schema after all checks pass. It must print only safe named statuses and an
+aggregate added/removed/changed count. With an empty manifest on a clean
+migrated database it is a byte-for-byte no-op.
 
 ### 6.7 Required success behaviour
 
@@ -461,6 +543,9 @@ The procedure must fail non-zero before repository writes if:
 - Diesel CLI is absent or not exact `2.3.10`;
 - raw output or a repeated candidate is nondeterministic;
 - the observed structural delta differs from the manifest;
+- the database/catalog, raw Diesel, convention-adjusted canonical, and manifest
+  deltas are not exactly equal;
+- automatic raw output does not match the manifest and conventions;
 - a convention entry is missing, unused, broad, or conflicting;
 - required custom derives or supplemental types are lost;
 - a candidate fails the focused Rust compile check;
@@ -497,6 +582,28 @@ model-compatible canonical column order and supplemental type are compatibility
 requirements, not formatting preferences. A candidate must compile against
 the existing `thoth-api` backend before it can replace the canonical file.
 
+Automatic Diesel staging is not a compatible canonical contract and must never
+be consumed by Rust code, downstream generators, or review tooling as though it
+were `thoth-api/src/schema.rs`.
+
+### 6.12 Authoritative AGENTS rollout
+
+The implementation must update root `AGENTS.md` to replace the stale statement
+that the Diesel procedure has an open control gap with authoritative
+instructions covering the repository-root working directory, exact Diesel CLI
+`2.3.10`, automatic staging at `target/diesel-schema.rs`, synchronizer-only
+canonical writes, `make check-diesel-schema`, complete expected-change
+manifests, and fail-closed behaviour. It must explicitly retain CG-13 as a
+separate open control.
+
+The implementation must replace the `thoth-api/AGENTS.md` "Diesel schema
+control gap" section with the same implemented canonical procedure. It must
+state that automatic `diesel.toml` output is staging only,
+`thoth-api/src/schema.rs` is canonical, direct manual replacement is
+prohibited, every schema task uses the synchronizer with a complete
+expected-change manifest, validation and compile gates are mandatory, and
+dependent schema work blocks if the control fails.
+
 ## 7. Data and migration requirements
 
 Production migration required: NO
@@ -532,15 +639,23 @@ runbook change is required. CG-13 remains open.
 - [ ] The exact repository-root working directory and commands are documented.
 - [ ] Migration creation is exactly `make migration`.
 - [ ] Forward and disposable full-chain revert commands are exact.
-- [ ] Root `diesel.toml` parses and targets `thoth-api/src/schema.rs`.
+- [ ] Root `diesel.toml` parses and targets only ignored automatic staging at
+      `target/diesel-schema.rs`; it never targets `thoth-api/src/schema.rs`.
+- [ ] Direct Diesel CLI migration execution cannot change the canonical schema.
+- [ ] Automatic Diesel output lands only at `target/diesel-schema.rs`.
+- [ ] Changing the staging file cannot cause canonical promotion.
+- [ ] Validated `generate` is the sole canonical writer.
+- [ ] The canonical file remains byte-identical when any validation fails.
+- [ ] Automatic raw output matching neither the manifest nor conventions is
+      rejected rather than copied.
 - [ ] Diesel CLI exact `2.3.10` and the isolated installation policy are enforced.
 - [ ] The convention file explicitly accounts for every current intentional raw/canonical difference without catch-all patterns.
 - [ ] A clean migrated PostgreSQL 17 database produces a byte-identical no-op.
 - [ ] Two consecutive candidates are byte-identical.
 - [ ] `MarkupFormat`, aliases, timestamp semantics, model-compatible column order, and required derives are preserved.
 - [ ] A controlled standalone-table expected-diff test admits exactly its five
-      explicit manifest entries, including primary-key and allow-table
-      membership.
+      complete version-2 objects, including types, nullability, ordinals,
+      ordered primary-key columns, and allow-table membership.
 - [ ] Removing the controlled change restores the clean baseline.
 - [ ] Any stale or unexpected schema difference fails non-zero before writing.
 - [ ] An unexpected repository file change fails.
@@ -560,6 +675,14 @@ runbook change is required. CG-13 remains open.
       check without any application-model fixture.
 - [ ] Rollback restores repository state without touching database data.
 - [ ] BE-01 remains blocked and no BE-01 implementation object is created.
+- [ ] Root `AGENTS.md` no longer describes CG-12 as an open procedural gap after
+      implementation.
+- [ ] `thoth-api/AGENTS.md` no longer describes an unexplained configured output
+      path after implementation.
+- [ ] Root `AGENTS.md` and `thoth-api/AGENTS.md` specify the same repository-root
+      commands, exact CLI, automatic staging output, synchronizer-only canonical
+      writes, complete expected-change manifests, and fail-closed boundary.
+- [ ] `docs/engineering/AGENTS.md` contains no contradictory instruction.
 - [ ] CG-12 closes only after this implementation passes independent review and merges with acceptance evidence.
 - [ ] CG-13 remains open.
 
@@ -573,8 +696,14 @@ runbook change is required. CG-13 remains open.
 - Parse representative SQL types, aliases, table blocks, primary keys,
   joinables, nullable types, and ordered columns.
 - Render unchanged blocks byte-for-byte and new structures deterministically.
-- Validate sorted, unique expected-change manifests, including explicit
-  `allow-table` entries and complete new-table structural effects.
+- Validate version-2 expected-change objects, including complete add/remove and
+  before/after change records; reject missing fields and broad or catch-all
+  entries.
+- Reject `integer` where `uuid` was expected, nullable `probe_id`, non-null
+  `probe_value`, reversed or additional columns, and the wrong primary-key
+  column.
+- Reject an additional or missing join, wrong join child or parent columns,
+  wrong enum labels or label order, and incomplete SQL-type definitions.
 - Invoke subprocesses with argument arrays and `shell=False`; prove literal
   metacharacters cannot become shell syntax.
 
@@ -593,6 +722,13 @@ runbook change is required. CG-13 remains open.
 - Reject a stale canonical schema.
 - Reject an unlisted database change.
 - Reject an unexpected output path or unrelated changed file.
+- Run direct Diesel migration commands and prove they can write only automatic
+  staging, never `thoth-api/src/schema.rs`.
+- Change `target/diesel-schema.rs` and prove it cannot trigger canonical
+  promotion.
+- Force each validation failure and prove the canonical bytes remain unchanged.
+- Reject automatic raw output that matches neither the complete manifest nor
+  conventions instead of copying it.
 
 ### Authorization/security
 
@@ -654,13 +790,16 @@ PostgreSQL 17 job:
 
 The workflow must retain explicit job-level `contents: read`, use no production
 environment or secret, and preserve the existing protected check identity. The
-CI classifier must treat the synchronizer, convention file, config, Makefile,
-canonical schema, and migration workflow as migration-control paths so those
-changes cannot be misclassified as documentation-only.
+CI classifier must treat the `.github/scripts/` synchronizer and tests,
+convention file, config, Makefile, canonical schema, authoritative AGENTS files,
+and migration workflow as migration-control paths so those changes cannot be
+misclassified as documentation-only.
 
 ## 12. Rollout
 
-- initial state after merge: inactive repository-control improvement;
+- initial state after merge: inactive repository-control improvement with
+  automatic Diesel output confined to ignored staging and canonical writes
+  confined to the synchronizer;
 - feature flag/configuration: none;
 - staging/preview validation: none; disposable local and CI databases only;
 - pilot: the controlled probe described in this specification;
@@ -676,7 +815,8 @@ deployment.
 ## 13. Rollback
 
 - code rollback: revert the bounded implementation commit or PR, restoring the
-  previous config, commands, script, convention data, workflow, and docs;
+  previous config, commands, tracked `.github/scripts/` tools, convention data,
+  authoritative AGENTS instructions, workflow, and docs;
 - data rollback: none, because the control implementation changes no durable
   database state;
 - feature disable: stop invoking the new repository command;
@@ -708,10 +848,12 @@ would be required.
 The implementation is expected to change only:
 
 ```text
+AGENTS.md
+thoth-api/AGENTS.md
 diesel.toml
 Makefile
-scripts/diesel_schema.py
-scripts/test_diesel_schema.py
+.github/scripts/diesel_schema.py
+.github/scripts/test_diesel_schema.py
 thoth-api/diesel-schema-control.toml
 .github/scripts/classify_ci_changes.py
 .github/workflows/run_migrations.yml
@@ -720,6 +862,10 @@ docs/engineering/repository-map/control-gaps.md
 docs/engineering/repository-map/repositories/thoth.md
 docs/engineering/ai-delivery/implementation-reports/THOTH-DB-CTRL-01-implementation-report.md
 ```
+
+Exactly thirteen paths are expected. Root `.gitignore` is already sufficient
+because automatic output is under ignored `target/`; `.gitignore` is not in
+scope.
 
 `thoth-api/src/schema.rs` must remain byte-identical for the control
 implementation. If the implementation cannot meet the acceptance criteria
@@ -785,9 +931,9 @@ fail-closed handling and would permit unrelated formatting or contract edits.
 
 ### Crate-local configuration or canonical relocation
 
-Rejected because root configuration discovery is established, a corrected
-root-relative path is sufficient, and relocating the canonical schema is
-outside scope.
+Rejected because root configuration discovery is established, ignored root
+`target/` staging keeps automatic Diesel writes away from the compiled canonical
+contract, and relocating the canonical schema is outside scope.
 
 ### Diesel upgrade or downgrade
 
