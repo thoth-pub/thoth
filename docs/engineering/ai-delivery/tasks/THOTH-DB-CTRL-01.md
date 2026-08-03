@@ -1,6 +1,6 @@
 # THOTH-DB-CTRL-01 - Diesel generation procedure
 
-Status: DRAFT
+Status: APPROVED
 Programme: Shared Repository Controls
 Repository: thoth-pub/thoth
 Workflow: STANDARD
@@ -9,7 +9,8 @@ PR target: develop
 Programme integration branch: None
 Risk: HIGH
 Owner: CTO
-Approved by: Not approved; draft awaiting independent review and explicit CTO approval
+Approved by: Javi, CTO
+Approval date: 2026-08-03
 Dependencies: PR #774 merged as `35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`
 Target branch name: `feature/repository-controls/thoth-db-ctrl-01`
 
@@ -896,12 +897,27 @@ Explicit CTO merge approval: REQUIRED
 
 ## 18. Approval
 
-Approved for implementation by: Not approved
-Date: Not approved
-Notes: This document is a draft. Fresh independent cross-model review and
-explicit CTO approval are required before the implementation branch may be
-created. Approval of the specification PR does not authorize implementation,
-BE-01, production migration, release, or deployment.
+Specification: APPROVED
+Approved by: Javi, CTO
+Approval date: 2026-08-03
+THOTH-DB-CTRL-01 implementation: NOT STARTED
+Implementation branch: NOT AUTHORIZED
+
+Notes:
+
+- This approval is bound to specification content reviewed at
+  `b652f28d222f6a6bb5d3aa34dd5595e52223c195` and becomes merged repository
+  authority only after PR #775 receives fresh independent exact-head review,
+  fresh explicit CTO merge authorization, and merges into `develop`.
+- Approval of the written specification does not authorize creation of
+  `feature/repository-controls/thoth-db-ctrl-01`, implementation work, migration
+  execution, schema or workflow changes, production access, release,
+  deployment, or activation.
+- The implementation requires a separately authorized fresh branch from the
+  then-current verified `develop`, complete acceptance evidence, independent
+  cross-model review, and explicit CTO merge authorization.
+- BE-01 remains blocked, CG-12 remains unresolved until the implementation
+  merges with acceptance evidence, and CG-13 remains open.
 
 ## 19. Rejected alternatives
 
