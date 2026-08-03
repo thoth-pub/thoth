@@ -22,7 +22,13 @@ Approval-state reviewed base: `35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`
 Approval-state reviewed head: `b652f28d222f6a6bb5d3aa34dd5595e52223c195`
 Approval-state review result: `CHANGES REQUIRED`
 Approval-state content head: `b74113c95cdf1e952f8c45d928cbf178f8b1e485`
-Final specification status: `APPROVED`
+Fresh post-ready reviewed head: `7f8c4939f6b3a8b0bc08b955be26c2422b626990`
+Fresh review: `4847351391`
+Fresh review result: `BLOCKED - POST-READY REVIEW FINDING`
+Fresh review thread: `PRRT_kwDODkn0bc6WFMd5`
+Fresh review comment: `3706670604`
+Enum-projection content head: `76d73ebbd29eff0b1c4bdd0f29b342e0ae3197db`
+Final specification status: `DRAFT`
 Pull request: [#775](https://github.com/thoth-pub/thoth/pull/775), draft
 Expected branch deletion after merge: YES
 Final programme PR required: NO
@@ -35,13 +41,13 @@ Independent reviewer: separate cross-model reviewer, HIGH or MAXIMUM reasoning
 ```text
 Programme: Shared Repository Controls
 Repository: thoth-pub/thoth
-Task ID: THOTH-DB-CTRL-01-SPEC approval-state correction
-Approved specification: Javi, CTO approval of THOTH-DB-CTRL-01 written specification at b652f28d222f6a6bb5d3aa34dd5595e52223c195 on 2026-08-03
+Task ID: THOTH-DB-CTRL-01-SPEC enum-projection remediation
+Approved specification: attached enum-projection remediation specification for PR #775
 Risk: HIGH
 Base branch and commit: develop at 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8
 PR target: develop
 Task branch: feature/repository-controls/thoth-db-ctrl-01-spec
-Dependencies: PR #774 merged as 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8; approval-state review of PR #775 head b652f28d222f6a6bb5d3aa34dd5595e52223c195
+Dependencies: PR #774 merged as 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8; fresh post-ready review 4847351391 of PR #775 head 7f8c4939f6b3a8b0bc08b955be26c2422b626990; unresolved thread PRRT_kwDODkn0bc6WFMd5
 Implementing agent/model: Codex / GPT-5, HIGH reasoning
 Independent reviewer/model: separate cross-model reviewer, HIGH or MAXIMUM reasoning
 ```
@@ -84,18 +90,29 @@ approval-state content head
 `b74113c95cdf1e952f8c45d928cbf178f8b1e485` records the resulting transition
 from `DRAFT` to `APPROVED` without changing normative design content.
 
+That approval is now historical. Fresh post-ready review `4847351391` reviewed
+exact head `7f8c4939f6b3a8b0bc08b955be26c2422b626990` and returned
+`BLOCKED - POST-READY REVIEW FINDING` in thread
+`PRRT_kwDODkn0bc6WFMd5`, comment `3706670604`. The P1 established that complete
+four-representation equality cannot model enum labels because raw and canonical
+Diesel expose SQL-type identity but not ordered PostgreSQL enum labels. Exact
+enum-projection content head
+`76d73ebbd29eff0b1c4bdd0f29b342e0ae3197db` corrects the comparison model and
+returns the corrected specification to `DRAFT`. This report-finalization commit
+changes only this report and cannot embed its own SHA.
+
 ## 2. Scope confirmation
 
-Approved specification: `THOTH-DB-CTRL-01` written specification approved by
-Javi, CTO, on 2026-08-03 at reviewed head
-`b652f28d222f6a6bb5d3aa34dd5595e52223c195`
+Approved remediation specification: correct the enum projection P1 on PR #775
+without implementing `THOTH-DB-CTRL-01`
 
 Implemented objective: perform read-only repository discovery and isolated
 disposable-database experiments, select one evidence-backed implementation
 design, create the implementation-ready specification for
-`THOTH-DB-CTRL-01`, remediate exact-head review findings, and record the explicit
-written-specification approval in only the authorized documentation and control
-records.
+`THOTH-DB-CTRL-01`, remediate exact-head review findings, and correct the
+enum-projection comparison model in only the authorized documentation and
+control records. The corrected written specification is `DRAFT` pending fresh
+independent review and fresh explicit CTO specification approval.
 
 Out-of-scope changes made: NONE
 
@@ -103,7 +120,8 @@ This task is:
 
 ```text
 THOTH-DB-CTRL-01-SPEC:
-documentation, discovery, review remediation, and specification approval record
+documentation, discovery, review remediation, approval history, and
+enum-projection correction
 ```
 
 It is not:
@@ -122,10 +140,33 @@ specification. They corrected the safe-target contract and future acceptance
 probe without rerunning or recharacterizing the completed discovery. The
 post-ready specification-content correction changes only the output task
 specification. The approval-state correction changes only the task
-specification, CG-12 record, and repository map; this finalization changes only
-this report. No implementation surface is changed.
+specification, CG-12 record, and repository map. The enum-projection correction
+changes exactly those same three normative/control paths, and this finalization
+changes only this report. No implementation surface is changed.
 
 ## 3. Preconditions and branch evidence
+
+Before the enum-projection correction, live verification established:
+
+```text
+PR state: open
+Draft: false
+Merged: false
+Mergeable: true
+Base: 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8
+Head: 7f8c4939f6b3a8b0bc08b955be26c2422b626990
+Commits: 8
+Changed paths: 5
+Unresolved review threads: 1
+Sole unresolved thread: PRRT_kwDODkn0bc6WFMd5
+Live develop: 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8
+Worktree: clean
+```
+
+PR #775 was then returned to draft before editing. Immediate verification
+confirmed open, draft, unmerged, mergeable state with base, head, commit count,
+and path count unchanged. No reset, clean, stash, amend, rebase, squash, or
+force-push operation was used.
 
 Commands:
 
@@ -254,14 +295,19 @@ Concise result:
   `docs: report PR 775 post-ready remediation`
 - `b74113c95cdf1e952f8c45d928cbf178f8b1e485` -
   `docs: approve THOTH-DB-CTRL-01 specification`
-- the following report-finalization commit, which changes only this file -
+- `7f8c4939f6b3a8b0bc08b955be26c2422b626990` -
   `docs: report THOTH-DB-CTRL-01 specification approval`
+- `76d73ebbd29eff0b1c4bdd0f29b342e0ae3197db` -
+  `docs: correct THOTH-DB-CTRL-01 enum projections`
+- the following report-finalization commit, which changes only this file -
+  `docs: report enum-projection remediation`
 
-These are the eight ordered commit positions. A Git commit cannot embed its own
-SHA in a file contained by that commit; the exact immutable approval-state
-content head is therefore recorded above, while the final report-only head is
-recorded in the PR body and superseding immutable evidence after creation. No
-commit was amended, squashed, rebased, or force-pushed.
+These are the ten ordered commit positions, with path scopes
+`4 / 1 / 2 / 2 / 1 / 1 / 3 / 1 / 3 / 1`. A Git commit cannot embed its own SHA
+in a file contained by that commit; the exact immutable enum-projection content
+head is recorded above, while the final report-only head is recorded in the PR
+body and superseding immutable evidence after creation. No commit was amended,
+squashed, rebased, or force-pushed.
 
 ## 6. Files changed
 
@@ -273,24 +319,26 @@ commit was amended, squashed, rebased, or force-pushed.
   - reason: define the implementation-ready Diesel control; correct its
     Docker/GitHub Actions safe-target contract and controlled compile probe;
     and address the post-ready automatic-output, manifest, tracked-tooling, and
-    authoritative-AGENTS findings; then record CTO approval of the written
-    specification;
-  - behavioural effect: changes the written specification from `DRAFT` to
-    `APPROVED`; it does not authorize implementation.
+    authoritative-AGENTS findings; record the historical CTO approval; and
+    replace impossible complete four-representation equality with
+    capability-aware exact projection comparison;
+  - behavioural effect: resets the corrected written specification to `DRAFT`;
+    it does not authorize implementation.
 - `docs/engineering/repository-map/control-gaps.md`
-  - reason: mark the CG-12 specification approved while retaining implementation
-    not started and CG-12 unresolved;
+  - reason: mark the enum-projection correction in review while retaining
+    implementation not started and CG-12 unresolved;
   - behavioural effect: BE-01 remains blocked.
 - `docs/engineering/repository-map/repositories/thoth.md`
   - reason: record the selected future canonical procedure, written
-    specification approval, separate implementation authorization boundary,
-    and continuing regeneration prohibition;
+    historical specification approval, fresh review and approval requirement,
+    separate implementation authorization boundary, and continuing
+    regeneration prohibition;
   - behavioural effect: none.
 - `docs/engineering/ai-delivery/implementation-reports/THOTH-DB-CTRL-01-SPEC-implementation-report.md`
   - reason: preserve exact discovery, test, decision, review-remediation,
     compile-validation, post-ready review, immutable specification-content
-    head, approval-state review, immutable approval-state content head, and
-    handoff evidence;
+    head, approval-state review, immutable approval-state content head,
+    enum-projection review and content head, and handoff evidence;
   - behavioural effect: none.
 
 ## 7. Tooling discovery
@@ -702,7 +750,7 @@ evidence.
 | Thread | Finding | Disposition in the specification content head |
 |---|---|---|
 | `PRRT_kwDODkn0bc6WDgUJ` | Prevent Diesel commands from bypassing the synchronizer | `diesel.toml` automatic output is ignored staging at `target/diesel-schema.rs`; only validated `generate` may atomically write the canonical schema, with direct-command bypass tests. |
-| `PRRT_kwDODkn0bc6WDgUQ` | Encode complete structure in expected-change entries | String tokens are replaced by version-2 structural objects with complete column, key, join, allow-table and enum semantics plus exact four-way delta equality and negative tests. |
+| `PRRT_kwDODkn0bc6WDgUQ` | Encode complete structure in expected-change entries | At that historical head, string tokens were replaced by version-2 structural objects with complete column, key, join, allow-table and enum semantics plus a then-required complete four-leg equality model and negative tests. The later enum-projection P1 supersedes that equality model. |
 | `PRRT_kwDODkn0bc6WDgUT` | Include the authoritative AGENTS files in control rollout | Root `AGENTS.md` and `thoth-api/AGENTS.md` are added to the bounded future implementation scope with explicit replacement and consistency criteria. |
 | `PRRT_kwDODkn0bc6WDgUX` | Record the exact reviewed head in the report | This report records the post-ready reviewed head, review IDs, result, and exact immutable specification-content head without an impossible self-referential commit claim. |
 
@@ -748,6 +796,82 @@ execution, schema or workflow changes, production access, release, deployment,
 or activation. A fresh implementation-branch authorization and a later,
 separate implementation merge authorization remain mandatory.
 
+### 11.6 Enum-projection review and disposition
+
+Fresh post-ready review `4847351391` reviewed exact head
+`7f8c4939f6b3a8b0bc08b955be26c2422b626990` and returned
+`BLOCKED - POST-READY REVIEW FINDING`. Its sole unresolved P1 is thread
+`PRRT_kwDODkn0bc6WFMd5`, comment `3706670604`: compare raw Diesel on a
+representable projection.
+
+Complete equality of catalog, raw Diesel, canonical schema, and manifest
+objects was impossible for enum changes. The PostgreSQL catalog and manifest
+can expose complete ordered enum labels; raw and canonical Diesel expose the
+SQL-type declaration but not the labels. Enriching the raw or canonical leg
+with catalog labels was rejected because it would make an apparently
+independent comparison depend on the catalog source it was meant to
+corroborate.
+
+The corrected specification therefore defines capability-aware exact
+comparison over independently representable projections:
+
+| Structural fact | Catalog | Raw Diesel | Canonical | Manifest |
+|---|---:|---:|---:|---:|
+| Object identities, nullability, order, primary keys | yes | yes | yes | yes |
+| PostgreSQL column type | yes | no | no | yes |
+| Canonical Diesel column type | mapped | yes | yes | yes |
+| Foreign keys / joins | mapped | yes | yes | yes |
+| Allow-table membership | no | yes | yes | yes |
+| SQL-type identity | yes | yes | yes | yes |
+| Ordered PostgreSQL enum labels | yes | no | no | yes |
+| Supplemental canonical-only type | no | no | yes | convention data |
+
+Catalog comparison is exact against the manifest's catalog projection,
+including complete ordered enum labels. Raw Diesel comparison is exact against
+the manifest's raw-Diesel projection, including independently emitted SQL-type,
+table, column, type, nullability, order, key, join, and allow-table facts but no
+enum labels. Canonical comparison is exact against the manifest's canonical
+projection, including conventions, aliases, derives, canonical types, order,
+keys, joins, allow-table membership, and supplemental structures but no claim
+to encode enum labels. Shared facts must agree exactly after documented
+deterministic mappings. Complete manifest intent remains mandatory, and no fact
+may be silently ignored when an independent leg can represent it.
+
+For a new enum, catalog and manifest must agree exactly on schema, physical type
+name, and ordered labels, while raw, canonical, and manifest must agree on
+SQL-type identity and canonical Diesel type name. Missing raw or canonical
+SQL-type declarations fail. For a label-only addition, insertion, rename, or
+order change, the valid result is an exact non-empty catalog/manifest label
+delta with empty matching raw and canonical projections; the canonical schema
+must remain byte-identical unless another representable contract change is
+declared.
+
+Focused future tests now cover correct new-enum labels and identities; missing
+raw identity; wrong canonical type name; label append and ordered insertion;
+wrong, reordered, omitted, or manifest-only labels; unexpected raw/canonical
+label-only deltas; and proof that raw, catalog, and canonical parsers consume
+only their own sources without label injection.
+
+Enum-projection content head
+`76d73ebbd29eff0b1c4bdd0f29b342e0ae3197db` changes exactly the task
+specification, CG-12 record, and repository map. It resets the active state to:
+
+```text
+Previous specification approval: historical, bound to pre-correction content
+Corrected specification: DRAFT
+THOTH-DB-CTRL-01 implementation: NOT STARTED
+Implementation branch: NOT AUTHORIZED
+CG-12: unresolved
+CG-13: open
+BE-01 implementation: blocked
+```
+
+Fresh independent exact-head review and fresh explicit CTO specification
+approval are required. Specification approval would still not authorize
+implementation. This correction has no migration, schema, runtime, API,
+workflow, configuration, deployment, release, production, or external-service
+effect.
+
 ## 12. Selected implementation approach
 
 Selected: retain root `diesel.toml` and canonical
@@ -767,8 +891,9 @@ synchronizer under tracked `.github/scripts/` that:
 5. preserves unchanged canonical bytes;
 6. permits only an exact task-local structured version-2 expected-change
    manifest with complete column, key, join, allow-table and enum semantics;
-7. requires exact equality among catalog, raw Diesel, convention-adjusted
-   canonical, and manifest deltas;
+7. requires capability-aware exact comparison of independently derived
+   catalog, raw-Diesel, and convention-adjusted canonical deltas against their
+   respective manifest projections, plus exact mapped shared-field checks;
 8. acts as the sole canonical writer and atomically writes only after every
    validation and compile check passes;
 9. proves direct Diesel commands and staging-file changes cannot write or
@@ -807,8 +932,10 @@ docs/engineering/ai-delivery/implementation-reports/THOTH-DB-CTRL-01-implementat
 
 Exact command contracts are specified in
 `docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md`. Root `.gitignore` and
-`thoth-api/src/schema.rs` are not implementation-change paths. No architectural
-decision remains for the separate implementation agent.
+`thoth-api/src/schema.rs` are not implementation-change paths. The corrected
+specification is `DRAFT`; implementation remains unauthorized until fresh
+independent review and fresh explicit CTO specification approval, followed by a
+separate implementation-branch authorization.
 
 ## 13. Rejected alternatives
 
@@ -910,19 +1037,17 @@ git diff --check \
 git diff --name-only \
   35e4dc20864ae4896dccc2b20cbcdbe3fb733db8...HEAD
 git diff --name-only \
-  a4db430cb3c80fc6c1fd4100821c643129e87d5f...HEAD
-git diff --name-only \
-  b652f28d222f6a6bb5d3aa34dd5595e52223c195...HEAD
+  7f8c4939f6b3a8b0bc08b955be26c2422b626990...HEAD
 git log --oneline \
   35e4dc20864ae4896dccc2b20cbcdbe3fb733db8..HEAD
-git show --stat --oneline bfee1ca8356ac191521e112f835bf3a4af0993d3
-git show --stat --oneline 3f0affd0e375975dd18ea895219ab77477b41325
-git show --stat --oneline 9247cc5e4dbc82a5f4ecc381f8b8b5084c9bc628
-git show --stat --oneline a4db430cb3c80fc6c1fd4100821c643129e87d5f
-git show --stat --oneline dabf30550a968f49e7e0a6d25984d0ef99e779ee
-git show --stat --oneline b652f28d222f6a6bb5d3aa34dd5595e52223c195
-git show --stat --oneline b74113c95cdf1e952f8c45d928cbf178f8b1e485
+git show --stat --oneline 76d73ebbd29eff0b1c4bdd0f29b342e0ae3197db
 git show --stat --oneline HEAD
+rg -n \
+  'capability-aware|representable projection|enum labels|label-only|raw Diesel projection|catalog projection|canonical projection|PRRT_kwDODkn0bc6WFMd5|3706670604|Status: DRAFT' \
+  docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md \
+  docs/engineering/ai-delivery/implementation-reports/THOTH-DB-CTRL-01-SPEC-implementation-report.md \
+  docs/engineering/repository-map/control-gaps.md \
+  docs/engineering/repository-map/repositories/thoth.md
 python3 .github/scripts/classify_ci_changes.py --paths \
   CHANGELOG.md \
   docs/engineering/ai-delivery/implementation-reports/THOTH-DB-CTRL-01-SPEC-implementation-report.md \
@@ -932,13 +1057,18 @@ python3 .github/scripts/classify_ci_changes.py --paths \
 git status --short
 ```
 
-The exact outputs, final head, eight commit scopes
-(`4 / 1 / 2 / 2 / 1 / 1 / 3 / 1`), and classifier JSON are recorded in the
-superseding immutable PR evidence after the report-finalization commit exists.
-The cumulative path set must remain the same five documentation paths. The
-approval-state range after `b652f28d222f6a6bb5d3aa34dd5595e52223c195` must
-contain exactly the three approval-state documents plus this report, with
-commit scopes `3 / 1`.
+The exact outputs, final head, ten commit scopes
+(`4 / 1 / 2 / 2 / 1 / 1 / 3 / 1 / 3 / 1`), and classifier JSON are recorded in
+the superseding immutable PR evidence after the report-finalization commit
+exists. The cumulative path set must remain the same five documentation paths.
+The corrective range after `7f8c4939f6b3a8b0bc08b955be26c2422b626990`
+must contain exactly the task specification, CG-12 record, repository map, and
+this report, with commit scopes `3 / 1`. The complete five-path classifier must
+return:
+
+```json
+{"docs_only":"true","run_build":"false","run_docker":"false","run_migrations":"false"}
+```
 
 ## 18. Manual verification
 
@@ -974,12 +1104,11 @@ comment, and the successive superseding post-remediation evidence comments.
 
 ## 19. CI
 
-CI status: PENDING for the approval-report-finalization head
+CI status: PENDING for the enum-projection report-finalization head
 
-The approval-state reviewed head
-`b652f28d222f6a6bb5d3aa34dd5595e52223c195` completed its documentation-only
-checks, but that CI is historical after the approval-state commits. Fresh
-exact-head PR CI must prove:
+All CI evidence for head
+`7f8c4939f6b3a8b0bc08b955be26c2422b626990` and earlier heads is historical
+after the enum-projection commits. Fresh exact-head PR CI must prove:
 
 ```text
 build-test-and-check:
@@ -1008,11 +1137,14 @@ is manually dispatched.
 
 ## 20. Rollout and rollback
 
-Initial state after merge: documentation-only approved specification; no active
-control, implementation, or runtime effect
-Activation required: separate implementation task, fresh implementation-branch
-authorization, fresh branch and PR, independent cross-model review, and
-explicit CTO implementation merge authorization
+Initial state after this correction: documentation-only `DRAFT` specification;
+no active control, implementation, or runtime effect
+Specification gate: fresh independent exact-head review and fresh explicit CTO
+specification approval
+Activation required: after specification approval and merge, a separate
+implementation task, fresh implementation-branch authorization, fresh branch
+and PR, independent cross-model review, and explicit CTO implementation merge
+authorization
 Feature flag/configuration: none
 Migration sequence: none for this task
 Rollback/disable procedure: revert the documentation PR; no data rollback
@@ -1026,11 +1158,13 @@ tracked `.github/scripts/` tools, convention data, Makefile/workflow/classifier,
 repository control records, and both authoritative AGENTS files together. If
 that reopens ambiguity, dependent schema work blocks again.
 
-Previous approval `5123408720` and CTO authorization `5169190785` are
-historical. The 2026-08-03 CTO approval recorded at approval-state content head
-`b74113c95cdf1e952f8c45d928cbf178f8b1e485` approves the written specification
-only. Fresh exact-head independent review and fresh explicit CTO merge
-authorization are required before another ready transition or merge attempt.
+Previous approvals, including independent approval `5170076717`, the
+pre-correction written-specification approval, and CTO merge authorization
+`5170138791`, are historical after the normative enum-projection correction.
+Fresh exact-head independent review and fresh explicit CTO specification
+approval are required before the corrected specification may return to
+`APPROVED`. A separate fresh CTO merge authorization and another clean
+post-ready automated review are then required before merge.
 
 If the future implementation is rolled back and schema generation becomes
 ambiguous again, CG-12 reopens and all dependent schema work returns to
@@ -1038,7 +1172,8 @@ ambiguous again, CG-12 reopens and all dependent schema work returns to
 
 ## 21. Known limitations and deferred work
 
-- The selected control specification is approved but not implemented.
+- The enum-projection-corrected control specification is `DRAFT` and not
+  implemented.
 - Root `diesel.toml` still has its discovered invalid configuration; no staging
   path, synchronizer, or canonical sole-writer enforcement exists until the
   separately authorized implementation.
@@ -1050,9 +1185,9 @@ ambiguous again, CG-12 reopens and all dependent schema work returns to
 - The completed discovery did not record PostgreSQL's server/client connection
   addresses or ports; the implementation must add and test that evidence.
 - The standalone-table candidate is compile-valid, but only the future
-  synchronizer can prove the exact five complete version-2 objects, four-way
-  structural equality, deterministic rendering, removal, and byte-identical
-  restoration end to end.
+  synchronizer can prove the exact five complete version-2 objects,
+  capability-aware exact projection comparisons, deterministic rendering,
+  removal, and byte-identical restoration end to end.
 - The initial convention file must enumerate and independently verify every
   existing timestamp override and ordering rule during implementation.
 - CI does not yet run the exact-version structural check.
@@ -1072,9 +1207,16 @@ ambiguous again, CG-12 reopens and all dependent schema work returns to
   `b652f28d222f6a6bb5d3aa34dd5595e52223c195` is corrected at immutable
   approval-state content head
   `b74113c95cdf1e952f8c45d928cbf178f8b1e485`.
-- Fresh independent cross-model review of this specification is required.
-- Fresh explicit CTO merge authorization is required before the specification
-  PR may be marked ready or merged.
+- The fresh enum-projection P1 in `PRRT_kwDODkn0bc6WFMd5`, comment
+  `3706670604`, is normatively corrected at immutable content head
+  `76d73ebbd29eff0b1c4bdd0f29b342e0ae3197db`. Its reply and resolution remain
+  gated on pushed successful exact-head CI.
+- Fresh independent cross-model exact-head review of the corrected
+  specification is required.
+- Fresh explicit CTO specification approval is required before the status may
+  return to `APPROVED`.
+- A separate fresh CTO merge authorization and clean post-ready automated
+  review are required before merge.
 - Merging the specification will not authorize `THOTH-DB-CTRL-01`
   implementation.
 
@@ -1085,7 +1227,7 @@ The agent does not approve its own work.
 Suggested review focus:
 
 - whether the task, CG-12 record, repository map, and this report consistently
-  record `APPROVED` specification status while keeping implementation not
+  record `DRAFT` corrected specification status while keeping implementation not
   started, its branch unauthorized, CG-12 unresolved, CG-13 open, and BE-01
   blocked;
 - whether specification approval, implementation-branch authorization,
@@ -1093,9 +1235,12 @@ Suggested review focus:
 - whether automatic Diesel output is confined to ignored staging and every
   direct Diesel command, staging mutation, or validation failure is unable to
   change or promote the canonical schema;
-- whether structured version-2 add/remove/change objects completely encode
-  PostgreSQL/Diesel types, nullability, ordinals, ordered keys, complete joins,
-  allow-table membership, and ordered enum labels with exact four-way equality;
+- whether structured version-2 add/remove/change objects retain complete intent
+  while catalog, raw Diesel, and canonical schema are compared exactly only over
+  independently representable projections;
+- whether catalog/manifest ordered enum-label equality, raw/canonical SQL-type
+  identity, label-only empty projections, and parser-source independence close
+  the P1 without enriching either Diesel leg from catalog data;
 - whether every current manual convention can be represented as bounded,
   reviewable control data;
 - whether loopback client-endpoint enforcement, server/client address
@@ -1104,8 +1249,8 @@ Suggested review focus:
 - whether the future thirteen-path scope correctly includes root `AGENTS.md`,
   `thoth-api/AGENTS.md`, and tracked `.github/scripts/` without `.gitignore` or
   canonical-schema changes;
-- whether this report binds the normative content to exact head
-  `dabf30550a968f49e7e0a6d25984d0ef99e779ee` and accurately separates the
+- whether this report binds the normative enum-projection content to exact head
+  `76d73ebbd29eff0b1c4bdd0f29b342e0ae3197db` and accurately separates the
   following report-only finalization commit;
 - whether the compile-valid standalone probe, removal, compile gate, and CI
   sequence establish both clean no-op and isolated expected-diff behaviour;
@@ -1121,7 +1266,7 @@ Runtime or API behaviour: UNCHANGED
 Deployment or release: NONE
 diesel.toml or automatic output behaviour: UNCHANGED BY THIS SPECIFICATION PR
 AGENTS implementation instructions: UNCHANGED BY THIS SPECIFICATION PR
-THOTH-DB-CTRL-01 specification: APPROVED
+THOTH-DB-CTRL-01 corrected specification: DRAFT
 BE-01 implementation: NOT STARTED
 THOTH-DB-CTRL-01 implementation: NOT STARTED
 THOTH-DB-CTRL-01 implementation branch: ABSENT AND NOT AUTHORIZED
