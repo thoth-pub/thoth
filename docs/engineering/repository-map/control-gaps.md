@@ -71,7 +71,7 @@ No verified complete cursor, replication or snapshot route exists.
 
 App lacks explicit lint/build/codegen; dashboard lacks detected CI/tests; widget lacks unit tests; cc-license uses old Actions.
 
-### CG-12 - Thoth schema generation unclear (SPECIFICATION APPROVED - IMPLEMENTATION NOT STARTED)
+### CG-12 - Thoth schema generation unclear (SPECIFICATION CORRECTION IN REVIEW - IMPLEMENTATION NOT STARTED)
 
 Task `THOTH-DB-CTRL-01` is specified in
 [`docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md`](../ai-delivery/tasks/THOTH-DB-CTRL-01.md)
@@ -89,12 +89,16 @@ synchronizer: root `diesel.toml` remains authoritative,
 become explicit control data, clean generation is byte-identical, and only a
 declared expected structural delta may be written.
 
-The written specification is approved by Javi, CTO, on 2026-08-03. This
-approval does not authorize the implementation branch or implementation work.
-PR #775 does not resolve CG-12 and does not start the implementation. BE-01
-remains `BLOCKED`. CG-12 closes only after `THOTH-DB-CTRL-01` receives separate
-implementation authorization, passes its complete acceptance evidence and
-independent exact-head review, and merges with explicit CTO authorization.
+The written specification was previously approved at pre-correction content.
+That approval is historical after the normative enum-projection correction.
+The corrected specification is `DRAFT` and requires fresh independent
+exact-head review followed by fresh explicit CTO specification approval.
+Specification approval still would not authorize the implementation branch or
+implementation work. PR #775 does not resolve CG-12 and does not start the
+implementation. BE-01 remains `BLOCKED`. CG-12 closes only after
+`THOTH-DB-CTRL-01` receives separate implementation authorization, passes its
+complete acceptance evidence and independent exact-head review, and merges with
+explicit CTO authorization.
 
 ### CG-13 - Thoth runtime operations unmapped
 

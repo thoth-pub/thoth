@@ -109,14 +109,18 @@ introspect only a proven disposable local PostgreSQL database; preserve
 fail-closed structural synchronizer that preserves explicit repository
 conventions and admits only a declared expected change.
 
-The written specification is approved by Javi, CTO, on 2026-08-03. The
-implementation is not started, and its branch is not authorized. Specification
-approval does not authorize implementation work, migration execution, schema or
-workflow changes, production access, release, deployment, or activation. Until
+The written specification was previously approved at pre-correction content.
+That approval is historical after the normative enum-projection correction.
+The corrected specification is `DRAFT`, awaiting fresh independent exact-head
+review and fresh explicit CTO specification approval. The implementation is not
+started, and its branch is not authorized. Specification approval still would
+not authorize implementation work, migration execution, schema or workflow
+changes, production access, release, deployment, or activation. Until
 `THOTH-DB-CTRL-01` receives separate implementation authorization and merges
 after independent review with its acceptance evidence, do not regenerate,
-overwrite, or relocate `thoth-api/src/schema.rs`; dependent schema work,
-including BE-01, remains blocked under
+overwrite, or relocate `thoth-api/src/schema.rs`. CG-12 remains unresolved,
+CG-13 remains open, and dependent schema work, including BE-01, remains blocked
+under
 [CG-12](../control-gaps.md#cg-12---thoth-schema-generation-unclear).
 Production migration, deployment, rollback, restore verification, and approver
 mapping remain separately blocked on

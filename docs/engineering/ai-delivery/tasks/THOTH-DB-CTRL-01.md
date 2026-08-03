@@ -1,6 +1,6 @@
 # THOTH-DB-CTRL-01 - Diesel generation procedure
 
-Status: APPROVED
+Status: DRAFT
 Programme: Shared Repository Controls
 Repository: thoth-pub/thoth
 Workflow: STANDARD
@@ -9,8 +9,8 @@ PR target: develop
 Programme integration branch: None
 Risk: HIGH
 Owner: CTO
-Approved by: Javi, CTO
-Approval date: 2026-08-03
+Approved by: Not approved for the enum-projection-corrected content
+Approval date: Not applicable; the previous approval is historical
 Dependencies: PR #774 merged as `35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`
 Target branch name: `feature/repository-controls/thoth-db-ctrl-01`
 
@@ -128,7 +128,8 @@ The implementation task must:
     aliases, column order, and unchanged formatting;
 12. make the synchronizer's validated `generate` mode the sole canonical writer
     and permit it to write only `thoth-api/src/schema.rs`, atomically, after all
-    safety, structural-equality, expected-diff, and compile checks pass;
+    safety, capability-aware exact projection comparison, expected-diff, and
+    compile checks pass;
 13. add bounded Makefile targets for local check and generation;
 14. extend migration CI to install the exact compatible CLI, validate the
     migrated schema, and fail on stale, nondeterministic, or unexpected output;
@@ -369,6 +370,32 @@ compare:
 - `joinable!` relationships;
 - `allow_tables_to_appear_in_same_query!` membership.
 
+The comparison model is capability-aware exact comparison over independently
+representable projections. Each representation must be derived independently,
+and exact comparison applies only to the projection that the representation can
+expose:
+
+| Structural fact | PostgreSQL catalog | Raw Diesel | Canonical schema | Manifest |
+|---|---:|---:|---:|---:|
+| Table identity | yes | yes | yes | yes |
+| Column identity | yes | yes | yes | yes |
+| PostgreSQL column type | yes | no | no | yes |
+| Canonical Diesel column type | mapped projection | yes | yes | yes |
+| Nullability | yes | yes | yes | yes |
+| Ordinal/column order | yes | yes | yes | yes |
+| Primary-key columns | yes | yes | yes | yes |
+| Foreign-key endpoints | yes | mapped as join | mapped as join | yes |
+| Join declaration | mapped projection | yes | yes | yes |
+| Allow-table membership | no | yes | yes | yes |
+| SQL-type identity | yes | yes | yes | yes |
+| Ordered PostgreSQL enum labels | yes | no | no | yes |
+| Supplemental canonical-only type | no | no | yes | convention data |
+
+`yes` means that the representation independently exposes the fact. `mapped
+projection` means that a deterministic documented mapping is required. `no`
+means that absence must not be treated as a mismatch. A representation must
+never be augmented with facts copied from another leg before comparison.
+
 Unchanged canonical blocks and whitespace must be emitted byte-for-byte.
 Expected new structures use one deterministic renderer. Removals require
 explicit manifest entries. A parse ambiguity or unsupported macro form fails
@@ -396,6 +423,38 @@ For an enum `sql-type`, `definition` must contain `kind = "enum"` and ordered
 database `labels`. This prevents a future `thoth_package` enum from matching by
 name while containing the wrong labels or label order. Unsupported SQL-type
 definitions fail closed rather than being represented incompletely.
+
+The complete enum intent remains in manifest version 2:
+
+```toml
+kind = "sql-type"
+schema = "public"
+name = "<physical_type_name>"
+diesel_type = "<canonical_type_name>"
+
+[definition]
+kind = "enum"
+labels = ["FIRST", "SECOND"]
+```
+
+The complete object has different exact comparison projections:
+
+```text
+catalog projection:
+schema, name, kind, ordered labels
+
+raw Diesel projection:
+schema/type identity and canonical Diesel type identity
+
+canonical projection:
+canonical SQL-type identity and expected derives
+
+manifest:
+complete object
+```
+
+Enum labels are mandatory manifest and catalog facts. They must not be made
+optional merely because raw or canonical Diesel does not encode them.
 
 The controlled probe manifest is exactly:
 
@@ -444,21 +503,96 @@ removed, using the same schema as an `add` entry. A `change` entry must contain
 complete `before` and `after` structural objects. Neither operation may be
 expressed only as a name, a field-specific token, or a broad exemption.
 
-The synchronizer must calculate and require exact equality among all four
-representations of the change:
+The synchronizer must require capability-aware exact projection comparison.
+Each comparison leg remains independently derived; catalog facts must never be
+injected into raw or canonical Diesel merely to make objects appear equal.
 
-1. database/catalog structural delta;
-2. raw Diesel structural delta;
-3. convention-adjusted canonical structural delta;
-4. expected-change manifest.
+#### 6.5.1 Catalog-to-manifest comparison
 
-Any difference in PostgreSQL or Diesel type, nullability, ordinal position,
-ordered primary-key columns, ordered enum labels, join endpoints or columns, or
-allow-table membership must fail closed. Manifest entries do not override
-database truth and cannot exempt unrelated differences. A new table requires
-explicit complete objects for the table, every column, its primary key, every
-generated join, and its `allow_tables_to_appear_in_same_query!` membership;
-none of those structural effects may be inferred or hidden by another entry.
+Require exact equality between the observed PostgreSQL catalog delta and the
+manifest projected to catalog-representable fields. This includes physical
+schema and object identities, PostgreSQL column types, nullability, ordinal
+positions, ordered primary-key columns, foreign-key endpoints and columns,
+SQL-type identities, and complete ordered enum labels. For enums, the
+PostgreSQL catalog is the independently observed source of label truth.
+
+#### 6.5.2 Raw-Diesel comparison
+
+Require exact equality between the raw Diesel delta and the manifest projected
+to raw-Diesel-representable fields. This comparison includes only facts
+independently present in `diesel print-schema`: SQL-type identity; table and
+column identities; generated Diesel types; nullability; table and column order;
+primary keys; generated joins; and allow-table membership. It must not include
+ordered enum labels.
+
+#### 6.5.3 Canonical-schema comparison
+
+Require exact equality between the convention-adjusted canonical delta and the
+manifest projected to canonical-schema-representable fields. This comparison
+includes SQL-type identity and derives, canonical aliases, canonical Diesel
+column types, nullability, canonical ordering, primary keys, joins, allow-table
+membership, and supplemental convention-controlled structures. It must not
+claim to encode PostgreSQL enum labels.
+
+#### 6.5.4 Shared-field cross-checks and complete intent
+
+Every fact represented by more than one independent leg must agree exactly
+after its documented deterministic mapping. Catalog SQL-type identity must
+agree with raw, canonical, and manifest identity; catalog PostgreSQL column
+types must map to the manifest's canonical Diesel type and agree with raw and
+canonical output; catalog foreign keys must map to the expected raw and
+canonical joins; and raw and canonical allow-table membership must agree with
+the manifest.
+
+The manifest remains the complete declared intent. A fact that is not
+representable in raw or canonical Diesel must still be validated wherever it is
+independently representable. No unrepresented field may be silently ignored.
+Manifest entries do not override database truth and cannot exempt unrelated
+differences. A new table requires explicit complete objects for the table,
+every column, its primary key, every generated join, and its
+`allow_tables_to_appear_in_same_query!` membership; none of those structural
+effects may be inferred or hidden by another entry.
+
+#### 6.5.5 Enum-specific behaviour
+
+For a new enum, catalog and manifest must agree exactly on schema, physical type
+name, and ordered labels. Raw Diesel, canonical schema, and manifest must agree
+on SQL-type identity and canonical Diesel type name; raw and canonical legs are
+not expected to contain labels. A missing raw or canonical SQL-type declaration
+for a new enum is a failure.
+
+For an enum label addition, insertion, rename, or order change that does not
+alter SQL-type identity, the required result is:
+
+```text
+catalog delta:
+non-empty label delta
+
+manifest catalog projection:
+same non-empty label delta
+
+raw Diesel representable delta:
+empty
+
+manifest raw projection:
+empty
+
+canonical representable delta:
+empty
+
+manifest canonical projection:
+empty
+```
+
+This is valid only when all applicable comparisons match. The canonical
+`thoth-api/src/schema.rs` must remain byte-identical for a label-only change
+unless another independently representable schema-contract change is also
+declared.
+
+An empty raw or canonical delta is acceptable only when the manifest projection
+for that representation is also empty. It must not permit an undeclared catalog
+enum-label change, a wrong label or label order, a missing new SQL-type
+identity, an unexpected raw or canonical change, or a broad manifest exemption.
 
 Indexes, check constraints, and other structures not represented by Diesel's
 schema contract remain responsibilities of migration validation. This manifest
@@ -533,6 +667,11 @@ application-model fixture, must pass
 temporary worktree. Dropping the probe table and using an empty manifest must
 restore the byte-for-byte clean baseline.
 
+Every applicable catalog, raw-Diesel, and canonical-schema projection must
+match the corresponding manifest projection exactly. A label-only enum change
+must succeed with an exact non-empty catalog/manifest label delta and empty raw
+and canonical projections, while leaving the canonical schema byte-identical.
+
 ### 6.8 Required failure behaviour
 
 The procedure must fail non-zero before repository writes if:
@@ -543,9 +682,18 @@ The procedure must fail non-zero before repository writes if:
 - the configured or requested path is wrong;
 - Diesel CLI is absent or not exact `2.3.10`;
 - raw output or a repeated candidate is nondeterministic;
-- the observed structural delta differs from the manifest;
-- the database/catalog, raw Diesel, convention-adjusted canonical, and manifest
-  deltas are not exactly equal;
+- the catalog delta differs from the manifest's catalog projection;
+- the raw Diesel delta differs from the manifest's raw-Diesel projection;
+- the convention-adjusted canonical delta differs from the manifest's
+  canonical-schema projection;
+- shared fields disagree after their documented deterministic mapping;
+- one representation is augmented with facts copied from another before
+  comparison;
+- a declared fact is silently ignored instead of being checked in every
+  independent representation that can expose it;
+- enum labels or label order differ between catalog and manifest;
+- a new enum is missing its raw or canonical SQL-type identity;
+- a label-only enum change produces an unexpected raw or canonical delta;
 - automatic raw output does not match the manifest and conventions;
 - a convention entry is missing, unused, broad, or conflicting;
 - required custom derives or supplemental types are lost;
@@ -657,6 +805,17 @@ runbook change is required. CG-13 remains open.
 - [ ] A controlled standalone-table expected-diff test admits exactly its five
       complete version-2 objects, including types, nullability, ordinals,
       ordered primary-key columns, and allow-table membership.
+- [ ] Every independently derived representation is compared exactly with the
+      manifest projection for that representation, using the normative
+      capability matrix and documented mappings.
+- [ ] Ordered PostgreSQL enum labels are compared exactly between independently
+      observed catalog data and complete manifest intent, never injected into
+      the raw or canonical Diesel legs.
+- [ ] A new enum requires catalog/manifest label equality plus matching raw and
+      canonical SQL-type identity and canonical Diesel type name.
+- [ ] A label-only enum change accepts matching non-empty catalog/manifest
+      label deltas with empty raw/canonical projections and a byte-identical
+      canonical schema.
 - [ ] Removing the controlled change restores the clean baseline.
 - [ ] Any stale or unexpected schema difference fails non-zero before writing.
 - [ ] An unexpected repository file change fails.
@@ -705,6 +864,17 @@ runbook change is required. CG-13 remains open.
   column.
 - Reject an additional or missing join, wrong join child or parent columns,
   wrong enum labels or label order, and incomplete SQL-type definitions.
+- For a new enum, accept correct ordered labels and require raw and canonical
+  SQL-type identity additions; reject a missing raw SQL-type identity and a
+  wrong canonical Diesel type name.
+- For label-only enum changes, accept an appended label and an insertion before
+  or after an existing label only with the correct resulting order; reject a
+  wrong value, wrong order, omitted catalog label change, manifest-only label
+  change, and unexpected raw or canonical delta.
+- Prove raw Diesel facts are parsed only from raw Diesel output, catalog enum
+  labels only from PostgreSQL catalog data, and canonical facts only from the
+  canonical candidate. Prove catalog labels are never injected into raw or
+  canonical representations before comparison.
 - Invoke subprocesses with argument arrays and `shell=False`; prove literal
   metacharacters cannot become shell syntax.
 
@@ -730,6 +900,14 @@ runbook change is required. CG-13 remains open.
 - Force each validation failure and prove the canonical bytes remain unchanged.
 - Reject automatic raw output that matches neither the complete manifest nor
   conventions instead of copying it.
+- Add a new enum and require exact catalog/manifest labels plus matching raw and
+  canonical SQL-type identities.
+- Append and insert enum labels and require exact catalog order while the raw
+  and canonical projections remain empty and the canonical schema remains
+  byte-identical.
+- Reject wrong or omitted enum labels, wrong label order, manifest-only label
+  changes, missing new SQL-type identities, and unexpected raw or canonical
+  deltas.
 
 ### Authorization/security
 
@@ -897,19 +1075,22 @@ Explicit CTO merge approval: REQUIRED
 
 ## 18. Approval
 
-Specification: APPROVED
-Approved by: Javi, CTO
-Approval date: 2026-08-03
+Specification: DRAFT
+Owner: CTO
+Approved by: Not approved for the enum-projection-corrected content
+Previous specification approval: historical, bound to pre-correction content
+Corrected specification: DRAFT
 THOTH-DB-CTRL-01 implementation: NOT STARTED
 Implementation branch: NOT AUTHORIZED
 
 Notes:
 
-- This approval is bound to specification content reviewed at
-  `b652f28d222f6a6bb5d3aa34dd5595e52223c195` and becomes merged repository
-  authority only after PR #775 receives fresh independent exact-head review,
-  fresh explicit CTO merge authorization, and merges into `develop`.
-- Approval of the written specification does not authorize creation of
+- The previous approval at pre-correction content is historical after the
+  normative enum-projection correction.
+- The corrected specification requires fresh independent exact-head review and
+  fresh explicit CTO specification approval before it may return to
+  `APPROVED`.
+- Specification approval still does not authorize creation of
   `feature/repository-controls/thoth-db-ctrl-01`, implementation work, migration
   execution, schema or workflow changes, production access, release,
   deployment, or activation.
