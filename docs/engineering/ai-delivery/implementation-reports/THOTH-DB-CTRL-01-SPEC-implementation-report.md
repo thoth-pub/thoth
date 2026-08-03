@@ -13,9 +13,11 @@ Base commit: `35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`
 PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/repository-controls/thoth-db-ctrl-01-spec`
-Head commit: the latest review-remediation commit; its exact SHA is recorded in
-the latest superseding immutable PR #775 evidence comment after the commit
-exists
+Post-ready reviewed head: `a4db430cb3c80fc6c1fd4100821c643129e87d5f`
+Post-ready review: `PRR_kwDODkn0bc8AAAABIODEmQ`
+Numeric review ID: `4846568601`
+Post-ready review result: `CHANGES REQUIRED`
+Specification content head: `dabf30550a968f49e7e0a6d25984d0ef99e779ee`
 Pull request: [#775](https://github.com/thoth-pub/thoth/pull/775), draft
 Expected branch deletion after merge: YES
 Final programme PR required: NO
@@ -28,13 +30,13 @@ Independent reviewer: separate cross-model reviewer, HIGH or MAXIMUM reasoning
 ```text
 Programme: Shared Repository Controls
 Repository: thoth-pub/thoth
-Task ID: THOTH-DB-CTRL-01-SPEC
-Approved specification: Codex execution prompt THOTH-DB-CTRL-01-SPEC
+Task ID: THOTH-DB-CTRL-01-SPEC post-ready remediation
+Approved specification: Codex prompt to remediate PR #775 post-ready P1 findings
 Risk: HIGH
 Base branch and commit: develop at 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8
 PR target: develop
 Task branch: feature/repository-controls/thoth-db-ctrl-01-spec
-Dependencies: PR #774 merged as 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8
+Dependencies: PR #774 merged as 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8; PR #775 review PRR_kwDODkn0bc8AAAABIODEmQ
 Implementing agent/model: Codex / GPT-5, HIGH reasoning
 Independent reviewer/model: separate cross-model reviewer, HIGH or MAXIMUM reasoning
 ```
@@ -52,6 +54,19 @@ exact model. It confirmed the safe-target correction and returned
 probe could not satisfy the required focused compile check. The fourth bounded
 documentation commit replaces that future acceptance probe with a compile-valid
 standalone table and explicit five-entry manifest.
+
+The fresh post-ready Codex review
+`PRR_kwDODkn0bc8AAAABIODEmQ` / `4846568601` reviewed exact head
+`a4db430cb3c80fc6c1fd4100821c643129e87d5f` and returned
+`CHANGES REQUIRED` with four P1 findings. The normative corrections are all in
+exact specification content head
+`dabf30550a968f49e7e0a6d25984d0ef99e779ee`. The following
+report-finalization commit changes only this implementation report. It does not
+alter the normative specification content or rerun the discovery experiments.
+
+Previous independent approval comment `5123408720` and CTO authorization
+comment `5169190785` are historical and do not authorize another ready
+transition or merge after this remediation.
 
 ## 2. Scope confirmation
 
@@ -84,12 +99,12 @@ No final Diesel control, migration, schema change, BE-01 object, Rust code,
 GraphQL contract, workflow, Makefile target, or Diesel configuration was
 implemented.
 
-Both review remediations changed only this report and the output task
-specification. The first corrected the safe-target contract without rerunning
-or recharacterizing the completed discovery. The second preserves the
-historical publisher-column experiment as rejection evidence but replaces the
-future acceptance probe with a standalone table whose schema-only candidate was
-validated by focused compilation in a detached temporary worktree.
+The first two review remediations changed only this report and the output task
+specification. They corrected the safe-target contract and future acceptance
+probe without rerunning or recharacterizing the completed discovery. The
+post-ready specification-content correction changes only the output task
+specification; this finalization changes only this report. No implementation
+surface is changed.
 
 ## 3. Preconditions and branch evidence
 
@@ -208,21 +223,22 @@ Concise result:
 
 - `bfee1ca8356ac191521e112f835bf3a4af0993d3` -
   `docs: specify THOTH-DB-CTRL-01 Diesel control`
-- the report commit containing this file -
-  `docs: report THOTH-DB-CTRL-01 specification`, recorded in the original
-  immutable PR evidence as
-  `3f0affd0e375975dd18ea895219ab77477b41325`
-- the review-remediation commit containing the safe-target correction -
-  `docs: correct THOTH-DB-CTRL-01 target safety`, recorded in the superseding
-  immutable PR evidence as
-  `9247cc5e4dbc82a5f4ecc381f8b8b5084c9bc628`
-- the review-remediation commit containing the compile-valid probe correction -
-  `docs: make THOTH-DB-CTRL-01 probe compile-valid`; exact SHA is recorded in
-  the latest superseding immutable PR evidence after creation
+- `3f0affd0e375975dd18ea895219ab77477b41325` -
+  `docs: report THOTH-DB-CTRL-01 specification`
+- `9247cc5e4dbc82a5f4ecc381f8b8b5084c9bc628` -
+  `docs: correct THOTH-DB-CTRL-01 target safety`
+- `a4db430cb3c80fc6c1fd4100821c643129e87d5f` -
+  `docs: make THOTH-DB-CTRL-01 probe compile-valid`
+- `dabf30550a968f49e7e0a6d25984d0ef99e779ee` -
+  `docs: harden THOTH-DB-CTRL-01 generation contract`
+- the following report-finalization commit, which changes only this file -
+  `docs: report PR 775 post-ready remediation`
 
-No commit was amended, squashed, rebased, or force-pushed. The third and fourth
-commits are bounded two-file P1 remediations, not evidence-only commits. No
-separate evidence-only commit will be created.
+These are the six ordered commit positions. A Git commit cannot embed its own
+SHA in a file contained by that commit; the exact immutable normative content
+head is therefore recorded above, while the final report-only head is recorded
+in the PR body and superseding immutable evidence after creation. No commit was
+amended, squashed, rebased, or force-pushed.
 
 ## 6. Files changed
 
@@ -231,9 +247,10 @@ separate evidence-only commit will be created.
     section;
   - behavioural effect: none.
 - `docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md`
-  - reason: define the implementation-ready Diesel control and correct its
-    Docker/GitHub Actions safe-target contract and controlled compile probe
-    after exact-head reviews;
+  - reason: define the implementation-ready Diesel control; correct its
+    Docker/GitHub Actions safe-target contract and controlled compile probe;
+    and address the post-ready automatic-output, manifest, tracked-tooling, and
+    authoritative-AGENTS findings;
   - behavioural effect: establishes a draft control specification only.
 - `docs/engineering/repository-map/control-gaps.md`
   - reason: mark CG-12 as specified but not implemented or resolved;
@@ -244,7 +261,8 @@ separate evidence-only commit will be created.
   - behavioural effect: none.
 - `docs/engineering/ai-delivery/implementation-reports/THOTH-DB-CTRL-01-SPEC-implementation-report.md`
   - reason: preserve exact discovery, test, decision, review-remediation,
-    compile-validation, and handoff evidence;
+    compile-validation, post-ready review, immutable specification-content
+    head, and handoff evidence;
   - behavioural effect: none.
 
 ## 7. Tooling discovery
@@ -624,9 +642,10 @@ CREATE TABLE public.thoth_db_ctrl_probe (
 );
 ```
 
-Its expected manifest explicitly declares the table, both columns, primary key,
-and `allow_tables_to_appear_in_same_query!` membership. It creates no join and
-has no consuming application model.
+Its corrected version-2 expected manifest explicitly declares the table, both
+complete columns with PostgreSQL/Diesel types, nullability and ordinals, the
+ordered primary-key columns, and `allow_tables_to_appear_in_same_query!`
+membership. It creates no join and has no consuming application model.
 
 Before this documentation correction, a detached temporary worktree at
 `9247cc5e4dbc82a5f4ecc381f8b8b5084c9bc628` was given only the equivalent
@@ -643,27 +662,58 @@ that the chosen schema-only acceptance candidate compiles without a model; the
 future synchronizer must still prove manifest equality, deterministic
 generation, table removal, and byte-identical baseline restoration.
 
+### 11.4 Post-ready review findings and disposition
+
+The fresh post-ready review of exact head
+`a4db430cb3c80fc6c1fd4100821c643129e87d5f` raised exactly these four P1
+threads. Each normative correction is contained by exact specification content
+head `dabf30550a968f49e7e0a6d25984d0ef99e779ee`; remote replies and thread
+resolution are gated on pushed exact-head CI and recorded in superseding PR
+evidence.
+
+| Thread | Finding | Disposition in the specification content head |
+|---|---|---|
+| `PRRT_kwDODkn0bc6WDgUJ` | Prevent Diesel commands from bypassing the synchronizer | `diesel.toml` automatic output is ignored staging at `target/diesel-schema.rs`; only validated `generate` may atomically write the canonical schema, with direct-command bypass tests. |
+| `PRRT_kwDODkn0bc6WDgUQ` | Encode complete structure in expected-change entries | String tokens are replaced by version-2 structural objects with complete column, key, join, allow-table and enum semantics plus exact four-way delta equality and negative tests. |
+| `PRRT_kwDODkn0bc6WDgUT` | Include the authoritative AGENTS files in control rollout | Root `AGENTS.md` and `thoth-api/AGENTS.md` are added to the bounded future implementation scope with explicit replacement and consistency criteria. |
+| `PRRT_kwDODkn0bc6WDgUX` | Record the exact reviewed head in the report | This report records the post-ready reviewed head, review IDs, result, and exact immutable specification-content head without an impossible self-referential commit claim. |
+
+The specification also moves future synchronizer and test code from ignored
+`scripts/` to tracked `.github/scripts/`. It does not add `.gitignore` to the
+specification PR or the future implementation scope.
+
 ## 12. Selected implementation approach
 
-Selected: retain root `diesel.toml` and
-`thoth-api/src/schema.rs`; correct the config path and derive list; pin exact
-CLI `2.3.10`; add explicit convention control data; and add a fail-closed
-structural synchronizer that:
+Selected: retain root `diesel.toml` and canonical
+`thoth-api/src/schema.rs`; direct automatic Diesel output only to ignored,
+untrusted `target/diesel-schema.rs`; correct the derive list; pin exact CLI
+`2.3.10`; add explicit convention control data; and add a fail-closed structural
+synchronizer under tracked `.github/scripts/` that:
 
 1. proves the target is local and disposable;
 2. requires a loopback client endpoint, inspects server/client connection
    addresses and ports, and ties any private server address to verified local
    Docker or GitHub Actions provenance;
-3. captures raw Diesel output privately;
+3. captures raw Diesel output privately and ignores or deletes automatic
+   staging output;
 4. compares physical database structure with the canonical contract through
    enumerated aliases, type overrides, supplemental types, and order;
 5. preserves unchanged canonical bytes;
-6. permits only an exact task-local expected-change manifest;
-7. atomically writes only the canonical schema;
-8. compiles a candidate and rejects unrelated file changes;
-9. uses a standalone, model-independent table for the controlled expected-diff
-   and compile-success probe;
-10. runs identically in local and CI verification.
+6. permits only an exact task-local structured version-2 expected-change
+   manifest with complete column, key, join, allow-table and enum semantics;
+7. requires exact equality among catalog, raw Diesel, convention-adjusted
+   canonical, and manifest deltas;
+8. acts as the sole canonical writer and atomically writes only after every
+   validation and compile check passes;
+9. proves direct Diesel commands and staging-file changes cannot write or
+   promote the canonical schema;
+10. preserves canonical bytes on every failure;
+11. compiles a candidate and rejects unrelated file changes;
+12. uses a standalone, model-independent table for the controlled expected-diff
+    and compile-success probe;
+13. updates root `AGENTS.md` and `thoth-api/AGENTS.md` to the same implemented
+    procedure while preserving CG-13 as separate;
+14. runs identically in local and CI verification.
 
 This approach follows the evidence: database introspection is deterministic,
 while the compiled repository contract has intentional semantics that raw
@@ -671,8 +721,27 @@ Diesel cannot infer. Explicit structural control data makes those semantics
 reviewable without relying on a context-fragile text patch or manual,
 unbounded editing.
 
-Expected implementation files and exact command contracts are specified in
-`docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md`. No architectural
+The expected implementation changes exactly these thirteen paths:
+
+```text
+AGENTS.md
+thoth-api/AGENTS.md
+diesel.toml
+Makefile
+.github/scripts/diesel_schema.py
+.github/scripts/test_diesel_schema.py
+thoth-api/diesel-schema-control.toml
+.github/scripts/classify_ci_changes.py
+.github/workflows/run_migrations.yml
+CHANGELOG.md
+docs/engineering/repository-map/control-gaps.md
+docs/engineering/repository-map/repositories/thoth.md
+docs/engineering/ai-delivery/implementation-reports/THOTH-DB-CTRL-01-implementation-report.md
+```
+
+Exact command contracts are specified in
+`docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md`. Root `.gitignore` and
+`thoth-api/src/schema.rs` are not implementation-change paths. No architectural
 decision remains for the separate implementation agent.
 
 ## 13. Rejected alternatives
@@ -685,8 +754,9 @@ decision remains for the separate implementation agent.
    compiled contract ordering and supplemental types.
 4. **Manual post-processing:** rejected because it cannot prove deterministic
    no-op or exact bounded change.
-5. **Crate-local config or schema relocation:** rejected because root-relative
-   correction is sufficient and relocation is prohibited.
+5. **Crate-local config or schema relocation:** rejected because ignored root
+   `target/` staging safely separates automatic output from the canonical file,
+   and relocation is prohibited.
 6. **Diesel version change:** rejected because exact locked `2.3.10` is
    deterministic and version changes cannot infer model conventions.
 
@@ -712,6 +782,9 @@ Cross-repository dependencies: NONE
 The future control must preserve model-compatible schema order and supplemental
 types; those requirements were added because the compile experiment showed
 that treating raw output as formatting-only would break existing code.
+Automatic output at `target/diesel-schema.rs` is explicitly untrusted staging;
+only the validated synchronizer may promote a compiled, manifest-equal candidate
+to `thoth-api/src/schema.rs`.
 
 ## 16. Authorization and security
 
@@ -770,11 +843,15 @@ git diff --check \
   35e4dc20864ae4896dccc2b20cbcdbe3fb733db8...HEAD
 git diff --name-only \
   35e4dc20864ae4896dccc2b20cbcdbe3fb733db8...HEAD
+git diff --name-only \
+  a4db430cb3c80fc6c1fd4100821c643129e87d5f...HEAD
 git log --oneline \
   35e4dc20864ae4896dccc2b20cbcdbe3fb733db8..HEAD
 git show --stat --oneline bfee1ca8356ac191521e112f835bf3a4af0993d3
 git show --stat --oneline 3f0affd0e375975dd18ea895219ab77477b41325
 git show --stat --oneline 9247cc5e4dbc82a5f4ecc381f8b8b5084c9bc628
+git show --stat --oneline a4db430cb3c80fc6c1fd4100821c643129e87d5f
+git show --stat --oneline dabf30550a968f49e7e0a6d25984d0ef99e779ee
 git show --stat --oneline HEAD
 python3 .github/scripts/classify_ci_changes.py --paths \
   CHANGELOG.md \
@@ -785,10 +862,11 @@ python3 .github/scripts/classify_ci_changes.py --paths \
 git status --short
 ```
 
-The exact outputs, final head, four commit scopes (`4 / 1 / 2 / 2`), and
-classifier JSON are recorded in the latest superseding immutable PR evidence
-after the review-remediation commit exists. This report does not create a
-separate evidence-only commit.
+The exact outputs, final head, six commit scopes (`4 / 1 / 2 / 2 / 1 / 1`),
+and classifier JSON are recorded in the superseding immutable PR evidence after
+the report-finalization commit exists. The cumulative path set must remain the
+same five documentation paths and the post-ready corrective range must contain
+only this report and the task specification.
 
 ## 18. Manual verification
 
@@ -824,14 +902,37 @@ comment, and the successive superseding post-remediation evidence comments.
 
 ## 19. CI
 
-CI status: PENDING for the latest review-remediation head
-Checks: reviewed heads `3f0affd0e375975dd18ea895219ab77477b41325` and
-`9247cc5e4dbc82a5f4ecc381f8b8b5084c9bc628` completed their
-documentation-only checks successfully; the new exact-head workflow and job
-IDs will be recorded in the latest superseding immutable PR evidence after all
-required checks reach terminal state
-Failures or warnings: no success is claimed for the remediation head before
-its exact-head CI completes
+CI status: PENDING for the report-finalization head
+
+The previously reviewed head
+`a4db430cb3c80fc6c1fd4100821c643129e87d5f` completed its documentation-only
+checks, but that CI is historical after remediation. Fresh exact-head PR CI must
+prove:
+
+```text
+build-test-and-check:
+  classify: success
+  build: skipped
+  test: skipped
+  lint: skipped
+  format_check: skipped
+
+run-migrations:
+  classify: success
+  run_migrations: skipped
+
+publish-to-dockerhub:
+  classify: success
+  build_and_push_staging_docker_image: skipped
+
+check-changelog:
+  success
+```
+
+Every skipped job must have an empty or absent step array. Exact workflow run
+and job IDs are recorded in the superseding immutable PR evidence only after
+all required checks at the final head are terminal and successful. No workflow
+is manually dispatched.
 
 ## 20. Rollout and rollback
 
@@ -844,6 +945,18 @@ Migration sequence: none for this task
 Rollback/disable procedure: revert the documentation PR; no data rollback
 Monitoring required: none
 
+The future implementation's initial state keeps
+`thoth-api/src/schema.rs` byte-identical while directing automatic Diesel output
+to ignored `target/diesel-schema.rs`; only validated synchronizer `generate`
+may later write the canonical file. Its rollback must restore the config,
+tracked `.github/scripts/` tools, convention data, Makefile/workflow/classifier,
+repository control records, and both authoritative AGENTS files together. If
+that reopens ambiguity, dependent schema work blocks again.
+
+Previous approval `5123408720` and CTO authorization `5169190785` are
+historical. Fresh exact-head independent review and fresh explicit CTO
+authorization are required before another ready transition or merge attempt.
+
 If the future implementation is rolled back and schema generation becomes
 ambiguous again, CG-12 reopens and all dependent schema work returns to
 `BLOCKED`.
@@ -851,11 +964,20 @@ ambiguous again, CG-12 reopens and all dependent schema work returns to
 ## 21. Known limitations and deferred work
 
 - The selected control is specified but not implemented.
+- Root `diesel.toml` still has its discovered invalid configuration; no staging
+  path, synchronizer, or canonical sole-writer enforcement exists until the
+  separately authorized implementation.
+- Root `AGENTS.md` and `thoth-api/AGENTS.md` retain their current gap language in
+  this specification PR and must be replaced together by the future
+  implementation.
+- The structured version-2 manifest and tracked `.github/scripts/` tools are
+  normative future requirements, not repository code added by this PR.
 - The completed discovery did not record PostgreSQL's server/client connection
   addresses or ports; the implementation must add and test that evidence.
 - The standalone-table candidate is compile-valid, but only the future
-  synchronizer can prove the exact five-entry manifest, deterministic rendering,
-  removal, and byte-identical restoration end to end.
+  synchronizer can prove the exact five complete version-2 objects, four-way
+  structural equality, deterministic rendering, removal, and byte-identical
+  restoration end to end.
 - The initial convention file must enumerate and independently verify every
   existing timestamp override and ordering rule during implementation.
 - CI does not yet run the exact-version structural check.
@@ -866,12 +988,10 @@ ambiguous again, CG-12 reopens and all dependent schema work returns to
 
 ## 22. Unresolved issues
 
-- The safe-target P1 was corrected at `9247cc5e4dbc82a5f4ecc381f8b8b5084c9bc628`
-  and the next exact-head review identified no further issue in that
-  correction.
-- The exact-head P1 about the compile-incompatible publisher-column acceptance
-  probe is corrected in the latest bounded remediation commit; a fresh reviewer
-  must verify the standalone-table contract.
+- All four post-ready P1 findings are normatively corrected at specification
+  content head `dabf30550a968f49e7e0a6d25984d0ef99e779ee`; their GitHub replies
+  and resolutions require successful final-head CI and are recorded externally
+  in the superseding immutable evidence.
 - Fresh independent cross-model review of this specification is required.
 - Fresh explicit CTO authorization is required before the specification PR may
   be marked ready or merged.
@@ -884,15 +1004,23 @@ The agent does not approve its own work.
 
 Suggested review focus:
 
-- whether the structural synchronizer and exact manifest fully fail closed
-  without making the current canonical file subordinate to raw formatting;
+- whether automatic Diesel output is confined to ignored staging and every
+  direct Diesel command, staging mutation, or validation failure is unable to
+  change or promote the canonical schema;
+- whether structured version-2 add/remove/change objects completely encode
+  PostgreSQL/Diesel types, nullability, ordinals, ordered keys, complete joins,
+  allow-table membership, and ordered enum labels with exact four-way equality;
 - whether every current manual convention can be represented as bounded,
   reviewable control data;
 - whether loopback client-endpoint enforcement, server/client address
   inspection, local Docker identity/mount/storage proof, and GitHub Actions
   workflow/job provenance prevent accidental shared or production access;
-- whether the standalone probe's exact table, two columns, primary key, and
-  allow-table manifest entries fully describe its generated structural delta;
+- whether the future thirteen-path scope correctly includes root `AGENTS.md`,
+  `thoth-api/AGENTS.md`, and tracked `.github/scripts/` without `.gitignore` or
+  canonical-schema changes;
+- whether this report binds the normative content to exact head
+  `dabf30550a968f49e7e0a6d25984d0ef99e779ee` and accurately separates the
+  following report-only finalization commit;
 - whether the compile-valid standalone probe, removal, compile gate, and CI
   sequence establish both clean no-op and isolated expected-diff behaviour;
 - whether the exact implementation path list is sufficient without scope
@@ -905,6 +1033,8 @@ Production migration: NO
 Production schema or data change: NONE
 Runtime or API behaviour: UNCHANGED
 Deployment or release: NONE
+diesel.toml or automatic output behaviour: UNCHANGED BY THIS SPECIFICATION PR
+AGENTS implementation instructions: UNCHANGED BY THIS SPECIFICATION PR
 BE-01 implementation: NOT STARTED
 THOTH-DB-CTRL-01 implementation branch: ABSENT
 CG-12: OPEN
