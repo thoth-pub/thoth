@@ -9,7 +9,7 @@ PR target: develop
 Programme integration branch: None
 Risk: HIGH
 Owner: CTO
-Approved by: Not approved for the enum-projection-corrected content
+Approved by: Not approved for the enum-projection and catalog-baseline-corrected content
 Approval date: Not applicable; the previous approval is historical
 Dependencies: PR #774 merged as `35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`
 Target branch name: `feature/repository-controls/thoth-db-ctrl-01`
@@ -115,30 +115,39 @@ The implementation task must:
    database-to-contract type override, and order-preservation rule;
 7. add `.github/scripts/diesel_schema.py`, a literal-safe structural
    synchronizer with `check` and `generate` modes;
-8. make the synchronizer introspect a proven disposable local PostgreSQL
-   database through raw `diesel print-schema` output captured in a private
-   temporary file, ignoring or deleting automatic staging output before
-   validation;
-9. preserve `thoth-api/src/schema.rs` byte-for-byte when the database matches
+8. require an immutable full-SHA `THOTH_DIESEL_BASE_REF` equal to the task's
+   authorized base and ancestral to the candidate head, and use a detached
+   temporary worktree at that ref;
+9. apply baseline migrations from that worktree to an empty proven disposable
+   PostgreSQL database, capture independently derived baseline catalog, raw
+   Diesel, and canonical snapshots, apply only the candidate's pending
+   migrations to the same database, and capture corresponding candidate
+   snapshots;
+10. make the synchronizer capture raw `diesel print-schema` output in private
+    temporary files for both phases, ignoring or deleting automatic staging
+    output before validation;
+11. preserve `thoth-api/src/schema.rs` byte-for-byte when the database matches
    committed migrations and the convention file accounts for every intentional
    difference;
-10. require an explicit expected-change manifest for any generated change and
-    fail if the observed structural delta is smaller, larger, or different;
-11. preserve required custom PostgreSQL type derives, supplemental types,
+12. require an explicit expected-change manifest for any generated change and
+    fail if any independently observed baseline-to-candidate projection is
+    smaller, larger, or different;
+13. preserve required custom PostgreSQL type derives, supplemental types,
     aliases, column order, and unchanged formatting;
-12. make the synchronizer's validated `generate` mode the sole canonical writer
+14. make the synchronizer's validated `generate` mode the sole canonical writer
     and permit it to write only `thoth-api/src/schema.rs`, atomically, after all
     safety, capability-aware exact projection comparison, expected-diff, and
     compile checks pass;
-13. add bounded Makefile targets for local check and generation;
-14. extend migration CI to install the exact compatible CLI, validate the
-    migrated schema, and fail on stale, nondeterministic, or unexpected output;
-15. add focused parser, target-safety, expected-diff, automatic-output-bypass,
-    literal-safety, and integration tests;
-16. replace the stale Diesel control-gap instructions in root `AGENTS.md` and
+15. add bounded Makefile targets for local check and generation;
+16. extend migration CI to run the exact baseline-to-candidate two-phase
+    procedure and fail on stale, nondeterministic, empty, or unexpected output;
+17. add focused parser, base-ref, baseline-snapshot, target-safety,
+    expected-diff, automatic-output-bypass, cleanup, literal-safety, and
+    integration tests;
+18. replace the stale Diesel control-gap instructions in root `AGENTS.md` and
     `thoth-api/AGENTS.md` with the implemented canonical procedure while
     preserving CG-13 as a separate open control;
-17. update `CHANGELOG.md`, repository control records, and the implementation
+19. update `CHANGELOG.md`, repository control records, and the implementation
     report.
 
 ## 4. Non-goals
@@ -191,6 +200,8 @@ All commands run from the repository root.
 | Migration directory | `thoth-api/migrations/YYYYMMDD_v<next-minor>/` |
 | Forward migration | `cargo run migrate --database-url "$DATABASE_URL"` |
 | Full-chain revert on disposable targets only | `cargo run migrate --revert --database-url "$DATABASE_URL"` |
+| Authorized baseline ref | exact full SHA in `THOTH_DIESEL_BASE_REF` |
+| Baseline canonical schema | `<THOTH_DIESEL_BASE_REF>:thoth-api/src/schema.rs` |
 | Diesel configuration | `diesel.toml` |
 | Diesel CLI | exact `2.3.10`, PostgreSQL feature |
 | Automatic Diesel staging output | `target/diesel-schema.rs` |
@@ -257,6 +268,12 @@ server-side accepted address is evidence to inspect and classify, but it is not
 required to be loopback when Docker or GitHub Actions maps a loopback host port
 to a PostgreSQL service on a private bridge network.
 
+The safe-target gate remains active without interruption while the database is
+empty, while baseline migrations are applied and observed, while candidate
+migrations are applied and observed, and during cleanup. The baseline and
+candidate phases must use the same proven disposable database connection; no
+second, shared, staging, or production database may supply either snapshot.
+
 #### 6.2.1 Local Docker provenance
 
 Local developer mode must additionally:
@@ -308,8 +325,18 @@ Before database introspection the synchronizer must:
    not the canonical path;
 4. execute `diesel --version` and require exact `diesel 2.3.10`;
 5. reject symlinks or resolved output paths outside the repository;
-6. record the canonical file's bytes before invoking Diesel;
-7. invoke exact Diesel CLI `2.3.10` and capture raw schema with the equivalent
+6. require `THOTH_DIESEL_BASE_REF` to be exactly 40 lowercase hexadecimal
+   characters, resolve it as a commit without symbolic-ref or abbreviated-SHA
+   expansion, require exact equality with the task's authorized base SHA, and
+   require `git merge-base --is-ancestor "$THOTH_DIESEL_BASE_REF" HEAD` to
+   succeed;
+7. create a detached temporary worktree outside the repository at exactly
+   `THOTH_DIESEL_BASE_REF`, verify its `HEAD`, and reject submodules, symlink
+   escape, dirty state, or any base/candidate ref movement;
+8. record the candidate canonical file's bytes before invoking Diesel and read
+   the baseline canonical snapshot only from
+   `<THOTH_DIESEL_BASE_REF>:thoth-api/src/schema.rs` in the verified worktree;
+9. invoke exact Diesel CLI `2.3.10` and capture raw schema with the equivalent
    of:
 
    ```bash
@@ -319,12 +346,12 @@ Before database introspection the synchronizer must:
    ```
 
    into a private temporary file, never the canonical path;
-8. ignore or delete `target/diesel-schema.rs` before structural processing and
+10. ignore or delete `target/diesel-schema.rs` before structural processing and
    never treat its content or modification as an authorization to promote;
-9. apply convention and expected-change validation, compile the candidate, and
+11. apply convention and expected-change validation, compile the candidate, and
    atomically write the canonical file only in validated `generate` mode after
    every check passes;
-10. prove the canonical bytes remain unchanged after every failed validation and
+12. prove the canonical bytes remain unchanged after every failed validation and
     after any direct Diesel CLI migration command.
 
 The implementation documentation must provide this isolated installation
@@ -503,38 +530,111 @@ removed, using the same schema as an `add` entry. A `change` entry must contain
 complete `before` and `after` structural objects. Neither operation may be
 expressed only as a name, a field-specific token, or a broad exemption.
 
+For every representation-specific projection, manifest operations have exact
+baseline-to-candidate semantics:
+
+```text
+add:
+object absent from baseline projection
+object exactly present in candidate projection
+
+remove:
+complete object exactly present in baseline projection
+object absent from candidate projection
+
+change.before:
+exactly equal to the independently observed baseline object
+
+change.after:
+exactly equal to the independently observed candidate object
+```
+
+An `after` match cannot compensate for a false, stale, fabricated, or
+unobserved `before` object. An undeclared removal, rename, reorder, or other
+baseline-to-candidate difference fails closed.
+
 The synchronizer must require capability-aware exact projection comparison.
 Each comparison leg remains independently derived; catalog facts must never be
 injected into raw or canonical Diesel merely to make objects appear equal.
 
-#### 6.5.1 Catalog-to-manifest comparison
+#### 6.5.1 Authoritative baseline-to-candidate snapshots
 
-Require exact equality between the observed PostgreSQL catalog delta and the
-manifest projected to catalog-representable fields. This includes physical
-schema and object identities, PostgreSQL column types, nullability, ordinal
-positions, ordered primary-key columns, foreign-key endpoints and columns,
-SQL-type identities, and complete ordered enum labels. For enums, the
-PostgreSQL catalog is the independently observed source of label truth.
+The delta must be computed from two independently observed states on one proven
+disposable database. A final-state-only comparison is prohibited.
 
-#### 6.5.2 Raw-Diesel comparison
+1. Require `THOTH_DIESEL_BASE_REF` as an immutable full 40-character lowercase
+   SHA equal to the task's authorized base, resolve it without abbreviation or
+   symbolic indirection, and prove it is an ancestor of the candidate `HEAD`.
+2. Create a detached temporary worktree outside the repository at exactly that
+   commit and verify the worktree `HEAD`, clean state, and expected repository
+   identity.
+3. Prove the target database is empty, then apply the baseline migrations from
+   the detached base worktree.
+4. Capture an independently derived baseline PostgreSQL catalog snapshot,
+   including complete ordered enum labels; capture baseline raw Diesel by
+   running the exact pinned CLI against that database into a private temporary
+   file; and parse the baseline canonical snapshot from
+   `git show "${THOTH_DIESEL_BASE_REF}:thoth-api/src/schema.rs"`, verifying
+   those bytes equal the file in the detached worktree.
+5. Record the baseline migration ledger and require it to be an exact prefix of
+   the candidate migration ledger. Do not reset, recreate, or substitute the
+   database between phases.
+6. From the unchanged candidate worktree, apply only the pending candidate
+   migrations to the same database. Require at least one pending candidate
+   migration for a migration-bearing task and reject a candidate migration set
+   that produces an empty baseline-to-candidate structural delta.
+7. Capture independently derived candidate catalog and raw-Diesel snapshots
+   from the resulting database. Parse the candidate canonical snapshot from the
+   current candidate tree or, in validated `generate` mode, from the generated
+   candidate before promotion.
+8. Compute baseline-to-candidate catalog, raw-Diesel, and canonical deltas and
+   compare each with the matching manifest projection. Neither snapshot may be
+   reconstructed from manifest claims or from the other phase.
+9. On success or failure, remove the detached worktree, private snapshot files,
+   generated candidates, database contents, container, and disposable storage.
+   Cleanup failure is a control failure, and cleanup evidence must expose only
+   safe aggregate statuses.
 
-Require exact equality between the raw Diesel delta and the manifest projected
-to raw-Diesel-representable fields. This comparison includes only facts
-independently present in `diesel print-schema`: SQL-type identity; table and
-column identities; generated Diesel types; nullability; table and column order;
-primary keys; generated joins; and allow-table membership. It must not include
-ordered enum labels.
+Both raw snapshots use the candidate control's validated pinned CLI and
+configuration against the independently established database state; the
+baseline worktree supplies the baseline migration set and canonical bytes. Raw
+or catalog snapshot data must not be copied into the canonical leg.
 
-#### 6.5.3 Canonical-schema comparison
+The standalone-table probe uses the same acquisition mechanism: capture the
+clean migrated baseline, apply only the controlled disposable DDL to the same
+database, capture candidate snapshots, and compare the exact resulting delta.
 
-Require exact equality between the convention-adjusted canonical delta and the
-manifest projected to canonical-schema-representable fields. This comparison
-includes SQL-type identity and derives, canonical aliases, canonical Diesel
-column types, nullability, canonical ordering, primary keys, joins, allow-table
-membership, and supplemental convention-controlled structures. It must not
-claim to encode PostgreSQL enum labels.
+#### 6.5.2 Catalog-to-manifest comparison
 
-#### 6.5.4 Shared-field cross-checks and complete intent
+Require exact equality between the independently observed baseline-to-candidate
+PostgreSQL catalog delta and the manifest projected to catalog-representable
+fields. This includes physical schema and object identities, PostgreSQL column
+types, nullability, ordinal positions, ordered primary-key columns, foreign-key
+endpoints and columns, SQL-type identities, and complete ordered enum labels.
+For enums, the two PostgreSQL catalog snapshots are the independently observed
+sources of before and after label truth.
+
+#### 6.5.3 Raw-Diesel comparison
+
+Require exact equality between the independently observed baseline-to-candidate
+raw Diesel delta and the manifest projected to raw-Diesel-representable fields.
+This comparison includes only facts independently present in each
+`diesel print-schema` snapshot: SQL-type identity; table and column identities;
+generated Diesel types; nullability; table and column order; primary keys;
+generated joins; and allow-table membership. It must not include ordered enum
+labels.
+
+#### 6.5.4 Canonical-schema comparison
+
+Require exact equality between the baseline-to-candidate
+convention-adjusted canonical delta and the manifest projected to
+canonical-schema-representable fields. This comparison includes SQL-type
+identity and derives, canonical aliases, canonical Diesel column types,
+nullability, canonical ordering, primary keys, joins, allow-table membership,
+and supplemental convention-controlled structures. It must not claim to encode
+PostgreSQL enum labels.
+
+#### 6.5.5 Shared-field cross-checks and complete intent
 
 Every fact represented by more than one independent leg must agree exactly
 after its documented deterministic mapping. Catalog SQL-type identity must
@@ -553,34 +653,36 @@ every column, its primary key, every generated join, and its
 `allow_tables_to_appear_in_same_query!` membership; none of those structural
 effects may be inferred or hidden by another entry.
 
-#### 6.5.5 Enum-specific behaviour
+#### 6.5.6 Enum-specific behaviour
 
-For a new enum, catalog and manifest must agree exactly on schema, physical type
-name, and ordered labels. Raw Diesel, canonical schema, and manifest must agree
-on SQL-type identity and canonical Diesel type name; raw and canonical legs are
-not expected to contain labels. A missing raw or canonical SQL-type declaration
-for a new enum is a failure.
+For a new enum, the type must be absent from the baseline catalog and exactly
+present in the candidate catalog with the manifest's schema, physical type
+name, and ordered labels. The baseline-to-candidate raw Diesel and canonical
+schema deltas must contain the new SQL-type identity and canonical Diesel type
+name declared by the manifest; raw and canonical legs are not expected to
+contain labels. A baseline type that is already present or a missing raw or
+canonical SQL-type declaration is a failure.
 
 For an enum label addition, insertion, rename, or order change that does not
 alter SQL-type identity, the required result is:
 
 ```text
-catalog delta:
-non-empty label delta
+baseline catalog:
+old complete ordered labels
 
-manifest catalog projection:
-same non-empty label delta
+candidate catalog:
+new complete ordered labels
 
-raw Diesel representable delta:
+manifest before:
+exactly old complete ordered labels
+
+manifest after:
+exactly new complete ordered labels
+
+baseline-to-candidate raw Diesel delta:
 empty
 
-manifest raw projection:
-empty
-
-canonical representable delta:
-empty
-
-manifest canonical projection:
+baseline-to-candidate canonical delta:
 empty
 ```
 
@@ -616,24 +718,31 @@ output.
 ### 6.6 Canonical commands
 
 After exporting a disposable `DATABASE_URL`, setting
-`THOTH_DIESEL_CONFIRM_DATABASE` to its exact database name, and setting
-`DIESEL_BIN` to exact CLI `2.3.10`, the no-op command is:
+`THOTH_DIESEL_CONFIRM_DATABASE` to its exact database name, setting
+`THOTH_DIESEL_BASE_REF` to the task's authorized full base SHA, and setting
+`DIESEL_BIN` to exact CLI `2.3.10`, the check command is:
 
 ```bash
 make check-diesel-schema
 ```
 
-It must run check mode twice, compare the two temporary candidates with `cmp`,
-compare the candidate with `thoth-api/src/schema.rs`, verify `git status
+It must run the complete baseline-to-candidate acquisition and check twice from
+fresh proven disposable state, compare the two temporary candidates with
+`cmp`, compare the candidate with `thoth-api/src/schema.rs`, verify `git status
 --short` is unchanged, and exit zero only with:
 
 ```text
 THOTH_DIESEL_TARGET=SAFE_DISPOSABLE_LOCAL
 THOTH_DIESEL_CLI=2.3.10
+THOTH_DIESEL_BASE_REF=VERIFIED_FULL_AUTHORIZED_ANCESTOR_SHA
+THOTH_DIESEL_BASELINE=CAPTURED_INDEPENDENTLY
+THOTH_DIESEL_CANDIDATE=CAPTURED_INDEPENDENTLY
 THOTH_DIESEL_CONFIG=diesel.toml
 THOTH_DIESEL_SCHEMA=thoth-api/src/schema.rs
 THOTH_DIESEL_CLIENT_ENDPOINT=LOOPBACK
 THOTH_DIESEL_SERVER_ADDRESS=LOOPBACK_OR_VERIFIED_PRIVATE_CONTAINER
+THOTH_DIESEL_DELTA=EXACT_PROJECTED_MATCH
+THOTH_DIESEL_CLEANUP=COMPLETE
 THOTH_DIESEL_REPEAT=IDENTICAL
 THOTH_DIESEL_DIFF=CLEAN
 ```
@@ -642,21 +751,25 @@ The controlled generation command is:
 
 ```bash
 python3 .github/scripts/diesel_schema.py generate \
+  --base-ref "$THOTH_DIESEL_BASE_REF" \
   --expected-change "$THOTH_DIESEL_EXPECTED_CHANGE_FILE" \
   --output thoth-api/src/schema.rs
 ```
 
 It is the sole canonical writer and must atomically replace only the canonical
-schema after all checks pass. It must print only safe named statuses and an
-aggregate added/removed/changed count. With an empty manifest on a clean
-migrated database it is a byte-for-byte no-op.
+schema after both snapshots, exact projected comparisons, compilation, and
+cleanup pass. It must print only safe named statuses and aggregate
+added/removed/changed counts. With an empty manifest and no candidate migration
+delta it is a byte-for-byte no-op; a migration-bearing task with pending
+candidate migrations must not pass with an empty baseline-to-candidate delta.
 
 ### 6.7 Required success behaviour
 
-A clean migrated disposable database must produce a deterministic candidate.
-Repeated generation must be identical. When the database matches committed
-migrations, check mode must report no structural or textual difference and
-must not change the worktree.
+A clean baseline-to-candidate run on a proven disposable database must produce
+deterministic snapshots and a deterministic candidate. Repeating the complete
+two-phase run must be identical. When no candidate migration changes the schema
+and the manifest is empty, check mode must report no structural or textual
+difference and must not change the worktree.
 
 The controlled standalone disposable probe table must produce exactly the five
 manifest-approved structural additions: its table, two columns, primary key,
@@ -667,17 +780,31 @@ application-model fixture, must pass
 temporary worktree. Dropping the probe table and using an empty manifest must
 restore the byte-for-byte clean baseline.
 
-Every applicable catalog, raw-Diesel, and canonical-schema projection must
-match the corresponding manifest projection exactly. A label-only enum change
-must succeed with an exact non-empty catalog/manifest label delta and empty raw
-and canonical projections, while leaving the canonical schema byte-identical.
+Every applicable independently observed baseline-to-candidate catalog,
+raw-Diesel, and canonical-schema projection must match the corresponding
+manifest projection exactly. A label-only enum change must succeed only when
+the baseline catalog equals `change.before`, the candidate catalog equals
+`change.after`, the raw and canonical deltas are empty, and the canonical
+schema remains byte-identical.
 
 ### 6.8 Required failure behaviour
 
 The procedure must fail non-zero before repository writes if:
 
 - the database target is not approved, local, and disposable;
+- `THOTH_DIESEL_BASE_REF` is absent, abbreviated, symbolic, not the exact
+  authorized base SHA, not an ancestor of candidate `HEAD`, or moves during the
+  run;
+- candidate `HEAD` is not the exact authorized candidate SHA or moves during
+  the run;
+- the detached baseline worktree is not exact, clean, isolated, or removable;
 - migrations do not apply;
+- the baseline database is not empty before baseline migration application;
+- the baseline migration ledger is not an exact prefix of the candidate
+  migration ledger;
+- either baseline or candidate catalog, raw-Diesel, or canonical snapshot is
+  absent, derived from the manifest, derived from the other phase, or changes
+  after capture;
 - configuration does not parse;
 - the configured or requested path is wrong;
 - Diesel CLI is absent or not exact `2.3.10`;
@@ -692,8 +819,14 @@ The procedure must fail non-zero before repository writes if:
 - a declared fact is silently ignored instead of being checked in every
   independent representation that can expose it;
 - enum labels or label order differ between catalog and manifest;
+- a manifest `change.before` differs from the independently observed baseline
+  object even when `change.after` matches the candidate;
+- an `add` object exists at baseline, a `remove` object is absent at baseline or
+  present in the candidate, or an undeclared removal, rename, or reorder occurs;
 - a new enum is missing its raw or canonical SQL-type identity;
 - a label-only enum change produces an unexpected raw or canonical delta;
+- a migration-bearing candidate has pending migrations but produces an empty
+  baseline-to-candidate structural delta;
 - automatic raw output does not match the manifest and conventions;
 - a convention entry is missing, unused, broad, or conflicting;
 - required custom derives or supplemental types are lost;
@@ -701,7 +834,9 @@ The procedure must fail non-zero before repository writes if:
 - an unrelated repository file changes;
 - a resolved path leaves the repository;
 - the working directory is not the repository root;
-- shell metacharacters alter argument boundaries or any subprocess uses a shell.
+- shell metacharacters alter argument boundaries or any subprocess uses a shell;
+- baseline worktree, database state, private snapshots, generated artifacts,
+  container, or disposable storage cannot be removed.
 
 The command must emit:
 
@@ -762,13 +897,30 @@ Production data effect: NONE
 
 Disposable migration-chain validation is required:
 
-1. start from an empty PostgreSQL 17 database;
-2. run `cargo run migrate --database-url "$DATABASE_URL"`;
-3. verify all committed migrations, tables, types, constraints, and indexes;
-4. run `cargo run migrate --revert --database-url "$DATABASE_URL"`;
-5. verify the application schema is empty;
-6. reapply the full chain;
-7. run no-op and controlled-diff schema verification.
+1. verify the full authorized base SHA and create its detached temporary
+   worktree;
+2. start from an empty PostgreSQL 17 database and retain the safe-target proof
+   for the full run;
+3. from the base worktree, run
+   `cargo run migrate --database-url "$DATABASE_URL"`;
+4. verify the baseline migrations, tables, types, constraints, indexes, and
+   migration ledger, then capture baseline catalog, raw-Diesel, and canonical
+   snapshots;
+5. from the candidate worktree, apply only pending candidate migrations to the
+   same database;
+6. capture candidate catalog, raw-Diesel, and canonical snapshots and compute
+   the exact baseline-to-candidate projected deltas;
+7. require manifest `add`, `remove`, `change.before`, and `change.after` objects
+   to match the independently observed states exactly;
+8. run no-op, controlled standalone-table, new-enum, and label-only verification;
+9. separately run the existing full-chain revert on the proven disposable
+   database, verify the application schema is empty, and reapply the full chain;
+10. repeat the two-phase verification deterministically from fresh disposable
+    state;
+11. compile the candidate and permit canonical promotion only after every
+    comparison and cleanup check succeeds;
+12. remove the detached worktree, database state, snapshots, generated
+    artifacts, container, and disposable storage on success or failure.
 
 Full-chain revert is prohibited outside the uniquely named disposable target.
 Populated-database migration proof remains a requirement of each future schema
@@ -788,6 +940,10 @@ runbook change is required. CG-13 remains open.
 - [ ] The exact repository-root working directory and commands are documented.
 - [ ] Migration creation is exactly `make migration`.
 - [ ] Forward and disposable full-chain revert commands are exact.
+- [ ] `THOTH_DIESEL_BASE_REF` is a full immutable SHA equal to the task's
+      authorized base and is proven ancestral to the candidate head.
+- [ ] A detached clean worktree at the exact base supplies baseline migrations
+      and canonical bytes; it is removed on success and failure.
 - [ ] Root `diesel.toml` parses and targets only ignored automatic staging at
       `target/diesel-schema.rs`; it never targets `thoth-api/src/schema.rs`.
 - [ ] Direct Diesel CLI migration execution cannot change the canonical schema.
@@ -808,14 +964,24 @@ runbook change is required. CG-13 remains open.
 - [ ] Every independently derived representation is compared exactly with the
       manifest projection for that representation, using the normative
       capability matrix and documented mappings.
+- [ ] Baseline migrations are applied to an empty proven disposable database;
+      only candidate pending migrations are then applied to the same database.
+- [ ] Baseline and candidate catalog, raw-Diesel, and canonical snapshots are
+      independently derived and the actual baseline-to-candidate deltas are
+      computed before manifest comparison.
+- [ ] Manifest `add`, `remove`, `change.before`, and `change.after` semantics
+      exactly enforce absence/presence and independently observed complete
+      before/after objects.
 - [ ] Ordered PostgreSQL enum labels are compared exactly between independently
       observed catalog data and complete manifest intent, never injected into
       the raw or canonical Diesel legs.
 - [ ] A new enum requires catalog/manifest label equality plus matching raw and
       canonical SQL-type identity and canonical Diesel type name.
 - [ ] A label-only enum change accepts matching non-empty catalog/manifest
-      label deltas with empty raw/canonical projections and a byte-identical
-      canonical schema.
+      before/after label deltas with empty raw/canonical projections and a
+      byte-identical canonical schema.
+- [ ] A migration-bearing candidate cannot pass when pending migrations produce
+      an empty baseline-to-candidate structural delta.
 - [ ] Removing the controlled change restores the clean baseline.
 - [ ] Any stale or unexpected schema difference fails non-zero before writing.
 - [ ] An unexpected repository file change fails.
@@ -831,6 +997,9 @@ runbook change is required. CG-13 remains open.
       `run_migrations.yml`/`run_migrations` job, expected endpoint,
       database/user, and private service-container address.
 - [ ] Database target validation logs no credential or URL.
+- [ ] Baseline and candidate phases retain the same safe-target proof, and all
+      worktrees, snapshots, artifacts, database state, containers, and
+      disposable storage are removed.
 - [ ] The standalone-table schema candidate passes the focused backend compile
       check without any application-model fixture.
 - [ ] Rollback restores repository state without touching database data.
@@ -859,6 +1028,11 @@ runbook change is required. CG-13 remains open.
 - Validate version-2 expected-change objects, including complete add/remove and
   before/after change records; reject missing fields and broad or catch-all
   entries.
+- Enforce exact operation semantics: `add` is absent/present, `remove` is
+  present/absent, and `change.before`/`change.after` equal independently
+  observed baseline/candidate objects.
+- Reject a missing, abbreviated, uppercase, symbolic, wrong, non-ancestral, or
+  moving `THOTH_DIESEL_BASE_REF`.
 - Reject `integer` where `uuid` was expected, nullable `probe_id`, non-null
   `probe_value`, reversed or additional columns, and the wrong primary-key
   column.
@@ -869,8 +1043,9 @@ runbook change is required. CG-13 remains open.
   wrong canonical Diesel type name.
 - For label-only enum changes, accept an appended label and an insertion before
   or after an existing label only with the correct resulting order; reject a
-  wrong value, wrong order, omitted catalog label change, manifest-only label
-  change, and unexpected raw or canonical delta.
+  false `before` label list, false baseline label order, wrong `after` value or
+  order, omitted catalog label change, manifest-only label change, and
+  unexpected raw or canonical delta.
 - Prove raw Diesel facts are parsed only from raw Diesel output, catalog enum
   labels only from PostgreSQL catalog data, and canonical facts only from the
   canonical candidate. Prove catalog labels are never injected into raw or
@@ -882,6 +1057,10 @@ runbook change is required. CG-13 remains open.
 
 - Apply the clean empty-database migration chain on PostgreSQL 17.
 - Revert the full chain on that disposable database and reapply it.
+- Create the exact detached base worktree, apply its migrations to an empty
+  disposable database, capture independent baseline snapshots, apply only
+  candidate pending migrations to the same database, and capture candidate
+  snapshots.
 - Run no-op generation twice and require `cmp` success.
 - Preserve custom SQL types, derives, aliases, overrides, and order.
 - Create only `public.thoth_db_ctrl_probe(probe_id uuid PRIMARY KEY,
@@ -901,13 +1080,20 @@ runbook change is required. CG-13 remains open.
 - Reject automatic raw output that matches neither the complete manifest nor
   conventions instead of copying it.
 - Add a new enum and require exact catalog/manifest labels plus matching raw and
-  canonical SQL-type identities.
+  canonical SQL-type identities; prove it is absent at baseline and exactly
+  present in the candidate.
 - Append and insert enum labels and require exact catalog order while the raw
   and canonical projections remain empty and the canonical schema remains
   byte-identical.
-- Reject wrong or omitted enum labels, wrong label order, manifest-only label
-  changes, missing new SQL-type identities, and unexpected raw or canonical
-  deltas.
+- Reject a false `before` label list even when `after` matches, false baseline
+  label order, pre-existing baseline label mismatch, wrong or omitted candidate
+  labels, undeclared removal/rename/reorder, manifest-only label changes,
+  missing new SQL-type identities, and unexpected raw or canonical deltas.
+- Reject any migration-bearing candidate whose pending migration set produces
+  an empty baseline-to-candidate structural delta.
+- Prove the base worktree, database state, private snapshots, generated
+  artifacts, container, and disposable storage are removed after success and
+  every forced failure.
 
 ### Authorization/security
 
@@ -924,6 +1110,8 @@ runbook change is required. CG-13 remains open.
   or cleanup proof.
 - Reject CI execution outside the expected repository, migration workflow and
   job, loopback endpoint, database/user, and service-address classification.
+- Reject any target or connection-identity change between baseline and
+  candidate phases.
 - Verify safe output contains no URL, credential, table content, or personal
   data.
 
@@ -957,15 +1145,27 @@ The implementation must update `.github/workflows/run_migrations.yml` so its
 PostgreSQL 17 job:
 
 1. installs exact PostgreSQL-only Diesel CLI `2.3.10` with `--locked`;
-2. applies all migrations;
-3. supplies the expected CI database confirmation and runs
-   `make check-diesel-schema` against the workflow-controlled
-   `localhost:5432` service;
-4. runs the existing full-chain revert;
-5. reapplies migrations and repeats the schema check;
-6. records the queried server/client addresses and ports plus the verified
-   GitHub Actions provenance status;
-7. fails on any non-zero control or provenance result.
+2. supplies the exact authorized full base SHA through
+   `THOTH_DIESEL_BASE_REF`; for pull requests, requires it to equal the trusted
+   `github.event.pull_request.base.sha`, checks out and verifies the exact
+   `github.event.pull_request.head.sha` rather than a synthetic merge ref,
+   verifies equality and ancestry, and creates a detached temporary base
+   worktree;
+3. proves the workflow-controlled `localhost:5432` service is empty and safe;
+4. applies baseline migrations from the base worktree and captures independent
+   baseline catalog, raw-Diesel, and canonical snapshots;
+5. applies only candidate pending migrations from the candidate checkout to the
+   same service and captures independent candidate snapshots;
+6. computes the actual baseline-to-candidate deltas and runs
+   `make check-diesel-schema` with the expected CI database confirmation and
+   manifest projections;
+7. runs the existing full-chain revert, verifies the application schema is
+   empty, reapplies migrations, and repeats the two-phase check from fresh
+   disposable state;
+8. records safe aggregate base-ref, snapshot, delta, cleanup, server/client
+   address, port, and GitHub Actions provenance statuses;
+9. removes the temporary worktree and every snapshot or generated artifact;
+10. fails on any non-zero control, provenance, exact-delta, or cleanup result.
 
 The workflow must retain explicit job-level `contents: read`, use no production
 environment or secret, and preserve the existing protected check identity. The
@@ -1077,7 +1277,7 @@ Explicit CTO merge approval: REQUIRED
 
 Specification: DRAFT
 Owner: CTO
-Approved by: Not approved for the enum-projection-corrected content
+Approved by: Not approved for the enum-projection and catalog-baseline-corrected content
 Previous specification approval: historical, bound to pre-correction content
 Corrected specification: DRAFT
 THOTH-DB-CTRL-01 implementation: NOT STARTED
@@ -1137,3 +1337,11 @@ contract, and relocating the canonical schema is outside scope.
 Rejected because exact `2.3.10` is already locked by the repository and
 generated deterministically. Version change does not solve model-specific
 ordering and supplemental-type requirements and needs separate approval.
+
+### Candidate-final catalog comparison without a baseline
+
+Rejected because a final catalog can prove only the candidate `after` state.
+It cannot independently prove manifest `change.before`, actual baseline label
+order, absence for an `add`, presence for a `remove`, or the claimed
+baseline-to-candidate delta. The authoritative comparison therefore requires
+the two-phase baseline and candidate snapshots defined in section 6.5.1.
