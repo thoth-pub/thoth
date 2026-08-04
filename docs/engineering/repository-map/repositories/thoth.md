@@ -107,20 +107,25 @@ repository root; retain root `diesel.toml`; use exact Diesel CLI `2.3.10`;
 introspect only a proven disposable local PostgreSQL database; preserve
 `thoth-api/src/schema.rs` as canonical; and pass raw Diesel output through a
 fail-closed structural synchronizer that preserves explicit repository
-conventions and admits only a declared expected change.
+conventions and enforces an explicit `change` or `none` projection expectation.
 
 The written specification was previously approved at pre-correction content.
-That approval is historical after the normative enum-projection correction.
-The corrected specification is `DRAFT`, awaiting fresh independent exact-head
-review and fresh explicit CTO specification approval. The implementation is not
-started, and its branch is not authorized. Specification approval still would
-not authorize implementation work, migration execution, schema or workflow
-changes, production access, release, deployment, or activation. Until
-`THOTH-DB-CTRL-01` receives separate implementation authorization and merges
-after independent review with its acceptance evidence, do not regenerate,
-overwrite, or relocate `thoth-api/src/schema.rs`. CG-12 remains unresolved,
-CG-13 remains open, and dependent schema work, including BE-01, remains blocked
-under
+That approval is historical after the normative enum-projection,
+catalog-baseline, and projection-mode corrections.
+The projection-mode-corrected written specification is approved by Javi, CTO,
+on 2026-08-04, bound to exact base
+`35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`, exact reviewed head
+`50ff3248b2af4a19422df924260c4f17832c0378`, normative content head
+`aec8295f22bc8c7cab4ce13e09890ef78b8586fa`, and independent approval comment
+`5177640752`. The implementation is not started, and its branch is not
+authorized. Specification approval does not authorize implementation work,
+migration execution, schema, Diesel configuration, Makefile, workflow or AGENTS
+changes, BE-01 implementation, production access, release, deployment, or
+activation. Until `THOTH-DB-CTRL-01` receives separate implementation
+authorization and merges after independent review with its acceptance evidence,
+do not regenerate, overwrite, or relocate `thoth-api/src/schema.rs`. CG-12
+remains unresolved, CG-13 remains open, and dependent schema work, including
+BE-01, remains blocked under
 [CG-12](../control-gaps.md#cg-12---thoth-schema-generation-unclear).
 Production migration, deployment, rollback, restore verification, and approver
 mapping remain separately blocked on

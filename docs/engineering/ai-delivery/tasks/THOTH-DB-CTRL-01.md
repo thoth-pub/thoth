@@ -1,6 +1,6 @@
 # THOTH-DB-CTRL-01 - Diesel generation procedure
 
-Status: DRAFT
+Status: APPROVED
 Programme: Shared Repository Controls
 Repository: thoth-pub/thoth
 Workflow: STANDARD
@@ -9,8 +9,8 @@ PR target: develop
 Programme integration branch: None
 Risk: HIGH
 Owner: CTO
-Approved by: Not approved for the projection-mode-corrected content
-Approval date: Not applicable; the previous approval is historical
+Approved by: Javi, CTO
+Approval date: 2026-08-04
 Dependencies: PR #774 merged as `35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`
 Target branch name: `feature/repository-controls/thoth-db-ctrl-01`
 
@@ -1353,25 +1353,33 @@ Explicit CTO merge approval: REQUIRED
 
 ## 18. Approval
 
-Specification: DRAFT
+Specification: APPROVED
 Owner: CTO
-Approved by: Not approved for the projection-mode-corrected content
+Approved by: Javi, CTO
+Approval date: 2026-08-04
 Previous specification approval: historical, bound to pre-correction content
-Corrected specification: DRAFT
+Corrected specification: APPROVED
 THOTH-DB-CTRL-01 implementation: NOT STARTED
 Implementation branch: NOT AUTHORIZED
 
 Notes:
 
 - The previous approval at pre-correction content is historical after the
-  normative enum-projection correction.
-- The corrected specification requires fresh independent exact-head review and
-  fresh explicit CTO specification approval before it may return to
-  `APPROVED`.
+  normative enum-projection, catalog-baseline, and projection-mode corrections.
+- This approval is bound exclusively to exact base
+  `35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`, exact independently approved head
+  `50ff3248b2af4a19422df924260c4f17832c0378`, and normative projection-mode
+  content head `aec8295f22bc8c7cab4ce13e09890ef78b8586fa`. Independent approval is
+  recorded in PR #775 comment `5177640752`.
+- The approved written specification becomes merged repository authority only
+  after fresh exact-head CI, superseding immutable evidence, another fresh
+  independent review of the approval-state head, separate explicit CTO merge
+  authorization, and a clean post-ready Codex review against the unchanged
+  head.
 - Specification approval still does not authorize creation of
   `feature/repository-controls/thoth-db-ctrl-01`, implementation work, migration
-  execution, schema or workflow changes, production access, release,
-  deployment, or activation.
+  execution, schema, Diesel configuration, Makefile, workflow or AGENTS changes,
+  BE-01 implementation, production access, release, deployment, or activation.
 - The implementation requires a separately authorized fresh branch from the
   then-current verified `develop`, complete acceptance evidence, independent
   cross-model review, and explicit CTO merge authorization.

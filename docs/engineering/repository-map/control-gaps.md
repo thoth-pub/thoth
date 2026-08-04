@@ -71,7 +71,7 @@ No verified complete cursor, replication or snapshot route exists.
 
 App lacks explicit lint/build/codegen; dashboard lacks detected CI/tests; widget lacks unit tests; cc-license uses old Actions.
 
-### CG-12 - Thoth schema generation unclear (SPECIFICATION CORRECTION IN REVIEW - IMPLEMENTATION NOT STARTED)
+### CG-12 - Thoth schema generation unclear (SPECIFICATION APPROVED - IMPLEMENTATION NOT STARTED)
 
 Task `THOTH-DB-CTRL-01` is specified in
 [`docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md`](../ai-delivery/tasks/THOTH-DB-CTRL-01.md)
@@ -87,18 +87,22 @@ The selected implementation is an exact-version, fail-closed structural
 synchronizer: root `diesel.toml` remains authoritative,
 `thoth-api/src/schema.rs` remains canonical, current intentional conventions
 become explicit control data, clean generation is byte-identical, and only a
-declared expected structural delta may be written.
+declared `change` or `none` projection expectation may pass.
 
 The written specification was previously approved at pre-correction content.
-That approval is historical after the normative enum-projection correction.
-The corrected specification is `DRAFT` and requires fresh independent
-exact-head review followed by fresh explicit CTO specification approval.
-Specification approval still would not authorize the implementation branch or
-implementation work. PR #775 does not resolve CG-12 and does not start the
-implementation. BE-01 remains `BLOCKED`. CG-12 closes only after
+That approval is historical after the normative enum-projection,
+catalog-baseline, and projection-mode corrections.
+The projection-mode-corrected written specification is approved by Javi, CTO,
+on 2026-08-04, bound to exact base
+`35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`, exact reviewed head
+`50ff3248b2af4a19422df924260c4f17832c0378`, normative content head
+`aec8295f22bc8c7cab4ce13e09890ef78b8586fa`, and independent approval comment
+`5177640752`. Specification approval does not authorize the implementation
+branch or implementation work. PR #775 does not resolve CG-12 and does not
+start the implementation. BE-01 remains `BLOCKED`. CG-12 closes only after
 `THOTH-DB-CTRL-01` receives separate implementation authorization, passes its
 complete acceptance evidence and independent exact-head review, and merges with
-explicit CTO authorization.
+explicit CTO authorization. CG-13 remains open.
 
 ### CG-13 - Thoth runtime operations unmapped
 
