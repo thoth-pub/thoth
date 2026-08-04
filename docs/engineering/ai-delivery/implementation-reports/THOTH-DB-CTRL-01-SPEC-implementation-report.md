@@ -13,10 +13,10 @@ Base commit: `35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`
 PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/repository-controls/thoth-db-ctrl-01-spec`
-Post-ready reviewed head: `a4db430cb3c80fc6c1fd4100821c643129e87d5f`
-Post-ready review: `PRR_kwDODkn0bc8AAAABIODEmQ`
+Initial post-ready reviewed head: `a4db430cb3c80fc6c1fd4100821c643129e87d5f`
+Initial post-ready review: `PRR_kwDODkn0bc8AAAABIODEmQ`
 Numeric review ID: `4846568601`
-Post-ready review result: `CHANGES REQUIRED`
+Initial post-ready review result: `CHANGES REQUIRED`
 Specification content head: `dabf30550a968f49e7e0a6d25984d0ef99e779ee`
 Approval-state reviewed base: `35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`
 Approval-state reviewed head: `b652f28d222f6a6bb5d3aa34dd5595e52223c195`
@@ -43,6 +43,16 @@ Corrected-specification approved head: `50ff3248b2af4a19422df924260c4f17832c0378
 Corrected-specification independent approval: PR #775 comment `5177640752`
 Corrected-specification CTO approval: Javi, CTO, `2026-08-04`
 Corrected approval-state content head: `991ea97e529f5cfca962bf1eba2ff46ba16054ff`
+Post-ready reviewed head: `7448ae9323770d8b0a0e94cf49688d990663366a`
+Post-ready review: `4854416704`
+Post-ready result: `BLOCKED - POST-READY REVIEW FINDING`
+Thread: `PRRT_kwDODkn0bc6WUgMG`
+Finding: the active Metrics tracker recorded THOTH-DB-CTRL-01 as
+`MEDIUM | BLOCKED`, conflicting with the approved HIGH-risk specification and
+its separate implementation state.
+Metrics tracker content head: `1b01c65c7b64de8b844d565b5bc65d772890f5b9`
+Previous merge authorization: PR #775 comment `5178992262`, historical after
+the Metrics tracker correction changed the head
 Final specification status: `APPROVED`
 Pull request: [#775](https://github.com/thoth-pub/thoth/pull/775), draft
 Expected branch deletion after merge: YES
@@ -54,15 +64,15 @@ Independent reviewer: separate cross-model reviewer, HIGH or MAXIMUM reasoning
 ### 1.1 Required task identity
 
 ```text
-Programme: Shared Repository Controls
+Programme: Shared Repository Controls / Thoth Metrics
 Repository: thoth-pub/thoth
-Task ID: THOTH-DB-CTRL-01-SPEC corrected approval-state recording
-Approved specification: Javi, CTO approval on 2026-08-04 of exact head 50ff3248b2af4a19422df924260c4f17832c0378 and normative content head aec8295f22bc8c7cab4ce13e09890ef78b8586fa
+Task ID: THOTH-DB-CTRL-01-SPEC Metrics tracker correction
+Approved specification: Javi, CTO Metrics tracker correction authorization on 2026-08-04, bound to head 7448ae9323770d8b0a0e94cf49688d990663366a, review 4854416704, and thread PRRT_kwDODkn0bc6WUgMG
 Risk: HIGH
 Base branch and commit: develop at 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8
 PR target: develop
 Task branch: feature/repository-controls/thoth-db-ctrl-01-spec
-Dependencies: PR #774 merged as 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8; independent approval comment 5177640752 for PR #775 head 50ff3248b2af4a19422df924260c4f17832c0378
+Dependencies: post-ready review 4854416704; P1 thread PRRT_kwDODkn0bc6WUgMG; Metrics tracker content head 1b01c65c7b64de8b844d565b5bc65d772890f5b9; fresh exact-head CI and independent review pending
 Implementing agent/model: Codex / GPT-5, HIGH reasoning
 Independent reviewer/model: separate cross-model reviewer, HIGH or MAXIMUM reasoning
 ```
@@ -396,13 +406,17 @@ Concise result:
   `docs: report projected-delta mode correction`
 - `991ea97e529f5cfca962bf1eba2ff46ba16054ff` -
   `docs: approve corrected THOTH-DB-CTRL-01 specification`
-- the following report-finalization commit, which changes only this file -
+- `7448ae9323770d8b0a0e94cf49688d990663366a` -
   `docs: report corrected THOTH-DB-CTRL-01 approval`
+- `1b01c65c7b64de8b844d565b5bc65d772890f5b9` -
+  `docs: reconcile THOTH-DB-CTRL-01 Metrics status`
+- the following report-finalization commit, which changes only this file -
+  `docs: report Metrics tracker reconciliation`
 
-These are the sixteen ordered commit positions, with path scopes
-`4 / 1 / 2 / 2 / 1 / 1 / 3 / 1 / 3 / 1 / 1 / 1 / 1 / 1 / 3 / 1`. A Git commit
-cannot embed its own SHA in a file contained by that commit; the exact immutable
-corrected approval-state content head is recorded above, while the final
+These are the eighteen ordered commit positions, with path scopes
+`4 / 1 / 2 / 2 / 1 / 1 / 3 / 1 / 3 / 1 / 1 / 1 / 1 / 1 / 3 / 1 / 1 / 1`.
+A Git commit cannot embed its own SHA in a file contained by that commit; the
+exact immutable Metrics tracker content head is recorded above, while the final
 report-only head is recorded in the PR body and superseding immutable evidence
 after creation. No commit was amended, squashed, rebased, or force-pushed.
 
@@ -441,6 +455,12 @@ after creation. No commit was amended, squashed, rebased, or force-pushed.
     enum-projection review and content head, catalog-baseline review and content
     head, projection-mode review and content head, corrected independent and CTO
     approvals, corrected approval-state content head, and handoff evidence;
+  - behavioural effect: none.
+- `docs/metrics/task-status.md`
+  - reason: reconcile the active Metrics tracker with the approved HIGH-risk
+    specification while retaining implementation not started, the
+    implementation branch not authorized, PR #775 unmerged, CG-12 unresolved,
+    CG-13 open, and BE-01 blocked;
   - behavioural effect: none.
 
 ## 7. Tooling discovery
@@ -1168,6 +1188,48 @@ The approval-state correction has no migration, schema, runtime, API, workflow,
 configuration, AGENTS, deployment, release, production, secret, or
 external-service effect.
 
+### 11.10 Metrics tracker reconciliation
+
+Fresh post-ready Codex review `4854416704` reviewed exact head
+`7448ae9323770d8b0a0e94cf49688d990663366a` and returned:
+
+```text
+BLOCKED - POST-READY REVIEW FINDING
+```
+
+Unresolved P1 thread `PRRT_kwDODkn0bc6WUgMG` found that the active Metrics
+tracker recorded the same THOTH-DB-CTRL-01 task as `MEDIUM | BLOCKED`, while
+the authoritative task specification classifies it as HIGH risk with an
+approved specification and a separately unauthorized, not-started
+implementation.
+
+Javi, CTO, authorized a bounded correction on 2026-08-04. Commit
+`1b01c65c7b64de8b844d565b5bc65d772890f5b9` changes only
+`docs/metrics/task-status.md`. It updates the tracker date to `2026-08-04` and
+records:
+
+```text
+Risk: HIGH
+Status: SPECIFICATION APPROVED - IMPLEMENTATION NOT STARTED
+Specification PR #775: not yet merged
+Implementation branch: NOT AUTHORIZED
+CG-12: unresolved pending separately authorized implementation, acceptance
+evidence, independent review and merge
+```
+
+The correction adds one justified cross-programme control path. It does not
+change `docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md` or any other
+normative specification content. The corrected specification remains
+`APPROVED`; implementation remains `NOT STARTED`; its branch remains
+`NOT AUTHORIZED`; CG-12 remains unresolved; CG-13 remains open; and BE-01
+remains blocked.
+
+Previous merge authorization comment `5178992262` is historical after the head
+changed. The following report-only finalization commit cannot embed its own SHA.
+The correction has no implementation, migration, schema, runtime, API,
+workflow, Diesel configuration, Makefile, AGENTS, deployment, release,
+production, credential, secret, or external-service effect.
+
 ## 12. Selected implementation approach
 
 Selected: retain root `diesel.toml` and canonical
@@ -1364,19 +1426,19 @@ python3 .github/scripts/classify_ci_changes.py --paths \
   docs/engineering/ai-delivery/implementation-reports/THOTH-DB-CTRL-01-SPEC-implementation-report.md \
   docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md \
   docs/engineering/repository-map/control-gaps.md \
-  docs/engineering/repository-map/repositories/thoth.md
+  docs/engineering/repository-map/repositories/thoth.md \
+  docs/metrics/task-status.md
 git status --short
 ```
 
-The exact outputs, final head, sixteen commit scopes
-(`4 / 1 / 2 / 2 / 1 / 1 / 3 / 1 / 3 / 1 / 1 / 1 / 1 / 1 / 3 / 1`), and classifier JSON are
+The exact outputs, final head, eighteen commit scopes
+(`4 / 1 / 2 / 2 / 1 / 1 / 3 / 1 / 3 / 1 / 1 / 1 / 1 / 1 / 3 / 1 / 1 / 1`), and classifier JSON are
 recorded in the superseding immutable PR evidence after the report-finalization
-commit exists. The cumulative path set must remain the same five documentation
-paths. The corrected approval-state range after
-`50ff3248b2af4a19422df924260c4f17832c0378` must contain exactly the task
-specification, CG-12 record, repository map, and this report, with commit scopes
-`3 / 1`. The complete
-five-path classifier must return:
+commit exists. The cumulative path set must contain exactly the six authorized
+documentation paths. The corrective range after
+`7448ae9323770d8b0a0e94cf49688d990663366a` must contain exactly the Metrics
+tracker and this report, with commit scopes `1 / 1`. The complete six-path
+classifier must return:
 
 ```json
 {"docs_only":"true","run_build":"false","run_docker":"false","run_migrations":"false"}
@@ -1429,16 +1491,22 @@ was run or changed. The explicit independent and CTO approvals were bound to the
 exact base, reviewed head, and normative projection-mode content head; only the
 task specification, CG-12 record, repository map, and this report changed.
 
+For the Metrics tracker reconciliation, no migration or executable control was
+run or changed. The active tracker row alone was corrected at content head
+`1b01c65c7b64de8b844d565b5bc65d772890f5b9`; this report records the review,
+thread, authorization, scope, and no-effect evidence. Normative specification
+content was not changed.
+
 Evidence: this report, the original immutable top-level PR #775 evidence
 comment, and the successive superseding post-remediation evidence comments.
 
 ## 19. CI
 
-CI status: PENDING for the corrected approval-state report-finalization head
+CI status: PENDING for the Metrics tracker report-finalization head
 
-All CI evidence for head
-`50ff3248b2af4a19422df924260c4f17832c0378` and earlier heads is historical
-after the corrected approval-state commits. Fresh exact-head PR CI must prove:
+CI evidence for head `7448ae9323770d8b0a0e94cf49688d990663366a`
+and earlier heads is historical after the Metrics tracker correction. Fresh
+exact-head PR CI must prove:
 
 ```text
 build-test-and-check:
@@ -1467,7 +1535,7 @@ is manually dispatched.
 
 ## 20. Rollout and rollback
 
-Initial state after this approval-state recording: documentation-only
+Initial state after this Metrics tracker reconciliation: documentation-only
 `APPROVED` specification; no active control, implementation, or runtime effect
 Specification merge gate: fresh exact-head CI, superseding immutable evidence,
 fresh independent review, separate explicit CTO merge authorization, and clean
@@ -1490,12 +1558,13 @@ that reopens ambiguity, dependent schema work blocks again.
 
 Previous approvals, including independent approval `5170076717`, the
 pre-correction written-specification approval, and CTO merge authorization
-`5170138791`, are historical after the subsequent normative enum-projection
+`5170138791`, are historical after the subsequent normative enum-projection,
 catalog-baseline, and projection-mode corrections. Independent approval
-`5177640752` and Javi's 2026-08-04 CTO approval approve the corrected written
-specification only. Fresh exact-head independent review of the approval-state
-head, separate fresh CTO merge authorization, and another clean post-ready Codex
-review remain required before merge.
+`5178745363` and merge authorization `5178992262` for approval-state head
+`7448ae9323770d8b0a0e94cf49688d990663366a` are now historical after the
+Metrics tracker correction. Fresh exact-head independent review of the final
+Metrics-corrected head, separate fresh CTO merge authorization, and another
+clean post-ready Codex review remain required before merge.
 
 If the future implementation is rolled back and schema generation becomes
 ambiguous again, CG-12 reopens and all dependent schema work returns to
@@ -1528,6 +1597,9 @@ ambiguous again, CG-12 reopens and all dependent schema work returns to
   evidence.
 - CG-13 runtime operations remain open.
 - BE-01 remains blocked.
+- The active Metrics tracker is reconciled at content head
+  `1b01c65c7b64de8b844d565b5bc65d772890f5b9`; PR #775 remains unmerged and the
+  implementation branch remains unauthorized.
 
 ## 22. Unresolved issues
 
@@ -1564,11 +1636,19 @@ ambiguous again, CG-12 reopens and all dependent schema work returns to
   `aec8295f22bc8c7cab4ce13e09890ef78b8586fa`, and independent approval
   `5177640752`. Approval-state content head
   `991ea97e529f5cfca962bf1eba2ff46ba16054ff` records that approval.
-- Fresh exact-head CI and a new superseding immutable evidence comment remain
-  pending until the approval-state report-finalization commit is pushed.
-- Fresh independent cross-model exact-head review of the approval-state head is
-  required.
-- A separate fresh CTO merge authorization and clean post-ready Codex review are
+- Exact-head CI for approval-state head
+  `7448ae9323770d8b0a0e94cf49688d990663366a` succeeded and superseding evidence
+  is comment `5177843600`. Independent approval is comment `5178745363`.
+- Previous merge authorization `5178992262` became historical when the Metrics
+  correction changed the head.
+- Post-ready review `4854416704` opened P1 thread
+  `PRRT_kwDODkn0bc6WUgMG`. The tracker correction is recorded at immutable
+  content head `1b01c65c7b64de8b844d565b5bc65d772890f5b9`; fresh exact-head CI, verified
+  thread response and resolution, and new superseding immutable evidence remain
+  pending until this report-finalization commit is pushed.
+- Fresh independent cross-model exact-head review of the final Metrics-corrected
+  head is required.
+- A new separate CTO merge authorization and clean post-ready Codex review are
   required before merge.
 - Merging the specification will not authorize `THOTH-DB-CTRL-01`
   implementation.
@@ -1579,6 +1659,13 @@ The agent does not approve its own work.
 
 Suggested review focus:
 
+- whether the active Metrics tracker alone was reconciled to HIGH risk and
+  `SPECIFICATION APPROVED - IMPLEMENTATION NOT STARTED`, while preserving the
+  unmerged specification PR, unauthorized implementation branch, unresolved
+  CG-12, open CG-13, and blocked BE-01 states;
+- whether the justified sixth path leaves normative specification content
+  unchanged and correctly makes prior merge authorization `5178992262`
+  historical;
 - whether the task, CG-12 record, repository map, and this report consistently
   record `APPROVED` corrected specification status while keeping implementation not
   started, its branch unauthorized, CG-12 unresolved, CG-13 open, and BE-01
