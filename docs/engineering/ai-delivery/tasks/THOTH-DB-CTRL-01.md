@@ -9,7 +9,7 @@ PR target: develop
 Programme integration branch: None
 Risk: HIGH
 Owner: CTO
-Approved by: Not approved for the enum-projection and catalog-baseline-corrected content
+Approved by: Not approved for the projection-mode-corrected content
 Approval date: Not applicable; the previous approval is historical
 Dependencies: PR #774 merged as `35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`
 Target branch name: `feature/repository-controls/thoth-db-ctrl-01`
@@ -20,9 +20,10 @@ Establish one repository-authoritative, repeatable, fail-closed procedure for
 creating and applying Thoth migrations and synchronising the migrated
 PostgreSQL schema with the canonical Diesel contract at
 `thoth-api/src/schema.rs`. The procedure must make a clean baseline a
-byte-for-byte no-op, admit only an explicitly declared schema change, preserve
-the repository's required custom types and model-compatible ordering, and
-provide the same verification locally and in CI.
+byte-for-byte no-op, admit only an explicit `change` or `none` projection
+expectation, preserve the repository's required custom types and
+model-compatible ordering, and provide the same verification locally and in
+CI.
 
 ### 1.1 Risk rationale
 
@@ -430,10 +431,45 @@ closed.
 
 ### 6.5 Expected-change manifest
 
-The manifest is a task-local UTF-8 TOML document with `version = 2`. Every
-`add`, `remove`, and `change` entry is an independently parsed and validated
-object; string tokens, partial names, wildcards, catch-all entries, and broad
-exemptions are prohibited.
+The manifest is a task-local UTF-8 TOML document with `version = 2` and exactly
+one required projection expectation:
+
+```toml
+version = 2
+expected_projection = "change"
+```
+
+or:
+
+```toml
+version = 2
+expected_projection = "none"
+```
+
+Missing, duplicated, unknown, or case-variant modes fail closed. Every `add`,
+`remove`, and `change` entry is an independently parsed and validated object;
+string tokens, partial names, wildcards, catch-all entries, and broad exemptions
+are prohibited.
+
+`expected_projection = "change"` requires at least one non-empty independently
+observed baseline-to-candidate catalog, raw-Diesel, or canonical projection.
+Every controlled difference must have a complete matching manifest object, and
+every applicable projection must equal its manifest projection exactly. An
+all-empty controlled result fails even when candidate migrations are pending.
+A label-only enum change uses `change` because its catalog projection is
+non-empty even though its raw-Diesel and canonical projections are empty.
+
+`expected_projection = "none"` requires no manifest `add`, `remove`, or
+`change` objects, empty independently observed catalog, raw-Diesel, and
+canonical projections, and a byte-identical canonical schema. Pending candidate
+migrations are permitted in this mode. Any hidden table, column, key, join,
+allow-table, SQL-type, or enum change fails closed.
+
+The `none` result certifies only that the candidate migrations do not alter the
+Diesel-controlled projection. It does not validate or approve their excluded
+effects. Indexes, check constraints, data changes, comments, and other
+structures outside this representation boundary remain subject to the task's
+own migration validation and acceptance evidence.
 
 The complete structural object schemas are:
 
@@ -487,6 +523,7 @@ The controlled probe manifest is exactly:
 
 ```toml
 version = 2
+expected_projection = "change"
 
 [[add]]
 kind = "table"
@@ -581,8 +618,10 @@ disposable database. A final-state-only comparison is prohibited.
    database between phases.
 6. From the unchanged candidate worktree, apply only the pending candidate
    migrations to the same database. Require at least one pending candidate
-   migration for a migration-bearing task and reject a candidate migration set
-   that produces an empty baseline-to-candidate structural delta.
+   migration for a migration-bearing task. Enforce the manifest's explicit
+   projection expectation: `change` requires at least one non-empty controlled
+   projection, while `none` requires every controlled projection to remain
+   empty and the canonical schema to remain byte-identical.
 7. Capture independently derived candidate catalog and raw-Diesel snapshots
    from the resulting database. Parse the candidate canonical snapshot from the
    current candidate tree or, in validated `generate` mode, from the generated
@@ -741,6 +780,7 @@ THOTH_DIESEL_CONFIG=diesel.toml
 THOTH_DIESEL_SCHEMA=thoth-api/src/schema.rs
 THOTH_DIESEL_CLIENT_ENDPOINT=LOOPBACK
 THOTH_DIESEL_SERVER_ADDRESS=LOOPBACK_OR_VERIFIED_PRIVATE_CONTAINER
+THOTH_DIESEL_EXPECTED_PROJECTION=CHANGE_OR_NONE
 THOTH_DIESEL_DELTA=EXACT_PROJECTED_MATCH
 THOTH_DIESEL_CLEANUP=COMPLETE
 THOTH_DIESEL_REPEAT=IDENTICAL
@@ -758,18 +798,21 @@ python3 .github/scripts/diesel_schema.py generate \
 
 It is the sole canonical writer and must atomically replace only the canonical
 schema after both snapshots, exact projected comparisons, compilation, and
-cleanup pass. It must print only safe named statuses and aggregate
-added/removed/changed counts. With an empty manifest and no candidate migration
-delta it is a byte-for-byte no-op; a migration-bearing task with pending
-candidate migrations must not pass with an empty baseline-to-candidate delta.
+cleanup pass. It must print only safe named statuses, the validated projection
+mode, and aggregate added/removed/changed counts. In `none` mode, no manifest
+operations are permitted and empty controlled projections must leave the
+canonical schema byte-identical even when candidate migrations are pending. In
+`change` mode, an all-empty controlled result must not pass.
 
 ### 6.7 Required success behaviour
 
 A clean baseline-to-candidate run on a proven disposable database must produce
 deterministic snapshots and a deterministic candidate. Repeating the complete
-two-phase run must be identical. When no candidate migration changes the schema
-and the manifest is empty, check mode must report no structural or textual
-difference and must not change the worktree.
+two-phase run must be identical. In `none` mode, when no candidate migration
+changes the controlled projection and the manifest has no operations, check
+mode must report no structural or textual difference and must not change the
+worktree. The result must state that excluded migration effects were not
+validated by the Diesel projection control.
 
 The controlled standalone disposable probe table must produce exactly the five
 manifest-approved structural additions: its table, two columns, primary key,
@@ -777,8 +820,8 @@ and `allow_tables_to_appear_in_same_query!` membership. Repeating generation
 must reproduce the same candidate. The schema-only candidate, with no
 application-model fixture, must pass
 `cargo check -p thoth-api --features backend` when substituted only in a
-temporary worktree. Dropping the probe table and using an empty manifest must
-restore the byte-for-byte clean baseline.
+temporary worktree. Dropping the probe table and using a `none`-mode manifest
+with no operations must restore the byte-for-byte clean baseline.
 
 Every applicable independently observed baseline-to-candidate catalog,
 raw-Diesel, and canonical-schema projection must match the corresponding
@@ -825,8 +868,13 @@ The procedure must fail non-zero before repository writes if:
   present in the candidate, or an undeclared removal, rename, or reorder occurs;
 - a new enum is missing its raw or canonical SQL-type identity;
 - a label-only enum change produces an unexpected raw or canonical delta;
-- a migration-bearing candidate has pending migrations but produces an empty
-  baseline-to-candidate structural delta;
+- `expected_projection` is missing, duplicated, unknown, or case-variant;
+- `expected_projection = "change"` produces empty catalog, raw-Diesel, and
+  canonical baseline-to-candidate projections;
+- `expected_projection = "none"` contains any manifest `add`, `remove`, or
+  `change` object;
+- `expected_projection = "none"` produces any catalog, raw-Diesel, or canonical
+  baseline-to-candidate difference or changes canonical schema bytes;
 - automatic raw output does not match the manifest and conventions;
 - a convention entry is missing, unused, broad, or conflicting;
 - required custom derives or supplemental types are lost;
@@ -877,8 +925,9 @@ that the Diesel procedure has an open control gap with authoritative
 instructions covering the repository-root working directory, exact Diesel CLI
 `2.3.10`, automatic staging at `target/diesel-schema.rs`, synchronizer-only
 canonical writes, `make check-diesel-schema`, complete expected-change
-manifests, and fail-closed behaviour. It must explicitly retain CG-13 as a
-separate open control.
+manifests with explicit `change` or `none` projection expectations, and
+fail-closed behaviour. It must explicitly retain CG-13 as a separate open
+control.
 
 The implementation must replace the `thoth-api/AGENTS.md` "Diesel schema
 control gap" section with the same implemented canonical procedure. It must
@@ -910,9 +959,13 @@ Disposable migration-chain validation is required:
    same database;
 6. capture candidate catalog, raw-Diesel, and canonical snapshots and compute
    the exact baseline-to-candidate projected deltas;
-7. require manifest `add`, `remove`, `change.before`, and `change.after` objects
-   to match the independently observed states exactly;
-8. run no-op, controlled standalone-table, new-enum, and label-only verification;
+7. require the explicit `change` or `none` projection expectation and enforce
+   its mode contract; for `change`, require complete manifest `add`, `remove`,
+   `change.before`, and `change.after` objects to match the independently
+   observed states exactly;
+8. run no-op, index-only, check-constraint-only, data-only, controlled
+   standalone-table, new-enum, and label-only verification, while validating
+   excluded migration effects separately from the Diesel projection control;
 9. separately run the existing full-chain revert on the proven disposable
    database, verify the application schema is empty, and reapply the full chain;
 10. repeat the two-phase verification deterministically from fresh disposable
@@ -928,9 +981,10 @@ task; this control implementation introduces no populated-data change.
 
 ## 8. Observability and operations
 
-Required output consists only of the named safe statuses in section 6 and
-aggregate structural counts. CI must retain command exit status and the safe
-status lines as evidence.
+Required output consists only of the named safe statuses in section 6, the
+validated projection mode, aggregate structural counts, and, for `none`, the
+explicit excluded-effects disclaimer. CI must retain command exit status and
+the safe status lines as evidence.
 
 No runtime metrics, alerts, deployment, production activation, or operational
 runbook change is required. CG-13 remains open.
@@ -980,8 +1034,14 @@ runbook change is required. CG-13 remains open.
 - [ ] A label-only enum change accepts matching non-empty catalog/manifest
       before/after label deltas with empty raw/canonical projections and a
       byte-identical canonical schema.
-- [ ] A migration-bearing candidate cannot pass when pending migrations produce
-      an empty baseline-to-candidate structural delta.
+- [ ] Every manifest declares exactly one valid `expected_projection` mode.
+- [ ] `change` mode requires at least one non-empty independently observed
+      controlled projection and exact manifest equality for every difference.
+- [ ] `none` mode permits pending migrations only with no manifest operations,
+      empty catalog/raw/canonical projections, and byte-identical canonical
+      schema; any hidden controlled change fails.
+- [ ] A `none` result explicitly disclaims validation or approval of indexes,
+      constraints, data changes, comments, and other excluded migration effects.
 - [ ] Removing the controlled change restores the clean baseline.
 - [ ] Any stale or unexpected schema difference fails non-zero before writing.
 - [ ] An unexpected repository file change fails.
@@ -1010,7 +1070,8 @@ runbook change is required. CG-13 remains open.
       path after implementation.
 - [ ] Root `AGENTS.md` and `thoth-api/AGENTS.md` specify the same repository-root
       commands, exact CLI, automatic staging output, synchronizer-only canonical
-      writes, complete expected-change manifests, and fail-closed boundary.
+      writes, complete expected-change manifests, explicit `change`/`none`
+      projection contract, and fail-closed boundary.
 - [ ] `docs/engineering/AGENTS.md` contains no contradictory instruction.
 - [ ] CG-12 closes only after this implementation passes independent review and merges with acceptance evidence.
 - [ ] CG-13 remains open.
@@ -1028,6 +1089,13 @@ runbook change is required. CG-13 remains open.
 - Validate version-2 expected-change objects, including complete add/remove and
   before/after change records; reject missing fields and broad or catch-all
   entries.
+- Require exactly one `expected_projection` value of `change` or `none`; reject
+  missing, duplicate, unknown, and case-variant modes.
+- Require a non-empty catalog, raw-Diesel, or canonical projection in `change`
+  mode, and accept a label-only enum change because its catalog projection is
+  non-empty.
+- In `none` mode, reject any manifest operation or any independently observed
+  table, column, key, join, allow-table, SQL-type, or enum difference.
 - Enforce exact operation semantics: `add` is absent/present, `remove` is
   present/absent, and `change.before`/`change.after` equal independently
   observed baseline/candidate objects.
@@ -1068,7 +1136,8 @@ runbook change is required. CG-13 remains open.
   primary-key, and allow-table additions, and prove no join is generated.
 - Compile the schema-only standalone-table candidate successfully without a
   consuming model, repeat generation deterministically, drop the table, and
-  restore the byte-identical clean baseline with an empty manifest.
+  restore the byte-identical clean baseline with a `none`-mode manifest that
+  contains no operations.
 - Reject a stale canonical schema.
 - Reject an unlisted database change.
 - Reject an unexpected output path or unrelated changed file.
@@ -1089,8 +1158,15 @@ runbook change is required. CG-13 remains open.
   label order, pre-existing baseline label mismatch, wrong or omitted candidate
   labels, undeclared removal/rename/reorder, manifest-only label changes,
   missing new SQL-type identities, and unexpected raw or canonical deltas.
-- Reject any migration-bearing candidate whose pending migration set produces
-  an empty baseline-to-candidate structural delta.
+- Pass index-only, check-constraint-only, and data-only migrations in `none`
+  mode when every controlled projection is empty and canonical bytes are
+  identical; separately validate each migration's excluded effect.
+- Reject any hidden table, column, key, join, allow-table, SQL-type, or enum
+  change in `none` mode, and reject any non-empty manifest in `none` mode.
+- Reject empty controlled projections in `change` mode, while accepting a
+  label-only enum change whose catalog projection is non-empty.
+- Prove a migration-ledger advance alone does not imply a Diesel-controlled
+  change and that a `none` result does not claim excluded effects were validated.
 - Prove the base worktree, database state, private snapshots, generated
   artifacts, container, and disposable storage are removed after success and
   every forced failure.
@@ -1157,15 +1233,17 @@ PostgreSQL 17 job:
 5. applies only candidate pending migrations from the candidate checkout to the
    same service and captures independent candidate snapshots;
 6. computes the actual baseline-to-candidate deltas and runs
-   `make check-diesel-schema` with the expected CI database confirmation and
-   manifest projections;
+   `make check-diesel-schema` with the expected CI database confirmation,
+   explicit `change` or `none` projection mode, and manifest projections;
 7. runs the existing full-chain revert, verifies the application schema is
    empty, reapplies migrations, and repeats the two-phase check from fresh
    disposable state;
 8. records safe aggregate base-ref, snapshot, delta, cleanup, server/client
    address, port, and GitHub Actions provenance statuses;
 9. removes the temporary worktree and every snapshot or generated artifact;
-10. fails on any non-zero control, provenance, exact-delta, or cleanup result.
+10. fails on any non-zero control, provenance, projection-mode, exact-delta, or
+    cleanup result, including all-empty `change` mode or any controlled
+    difference in `none` mode.
 
 The workflow must retain explicit job-level `contents: read`, use no production
 environment or secret, and preserve the existing protected check identity. The
@@ -1277,7 +1355,7 @@ Explicit CTO merge approval: REQUIRED
 
 Specification: DRAFT
 Owner: CTO
-Approved by: Not approved for the enum-projection and catalog-baseline-corrected content
+Approved by: Not approved for the projection-mode-corrected content
 Previous specification approval: historical, bound to pre-correction content
 Corrected specification: DRAFT
 THOTH-DB-CTRL-01 implementation: NOT STARTED
