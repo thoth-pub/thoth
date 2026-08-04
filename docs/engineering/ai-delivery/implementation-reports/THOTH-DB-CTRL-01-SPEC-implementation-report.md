@@ -1805,4 +1805,4 @@ implementation, does not create the implementation branch, and does not resolve
 CG-12, resolve CG-13, or unblock BE-01. The specification is `APPROVED AND
 MERGED`; implementation remains `NOT STARTED` and `NOT AUTHORIZED`.
 
-Closeout PR: recorded by the finalizing commit `docs: finalize THOTH-DB-CTRL-01 closeout report`.
+Closeout PR: [#776](https://github.com/thoth-pub/thoth/pull/776).

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [764](https://github.com/thoth-pub/thoth/pull/764) - Add the AI-led engineering operating model, task and review templates, risk classification, release gates, and GitHub Flow controls
 
 ### Changed
+  - [776](https://github.com/thoth-pub/thoth/pull/776) - Close out the merged THOTH-DB-CTRL-01 specification, recording PR #775's merge into `develop` and reconciling the Thoth Metrics tracker while retaining the implementation gate
   - [775](https://github.com/thoth-pub/thoth/pull/775) - Specify the shared THOTH-DB-CTRL-01 Diesel migration and schema-generation control, defining deterministic schema verification, safe disposable-database testing, and the remaining implementation gate
   - [774](https://github.com/thoth-pub/thoth/pull/774) - Approve the bounded BE-01 publisher package model implementation specification, defining the non-null OASIS default, exhaustive package capabilities, migration evidence, protected GraphQL boundary, and inactive rollout controls
   - [773](https://github.com/thoth-pub/thoth/pull/773) - Reconcile active engineering, Publisher Services, and Metrics control records with ADR-0001's merged state while preserving all implementation and rollout blockers
