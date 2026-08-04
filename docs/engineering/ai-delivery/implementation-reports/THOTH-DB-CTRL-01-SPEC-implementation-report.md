@@ -1729,3 +1729,80 @@ THOTH-DB-CTRL-01 implementation branch: ABSENT AND NOT AUTHORIZED
 CG-12: OPEN
 CG-13: OPEN
 ```
+
+## 24. Specification workflow closeout
+
+Sections 1 through 23 are historical. They record the draft, review,
+remediation, approval, and pre-merge Metrics-reconciliation states of the
+`THOTH-DB-CTRL-01-SPEC` workflow exactly as they occurred, before PR #775
+merged. This section is the distinct final closeout added after the merge; it
+does not rewrite any earlier state.
+
+### 24.1 Merge record
+
+```text
+Specification PR: #775
+Specification head: 44fd09cfcc7bb78100105a7174bbbd86f34a920b
+Merge commit: adfa59b5a6ce16ea1f227dd11e8f8f597e2fd3bf
+Merged at: 2026-08-04T14:12:16Z
+Merge method: merge commit
+Merge parents:
+1. 35e4dc20864ae4896dccc2b20cbcdbe3fb733db8
+2. 44fd09cfcc7bb78100105a7174bbbd86f34a920b
+Specification branch: remote branch deleted or absent, according to observed evidence
+Final specification workflow state: CLOSED
+Specification: APPROVED AND MERGED
+Implementation: NOT STARTED
+Implementation branch: NOT AUTHORIZED
+CG-12: unresolved pending implementation
+CG-13: open
+BE-01: blocked
+```
+
+Live verification at closeout confirmed `origin/develop` and local `develop` at
+`adfa59b5a6ce16ea1f227dd11e8f8f597e2fd3bf`, a clean worktree, and the merge
+commit's two parents in the required order. The complete merge contains exactly
+the six authorized specification paths: `CHANGELOG.md`, the
+`THOTH-DB-CTRL-01-SPEC` implementation report, `THOTH-DB-CTRL-01.md`,
+`control-gaps.md`, the `thoth.md` repository map, and `task-status.md`. The
+remote branch `feature/repository-controls/thoth-db-ctrl-01-spec` is absent:
+`git ls-remote --heads origin` returned no reference for it.
+
+### 24.2 Post-merge CI investigation
+
+The post-merge workflow runs triggered by the `push` event for merge commit
+`adfa59b5a6ce16ea1f227dd11e8f8f597e2fd3bf` were inspected with
+`gh run list --commit adfa59b5a6ce16ea1f227dd11e8f8f597e2fd3bf` and per-run job
+inspection. Two workflow runs were associated with the merge commit, and both
+reached a terminal successful conclusion with the expected documentation-only
+skip behaviour:
+
+| Run | Workflow | Event | Conclusion | Jobs |
+|---|---|---|---|---|
+| `30917721815` | `build-test-and-check` | push | success | `classify` success; `lint`, `build`, `test`, `format_check` skipped with empty step arrays |
+| `30917723482` | `run-migrations` | push | success | `classify` success; `run_migrations` skipped with an empty step array |
+
+No post-merge workflow failed; the merge is not reverted. This is an observed
+post-merge run set with terminal successful conclusions, recorded from GitHub at
+verification time.
+
+### 24.3 Metrics tracker pre-merge text
+
+The merged Metrics tracker text stating that specification PR #775 was not yet
+merged was the expected pre-merge state at the time commit
+`1b01c65c7b64de8b844d565b5bc65d772890f5b9` was written. It is correct as
+history and is being reconciled by this closeout PR, which records PR #775's
+merge into `develop` as `adfa59b5a6ce16ea1f227dd11e8f8f597e2fd3bf` while
+retaining every implementation, migration, rollout, and production gate.
+
+### 24.4 Closeout scope and effect
+
+This closeout PR changes exactly `docs/metrics/task-status.md`, this
+implementation report, and `CHANGELOG.md`. It does not modify the task
+specification, the CG-12 control-gap record, the repository map, or any
+implementation surface. It does not authorize `THOTH-DB-CTRL-01`
+implementation, does not create the implementation branch, and does not resolve
+CG-12, resolve CG-13, or unblock BE-01. The specification is `APPROVED AND
+MERGED`; implementation remains `NOT STARTED` and `NOT AUTHORIZED`.
+
+Closeout PR: [#776](https://github.com/thoth-pub/thoth/pull/776).
