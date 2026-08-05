@@ -46,10 +46,20 @@ Achieved evidence:
   [#772](https://github.com/thoth-pub/thoth/pull/772); this removes the shared
   decision dependency and does not unlock Publisher Services implementation.
 
+- the bounded
+  [`ADR-01` implementation specification](../engineering/ai-delivery/tasks/ADR-01.md)
+  is approved and repository-authoritative, defining the read-only evidence
+  scope, the required per-destination record, the evidence classification, the
+  decisions ADR-01 must produce and the exact stop labels that fire when
+  evidence is missing. It resolves no platform question, finalizes no
+  inventory, and authorizes no ADR-01 implementation.
+
 Outstanding evidence:
 
-- Publisher Services ADR-01 specification and final platform-inventory
-  approval;
+- Publisher Services ADR-01 implementation and final platform-inventory
+  approval; the inventory in
+  [`platform-inventory.md`](platform-inventory.md) remains explicitly
+  provisional until an approved ADR-01 merges;
 - applicable repository/branch-readiness decisions;
 - approved task specifications and review assignments for implementation work;
 - no unresolved control contradiction.
@@ -57,6 +67,73 @@ Outstanding evidence:
 Rollback:
 
 - revert documentation PR; no runtime effect.
+
+### 2.1 Coordinated task sequence
+
+The programme uses one fresh branch and one PR per task. There is no Publisher
+Services programme integration branch, and backend and app remain separate
+repositories with separate branches and PRs.
+
+Backend sequence:
+
+```text
+BE-01 merge gate
+ADR-01-SPEC
+ADR-01
+BE-02
+BE-03
+APP-01
+```
+
+`ADR-01-SPEC` and `ADR-01` are not blocked by the `BE-01` merge gate. That gate
+sits on the `BE-03` path, which depends on both `BE-01` and `BE-02`. `BE-02`
+requires the merged ADR-01 implementation, not the ADR-01 specification alone.
+
+Parallel `thoth-app` readiness track:
+
+```text
+BR-APP-01 branch-topology normalization
+a separately specified CG-11 CI closure task
+APP-01 specification
+APP-01 implementation
+```
+
+No authoritative task ID exists in current repository records for the CG-11 CI
+closure task; it is referred to by description until that task is specified and
+its ID is recorded.
+
+Controls:
+
+- `thoth-app` must not begin `APP-01` implementation until `BE-03` exposes the
+  approved protected API.
+- `BR-APP-01` is a separate HIGH-risk task because it changes Vercel production
+  and preview routing.
+- `APP-01` must use the verified app development branch after normalization, or
+  an explicit CTO exception.
+- Cross-repository compatibility is bound through exact commit SHAs and an exact
+  GraphQL schema contract, never through a moving branch name.
+
+### 2.2 Reserved BE-03/APP-01 GraphQL contract control
+
+Reserved and documented, not implemented. It binds the later `BE-03` and
+`APP-01` tasks.
+
+1. `BE-03` produces an exact generated GraphQL SDL at its reviewed head.
+2. `APP-01` records the exact `BE-03` commit SHA.
+3. `APP-01` code generation consumes a schema artifact pinned to that SHA, or a
+   preview API proven to expose that exact schema.
+4. `APP-01` must not generate against an unpinned moving test API and claim
+   exact compatibility.
+5. The app pull request records the backend PR, the backend SHA, the schema
+   artifact or preview identity, the generated-code diff and the
+   compatibility-test result.
+6. Backend contract availability precedes app merge.
+7. Backend additions remain backwards-compatible, so the existing app continues
+   to function unchanged.
+8. App rollback must not require removing the additive backend foundation.
+
+Changing the app's code-generation schema source requires its own approved task
+specification.
 
 ## 3. Stage 1 - Licence and package foundations
 
@@ -96,6 +173,11 @@ Deliver:
 
 Controls:
 
+- the approved ADR-01 implementation merges before BE-02 finalizes
+  `DistributionPlatform`; BE-02 must not derive the enum from the provisional
+  inventory;
+- every enum value has a code-owned descriptor, and no `OTHER` or fallback value
+  exists;
 - linked normalization in backend;
 - optimistic concurrency;
 - audit transaction;
@@ -172,7 +254,11 @@ Controls:
 - package read-only for publisher users;
 - superuser-only mutations/reports;
 - server result replaces optimistic linked-platform state;
-- generated GraphQL types pinned to merged schema;
+- generated GraphQL types pinned to the exact reviewed backend commit SHA under
+  the reserved contract control in section 2.2, never generated from an unpinned
+  moving test API;
+- app readiness controls satisfied: BR-APP-01 or an explicit CTO exception, and
+  the separately specified CG-11 CI closure task;
 - no frontend-owned capability or linked-platform matrix.
 
 Exit evidence:
