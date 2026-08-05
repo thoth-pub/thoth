@@ -1,6 +1,27 @@
 # THOTH-DB-CTRL-01 - Diesel generation procedure
 
-Status: APPROVED
+Status: SUPERSEDED
+
+> **SUPERSEDED NOTICE**
+>
+> The Diesel CLI structural-synchronizer architecture specified below was
+> superseded by
+> [ADR-0003 - Repository-authoritative Diesel schema contract](../../decisions/ADR-0003-repository-authoritative-schema-contract.md),
+> which selects the repository-maintained `thoth-api/src/schema.rs` contract.
+>
+> - The implementation of this specification, PR
+>   [#777](https://github.com/thoth-pub/thoth/pull/777), was closed unmerged.
+> - No code from PR #777 became repository-authoritative.
+> - The replacement control is
+>   [THOTH-DB-CTRL-02](THOTH-DB-CTRL-02.md), delivered in draft PR
+>   [#778](https://github.com/thoth-pub/thoth/pull/778).
+> - The historical approval of this specification (Javi, CTO, 2026-08-04) does
+>   **not** authorize reviving the synchronizer architecture. Any future move to
+>   generated-schema authority requires a new ADR that supersedes ADR-0003.
+>
+> The specification body below is preserved unchanged as historical evidence of
+> the rejected approach. Do not implement it.
+
 Programme: Shared Repository Controls
 Repository: thoth-pub/thoth
 Workflow: STANDARD
