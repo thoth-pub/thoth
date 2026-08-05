@@ -72,3 +72,5 @@ jobs:
         run: cargo run migrate
       - name: Revert migrations
         run: cargo run migrate --revert
+      - name: Reapply migrations
+        run: cargo run migrate

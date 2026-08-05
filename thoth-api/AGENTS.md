@@ -67,20 +67,26 @@ Backfill existing data before adding constraints that existing rows cannot satis
 
 Avoid application-side uniqueness checks without a matching database constraint.
 
-## 4. Diesel schema control gap
+## 4. Repository-authoritative schema contract
 
-The repository contains `thoth-api/src/schema.rs`, while the root `diesel.toml` currently identifies a different output path.
+Per [ADR-0003](../docs/engineering/decisions/ADR-0003-repository-authoritative-schema-contract.md), `thoth-api/src/schema.rs` is the repository-authoritative, manually maintained Rust/Diesel compile-time schema contract. It is not regenerated through a Diesel CLI workflow, and there is no root `diesel.toml`.
 
-Do not guess the schema-generation command or manually relocate generated schema.
+Work from the repository root. Create migrations with `make migration` and apply or revert them with the embedded runner (`cargo run migrate`, `cargo run migrate --revert`).
 
-Every schema-changing task must first:
+Every schema-changing task must update, atomically in the same bounded PR:
 
-1. identify the working command and directory used by maintainers;
-2. record it in the task/implementation report;
-3. generate or verify `thoth-api/src/schema.rs`;
-4. ensure no unrelated schema reformatting is introduced.
+1. the migration `up.sql` and `down.sql` under `migrations/`;
+2. `thoth-api/src/schema.rs`, edited directly to match the migration;
+3. the affected Rust models and any query/GraphQL code;
+4. focused database and model tests.
 
-If this cannot be established, stop and return `BLOCKED`.
+`thoth-api/src/schema.rs` may intentionally contain custom SQL types, supplemental types, physical-to-Rust aliases, model-compatible column ordering, timestamp mappings, and formatting that raw `diesel print-schema` does not reproduce. Preserve those conventions and introduce no unrelated schema reformatting.
+
+When a migration has no `thoth-api/src/schema.rs` impact (for example a data-only, index-only, or check-constraint migration outside the checked-in Diesel table contract), record that explicitly in the task/implementation report as a reviewed conclusion.
+
+Never use `diesel print-schema` as the canonical writer. External introspection tools may be consulted diagnostically, but their output is untrusted and must never write directly to `thoth-api/src/schema.rs`. Do not introduce a Diesel CLI dependency, a `diesel.toml`, or a schema-synchronization subsystem without a separately approved ADR that supersedes ADR-0003.
+
+Production migration execution and rollback remain governed by CG-13 and separate release authorization.
 
 ## 5. Transactions, concurrency and idempotency
 
