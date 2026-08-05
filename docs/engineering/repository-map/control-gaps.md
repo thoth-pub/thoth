@@ -71,38 +71,42 @@ No verified complete cursor, replication or snapshot route exists.
 
 App lacks explicit lint/build/codegen; dashboard lacks detected CI/tests; widget lacks unit tests; cc-license uses old Actions.
 
-### CG-12 - Thoth schema generation unclear (SPECIFICATION APPROVED - IMPLEMENTATION NOT STARTED)
+### CG-12 - Thoth schema generation (RESOLVED via Architecture A)
 
-Task `THOTH-DB-CTRL-01` is specified in
-[`docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md`](../ai-delivery/tasks/THOTH-DB-CTRL-01.md)
-through specification PR
-[#775](https://github.com/thoth-pub/thoth/pull/775). Disposable PostgreSQL 17
-testing established that root `diesel.toml` is syntactically and semantically
-invalid, its output path does not identify canonical
-`thoth-api/src/schema.rs`, and raw Diesel output does not preserve the compiled
-contract's aliases, supplemental type, timestamp semantics, column order, or
-formatting.
+Disposable PostgreSQL 17 testing established that root `diesel.toml` was
+syntactically and semantically invalid, its output path did not identify
+canonical `thoth-api/src/schema.rs`, and raw Diesel output does not preserve the
+compiled contract's aliases, supplemental type, timestamp semantics, column
+order, or formatting.
 
-The selected implementation is an exact-version, fail-closed structural
-synchronizer: root `diesel.toml` remains authoritative,
-`thoth-api/src/schema.rs` remains canonical, current intentional conventions
-become explicit control data, clean generation is byte-identical, and only a
-declared `change` or `none` projection expectation may pass.
+The originally specified answer, `THOTH-DB-CTRL-01`, was an exact-version,
+fail-closed structural synchronizer built on root `diesel.toml`, raw
+`diesel print-schema`, a convention file, and a custom reconciliation subsystem.
+That approach was rejected. Its implementation PR
+[#777](https://github.com/thoth-pub/thoth/pull/777) was closed unmerged, and no
+code from it became repository-authoritative.
 
-The written specification was previously approved at pre-correction content.
-That approval is historical after the normative enum-projection,
-catalog-baseline, and projection-mode corrections.
-The projection-mode-corrected written specification is approved by Javi, CTO,
-on 2026-08-04, bound to exact base
-`35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`, exact reviewed head
-`50ff3248b2af4a19422df924260c4f17832c0378`, normative content head
-`aec8295f22bc8c7cab4ce13e09890ef78b8586fa`, and independent approval comment
-`5177640752`. Specification approval does not authorize the implementation
-branch or implementation work. PR #775 does not resolve CG-12 and does not
-start the implementation. BE-01 remains `BLOCKED`. CG-12 closes only after
-`THOTH-DB-CTRL-01` receives separate implementation authorization, passes its
-complete acceptance evidence and independent exact-head review, and merges with
-explicit CTO authorization. CG-13 remains open.
+On 2026-08-05 the CTO selected Architecture A, recorded in
+[ADR-0003](../decisions/ADR-0003-repository-authoritative-schema-contract.md):
+`thoth-api/src/schema.rs` is the repository-authoritative, manually maintained
+Diesel schema contract; migrations, `schema.rs`, models, and database-backed
+tests change atomically in one bounded task; and the Diesel CLI and root
+`diesel.toml` are retired from the supported workflow.
+[`THOTH-DB-CTRL-01`](../ai-delivery/tasks/THOTH-DB-CTRL-01.md) is marked
+`SUPERSEDED`, and [`THOTH-DB-CTRL-02`](../ai-delivery/tasks/THOTH-DB-CTRL-02.md)
+delivers ADR-0003 and its directly related cleanup through PR
+[#778](https://github.com/thoth-pub/thoth/pull/778).
+
+CG-12 is **RESOLVED** by Architecture A (ADR-0003), delivered by
+[`THOTH-DB-CTRL-02`](../ai-delivery/tasks/THOTH-DB-CTRL-02.md) through PR
+[#778](https://github.com/thoth-pub/thoth/pull/778). The merged Architecture A
+control is the repository answer to how `schema.rs` tracks migrations, and BE-01
+is `READY` for separately authorized implementation. `READY` does not authorize
+implementation by itself: creating the BE-01 branch and making any
+implementation edit require separate explicit authorization, and the branch
+remains absent until then. This record becomes authoritative when PR #778 merges
+into `develop`; the merge itself remains subject to independent exact-head review
+and explicit CTO merge authorization. CG-13 remains open.
 
 ### CG-13 - Thoth runtime operations unmapped
 

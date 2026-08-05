@@ -6,9 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+  - [778](https://github.com/thoth-pub/thoth/pull/778) - Add ADR-0003 selecting Architecture A, the repository-authoritative, manually maintained `thoth-api/src/schema.rs` Diesel schema contract, together with the THOTH-DB-CTRL-02 replacement control and a migration-chain reapply step in `run_migrations.yml` (apply, revert, reapply on the disposable database)
   - [764](https://github.com/thoth-pub/thoth/pull/764) - Add the AI-led engineering operating model, task and review templates, risk classification, release gates, and GitHub Flow controls
 
 ### Changed
+  - [778](https://github.com/thoth-pub/thoth/pull/778) - Mark THOTH-DB-CTRL-01 superseded (structural-synchronizer architecture rejected; implementation PR #777 closed unmerged with no code becoming authoritative), rewrite `AGENTS.md` and `thoth-api/AGENTS.md` around the manual atomic schema workflow, and reconcile CG-12, the `thoth` repository map, BE-01 readiness, and the Publisher Services and Metrics trackers to Architecture A
   - [776](https://github.com/thoth-pub/thoth/pull/776) - Close out the merged THOTH-DB-CTRL-01 specification, recording PR #775's merge into `develop` and reconciling the Thoth Metrics tracker while retaining the implementation gate
   - [775](https://github.com/thoth-pub/thoth/pull/775) - Specify the shared THOTH-DB-CTRL-01 Diesel migration and schema-generation control, defining deterministic schema verification, safe disposable-database testing, and the remaining implementation gate
   - [774](https://github.com/thoth-pub/thoth/pull/774) - Approve the bounded BE-01 publisher package model implementation specification, defining the non-null OASIS default, exhaustive package capabilities, migration evidence, protected GraphQL boundary, and inactive rollout controls
@@ -19,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [769](https://github.com/thoth-pub/thoth/pull/769) - Record CTO approval of ADR-0002, establishing separate distribution and metrics platform domains with no initial cross-domain mapping, and reconcile the Publisher Services and Metrics control records without enabling implementation
   - [767](https://github.com/thoth-pub/thoth/pull/767) - Reconcile the Publisher Services programme controls with the merged P0-01 foundation while preserving the remaining independent-review, ADR, inventory and branch-readiness gates
   - [768](https://github.com/thoth-pub/thoth/pull/768) - Finalize the Publisher Services P0-01 repository closeout: record the merged closeout PR #767's independent approval and final-head CI evidence, mark P0-01 closed as the authoritative repository record, and replace the issue-synchronization rollback with a guarded procedure (documentation and control records only)
+
+### Removed
+  - [778](https://github.com/thoth-pub/thoth/pull/778) - Remove the stale, unused root `diesel.toml`, which never parsed, did not target the canonical `thoth-api/src/schema.rs`, and was not part of any supported build, test, migration, or schema-generation command; the Diesel Rust crates and the embedded `diesel_migrations` runner are unaffected
 
 ## [[1.6.1]](https://github.com/thoth-pub/thoth/releases/tag/v1.6.1) - 2026-07-23
 ### Fixed
