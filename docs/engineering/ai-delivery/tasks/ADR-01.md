@@ -1,6 +1,6 @@
 # ADR-01 - Platform inventory and final architecture
 
-Status: APPROVED
+Status: PROPOSED
 Programme: Publisher Services and Distribution Configuration
 Repository: `thoth-pub/thoth`
 Workflow: STANDARD
@@ -9,8 +9,8 @@ PR target: `develop`
 Programme integration branch: None
 Risk: MEDIUM
 Owner: CTO
-Approved by: Javi, CTO
-Approval date: 2026-08-05
+Specification review: PENDING
+CTO specification approval: PENDING
 Target branch name: `feature/publisher-services/adr-01`
 
 ## 1. Objective
@@ -70,7 +70,8 @@ Downward reclassification to LOW is not available.
 
 The ADR-01 implementation requires:
 
-- this approved specification;
+- this specification, first independently reviewed, explicitly approved by the
+  CTO as written content, and merged;
 - MEDIUM or HIGH implementation reasoning, selected and justified from the
   actual operational risk of the destinations being inventoried;
 - an independent reviewer that did not author the inventory;
@@ -82,9 +83,9 @@ The ADR-01 implementation requires:
 ADR-01 receives no runtime, production, or workflow-dispatch authorization at
 any point.
 
-Approval of this specification does not authorize the ADR-01 implementation.
-That work requires its own separate explicit authorization, its own freshly
-verified `develop` base, and its own branch.
+Future approval of this specification will not itself authorize the ADR-01
+implementation. That work requires its own separate explicit authorization, its
+own freshly verified `develop` base, and its own branch.
 
 ## 2. Background and authority
 
@@ -98,7 +99,9 @@ Authoritative sources, in precedence order:
    Technical Design and Implementation Plan`, Drive revision `3`, indexed in
    [`docs/engineering/design-references.md`](../../design-references.md),
    section 8.2 of which defines the ADR-01 epic;
-6. this approved specification;
+6. this specification, once it has been independently reviewed, explicitly
+   approved by the CTO and merged; until then it is proposed, not
+   authoritative;
 7. [Publisher Services programme controls](../../../publisher-services/README.md),
    including the
    [provisional platform inventory](../../../publisher-services/platform-inventory.md);
@@ -601,19 +604,37 @@ ADR-01 must not:
 
 ## 14. Cross-repository coordination
 
-### 14.1 Coordinated sequence
+### 14.1 Dependency graph
+
+The programme's hard dependencies form a directed acyclic graph, not a single
+serial chain:
 
 ```text
-BE-01 merge gate
-ADR-01-SPEC
-ADR-01
-BE-02
-BE-03
-APP-01
+ADR-01-SPEC -> ADR-01 -> BE-02
+
+BE-01 ----+
+          +-> BE-03 -> APP-01
+BE-02 ----+
+
+BE-03 ------------+
+BR-APP-01 --------+
+CG-11 closure ----+-> APP-01 implementation
+APP-01 spec ------+
 ```
 
-`ADR-01-SPEC` and `ADR-01` are not blocked by the `BE-01` merge gate; the gate
-sits on the `BE-03` path, which depends on both `BE-01` and `BE-02`.
+Explicitly:
+
+- `ADR-01-SPEC` does not depend on `BE-01`.
+- `ADR-01` does not depend on `BE-01`.
+- `BE-02` depends on an approved and merged `ADR-01`.
+- `BE-03` depends on both `BE-01` and `BE-02`.
+- `APP-01` implementation depends on `BE-03`, app branch readiness
+  (`BR-APP-01` or an explicit CTO exception), CG-11 closure, and its own
+  approved specification.
+
+A preferred delivery order may sequence independent tasks for coordination
+convenience, but a preferred order is not a hard dependency and must not be
+read as one.
 
 Parallel `thoth-app` readiness work proceeds on its own track:
 
@@ -713,12 +734,13 @@ inventory.
 ## 18. Branch and integration plan
 
 - branch source: then-current verified `develop`, only after this specification
-  PR has merged and separate explicit authorization for the ADR-01
-  implementation is granted;
+  has been independently reviewed, explicitly approved by the CTO, and merged,
+  and separate explicit authorization for the ADR-01 implementation is granted;
 - exact base recorded before any edit;
 - pull-request target: `develop`;
 - task branch: `feature/publisher-services/adr-01`;
-- expected merge order: this specification merges; separate explicit
+- expected merge order: this specification is independently reviewed, approved
+  by the CTO and merged; separate explicit
   authorization; fresh `develop` verification and branch creation; ADR-01
   implementation, independent review and CTO merge approval; only then `BE-02`
   specification and implementation;
@@ -727,22 +749,26 @@ inventory.
 - final programme PR required: NO;
 - final release path: `develop -> master`.
 
-## 19. Approval
+## 19. Approval gate
 
-Approved for implementation by: Javi, CTO
+This specification is **proposed**. It has not been approved.
 
-Date: 2026-08-05
-
-Notes:
-
-- Approval becomes repository-authoritative when this specification PR is
-  independently approved and merged into `develop`.
-- Approval of this specification does not authorize the ADR-01 implementation.
-  That requires separate explicit authorization and a freshly verified base.
-- Approval settles no platform decision. The inventory in
+- The written content of this specification requires a fresh independent
+  exact-head review.
+- It then requires explicit CTO approval of the written specification itself.
+- The CTO's execution authorization to *draft* this specification, dated
+  2026-08-05, authorized the drafting work only. Drafting authorization is not
+  approval of the resulting written specification, and no approval evidence
+  exists at this head.
+- ADR-01 implementation remains separately unauthorized. Even after this
+  specification is approved and merged, implementation requires its own
+  separate explicit authorization, a freshly verified `develop` base, and its
+  own branch.
+- Nothing at this head decides any platform question, authorizes any runtime
+  work, or grants production access. The inventory in
   [`platform-inventory.md`](../../../publisher-services/platform-inventory.md)
   remains explicitly provisional until an approved ADR-01 merges.
-- Approval authorizes no production access, no workflow dispatch, no credential
-  use, no runtime or schema change, and no change to `thoth-app`,
+- Future approval will authorize no production access, no workflow dispatch, no
+  credential use, no runtime or schema change, and no change to `thoth-app`,
   `thoth-dissemination`, `BE-01`, `CG-11`, `CG-13`, `BR-APP-01` or the deferred
   OAI branch.

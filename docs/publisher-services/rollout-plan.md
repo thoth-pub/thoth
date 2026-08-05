@@ -48,14 +48,19 @@ Achieved evidence:
 
 - the bounded
   [`ADR-01` implementation specification](../engineering/ai-delivery/tasks/ADR-01.md)
-  is approved and repository-authoritative, defining the read-only evidence
+  has been drafted and is proposed, defining the read-only evidence
   scope, the required per-destination record, the evidence classification, the
   decisions ADR-01 must produce and the exact stop labels that fire when
   evidence is missing. It resolves no platform question, finalizes no
-  inventory, and authorizes no ADR-01 implementation.
+  inventory, and authorizes no ADR-01 implementation. It becomes
+  repository-authoritative only after independent specification review,
+  explicit CTO approval of the written specification, and merge — a future
+  transition, not the current state.
 
 Outstanding evidence:
 
+- independent review and explicit CTO approval of the written ADR-01
+  specification, followed by its merge;
 - Publisher Services ADR-01 implementation and final platform-inventory
   approval; the inventory in
   [`platform-inventory.md`](platform-inventory.md) remains explicitly
@@ -74,20 +79,29 @@ The programme uses one fresh branch and one PR per task. There is no Publisher
 Services programme integration branch, and backend and app remain separate
 repositories with separate branches and PRs.
 
-Backend sequence:
+Dependency graph — the programme's hard dependencies form a directed acyclic
+graph, not a single serial chain:
 
 ```text
-BE-01 merge gate
-ADR-01-SPEC
-ADR-01
-BE-02
-BE-03
-APP-01
+ADR-01-SPEC -> ADR-01 -> BE-02
+
+BE-01 ----+
+          +-> BE-03 -> APP-01
+BE-02 ----+
+
+BE-03 ------------+
+BR-APP-01 --------+
+CG-11 closure ----+-> APP-01 implementation
+APP-01 spec ------+
 ```
 
-`ADR-01-SPEC` and `ADR-01` are not blocked by the `BE-01` merge gate. That gate
-sits on the `BE-03` path, which depends on both `BE-01` and `BE-02`. `BE-02`
-requires the merged ADR-01 implementation, not the ADR-01 specification alone.
+Explicitly: `ADR-01-SPEC` and `ADR-01` do not depend on `BE-01`; `BE-02`
+depends on an approved and merged `ADR-01` implementation, not the ADR-01
+specification alone; `BE-03` depends on both `BE-01` and `BE-02`; `APP-01`
+implementation depends on `BE-03`, app branch readiness (`BR-APP-01` or an
+explicit CTO exception), CG-11 closure, and its own approved specification. A
+preferred delivery order may sequence independent tasks for coordination
+convenience, but a preferred order is not a hard dependency.
 
 Parallel `thoth-app` readiness track:
 

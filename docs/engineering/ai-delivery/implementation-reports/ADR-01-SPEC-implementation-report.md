@@ -66,13 +66,17 @@ row and the tracker's `Next actions` list were deliberately left untouched, both
 to respect that constraint and to avoid conflicting with PR #779, which rewrites
 exactly those lines.
 
-Coordination observation, recorded as evidence and requiring no change in this
-task: the committed documentation on the BE-01 branch already asserts that BE-01
-"merged into `develop` through implementation PR #779" and marks BE-01 `CLOSED`,
-while PR #779 is open and unmerged. That is transient delivery state written
-into a committed record, which the programme's own documentation-state rule
-places in the PR body and evidence comments instead. Resolving it belongs to
-PR #779.
+PR #779 coordination facts, requiring no change in this task: PR #779 is
+currently open and draft. Its head is not part of the ADR-01-SPEC base. No
+candidate BE-01 post-merge changes were copied into this branch. The BE-01
+tracker row and related candidate changes were left untouched to avoid
+cross-PR conflict. PR #779's committed candidate records may legitimately
+describe the resulting authoritative state after merge, because that content
+reaches `develop` only if PR #779 actually merges; this is the programme's
+established control model for candidate committed content, and it is not a
+defect. An earlier revision of this report characterized that wording as a
+false merge claim requiring resolution in PR #779; that characterization was
+incorrect and is withdrawn.
 
 ### 1.3 Approved design source
 
@@ -93,13 +97,18 @@ the private document is reproduced in the repository.
 
 ## 2. Scope confirmation
 
-Approved specification: the CTO-authorized `ADR-01-SPEC` execution
-authorization dated 2026-08-05.
+Task authorization: the CTO-authorized `ADR-01-SPEC` execution authorization
+dated 2026-08-05. That authorization covered the drafting work only. Drafting
+authorization is not approval of the resulting written specification: this PR
+produced a **proposed** written specification that awaits independent
+specification review and explicit CTO approval of the written content. No
+approval evidence exists at this head, and none is claimed.
 
-Implemented objective: create the repository-authoritative bounded
-implementation specification for `ADR-01 - Platform inventory and final
-architecture`, and reconcile the Publisher Services dependency and rollout
-records with it, without performing ADR-01.
+Implemented objective: draft the proposed bounded implementation specification
+for `ADR-01 - Platform inventory and final architecture`, and reconcile the
+Publisher Services dependency and rollout records with it, without performing
+ADR-01. The specification becomes repository-authoritative only after
+independent review, CTO approval of the written specification, and merge.
 
 Out-of-scope changes made: NONE.
 
@@ -112,17 +121,23 @@ declared in section 5.
   architecture`
 - `eea27901` - `docs(publisher-services): reconcile ADR-01 dependency and
   rollout records`
-- final commit - `docs(publisher-services): report ADR-01 specification` (this
+- `de39ed3c` - `docs(publisher-services): report ADR-01 specification` (this
   report, the changelog entries, and the recorded specification PR number)
+- final commit - `docs(publisher-services): correct ADR-01 specification gate
+  and dependencies` (bounded documentation/evidence-only remediation of
+  independent review `4866458391`: corrects the specification approval state to
+  proposed/pending, corrects the PR #779 characterization, and replaces the
+  linear dependency chain with an explicit dependency DAG)
 
-Exact SHAs for the final commit and head are recorded in the immutable
-exact-head evidence comment.
+Exact SHAs for the final commit and head are recorded in the superseding
+immutable exact-head evidence comment.
 
 ## 4. Files changed
 
 - `docs/engineering/ai-delivery/tasks/ADR-01.md`
-  - reason: create the repository-authoritative ADR-01 implementation
-    specification.
+  - reason: create the proposed ADR-01 implementation specification, which
+    becomes repository-authoritative only after independent review, CTO
+    approval of the written specification, and merge.
   - behavioural effect: none at runtime. It defines the read-only evidence scope
     across `thoth`, `thoth-dissemination` and `thoth-app`; the required
     per-destination record and its credential-recording rule; the evidence
@@ -134,30 +149,33 @@ exact-head evidence comment.
     sequence; and the reserved `BE-03`/`APP-01` GraphQL contract control.
 
 - `docs/publisher-services/task-status.md`
-  - reason: record ADR-01's approved specification and sharpen the dependencies
-    it governs.
-  - behavioural effect: none. ADR-01 moves from `BLOCKED` to `READY`, links its
-    specification, and states explicitly that `READY` does not authorize
-    implementation, that the branch is not authorized, and that the final
-    inventory remains provisional. `BE-02` records that it requires the merged
-    ADR-01 implementation rather than the specification alone. `BE-03` and
-    `APP-01` record their own bounded-specification, app-readiness and
+  - reason: record ADR-01's drafted, proposed specification and sharpen the
+    dependencies it governs.
+  - behavioural effect: none. ADR-01 remains `BLOCKED`, links its drafted
+    specification, and states explicitly that the independent specification
+    review and CTO approval of the written specification are pending, that
+    ADR-01 moves to `READY` only after specification approval and merge, that
+    implementation is not authorized, that the branch is absent, and that the
+    final inventory remains provisional. `BE-02` records that it requires the
+    merged ADR-01 implementation rather than the specification alone. `BE-03`
+    and `APP-01` record their own bounded-specification, app-readiness and
     schema-pinning dependencies. The BE-01 row is untouched.
 
 - `docs/publisher-services/rollout-plan.md`
   - reason: record the coordinated cross-repository sequence and the reserved
     GraphQL contract control.
-  - behavioural effect: none. Stage 0 records the approved ADR-01 specification
-    and keeps the final inventory outstanding; new sections 2.1 and 2.2 record
-    the backend sequence, the parallel `thoth-app` readiness track and the
+  - behavioural effect: none. Stage 0 records the drafted, proposed ADR-01
+    specification with its review and approval gates outstanding and keeps the
+    final inventory outstanding; new sections 2.1 and 2.2 record
+    the dependency DAG, the parallel `thoth-app` readiness track and the
     schema-pinning control; Stage 2 records that ADR-01 must merge before
     `BE-02` finalizes `DistributionPlatform` and that no `OTHER` or fallback
     value exists; Stage 4 records exact-SHA pinning and the app readiness
     controls.
 
 - `docs/publisher-services/README.md`
-  - reason: record the approved ADR-01 specification, and correct a stale
-    control claim.
+  - reason: record the drafted, proposed ADR-01 specification with its pending
+    review and approval gates, and correct a stale control claim.
   - behavioural effect: none. See section 5 for the declared correction.
 
 - `docs/engineering/ai-delivery/implementation-reports/ADR-01-SPEC-implementation-report.md`
@@ -185,8 +203,10 @@ state until an approved ADR-01 merges.
 2. **ADR-01 is recorded as not depending on BE-01.** The two tasks are
    independent under the approved architecture: package selection and platform
    assignment are separate concerns. The BE-01 merge gate sits on the `BE-03`
-   path. This is stated in the specification and in the rollout sequence so the
-   sequence is not misread as a strict serial chain.
+   path. The specification and the rollout plan record the programme's hard
+   dependencies as an explicit dependency DAG, distinguishing preferred
+   delivery order from hard dependencies, so the sequence cannot be misread as
+   a strict serial chain.
 
 3. **The provisional inventory is left untouched.** Listing the provisional
    codes in the specification is explicitly recorded as *not* approval of those
@@ -198,10 +218,16 @@ state until an approved ADR-01 merges.
    no task ID assigned. Both the specification and the rollout plan refer to it
    by description and state that the ID is assigned when that task is specified.
 
-5. **Transient state was kept out of committed records.** The committed tracker,
-   rollout plan, README and this report describe the state that will exist after
-   this PR merges. Draft/open/awaiting-review status lives in the PR body and
-   the immutable evidence comment.
+5. **Committed records state the truthful approval position.** Candidate
+   committed content may describe the resulting authoritative state after
+   merge, because it reaches `develop` only if the PR merges. Merging this PR
+   does not, however, constitute CTO approval of the written specification —
+   that is a separate gate — so the committed tracker, rollout plan, README and
+   this report record the specification as proposed, with the independent
+   specification review and CTO specification approval pending, and describe
+   the post-approval authoritative state only as an explicitly labelled future
+   transition. Draft/open PR status lives in the PR body and the immutable
+   evidence comments.
 
 6. **The tracker's BE-01 row and `Next actions` list were left untouched**, both
    because PR #779 has not merged into this base and because PR #779 rewrites
@@ -361,8 +387,12 @@ preserving the protected check contexts.
 
 Initial state after merge:
 
-- the ADR-01 implementation specification is repository-authoritative;
-- ADR-01 is `READY`, with its implementation branch not authorized and absent;
+- the proposed ADR-01 implementation specification is present in `develop`,
+  still awaiting explicit CTO approval of the written specification; merge
+  alone does not approve it, and it becomes repository-authoritative only
+  through that separate approval;
+- ADR-01 remains `BLOCKED` pending specification approval, with its
+  implementation branch not authorized and absent;
 - the final distribution-platform inventory remains provisional;
 - `BE-02`, `BE-03`, `BE-04` and `APP-01` remain blocked under their recorded
   dependencies;
@@ -399,8 +429,6 @@ Monitoring required: none.
 
 - The independent specification review and explicit CTO approval of the written
   ADR-01 specification are both pending.
-- The BE-01 branch's committed claim of a merge that has not occurred (section
-  1.2) is unresolved and belongs to PR #779.
 
 ## 15. Agent self-assessment
 

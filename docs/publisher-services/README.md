@@ -1,6 +1,6 @@
 # Publisher Services and Distribution Configuration
 
-Status: CONTROL FOUNDATION CLOSED; BE-01 AND ADR-01 SPECIFICATIONS APPROVED; CG-12 RESOLVED BY ADR-0003; ADR-01 IMPLEMENTATION NOT AUTHORIZED; FINAL PLATFORM INVENTORY STILL PROVISIONAL; ALL OTHER IMPLEMENTATION GATED
+Status: CONTROL FOUNDATION CLOSED; BE-01 SPECIFICATION APPROVED; ADR-01 SPECIFICATION PROPOSED WITH REVIEW AND CTO APPROVAL PENDING; CG-12 RESOLVED BY ADR-0003; ADR-01 IMPLEMENTATION NOT AUTHORIZED; FINAL PLATFORM INVENTORY STILL PROVISIONAL; ALL OTHER IMPLEMENTATION GATED
 Programme owner: CTO
 Primary coordinating repository: `thoth-pub/thoth`
 Related repositories:
@@ -71,8 +71,10 @@ Where sources conflict, stop and escalate. Chat history is not authoritative.
 CONTROL FOUNDATION CLOSED
 BE-01 SPECIFICATION APPROVED AND MERGED
 CG-12 RESOLVED BY ADR-0003 ARCHITECTURE A
-ADR-01 SPECIFICATION APPROVED
-ADR-01 IMPLEMENTATION NOT STARTED
+ADR-01 SPECIFICATION PROPOSED
+ADR-01 INDEPENDENT SPECIFICATION REVIEW PENDING
+ADR-01 CTO SPECIFICATION APPROVAL PENDING
+ADR-01 IMPLEMENTATION NOT AUTHORIZED
 ADR-01 IMPLEMENTATION BRANCH NOT AUTHORIZED
 FINAL DISTRIBUTION-PLATFORM INVENTORY REMAINS PROVISIONAL
 ALL OTHER IMPLEMENTATION REMAINS GATED
@@ -107,12 +109,16 @@ Achieved:
   `THOTH-DB-CTRL-01` is `SUPERSEDED`.
 - The bounded
   [`ADR-01` implementation specification](../engineering/ai-delivery/tasks/ADR-01.md)
-  is approved and repository-authoritative. It defines how the future ADR-01
-  implementation determines the final distribution-platform inventory, and it
-  finalizes no inventory itself. ADR-01 implementation is not authorized: the
-  branch `feature/publisher-services/adr-01` requires separate explicit
-  authorization and a freshly verified `develop` base, and remains absent until
-  then.
+  has been drafted and is **proposed**. Its written content awaits independent
+  specification review and explicit CTO approval; it becomes
+  repository-authoritative only after that approval and merge — a future
+  transition, not the current state. The CTO's authorization to draft the
+  specification is not approval of the resulting written content. The
+  specification defines how the future ADR-01 implementation determines the
+  final distribution-platform inventory, and it finalizes no inventory itself.
+  ADR-01 implementation is not authorized: the branch
+  `feature/publisher-services/adr-01` requires separate explicit authorization
+  and a freshly verified `develop` base, and remains absent until then.
 
 Specification approval and gated implementation:
 
