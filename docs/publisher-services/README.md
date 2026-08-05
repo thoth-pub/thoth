@@ -1,6 +1,6 @@
 # Publisher Services and Distribution Configuration
 
-Status: CONTROL FOUNDATION CLOSED; BE-01 SPECIFICATION APPROVED AFTER PR #774 MERGES; BE-01 IMPLEMENTATION BLOCKED ON SHARED DIESEL CONTROL; ALL OTHER IMPLEMENTATION GATED
+Status: CONTROL FOUNDATION CLOSED; BE-01 AND ADR-01 SPECIFICATIONS APPROVED; CG-12 RESOLVED BY ADR-0003; ADR-01 IMPLEMENTATION NOT AUTHORIZED; FINAL PLATFORM INVENTORY STILL PROVISIONAL; ALL OTHER IMPLEMENTATION GATED
 Programme owner: CTO
 Primary coordinating repository: `thoth-pub/thoth`
 Related repositories:
@@ -69,8 +69,12 @@ Where sources conflict, stop and escalate. Chat history is not authoritative.
 
 ```text
 CONTROL FOUNDATION CLOSED
-BE-01 SPECIFICATION APPROVED AFTER PR #774 MERGES
-BE-01 IMPLEMENTATION BLOCKED ON SHARED DIESEL CONTROL
+BE-01 SPECIFICATION APPROVED AND MERGED
+CG-12 RESOLVED BY ADR-0003 ARCHITECTURE A
+ADR-01 SPECIFICATION APPROVED
+ADR-01 IMPLEMENTATION NOT AUTHORIZED
+ADR-01 IMPLEMENTATION BRANCH ABSENT / NOT AUTHORIZED
+FINAL DISTRIBUTION-PLATFORM INVENTORY REMAINS PROVISIONAL
 ALL OTHER IMPLEMENTATION REMAINS GATED
 ```
 
@@ -90,13 +94,31 @@ Achieved:
   task ready.
 - The bounded
   [`BE-01` implementation specification](../engineering/ai-delivery/tasks/BE-01.md)
-  is approved through this documentation-only specification
-  [PR #774](https://github.com/thoth-pub/thoth/pull/774). When PR #774 merges,
-  the specification becomes repository-authoritative and read-only orientation
-  may continue. BE-01 implementation remains blocked on the shared
-  `THOTH-DB-CTRL-01` Diesel generation procedure.
+  is approved and repository-authoritative following the merge of
+  documentation-only specification
+  [PR #774](https://github.com/thoth-pub/thoth/pull/774). The current BE-01
+  delivery state is recorded only in
+  [`task-status.md`](task-status.md) and the BE-01 pull-request record.
+- The shared Diesel schema-authority control is settled:
+  [ADR-0003](../engineering/decisions/ADR-0003-repository-authoritative-schema-contract.md)
+  selects Architecture A, delivered by `THOTH-DB-CTRL-02` through
+  [PR #778](https://github.com/thoth-pub/thoth/pull/778), and
+  [CG-12](../engineering/repository-map/control-gaps.md) is `RESOLVED`.
+  `THOTH-DB-CTRL-01` is `SUPERSEDED`.
+- The bounded
+  [`ADR-01` implementation specification](../engineering/ai-delivery/tasks/ADR-01.md)
+  is approved: its written content was independently reviewed and explicitly
+  approved by Javi, CTO, on 2026-08-05 at exact content head
+  `820f9cfa22d284f8f347db338aa2461408f4ed12`. The specification becomes
+  repository-authoritative when specification
+  [PR #780](https://github.com/thoth-pub/thoth/pull/780) merges. It defines
+  how the future ADR-01 implementation determines the final
+  distribution-platform inventory, and it finalizes no inventory itself.
+  ADR-01 implementation is not authorized: the branch
+  `feature/publisher-services/adr-01` requires separate explicit authorization
+  and a freshly verified `develop` base, and remains absent until then.
 
-BE-01 specification approval and blocked implementation:
+Specification approval and gated implementation:
 
 1. The P0-01 control foundation is `CLOSED`. It merged through
    [PR #764](https://github.com/thoth-pub/thoth/pull/764) at
@@ -110,37 +132,46 @@ BE-01 specification approval and blocked implementation:
 2. BE-01 will add only the package-storage and code-owned capability foundation.
    It creates no public or protected package query, no package mutation, no
    distribution-platform behaviour, and no OAI-PMH or Metrics activation.
-3. `THOTH-DB-CTRL-01` is the shared repository task that must resolve CG-12.
-   It must be independently approved and merged before BE-01 moves to `READY`,
-   before `feature/publisher-services/be-01` is created, or before any
-   migration, `schema.rs`, model, test, or other implementation edit.
-4. The BE-01 implementing agent must consume and verify the merged
-   repository-authoritative Diesel procedure. It must not independently
-   establish, redefine, or repair that shared procedure inside BE-01.
-5. The exact BE-01 base is recorded only after the shared control passes, when
-   the implementation branch is created from the then-current verified
-   `develop`.
+3. The shared CG-12 schema-authority question is resolved by ADR-0003
+   Architecture A: `thoth-api/src/schema.rs` is the repository-authoritative,
+   manually maintained Diesel schema contract, and a task that changes the
+   Diesel-representable contract updates the migration, `schema.rs`, models and
+   tests atomically in one bounded PR.
+4. An implementing agent consumes and verifies that merged shared control. It
+   must not independently establish, redefine, or repair it inside a programme
+   task.
+5. Every implementation task records its exact base only when its branch is
+   created from the then-current verified `develop`, under separate explicit
+   authorization.
 6. Protected package and effective-capability reads and the dedicated
    superuser package mutation remain BE-03 scope.
+7. ADR-01 will determine the final distribution-platform inventory. Until an
+   approved ADR-01 merges, [`platform-inventory.md`](platform-inventory.md)
+   remains an explicitly provisional baseline and must not be treated as the
+   final enum.
 
 Reasons all other implementation remains gated:
 
 1. Publisher Services `ADR-01` has not finalized or approved the
-   distribution-platform enum or final distribution-platform inventory.
-2. Every task other than BE-01 still requires its own approved bounded
-   specification and applicable dependencies.
+   distribution-platform enum or final distribution-platform inventory. `BE-02`
+   requires the merged ADR-01 implementation, not the ADR-01 specification
+   alone.
+2. Every task still requires its own approved bounded specification, its
+   applicable dependencies, and separate explicit authorization before any
+   implementation branch or edit.
 3. Branch-readiness tasks are required before work in repositories whose
-   current topology differs from policy.
-4. BE-01-SPEC changes documentation and control state only. It changes no
-   runtime code, migration, database, GraphQL/API, authorization, deployment,
-   release, production service or production behaviour.
+   current topology differs from policy. `BR-APP-01` and the separately
+   specified CG-11 CI closure task remain outstanding for `thoth-app`, and
+   `CG-13` remains open for `thoth` runtime operations.
+4. A specification task changes documentation and control state only. It
+   changes no runtime code, migration, database, GraphQL/API, authorization,
+   deployment, release, production service or production behaviour.
 
-Discovery, review, documentation, and read-only orientation may continue. After
-PR #774 merges, `THOTH-DB-CTRL-01` must resolve the shared procedure; only then
-may a separate control update move BE-01 from `BLOCKED` to `READY`, followed by
-fresh `develop` verification and implementation-branch creation. No BE-01
-implementation edit, BE-02, BE-03, OAI-PMH, release, deployment or production
-work is unlocked by BE-01-SPEC.
+Discovery, review, documentation, and read-only orientation may continue. An
+approved specification makes a task's requirements repository-authoritative; it
+does not create the implementation branch, authorize an implementation edit, or
+unlock `BE-02`, `BE-03`, `BE-04`, `APP-01`, OAI-PMH, release, deployment or
+production work.
 
 ## 6. Files
 
