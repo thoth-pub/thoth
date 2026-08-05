@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+  - [777](https://github.com/thoth-pub/thoth/pull/777) - Implement the THOTH-DB-CTRL-01 Diesel schema-generation control: a fail-closed structural synchronizer as the sole authorized writer of `thoth-api/src/schema.rs`, reviewable convention data, corrected `diesel.toml` staging output, bounded Makefile targets, a two-phase exact-SHA migration workflow, and authoritative AGENTS instructions (no schema, migration, or production effect; pending independent review and CTO merge authorization)
   - [764](https://github.com/thoth-pub/thoth/pull/764) - Add the AI-led engineering operating model, task and review templates, risk classification, release gates, and GitHub Flow controls
 
 ### Changed

@@ -71,7 +71,7 @@ No verified complete cursor, replication or snapshot route exists.
 
 App lacks explicit lint/build/codegen; dashboard lacks detected CI/tests; widget lacks unit tests; cc-license uses old Actions.
 
-### CG-12 - Thoth schema generation unclear (SPECIFICATION APPROVED - IMPLEMENTATION NOT STARTED)
+### CG-12 - Thoth schema generation unclear (IMPLEMENTATION IN REVIEW - NOT RESOLVED)
 
 Task `THOTH-DB-CTRL-01` is specified in
 [`docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md`](../ai-delivery/tasks/THOTH-DB-CTRL-01.md)
@@ -103,6 +103,34 @@ start the implementation. BE-01 remains `BLOCKED`. CG-12 closes only after
 `THOTH-DB-CTRL-01` receives separate implementation authorization, passes its
 complete acceptance evidence and independent exact-head review, and merges with
 explicit CTO authorization. CG-13 remains open.
+
+A bounded implementation of `THOTH-DB-CTRL-01` exists in draft PR
+[#777](https://github.com/thoth-pub/thoth/pull/777), branched from `develop` at
+authorized base `4c53709befc91acb481beac54a1d314926b61d76`. It corrects
+`diesel.toml` to write automatic Diesel output only to ignored staging at
+`target/diesel-schema.rs`; adds the convention control data at
+`thoth-api/diesel-schema-control.toml`; adds the fail-closed structural
+synchronizer `.github/scripts/diesel_schema.py` (the sole authorized writer of
+`thoth-api/src/schema.rs`) and its tests; adds bounded Makefile targets
+(`check-diesel-schema`, `generate-diesel-schema`, `test-diesel-schema`); binds
+the two-phase control into `.github/workflows/run_migrations.yml`; and updates
+the authoritative AGENTS instructions. The canonical command is:
+
+```bash
+python3 .github/scripts/diesel_schema.py generate \
+  --base-ref "$THOTH_DIESEL_BASE_REF" \
+  --expected-change "$THOTH_DIESEL_EXPECTED_CHANGE_FILE" \
+  --output thoth-api/src/schema.rs
+```
+
+`thoth-api/src/schema.rs` is byte-identical to the authorized base in that PR; the
+change adds no migration and no production or durable-data effect. The
+implementation is pending complete acceptance evidence, a separate independent
+(non-Claude) review, and explicit CTO merge authorization; it is not merged. This
+record does not resolve CG-12, does not approve the implementation, and does not
+claim production activation. BE-01 remains `BLOCKED` and CG-13 remains open. CG-12
+closes only through a separate post-merge control-state update after independent
+approval and merge.
 
 ### CG-13 - Thoth runtime operations unmapped
 

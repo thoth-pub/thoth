@@ -117,13 +117,22 @@ on 2026-08-04, bound to exact base
 `35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`, exact reviewed head
 `50ff3248b2af4a19422df924260c4f17832c0378`, normative content head
 `aec8295f22bc8c7cab4ce13e09890ef78b8586fa`, and independent approval comment
-`5177640752`. The implementation is not started, and its branch is not
-authorized. Specification approval does not authorize implementation work,
-migration execution, schema, Diesel configuration, Makefile, workflow or AGENTS
-changes, BE-01 implementation, production access, release, deployment, or
-activation. Until `THOTH-DB-CTRL-01` receives separate implementation
-authorization and merges after independent review with its acceptance evidence,
-do not regenerate, overwrite, or relocate `thoth-api/src/schema.rs`. CG-12
+`5177640752`.
+
+A bounded implementation of `THOTH-DB-CTRL-01` is under review in draft PR
+[#777](https://github.com/thoth-pub/thoth/pull/777), branched from `develop` at
+authorized base `4c53709befc91acb481beac54a1d314926b61d76`. It implements the
+fail-closed structural synchronizer `.github/scripts/diesel_schema.py` as the sole
+authorized writer of `thoth-api/src/schema.rs`, corrects `diesel.toml` to write
+automatic output only to ignored staging `target/diesel-schema.rs`, records the
+intentional conventions in `thoth-api/diesel-schema-control.toml`, and binds a
+two-phase, exact-SHA control into `.github/workflows/run_migrations.yml`. In that
+PR `thoth-api/src/schema.rs` is byte-identical to the authorized base and no
+migration is added. The implementation is pending complete acceptance evidence, a
+separate independent (non-Claude) review, and explicit CTO merge authorization; it
+is not merged and is not active in production. Until `THOTH-DB-CTRL-01` merges
+after independent review with its acceptance evidence, do not regenerate,
+overwrite, or relocate `thoth-api/src/schema.rs` outside that synchronizer. CG-12
 remains unresolved, CG-13 remains open, and dependent schema work, including
 BE-01, remains blocked under
 [CG-12](../control-gaps.md#cg-12---thoth-schema-generation-unclear).
