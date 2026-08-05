@@ -8,7 +8,7 @@ Last updated: 2026-08-05
 |---|---|---|---|---|
 | `ADR-0001` | Publisher package capability model | APPROVED | Publisher Services, Thoth Metrics, OAI-PMH | Satisfied - CTO approved the final package matrix, OASIS/OBELISK collection distinction and upgrade/downgrade/export semantics on 2026-07-28; independently reviewed PR [#772](https://github.com/thoth-pub/thoth/pull/772) merged into `develop` on 2026-07-29 as `b2c91ff25b95ab0e10a477ff21dbd4702f5db8d4` |
 | `ADR-0002` | Distribution and metrics platform domain boundaries | APPROVED | Publisher Services, Thoth Metrics | Satisfied - CTO approved strict type separation and no initial cross-domain mapping on 2026-07-27 through PR [#769](https://github.com/thoth-pub/thoth/pull/769) |
-| `ADR-0003` | Repository-authoritative Diesel schema contract | APPROVED | Shared Repository Controls, Publisher Services, Thoth Metrics | CTO selected Architecture A on 2026-08-05; recorded with its directly related cleanup in draft PR [#778](https://github.com/thoth-pub/thoth/pull/778) (`THOTH-DB-CTRL-02`), which remains unmerged pending independent exact-head review and explicit CTO merge authorization |
+| `ADR-0003` | Repository-authoritative Diesel schema contract | APPROVED | Shared Repository Controls, Publisher Services, Thoth Metrics | Satisfied - CTO selected Architecture A on 2026-08-05; recorded and implemented with its directly related cleanup by `THOTH-DB-CTRL-02` through PR [#778](https://github.com/thoth-pub/thoth/pull/778). Becomes repository-authoritative on merge into `develop`; the merge remains subject to independent exact-head review and explicit CTO merge authorization |
 
 ## Merge and implementation rules
 
@@ -48,10 +48,10 @@ Approve `ADR-0002` before:
 repository-authoritative, manually maintained Diesel schema contract, and the
 Diesel CLI and root `diesel.toml` are retired from the supported workflow. The
 CTO selected it on 2026-08-05 and authorized recording it with its directly
-related cleanup in one draft PR. While draft PR
-[#778](https://github.com/thoth-pub/thoth/pull/778) (`THOTH-DB-CTRL-02`) is open,
-the decision is not yet repository-authoritative through `develop`: it becomes
-authoritative only when that PR merges after independent exact-head review and
-explicit CTO merge authorization. `ADR-0003` supersedes the `THOTH-DB-CTRL-01`
-structural-synchronizer approach, whose implementation PR
+related cleanup in one PR. `THOTH-DB-CTRL-02` delivers the decision through PR
+[#778](https://github.com/thoth-pub/thoth/pull/778); it becomes
+repository-authoritative through `develop` when that PR merges, which remains
+subject to independent exact-head review and explicit CTO merge authorization.
+`ADR-0003` supersedes the `THOTH-DB-CTRL-01` structural-synchronizer approach,
+whose implementation PR
 [#777](https://github.com/thoth-pub/thoth/pull/777) was closed unmerged.

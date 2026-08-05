@@ -9,8 +9,10 @@ Base commit: `4c53709befc91acb481beac54a1d314926b61d76`
 PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/repository-controls/thoth-db-ctrl-02`
-Head commit: recorded at push time (see the immutable PR evidence comment)
-Pull request: draft PR #778 (opened after push)
+Head commit: established after push through GitHub PR metadata and the new
+immutable PR evidence comment that supersedes the earlier one (this file cannot
+embed the SHA of its own containing commit)
+Pull request: draft PR #778 (remains draft and unmerged; see §16)
 Expected branch deletion after merge: YES
 Final programme PR required: NO
 Implementing model: Claude Opus 4.8
@@ -41,19 +43,28 @@ Out-of-scope changes made: NONE.
 - `c07cd43e` - docs: select repository-authoritative schema contract
 - `f370a465` - chore: retire unused Diesel CLI configuration
 - `a6e14a64` - docs: reconcile schema controls and BE-01 readiness
-- `<this report commit>` - docs: report schema control replacement
+- `0d311dbe` - docs: report schema control replacement (reviewed pre-remediation
+  head; independent review at this head returned `CHANGES REQUIRED`)
+- remediation commit(s) on this branch - docs(control): correct
+  THOTH-DB-CTRL-02 merge state and evidence (this remediation)
 
-(Exact final head SHA is recorded in the PR evidence comment after push.)
+The authorized base is `4c53709befc91acb481beac54a1d314926b61d76`. The exact
+final head is established after push, through GitHub PR metadata and a new
+immutable PR evidence comment that supersedes the earlier one; the complete
+ordered commit list and the final head SHA are recorded there. This file cannot
+embed the SHA of its own containing commit, so no self-referential head SHA is
+asserted here.
 
 ## 4. Files changed
 
-Base-to-head `git diff --name-status`:
+Base-to-head `git diff --name-status`, 15 files:
 
 ```text
 M	.github/workflows/run_migrations.yml
 M	AGENTS.md
 M	CHANGELOG.md
 D	diesel.toml
+A	docs/engineering/ai-delivery/implementation-reports/THOTH-DB-CTRL-02-implementation-report.md
 M	docs/engineering/ai-delivery/tasks/BE-01.md
 M	docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-01.md
 A	docs/engineering/ai-delivery/tasks/THOTH-DB-CTRL-02.md
@@ -65,6 +76,10 @@ M	docs/metrics/task-status.md
 M	docs/publisher-services/task-status.md
 M	thoth-api/AGENTS.md
 ```
+
+This report (`THOTH-DB-CTRL-02-implementation-report.md`) is itself one of the 15
+changed files. The earlier draft of this report and PR body listed 14 files by
+omitting the report itself; that count is corrected here and in the PR body.
 
 Material files:
 
@@ -99,8 +114,17 @@ Material files:
   `docs/engineering/repository-map/repositories/thoth.md`,
   `docs/publisher-services/task-status.md`, `docs/metrics/task-status.md`,
   `CHANGELOG.md`
-  - reason: reconcile CG-12, the repository map, BE-01 readiness, and the
-    programme trackers to Architecture A; record the changelog entries.
+  - reason: reconcile CG-12 (`RESOLVED` by Architecture A), the repository map,
+    BE-01 readiness (`READY`, separately authorization-gated), and the programme
+    trackers to Architecture A; record the changelog entries. These committed
+    records state the resulting authoritative status directly and become
+    authoritative on merge into `develop`; CG-13 remains `OPEN`.
+- `docs/engineering/ai-delivery/implementation-reports/THOTH-DB-CTRL-02-implementation-report.md`
+  (added)
+  - reason: this report. Records the base, truthfully nameable commits, exact
+    protected-file evidence, the 15-file set, the independent-review outcome, and
+    the remediation (see §16). The exact final head and exact-head CI are
+    recorded in the superseding immutable PR evidence comment.
 
 ## 5. Implementation decisions
 
@@ -248,7 +272,7 @@ the existing `Run migrations` step). Not silently installed.
 
 ```text
 git status --short                -> clean
-git rev-parse HEAD                -> a6e14a64... (pre-report head; final head in PR comment)
+git rev-parse HEAD                -> reviewed head 0d311dbe...; the remediation adds further commit(s), and the exact final head is recorded in the superseding immutable PR evidence comment
 git rev-parse origin/develop      -> 4c53709befc91acb481beac54a1d314926b61d76
 git merge-base --is-ancestor 551565d0... origin/develop -> exit 1 (PR #777 head NOT an ancestor)
 git diff --check                  -> clean
@@ -270,17 +294,20 @@ Environment: local working tree on branch
 Steps: inspected the rendered ADR, replacement spec, supersession notice, AGENTS
 edits, CI reapply step, and tracker reconciliations; confirmed byte identity of
 protected files and deletion of `diesel.toml`.
-Observed result: changes match the approved scope; 14 files changed, none under
-`thoth-api/src`, `thoth-api/migrations`, `src`, or any Cargo manifest.
+Observed result: changes match the approved scope; 15 files changed (including
+this report), none under `thoth-api/src`, `thoth-api/migrations`, `src`, or any
+Cargo manifest.
 Evidence: §9 command results.
 
 ## 11. CI
 
-CI status: PENDING (populated after the draft PR opens and workflows run).
-Checks: `build_test_and_check`, `run-migrations` (apply/revert/reapply on
+CI status: exact-head CI is re-run at the new remediation head after push; runs
+from the pre-remediation head `0d311dbe` are not treated as evidence for the new
+head. Checks: `build_test_and_check`, `run-migrations` (apply/revert/reapply on
 `postgres:17`), changelog, and classifier gating.
-Failures or warnings: to be recorded in the immutable PR evidence comment at the
-exact final head.
+Failures or warnings: the exact workflow names, run IDs, conclusions, head SHA,
+and migration apply/revert/reapply evidence at the new head are recorded in the
+superseding immutable PR evidence comment.
 
 ## 12. Rollout and rollback
 
@@ -321,26 +348,82 @@ is left in draft.
 State summary:
 
 ```text
-Architecture A: APPROVED AND (draft) IMPLEMENTED - unmerged
+Architecture A: APPROVED AND IMPLEMENTED in PR #778 - authoritative on merge into develop
 Old THOTH-DB-CTRL-01: SUPERSEDED
 PR #777: CLOSED UNMERGED
-CG-12: RESOLUTION PENDING PR #778 MERGE (unresolved while the PR is open)
+CG-12: RESOLVED by Architecture A (authoritative on merge)
 CG-13: OPEN
-BE-01: BLOCKED while PR #778 is open; READY on merge
+BE-01: READY on merge, separately authorization-gated for implementation
 BE-01 implementation branch: ABSENT
 BE-01 implementation: NOT STARTED
 Production migration/release authorization: NONE
 ```
+
+The committed records state this resulting authoritative status directly; no
+transient open/draft/unmerged PR wording is left to survive into `develop`. The
+merge itself remains gated by fresh independent exact-head review and explicit
+CTO merge authorization (see §16).
 
 Suggested review focus:
 
 - byte identity of `thoth-api/src/schema.rs` and `thoth-api/migrations/`;
 - absence of any replacement Diesel CLI configuration, synchronizer, convention
   file, or expected-change manifest;
-- temporal accuracy of the CG-12 / BE-01 wording (unresolved/blocked while open;
-  resolved/ready on merge);
+- consistency of CG-12 (`RESOLVED`) and BE-01 (`READY`, separately
+  authorization-gated) across the committed records, with no residual
+  open/draft/unmerged PR state surviving into `develop`;
 - that no PR #777 commit is merged or cherry-picked;
 - the migration reapply CI step and its disposable-database boundaries.
 
 Independent review: PENDING.
 CTO merge authorization: PENDING.
+
+## 16. Remediation (independent-review response)
+
+Independent review of head `0d311dbe1ea2c1305e8799a7d2cfec22eaed7d3e`:
+`CHANGES REQUIRED`.
+
+The review found three classes of defect. This remediation corrected them on the
+same branch and PR, without changing the approved architecture (ADR-0003,
+Architecture A) or expanding implementation scope, and without touching any file
+under `thoth-api/migrations/`, `thoth-api/src/schema.rs`, Rust source, models,
+Cargo manifests, or runtime/GraphQL/API code:
+
+1. **Stale post-merge state (Finding 1).** Committed trackers and repository maps
+   encoded PR #778's transient open/draft/unmerged state. They now state the
+   resulting authoritative status directly — CG-12 `RESOLVED` by Architecture A,
+   BE-01 `READY` (separately authorization-gated), ADR-0003 accepted and
+   implemented, THOTH-DB-CTRL-02 implemented — becoming authoritative on merge
+   into `develop`. CG-13 remains `OPEN`. Corrected in `control-gaps.md`,
+   `repositories/thoth.md`, `decision-register.md`, `docs/metrics/task-status.md`,
+   `docs/publisher-services/task-status.md`, `THOTH-DB-CTRL-02.md`, and this
+   report. The CG-12 heading anchor was updated in `repositories/thoth.md` to
+   match its new heading.
+2. **BE-01 readiness contradiction (Finding 2).** One consistent model is now
+   used everywhere: merging PR #778 resolves CG-12 and records BE-01 `READY`;
+   `READY` does not authorize implementation; creating the BE-01 branch and any
+   implementation edit require separate explicit authorization; the branch
+   remains absent. All language requiring a second repository-control update
+   merely to move BE-01 from `BLOCKED` to `READY` was removed from `BE-01.md`,
+   `docs/publisher-services/task-status.md`, and `docs/metrics/task-status.md`.
+   No approved higher-authority document requires such a separate update, so no
+   `BLOCKED` conflict arises.
+3. **Evidence and changed-file accounting (Finding 3).** The changed-file set is
+   15 (verified from Git), correcting the earlier 14 that omitted this report.
+   The `<this report commit>` placeholder was removed; only truthfully nameable
+   commits are listed, and no self-referential head SHA is embedded. Stale head
+   and CI statements were corrected, and the exact final head and exact-head CI
+   are recorded in the superseding immutable PR evidence comment.
+
+The executable migration-CI change (`run_migrations.yml` apply/revert/reapply)
+was accepted in principle by the review and was not redesigned; repository
+evidence revealed no defect in it.
+
+Fresh independent review of the new head: PENDING.
+CTO merge authorization: PENDING.
+Production authorization: absent (none requested or granted).
+
+A new immutable PR evidence comment records the exact final head, ordered commit
+list, 15-file set, protected-file identity checks, exact-head CI, and migration
+apply/revert/reapply evidence. It supersedes the earlier immutable evidence
+comment, which is left unedited.

@@ -13,7 +13,7 @@ Status: SUPERSEDED
 >   [#777](https://github.com/thoth-pub/thoth/pull/777), was closed unmerged.
 > - No code from PR #777 became repository-authoritative.
 > - The replacement control is
->   [THOTH-DB-CTRL-02](THOTH-DB-CTRL-02.md), delivered in draft PR
+>   [THOTH-DB-CTRL-02](THOTH-DB-CTRL-02.md), delivered through PR
 >   [#778](https://github.com/thoth-pub/thoth/pull/778).
 > - The historical approval of this specification (Javi, CTO, 2026-08-04) does
 >   **not** authorize reviving the synchronizer architecture. Any future move to

@@ -71,7 +71,7 @@ No verified complete cursor, replication or snapshot route exists.
 
 App lacks explicit lint/build/codegen; dashboard lacks detected CI/tests; widget lacks unit tests; cc-license uses old Actions.
 
-### CG-12 - Thoth schema generation (RESOLUTION PENDING MERGE via Architecture A)
+### CG-12 - Thoth schema generation (RESOLVED via Architecture A)
 
 Disposable PostgreSQL 17 testing established that root `diesel.toml` was
 syntactically and semantically invalid, its output path did not identify
@@ -94,15 +94,19 @@ tests change atomically in one bounded task; and the Diesel CLI and root
 `diesel.toml` are retired from the supported workflow.
 [`THOTH-DB-CTRL-01`](../ai-delivery/tasks/THOTH-DB-CTRL-01.md) is marked
 `SUPERSEDED`, and [`THOTH-DB-CTRL-02`](../ai-delivery/tasks/THOTH-DB-CTRL-02.md)
-delivers ADR-0003 and its directly related cleanup in draft PR
+delivers ADR-0003 and its directly related cleanup through PR
 [#778](https://github.com/thoth-pub/thoth/pull/778).
 
-While draft PR #778 is open, branch content is not authoritative: CG-12 remains
-**unresolved** and BE-01 remains `BLOCKED`. CG-12 is **RESOLVED** when PR #778
-merges into `develop` after independent exact-head review and explicit CTO merge
-authorization; the merged Architecture A control then becomes the repository
-answer, and BE-01 becomes `READY` for separately authorized implementation.
-CG-13 remains open.
+CG-12 is **RESOLVED** by Architecture A (ADR-0003), delivered by
+[`THOTH-DB-CTRL-02`](../ai-delivery/tasks/THOTH-DB-CTRL-02.md) through PR
+[#778](https://github.com/thoth-pub/thoth/pull/778). The merged Architecture A
+control is the repository answer to how `schema.rs` tracks migrations, and BE-01
+is `READY` for separately authorized implementation. `READY` does not authorize
+implementation by itself: creating the BE-01 branch and making any
+implementation edit require separate explicit authorization, and the branch
+remains absent until then. This record becomes authoritative when PR #778 merges
+into `develop`; the merge itself remains subject to independent exact-head review
+and explicit CTO merge authorization. CG-13 remains open.
 
 ### CG-13 - Thoth runtime operations unmapped
 

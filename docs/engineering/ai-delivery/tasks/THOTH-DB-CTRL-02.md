@@ -1,6 +1,8 @@
 # THOTH-DB-CTRL-02 - Adopt the repository-authoritative schema contract
 
-Status: IMPLEMENTING (draft PR open; unmerged)
+Status: IMPLEMENTED (delivered through PR #778; authoritative on merge into
+`develop`, which remains subject to independent exact-head review and explicit
+CTO merge authorization)
 Programme: Shared Repository Controls
 Repository: `thoth-pub/thoth`
 Workflow: STANDARD
@@ -207,7 +209,10 @@ remain governed by CG-13 and separate release authorization.
 - [ ] BE-01 no longer depends on the rejected generator and may edit `schema.rs`
   directly in its future bounded task.
 - [ ] CG-12, CG-13, Publisher Services, and Metrics records are mutually
-  consistent and temporally accurate (CG-12 resolves on merge, not before).
+  consistent: CG-12 resolves on merge into `develop` and BE-01 is recorded
+  `READY` on the same merge, with implementation separately authorization-gated;
+  the committed records state this resulting authoritative status directly
+  rather than preserving transient open-PR wording.
 - [ ] The diff contains no BE-01 implementation and no BE-01 branch was created.
 - [ ] No production, staging, shared-database, release, deployment, activation,
   or secret access occurred.

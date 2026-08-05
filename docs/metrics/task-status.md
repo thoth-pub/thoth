@@ -19,7 +19,7 @@ A work package is not one implementation task. Each must be decomposed into boun
 | ADR-0002 Platform boundaries | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-27; approval PR [#769](https://github.com/thoth-pub/thoth/pull/769) | #766 |
 | SPHINX-BOOT-01 Repository bootstrap | `thoth-sphinx` | MEDIUM | BLOCKED | current `develop`; target `develop` after BR-SPHINX-01 verification | MET-CTRL-01; BR-SPHINX-01; approved bootstrap spec | #766 |
 | THOTH-DB-CTRL-01 Diesel generation procedure | `thoth` | HIGH | SUPERSEDED | `develop` -> `develop` | Structural-synchronizer architecture superseded by ADR-0003; implementation PR #777 closed unmerged with no code becoming authoritative. Replaced by THOTH-DB-CTRL-02. | #766 |
-| THOTH-DB-CTRL-02 Repository-authoritative schema contract | `thoth` | HIGH | IMPLEMENTING - DRAFT PR OPEN, UNMERGED | `develop` at `4c53709befc91acb481beac54a1d314926b61d76` -> `develop` | Delivers ADR-0003 (Architecture A) and directly related cleanup in draft PR #778. While PR #778 is open, CG-12 remains unresolved; on merge after independent review and explicit CTO authorization, CG-12 is resolved and the Diesel schema-control dependency is satisfied. | #766 |
+| THOTH-DB-CTRL-02 Repository-authoritative schema contract | `thoth` | HIGH | IMPLEMENTED - AUTHORITATIVE ON MERGE | `develop` at `4c53709befc91acb481beac54a1d314926b61d76` -> `develop` | Delivers ADR-0003 (Architecture A) and directly related cleanup through PR #778, resolving CG-12 and satisfying the shared Diesel schema-control dependency on merge into `develop`. The merge remains subject to independent exact-head review and explicit CTO merge authorization. | #766 |
 | BR-DASH-01 Dashboard branch readiness | dashboard | HIGH | BLOCKED | observed `dev -> main`; reconcile stale `develop`, then normalize to `develop -> master` | Vercel rollback | #766 |
 | BR-WIDGET-01 Widget branch readiness | widget | HIGH | BLOCKED | actual `dev`/`main` | npm release protection | #766 |
 | BR-APP-01 App branch readiness | app | HIGH | BLOCKED | actual `dev`/`main` | Vercel branch plan | #766 |
@@ -74,9 +74,10 @@ verified base.
    PR [#769](https://github.com/thoth-pub/thoth/pull/769)); this removes one
    shared-ADR dependency and does not make any work package ready.
 4. Scope SPHINX-BOOT-01.
-5. The Diesel schema-control question (CG-12) is answered by ADR-0003
+5. The Diesel schema-control question (CG-12) is resolved by ADR-0003
    (Architecture A). `THOTH-DB-CTRL-01` is `SUPERSEDED`; its replacement
-   `THOTH-DB-CTRL-02` is in draft PR #778 and resolves CG-12 on merge after
-   independent review and explicit CTO authorization.
+   `THOTH-DB-CTRL-02` delivers ADR-0003 through PR #778 and resolves CG-12 on
+   merge into `develop` (subject to independent review and explicit CTO merge
+   authorization).
 6. Remediate `MET-CTRL-01`.
 7. Prepare and approve the first bounded WP1 slice only after those gates.
