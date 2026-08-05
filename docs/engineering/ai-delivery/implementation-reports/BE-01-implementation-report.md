@@ -9,14 +9,14 @@ Base commit: `37b802776ae6853affe19d90156f3c1e0654ebe3` (merge commit of PR #778
 PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/publisher-services/be-01`
-Head commit: the exact final head after the documentation commit cannot truthfully be embedded in that same commit; it is recorded in the immutable post-push evidence comment on the pull request
-Pull request: [#779](https://github.com/thoth-pub/thoth/pull/779) (draft)
+Head commit: the exact final head cannot truthfully be embedded in a commit it contains; it is recorded in the current immutable exact-head evidence comment on the pull request
+Pull request: [#779](https://github.com/thoth-pub/thoth/pull/779)
 Expected branch deletion after merge: YES
 Final programme PR required: NO
 Implementing model: Claude Fable 5 (`claude-fable-5`)
 Reasoning level: HIGH
 
-Authorization: explicit CTO authorization for the bounded BE-01 implementation, 2026-08-05T13:08:00+01:00. The authorization covers the existing branch, commits and pushes to it, a draft PR targeting `develop`, disposable database validation and this report. It does not cover merge, deployment, release, production or shared-database access, production migration execution, commercial backfill, feature activation, BE-02/BE-03/BE-04, OAI/Metrics/licensing/dissemination behaviour, related-repository changes, or issue #765/#766 edits.
+Authorization: explicit CTO authorization for the bounded BE-01 implementation, 2026-08-05T13:08:00+01:00. The authorization covered the existing branch, commits and pushes to it, the creation of a draft PR targeting `develop`, disposable database validation and this report. It does not cover merge, deployment, release, production or shared-database access, production migration execution, commercial backfill, feature activation, BE-02/BE-03/BE-04, OAI/Metrics/licensing/dissemination behaviour, related-repository changes, or issue #765/#766 edits.
 
 Preconditions verified before any edit:
 
@@ -38,9 +38,12 @@ Out-of-scope changes made: NONE.
 
 - `0fbe79a518fe7b14ca8e650e9e3931ea0ed9ffae` - feat(publisher): add inactive publisher package model (BE-01)
 - `1c5a8f285dd222297db63f9399b302e11ce63f03` - test(publisher): cover BE-01 package model, boundary and authorization
-- the documentation/evidence commit containing this report (SHA in the immutable PR evidence comment)
+- `a7b15336b50dc0ae07c431124c4479d0fdd34a43` - docs(publisher-services): record BE-01 implementation evidence
+- the documentation-only remediation commit containing this report revision (SHA in the current immutable PR evidence comment)
 
 The specification's suggested commit structure separated the persisted type from the capability mapping; both live in `thoth-api/src/model/publisher/mod.rs`, so the actual bounded structure is (1) migration + schema contract + model + mapping, (2) focused tests, (3) documentation and evidence. This adaptation is permitted by the task instructions.
+
+Delivery history (historical record, pre-merge): the independent exact-head review of head `a7b15336…` (review ID `4864885771`) returned `CHANGES REQUIRED` with two documentation findings — transient PR state written as current committed state, and an unsupported production-cardinality claim — while finding the technical implementation sound. Both findings were resolved by the bounded documentation-only remediation commit above, which changed no migration, schema, model, mapping, GraphQL or test file. Transient delivery-workflow state (branch/PR status, gate progress) is recorded only in PR #779's metadata, body and immutable evidence comments.
 
 ## 4. Files changed
 
@@ -80,7 +83,7 @@ Migration added: YES — `thoth-api/migrations/20260805_v1.7.0/` created with `m
 - migration files: `up.sql` (CREATE TYPE + ALTER TABLE ADD COLUMN … DEFAULT 'OASIS' NOT NULL), `down.sql` (DROP COLUMN, then DROP TYPE);
 - schema effect: enum `public.thoth_package` with values exactly `OASIS, OBELISK, SPHINX, PYRAMID` in that order; column `publisher.subscription_package thoth_package NOT NULL DEFAULT 'OASIS'::thoth_package`;
 - existing-data effect: every existing publisher row reads `OASIS`; on PostgreSQL 17 this is applied as a metadata default (`pg_attribute.atthasmissing = true`, `attmissingval = {OASIS}`) with no row rewrite; IDs and unrelated values unchanged; no backfill, job, assignment, audit or external record;
-- locking/downtime: `ALTER TABLE` takes a brief ACCESS EXCLUSIVE lock on `publisher`; with the metadata-only default the hold time is milliseconds (evidence: a disposable 500,000-row probe table altered in 9.4 ms with an unchanged `pg_relation_filenode`, i.e. no table rewrite). `CREATE TYPE` is trivial. The publisher table is small in production, so expected duration is milliseconds, subject to acquiring the lock;
+- locking/downtime: `ALTER TABLE` takes an ACCESS EXCLUSIVE lock on `publisher`. On the disposable PostgreSQL 17.10 instance the defaulted column was applied as a metadata-only change with no table rewrite: a 500,000-row probe table completed the identical `ALTER` in approximately 9.4 ms with an unchanged `pg_relation_filenode`, and the migrated `publisher` table shows `pg_attribute.atthasmissing = true` with `attmissingval = {OASIS}`. This evidence is scoped to that disposable PostgreSQL 17.10 probe and does not establish production execution time: production cardinality is unverified, the deployed production PostgreSQL version is unverified, and production lock acquisition time, lock wait behind concurrent sessions and total execution duration are unverified. Those remain operational release questions under open CG-13; no production or shared database inspection or execution was authorized or performed;
 - empty database result: complete-chain apply/revert/reapply passed (section 9);
 - populated database result: representative populated forward migration passed (section 9);
 - rollback/forward repair: the down migration executed successfully within the complete-chain revert (reversibility evidence only). The approved operational rollback after merge retains the column, enum, stored values, domain types, canonical mapping, publisher history, canonical Metrics history and distribution assignments; defects use reviewed forward repair; the destructive down migration is not executed operationally; removing the foundation requires an ADR change;
@@ -232,13 +235,13 @@ Evidence link: exact diffs in PR #779; SQL outputs summarized above.
 
 ## 11. CI
 
-CI status: recorded in the immutable exact-head evidence comment on PR #779 after the required workflows reach a terminal result at the final head.
-Checks: `build_test_and_check.yml` (test/check/clippy/format against postgres:17), `run_migrations.yml` (full-chain apply/revert/reapply on a disposable database), `check_changelog.yml`.
-Failures or warnings: see the evidence comment.
+CI status: PASSING at each pushed exact head; workflow names, run IDs and conclusions for the final head are recorded in the current immutable exact-head evidence comment on PR #779.
+Checks: `build_test_and_check.yml` (test/check/clippy/format against postgres:17), `run_migrations.yml` (full-chain apply/revert/reapply on a disposable database), `check_changelog.yml`, `docker_build_and_push_to_dockerhub.yml` (staging image build only).
+Failures or warnings: none at the recorded exact heads; details in the evidence comments.
 
 ## 12. Rollout and rollback
 
-Initial state after any future authorized merge: package storage and the capability mapping exist; all publishers are `OASIS`; no consumer, protected package API, package mutation, UI, distribution, Metrics or OAI behaviour is activated; no job is created.
+Initial state after merge: package storage and the capability mapping exist; all publishers are `OASIS`; no consumer, protected package API, package mutation, UI, distribution, Metrics or OAI behaviour is activated; no job is created.
 Activation required: none exists to activate; later consumers (BE-03 onwards) carry their own HIGH-risk controls.
 Feature flag/configuration: none required (no consuming feature).
 Migration sequence: single additive migration via the embedded runner; apply before or with the new binary.

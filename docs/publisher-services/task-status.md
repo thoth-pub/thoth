@@ -22,7 +22,7 @@ No task moves to `READY` without an approved specification, architecture depende
 | ADR-01 Platform inventory/final architecture | `thoth` | MEDIUM | BLOCKED | `develop` / `develop` | missing approved bounded ADR-01 specification; final distribution-platform inventory decision | #765 | TBD | NOT STARTED |
 | LIC-01 Expand `cc-license` | `cc-license` | MEDIUM | BLOCKED | `develop` / `develop` | P0-01; BR-LIC-01 or CTO exception; approved spec | #765 | TBD | NOT STARTED |
 | LIC-02 Enforce supported licences | `thoth` | HIGH | BLOCKED | `develop` / `develop` | LIC-01 release; production licence audit plan | #765 | TBD | NOT STARTED |
-| [BE-01 Publisher package model](../engineering/ai-delivery/tasks/BE-01.md) | `thoth` | HIGH | IMPLEMENTED | `develop` at `37b802776ae6853affe19d90156f3c1e0654ebe3` (PR #778 merge commit, verified before any edit) / `develop` | Separately authorized bounded implementation delivered on `feature/publisher-services/be-01` under ADR-0003 Architecture A. Merge of implementation PR [#779](https://github.com/thoth-pub/thoth/pull/779) requires fresh independent exact-head cross-model review and explicit CTO merge authorization; production migration/release remains separately gated by CG-13. This row becomes authoritative when PR #779 merges into `develop`. | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#774](https://github.com/thoth-pub/thoth/pull/774); implementation [#779](https://github.com/thoth-pub/thoth/pull/779) | INACTIVE FOUNDATION MERGED - all publishers `OASIS`; no consumer, package API, mutation, UI, distribution, OAI or Metrics behaviour activated; retained-foundation operational rollback applies; see the [BE-01 implementation report](../engineering/ai-delivery/implementation-reports/BE-01-implementation-report.md) |
+| [BE-01 Publisher package model](../engineering/ai-delivery/tasks/BE-01.md) | `thoth` | HIGH | CLOSED | `develop` at `37b802776ae6853affe19d90156f3c1e0654ebe3` (PR #778 merge commit, verified before any edit) / `develop` | None remaining for BE-01 itself: the separately authorized bounded implementation was delivered on `feature/publisher-services/be-01` under ADR-0003 Architecture A and merged into `develop` through implementation PR [#779](https://github.com/thoth-pub/thoth/pull/779) after fresh independent exact-head review and explicit CTO merge authorization, as required for every HIGH-risk merge. Production migration/release execution remains separately gated by open CG-13, and the MIG-01 commercial backfill remains a separately approved CRITICAL task. | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#774](https://github.com/thoth-pub/thoth/pull/774); implementation [#779](https://github.com/thoth-pub/thoth/pull/779) | CLOSED - INACTIVE FOUNDATION - all publishers `OASIS`; no consumer, package API, mutation, UI, distribution, OAI or Metrics behaviour activated; retained-foundation operational rollback applies; evidence in the [BE-01 implementation report](../engineering/ai-delivery/implementation-reports/BE-01-implementation-report.md) and the immutable exact-head comments on PR #779 |
 | BE-02 Distribution platform model | `thoth` | HIGH | BLOCKED | `develop` / `develop` | ADR-01 | #765 | TBD | NOT STARTED |
 | BE-03 Protected service configuration | `thoth` | HIGH | BLOCKED | `develop` / `develop` | BE-01; BE-02 | #765 | TBD | NOT STARTED |
 | BE-04 Durable distribution jobs | `thoth` | HIGH | BLOCKED | `develop` / `develop` | BE-02; BE-03 | #765 | TBD | NOT STARTED |
@@ -52,19 +52,21 @@ Each branch starts from the repository's verified development branch and targets
 ## 4. Next actions
 
 1. The bounded BE-01 implementation was separately authorized by the CTO on
-   2026-08-05 and delivered on `feature/publisher-services/be-01` from the
-   verified base `37b802776ae6853affe19d90156f3c1e0654ebe3` through
-   implementation [PR #779](https://github.com/thoth-pub/thoth/pull/779),
-   following ADR-0003 Architecture A (direct `thoth-api/src/schema.rs` edit in
-   the same bounded PR as the migration, models and tests). Evidence is
-   recorded in the
-   [BE-01 implementation report](../engineering/ai-delivery/implementation-reports/BE-01-implementation-report.md).
-2. PR #779 merges only after fresh independent exact-head cross-model review
-   and explicit CTO merge authorization. The merged foundation remains
-   inactive: no consumer, package API, mutation, UI, distribution, OAI or
-   Metrics behaviour is activated, and MIG-01 commercial backfill remains a
-   separately approved CRITICAL task.
-3. Production migration execution and release remain separately gated by
+   2026-08-05, delivered on `feature/publisher-services/be-01` from the
+   verified base `37b802776ae6853affe19d90156f3c1e0654ebe3`, and merged into
+   `develop` through implementation
+   [PR #779](https://github.com/thoth-pub/thoth/pull/779), following ADR-0003
+   Architecture A (direct `thoth-api/src/schema.rs` edit in the same bounded
+   PR as the migration, models and tests). Evidence is recorded in the
+   [BE-01 implementation report](../engineering/ai-delivery/implementation-reports/BE-01-implementation-report.md)
+   and the immutable exact-head evidence comments on PR #779; transient
+   delivery-workflow state lives only in that PR's metadata and comments.
+2. The merged foundation is inactive: every publisher stores `OASIS`, and no
+   consumer, package API, mutation, UI, distribution, OAI or Metrics
+   behaviour is activated. BE-03 later exposes the protected
+   package/capability contract under its own approval gates, and the MIG-01
+   commercial backfill remains a separately approved CRITICAL task.
+3. Production migration execution and release remain separately gated by open
    CG-13; nothing in BE-01 authorizes production action.
 4. ADR-01 specification and final distribution-platform inventory work may
    proceed separately under their own approval gates.
