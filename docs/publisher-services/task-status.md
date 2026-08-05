@@ -22,7 +22,7 @@ No task moves to `READY` without an approved specification, architecture depende
 | ADR-01 Platform inventory/final architecture | `thoth` | MEDIUM | BLOCKED | `develop` / `develop` | missing approved bounded ADR-01 specification; final distribution-platform inventory decision | #765 | TBD | NOT STARTED |
 | LIC-01 Expand `cc-license` | `cc-license` | MEDIUM | BLOCKED | `develop` / `develop` | P0-01; BR-LIC-01 or CTO exception; approved spec | #765 | TBD | NOT STARTED |
 | LIC-02 Enforce supported licences | `thoth` | HIGH | BLOCKED | `develop` / `develop` | LIC-01 release; production licence audit plan | #765 | TBD | NOT STARTED |
-| [BE-01 Publisher package model](../engineering/ai-delivery/tasks/BE-01.md) | `thoth` | HIGH | READY | exact base recorded when the implementation branch is created from then-current `develop`; then-current `develop` / `develop` | approved BE-01 specification merged; ADR-0003 / `THOTH-DB-CTRL-02` (PR #778) merged into `develop`, resolving CG-12 and recording BE-01 `READY`. `READY` does not authorize implementation: creating `feature/publisher-services/be-01` and making any implementation edit require separate explicit authorization; the branch remains absent until then. | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#774](https://github.com/thoth-pub/thoth/pull/774); TBD for implementation | APPROVED SPECIFICATION - READY FOR SEPARATELY AUTHORIZED IMPLEMENTATION (Architecture A) - BRANCH ABSENT - IMPLEMENTATION NOT STARTED |
+| [BE-01 Publisher package model](../engineering/ai-delivery/tasks/BE-01.md) | `thoth` | HIGH | IMPLEMENTED | `develop` at `37b802776ae6853affe19d90156f3c1e0654ebe3` (PR #778 merge commit, verified before any edit) / `develop` | Separately authorized bounded implementation delivered on `feature/publisher-services/be-01` under ADR-0003 Architecture A. Merge of implementation PR [#779](https://github.com/thoth-pub/thoth/pull/779) requires fresh independent exact-head cross-model review and explicit CTO merge authorization; production migration/release remains separately gated by CG-13. This row becomes authoritative when PR #779 merges into `develop`. | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#774](https://github.com/thoth-pub/thoth/pull/774); implementation [#779](https://github.com/thoth-pub/thoth/pull/779) | INACTIVE FOUNDATION MERGED - all publishers `OASIS`; no consumer, package API, mutation, UI, distribution, OAI or Metrics behaviour activated; retained-foundation operational rollback applies; see the [BE-01 implementation report](../engineering/ai-delivery/implementation-reports/BE-01-implementation-report.md) |
 | BE-02 Distribution platform model | `thoth` | HIGH | BLOCKED | `develop` / `develop` | ADR-01 | #765 | TBD | NOT STARTED |
 | BE-03 Protected service configuration | `thoth` | HIGH | BLOCKED | `develop` / `develop` | BE-01; BE-02 | #765 | TBD | NOT STARTED |
 | BE-04 Durable distribution jobs | `thoth` | HIGH | BLOCKED | `develop` / `develop` | BE-02; BE-03 | #765 | TBD | NOT STARTED |
@@ -51,26 +51,23 @@ Each branch starts from the repository's verified development branch and targets
 
 ## 4. Next actions
 
-1. The
-   [`BE-01` specification](../engineering/ai-delivery/tasks/BE-01.md) is
-   repository-authoritative: specification
-   [PR #774](https://github.com/thoth-pub/thoth/pull/774) was independently
-   approved and merged.
-2. The shared Diesel schema control is Architecture A (ADR-0003):
-   `thoth-api/src/schema.rs` is maintained directly, and BE-01 edits it in its
-   own bounded PR. `THOTH-DB-CTRL-01` is `SUPERSEDED`; its replacement
-   `THOTH-DB-CTRL-02` delivers ADR-0003 through PR #778 and merges into
-   `develop` after independent review and explicit CTO merge authorization.
-3. Merging PR #778 resolves CG-12 and records BE-01 as `READY`; no separate
-   control update is required. `READY` does not authorize implementation by
-   itself.
-4. Creating `feature/publisher-services/be-01` and making any implementation
-   edit require separate explicit authorization. The branch is then created from
-   the freshly verified then-current `develop`, with the exact base recorded
-   before any implementation edit, and remains absent until that authorization.
-5. ADR-01 specification and final distribution-platform inventory work may
+1. The bounded BE-01 implementation was separately authorized by the CTO on
+   2026-08-05 and delivered on `feature/publisher-services/be-01` from the
+   verified base `37b802776ae6853affe19d90156f3c1e0654ebe3` through
+   implementation [PR #779](https://github.com/thoth-pub/thoth/pull/779),
+   following ADR-0003 Architecture A (direct `thoth-api/src/schema.rs` edit in
+   the same bounded PR as the migration, models and tests). Evidence is
+   recorded in the
+   [BE-01 implementation report](../engineering/ai-delivery/implementation-reports/BE-01-implementation-report.md).
+2. PR #779 merges only after fresh independent exact-head cross-model review
+   and explicit CTO merge authorization. The merged foundation remains
+   inactive: no consumer, package API, mutation, UI, distribution, OAI or
+   Metrics behaviour is activated, and MIG-01 commercial backfill remains a
+   separately approved CRITICAL task.
+3. Production migration execution and release remain separately gated by
+   CG-13; nothing in BE-01 authorizes production action.
+4. ADR-01 specification and final distribution-platform inventory work may
    proceed separately under their own approval gates.
-6. BE-01-SPEC unlocks no BE-01 implementation edit, BE-02, BE-03, OAI-PMH,
-   deployment, release or
+5. BE-01 unlocks no BE-02, BE-03, BE-04, OAI-PMH, deployment, release or
    production work; all licence, migration, app, dissemination and operational
-   tasks remain blocked.
+   tasks remain blocked under their recorded dependencies.

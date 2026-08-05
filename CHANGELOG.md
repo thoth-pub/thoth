@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+  - [779](https://github.com/thoth-pub/thoth/pull/779) - Add the inactive BE-01 publisher package foundation: the PostgreSQL `thoth_package` enum, the non-null `publisher.subscription_package` column defaulting every existing and new publisher to `OASIS`, the closed `ThothPackage` and `PublisherCapability` Rust/GraphQL enums with stable codes, and the single code-owned exhaustive package-to-capability mapping approved by ADR-0001, with no public package or capability GraphQL surface and no OAI, Metrics, distribution or job behaviour activated
   - [778](https://github.com/thoth-pub/thoth/pull/778) - Add ADR-0003 selecting Architecture A, the repository-authoritative, manually maintained `thoth-api/src/schema.rs` Diesel schema contract, together with the THOTH-DB-CTRL-02 replacement control and a migration-chain reapply step in `run_migrations.yml` (apply, revert, reapply on the disposable database)
   - [764](https://github.com/thoth-pub/thoth/pull/764) - Add the AI-led engineering operating model, task and review templates, risk classification, release gates, and GitHub Flow controls
 
