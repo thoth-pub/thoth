@@ -35,8 +35,9 @@ Implementing model: Claude Opus 5
 
 Reasoning level: High
 
-Independent reviewer/model: not yet assigned; a reviewer that did not author
-this specification is required.
+Independent reviewer/model: independent exact-head reviews `4866458391`
+(CHANGES REQUIRED at `de39ed3c`) and `4866683359` (APPROVED at `820f9cfa`)
+were performed by a reviewer that did not author this specification.
 
 Review reasoning level: MEDIUM or HIGH.
 
@@ -99,16 +100,46 @@ the private document is reproduced in the repository.
 
 Task authorization: the CTO-authorized `ADR-01-SPEC` execution authorization
 dated 2026-08-05. That authorization covered the drafting work only. Drafting
-authorization is not approval of the resulting written specification: this PR
-produced a **proposed** written specification that awaits independent
-specification review and explicit CTO approval of the written content. No
-approval evidence exists at this head, and none is claimed.
+authorization is not approval of the resulting written specification. The
+written specification subsequently received its own independent review and
+explicit CTO approval, recorded in section 2.1.
 
-Implemented objective: draft the proposed bounded implementation specification
-for `ADR-01 - Platform inventory and final architecture`, and reconcile the
+Implemented objective: draft the bounded implementation specification for
+`ADR-01 - Platform inventory and final architecture`, and reconcile the
 Publisher Services dependency and rollout records with it, without performing
-ADR-01. The specification becomes repository-authoritative only after
-independent review, CTO approval of the written specification, and merge.
+ADR-01. The specification becomes repository-authoritative on merge of
+specification PR #780.
+
+### 2.1 Recorded approval state
+
+```text
+Approved substantive content head:
+820f9cfa22d284f8f347db338aa2461408f4ed12
+
+Independent review:
+4866683359 - APPROVED
+
+CTO written-specification approval:
+Javi, CTO
+2026-08-05
+
+Approval scope:
+written ADR-01 specification only
+```
+
+- The approval-state commit that records this approval changes approval
+  metadata and programme control state only. No substantive specification
+  requirement, acceptance criterion, invariant, evidence rule, stop condition,
+  platform candidate, dependency or non-goal changed after the independent
+  review.
+- Independent review `4866683359` applies to the substantive written content
+  at `820f9cfa22d284f8f347db338aa2461408f4ed12`. The approval-state commit
+  creates a new head, which requires its own fresh exact-head review and CI.
+- Approval covers the written ADR-01 specification only. ADR-01 implementation
+  remains unauthorized, `feature/publisher-services/adr-01` remains absent,
+  and merge of PR #780 remains separately unauthorized.
+- No platform decision, runtime work, workflow dispatch or production access
+  is authorized by this approval.
 
 Out-of-scope changes made: NONE.
 
@@ -123,11 +154,16 @@ declared in section 5.
   rollout records`
 - `de39ed3c` - `docs(publisher-services): report ADR-01 specification` (this
   report, the changelog entries, and the recorded specification PR number)
-- final commit - `docs(publisher-services): correct ADR-01 specification gate
+- `820f9cfa` - `docs(publisher-services): correct ADR-01 specification gate
   and dependencies` (bounded documentation/evidence-only remediation of
   independent review `4866458391`: corrects the specification approval state to
   proposed/pending, corrects the PR #779 characterization, and replaces the
   linear dependency chain with an explicit dependency DAG)
+- final commit - `docs(publisher-services): record CTO approval of ADR-01
+  specification` (bounded approval-state commit recording the independent
+  review `4866683359` and the explicit CTO approval of the written
+  specification at content head `820f9cfa`; approval metadata and programme
+  control state only, no substantive content change)
 
 Exact SHAs for the final commit and head are recorded in the superseding
 immutable exact-head evidence comment.
@@ -135,9 +171,9 @@ immutable exact-head evidence comment.
 ## 4. Files changed
 
 - `docs/engineering/ai-delivery/tasks/ADR-01.md`
-  - reason: create the proposed ADR-01 implementation specification, which
-    becomes repository-authoritative only after independent review, CTO
-    approval of the written specification, and merge.
+  - reason: create the ADR-01 implementation specification. Its written
+    content was independently reviewed and explicitly CTO-approved (section
+    2.1); it becomes repository-authoritative on merge of PR #780.
   - behavioural effect: none at runtime. It defines the read-only evidence scope
     across `thoth`, `thoth-dissemination` and `thoth-app`; the required
     per-destination record and its credential-recording rule; the evidence
@@ -149,23 +185,26 @@ immutable exact-head evidence comment.
     sequence; and the reserved `BE-03`/`APP-01` GraphQL contract control.
 
 - `docs/publisher-services/task-status.md`
-  - reason: record ADR-01's drafted, proposed specification and sharpen the
+  - reason: record ADR-01's approved specification and sharpen the
     dependencies it governs.
-  - behavioural effect: none. ADR-01 remains `BLOCKED`, links its drafted
-    specification, and states explicitly that the independent specification
-    review and CTO approval of the written specification are pending, that
-    ADR-01 moves to `READY` only after specification approval and merge, that
-    implementation is not authorized, that the branch is absent, and that the
-    final inventory remains provisional. `BE-02` records that it requires the
-    merged ADR-01 implementation rather than the specification alone. `BE-03`
-    and `APP-01` record their own bounded-specification, app-readiness and
-    schema-pinning dependencies. The BE-01 row is untouched.
+  - behavioural effect: none. ADR-01 is `READY`: its written specification was
+    independently reviewed and explicitly CTO-approved, with `READY` becoming
+    repository-authoritative on merge of PR #780. The row states explicitly
+    that `READY` does not authorize implementation, that the branch remains
+    absent and unauthorized pending separate explicit authorization, that
+    ADR-01 does not depend on BE-01, and that the final inventory remains
+    provisional until the ADR-01 implementation is independently approved and
+    merged. `BE-02` records that it requires the merged ADR-01 implementation
+    rather than the specification alone. `BE-03` and `APP-01` record their own
+    bounded-specification, app-readiness and schema-pinning dependencies. The
+    BE-01 row is untouched.
 
 - `docs/publisher-services/rollout-plan.md`
   - reason: record the coordinated cross-repository sequence and the reserved
     GraphQL contract control.
-  - behavioural effect: none. Stage 0 records the drafted, proposed ADR-01
-    specification with its review and approval gates outstanding and keeps the
+  - behavioural effect: none. Stage 0 records the independently reviewed and
+    CTO-approved ADR-01 specification (repository-authoritative on merge of
+    PR #780) and keeps the
     final inventory outstanding; new sections 2.1 and 2.2 record
     the dependency DAG, the parallel `thoth-app` readiness track and the
     schema-pinning control; Stage 2 records that ADR-01 must merge before
@@ -174,8 +213,8 @@ immutable exact-head evidence comment.
     controls.
 
 - `docs/publisher-services/README.md`
-  - reason: record the drafted, proposed ADR-01 specification with its pending
-    review and approval gates, and correct a stale control claim.
+  - reason: record the independently reviewed and CTO-approved ADR-01
+    specification, and correct a stale control claim.
   - behavioural effect: none. See section 5 for the declared correction.
 
 - `docs/engineering/ai-delivery/implementation-reports/ADR-01-SPEC-implementation-report.md`
@@ -220,14 +259,14 @@ state until an approved ADR-01 merges.
 
 5. **Committed records state the truthful approval position.** Candidate
    committed content may describe the resulting authoritative state after
-   merge, because it reaches `develop` only if the PR merges. Merging this PR
-   does not, however, constitute CTO approval of the written specification —
-   that is a separate gate — so the committed tracker, rollout plan, README and
-   this report record the specification as proposed, with the independent
-   specification review and CTO specification approval pending, and describe
-   the post-approval authoritative state only as an explicitly labelled future
-   transition. Draft/open PR status lives in the PR body and the immutable
-   evidence comments.
+   merge, because it reaches `develop` only if the PR merges. The independent
+   specification review (`4866683359`) and the explicit CTO approval of the
+   written specification (Javi, CTO, 2026-08-05) have both occurred and are
+   recorded in section 2.1; the committed tracker, rollout plan, README and
+   this report therefore record the approved specification, with its
+   repository-authoritative effect taking hold on merge of PR #780.
+   Draft/open PR status lives in the PR body and the immutable evidence
+   comments.
 
 6. **The tracker's BE-01 row and `Next actions` list were left untouched**, both
    because PR #779 has not merged into this base and because PR #779 rewrites
@@ -387,12 +426,14 @@ preserving the protected check contexts.
 
 Initial state after merge:
 
-- the proposed ADR-01 implementation specification is present in `develop`,
-  still awaiting explicit CTO approval of the written specification; merge
-  alone does not approve it, and it becomes repository-authoritative only
-  through that separate approval;
-- ADR-01 remains `BLOCKED` pending specification approval, with its
-  implementation branch not authorized and absent;
+```text
+ADR-01 specification: APPROVED AND MERGED
+ADR-01 task: READY
+ADR-01 implementation: NOT STARTED
+ADR-01 implementation authorization: NOT GRANTED
+ADR-01 implementation branch: ABSENT
+```
+
 - the final distribution-platform inventory remains provisional;
 - `BE-02`, `BE-03`, `BE-04` and `APP-01` remain blocked under their recorded
   dependencies;
@@ -427,8 +468,10 @@ Monitoring required: none.
 
 ## 14. Unresolved issues
 
-- The independent specification review and explicit CTO approval of the written
-  ADR-01 specification are both pending.
+- Fresh independent exact-head review of the approval-state commit, explicit
+  CTO merge authorization bound to the new exact head, and the merge of
+  PR #780 itself are outstanding. The substantive written specification is
+  independently reviewed and CTO-approved (section 2.1).
 
 ## 15. Agent self-assessment
 

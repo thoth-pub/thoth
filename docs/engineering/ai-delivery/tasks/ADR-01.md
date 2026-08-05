@@ -1,6 +1,6 @@
 # ADR-01 - Platform inventory and final architecture
 
-Status: PROPOSED
+Status: APPROVED
 Programme: Publisher Services and Distribution Configuration
 Repository: `thoth-pub/thoth`
 Workflow: STANDARD
@@ -9,8 +9,11 @@ PR target: `develop`
 Programme integration branch: None
 Risk: MEDIUM
 Owner: CTO
-Specification review: PENDING
-CTO specification approval: PENDING
+Independent specification review: APPROVED
+Reviewed content head: `820f9cfa22d284f8f347db338aa2461408f4ed12`
+CTO specification approval: APPROVED
+Approved by: Javi, CTO
+Approval date: 2026-08-05
 Target branch name: `feature/publisher-services/adr-01`
 
 ## 1. Objective
@@ -83,7 +86,7 @@ The ADR-01 implementation requires:
 ADR-01 receives no runtime, production, or workflow-dispatch authorization at
 any point.
 
-Future approval of this specification will not itself authorize the ADR-01
+Approval of this specification does not itself authorize the ADR-01
 implementation. That work requires its own separate explicit authorization, its
 own freshly verified `develop` base, and its own branch.
 
@@ -99,9 +102,9 @@ Authoritative sources, in precedence order:
    Technical Design and Implementation Plan`, Drive revision `3`, indexed in
    [`docs/engineering/design-references.md`](../../design-references.md),
    section 8.2 of which defines the ADR-01 epic;
-6. this specification, once it has been independently reviewed, explicitly
-   approved by the CTO and merged; until then it is proposed, not
-   authoritative;
+6. this specification, independently reviewed and explicitly CTO-approved at
+   content head `820f9cfa22d284f8f347db338aa2461408f4ed12`;
+   repository-authoritative once specification PR #780 merges;
 7. [Publisher Services programme controls](../../../publisher-services/README.md),
    including the
    [provisional platform inventory](../../../publisher-services/platform-inventory.md);
@@ -749,26 +752,30 @@ inventory.
 - final programme PR required: NO;
 - final release path: `develop -> master`.
 
-## 19. Approval gate
+## 19. Approval
 
-This specification is **proposed**. It has not been approved.
+The written content of this specification, at exact content head
+`820f9cfa22d284f8f347db338aa2461408f4ed12`, was independently reviewed and
+approved (review `4866683359`, 2026-08-05).
 
-- The written content of this specification requires a fresh independent
-  exact-head review.
-- It then requires explicit CTO approval of the written specification itself.
-- The CTO's execution authorization to *draft* this specification, dated
-  2026-08-05, authorized the drafting work only. Drafting authorization is not
-  approval of the resulting written specification, and no approval evidence
-  exists at this head.
-- ADR-01 implementation remains separately unauthorized. Even after this
-  specification is approved and merged, implementation requires its own
-  separate explicit authorization, a freshly verified `develop` base, and its
-  own branch.
-- Nothing at this head decides any platform question, authorizes any runtime
-  work, or grants production access. The inventory in
+Javi, CTO, explicitly approved that written specification on 2026-08-05.
+
+Notes:
+
+- This approval-state record documents the approval; it does not change the
+  approved substantive content. Every requirement, acceptance criterion,
+  invariant, evidence rule, stop condition, dependency and non-goal is exactly
+  as independently reviewed at content head `820f9cfa`.
+- The specification becomes repository-authoritative when specification
+  PR #780 merges.
+- Approval of this specification does not authorize the ADR-01 implementation.
+  Implementation requires a separate explicit CTO authorization, a freshly
+  verified then-current `develop` base, and its own task branch
+  (`feature/publisher-services/adr-01`, which remains absent).
+- Approval settles no platform decision. The inventory in
   [`platform-inventory.md`](../../../publisher-services/platform-inventory.md)
   remains explicitly provisional until an approved ADR-01 merges.
-- Future approval will authorize no production access, no workflow dispatch, no
-  credential use, no runtime or schema change, and no change to `thoth-app`,
-  `thoth-dissemination`, `BE-01`, `CG-11`, `CG-13`, `BR-APP-01` or the deferred
-  OAI branch.
+- Approval authorizes no runtime work, no production access, no workflow
+  dispatch, no credential use, no runtime or schema change, and no change to
+  `thoth-app`, `thoth-dissemination`, `BE-01`, `CG-11`, `CG-13`, `BR-APP-01`
+  or the deferred OAI branch.

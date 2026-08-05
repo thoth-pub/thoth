@@ -48,19 +48,18 @@ Achieved evidence:
 
 - the bounded
   [`ADR-01` implementation specification](../engineering/ai-delivery/tasks/ADR-01.md)
-  has been drafted and is proposed, defining the read-only evidence
+  is independently reviewed and explicitly CTO-approved (Javi, CTO,
+  2026-08-05, at exact content head
+  `820f9cfa22d284f8f347db338aa2461408f4ed12`), defining the read-only evidence
   scope, the required per-destination record, the evidence classification, the
   decisions ADR-01 must produce and the exact stop labels that fire when
   evidence is missing. It resolves no platform question, finalizes no
-  inventory, and authorizes no ADR-01 implementation. It becomes
-  repository-authoritative only after independent specification review,
-  explicit CTO approval of the written specification, and merge — a future
-  transition, not the current state.
+  inventory, and authorizes no ADR-01 implementation. Its approval becomes
+  repository-authoritative on merge of specification
+  [PR #780](https://github.com/thoth-pub/thoth/pull/780).
 
 Outstanding evidence:
 
-- independent review and explicit CTO approval of the written ADR-01
-  specification, followed by its merge;
 - Publisher Services ADR-01 implementation and final platform-inventory
   approval; the inventory in
   [`platform-inventory.md`](platform-inventory.md) remains explicitly
