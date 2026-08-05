@@ -3745,3 +3745,141 @@ fn graphql_mutations_cover_all() {
         "publisherId",
     );
 }
+
+// BE-01: the publisher package foundation must expose no public GraphQL
+// surface. See docs/engineering/ai-delivery/tasks/BE-01.md section 6.6.
+
+#[test]
+fn generated_schema_exposes_no_package_or_capability_surface() {
+    let schema = create_schema();
+    let sdl = schema.as_sdl();
+    for forbidden in [
+        "subscriptionPackage",
+        "ThothPackage",
+        "PublisherCapability",
+        "capabilities",
+        "OASIS",
+        "OBELISK",
+        "SPHINX",
+        "PYRAMID",
+        "OAI_PMH",
+        "METRICS_COLLECT",
+        "METRICS_IMPORT",
+        "METRICS_DASHBOARD",
+        "METRICS_WIDGET",
+        "METRICS_OPERAS_EXPORT",
+    ] {
+        assert!(
+            !sdl.contains(forbidden),
+            "Generated GraphQL SDL unexpectedly contains {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn publisher_queries_reject_package_selection_for_all_callers() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+
+    let queries = [
+        "{ publishers(limit: 10) { publisherId subscriptionPackage } }",
+        "{ publishers(limit: 10) { publisherId capabilities } }",
+        "{ publisherCount(subscriptionPackage: \"OASIS\") }",
+    ];
+
+    let anonymous = test_db::test_context_anonymous(pool.clone());
+    let authenticated = test_db::test_context(pool.clone(), "ordinary-user");
+    let superuser = test_db::test_context_with_user(pool.clone(), test_db::test_superuser("su-1"));
+
+    for context in [&anonymous, &authenticated, &superuser] {
+        for query in queries {
+            let result = juniper::execute_sync(query, None, &schema, &Variables::new(), context);
+            assert!(
+                result.is_err(),
+                "Query unexpectedly passed validation: {query}"
+            );
+        }
+    }
+}
+
+#[test]
+fn ordinary_publisher_inputs_reject_subscription_package() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+
+    let create = r#"mutation {
+      createPublisher(data: { publisherName: "Package Press", subscriptionPackage: "OASIS" }) { publisherId }
+    }"#;
+    let patch = r#"mutation {
+      updatePublisher(data: {
+        publisherId: "00000000-0000-0000-0000-000000000001",
+        publisherName: "Package Press",
+        subscriptionPackage: "SPHINX"
+      }) { publisherId }
+    }"#;
+
+    // Schema validation must reject the unknown input field for every caller,
+    // superusers included: no ordinary publisher mutation can set a package.
+    let ordinary = test_db::test_context(pool.clone(), "ordinary-user");
+    let superuser = test_db::test_context_with_user(pool.clone(), test_db::test_superuser("su-2"));
+    for context in [&ordinary, &superuser] {
+        for mutation in [create, patch] {
+            let result = juniper::execute_sync(mutation, None, &schema, &Variables::new(), context);
+            assert!(
+                result.is_err(),
+                "Mutation unexpectedly passed validation: {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn ordinary_publisher_mutations_leave_package_unchanged() {
+    use crate::model::publisher::ThothPackage;
+    use diesel::prelude::*;
+
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let context = test_db::test_context_with_user(pool.clone(), test_db::test_superuser("su-3"));
+
+    let publisher_org = format!("org-{}", Uuid::new_v4());
+    let created = create_with_data(
+        &schema,
+        &context,
+        "createPublisher",
+        "NewPublisher",
+        "publisherId",
+        make_new_publisher(&publisher_org),
+    );
+    let publisher_id = json_uuid(&created["publisherId"]);
+
+    // Ordinary create carries no package field; the database default applies.
+    let created_model = Publisher::from_id(pool.as_ref(), &publisher_id).unwrap();
+    assert_eq!(created_model.subscription_package, ThothPackage::Oasis);
+
+    // Simulate a package assigned outside BE-01's surface, then prove the
+    // ordinary patch mutation cannot change or reset it.
+    {
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        diesel::sql_query(format!(
+            "UPDATE publisher SET subscription_package = 'OBELISK' \
+             WHERE publisher_id = '{publisher_id}'"
+        ))
+        .execute(&mut connection)
+        .expect("Failed to set package fixture");
+    }
+
+    let publisher = Publisher::from_id(pool.as_ref(), &publisher_id).unwrap();
+    update_with_data(
+        &schema,
+        &context,
+        "updatePublisher",
+        "PatchPublisher",
+        "publisherId",
+        patch_publisher(&publisher),
+    );
+
+    let updated = Publisher::from_id(pool.as_ref(), &publisher_id).unwrap();
+    assert!(updated.publisher_name.ends_with("Updated"));
+    assert_eq!(updated.subscription_package, ThothPackage::Obelisk);
+}
