@@ -1,23 +1,14 @@
 # For documentation on how to configure this file,
 # see diesel.rs/guides/configuring-diesel-cli
+#
+# THOTH-DB-CTRL-01: automatic Diesel output is untrusted staging only. It is
+# written to `target/diesel-schema.rs`, which is under the repository's ignored
+# `target/` directory, and never to the canonical `thoth-api/src/schema.rs`.
+# Only the validated synchronizer (`.github/scripts/diesel_schema.py generate`)
+# may write the canonical schema. Diesel already adds its own `SqlType` derive;
+# application model paths and `diesel::sql_types::*` are imports, not derives,
+# and must not appear here.
 
 [print_schema]
-file = "src/schema.rs"
-custom_type_derives = [
-  "diesel::sql_types::*",
-  "diesel::query_builder::QueryId",
-  "crate::model::contribution::Contribution_type",
-  "crate::model::work::Work_type",
-  "crate::model::work::Work_status",
-  "crate::model::publication::Publication_type",
-  "crate::model::language::Language_relation",
-  "crate::model::language::Language_code",
-  "crate::model::series::Series_type",
-  "crate::model::price::Currency_code",
-  "crate::model::subject::Subject_type",
-  "crate::model::institution::Country_code",
-  "crate::model::work_relation::Relation_type"
-  "crate::model::contact::Contact_type"
-  "crate::model::publication::Accessibility_standard"
-  "crate::model::publication::Accessibility_exception"
-]
+file = "target/diesel-schema.rs"
+custom_type_derives = ["diesel::query_builder::QueryId"]

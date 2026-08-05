@@ -7,6 +7,13 @@ on:
       - develop
   pull_request:
   workflow_dispatch:
+    inputs:
+      base_sha:
+        description: "Exact full base SHA (40 lowercase hex) for the Diesel control"
+        required: true
+      head_sha:
+        description: "Exact full candidate head SHA (40 lowercase hex)"
+        required: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -31,6 +38,8 @@ jobs:
         run: python3 .github/scripts/classify_ci_changes.py
   run_migrations:
     needs: classify
+    permissions:
+      contents: read
     if: >-
       ${{
         always() &&
@@ -56,7 +65,42 @@ jobs:
         ports:
           - 5432:5432
     steps:
+      - name: Resolve exact base and head SHAs
+        id: refs
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_HEAD: ${{ github.sha }}
+          DISPATCH_BASE: ${{ github.event.inputs.base_sha }}
+          DISPATCH_HEAD: ${{ github.event.inputs.head_sha }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            pull_request) BASE="$PR_BASE_SHA"; HEAD="$PR_HEAD_SHA" ;;
+            push)         BASE="$PUSH_BEFORE"; HEAD="$PUSH_HEAD" ;;
+            workflow_dispatch) BASE="$DISPATCH_BASE"; HEAD="$DISPATCH_HEAD" ;;
+            *) echo "unsupported event: $EVENT_NAME" >&2; exit 1 ;;
+          esac
+          if ! printf '%s' "$BASE" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "base SHA is not a full lowercase 40-hex SHA (fail closed)" >&2; exit 1
+          fi
+          if ! printf '%s' "$HEAD" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "head SHA is not a full lowercase 40-hex SHA (fail closed)" >&2; exit 1
+          fi
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "head=$HEAD" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.refs.outputs.head }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify candidate head and base ancestry
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ steps.refs.outputs.head }}"
+          git merge-base --is-ancestor "${{ steps.refs.outputs.base }}" HEAD
       - uses: actions/cache@v4
         with:
           path: |
@@ -66,9 +110,35 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install libpq for the pinned Diesel CLI
+        run: sudo apt-get update && sudo apt-get install -y libpq-dev
+      - name: Install pinned PostgreSQL-only Diesel CLI 2.3.10
+        run: |
+          set -euo pipefail
+          THOTH_DIESEL_CLI_ROOT="$RUNNER_TEMP/diesel-cli"
+          cargo install diesel_cli \
+            --version '2.3.10' \
+            --root "$THOTH_DIESEL_CLI_ROOT" \
+            --no-default-features \
+            --features postgres \
+            --locked
+          echo "DIESEL_BIN=$THOTH_DIESEL_CLI_ROOT/bin/diesel" >> "$GITHUB_ENV"
+      - name: Verify pinned Diesel CLI version
+        run: "$DIESEL_BIN --version | grep -q '2.3.10'"
       - name: Build binary
         run: cargo build -vv
-      - name: Run migrations
-        run: cargo run migrate
-      - name: Revert migrations
+      - name: THOTH-DB-CTRL-01 Diesel schema control (two-phase, deterministic)
+        env:
+          THOTH_DIESEL_BASE_REF: ${{ steps.refs.outputs.base }}
+          THOTH_DIESEL_CONFIRM_DATABASE: thoth
+        run: make check-diesel-schema
+      - name: Full-chain revert on the disposable service database
         run: cargo run migrate --revert
+      - name: Verify application schema is empty after revert
+        run: |
+          set -euo pipefail
+          count=$(PGPASSWORD=thoth psql -X -tA -h localhost -p 5432 -U thoth -d thoth \
+            -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name <> '__diesel_schema_migrations';")
+          test "$count" = "0"
+      - name: Reapply migrations on the disposable service database
+        run: cargo run migrate

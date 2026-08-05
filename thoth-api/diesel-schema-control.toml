@@ -1,0 +1,611 @@
+# Diesel schema convention control (THOTH-DB-CTRL-01)
+#
+# Reviewable control data enumerating every intentional difference between raw
+# `diesel print-schema` output and the canonical `thoth-api/src/schema.rs`.
+# It contains no catch-all patterns. Every entry is validated: an unused,
+# duplicate, missing, or conflicting entry fails the synchronizer closed.
+
+version = 1
+
+[cli]
+diesel_version = "2.3.10"
+
+[config]
+print_schema_file = "target/diesel-schema.rs"
+canonical_schema = "thoth-api/src/schema.rs"
+
+# ---------------------------------------------------------------------------
+# Supplemental canonical-only SQL types.
+# Declared in the canonical schema and imported by model tables, but used by no
+# column and absent from the database, so raw print-schema never emits them.
+# ---------------------------------------------------------------------------
+
+[[supplemental_type]]
+diesel_type = "MarkupFormat"
+postgres_type = "markup_format"
+
+# ---------------------------------------------------------------------------
+# Table aliases: physical PostgreSQL table name -> canonical Rust module name.
+# ---------------------------------------------------------------------------
+
+[[table_alias]]
+physical = "abstract"
+rust = "work_abstract"
+
+[[table_alias]]
+physical = "title"
+rust = "work_title"
+
+# ---------------------------------------------------------------------------
+# Column identifier handling: physical columns diesel renames on raw output
+# (trailing underscore + sql_name) but the canonical schema keeps unrenamed
+# because the owning table is aliased.
+# ---------------------------------------------------------------------------
+
+[[column_identifier]]
+rust_table = "work_title"
+physical_column = "title"
+raw_diesel_column = "title_"
+canonical_column = "title"
+
+# ---------------------------------------------------------------------------
+# Type overrides: database type presented as a different canonical Diesel type.
+# Every older `timestamp without time zone` column is presented as Timestamptz.
+# ---------------------------------------------------------------------------
+
+[[type_override]]
+rust_table = "affiliation"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "affiliation"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "affiliation_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "contact"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "contact"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "contact_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "contribution"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "contribution"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "contribution_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "contributor"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "contributor"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "contributor_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "funding"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "funding"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "funding_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "imprint"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "imprint"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "imprint_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "institution"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "institution"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "institution_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "issue"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "issue"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "issue_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "language"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "language"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "language_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "location"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "location"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "location_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "price"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "price"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "price_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "publication"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "publication"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "publication_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "publisher"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "publisher"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "publisher_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "reference"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "reference"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "reference_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "series"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "series"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "series_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "subject"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "subject"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "subject_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "work"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "work"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "work"
+column = "updated_at_with_relations"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "work_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "work_relation"
+column = "created_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "work_relation"
+column = "updated_at"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+[[type_override]]
+rust_table = "work_relation_history"
+column = "timestamp"
+raw_diesel_type = "Timestamp"
+canonical_diesel_type = "Timestamptz"
+
+# ---------------------------------------------------------------------------
+# Canonical table order (model-compatible; differs from raw alphabetical order).
+# ---------------------------------------------------------------------------
+
+[order]
+tables = ["work_abstract", "additional_resource", "additional_resource_history", "affiliation", "biography", "award", "award_history", "affiliation_history", "contact", "contact_history", "contribution", "contribution_history", "contributor", "contributor_history", "book_review", "book_review_history", "endorsement", "endorsement_history", "funding", "funding_history", "imprint", "imprint_history", "institution", "institution_history", "issue", "issue_history", "language", "language_history", "location", "location_history", "price", "price_history", "publication", "publication_history", "publisher", "publisher_history", "reference", "reference_history", "series", "series_history", "subject", "subject_history", "work", "work_history", "work_featured_video", "work_featured_video_history", "work_relation", "work_relation_history", "work_title", "title_history", "file", "file_upload", "abstract_history", "biography_history"]
+
+# ---------------------------------------------------------------------------
+# Canonical column order per table (model-compatible; Queryable field order).
+# ---------------------------------------------------------------------------
+
+[[column_order]]
+rust_table = "work_abstract"
+columns = ["abstract_id", "work_id", "content", "locale_code", "abstract_type", "canonical"]
+
+[[column_order]]
+rust_table = "additional_resource"
+columns = ["additional_resource_id", "work_id", "title", "description", "attribution", "resource_type", "doi", "handle", "url", "date", "resource_ordinal", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "additional_resource_history"
+columns = ["additional_resource_history_id", "additional_resource_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "affiliation"
+columns = ["affiliation_id", "contribution_id", "institution_id", "affiliation_ordinal", "position", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "biography"
+columns = ["biography_id", "contribution_id", "content", "canonical", "locale_code"]
+
+[[column_order]]
+rust_table = "award"
+columns = ["award_id", "work_id", "title", "url", "category", "year", "jury", "country", "prize_statement", "role", "award_ordinal", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "award_history"
+columns = ["award_history_id", "award_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "affiliation_history"
+columns = ["affiliation_history_id", "affiliation_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "contact"
+columns = ["contact_id", "publisher_id", "contact_type", "email", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "contact_history"
+columns = ["contact_history_id", "contact_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "contribution"
+columns = ["contribution_id", "work_id", "contributor_id", "contribution_type", "main_contribution", "created_at", "updated_at", "first_name", "last_name", "full_name", "contribution_ordinal"]
+
+[[column_order]]
+rust_table = "contribution_history"
+columns = ["contribution_history_id", "contribution_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "contributor"
+columns = ["contributor_id", "first_name", "last_name", "full_name", "orcid", "website", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "contributor_history"
+columns = ["contributor_history_id", "contributor_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "book_review"
+columns = ["book_review_id", "work_id", "title", "author_name", "reviewer_orcid", "reviewer_institution_id", "url", "doi", "review_date", "journal_name", "journal_volume", "journal_number", "journal_issn", "page_range", "text", "review_ordinal", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "book_review_history"
+columns = ["book_review_history_id", "book_review_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "endorsement"
+columns = ["endorsement_id", "work_id", "author_name", "author_role", "author_orcid", "author_institution_id", "url", "text", "endorsement_ordinal", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "endorsement_history"
+columns = ["endorsement_history_id", "endorsement_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "funding"
+columns = ["funding_id", "work_id", "institution_id", "program", "project_name", "project_shortname", "grant_number", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "funding_history"
+columns = ["funding_history_id", "funding_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "imprint"
+columns = ["imprint_id", "publisher_id", "imprint_name", "imprint_url", "crossmark_doi", "s3_bucket", "cdn_domain", "cloudfront_dist_id", "default_currency", "default_place", "default_locale", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "imprint_history"
+columns = ["imprint_history_id", "imprint_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "institution"
+columns = ["institution_id", "institution_name", "institution_doi", "created_at", "updated_at", "ror", "country_code"]
+
+[[column_order]]
+rust_table = "institution_history"
+columns = ["institution_history_id", "institution_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "issue"
+columns = ["issue_id", "series_id", "work_id", "issue_ordinal", "issue_number", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "issue_history"
+columns = ["issue_history_id", "issue_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "language"
+columns = ["language_id", "work_id", "language_code", "language_relation", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "language_history"
+columns = ["language_history_id", "language_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "location"
+columns = ["location_id", "publication_id", "landing_page", "full_text_url", "location_platform", "canonical", "checksum", "checksum_algorithm", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "location_history"
+columns = ["location_history_id", "location_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "price"
+columns = ["price_id", "publication_id", "currency_code", "unit_price", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "price_history"
+columns = ["price_history_id", "price_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "publication"
+columns = ["publication_id", "publication_type", "work_id", "isbn", "created_at", "updated_at", "width_mm", "width_in", "height_mm", "height_in", "depth_mm", "depth_in", "weight_g", "weight_oz", "accessibility_standard", "accessibility_additional_standard", "accessibility_exception", "accessibility_report_url"]
+
+[[column_order]]
+rust_table = "publication_history"
+columns = ["publication_history_id", "publication_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "publisher"
+columns = ["publisher_id", "publisher_name", "publisher_shortname", "publisher_url", "zitadel_id", "accessibility_statement", "accessibility_report_url", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "publisher_history"
+columns = ["publisher_history_id", "publisher_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "reference"
+columns = ["reference_id", "work_id", "reference_ordinal", "doi", "unstructured_citation", "issn", "isbn", "journal_title", "article_title", "series_title", "volume_title", "edition", "author", "volume", "issue", "first_page", "component_number", "standard_designator", "standards_body_name", "standards_body_acronym", "url", "publication_date", "retrieval_date", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "reference_history"
+columns = ["reference_history_id", "reference_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "series"
+columns = ["series_id", "series_type", "series_name", "issn_print", "issn_digital", "series_url", "imprint_id", "created_at", "updated_at", "series_description", "series_cfp_url"]
+
+[[column_order]]
+rust_table = "series_history"
+columns = ["series_history_id", "series_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "subject"
+columns = ["subject_id", "work_id", "subject_type", "subject_code", "subject_ordinal", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "subject_history"
+columns = ["subject_history_id", "subject_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "work"
+columns = ["work_id", "work_type", "work_status", "reference", "edition", "imprint_id", "doi", "publication_date", "withdrawn_date", "place", "page_count", "page_breakdown", "image_count", "table_count", "audio_count", "video_count", "license", "copyright_holder", "landing_page", "lccn", "oclc", "general_note", "bibliography_note", "toc", "resources_description", "cover_url", "cover_caption", "created_at", "updated_at", "first_page", "last_page", "page_interval", "updated_at_with_relations"]
+
+[[column_order]]
+rust_table = "work_history"
+columns = ["work_history_id", "work_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "work_featured_video"
+columns = ["work_featured_video_id", "work_id", "title", "url", "width", "height", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "work_featured_video_history"
+columns = ["work_featured_video_history_id", "work_featured_video_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "work_relation"
+columns = ["work_relation_id", "relator_work_id", "related_work_id", "relation_type", "relation_ordinal", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "work_relation_history"
+columns = ["work_relation_history_id", "work_relation_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "work_title"
+columns = ["title_id", "work_id", "full_title", "title", "subtitle", "canonical", "locale_code"]
+
+[[column_order]]
+rust_table = "title_history"
+columns = ["title_history_id", "title_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "file"
+columns = ["file_id", "file_type", "work_id", "publication_id", "additional_resource_id", "work_featured_video_id", "object_key", "cdn_url", "mime_type", "bytes", "sha256", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "file_upload"
+columns = ["file_upload_id", "file_type", "work_id", "publication_id", "additional_resource_id", "work_featured_video_id", "declared_mime_type", "declared_extension", "declared_sha256", "created_at", "updated_at"]
+
+[[column_order]]
+rust_table = "abstract_history"
+columns = ["abstract_history_id", "abstract_id", "user_id", "data", "timestamp"]
+
+[[column_order]]
+rust_table = "biography_history"
+columns = ["biography_history_id", "biography_id", "user_id", "data", "timestamp"]

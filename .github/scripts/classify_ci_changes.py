@@ -26,6 +26,17 @@ MIGRATION_CONTROL_PATHS = {
     ".github/scripts/classify_ci_changes.py",
     ".github/workflows/run_migrations.yml",
     ".github/workflows/run_migrations_no_action.yml",
+    # THOTH-DB-CTRL-01 Diesel schema control surfaces. A change to any of these
+    # must run the migration-control verification and must never be treated as
+    # documentation-only.
+    "AGENTS.md",
+    "thoth-api/AGENTS.md",
+    "diesel.toml",
+    "Makefile",
+    ".github/scripts/diesel_schema.py",
+    ".github/scripts/test_diesel_schema.py",
+    "thoth-api/diesel-schema-control.toml",
+    "thoth-api/src/schema.rs",
 }
 
 
@@ -291,6 +302,53 @@ def run_self_tests() -> None:
             "root_readme",
             ["README.md"],
             Classification(False, False, False, True),
+        ),
+        # THOTH-DB-CTRL-01 migration-control surfaces must run migration
+        # verification and must never be documentation-only.
+        (
+            "diesel_synchronizer",
+            [".github/scripts/diesel_schema.py"],
+            Classification(False, False, True, True),
+        ),
+        (
+            "diesel_synchronizer_tests",
+            [".github/scripts/test_diesel_schema.py"],
+            Classification(False, False, True, True),
+        ),
+        (
+            "diesel_convention_file",
+            ["thoth-api/diesel-schema-control.toml"],
+            Classification(False, False, True, True),
+        ),
+        (
+            "diesel_config",
+            ["diesel.toml"],
+            Classification(False, True, True, True),
+        ),
+        (
+            "makefile_control",
+            ["Makefile"],
+            Classification(False, False, True, True),
+        ),
+        (
+            "root_agents",
+            ["AGENTS.md"],
+            Classification(False, False, True, True),
+        ),
+        (
+            "api_agents",
+            ["thoth-api/AGENTS.md"],
+            Classification(False, False, True, True),
+        ),
+        (
+            "canonical_schema",
+            ["thoth-api/src/schema.rs"],
+            Classification(False, True, True, True),
+        ),
+        (
+            "agents_not_docs_only",
+            ["AGENTS.md", "docs/example.md"],
+            Classification(False, False, True, True),
         ),
     ]
 

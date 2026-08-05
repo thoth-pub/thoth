@@ -67,20 +67,46 @@ Backfill existing data before adding constraints that existing rows cannot satis
 
 Avoid application-side uniqueness checks without a matching database constraint.
 
-## 4. Diesel schema control gap
+## 4. Diesel schema control (THOTH-DB-CTRL-01)
 
-The repository contains `thoth-api/src/schema.rs`, while the root `diesel.toml` currently identifies a different output path.
+The Diesel schema-generation procedure is implemented and authoritative. All
+commands run from the repository root.
 
-Do not guess the schema-generation command or manually relocate generated schema.
+- Automatic `diesel.toml` output is untrusted staging only, written to
+  `target/diesel-schema.rs` (under the ignored `target/` directory). It is never
+  the canonical contract.
+- `thoth-api/src/schema.rs` is the canonical, compiled contract. Direct manual
+  replacement, or any direct `diesel print-schema`/`diesel migration` write to
+  it, is prohibited.
+- Only the validated synchronizer `.github/scripts/diesel_schema.py generate`
+  writes the canonical schema, and only after safety, exact projection,
+  deterministic-repeat, focused-compile, and cleanup checks pass.
+- The Diesel CLI must be exactly `2.3.10` (PostgreSQL feature), supplied through
+  `DIESEL_BIN`.
 
-Every schema-changing task must first:
+Every schema-changing task must:
 
-1. identify the working command and directory used by maintainers;
-2. record it in the task/implementation report;
-3. generate or verify `thoth-api/src/schema.rs`;
-4. ensure no unrelated schema reformatting is introduced.
+1. write a complete version-2 expected-change manifest with `expected_projection`
+   explicitly `change` or `none`;
+2. run `make check-diesel-schema` (mandatory) from the repository root, which runs
+   the same synchronizer used in CI over a disposable PostgreSQL 17 database;
+3. use `make generate-diesel-schema` (the synchronizer's `generate` mode) if the
+   canonical schema must change, never a manual edit;
+4. record the command and resulting diff in the implementation report;
+5. introduce no unrelated schema reformatting.
 
-If this cannot be established, stop and return `BLOCKED`.
+The validation, exact-projection, deterministic-repeat, compile, and cleanup
+gates are mandatory. A control failure emits
+`BLOCKED - THOTH DIESEL GENERATION CONTROL FAILED` and blocks the dependent
+schema work; it must not be weakened to obtain green CI. The convention data at
+`thoth-api/diesel-schema-control.toml` enumerates every intentional
+raw-Diesel/canonical difference (supplemental `MarkupFormat`, the
+`abstract`/`title` table aliases, the `title.title` identifier handling, every
+`Timestamp`->`Timestamptz` override, and model-compatible table/column order).
+
+A `none` result certifies only the Diesel-controlled projection; excluded
+migration effects (indexes, check constraints, data, comments) remain the
+responsibility of migration validation. CG-13 remains a separate open control.
 
 ## 5. Transactions, concurrency and idempotency
 
