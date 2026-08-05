@@ -93,42 +93,44 @@ Every schema task must verify:
 - constraints and indexes;
 - forward migration;
 - downgrade or forward-repair strategy;
-- generated Diesel schema;
+- the checked-in Diesel schema contract (`thoth-api/src/schema.rs`), edited
+  atomically with the migration;
 - migration ordering;
 - locking/downtime.
 
-## Generated artefacts
+## Schema contract
 
-`thoth-api/src/schema.rs` is a generated/derived Diesel schema file.
+`thoth-api/src/schema.rs` is the repository-authoritative, manually maintained
+Rust/Diesel compile-time schema contract, per
+[ADR-0003](../../decisions/ADR-0003-repository-authoritative-schema-contract.md).
+It is not regenerated through a Diesel CLI workflow, and there is no root
+`diesel.toml`.
 
-The selected canonical procedure is specified by
-[`THOTH-DB-CTRL-01`](../../ai-delivery/tasks/THOTH-DB-CTRL-01.md): run from the
-repository root; retain root `diesel.toml`; use exact Diesel CLI `2.3.10`;
-introspect only a proven disposable local PostgreSQL database; preserve
-`thoth-api/src/schema.rs` as canonical; and pass raw Diesel output through a
-fail-closed structural synchronizer that preserves explicit repository
-conventions and enforces an explicit `change` or `none` projection expectation.
+The canonical workflow (Architecture A): run from the repository root; create
+migrations with `make migration`; apply and revert them with the embedded runner
+(`cargo run migrate`, `cargo run migrate --revert`); and edit
+`thoth-api/src/schema.rs` directly so that migrations, `schema.rs`, affected
+models, and database-backed tests change atomically in one bounded PR. A
+migration with no `schema.rs` impact must record that as an explicit reviewed
+conclusion. `diesel print-schema` must never be the canonical writer, and a
+Diesel CLI dependency must not be reintroduced without a separately approved ADR
+that supersedes ADR-0003.
 
-The written specification was previously approved at pre-correction content.
-That approval is historical after the normative enum-projection,
-catalog-baseline, and projection-mode corrections.
-The projection-mode-corrected written specification is approved by Javi, CTO,
-on 2026-08-04, bound to exact base
-`35e4dc20864ae4896dccc2b20cbcdbe3fb733db8`, exact reviewed head
-`50ff3248b2af4a19422df924260c4f17832c0378`, normative content head
-`aec8295f22bc8c7cab4ce13e09890ef78b8586fa`, and independent approval comment
-`5177640752`. The implementation is not started, and its branch is not
-authorized. Specification approval does not authorize implementation work,
-migration execution, schema, Diesel configuration, Makefile, workflow or AGENTS
-changes, BE-01 implementation, production access, release, deployment, or
-activation. Until `THOTH-DB-CTRL-01` receives separate implementation
-authorization and merges after independent review with its acceptance evidence,
-do not regenerate, overwrite, or relocate `thoth-api/src/schema.rs`. CG-12
-remains unresolved, CG-13 remains open, and dependent schema work, including
-BE-01, remains blocked under
-[CG-12](../control-gaps.md#cg-12---thoth-schema-generation-unclear).
-Production migration, deployment, rollback, restore verification, and approver
-mapping remain separately blocked on
+ADR-0003 supersedes the `THOTH-DB-CTRL-01` structural-synchronizer approach,
+whose implementation PR
+[#777](https://github.com/thoth-pub/thoth/pull/777) was closed unmerged.
+[`THOTH-DB-CTRL-02`](../../ai-delivery/tasks/THOTH-DB-CTRL-02.md) delivers
+ADR-0003 and its directly related cleanup in draft PR
+[#778](https://github.com/thoth-pub/thoth/pull/778).
+
+While draft PR #778 is open, branch content is not authoritative:
+[CG-12](../control-gaps.md#cg-12---thoth-schema-generation-resolution-pending-merge-via-architecture-a)
+remains unresolved and dependent schema work, including BE-01, remains blocked.
+When PR #778 merges into `develop` after independent review and explicit CTO
+merge authorization, the merged Architecture A control resolves CG-12 and BE-01
+becomes `READY` for separately authorized implementation. Production migration,
+deployment, rollback, restore verification, and approver mapping remain
+separately blocked on
 [CG-13](../control-gaps.md#cg-13---thoth-runtime-operations-unmapped).
 
 ## CI and release

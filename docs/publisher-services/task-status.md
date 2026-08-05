@@ -4,7 +4,7 @@ Status: ACTIVE TRACKER
 Programme owner: CTO
 Master issue: [#765](https://github.com/thoth-pub/thoth/issues/765)
 Approved design: [private Google Doc](https://docs.google.com/document/d/1kr2Ft0Y4pxgcXGyFAKs_wfFx4I0jlxEvaceswE5Dus8/edit), Drive revision `3`
-Last updated: 2026-07-29
+Last updated: 2026-08-05
 
 ## 1. Control rule
 
@@ -22,7 +22,7 @@ No task moves to `READY` without an approved specification, architecture depende
 | ADR-01 Platform inventory/final architecture | `thoth` | MEDIUM | BLOCKED | `develop` / `develop` | missing approved bounded ADR-01 specification; final distribution-platform inventory decision | #765 | TBD | NOT STARTED |
 | LIC-01 Expand `cc-license` | `cc-license` | MEDIUM | BLOCKED | `develop` / `develop` | P0-01; BR-LIC-01 or CTO exception; approved spec | #765 | TBD | NOT STARTED |
 | LIC-02 Enforce supported licences | `thoth` | HIGH | BLOCKED | `develop` / `develop` | LIC-01 release; production licence audit plan | #765 | TBD | NOT STARTED |
-| [BE-01 Publisher package model](../engineering/ai-delivery/tasks/BE-01.md) | `thoth` | HIGH | BLOCKED | exact base recorded after `THOTH-DB-CTRL-01` passes; then-current `develop` / `develop` | approved BE-01 specification merged; `THOTH-DB-CTRL-01` independently approved and merged; separate `BLOCKED` -> `READY` control update | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#774](https://github.com/thoth-pub/thoth/pull/774); TBD for implementation | APPROVED SPECIFICATION - IMPLEMENTATION BLOCKED ON THOTH-DB-CTRL-01 - IMPLEMENTATION NOT STARTED |
+| [BE-01 Publisher package model](../engineering/ai-delivery/tasks/BE-01.md) | `thoth` | HIGH | BLOCKED (READY on PR #778 merge) | exact base recorded after the schema control merges; then-current `develop` / `develop` | approved BE-01 specification merged; ADR-0003 / `THOTH-DB-CTRL-02` (draft PR #778) merged into `develop`; separate `BLOCKED` -> `READY` control update | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#774](https://github.com/thoth-pub/thoth/pull/774); TBD for implementation | APPROVED SPECIFICATION - IMPLEMENTATION BLOCKED PENDING PR #778 MERGE (Architecture A) - IMPLEMENTATION NOT STARTED |
 | BE-02 Distribution platform model | `thoth` | HIGH | BLOCKED | `develop` / `develop` | ADR-01 | #765 | TBD | NOT STARTED |
 | BE-03 Protected service configuration | `thoth` | HIGH | BLOCKED | `develop` / `develop` | BE-01; BE-02 | #765 | TBD | NOT STARTED |
 | BE-04 Durable distribution jobs | `thoth` | HIGH | BLOCKED | `develop` / `develop` | BE-02; BE-03 | #765 | TBD | NOT STARTED |
@@ -56,10 +56,13 @@ Each branch starts from the repository's verified development branch and targets
    repository-authoritative when specification
    [PR #774](https://github.com/thoth-pub/thoth/pull/774) is independently
    approved and merged; BE-01 remains `BLOCKED`.
-2. `THOTH-DB-CTRL-01` must then establish the shared Diesel procedure through
-   its own independent approval and merge.
-3. After that shared control passes, a separate control update may move BE-01
-   from `BLOCKED` to `READY`.
+2. The shared Diesel schema control is now Architecture A (ADR-0003):
+   `thoth-api/src/schema.rs` is maintained directly, and BE-01 edits it in its
+   own bounded PR. `THOTH-DB-CTRL-01` is `SUPERSEDED`; its replacement
+   `THOTH-DB-CTRL-02` delivers ADR-0003 in draft PR #778 and must merge into
+   `develop` after independent review and explicit CTO authorization.
+3. After PR #778 merges (resolving CG-12), a separate control update may move
+   BE-01 from `BLOCKED` to `READY`.
 4. Only then may `feature/publisher-services/be-01` be created from the freshly
    verified then-current `develop`, with the exact base recorded before any
    implementation edit.
