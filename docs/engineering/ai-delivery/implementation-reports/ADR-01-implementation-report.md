@@ -13,10 +13,11 @@ local `develop` and `origin/develop` before any edit)
 PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/publisher-services/adr-01`
-Head commit: recorded on the draft PR and in the immutable exact-head
-evidence comment (the changelog/PR-number follow-up commit is the exact
-head)
-Pull request: draft PR (number recorded by the follow-up commit)
+Head commit: the PR-number follow-up commit on
+[draft PR #783](https://github.com/thoth-pub/thoth/pull/783); the exact
+head SHA and its CI evidence are recorded in the immutable exact-head
+evidence comment on that PR
+Pull request: [draft PR #783](https://github.com/thoth-pub/thoth/pull/783)
 Expected branch deletion after merge: YES
 Final programme PR required: NO
 Implementing model: Claude (Fable 5), implementation-capable model approved
@@ -93,16 +94,16 @@ occurred.
 
 ## 4. Commits
 
-- `docs(publisher-services): decide distribution platform inventory` -
-  ADR-0004, evidence matrix, final proposed inventory, control-document
-  reconciliation, changelog
-- `docs(publisher-services): report ADR-01 implementation` - this report
-- follow-up commit - records the real PR number in the changelog, tracker
-  and this report
+- `f56b0dd7` - `docs(publisher-services): decide distribution platform
+  inventory` - ADR-0004, evidence matrix, final proposed inventory,
+  control-document reconciliation, changelog
+- `2643fb1d` - `docs(publisher-services): report ADR-01 implementation` -
+  this report
+- follow-up commit (the PR head) - records PR #783 in the changelog,
+  tracker and this report; its SHA is recorded in the immutable exact-head
+  evidence comment on PR #783
 
-Exact SHAs are recorded on the draft PR; the immutable exact-head evidence
-comment records the final head. Normal commits only: no amend, rebase,
-squash, reset or force-push.
+Normal commits only: no amend, rebase, squash, reset or force-push.
 
 ## 5. Files changed
 
