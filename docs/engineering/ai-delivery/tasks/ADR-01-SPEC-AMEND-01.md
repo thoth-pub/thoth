@@ -1,6 +1,6 @@
 # ADR-01-SPEC-AMEND-01 - ADR-01 specification amendment from the approved evidence ledger
 
-Status: CONTENT APPROVED - APPROVAL-STATE REVIEW AND MERGE PENDING
+Status: MERGED - COMPLETE
 Programme: Publisher Services and Distribution Configuration
 Repository: `thoth-pub/thoth`
 Workflow: STANDARD
@@ -228,7 +228,9 @@ documentation-only behaviour is classifier success with heavy jobs skipped and
 - Initial state after merge: documentation and control records only; no
   runtime effect.
 - Rollback: revert the documentation PR; no operational effect.
-- The amendment PR remains draft throughout this task.
+- The amendment PR remained draft throughout the drafting, remediation and
+  approval-state phases; it was marked ready and merged only under the CTO
+  merge authorization recorded in section 11.1.
 
 ## 10. Review and approval gates
 
@@ -262,12 +264,33 @@ PR #781 comment 5203642323
 ```
 
 The approval applies to the corrected substantive specification content at
-that exact head only. The approval-state documentation commit recording this
-approval, fresh independent exact-head review and CI of that status-only
-head, separate CTO merge authorization and the merge of PR #781 remain
-pending. Merge is not authorized. ADR-01 implementation is not authorized
-and remains blocked pending the amendment merge plus fresh implementation
-authorization from the new post-merge `develop` base.
+that exact head only.
+
+### 11.1 Merge record
+
+The amendment is merged and complete:
+
+```text
+PR: #781
+Approved amendment head: bdfded20e8cac65fcd7713b07d189052e0eba745
+Approval-state final independent review: 4874093991 - APPROVED
+CTO merge authorization: review 4874128610
+Merge commit: a511e01c83c5e805a75e0fdaeb3b5297c39ef291
+Merged at: 2026-08-06T11:29:53Z
+```
+
+The corrected ADR-01 specification content is repository-authoritative
+through that merge commit. The complete delivery history is preserved: the
+CTO drafting authorization of 2026-08-06; the first reviewed head
+`3251bd51` receiving `CHANGES REQUIRED` (review `4873502967`, two P1
+findings); the remediation commit and substantive approval at `1276c70a`
+(review `4873802457`, CTO comment `5203642323`); the approval-state commit
+`bdfded20` with its metadata-only `CHANGES REQUIRED` reviews (`4873996906`,
+`4874065598`) resolved through PR-body reconciliation; and the final
+approval-state review `4874093991`. ADR-01 implementation remains not
+authorized: it requires a fresh task authorization from the then-current
+exact `develop` head. Post-merge control reconciliation is recorded by
+[`ADR-01-SPEC-AMEND-01-CLOSEOUT-01`](ADR-01-SPEC-AMEND-01-CLOSEOUT-01.md).
 
 ## 12. Stop conditions
 

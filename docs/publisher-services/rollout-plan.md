@@ -60,11 +60,10 @@ Achieved evidence:
   implementation. That historical approval remains valid and applies only
   to the superseded pre-amendment content: the currently linked `ADR-01.md`
   is amended content with status
-  `APPROVED CORRECTED CONTENT - MERGE PENDING`, and ADR-01 implementation
-  remains blocked pending fresh independent exact-head review of the
-  approval-state head, separate CTO merge authorization, merge of the
-  amendment, and fresh implementation authorization from a new verified
-  `develop` base.
+  `APPROVED AND REPOSITORY-AUTHORITATIVE - FRESH IMPLEMENTATION
+  AUTHORIZATION REQUIRED`, and ADR-01 implementation has not started and
+  requires a fresh task authorization from the then-current exact `develop`
+  head.
 
 Amendment state (2026-08-06):
 
@@ -74,17 +73,20 @@ Amendment state (2026-08-06):
   explicitly CTO-approved
   ([PR #781](https://github.com/thoth-pub/thoth/pull/781) comment
   `5203642323`, 2026-08-06) at exact content head
-  `1276c70a81e73f57d833eecb0e6886bd0cabf69e`; the historical ADR-01
-  specification approval applies only to the superseded pre-amendment
-  content.
+  `1276c70a81e73f57d833eecb0e6886bd0cabf69e`; the approval-state head
+  `bdfded20e8cac65fcd7713b07d189052e0eba745` received final independent
+  review `4874093991` (`APPROVED`) and CTO merge authorization (review
+  `4874128610`), and PR #781 merged into `develop` as
+  `a511e01c83c5e805a75e0fdaeb3b5297c39ef291` on 2026-08-06T11:29:53Z,
+  making the corrected ADR-01 specification repository-authoritative; the
+  historical ADR-01 specification approval applies only to the superseded
+  pre-amendment content.
 
 Outstanding evidence:
 
-- the approval-state documentation commit recording the amendment approval,
-  its automatic exact-head CI, fresh independent review of that status-only
-  head, separate CTO merge authorization, and the merge of PR #781;
 - Publisher Services ADR-01 implementation and final platform-inventory
-  approval; the inventory in
+  approval; ADR-01 implementation has not started and requires a fresh task
+  authorization from the then-current exact `develop` head; the inventory in
   [`platform-inventory.md`](platform-inventory.md) remains explicitly
   provisional until an approved ADR-01 merges;
 - applicable repository/branch-readiness decisions;

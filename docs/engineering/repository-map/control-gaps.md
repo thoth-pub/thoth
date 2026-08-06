@@ -59,14 +59,19 @@ specification content from the CTO-approved evidence ledger
 (`docs/publisher-services/adr-01-evidence-ledger.md`). The corrected content
 was independently reviewed (review `4873802457`, `APPROVED`) and explicitly
 CTO-approved (PR #781 comment `5203642323`, 2026-08-06) at exact content head
-`1276c70a81e73f57d833eecb0e6886bd0cabf69e`; the approval-state documentation
-commit recording that approval requires fresh independent exact-head review,
-and the merge of PR #781 remains pending. The historical ADR-01 specification
-approval (content head `820f9cfa`, PR #780) applies only to the superseded
-pre-amendment content. CG-07 remains open. ADR-01 implementation remains
-blocked pending the amendment merge plus fresh implementation authorization
-from a new exact `develop` base. The final platform inventory remains
-provisional. CG-11 and CG-13 are unchanged by the amendment.
+`1276c70a81e73f57d833eecb0e6886bd0cabf69e`; the approval-state head
+`bdfded20` received final independent review `4874093991` (`APPROVED`) and
+CTO merge authorization (review `4874128610`); and PR #781 merged into
+`develop` as `a511e01c83c5e805a75e0fdaeb3b5297c39ef291` on
+2026-08-06T11:29:53Z, making the corrected ADR-01 specification
+repository-authoritative. The specification amendment is complete. The
+historical ADR-01 specification approval (content head `820f9cfa`, PR #780)
+applies only to the superseded pre-amendment content. CG-07 remains **open**
+because ADR-01 implementation, ADR-0004 and the final inventory are not
+complete: implementation has not started and requires a fresh task
+authorization from the then-current exact `develop` head. The final platform
+inventory remains provisional. CG-11 and CG-13 are unchanged by the
+amendment and its closeout.
 
 ### CG-08 - Metrics readiness open
 
