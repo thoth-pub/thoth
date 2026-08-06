@@ -120,16 +120,23 @@ credential was used, and no production or shared resource was accessed.
   `ia_reconcile.yml` maintenance schedules, and manual entry points
   `disseminate.yml` / `manual_disseminate.yml`. `ScienceOpen` has **no**
   scheduled workflow.
-- Configuration structure (names only; no value read): per-platform GitHub
-  repository variables `<PREFIX>_ENV_PUBLISHERS` / `<PREFIX>_ENV_EXCEPTIONS`
-  (`IA`, `OAPEN`, `EH`, `JSTOR`, `MUSE`, `PQ`, `GP`, `CR`, `CUL`, `FS`,
-  `ZN`, `BKCI`), passed to the shared `bulk_disseminate.yml`;
-  `config.env.template` records credential-variable name structure, including
-  per-publisher patterns (`muse_ftp_user_[publisher_id]`,
-  `bkci_ftp_user_[publisher_id]`, `crossref_user_[publisher_id]`,
-  `jstor_ftp_folder_[publisher_id]`, `google_play_coll_[publisher_id]`) and
-  notification addresses (`oapen_notif_email`, `ebscohost_notif_email`,
-  `bkci_notif_email`).
+- Configuration structure (structure only; no value read; exact secret and
+  credential identifiers intentionally omitted): publisher-assignment mirrors
+  are per-platform GitHub repository variables `<PREFIX>_ENV_PUBLISHERS` /
+  `<PREFIX>_ENV_EXCEPTIONS` (`IA`, `OAPEN`, `EH`, `JSTOR`, `MUSE`, `PQ`,
+  `GP`, `CR`, `CUL`, `FS`, `ZN`, `BKCI`), passed to the shared
+  `bulk_disseminate.yml`. These are publisher-list configuration, not
+  credential retrieval. Separately, `config.env.template` establishes the
+  credential configuration categories and their scope: global credentials
+  for Internet Archive, ScienceOpen, OAPEN, CUL, JSTOR, EBSCOHost, ProQuest,
+  Figshare and Zenodo; per-publisher credential entries for Project MUSE,
+  BKCI and Crossref; a per-publisher folder-name configuration for JSTOR; a
+  per-publisher collection-code configuration for Google Play; a cloud
+  service-account/bucket configuration for Google Play; a Thoth
+  personal-access-token entry for location writeback; and per-platform
+  notification-address entries. Credential configuration exists in the
+  dissemination repository; this matrix records category, scope and
+  responsibility only.
 - Source-file selection: `uploader.py` `get_publication_source` selects the
   **canonical location `fullTextUrl` of each publication regardless of the
   hosting platform**. Current behaviour therefore does not yet enforce the
@@ -337,7 +344,7 @@ retry/idempotency:              idempotent convergence, delayed-propagation
 location writeback:             immediate Thoth location writeback
                                 (write_locations.py;
                                 reconcile_internet_archive.py)
-required credential category:   platform API credential (IA S3-style keypair)
+required credential category:   platform API credential; global
 current credential
 responsibility:                 shared (engineering-held dissemination
                                 secrets) during transition
@@ -404,12 +411,14 @@ required file/metadata formats: PDF publication file; ONIX 3.0
 incremental update support:     disabled initially (conservative policy)
 withdrawal support:             none; operator-managed external process
 retry/idempotency:              per-work deposit; re-run re-deposits;
-                                notification email step (oapen_notif_email)
+                                notification email step (address
+                                configuration in the dissemination
+                                repository)
 location writeback:             deferred catch-up
                                 (oapen_catchup_locations.yaml,
                                 obtain_oapen_locations.py)
-required credential category:   platform service credential (SWORDv2
-                                username/password category)
+required credential category:   platform service credential (SWORDv2);
+                                global
 current credential
 responsibility:                 shared during transition (shared record)
 target credential owner:        Metadata Specialist (shared record)
@@ -535,7 +544,7 @@ incremental update support:     none automatic (manual destination)
 withdrawal support:             none; operator-managed external process
 retry/idempotency:              manual re-run; no automatic retry
 location writeback:             none automatic
-required credential category:   SFTP/FTP credential category
+required credential category:   SFTP/FTP credential; global
 current credential
 responsibility:                 shared during transition (shared record)
 target credential owner:        Metadata Specialist (shared record)
@@ -598,8 +607,8 @@ location writeback:             immediate, but recorded under
                                 LocationPlatform 'OTHER' (culuploader.py:50)
                                 - known current behaviour to revisit in later
                                 implementation work
-required credential category:   platform service credential (pilot
-                                collaboration server username/password)
+required credential category:   platform service credential (SWORDv2);
+                                global; pilot collaboration service
 current credential
 responsibility:                 shared during transition (shared record)
 target credential owner:        Metadata Specialist (shared record)
@@ -664,8 +673,7 @@ retry/idempotency:              redeposit-safe by DOI; minimal deposit API
                                 error surface recorded in code comments
 location writeback:             none
 required credential category:   per-publisher platform API credential
-                                (crossref_user_/crossref_pw_[publisher_id]
-                                name structure)
+                                (exact identifiers intentionally omitted)
 current credential
 responsibility:                 shared during transition (shared record)
 target credential owner:        Metadata Specialist (shared record)
@@ -728,7 +736,8 @@ retry/idempotency:              existing-record guard prevents duplicates;
                                 re-run after partial failure requires staff
                                 attention
 location writeback:             immediate per-publication writeback
-required credential category:   platform API credential (token category)
+required credential category:   platform API credential (token category);
+                                global
 current credential
 responsibility:                 shared during transition (shared record)
 target credential owner:        Metadata Specialist (shared record)
@@ -786,7 +795,8 @@ incremental update support:     disabled initially (conservative policy);
 withdrawal support:             none; operator-managed external process
 retry/idempotency:              existing-record guard prevents duplicates
 location writeback:             immediate per-publication writeback
-required credential category:   platform API credential (token category)
+required credential category:   platform API credential (token category);
+                                global
 current credential
 responsibility:                 shared during transition (shared record)
 target credential owner:        Metadata Specialist (shared record)
@@ -846,8 +856,7 @@ location writeback:             deferred catch-up
                                 (muse_catchup_locations.yaml,
                                 obtain_muse_locations.py)
 required credential category:   per-publisher SFTP/FTP credential
-                                (muse_ftp_user_/muse_ftp_pw_[publisher_id]
-                                name structure)
+                                (exact identifiers intentionally omitted)
 current credential
 responsibility:                 shared during transition (shared record)
 target credential owner:        Metadata Specialist (shared record)
@@ -911,9 +920,9 @@ incremental update support:     disabled initially (conservative policy)
 withdrawal support:             none; operator-managed external process
 retry/idempotency:              per-work upload; no existing-record guard
 location writeback:             none automatic
-required credential category:   SFTP/FTP credential plus per-publisher
-                                folder-name configuration
-                                (jstor_ftp_folder_[publisher_id] structure)
+required credential category:   SFTP/FTP credential (global) plus
+                                per-publisher folder-name configuration
+                                (exact identifiers intentionally omitted)
 current credential
 responsibility:                 shared during transition (shared record)
 target credential owner:        Metadata Specialist (shared record)
@@ -973,9 +982,10 @@ required file/metadata formats: PDF and/or EPUB content, cover,
 incremental update support:     disabled initially (conservative policy)
 withdrawal support:             none; operator-managed external process
 retry/idempotency:              per-work upload; notification email step
-                                (ebscohost_notif_email)
+                                (address configuration in the dissemination
+                                repository)
 location writeback:             none automatic
-required credential category:   SFTP credential
+required credential category:   SFTP credential; global
 current credential
 responsibility:                 shared during transition (shared record)
 target credential owner:        Metadata Specialist (shared record)
@@ -1047,7 +1057,7 @@ retry/idempotency:              per-work upload; scheduled delivery must not
                                 be presented as fully healthy while the
                                 defect below stands
 location writeback:             none automatic
-required credential category:   SFTP/FTP credential
+required credential category:   SFTP/FTP credential; global
 current credential
 responsibility:                 shared during transition (shared record)
 target credential owner:        Metadata Specialist (shared record)
@@ -1133,9 +1143,9 @@ runtime desired-state
 authority:                      Thoth publisher/platform assignment
 temporary operational
 configuration source:           GP_ENV_PUBLISHERS variable, per-publisher
-                                collection codes
-                                (google_play_coll_[publisher_id] structure)
-                                and dissemination secrets
+                                collection-code configuration (exact
+                                identifiers intentionally omitted) and
+                                dissemination secrets
 current publisher-config
 source:                         GP_ENV_PUBLISHERS (contents not read)
 accountable operational owner:  COO (shared record)
@@ -1183,11 +1193,11 @@ required file/metadata formats: content and metadata files per
 incremental update support:     disabled initially (conservative policy)
 withdrawal support:             none; operator-managed external process
 retry/idempotency:              per-work upload; notification email step
-                                (bkci_notif_email)
+                                (address configuration in the dissemination
+                                repository)
 location writeback:             none automatic
 required credential category:   per-publisher SFTP/FTP credential
-                                (bkci_ftp_user_/bkci_ftp_pw_[publisher_id]
-                                name structure)
+                                (exact identifiers intentionally omitted)
 current credential
 responsibility:                 shared during transition (shared record)
 target credential owner:        Metadata Specialist (shared record)
@@ -1668,7 +1678,11 @@ evidence classification:        repository-verified
 ## 8. Evidence-classification counts
 
 Counting the discrete claims in the claim-to-source index (section 9), each
-carrying exactly one classification:
+carrying exactly one classification. The counts were re-derived from the
+corrected claim index after the review-4876054508 remediation (which
+rewrote claim R4 to record credential configuration categories and scope
+without exact identifiers): the remediation changed R4's wording, not the
+set of claims, so the totals below remain those of the corrected index:
 
 ```text
 repository-verified claims:       34
@@ -1694,7 +1708,7 @@ Repository-verified claims (exact commit and path recorded above):
 | R1 | 13 push uploader dispatch keys | thoth-dissemination@7a16edc0 disseminator.py |
 | R2 | Scheduled/manual workflow entry points and schedules | thoth-dissemination@7a16edc0 .github/workflows/ |
 | R3 | Publisher-list configuration structure (<PREFIX>_ENV_PUBLISHERS/_EXCEPTIONS) | thoth-dissemination@7a16edc0 workflow files, bulk_disseminate.yml |
-| R4 | Credential-variable name structure incl. per-publisher patterns | thoth-dissemination@7a16edc0 config.env.template |
+| R4 | Credential configuration categories and their global or per-publisher scope (exact secret and credential identifiers intentionally omitted) | thoth-dissemination@7a16edc0 config.env.template |
 | R5 | Canonical-location source selection (no Thoth-managed restriction yet) | thoth-dissemination@7a16edc0 uploader.py get_publication_source |
 | R6 | IA convergence/idempotency behaviour | thoth-dissemination@7a16edc0 iauploader.py; v1.6.1-v1.6.4 history |
 | R7 | Figshare existing-record guard | thoth-dissemination@7a16edc0 fsuploader.py |

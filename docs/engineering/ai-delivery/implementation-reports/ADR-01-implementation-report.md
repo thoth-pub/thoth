@@ -13,10 +13,11 @@ local `develop` and `origin/develop` before any edit)
 PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/publisher-services/adr-01`
-Head commit: the PR-number follow-up commit on
-[draft PR #783](https://github.com/thoth-pub/thoth/pull/783); the exact
-head SHA and its CI evidence are recorded in the immutable exact-head
-evidence comment on that PR
+Head commit: the review-remediation commit on
+[draft PR #783](https://github.com/thoth-pub/thoth/pull/783) (supersedes
+reviewed head `d1e1327e7c1e8929ecaaac13df8dfaed1d93269b`); the exact head
+SHA and its CI evidence are recorded in the superseding immutable
+exact-head evidence comment on that PR
 Pull request: [draft PR #783](https://github.com/thoth-pub/thoth/pull/783)
 Expected branch deletion after merge: YES
 Final programme PR required: NO
@@ -81,16 +82,56 @@ All mandatory preflight checks passed before any edit:
 - No repository file or merged decision superseded any settled ADR-01
   invariant or input.
 
-Deviation (recorded): a local branch `feature/publisher-services/adr-01`
-already existed and was checked out at session start, pointing **exactly**
-at the authorized base `32123d36...`, commit-free, with a clean tree and no
-remote counterpart. It cannot be the deleted pre-amendment branch (which sat
-at the superseded base and was deleted during the closeout) and is exactly
-the branch the authorization's section 6 creates. It was treated as
-satisfying branch creation rather than triggering
-`BLOCKED - ADR-01 IMPLEMENTATION ALREADY EXISTS`, because no prior
-implementation work, remote branch or PR existed. No other deviation
-occurred.
+Deviation (recorded; CTO-ratified): a local branch
+`feature/publisher-services/adr-01` already existed and was checked out at
+session start, pointing **exactly** at the authorized base `32123d36...`,
+commit-free, with a clean tree and no remote counterpart. It cannot be the
+deleted pre-amendment branch (which sat at the superseded base and was
+deleted during the closeout) and is exactly the branch the authorization's
+section 6 creates. The implementing agent treated it as satisfying branch
+creation rather than triggering
+`BLOCKED - ADR-01 IMPLEMENTATION ALREADY EXISTS`. Independent review
+`4876054508` correctly identified that proceeding past an explicit stop
+condition required CTO ratification. **CTO branch-control decision:
+`RATIFY`** - Javi, CTO, granted a one-time control exception for ADR-01
+only, accepting the pre-existing branch because it was clean, commit-free,
+had no remote counterpart or open PR, contained no prior implementation
+work, and pointed exactly to the authorized base. The exception is bound
+only to ADR-01 and PR #783; it does not approve ADR-0004 or the final
+inventory, does not authorize merge, ready-for-review transition, BE-02,
+runtime work, production access, deployment or release, and does not waive
+or weaken the branch-existence stop condition for any future task. No
+other deviation occurred.
+
+## 3.1 Independent review 4876054508 and remediation
+
+Independent exact-head review `4876054508` of reviewed head
+`d1e1327e7c1e8929ecaaac13df8dfaed1d93269b` returned `CHANGES REQUIRED`
+with two P1 findings:
+
+1. **Credential-identifier over-recording.** At the reviewed head, the
+   evidence matrix recorded exact credential-variable identifiers and
+   per-publisher username/password identifier patterns from the
+   dissemination configuration template, contrary to the approved rule
+   that credential evidence is limited to category, responsibility and
+   ownership. This report's original claim that credential information was
+   already limited to category and ownership was inaccurate. The
+   remediation commit removed every such identifier from the matrix and
+   replaced them with credential categories, global/per-publisher scope
+   and the statement that exact secret and credential identifiers are
+   intentionally omitted; publisher-assignment mirror variables
+   (`<PREFIX>_ENV_PUBLISHERS` / `<PREFIX>_ENV_EXCEPTIONS`) are retained as
+   publisher-list configuration, clearly distinguished from credential
+   retrieval. The evidence-classification counts were re-derived from the
+   corrected claim index (claim R4 was rewritten, not removed; totals
+   remain 34 repository-verified / 21 source-owner-confirmed /
+   0 production-verified, now derivable from the corrected index).
+2. **Branch-existence stop condition.** Resolved by the CTO `RATIFY`
+   decision recorded above.
+
+Immutable evidence comment `5206357341` applies only to the superseded
+reviewed head `d1e1327e...`; it was not edited. A superseding immutable
+exact-head evidence comment records the remediation head and its CI.
 
 ## 4. Commits
 
@@ -99,9 +140,14 @@ occurred.
   control-document reconciliation, changelog
 - `2643fb1d` - `docs(publisher-services): report ADR-01 implementation` -
   this report
-- follow-up commit (the PR head) - records PR #783 in the changelog,
-  tracker and this report; its SHA is recorded in the immutable exact-head
-  evidence comment on PR #783
+- `d1e1327e` - `docs(publisher-services): record ADR-01 implementation PR
+  number` - records PR #783 in the changelog, tracker and this report;
+  the reviewed head of independent review `4876054508`
+- remediation commit (the PR head) -
+  `docs(publisher-services): resolve ADR-01 review findings` - removes the
+  exact credential identifiers, records the review findings and the CTO
+  `RATIFY` decision; its SHA is recorded in the superseding immutable
+  exact-head evidence comment on PR #783
 
 Normal commits only: no amend, rebase, squash, reset or force-push.
 
@@ -271,9 +317,19 @@ Secret and personal-data handling - explicit confirmations:
 - no production or shared resource was accessed;
 - no environment-variable value, secret content, private configuration
   content, private document or email body, or publisher list was read or
-  recorded; configuration is recorded as name structure only;
+  recorded;
 - no production claim was made: `production-verified` count is 0;
-- credential information is recorded as category and ownership only.
+- credential recording: at reviewed head `d1e1327e` the evidence matrix
+  recorded exact credential-variable identifiers and per-publisher
+  username/password identifier patterns, contrary to the credential
+  recording rule (review `4876054508`, P1 finding 1). The remediation
+  commit removed every such identifier; credential evidence is now limited
+  to category, current responsibility, target ownership and
+  global/per-publisher scope, with exact secret and credential identifiers
+  intentionally omitted. Publisher-assignment mirror variable names
+  (`<PREFIX>_ENV_PUBLISHERS` / `<PREFIX>_ENV_EXCEPTIONS`) are retained as
+  publisher-list configuration, which is distinct from credential
+  retrieval.
 
 Security limitations: none introduced.
 
@@ -307,6 +363,19 @@ sanitized ledger, or sensitive URL.
 Unit/integration tests, lint: not applicable - documentation-only change;
 no code compiled or executed. Heavy CI jobs are expected to be skipped by
 the documentation-only classifier (section 11).
+
+Remediation revalidation (after the review-4876054508 remediation commit):
+`git diff --check` clean; the remediation changed only
+`docs/publisher-services/adr-01-evidence-matrix.md` and this report; all
+relative links still resolve; a case-insensitive search of the complete PR
+diff for credential-related identifier patterns (password/passwd, secret,
+token, key, user, pw variants) confirmed that no exact
+credential-retrieval identifier introduced by PR #783 remains - the only
+retained variable names are the `<PREFIX>_ENV_PUBLISHERS` /
+`<PREFIX>_ENV_EXCEPTIONS` publisher-assignment mirrors; the substantive
+inventory (17 values, 10 exclusions, linked/shared-feed semantics, JISC_NBK
+inactive, conservative policy, defect records) is unchanged; evidence
+counts re-derived from the corrected claim index.
 
 ## 11. CI
 
