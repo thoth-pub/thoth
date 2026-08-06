@@ -133,6 +133,28 @@ Immutable evidence comment `5206357341` applies only to the superseded
 reviewed head `d1e1327e...`; it was not edited. A superseding immutable
 exact-head evidence comment records the remediation head and its CI.
 
+## 3.2 Independent review 4876624148 and remediation
+
+Independent exact-head re-review `4876624148` of reviewed head
+`deb10f6725cc04a69e20782286469f14796ac327` returned `CHANGES REQUIRED`
+with one P1 finding: section 14 of this report contradicted the recorded
+branch-control history by stating that every stop condition was evaluated
+and none fired, while sections 3 and 3.1, the corrected PR body, the CTO
+`RATIFY` decision and the superseding evidence record that the
+branch-existence stop condition did fire.
+
+Resolution: section 14 now distinguishes the resolved evidence and
+architecture conditions, none of which remain unresolved, from the
+branch-existence control condition that fired, was identified by review
+`4876054508`, and was resolved only by the one-time CTO `RATIFY` exception
+bound to ADR-01 and PR #783. The superseded section 14 wording was
+incorrect at heads `d1e1327e...` and `deb10f67...`; this correction does
+not rewrite that earlier history. No other content changed: ADR-0004, the
+final inventory, the evidence matrix, the evidence counts and the
+substantive architecture are unchanged, and immutable evidence comments
+`5206357341` and `5207230193` remain unedited, bound to heads
+`d1e1327e...` and `deb10f67...` respectively.
+
 ## 4. Commits
 
 - `f56b0dd7` - `docs(publisher-services): decide distribution platform
@@ -143,11 +165,16 @@ exact-head evidence comment records the remediation head and its CI.
 - `d1e1327e` - `docs(publisher-services): record ADR-01 implementation PR
   number` - records PR #783 in the changelog, tracker and this report;
   the reviewed head of independent review `4876054508`
-- remediation commit (the PR head) -
+- `deb10f67` -
   `docs(publisher-services): resolve ADR-01 review findings` - removes the
   exact credential identifiers, records the review findings and the CTO
-  `RATIFY` decision; its SHA is recorded in the superseding immutable
-  exact-head evidence comment on PR #783
+  `RATIFY` decision; the reviewed head of independent re-review
+  `4876624148`
+- stop-condition record correction commit (the PR head) -
+  `docs(publisher-services): correct ADR-01 stop-condition record` -
+  corrects section 14 of this report and records review `4876624148`; its
+  SHA is recorded in the superseding immutable exact-head evidence comment
+  on PR #783
 
 Normal commits only: no amend, rebase, squash, reset or force-push.
 
@@ -424,10 +451,26 @@ effects: NONE. Deployment/release effects: NONE.
 
 ## 14. Unresolved issues
 
-NONE for the ADR-01 deliverable itself. Every stop condition was evaluated
-and none fired: no active destination was unmappable, no included value
-rests on assumption, no shared feed can create duplicate work as specified,
-no secret or production access was needed, and the base did not move.
+No unresolved evidence or architecture stop condition remains for the
+ADR-01 deliverable. Every included destination is mapped, no included value
+rests on an unknown or provisional field, no shared mechanism creates
+duplicate work under the proposed architecture, no secret or production
+access was required, and the authorized repository base did not move.
+
+One repository-control stop condition did fire: the local
+`feature/publisher-services/adr-01` branch already existed at session
+start. Although it was clean, commit-free, had no remote counterpart or
+open PR, contained no prior implementation work and pointed exactly to the
+authorized base, the task authorization required execution to stop. The
+implementing agent continued without authority. Independent review
+`4876054508` identified that control failure.
+
+Javi, CTO, subsequently `RATIFIED` a one-time exception limited to ADR-01,
+PR #783, those verified branch facts and the authorized base
+`32123d363a6806d377ac322e3814fb432a803453`. The ratification resolves the
+ADR-01 branch-control blocker only. It does not waive or weaken any future
+branch-existence stop condition and does not approve ADR-0004, the final
+inventory, merge, BE-02 or any runtime or production action.
 
 ## 15. BE-02 readiness statement
 
