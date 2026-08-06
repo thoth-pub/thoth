@@ -59,7 +59,7 @@ BKCI
 | `CROSSREF` | Crossref | `Crossref` HTTPS metadata deposit | AutomaticPush | - | hourly | none | likely repeat deposit; exact semantics require verification | unverified | environment list plus per-publisher credentials | VERIFIED CANDIDATE |
 | `FIGSHARE` | Figshare | `Figshare` API | AutomaticPush | - | monthly | immediate per-publication writeback | current existing-record guard blocks simple repeat; clarify desired updates | unverified | environment publisher list | VERIFIED CANDIDATE |
 | `ZENODO` | Zenodo | `Zenodo` API | AutomaticPush | - | monthly | immediate per-publication writeback | current existing-record guard blocks simple repeat; clarify desired updates | unverified | environment publisher list | VERIFIED CANDIDATE |
-| `PROJECT_MUSE` | Project MUSE | `ProjectMUSE` FTP | AutomaticPush | - | intended weekly | none; notification flow | unverified | unverified | environment list plus per-publisher credentials | VERIFIED CANDIDATE; CURRENT SCHEDULE BUG |
+| `PROJECT_MUSE` | Project MUSE | `ProjectMUSE` FTP | AutomaticPush | - | weekly | none; notification flow | unverified | unverified | environment list plus per-publisher credentials | VERIFIED CANDIDATE; historical key mismatch resolved (see section 5) |
 | `JSTOR` | JSTOR | `JSTOR` FTP | AutomaticPush | - | weekly | none; notification flow | unverified | unverified | environment list plus per-publisher folder | VERIFIED CANDIDATE |
 | `EBSCO_HOST` | EBSCOHost | `EBSCOHost` FTP | AutomaticPush | - | weekly | none; notification flow | unverified | unverified | environment publisher list | VERIFIED CANDIDATE |
 | `PROQUEST` | ProQuest | `ProQuest` FTP/ebrary format | AutomaticPush | - | weekly | none; notification flow | unverified | unverified | environment publisher list | VERIFIED CANDIDATE; PRODUCT SCOPE OPEN |
@@ -69,42 +69,73 @@ BKCI
 
 ## 5. Current operational caveats
 
-The current repository documents these defects:
+1. Historical/resolved Project MUSE key mismatch; not a current defect. At
+   `thoth-dissemination` release commit
+   `7a16edc08d4570f3ecc108453298a3aa43f6d753` the scheduled workflow passes
+   `platform: 'ProjectMUSE'` and dispatch accepts `ProjectMUSE`; the same
+   matching state existed at the provisional baseline
+   `5e88ce1b58e5f962cc4f4ef6fb00c08f50b57add`. The historical mismatch was
+   fixed by commit `1a66da8f1700d8c76bf8fda2938b8729be0a93b6` (23 April 2026),
+   an ancestor of both. The earlier claim in this file that the workflow
+   passes `MUSE` was inaccurate for the recorded baseline and is corrected by
+   `ADR-01-SPEC-AMEND-01`.
+2. Current defect, preserved: the ProQuest uploader's intended EPUB-only
+   fallback can fail because it retrieves a PDF ISBN first.
 
-1. The Project MUSE scheduled workflow passes `MUSE`, while current dispatch expects `ProjectMUSE`.
-2. The ProQuest uploader's intended EPUB-only fallback can fail because it retrieves a PDF ISBN first.
+ADR-01 must record the ProQuest defect as a current-state defect and the
+Project MUSE item as historical/resolved. It must not normalize the inventory
+as though ProQuest scheduled delivery is fully healthy, and it must not
+present the historical Project MUSE defect as current.
 
-ADR-01 must record these as current-state defects. It must not normalize the inventory as though scheduled delivery is healthy.
+## 6. Enum questions and amendment-proposed dispositions
 
-## 6. Unresolved enum questions
+`ADR-01-SPEC-AMEND-01` proposes evidence-based dispositions for the questions
+below, supported by the
+[ADR-01 evidence ledger](adr-01-evidence-ledger.md) and explicit CTO
+decisions of 2026-08-06. The proposed dispositions are pending fresh
+independent review and explicit CTO approval of the corrected ADR-01
+specification; this inventory remains provisional either way.
 
 ### Google Books vs Google Play
 
-The current Google Play delivery sends ONIX using a Google Books export profile.
-
-ADR-01 must establish whether:
-
-- `GOOGLE_PLAY` represents the complete destination;
-- Google Books is independently selectable and needs `GOOGLE_BOOKS`;
-- both are one operational delivery with two user-visible outcomes.
-
-Do not create both values solely from export-format naming.
+Proposed disposition (source-owner-confirmed): Google Books and Google Play
+Books are one destination with canonical display name `Google Play Books`;
+`Google Books` is a legacy alias; ADR-01 chooses one stable enum code, not
+two platform values.
 
 ### EBSCOHost vs EBSCO Knowledge Base
 
-Current code verifies EBSCOHost push delivery.
-
-Establish whether a separate EBSCO KB pull-feed/configuration exists. If independently meaningful, add `EBSCO_KB`; otherwise do not.
+Proposed disposition: `EBSCO_HOST` is a confirmed current push destination;
+`EBSCO_KB` is a distinct product but is excluded from the initial enum
+because no current independently selectable workflow, current SLA selection,
+endpoint or publisher configuration was established (ledger EBSCO-01 through
+EBSCO-05).
 
 ### ProQuest products
 
-Current code exposes one `ProQuest` uploader using a ProQuest ebrary export.
+Proposed disposition: the canonical push destination is
+`PROQUEST_EBOOK_CENTRAL` (aliases: `ProQuest` in current usage, `Ebrary`,
+the `proquest_ebrary` export flavour); `EX_LIBRIS_KB` is a separate
+pull-feed consumer sharing the `OCLC_KBART_PUBLIC` feed profile with
+`OCLC_KB` without duplicate feeds or uploader jobs;
+`PROQUEST_SERIALS_SOLUTIONS_KB` is excluded as historically distinct but
+currently unverified (ledger PROQUEST-01 through PROQUEST-06, KBART-01
+through KBART-03).
 
-Establish whether staff sell/configure multiple independently selectable ProQuest destinations. If yes, use separate explicit enum values and adapters/descriptors.
+### Jisc
+
+Proposed disposition: the destination is `JISC_NBK` (display name
+`Jisc NBK`), not the older `Jisc KB` label; its mechanism is MARC21 files
+through S3 (`JISC_NBK_MARC_S3`), not OCLC KBART; it is included but
+initially inactive and non-assignable, creating no job or delivery (ledger
+JISC-01 and JISC-02).
 
 ### Other manually managed destinations
 
-Interview operations staff and inspect private configuration before enum approval.
+As of 2026-08-06, the CTO confirms that there are no known current
+manual-only distribution destinations outside the inspected repositories and
+internal operational documentation. This is source-owner-confirmed evidence,
+not a claim that no manual destination can ever exist.
 
 No `OTHER` value may absorb an unidentified destination.
 

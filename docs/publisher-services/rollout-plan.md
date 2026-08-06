@@ -58,8 +58,18 @@ Achieved evidence:
   repository-authoritative on merge of specification
   [PR #780](https://github.com/thoth-pub/thoth/pull/780).
 
+Amendment state (2026-08-06):
+
+- `ADR-01-SPEC-AMEND-01` proposes corrected ADR-01 specification content from
+  the CTO-approved [evidence ledger](adr-01-evidence-ledger.md); the
+  corrected content is pending fresh independent exact-head review and
+  explicit CTO approval, and the historical ADR-01 specification approval
+  applies only to the superseded pre-amendment content.
+
 Outstanding evidence:
 
+- independent review, CTO approval and merge of the
+  `ADR-01-SPEC-AMEND-01` corrected specification content;
 - Publisher Services ADR-01 implementation and final platform-inventory
   approval; the inventory in
   [`platform-inventory.md`](platform-inventory.md) remains explicitly
@@ -82,7 +92,7 @@ Dependency graph — the programme's hard dependencies form a directed acyclic
 graph, not a single serial chain:
 
 ```text
-ADR-01-SPEC -> ADR-01 -> BE-02
+ADR-01-SPEC -> ADR-01-SPEC-AMEND-01 -> ADR-01 -> BE-02
 
 BE-01 ----+
           +-> BE-03 -> APP-01
@@ -94,7 +104,11 @@ CG-11 closure ----+-> APP-01 implementation
 APP-01 spec ------+
 ```
 
-Explicitly: `ADR-01-SPEC` and `ADR-01` do not depend on `BE-01`; `BE-02`
+Explicitly: `ADR-01-SPEC` and `ADR-01` do not depend on `BE-01`; the
+historical `ADR-01-SPEC -> ADR-01` relationship remains part of the record,
+but `ADR-01-SPEC-AMEND-01` is now an additional required gate: ADR-01
+implementation requires the approved and merged amendment plus fresh
+implementation authorization from a new exact `develop` base; `BE-02`
 depends on an approved and merged `ADR-01` implementation, not the ADR-01
 specification alone; `BE-03` depends on both `BE-01` and `BE-02`; `APP-01`
 implementation depends on `BE-03`, app branch readiness (`BR-APP-01` or an

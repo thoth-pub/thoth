@@ -1,6 +1,6 @@
 # Publisher Services and Distribution Configuration
 
-Status: CONTROL FOUNDATION CLOSED; BE-01 AND ADR-01 SPECIFICATIONS APPROVED; CG-12 RESOLVED BY ADR-0003; ADR-01 IMPLEMENTATION NOT AUTHORIZED; FINAL PLATFORM INVENTORY STILL PROVISIONAL; ALL OTHER IMPLEMENTATION GATED
+Status: CONTROL FOUNDATION CLOSED; BE-01 CLOSED; ADR-01 SPECIFICATION UNDER AMENDMENT (ADR-01-SPEC-AMEND-01 CORRECTED CONTENT PROPOSED, APPROVAL PENDING); ADR-01 IMPLEMENTATION BLOCKED; FINAL PLATFORM INVENTORY STILL PROVISIONAL; ALL OTHER IMPLEMENTATION GATED
 Programme owner: CTO
 Primary coordinating repository: `thoth-pub/thoth`
 Related repositories:
@@ -69,11 +69,14 @@ Where sources conflict, stop and escalate. Chat history is not authoritative.
 
 ```text
 CONTROL FOUNDATION CLOSED
-BE-01 SPECIFICATION APPROVED AND MERGED
+BE-01 CLOSED (INACTIVE FOUNDATION MERGED THROUGH PR #779)
 CG-12 RESOLVED BY ADR-0003 ARCHITECTURE A
-ADR-01 SPECIFICATION APPROVED
-ADR-01 IMPLEMENTATION NOT AUTHORIZED
-ADR-01 IMPLEMENTATION BRANCH ABSENT / NOT AUTHORIZED
+ADR-01-SPEC-AMEND-01 IN PROGRESS / CORRECTED CONTENT PROPOSED
+CORRECTED ADR-01 CONTENT PENDING FRESH INDEPENDENT REVIEW AND CTO APPROVAL
+HISTORICAL ADR-01 SPECIFICATION APPROVAL PRESERVED; APPLIES ONLY TO THE
+SUPERSEDED PRE-AMENDMENT CONTENT
+ADR-01 IMPLEMENTATION BLOCKED PENDING APPROVED AND MERGED AMENDMENT PLUS
+FRESH IMPLEMENTATION AUTHORIZATION AND A NEW EXACT DEVELOP BASE
 FINAL DISTRIBUTION-PLATFORM INVENTORY REMAINS PROVISIONAL
 ALL OTHER IMPLEMENTATION REMAINS GATED
 ```
@@ -116,7 +119,23 @@ Achieved:
   distribution-platform inventory, and it finalizes no inventory itself.
   ADR-01 implementation is not authorized: the branch
   `feature/publisher-services/adr-01` requires separate explicit authorization
-  and a freshly verified `develop` base, and remains absent until then.
+  and a freshly verified `develop` base.
+- The bounded
+  [`ADR-01-SPEC-AMEND-01`](../engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01.md)
+  amendment task, authorized by the CTO on 2026-08-06, corrects and extends
+  the approved ADR-01 specification from the CTO-approved
+  [evidence ledger](adr-01-evidence-ledger.md) (EBSCO, ProQuest and
+  knowledge-base distribution; Project MUSE defect reclassification;
+  destination-versus-adapter distinction; Jisc NBK; shared OCLC KBART feed;
+  conservative update/withdrawal policy; Thoth-managed source-file
+  invariant). The corrected content is proposed, not approved: it requires
+  fresh independent exact-head review and explicit CTO approval. The
+  historical ADR-01 specification approval is preserved and applies only to
+  the superseded pre-amendment content. ADR-01 implementation is additionally
+  blocked pending the approved and merged amendment plus fresh implementation
+  authorization from a new exact `develop` base; the existing local
+  pre-amendment `feature/publisher-services/adr-01` branch is clean,
+  unpushed, not authoritative and not used.
 
 Specification approval and gated implementation:
 
@@ -178,6 +197,7 @@ production work.
 - `decisions.md` - settled, proposed and unresolved decisions.
 - `task-status.md` - task dependencies, repository, branch, risk and evidence status.
 - `platform-inventory.md` - verified current dissemination baseline and ADR-01 questions.
+- `adr-01-evidence-ledger.md` - sanitized CTO-approved evidence ledger for the ADR-01 specification amendment.
 - `acceptance-matrix.md` - programme requirements mapped to evidence.
 - `rollout-plan.md` - additive rollout, comparison, pilot, observation and rollback.
 - `master-issue.md` - body for the programme's GitHub tracking issue.

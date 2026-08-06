@@ -1,6 +1,6 @@
 # ADR-01 - Platform inventory and final architecture
 
-Status: APPROVED
+Status: AMENDMENT PROPOSED
 Programme: Publisher Services and Distribution Configuration
 Repository: `thoth-pub/thoth`
 Workflow: STANDARD
@@ -9,12 +9,39 @@ PR target: `develop`
 Programme integration branch: None
 Risk: MEDIUM
 Owner: CTO
-Independent specification review: APPROVED
-Reviewed content head: `820f9cfa22d284f8f347db338aa2461408f4ed12`
-CTO specification approval: APPROVED
-Approved by: Javi, CTO
-Approval date: 2026-08-05
+Amendment task: [ADR-01-SPEC-AMEND-01](ADR-01-SPEC-AMEND-01.md)
+Previous approved content: historical; reviewed content head
+`820f9cfa22d284f8f347db338aa2461408f4ed12`, independently reviewed and
+explicitly approved by Javi, CTO, on 2026-08-05, merged through specification
+PR [#780](https://github.com/thoth-pub/thoth/pull/780). That approval applies
+only to the superseded pre-amendment content.
+Corrected content: pending fresh independent review and explicit CTO approval
+ADR-01 implementation: blocked pending amendment approval, merge and fresh
+implementation authorization
 Target branch name: `feature/publisher-services/adr-01`
+
+## 0. Amendment record
+
+This specification was corrected and extended by `ADR-01-SPEC-AMEND-01` using
+the CTO-approved evidence ledger
+[`docs/publisher-services/adr-01-evidence-ledger.md`](../../../publisher-services/adr-01-evidence-ledger.md)
+(source record prepared 6 August 2026) and the explicit CTO decisions of
+2026-08-06 recorded in that ledger and in the amendment task record.
+
+Editing the previously approved specification invalidates its prior
+substantive approval for the corrected head:
+
+- the prior reviewed content head `820f9cfa22d284f8f347db338aa2461408f4ed12`,
+  the prior CTO approval of 2026-08-05, specification PR
+  [#780](https://github.com/thoth-pub/thoth/pull/780) and the fact that the
+  old version was validly approved and merged remain part of the historical
+  record;
+- that historical approval applies only to the pre-amendment content;
+- the corrected content below is proposed, not approved, until fresh
+  independent exact-head review and explicit CTO approval are recorded;
+- ADR-01 implementation remains blocked pending the approved and merged
+  amendment plus fresh implementation authorization from a new verified
+  `develop` base.
 
 ## 1. Objective
 
@@ -102,13 +129,18 @@ Authoritative sources, in precedence order:
    Technical Design and Implementation Plan`, Drive revision `3`, indexed in
    [`docs/engineering/design-references.md`](../../design-references.md),
    section 8.2 of which defines the ADR-01 epic;
-6. this specification, independently reviewed and explicitly CTO-approved at
-   content head `820f9cfa22d284f8f347db338aa2461408f4ed12`;
-   repository-authoritative once specification PR #780 merges;
-7. [Publisher Services programme controls](../../../publisher-services/README.md),
+6. this specification: historically approved at content head
+   `820f9cfa22d284f8f347db338aa2461408f4ed12` (PR #780), now amended by
+   `ADR-01-SPEC-AMEND-01`; the corrected content is pending fresh independent
+   review and explicit CTO approval;
+7. the sanitized
+   [ADR-01 evidence ledger](../../../publisher-services/adr-01-evidence-ledger.md),
+   whose CTO-approved source record (prepared 6 August 2026) is the evidence
+   basis for the amendment's corrections;
+8. [Publisher Services programme controls](../../../publisher-services/README.md),
    including the
    [provisional platform inventory](../../../publisher-services/platform-inventory.md);
-8. [repository control gaps](../../repository-map/control-gaps.md) and the
+9. [repository control gaps](../../repository-map/control-gaps.md) and the
    repository maps for
    [`thoth`](../../repository-map/repositories/thoth.md),
    [`thoth-app`](../../repository-map/repositories/thoth-app.md) and
@@ -127,6 +159,7 @@ Related control gap: [CG-07](../../repository-map/control-gaps.md#cg-07---publis
 | ADR-0003 (Architecture A) | APPROVED AND MERGED |
 | CG-12 | RESOLVED |
 | This ADR-01 specification | Must be independently approved and merged before implementation |
+| ADR-01-SPEC-AMEND-01 | The corrected specification content must be independently reviewed, explicitly CTO-approved and merged before ADR-01 implementation; the historical ADR-01-SPEC approval alone is no longer sufficient |
 | BE-01 | Not an ADR-01 dependency; ADR-01 does not read, alter or depend on the publisher package foundation |
 | CG-11, CG-13, BR-APP-01 | Not ADR-01 dependencies; ADR-01 changes none of them |
 
@@ -277,7 +310,9 @@ independently selectable destination (yes/no, with evidence)
 current uploader, feed or manual mechanism
 push, pull-feed or manual behaviour
 linked platform group
-shared adapter
+shared adapter or feed profile identity
+mechanism readiness / assignment availability (assignable, or inactive and
+non-assignable pending a separately approved mechanism)
 duplicate-delivery risk
 back-catalogue support
 incremental update support
@@ -381,12 +416,77 @@ ADR-01 must preserve these already-approved decisions and must not reopen them:
     publisher-editable database rows.
 15. Work-level platform selection remains deferred.
 16. ADR-01 must be merged before `BE-02` finalizes `DistributionPlatform`.
+17. A destination is distinct from the delivery adapter or feed profile that
+    serves it (section 7.1).
+18. An included but inactive destination is non-assignable and creates no job
+    or delivery (sections 7.1 and 8.5).
+19. An automatic push-dissemination job may use only a Thoth-managed
+    publication file (section 7.2).
+20. Incremental updates and withdrawals follow the conservative initial
+    policy (section 9.3).
 
 If the evidence appears to require changing any of these, that is a
 cross-programme architecture decision and a stop condition, not an ADR-01
 decision.
 
-## 8. Provisional inventory questions
+### 7.1 Destination versus delivery adapter or feed profile
+
+The following distinction is binding:
+
+```text
+DistributionPlatform represents an independently meaningful publisher
+destination or separately onboarded consumer.
+
+A delivery adapter or feed profile represents the technical mechanism serving
+one or more destinations.
+
+Multiple DistributionPlatform values may map to one adapter or feed profile.
+
+Shared adapters and feeds must not create duplicate files, feeds, deposits or
+uploader jobs.
+```
+
+No second overlapping public business enum (for example a
+`PublisherDestination` enum) may be introduced alongside
+`DistributionPlatform`.
+
+Responsibility split: ADR-01 decides the platform values; `BE-02` later
+implements the exhaustive code-owned descriptors; `thoth-dissemination` later
+implements the adapter mapping.
+
+An export format, an export-registry consumer, a location value, an alias or
+a vendor family name is not automatically an independently selectable
+`DistributionPlatform`.
+
+### 7.2 Thoth-managed source-file invariant
+
+The following settled architecture requirement is binding:
+
+```text
+An automatic push-dissemination job may use only a publication file managed by
+Thoth and represented by both:
+
+1. the appropriate Thoth-managed location; and
+2. a corresponding Thoth file record.
+
+Publisher Website locations, arbitrary external canonical URLs and other
+publisher-hosted URLs are not eligible automatic-dissemination source files.
+
+Failure to locate an eligible Thoth-managed file fails closed and creates no
+external-delivery attempt.
+```
+
+Clarifications:
+
+- this amendment records the requirement only; ADR-01 must include it in the
+  final architecture;
+- no source-selection code changes are made by the amendment or by ADR-01;
+- implementing the invariant in dissemination source selection is a separate
+  future HIGH-risk task requiring migration/compatibility assessment, tests,
+  rollout, comparison and pilot controls;
+- existing dissemination behaviour is not changed by the amendment PR.
+
+## 8. Inventory inputs and remaining ADR-01 decisions
 
 The current
 [platform inventory](../../../publisher-services/platform-inventory.md) is
@@ -405,44 +505,201 @@ ZENODO
 PROJECT_MUSE
 JSTOR
 EBSCO_HOST
-PROQUEST
+PROQUEST_EBOOK_CENTRAL
 GOOGLE_PLAY
 BKCI
 OCLC_KB
+EX_LIBRIS_KB
+JISC_NBK
 ```
 
 Listing a code here is not approval of that code. Each requires its own
 evidence, and each may be confirmed, renamed, split, merged or excluded.
 
-ADR-01 must additionally investigate explicitly whether any of the following are
-separately selectable destinations:
+The
+[evidence ledger](../../../publisher-services/adr-01-evidence-ledger.md) and
+the explicit CTO decisions of 2026-08-06 settle the following inputs, which
+were open questions in the pre-amendment specification. ADR-01 must adopt
+them; sections 8.1 through 8.7 are inputs the corrected specification carries
+into the final decision record, not open questions.
+
+### 8.1 Google naming
+
+Source-owner-confirmed input:
+
+- Google Books and Google Play Books are one destination.
+- Canonical display name: `Google Play Books`.
+- `Google Books` is a legacy/user-recognized alias.
+- ADR-01 must choose one stable enum code, not two platform values.
+
+### 8.2 EBSCO
+
+Per ledger items EBSCO-01 through EBSCO-05:
+
+- EBSCO Host and EBSCO Knowledge Base are distinct products, not aliases
+  (EBSCO-01).
+- `EBSCO_HOST` is a confirmed current independently selectable push
+  destination (EBSCO-02, EBSCO-03, EBSCO-05).
+- EBSCO Host uses its current SFTP/content/ONIX route (EBSCO-02, EBSCO-03).
+- `EBSCO_KB` is excluded from the initial enum because no current
+  independently selectable workflow, current SLA selection, endpoint or
+  publisher configuration was established (EBSCO-04, EBSCO-05, PROQUEST-03).
+- The exclusion is evidence-based and may be revisited through a later
+  approved decision.
+- Historical EBSCO KB evidence must not be represented as current operation.
+
+### 8.3 ProQuest and Ex Libris
+
+Per ledger items PROQUEST-01 through PROQUEST-06 and KBART-02/03, and the
+explicit CTO decision of 2026-08-06:
+
+- Canonical push destination: `PROQUEST_EBOOK_CENTRAL`.
+- Legacy aliases:
+  - `ProQuest`, where current Thoth uploader/SLA usage means Ebook Central;
+  - `Ebrary`;
+  - the existing `proquest_ebrary` export flavour.
+- The umbrella vendor name `ProQuest` is not itself an enum value.
+- `EX_LIBRIS_KB` is a separate destination because it requires separate
+  publisher onboarding and collection configuration, even when commercially
+  bundled.
+- `EX_LIBRIS_KB` is a pull-feed consumer using the shared
+  `OCLC_KBART_PUBLIC` feed profile.
+- Enabling both `OCLC_KB` and `EX_LIBRIS_KB` must not generate or maintain
+  duplicate KBART feeds and must create no uploader job.
+- `PROQUEST_SERIALS_SOLUTIONS_KB` is historically distinct but excluded from
+  the initial enum because current workflow, endpoint, publisher coverage and
+  selectable status remain unverified (PROQUEST-04, PROQUEST-05,
+  PROQUEST-06).
+
+ProQuest Ebook Central, Ex Libris and Serial Solutions must not be described
+as aliases of one another.
+
+### 8.4 OCLC KBART shared feed
+
+Per ledger items KBART-01 through KBART-03:
 
 ```text
-Google Books versus Google Play
-EBSCO Host versus EBSCO knowledge-base destinations
-multiple ProQuest destinations
-OCLC feed/index variants
-manual-only destinations not represented in code
+OCLC_KB      -> OCLC_KBART_PUBLIC
+EX_LIBRIS_KB -> OCLC_KBART_PUBLIC
 ```
 
-Guidance already recorded in the provisional baseline and binding here:
+Both are independently onboarded consumer assignments. There is one
+publisher-level OCLC KBART output profile. The architecture must prevent
+duplicate feed generation.
 
-- do not create both `GOOGLE_PLAY` and `GOOGLE_BOOKS` solely because an export
-  profile carries a different product name;
-- add `EBSCO_KB` only if a separate EBSCO knowledge-base destination is
-  independently meaningful and separately configurable;
-- split ProQuest into multiple values only if staff sell or configure multiple
-  independently selectable ProQuest destinations;
-- no `OTHER` value may absorb an unidentified destination.
+Do not infer that EBSCO KB or Serial Solutions currently consumes this same
+feed.
 
-ADR-01 must also record, without normalizing them away, the current-state
-defects already documented in the provisional baseline: the Project MUSE
-scheduled workflow key mismatch, and the ProQuest EPUB-only fallback that can
-fail because a PDF ISBN is retrieved first. The inventory must not present
-scheduled delivery as healthy. Recording a defect is in scope; fixing it is not.
+### 8.5 Jisc NBK
 
-This specification resolves none of these questions. Nothing in section 8 may be
-treated as a decision.
+Per ledger items JISC-01 and JISC-02 and the explicit CTO decision of
+2026-08-06, the inaccurate `JISC_KB` terminology is replaced by:
+
+```text
+JISC_NBK
+Display name: Jisc NBK
+```
+
+- Jisc NBK is a separate destination.
+- Its mechanism is MARC21 files delivered through S3, not OCLC KBART.
+- Proposed adapter identity: `JISC_NBK_MARC_S3`.
+- It is included as an independently meaningful destination.
+- It is initially inactive and non-assignable.
+- It creates no job or delivery while inactive.
+- It must not become assignable until a separate implementation task delivers
+  and approves: the MARC/S3 adapter; onboarding controls; required
+  operational evidence; failure handling; tests and rollout controls.
+
+The required platform record (section 5) and the descriptor contract
+(section 9.1) carry mechanism readiness / assignment availability so that
+`BE-02` does not have to guess how an included-but-inactive destination is
+represented.
+
+### 8.6 Explicit initial exclusions
+
+The following discovered candidates carry these required initial
+dispositions:
+
+```text
+EBSCO_KB
+  excluded - distinct product, current Thoth-selectable operation unverified
+
+PROQUEST_SERIALS_SOLUTIONS_KB
+  excluded - historically distinct, current operation unverified
+
+OVERDRIVE
+BDS_LIVE
+RNIB_BOOKSHARE
+SCIELO_BOOKS
+ZOTERO
+  excluded from the initial DistributionPlatform inventory by CTO decision
+
+THOTH
+  excluded - internal managed-location/file-hosting concept
+
+PUBLISHER_WEBSITE
+  excluded - publisher-managed location, not a Thoth-operated delivery
+  destination
+
+OTHER
+  prohibited by existing architecture
+```
+
+Exclusion from `DistributionPlatform` does not require deleting existing
+export-registry or `LocationPlatform` values.
+
+An export format, an export-registry consumer, a location value, an alias or
+a vendor family name is not automatically an independently selectable
+`DistributionPlatform`.
+
+`Thoth` and `Publisher Website` remain location concepts; they are not
+distribution enum values.
+
+### 8.7 Manual destinations
+
+```text
+As of 2026-08-06, the CTO confirms that there are no known current manual-only
+distribution destinations outside the inspected repositories and internal
+operational documentation.
+```
+
+This is source-owner-confirmed evidence, not a claim that no manual
+destination can ever exist. ADR-01 must still record any manual destination
+that later evidence establishes, under the normal evidence rules.
+
+### 8.8 Current-state defect record
+
+Project MUSE — historical/resolved, not a current defect. Repository-verified
+at `thoth-pub/thoth-dissemination` release commit
+`7a16edc08d4570f3ecc108453298a3aa43f6d753`: the scheduled workflow
+`.github/workflows/muse_bulk_disseminate.yaml` passes `platform:
+'ProjectMUSE'` and the `disseminator.py` `UPLOADERS` registry accepts
+`ProjectMUSE`. The same matching state existed at the provisional baseline
+`5e88ce1b58e5f962cc4f4ef6fb00c08f50b57add`. The historical mismatch
+(`platform: 'MUSE'`) was fixed by commit
+`1a66da8f1700d8c76bf8fda2938b8729be0a93b6` ("Correct mistyped platform name in
+Project MUSE GitHub Action file", 23 April 2026), which is an ancestor of both
+the provisional baseline and the current release commit. The pre-amendment
+requirement to record a current Project MUSE scheduled-workflow key mismatch
+is removed; the item is reclassified as:
+
+```text
+Historical/resolved Project MUSE key mismatch; not a current defect.
+```
+
+ProQuest — current defect, preserved. The ProQuest uploader's intended
+EPUB-only fallback can fail because a PDF ISBN is retrieved first
+(`proquestuploader.py` at `7a16edc08d4570f3ecc108453298a3aa43f6d753` sets the
+filename root from `get_isbn('PDF')` before the PDF/EPUB fallback). ADR-01
+must record this as a current defect and must not normalize it away or fix
+it. The inventory must not present ProQuest scheduled delivery as fully
+healthy.
+
+Recording a defect is in scope for ADR-01; fixing one is not.
+
+Beyond the inputs settled in sections 8.1 through 8.7, this specification
+resolves no further inventory question. The final enum codes and the final
+exhaustive inventory remain ADR-01 implementation decisions.
 
 ## 9. Required ADR-01 decisions
 
@@ -470,8 +727,11 @@ The approved ADR-01 must produce:
 The descriptor contract must be specified precisely enough that `BE-02` can
 implement it as code-owned operational metadata with an exhaustive compile-time
 mapping and no fallback arm. At minimum it must state, for every enum value:
-display label, behaviour classification, linked group membership, shared-adapter
-identity, and back-catalogue job expectation.
+display label, behaviour classification, linked group membership, shared
+adapter or feed profile identity, mechanism readiness / assignment
+availability (so that an included-but-inactive destination such as `JISC_NBK`
+is represented explicitly as non-assignable and job-free), and back-catalogue
+job expectation.
 
 ADR-01 specifies the contract's content and semantics. It does not write Rust,
 does not define table structure, and does not choose function signatures.
@@ -482,13 +742,98 @@ ADR-01 must record the intended mapping from each final enum value to the
 current dissemination mechanism — uploader key, shared adapter, pull feed, or
 manual process — so that `DIS-01` can implement exhaustive mapping without
 inventing a route. Where a value has no current mechanism, that must be stated
-as an explicit declared non-uploader behaviour rather than left blank.
+as an explicit declared non-uploader behaviour rather than left blank. An
+included-but-inactive destination (for example `JISC_NBK` pending
+`JISC_NBK_MARC_S3`) maps to an explicitly inactive mechanism that creates no
+job or delivery.
+
+### 9.3 Conservative initial update and withdrawal policy
+
+The CTO confirmed the following policy on 2026-08-06. ADR-01 must adopt it as
+the initial position for every destination:
+
+```text
+Incremental updates
+
+- Crossref DOI deposits: supported.
+- Every other automatic push destination: automatic updates disabled until the
+  platform-specific update semantics are separately verified and approved.
+- Pull-feed destinations expose current feed state and create no push-update
+  job.
+- Manual destinations create no automatic update behaviour.
+
+Withdrawals
+
+- No automatic withdrawal is supported for any destination initially.
+- Withdrawal remains an operator-managed external process where the destination
+  permits removal.
+- A destination that does not permit removal is recorded as such only when
+  verified.
+- Any automated update or withdrawal support requires separately specified,
+  reviewed and approved work.
+```
+
+ADR-01 must not claim that a remote platform supports updates or withdrawals
+without evidence.
+
+### 9.4 Operational ownership and configuration authority
+
+Source-owner-confirmed architecture input:
+
+```text
+Commercial entitlement authority:
+Statement of Work agreed with the publisher
+
+Runtime desired-state authority:
+Thoth publisher/platform assignment
+
+Temporary operational mirrors:
+environment publisher lists, uploader configuration and existing workflow
+configuration
+
+Accountable operational owner:
+COO
+
+Operationally responsible role:
+Metadata Specialist
+
+Target credential owner:
+Metadata Specialist
+
+Current credential responsibility:
+may remain shared during transition and must be recorded honestly
+```
+
+Any unexplained mismatch between the Statement of Work, the Thoth assignment
+and temporary operational configuration fails closed and must not broaden
+processing.
+
+No publisher lists may be copied into the repository.
 
 ## 10. Acceptance criteria
 
 - [ ] Every active channel maps to exactly one clear platform value or an
   explicit, reasoned exclusion.
 - [ ] Every candidate has recorded evidence and a final disposition.
+- [ ] Every destination and adapter/feed-profile relationship is distinct and
+  explicit; no destination is conflated with the mechanism serving it.
+- [ ] Shared adapters and feeds (including `OCLC_KBART_PUBLIC` serving both
+  `OCLC_KB` and `EX_LIBRIS_KB`) are duplicate-safe: one feed, no duplicate
+  files, deposits or uploader jobs.
+- [ ] Included but inactive destinations (including `JISC_NBK`) are
+  non-assignable and create no job or delivery.
+- [ ] Automatic push source files are Thoth-managed per the section 7.2
+  invariant; no arbitrary external canonical URL is an eligible source.
+- [ ] Update and withdrawal behaviour follows the conservative initial policy
+  in section 9.3.
+- [ ] Excluded candidates (section 8.6) remain absent from the initial enum.
+- [ ] Historical defects are not presented as current; the Project MUSE key
+  mismatch is recorded as historical/resolved.
+- [ ] Current defects are not normalized away; the ProQuest
+  EPUB-only/PDF-ISBN ordering defect remains recorded as current.
+- [ ] The evidence ledger is independently traceable: every citation resolves
+  to a preserved evidence ID, source identifier and exact
+  repository-commit/path where applicable.
 - [ ] OAPEN and DOAB remain separate values and remain linked.
 - [ ] Linked platforms cannot produce duplicate delivery through ambiguous
   adapter mapping.
@@ -501,7 +846,8 @@ as an explicit declared non-uploader behaviour rather than left blank.
   value.
 - [ ] No `OTHER`, catch-all or fallback value exists.
 - [ ] `BE-02` can implement an exhaustive enum and descriptor mapping without
-  guessing.
+  guessing, including the explicit representation of mechanism readiness /
+  assignment availability.
 - [ ] `thoth-app` can later consume backend linkage metadata without duplicating
   business rules.
 - [ ] No production or shared-resource access was required for any claim, and no
@@ -549,6 +895,13 @@ The implementing agent must stop and report `BLOCKED` if:
 
 - an active destination cannot be mapped confidently;
 - a platform's independently selectable status is unknown;
+- a destination is confused with an adapter, format, location or alias;
+- an included but inactive destination could be assigned or create work;
+- source-file eligibility would permit arbitrary external canonical URLs;
+- a shared feed could generate duplicate work;
+- current and historical evidence are conflated;
+- the corrected evidence ledger is incomplete or not independently
+  reviewable;
 - a linked relationship is based only on assumption;
 - resolving the inventory requires secret values;
 - resolving the inventory requires unauthorized production access;
@@ -613,7 +966,7 @@ The programme's hard dependencies form a directed acyclic graph, not a single
 serial chain:
 
 ```text
-ADR-01-SPEC -> ADR-01 -> BE-02
+ADR-01-SPEC -> ADR-01-SPEC-AMEND-01 -> ADR-01 -> BE-02
 
 BE-01 ----+
           +-> BE-03 -> APP-01
@@ -629,6 +982,10 @@ Explicitly:
 
 - `ADR-01-SPEC` does not depend on `BE-01`.
 - `ADR-01` does not depend on `BE-01`.
+- `ADR-01` additionally depends on the approved and merged
+  `ADR-01-SPEC-AMEND-01`; the historical `ADR-01-SPEC -> ADR-01` relationship
+  remains part of the record, but the amendment is now an additional required
+  gate.
 - `BE-02` depends on an approved and merged `ADR-01`.
 - `BE-03` depends on both `BE-01` and `BE-02`.
 - `APP-01` implementation depends on `BE-03`, app branch readiness
@@ -736,17 +1093,20 @@ inventory.
 
 ## 18. Branch and integration plan
 
-- branch source: then-current verified `develop`, only after this specification
-  has been independently reviewed, explicitly approved by the CTO, and merged,
-  and separate explicit authorization for the ADR-01 implementation is granted;
+- branch source: then-current verified `develop`, only after the
+  `ADR-01-SPEC-AMEND-01` corrected content has been independently reviewed,
+  explicitly approved by the CTO and merged, and separate explicit
+  authorization for the ADR-01 implementation is granted from that new base;
 - exact base recorded before any edit;
 - pull-request target: `develop`;
-- task branch: `feature/publisher-services/adr-01`;
-- expected merge order: this specification is independently reviewed, approved
-  by the CTO and merged; separate explicit
-  authorization; fresh `develop` verification and branch creation; ADR-01
-  implementation, independent review and CTO merge approval; only then `BE-02`
-  specification and implementation;
+- task branch: `feature/publisher-services/adr-01`; the pre-amendment local
+  branch of that name is obsolete, holds no task commits and must be deleted
+  or archived before fresh implementation authorization;
+- expected merge order: the amendment `ADR-01-SPEC-AMEND-01` is independently
+  reviewed, approved by the CTO and merged; separate explicit authorization;
+  fresh `develop` verification and branch creation; ADR-01 implementation,
+  independent review and CTO merge approval; only then `BE-02` specification
+  and implementation;
 - programme integration branch: none;
 - branch deletion after merge: YES;
 - final programme PR required: NO;
@@ -754,25 +1114,41 @@ inventory.
 
 ## 19. Approval
 
+### 19.1 Historical approval (superseded content)
+
 The written content of this specification, at exact content head
 `820f9cfa22d284f8f347db338aa2461408f4ed12`, was independently reviewed and
 approved (review `4866683359`, 2026-08-05).
 
-Javi, CTO, explicitly approved that written specification on 2026-08-05.
+Javi, CTO, explicitly approved that written specification on 2026-08-05, and
+it became repository-authoritative when specification PR
+[#780](https://github.com/thoth-pub/thoth/pull/780) merged.
+
+That approval was valid and remains part of the historical record. It applies
+only to the historical pre-amendment content at content head `820f9cfa`. It
+does not extend to the corrected content produced by `ADR-01-SPEC-AMEND-01`.
+
+### 19.2 Current approval state
+
+```text
+Status: AMENDMENT PROPOSED
+Previous approved content: historical
+Corrected content: pending fresh independent review and explicit CTO approval
+ADR-01 implementation: blocked pending amendment approval, merge and fresh
+implementation authorization
+```
 
 Notes:
 
-- This approval-state record documents the approval; it does not change the
-  approved substantive content. Every requirement, acceptance criterion,
-  invariant, evidence rule, stop condition, dependency and non-goal is exactly
-  as independently reviewed at content head `820f9cfa`.
-- The specification becomes repository-authoritative when specification
-  PR #780 merges.
-- Approval of this specification does not authorize the ADR-01 implementation.
-  Implementation requires a separate explicit CTO authorization, a freshly
-  verified then-current `develop` base, and its own task branch
-  (`feature/publisher-services/adr-01`, which remains absent).
-- Approval settles no platform decision. The inventory in
+- The corrected content becomes repository-authoritative only when the
+  `ADR-01-SPEC-AMEND-01` amendment is independently reviewed at its exact
+  head, explicitly approved by the CTO, and merged.
+- Approval of this specification, historical or corrected, does not authorize
+  the ADR-01 implementation. Implementation requires a separate explicit CTO
+  authorization, a freshly verified then-current `develop` base, and its own
+  task branch (`feature/publisher-services/adr-01`).
+- Approval settles no final platform decision beyond the evidence-resolved
+  inputs recorded in section 8. The inventory in
   [`platform-inventory.md`](../../../publisher-services/platform-inventory.md)
   remains explicitly provisional until an approved ADR-01 merges.
 - Approval authorizes no runtime work, no production access, no workflow
