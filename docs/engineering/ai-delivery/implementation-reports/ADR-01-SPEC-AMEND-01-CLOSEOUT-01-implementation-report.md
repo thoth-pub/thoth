@@ -180,7 +180,55 @@ release: NONE.
 The implementing agent may provide a self-assessment but may not approve or
 merge its own closeout.
 
-## 13. Agent self-assessment
+## 13. Review remediation (independent review 4875283241)
+
+Independent exact-head review `4875283241` of reviewed head
+`47aaccf8913b944514e0868baf2a79a796cfa101` returned `CHANGES REQUIRED` with
+one P1 finding: the Publisher Services task tracker marked ADR-01 as
+`READY - IMPLEMENTATION NOT AUTHORIZED`, which conflicts with the tracker's
+own control rule (no task moves to `READY` before its implementation
+base/target and readiness inputs are verified) and with the binding
+closeout state that ADR-01 implementation is `NOT STARTED` with no branch
+and no selected base.
+
+Resolution: the ADR-01 tracker Status cell in
+`docs/publisher-services/task-status.md` is corrected to
+`NOT STARTED - FRESH IMPLEMENTATION AUTHORIZATION REQUIRED`, and the row
+now states explicitly that no implementation branch exists, that no
+implementation base has been selected (the exact base must be the
+then-current verified `develop` head at the time of fresh CTO
+implementation authorization), and that ADR-01 is therefore not yet `READY`
+for implementation under the tracker's control rule. The row continues to
+record the approved and repository-authoritative specification (approved
+content head `1276c70a`; PR #781 merged as `a511e01c`), the preserved
+historical approval, the safely deleted obsolete branch, ADR-0004 not
+started, the provisional final inventory, and that ADR-01 is not blocked by
+BE-01.
+
+Unchanged by the remediation: the ADR-01 specification status itself
+(`APPROVED AND REPOSITORY-AUTHORITATIVE - FRESH IMPLEMENTATION
+AUTHORIZATION REQUIRED` describes the specification, not implementation
+readiness); every substantive ADR-01 requirement, platform disposition,
+evidence conclusion, invariant and acceptance criterion; the evidence
+ledger; and every other closeout record. Implementation remains not
+started and unauthorized. A repository-wide search confirmed no other
+committed file carries active ADR-01 implementation `READY` wording (the
+remaining `READY` mentions are in explicitly historical delivery reports),
+and the PR #782 body contains none, so no PR-body change was needed.
+
+Remediation delivery: one normal remediation commit
+(`docs(publisher-services): correct ADR-01 implementation status`)
+changing only `docs/publisher-services/task-status.md` and this report; no
+amend, rebase, squash, reset or force-push. Validation: `git diff --check`
+clean; expected paths only; relative links resolve; no sensitive data. New
+exact-head CI results and the superseding immutable evidence comment are
+recorded on PR #782 after the push; comment `5205409343` remains the
+unedited immutable evidence for the superseded head `47aaccf8`. Fresh
+independent exact-head review of the remediation head remains required.
+The earlier history in this report, including the interrupted-work
+deviation in section 9, is preserved unchanged.
+
+## 14. Agent self-assessment
 
 Suggested review focus:
 
