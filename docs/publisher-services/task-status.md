@@ -20,7 +20,7 @@ No task moves to `READY` without an approved specification, architecture depende
 |---|---|---:|---|---|---|---|---|---|
 | P0-01 Control documents and tracker | `thoth` | LOW | CLOSED | `develop` at `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06` / `develop` | None; issue #765 synchronization is a separately authorized external mirror of the completed repository closeout | [#765](https://github.com/thoth-pub/thoth/issues/765) | Foundation [#764](https://github.com/thoth-pub/thoth/pull/764); closeout [#767](https://github.com/thoth-pub/thoth/pull/767) merged as `bac598e3`; finalization [#768](https://github.com/thoth-pub/thoth/pull/768) | CLOSED - PR #767 independently `APPROVED` and merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba` on 2026-07-27; reviewed content head `d72137893ddea512c0d05c81d310eb59d045cd2b`; repository-finalized |
 | [ADR-01-SPEC-AMEND-01 Specification amendment](../engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01.md) | `thoth` | MEDIUM | MERGED - COMPLETE | `develop` at `590ff437bbd25b8aa5fde800dd8a38772b7e453e` / `develop` | None remaining: approved content head `1276c70a81e73f57d833eecb0e6886bd0cabf69e` (independent review `4873802457` - APPROVED; CTO approval comment `5203642323` - 2026-08-06); approval-state head `bdfded20e8cac65fcd7713b07d189052e0eba745` (final independent review `4874093991` - APPROVED; CTO merge authorization review `4874128610`); merged as `a511e01c83c5e805a75e0fdaeb3b5297c39ef291` on 2026-08-06T11:29:53Z. Historical ADR-01 specification approval preserved and applying only to the superseded pre-amendment content. Post-merge reconciliation is delivered by [ADR-01-SPEC-AMEND-01-CLOSEOUT-01](../engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01-CLOSEOUT-01.md). | [#765](https://github.com/thoth-pub/thoth/issues/765) | Amendment PR [#781](https://github.com/thoth-pub/thoth/pull/781) (merged) | MERGED - COMPLETE - corrected ADR-01 specification repository-authoritative through merge commit `a511e01c` |
-| [ADR-01 Platform inventory/final architecture](../engineering/ai-delivery/tasks/ADR-01.md) | `thoth` | MEDIUM | NOT STARTED - FRESH IMPLEMENTATION AUTHORIZATION REQUIRED | implementation branch ABSENT; implementation exact base not yet selected - it must be the then-current verified `develop` head at the time of fresh CTO implementation authorization / `develop` | The corrected specification is approved and repository-authoritative (approved content head `1276c70a`; amendment PR [#781](https://github.com/thoth-pub/thoth/pull/781) merged as `a511e01c`). Implementation has not started, no implementation branch exists, no implementation base has been selected, and fresh explicit CTO implementation authorization is required before any implementation edit; ADR-01 is therefore not yet `READY` for implementation under this tracker's control rule. The historical specification approval (Javi, CTO, 2026-08-05, content head `820f9cfa`, PR #780) is preserved and applies only to the superseded pre-amendment content. The obsolete local pre-amendment `feature/publisher-services/adr-01` branch (clean, unpushed, commit-free) was safely deleted during the closeout. ADR-01 is not blocked by BE-01. Final platform inventory remains provisional until the ADR-01 implementation is independently approved and merged. ADR-0004 (the ADR-01 decision record) is not started. | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#780](https://github.com/thoth-pub/thoth/pull/780); amendment [#781](https://github.com/thoth-pub/thoth/pull/781) (merged); TBD for implementation | APPROVED AND REPOSITORY-AUTHORITATIVE SPECIFICATION - IMPLEMENTATION NOT STARTED - FRESH IMPLEMENTATION AUTHORIZATION REQUIRED - BRANCH ABSENT - FINAL PLATFORM INVENTORY PROVISIONAL |
+| [ADR-01 Platform inventory/final architecture](../engineering/ai-delivery/tasks/ADR-01.md) | `thoth` | MEDIUM | IN PROGRESS - IMPLEMENTATION DRAFT PR OPEN - PENDING INDEPENDENT REVIEW AND CTO APPROVAL | `develop` at `32123d363a6806d377ac322e3814fb432a803453` (verified before any edit; fresh explicit CTO implementation authorization 2026-08-06) / `develop` | Remaining gates only: fresh independent exact-head review of the implementation PR; explicit CTO approval of ADR-0004 and the final inventory; separate explicit CTO merge authorization; merge. Delivered on `feature/publisher-services/adr-01`: [ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md) (`PROPOSED`), the complete [evidence matrix](adr-01-evidence-matrix.md), the proposed [final inventory](platform-inventory.md) and the [implementation report](../engineering/ai-delivery/implementation-reports/ADR-01-implementation-report.md). ADR-0004 and the final inventory are NOT approved; BE-02 remains blocked. The historical specification approval (content head `820f9cfa`, PR #780) is preserved and applies only to the superseded pre-amendment content. | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#780](https://github.com/thoth-pub/thoth/pull/780); amendment [#781](https://github.com/thoth-pub/thoth/pull/781) (merged); implementation draft PR (number recorded by follow-up commit once opened) | IN PROGRESS - DRAFT IMPLEMENTATION PR PENDING FRESH INDEPENDENT EXACT-HEAD REVIEW AND EXPLICIT CTO APPROVAL - ADR-0004 PROPOSED - FINAL INVENTORY PROPOSED, NOT APPROVED |
 | LIC-01 Expand `cc-license` | `cc-license` | MEDIUM | BLOCKED | `develop` / `develop` | P0-01; BR-LIC-01 or CTO exception; approved spec | #765 | TBD | NOT STARTED |
 | LIC-02 Enforce supported licences | `thoth` | HIGH | BLOCKED | `develop` / `develop` | LIC-01 release; production licence audit plan | #765 | TBD | NOT STARTED |
 | [BE-01 Publisher package model](../engineering/ai-delivery/tasks/BE-01.md) | `thoth` | HIGH | CLOSED | `develop` at `37b802776ae6853affe19d90156f3c1e0654ebe3` (PR #778 merge commit, verified before any edit) / `develop` | None remaining for BE-01 itself: the separately authorized bounded implementation was delivered on `feature/publisher-services/be-01` under ADR-0003 Architecture A and merged into `develop` through implementation PR [#779](https://github.com/thoth-pub/thoth/pull/779) after fresh independent exact-head review and explicit CTO merge authorization, as required for every HIGH-risk merge. Production migration/release execution remains separately gated by open CG-13, and the MIG-01 commercial backfill remains a separately approved CRITICAL task. | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#774](https://github.com/thoth-pub/thoth/pull/774); implementation [#779](https://github.com/thoth-pub/thoth/pull/779) | CLOSED - INACTIVE FOUNDATION - all publishers `OASIS`; no consumer, package API, mutation, UI, distribution, OAI or Metrics behaviour activated; retained-foundation operational rollback applies; evidence in the [BE-01 implementation report](../engineering/ai-delivery/implementation-reports/BE-01-implementation-report.md) and the immutable exact-head comments on PR #779 |
@@ -69,17 +69,23 @@ Each branch starts from the repository's verified development branch and targets
    `develop` as `a511e01c83c5e805a75e0fdaeb3b5297c39ef291` on
    2026-08-06T11:29:53Z, making the corrected specification
    repository-authoritative.
-3. ADR-01 implementation has not started and requires a fresh task
-   authorization from the then-current exact `develop` head; the
-   implementation branch remains absent until then. The obsolete local
-   pre-amendment `feature/publisher-services/adr-01` branch (clean,
-   unpushed, commit-free) was safely deleted during the
-   [closeout](../engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01-CLOSEOUT-01.md).
-   ADR-0004 is not started. ADR-01 and BE-01 remain independent tasks;
+3. The ADR-01 implementation was separately and explicitly authorized by the
+   CTO on 2026-08-06 from exact base
+   `32123d363a6806d377ac322e3814fb432a803453` and delivered as a draft PR on
+   `feature/publisher-services/adr-01`:
+   [ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md)
+   (`PROPOSED`), the complete [evidence matrix](adr-01-evidence-matrix.md),
+   the proposed [final inventory](platform-inventory.md), programme-control
+   reconciliation and the
+   [implementation report](../engineering/ai-delivery/implementation-reports/ADR-01-implementation-report.md).
+   Remaining gates: fresh independent exact-head review, explicit CTO
+   approval of ADR-0004 and the final inventory, separate explicit CTO merge
+   authorization, and merge. ADR-01 and BE-01 remain independent tasks;
    neither blocks the other.
-4. The final distribution-platform inventory remains provisional until the
-   ADR-01 implementation is independently approved and merged. CG-07 remains
-   open; CG-11 and CG-13 are unchanged.
+4. The final distribution-platform inventory is PROPOSED, NOT APPROVED,
+   until the ADR-01 implementation is independently reviewed, explicitly
+   CTO-approved and merged. CG-07 remains open; CG-11 and CG-13 are
+   unchanged.
 5. The bounded BE-01 implementation was separately authorized by the CTO on
    2026-08-05, delivered on `feature/publisher-services/be-01` from the
    verified base `37b802776ae6853affe19d90156f3c1e0654ebe3`, and merged into
@@ -107,7 +113,9 @@ Each branch starts from the repository's verified development branch and targets
    an explicit CTO exception, and the separately specified CG-11 CI closure),
    the exact BE-03 SHA/schema-pinning contract control, and its own approved
    bounded specification.
-11. No BE-02, BE-03, BE-04, APP-01, ADR-01 implementation, OAI-PMH,
-    deployment, release or production work is authorized; all licence,
-    migration, app, dissemination and operational tasks remain blocked under
-    their recorded dependencies.
+11. Beyond the delivered documentation-only ADR-01 implementation (draft PR
+    pending review), no BE-02, BE-03, BE-04, APP-01, OAI-PMH, deployment,
+    release or production work is authorized; all licence, migration, app,
+    dissemination and operational tasks remain blocked under their recorded
+    dependencies. The ADR-01 implementation authorizes no merge, runtime
+    change, credential use, workflow dispatch or production access.

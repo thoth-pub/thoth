@@ -82,13 +82,26 @@ Amendment state (2026-08-06):
   historical ADR-01 specification approval applies only to the superseded
   pre-amendment content.
 
+ADR-01 implementation state (2026-08-06):
+
+- the ADR-01 implementation was separately and explicitly authorized by the
+  CTO on 2026-08-06 from exact base
+  `32123d363a6806d377ac322e3814fb432a803453` and delivered as a
+  documentation-only draft PR on `feature/publisher-services/adr-01`,
+  producing [ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md)
+  (`PROPOSED`), the complete
+  [evidence matrix](adr-01-evidence-matrix.md) and the proposed
+  [final inventory](platform-inventory.md); ADR-0004 and the final
+  inventory remain proposed, not approved, pending fresh independent
+  exact-head review and explicit CTO approval, and `BE-02` remains blocked.
+
 Outstanding evidence:
 
-- Publisher Services ADR-01 implementation and final platform-inventory
-  approval; ADR-01 implementation has not started and requires a fresh task
-  authorization from the then-current exact `develop` head; the inventory in
-  [`platform-inventory.md`](platform-inventory.md) remains explicitly
-  provisional until an approved ADR-01 merges;
+- fresh independent exact-head review of the ADR-01 implementation PR,
+  explicit CTO approval of ADR-0004 and the final inventory, separate
+  explicit CTO merge authorization, and merge; until then the inventory in
+  [`platform-inventory.md`](platform-inventory.md) remains proposed and no
+  enum may be implemented from it;
 - applicable repository/branch-readiness decisions;
 - approved task specifications and review assignments for implementation work;
 - no unresolved control contradiction.

@@ -1,7 +1,7 @@
 # Publisher Services Decision Summary
 
 Status: ACTIVE SUMMARY
-Last updated: 2026-08-06
+Last updated: 2026-08-06 (ADR-01 implementation: ADR-0004 PROPOSED)
 Owner: CTO
 
 This file summarizes decisions. The approved technical design and approved ADRs remain authoritative.
@@ -148,6 +148,16 @@ Implementation dependency:
 - metrics platform registry.
 
 ## 3. Decisions delegated to Publisher Services ADR-01
+
+State (2026-08-06): the separately authorized ADR-01 implementation has
+produced [ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md)
+(`PROPOSED - INDEPENDENT REVIEW AND CTO APPROVAL REQUIRED`), the complete
+[evidence matrix](adr-01-evidence-matrix.md) and the proposed
+[final inventory](platform-inventory.md) (17 values; no `OTHER`;
+`JISC_NBK` included but inactive and non-assignable; 10 recorded
+exclusions). Nothing below is approved by that proposal: ADR-0004 and the
+final inventory remain proposed pending fresh independent exact-head review
+and explicit CTO approval, and `BE-02` remains blocked.
 
 ADR-01 must finalize:
 
