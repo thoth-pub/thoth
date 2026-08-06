@@ -19,8 +19,8 @@ No task moves to `READY` without an approved specification, architecture depende
 | Task | Repository | Risk | Status | Verified base / PR target | Blocking dependencies | Issue | PR | Acceptance |
 |---|---|---:|---|---|---|---|---|---|
 | P0-01 Control documents and tracker | `thoth` | LOW | CLOSED | `develop` at `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06` / `develop` | None; issue #765 synchronization is a separately authorized external mirror of the completed repository closeout | [#765](https://github.com/thoth-pub/thoth/issues/765) | Foundation [#764](https://github.com/thoth-pub/thoth/pull/764); closeout [#767](https://github.com/thoth-pub/thoth/pull/767) merged as `bac598e3`; finalization [#768](https://github.com/thoth-pub/thoth/pull/768) | CLOSED - PR #767 independently `APPROVED` and merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba` on 2026-07-27; reviewed content head `d72137893ddea512c0d05c81d310eb59d045cd2b`; repository-finalized |
-| [ADR-01-SPEC-AMEND-01 Specification amendment](../engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01.md) | `thoth` | MEDIUM | CONTENT APPROVED - APPROVAL-STATE REVIEW AND MERGE PENDING | `develop` at `590ff437bbd25b8aa5fde800dd8a38772b7e453e` / `develop` | CTO drafting authorization of 2026-08-06 and the CTO-approved [evidence ledger](adr-01-evidence-ledger.md). Approved content head `1276c70a81e73f57d833eecb0e6886bd0cabf69e`; independent review `4873802457` - APPROVED; CTO approval comment `5203642323` - 2026-08-06. The approval-state commit requires fresh independent exact-head review; merge authorization remains pending; historical ADR-01 specification approval preserved and applying only to the superseded pre-amendment content. | [#765](https://github.com/thoth-pub/thoth/issues/765) | Draft amendment PR [#781](https://github.com/thoth-pub/thoth/pull/781) | CONTENT APPROVED AT 1276c70a - APPROVAL-STATE REVIEW AND MERGE PENDING - PR REMAINS DRAFT |
-| [ADR-01 Platform inventory/final architecture](../engineering/ai-delivery/tasks/ADR-01.md) | `thoth` | MEDIUM | BLOCKED | exact base recorded when the implementation branch is created from a new then-current verified `develop` after the amendment merges; then-current `develop` / `develop` | approved and merged `ADR-01-SPEC-AMEND-01` corrected specification content plus fresh implementation authorization and a new exact `develop` base. The historical specification approval (Javi, CTO, 2026-08-05, content head `820f9cfa`, PR #780) is preserved and applies only to the superseded pre-amendment content. The existing local pre-amendment `feature/publisher-services/adr-01` branch is clean, unpushed, commit-free, not authoritative and not used; it must be deleted or archived before fresh authorization. ADR-01 is not blocked by BE-01. Final platform inventory remains provisional until the ADR-01 implementation is independently approved and merged. ADR-0004 (the ADR-01 decision record) is not started. | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#780](https://github.com/thoth-pub/thoth/pull/780); amendment PR draft; TBD for implementation | BLOCKED PENDING APPROVED AND MERGED AMENDMENT - IMPLEMENTATION NOT AUTHORIZED - FINAL PLATFORM INVENTORY PROVISIONAL |
+| [ADR-01-SPEC-AMEND-01 Specification amendment](../engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01.md) | `thoth` | MEDIUM | MERGED - COMPLETE | `develop` at `590ff437bbd25b8aa5fde800dd8a38772b7e453e` / `develop` | None remaining: approved content head `1276c70a81e73f57d833eecb0e6886bd0cabf69e` (independent review `4873802457` - APPROVED; CTO approval comment `5203642323` - 2026-08-06); approval-state head `bdfded20e8cac65fcd7713b07d189052e0eba745` (final independent review `4874093991` - APPROVED; CTO merge authorization review `4874128610`); merged as `a511e01c83c5e805a75e0fdaeb3b5297c39ef291` on 2026-08-06T11:29:53Z. Historical ADR-01 specification approval preserved and applying only to the superseded pre-amendment content. Post-merge reconciliation is delivered by [ADR-01-SPEC-AMEND-01-CLOSEOUT-01](../engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01-CLOSEOUT-01.md). | [#765](https://github.com/thoth-pub/thoth/issues/765) | Amendment PR [#781](https://github.com/thoth-pub/thoth/pull/781) (merged) | MERGED - COMPLETE - corrected ADR-01 specification repository-authoritative through merge commit `a511e01c` |
+| [ADR-01 Platform inventory/final architecture](../engineering/ai-delivery/tasks/ADR-01.md) | `thoth` | MEDIUM | READY - IMPLEMENTATION NOT AUTHORIZED | exact base recorded when the implementation branch is created from the then-current verified `develop`; then-current `develop` / `develop` | The corrected specification is approved and repository-authoritative (approved content head `1276c70a`; amendment PR [#781](https://github.com/thoth-pub/thoth/pull/781) merged as `a511e01c`). Implementation has not started and requires a fresh task authorization from the then-current exact `develop` head; the branch remains absent until then. The historical specification approval (Javi, CTO, 2026-08-05, content head `820f9cfa`, PR #780) is preserved and applies only to the superseded pre-amendment content. The obsolete local pre-amendment `feature/publisher-services/adr-01` branch (clean, unpushed, commit-free) was safely deleted during the closeout. ADR-01 is not blocked by BE-01. Final platform inventory remains provisional until the ADR-01 implementation is independently approved and merged. ADR-0004 (the ADR-01 decision record) is not started. | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#780](https://github.com/thoth-pub/thoth/pull/780); amendment [#781](https://github.com/thoth-pub/thoth/pull/781) (merged); TBD for implementation | APPROVED AND REPOSITORY-AUTHORITATIVE SPECIFICATION - FRESH IMPLEMENTATION AUTHORIZATION REQUIRED - BRANCH ABSENT - FINAL PLATFORM INVENTORY PROVISIONAL |
 | LIC-01 Expand `cc-license` | `cc-license` | MEDIUM | BLOCKED | `develop` / `develop` | P0-01; BR-LIC-01 or CTO exception; approved spec | #765 | TBD | NOT STARTED |
 | LIC-02 Enforce supported licences | `thoth` | HIGH | BLOCKED | `develop` / `develop` | LIC-01 release; production licence audit plan | #765 | TBD | NOT STARTED |
 | [BE-01 Publisher package model](../engineering/ai-delivery/tasks/BE-01.md) | `thoth` | HIGH | CLOSED | `develop` at `37b802776ae6853affe19d90156f3c1e0654ebe3` (PR #778 merge commit, verified before any edit) / `develop` | None remaining for BE-01 itself: the separately authorized bounded implementation was delivered on `feature/publisher-services/be-01` under ADR-0003 Architecture A and merged into `develop` through implementation PR [#779](https://github.com/thoth-pub/thoth/pull/779) after fresh independent exact-head review and explicit CTO merge authorization, as required for every HIGH-risk merge. Production migration/release execution remains separately gated by open CG-13, and the MIG-01 commercial backfill remains a separately approved CRITICAL task. | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#774](https://github.com/thoth-pub/thoth/pull/774); implementation [#779](https://github.com/thoth-pub/thoth/pull/779) | CLOSED - INACTIVE FOUNDATION - all publishers `OASIS`; no consumer, package API, mutation, UI, distribution, OAI or Metrics behaviour activated; retained-foundation operational rollback applies; evidence in the [BE-01 implementation report](../engineering/ai-delivery/implementation-reports/BE-01-implementation-report.md) and the immutable exact-head comments on PR #779 |
@@ -56,24 +56,27 @@ Each branch starts from the repository's verified development branch and targets
    [PR #780](https://github.com/thoth-pub/thoth/pull/780) was independently
    reviewed, explicitly CTO-approved and merged into `develop`. That approval
    applies only to the superseded pre-amendment content.
-2. `ADR-01-SPEC-AMEND-01` is
-   `CONTENT APPROVED - APPROVAL-STATE REVIEW AND MERGE PENDING`: the
-   corrected ADR-01 specification content, drafted from the CTO-approved
+2. `ADR-01-SPEC-AMEND-01` is `MERGED - COMPLETE`: the corrected ADR-01
+   specification content, drafted from the CTO-approved
    [evidence ledger](adr-01-evidence-ledger.md) under the CTO drafting
    authorization of 2026-08-06, was independently reviewed (review
    `4873802457`, `APPROVED`) and explicitly CTO-approved (comment
    `5203642323`, 2026-08-06) at exact content head
-   `1276c70a81e73f57d833eecb0e6886bd0cabf69e`. The approval-state commit
-   recording that approval requires fresh independent exact-head review and
-   automatic CI; merge authorization remains separately pending. The
-   amendment PR [#781](https://github.com/thoth-pub/thoth/pull/781) remains
-   draft.
-3. ADR-01 implementation is `BLOCKED` pending the amendment merge plus
-   fresh implementation authorization and a new exact
-   `develop` base. The existing local pre-amendment
-   `feature/publisher-services/adr-01` branch is clean, unpushed, commit-free,
-   not authoritative and not used. ADR-0004 is not started. ADR-01 and BE-01
-   remain independent tasks; neither blocks the other.
+   `1276c70a81e73f57d833eecb0e6886bd0cabf69e`; the approval-state head
+   `bdfded20` received final independent review `4874093991` (`APPROVED`)
+   and CTO merge authorization (review `4874128610`); and amendment PR
+   [#781](https://github.com/thoth-pub/thoth/pull/781) merged into
+   `develop` as `a511e01c83c5e805a75e0fdaeb3b5297c39ef291` on
+   2026-08-06T11:29:53Z, making the corrected specification
+   repository-authoritative.
+3. ADR-01 implementation has not started and requires a fresh task
+   authorization from the then-current exact `develop` head; the
+   implementation branch remains absent until then. The obsolete local
+   pre-amendment `feature/publisher-services/adr-01` branch (clean,
+   unpushed, commit-free) was safely deleted during the
+   [closeout](../engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01-CLOSEOUT-01.md).
+   ADR-0004 is not started. ADR-01 and BE-01 remain independent tasks;
+   neither blocks the other.
 4. The final distribution-platform inventory remains provisional until the
    ADR-01 implementation is independently approved and merged. CG-07 remains
    open; CG-11 and CG-13 are unchanged.

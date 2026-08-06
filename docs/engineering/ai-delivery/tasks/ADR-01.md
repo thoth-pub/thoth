@@ -1,6 +1,6 @@
 # ADR-01 - Platform inventory and final architecture
 
-Status: APPROVED CORRECTED CONTENT - MERGE PENDING
+Status: APPROVED AND REPOSITORY-AUTHORITATIVE - FRESH IMPLEMENTATION AUTHORIZATION REQUIRED
 Programme: Publisher Services and Distribution Configuration
 Repository: `thoth-pub/thoth`
 Workflow: STANDARD
@@ -21,9 +21,14 @@ CTO corrected-content approval: Javi, CTO, 2026-08-06, PR
 [#781](https://github.com/thoth-pub/thoth/pull/781) comment `5203642323`
 Approval scope: the substantive corrected specification content at the exact
 head above
-Repository authority: pending merge of PR #781
-ADR-01 implementation: blocked pending amendment merge and fresh exact-base
-implementation authorization
+Approval-state head: `bdfded20e8cac65fcd7713b07d189052e0eba745` (final
+independent review `4874093991` - APPROVED; CTO merge authorization review
+`4874128610`)
+Repository authority: established through the merge of PR
+[#781](https://github.com/thoth-pub/thoth/pull/781), merge commit
+`a511e01c83c5e805a75e0fdaeb3b5297c39ef291` (2026-08-06T11:29:53Z)
+ADR-01 implementation: not started; requires a fresh task authorization from
+the then-current exact `develop` head
 Target branch name: `feature/publisher-services/adr-01`
 
 ## 0. Amendment record
@@ -46,10 +51,12 @@ substantive approval for the corrected head:
 - the corrected content below was independently reviewed (review
   `4873802457`, `APPROVED`) and explicitly CTO-approved (Javi, CTO,
   2026-08-06, PR #781 comment `5203642323`) at exact content head
-  `1276c70a81e73f57d833eecb0e6886bd0cabf69e`; it becomes
-  repository-authoritative only when PR #781 merges;
-- ADR-01 implementation remains blocked pending the amendment merge plus
-  fresh implementation authorization from a new verified `develop` base.
+  `1276c70a81e73f57d833eecb0e6886bd0cabf69e`; it became
+  repository-authoritative through the merge of PR #781 (merge commit
+  `a511e01c83c5e805a75e0fdaeb3b5297c39ef291`, 2026-08-06T11:29:53Z, under
+  CTO merge authorization review `4874128610`);
+- ADR-01 implementation has not started and requires a fresh task
+  authorization from the then-current exact `develop` head.
 
 ## 1. Objective
 
@@ -138,9 +145,10 @@ Authoritative sources, in precedence order:
    [`docs/engineering/design-references.md`](../../design-references.md),
    section 8.2 of which defines the ADR-01 epic;
 6. this specification: historically approved at content head
-   `820f9cfa22d284f8f347db338aa2461408f4ed12` (PR #780), now amended by
-   `ADR-01-SPEC-AMEND-01`; the corrected content is pending fresh independent
-   review and explicit CTO approval;
+   `820f9cfa22d284f8f347db338aa2461408f4ed12` (PR #780), then amended by
+   `ADR-01-SPEC-AMEND-01`; the corrected content was independently reviewed
+   and explicitly CTO-approved at content head `1276c70a` and is
+   repository-authoritative through the merge of PR #781;
 7. the sanitized
    [ADR-01 evidence ledger](../../../publisher-services/adr-01-evidence-ledger.md),
    whose CTO-approved source record (prepared 6 August 2026) is the evidence
@@ -1107,9 +1115,10 @@ inventory.
   authorization for the ADR-01 implementation is granted from that new base;
 - exact base recorded before any edit;
 - pull-request target: `develop`;
-- task branch: `feature/publisher-services/adr-01`; the pre-amendment local
-  branch of that name is obsolete, holds no task commits and must be deleted
-  or archived before fresh implementation authorization;
+- task branch: `feature/publisher-services/adr-01`; the obsolete
+  pre-amendment local branch of that name (clean, unpushed, commit-free at
+  the superseded base) was safely deleted during the
+  `ADR-01-SPEC-AMEND-01-CLOSEOUT-01` closeout;
 - expected merge order: the amendment `ADR-01-SPEC-AMEND-01` is independently
   reviewed, approved by the CTO and merged; separate explicit authorization;
   fresh `develop` verification and branch creation; ADR-01 implementation,
@@ -1139,7 +1148,8 @@ does not extend to the corrected content produced by `ADR-01-SPEC-AMEND-01`.
 ### 19.2 Current approval state
 
 ```text
-Status: APPROVED CORRECTED CONTENT - MERGE PENDING
+Status: APPROVED AND REPOSITORY-AUTHORITATIVE -
+FRESH IMPLEMENTATION AUTHORIZATION REQUIRED
 
 Approved corrected-content head:
 1276c70a81e73f57d833eecb0e6886bd0cabf69e
@@ -1154,21 +1164,27 @@ PR #781 comment 5203642323
 Approval scope:
 the substantive corrected specification content at the exact head above
 
+Approval-state head:
+bdfded20e8cac65fcd7713b07d189052e0eba745
+(final independent review 4874093991 - APPROVED;
+CTO merge authorization review 4874128610)
+
 Repository authority:
-pending merge of PR #781
+established through the merge of PR #781
+merge commit a511e01c83c5e805a75e0fdaeb3b5297c39ef291
+merged 2026-08-06T11:29:53Z
 
 ADR-01 implementation:
-blocked pending amendment merge and fresh exact-base implementation
-authorization
+not started; requires a fresh task authorization from the then-current
+exact develop head
 ```
 
 Notes:
 
-- The corrected content becomes repository-authoritative only when PR #781
-  merges. The approval-state documentation commit recording this approval is
-  itself status-only and requires fresh independent exact-head review,
-  automatic exact-head CI and separate CTO merge authorization; it is not
-  self-approved.
+- The corrected content became repository-authoritative when PR #781 merged
+  under CTO merge authorization review `4874128610`. The complete review
+  history (including the `CHANGES REQUIRED` cycles) is preserved in the
+  amendment task record and on PR #781.
 - Approval of this specification, historical or corrected, does not authorize
   the ADR-01 implementation. Implementation requires a separate explicit CTO
   authorization, a freshly verified then-current `develop` base, and its own
