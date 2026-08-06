@@ -46,20 +46,43 @@ Achieved evidence:
   [#772](https://github.com/thoth-pub/thoth/pull/772); this removes the shared
   decision dependency and does not unlock Publisher Services implementation.
 
-- the bounded
+- historical record: the pre-amendment bounded
   [`ADR-01` implementation specification](../engineering/ai-delivery/tasks/ADR-01.md)
-  is independently reviewed and explicitly CTO-approved (Javi, CTO,
-  2026-08-05, at exact content head
-  `820f9cfa22d284f8f347db338aa2461408f4ed12`), defining the read-only evidence
-  scope, the required per-destination record, the evidence classification, the
-  decisions ADR-01 must produce and the exact stop labels that fire when
-  evidence is missing. It resolves no platform question, finalizes no
-  inventory, and authorizes no ADR-01 implementation. Its approval becomes
-  repository-authoritative on merge of specification
-  [PR #780](https://github.com/thoth-pub/thoth/pull/780).
+  at exact content head `820f9cfa22d284f8f347db338aa2461408f4ed12` was
+  independently reviewed and explicitly CTO-approved (Javi, CTO,
+  2026-08-05), and that historical content became repository-authoritative
+  when specification
+  [PR #780](https://github.com/thoth-pub/thoth/pull/780) merged. It defined
+  the read-only evidence scope, the required per-destination record, the
+  evidence classification, the decisions ADR-01 must produce and the exact
+  stop labels that fire when evidence is missing; it resolved no platform
+  question, finalized no inventory, and authorized no ADR-01
+  implementation. That historical approval remains valid and applies only
+  to the superseded pre-amendment content: the currently linked `ADR-01.md`
+  is amended content with status
+  `APPROVED CORRECTED CONTENT - MERGE PENDING`, and ADR-01 implementation
+  remains blocked pending fresh independent exact-head review of the
+  approval-state head, separate CTO merge authorization, merge of the
+  amendment, and fresh implementation authorization from a new verified
+  `develop` base.
+
+Amendment state (2026-08-06):
+
+- `ADR-01-SPEC-AMEND-01` corrected the ADR-01 specification content from the
+  CTO-approved [evidence ledger](adr-01-evidence-ledger.md); the corrected
+  content was independently reviewed (review `4873802457`, `APPROVED`) and
+  explicitly CTO-approved
+  ([PR #781](https://github.com/thoth-pub/thoth/pull/781) comment
+  `5203642323`, 2026-08-06) at exact content head
+  `1276c70a81e73f57d833eecb0e6886bd0cabf69e`; the historical ADR-01
+  specification approval applies only to the superseded pre-amendment
+  content.
 
 Outstanding evidence:
 
+- the approval-state documentation commit recording the amendment approval,
+  its automatic exact-head CI, fresh independent review of that status-only
+  head, separate CTO merge authorization, and the merge of PR #781;
 - Publisher Services ADR-01 implementation and final platform-inventory
   approval; the inventory in
   [`platform-inventory.md`](platform-inventory.md) remains explicitly
@@ -82,7 +105,7 @@ Dependency graph — the programme's hard dependencies form a directed acyclic
 graph, not a single serial chain:
 
 ```text
-ADR-01-SPEC -> ADR-01 -> BE-02
+ADR-01-SPEC -> ADR-01-SPEC-AMEND-01 -> ADR-01 -> BE-02
 
 BE-01 ----+
           +-> BE-03 -> APP-01
@@ -94,7 +117,11 @@ CG-11 closure ----+-> APP-01 implementation
 APP-01 spec ------+
 ```
 
-Explicitly: `ADR-01-SPEC` and `ADR-01` do not depend on `BE-01`; `BE-02`
+Explicitly: `ADR-01-SPEC` and `ADR-01` do not depend on `BE-01`; the
+historical `ADR-01-SPEC -> ADR-01` relationship remains part of the record,
+but `ADR-01-SPEC-AMEND-01` is now an additional required gate: ADR-01
+implementation requires the approved and merged amendment plus fresh
+implementation authorization from a new exact `develop` base; `BE-02`
 depends on an approved and merged `ADR-01` implementation, not the ADR-01
 specification alone; `BE-03` depends on both `BE-01` and `BE-02`; `APP-01`
 implementation depends on `BE-03`, app branch readiness (`BR-APP-01` or an

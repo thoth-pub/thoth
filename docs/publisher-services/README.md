@@ -1,6 +1,6 @@
 # Publisher Services and Distribution Configuration
 
-Status: CONTROL FOUNDATION CLOSED; BE-01 AND ADR-01 SPECIFICATIONS APPROVED; CG-12 RESOLVED BY ADR-0003; ADR-01 IMPLEMENTATION NOT AUTHORIZED; FINAL PLATFORM INVENTORY STILL PROVISIONAL; ALL OTHER IMPLEMENTATION GATED
+Status: CONTROL FOUNDATION CLOSED; BE-01 CLOSED; ADR-01-SPEC-AMEND-01 CORRECTED CONTENT APPROVED (INDEPENDENT REVIEW AND CTO APPROVAL AT 1276c70a; MERGE PENDING); ADR-01 IMPLEMENTATION BLOCKED; FINAL PLATFORM INVENTORY STILL PROVISIONAL; ALL OTHER IMPLEMENTATION GATED
 Programme owner: CTO
 Primary coordinating repository: `thoth-pub/thoth`
 Related repositories:
@@ -69,11 +69,19 @@ Where sources conflict, stop and escalate. Chat history is not authoritative.
 
 ```text
 CONTROL FOUNDATION CLOSED
-BE-01 SPECIFICATION APPROVED AND MERGED
+BE-01 CLOSED (INACTIVE FOUNDATION MERGED THROUGH PR #779)
 CG-12 RESOLVED BY ADR-0003 ARCHITECTURE A
-ADR-01 SPECIFICATION APPROVED
-ADR-01 IMPLEMENTATION NOT AUTHORIZED
-ADR-01 IMPLEMENTATION BRANCH ABSENT / NOT AUTHORIZED
+ADR-01-SPEC-AMEND-01 CONTENT APPROVED - APPROVAL-STATE REVIEW AND MERGE
+PENDING
+CORRECTED ADR-01 CONTENT INDEPENDENTLY REVIEWED (4873802457 - APPROVED) AND
+EXPLICITLY CTO-APPROVED (COMMENT 5203642323, 2026-08-06) AT EXACT HEAD
+1276c70a81e73f57d833eecb0e6886bd0cabf69e
+REPOSITORY AUTHORITY PENDING MERGE OF PR #781; APPROVAL-STATE HEAD REQUIRES
+FRESH INDEPENDENT EXACT-HEAD REVIEW
+HISTORICAL ADR-01 SPECIFICATION APPROVAL PRESERVED; APPLIES ONLY TO THE
+SUPERSEDED PRE-AMENDMENT CONTENT
+ADR-01 IMPLEMENTATION BLOCKED PENDING AMENDMENT MERGE PLUS FRESH
+IMPLEMENTATION AUTHORIZATION AND A NEW EXACT DEVELOP BASE
 FINAL DISTRIBUTION-PLATFORM INVENTORY REMAINS PROVISIONAL
 ALL OTHER IMPLEMENTATION REMAINS GATED
 ```
@@ -105,18 +113,42 @@ Achieved:
   [PR #778](https://github.com/thoth-pub/thoth/pull/778), and
   [CG-12](../engineering/repository-map/control-gaps.md) is `RESOLVED`.
   `THOTH-DB-CTRL-01` is `SUPERSEDED`.
-- The bounded
+- Historical record: the pre-amendment
   [`ADR-01` implementation specification](../engineering/ai-delivery/tasks/ADR-01.md)
-  is approved: its written content was independently reviewed and explicitly
-  approved by Javi, CTO, on 2026-08-05 at exact content head
-  `820f9cfa22d284f8f347db338aa2461408f4ed12`. The specification becomes
-  repository-authoritative when specification
-  [PR #780](https://github.com/thoth-pub/thoth/pull/780) merges. It defines
-  how the future ADR-01 implementation determines the final
-  distribution-platform inventory, and it finalizes no inventory itself.
-  ADR-01 implementation is not authorized: the branch
-  `feature/publisher-services/adr-01` requires separate explicit authorization
-  and a freshly verified `develop` base, and remains absent until then.
+  at exact content head `820f9cfa22d284f8f347db338aa2461408f4ed12` was
+  independently reviewed and explicitly CTO-approved (Javi, CTO, 2026-08-05),
+  and that historical content became repository-authoritative when
+  specification [PR #780](https://github.com/thoth-pub/thoth/pull/780)
+  merged. That approval remains a valid historical record and applies only to
+  the superseded pre-amendment content. It defined how the future ADR-01
+  implementation determines the final distribution-platform inventory, and it
+  finalized no inventory. The currently linked `ADR-01.md` is amended
+  content with status `APPROVED CORRECTED CONTENT - MERGE PENDING`. ADR-01
+  implementation is not authorized: it remains blocked pending fresh
+  independent exact-head review of the approval-state head, separate CTO
+  merge authorization, merge of the amendment, and fresh implementation
+  authorization from a new verified `develop` base.
+- The bounded
+  [`ADR-01-SPEC-AMEND-01`](../engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01.md)
+  amendment task, authorized by the CTO on 2026-08-06, corrects and extends
+  the historically approved pre-amendment ADR-01 specification from the CTO-approved
+  [evidence ledger](adr-01-evidence-ledger.md) (EBSCO, ProQuest and
+  knowledge-base distribution; Project MUSE defect reclassification;
+  destination-versus-adapter distinction; Jisc NBK; shared OCLC KBART feed;
+  conservative update/withdrawal policy; Thoth-managed source-file
+  invariant). The corrected content was independently reviewed (review
+  `4873802457`, `APPROVED`, no findings) and explicitly CTO-approved (Javi,
+  CTO, 2026-08-06, PR #781 comment `5203642323`) at exact content head
+  `1276c70a81e73f57d833eecb0e6886bd0cabf69e`; it becomes
+  repository-authoritative when PR #781 merges. The approval-state
+  documentation head recording this approval is status-only and requires
+  fresh independent exact-head review and separate CTO merge authorization.
+  The historical ADR-01 specification approval is preserved and applies only
+  to the superseded pre-amendment content. ADR-01 implementation remains
+  blocked pending the amendment merge plus fresh implementation
+  authorization from a new exact `develop` base; the existing local
+  pre-amendment `feature/publisher-services/adr-01` branch is clean,
+  unpushed, not authoritative and not used.
 
 Specification approval and gated implementation:
 
@@ -178,6 +210,7 @@ production work.
 - `decisions.md` - settled, proposed and unresolved decisions.
 - `task-status.md` - task dependencies, repository, branch, risk and evidence status.
 - `platform-inventory.md` - verified current dissemination baseline and ADR-01 questions.
+- `adr-01-evidence-ledger.md` - sanitized CTO-approved evidence ledger for the ADR-01 specification amendment.
 - `acceptance-matrix.md` - programme requirements mapped to evidence.
 - `rollout-plan.md` - additive rollout, comparison, pilot, observation and rollback.
 - `master-issue.md` - body for the programme's GitHub tracking issue.

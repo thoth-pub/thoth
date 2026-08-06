@@ -1,7 +1,7 @@
 # Publisher Services Decision Summary
 
 Status: ACTIVE SUMMARY
-Last updated: 2026-07-28
+Last updated: 2026-08-06
 Owner: CTO
 
 This file summarizes decisions. The approved technical design and approved ADRs remain authoritative.
@@ -166,6 +166,52 @@ ADR-01 must finalize:
    - multiple ProQuest products/destinations.
 
 No `OTHER` enum value is permitted.
+
+### Approved amendment inputs - repository merge pending
+
+`ADR-01-SPEC-AMEND-01` (2026-08-06) recorded the following evidence-based
+inputs to those delegated decisions, supported by the
+[ADR-01 evidence ledger](adr-01-evidence-ledger.md) and explicit CTO
+decisions of 2026-08-06. The corrected specification content carrying them
+was independently reviewed (review `4873802457`, `APPROVED`) and explicitly
+CTO-approved (comment `5203642323`, 2026-08-06) at exact content head
+`1276c70a81e73f57d833eecb0e6886bd0cabf69e`; they become
+repository-authoritative through the merge of
+[PR #781](https://github.com/thoth-pub/thoth/pull/781). The approval-state
+commit recording this approval requires its own fresh independent
+exact-head review. ADR-01 itself must still produce ADR-0004 and the final
+inventory, and no runtime implementation is authorized:
+
+- a `DistributionPlatform` destination is distinct from the delivery adapter
+  or feed profile serving it; shared adapters/feeds must not create duplicate
+  files, feeds, deposits or uploader jobs, and no second overlapping public
+  business enum is introduced;
+- Google Books and Google Play Books are one destination (display name
+  `Google Play Books`; `Google Books` a legacy alias; one stable enum code);
+- `EBSCO_HOST` is a confirmed current push destination; `EBSCO_KB` is a
+  distinct product excluded from the initial enum as currently unverified;
+- the canonical ProQuest push destination is `PROQUEST_EBOOK_CENTRAL`
+  (aliases `ProQuest`, `Ebrary`, `proquest_ebrary`); `EX_LIBRIS_KB` is a
+  separate pull-feed consumer sharing `OCLC_KBART_PUBLIC` with `OCLC_KB`;
+  `PROQUEST_SERIALS_SOLUTIONS_KB` is excluded as currently unverified;
+- the Jisc destination is `JISC_NBK` (MARC21 via S3, adapter
+  `JISC_NBK_MARC_S3`), included but initially inactive and non-assignable;
+- `OVERDRIVE`, `BDS_LIVE`, `RNIB_BOOKSHARE`, `SCIELO_BOOKS` and `ZOTERO` are
+  excluded from the initial inventory by CTO decision; `THOTH` and
+  `PUBLISHER_WEBSITE` remain location concepts, not distribution values;
+- incremental updates and withdrawals follow a conservative initial policy
+  (Crossref DOI deposit updates supported; all other automatic updates and
+  all automatic withdrawals disabled pending separately approved work);
+- automatic push jobs may use only Thoth-managed publication files, failing
+  closed otherwise (implementation deferred to a separate HIGH-risk task);
+- commercial entitlement authority is the publisher Statement of Work;
+  runtime desired-state authority is the Thoth publisher/platform
+  assignment; the COO is the accountable operational owner and the Metadata
+  Specialist the operationally responsible and target credential owner, with
+  shared credential responsibility recorded honestly during transition;
+- the Project MUSE scheduled-workflow key mismatch is historical/resolved,
+  not a current defect; the ProQuest EPUB-only/PDF-ISBN ordering defect
+  remains a current recorded defect.
 
 ## 4. Operational invariants
 
