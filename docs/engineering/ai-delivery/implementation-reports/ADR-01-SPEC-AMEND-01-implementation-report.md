@@ -358,7 +358,83 @@ Monitoring required: none.
 
 - NONE within the authorized scope.
 
-## 15. Agent self-assessment
+## 15. Review remediation (independent review 4873502967)
+
+Independent review `4873502967` (reviewer model OpenAI GPT-5.6 Thinking,
+HIGH reasoning) of the reviewed exact head
+`3251bd51505d91caaaa4a73c2ffe611d7b96ab2d` returned `CHANGES REQUIRED` with
+two P1 findings. The first reviewed head did not pass review; this section
+records the bounded remediation without rewriting the earlier
+implementation history.
+
+### P1-1 - Active approval-state contradiction
+
+Finding: `docs/publisher-services/README.md` (Achieved bullet) and
+`docs/publisher-services/rollout-plan.md` (Stage 0 achieved-evidence bullet)
+still described the currently linked, amended `ADR-01.md` as approved and
+retained the obsolete future-tense statement that the approval becomes
+repository-authoritative when PR #780 merges.
+
+Resolution: both passages were rewritten as explicit historical records in
+past tense: the pre-amendment content at
+`820f9cfa22d284f8f347db338aa2461408f4ed12` was independently reviewed and
+CTO-approved on 2026-08-05 and became repository-authoritative when PR #780
+merged; that approval applies only to the superseded pre-amendment content;
+the currently linked `ADR-01.md` is amended content with status
+`AMENDMENT PROPOSED`, not approved; and ADR-01 implementation remains
+blocked pending fresh independent exact-head review, explicit CTO approval
+of the corrected content, approval-state documentation, fresh review and
+CI, merge of the amendment, and fresh implementation authorization from a
+new verified `develop` base. The adjacent README amendment bullet was
+reconciled ("historically approved pre-amendment ADR-01 specification"). A
+repository-wide search of the programme documents found no further active
+present-tense statement applying the historical approval to the amended
+content, no statement that PR #780 still needs to merge, and no stale
+ADR-01 `READY` statement; the BE-01 specification-approval statement in the
+README concerns a different, correctly recorded task and was left unchanged.
+
+### P1-2 - Evidence-ledger provenance boundary
+
+Finding: `docs/publisher-services/adr-01-evidence-ledger.md` section 0
+stated "no conclusion absent from the approved source ledger has been
+added", while section 9 contains six separately recorded CTO decisions that
+were not part of the hash-identified source markdown, overstating the scope
+of the recorded SHA-256.
+
+Resolution: a new provenance-boundary subsection (0.0) states explicitly
+that SHA-256
+`4395c9b7203cdb5c07f5ad6399879827b1964bf8aeb1edc150bfc4d77221e9d7`
+authenticates only the original source ledger prepared 6 August 2026,
+containing the original 18 evidence IDs (EBSCO-01..05, PROQUEST-01..06,
+KBART-01..03, JISC-01..02, HIST-01, ADR-01-SOURCE); that sections 1-8 are
+the sanitized reproduction of those original entries with no conclusion
+added; and that section 9 is a separately added attributable CTO decision
+record sourced from `ADR-01-SPEC-AMEND-01.md` section 2 and the CTO's
+explicit decisions for this amendment, not present in and not authenticated
+by the hash-identified source. The section 9 heading and preamble repeat
+the separate provenance. The overstating sentence was removed. The section
+9 decisions remain valid `source-owner-confirmed` drafting inputs.
+
+### Remediation scope confirmation
+
+- Files changed by the remediation: `docs/publisher-services/README.md`,
+  `docs/publisher-services/rollout-plan.md`,
+  `docs/publisher-services/adr-01-evidence-ledger.md` and this report; a
+  PR-body provenance note was also updated.
+- No substantive architecture decision changed: every destination, adapter,
+  alias, exclusion, ownership, update, withdrawal and managed-file decision
+  is unchanged.
+- No original evidence ID, claim, limitation, status or identifier was
+  changed; all 18 original evidence entries are byte-identical in intent
+  and content.
+- One new normal remediation commit
+  (`docs(publisher-services): resolve ADR-01 amendment review findings`);
+  no amend, rebase, squash, reset or force-push; no new branch or PR.
+- Comment `5202717602` remains the unedited immutable evidence for the
+  superseded head `3251bd51`; new exact-head CI and a superseding immutable
+  evidence comment are recorded on PR #781 after the remediation push.
+
+## 16. Agent self-assessment
 
 The implementing agent may identify risks but may not approve the task.
 

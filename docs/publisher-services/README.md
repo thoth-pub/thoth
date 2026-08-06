@@ -108,22 +108,26 @@ Achieved:
   [PR #778](https://github.com/thoth-pub/thoth/pull/778), and
   [CG-12](../engineering/repository-map/control-gaps.md) is `RESOLVED`.
   `THOTH-DB-CTRL-01` is `SUPERSEDED`.
-- The bounded
+- Historical record: the pre-amendment
   [`ADR-01` implementation specification](../engineering/ai-delivery/tasks/ADR-01.md)
-  is approved: its written content was independently reviewed and explicitly
-  approved by Javi, CTO, on 2026-08-05 at exact content head
-  `820f9cfa22d284f8f347db338aa2461408f4ed12`. The specification becomes
-  repository-authoritative when specification
-  [PR #780](https://github.com/thoth-pub/thoth/pull/780) merges. It defines
-  how the future ADR-01 implementation determines the final
-  distribution-platform inventory, and it finalizes no inventory itself.
-  ADR-01 implementation is not authorized: the branch
-  `feature/publisher-services/adr-01` requires separate explicit authorization
-  and a freshly verified `develop` base.
+  at exact content head `820f9cfa22d284f8f347db338aa2461408f4ed12` was
+  independently reviewed and explicitly CTO-approved (Javi, CTO, 2026-08-05),
+  and that historical content became repository-authoritative when
+  specification [PR #780](https://github.com/thoth-pub/thoth/pull/780)
+  merged. That approval remains a valid historical record and applies only to
+  the superseded pre-amendment content. It defined how the future ADR-01
+  implementation determines the final distribution-platform inventory, and it
+  finalized no inventory. The currently linked `ADR-01.md` is amended
+  content with status `AMENDMENT PROPOSED` and is not approved. ADR-01
+  implementation is not authorized: it remains blocked pending fresh
+  independent exact-head review of the amendment, explicit CTO approval of
+  the corrected content, approval-state documentation, fresh review and CI
+  of that approval-state head, merge of the amendment, and fresh
+  implementation authorization from a new verified `develop` base.
 - The bounded
   [`ADR-01-SPEC-AMEND-01`](../engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01.md)
   amendment task, authorized by the CTO on 2026-08-06, corrects and extends
-  the approved ADR-01 specification from the CTO-approved
+  the historically approved pre-amendment ADR-01 specification from the CTO-approved
   [evidence ledger](adr-01-evidence-ledger.md) (EBSCO, ProQuest and
   knowledge-base distribution; Project MUSE defect reclassification;
   destination-versus-adapter distinction; Jisc NBK; shared OCLC KBART feed;

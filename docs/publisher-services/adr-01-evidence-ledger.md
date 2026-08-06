@@ -20,7 +20,40 @@ Scope: evidence for deciding which distribution destinations require
 independent configuration values and which consumers share a delivery adapter
 or public feed.
 
-Sanitization rules applied:
+### 0.0 Provenance boundary
+
+The SHA-256 above authenticates only the original source ledger titled
+`ADR-01 Evidence Ledger: EBSCO, ProQuest and Knowledge-Base Distribution`,
+prepared on 6 August 2026. That hash-identified source contains the original
+18 evidence entries and nothing else reproduced here:
+
+```text
+EBSCO-01..05
+PROQUEST-01..06
+KBART-01..03
+JISC-01..02
+HIST-01
+ADR-01-SOURCE
+```
+
+Sections 1 through 8 of this file are the sanitized reproduction of that
+hash-identified source: they preserve the original evidence entries,
+identifiers, supported claims, limitations, source statuses,
+classifications, the claim-to-evidence index and the unresolved gaps. No
+conclusion has been added to the sanitized reproduction of the original 18
+evidence entries.
+
+Section 9, `CTO decisions of 2026-08-06`, is a separately added attributable
+record. It was **not** present in the hash-identified source file and is
+**not** authenticated by the SHA-256 above. Its source is
+[`docs/engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01.md`](../engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01.md)
+section 2 and the CTO's explicit decisions recorded for this amendment. The
+section 9 decisions remain valid `source-owner-confirmed` drafting inputs;
+their provenance is simply separate from, and must not be conflated with,
+the original ledger hash.
+
+Sanitization rules applied to the reproduction of the source ledger
+(sections 1 through 8):
 
 - evidence IDs, source titles, dates, source owners/editors/senders, stable
   Drive file IDs, Gmail thread/message IDs, repository/commit/path references,
@@ -28,8 +61,7 @@ Sanitization rules applied:
   claim-to-evidence index and the unresolved gaps are preserved exactly;
 - no full private document or email body, private publisher list, secret
   value, credential, private environment content or sensitive object URL is
-  reproduced;
-- no conclusion absent from the approved source ledger has been added.
+  reproduced.
 
 Drive file IDs and Gmail thread/message IDs are access-controlled stable
 identifiers retained for authorized traceability; they expose no content.
@@ -570,7 +602,13 @@ endpoint or direct vendor correspondence.
 
 ---
 
-## 9. CTO decisions of 2026-08-06 (source-owner-confirmed)
+## 9. CTO decisions of 2026-08-06 (source-owner-confirmed; separate provenance)
+
+This section is a separately added attributable record, sourced from
+[`ADR-01-SPEC-AMEND-01.md`](../engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01.md)
+section 2 and the CTO's explicit decisions recorded for this amendment. It
+was not part of the hash-identified source ledger and is not authenticated
+by the SHA-256 in section 0 (see the provenance boundary in section 0.0).
 
 Javi, CTO, explicitly confirmed on 2026-08-06, as attributable
 source-owner-confirmed input for the ADR-01 specification amendment:

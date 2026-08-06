@@ -46,17 +46,25 @@ Achieved evidence:
   [#772](https://github.com/thoth-pub/thoth/pull/772); this removes the shared
   decision dependency and does not unlock Publisher Services implementation.
 
-- the bounded
+- historical record: the pre-amendment bounded
   [`ADR-01` implementation specification](../engineering/ai-delivery/tasks/ADR-01.md)
-  is independently reviewed and explicitly CTO-approved (Javi, CTO,
-  2026-08-05, at exact content head
-  `820f9cfa22d284f8f347db338aa2461408f4ed12`), defining the read-only evidence
-  scope, the required per-destination record, the evidence classification, the
-  decisions ADR-01 must produce and the exact stop labels that fire when
-  evidence is missing. It resolves no platform question, finalizes no
-  inventory, and authorizes no ADR-01 implementation. Its approval becomes
-  repository-authoritative on merge of specification
-  [PR #780](https://github.com/thoth-pub/thoth/pull/780).
+  at exact content head `820f9cfa22d284f8f347db338aa2461408f4ed12` was
+  independently reviewed and explicitly CTO-approved (Javi, CTO,
+  2026-08-05), and that historical content became repository-authoritative
+  when specification
+  [PR #780](https://github.com/thoth-pub/thoth/pull/780) merged. It defined
+  the read-only evidence scope, the required per-destination record, the
+  evidence classification, the decisions ADR-01 must produce and the exact
+  stop labels that fire when evidence is missing; it resolved no platform
+  question, finalized no inventory, and authorized no ADR-01
+  implementation. That historical approval remains valid and applies only
+  to the superseded pre-amendment content: the currently linked `ADR-01.md`
+  is amended content with status `AMENDMENT PROPOSED`, the corrected
+  content is not approved, and ADR-01 implementation remains blocked
+  pending fresh independent exact-head review, explicit CTO approval of the
+  corrected content, approval-state documentation, fresh review and CI,
+  merge of the amendment, and fresh implementation authorization from a new
+  verified `develop` base.
 
 Amendment state (2026-08-06):
 
