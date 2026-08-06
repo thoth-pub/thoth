@@ -86,6 +86,10 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "checksum_algorithm"))]
     pub struct ChecksumAlgorithm;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "thoth_package"))]
+    pub struct ThothPackage;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -602,6 +606,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::ThothPackage;
 
     publisher (publisher_id) {
         publisher_id -> Uuid,
@@ -611,6 +616,7 @@ table! {
         zitadel_id -> Nullable<Text>,
         accessibility_statement -> Nullable<Text>,
         accessibility_report_url -> Nullable<Text>,
+        subscription_package -> ThothPackage,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
