@@ -167,14 +167,20 @@ ADR-01 must finalize:
 
 No `OTHER` enum value is permitted.
 
-### Amendment-proposed inputs (pending approval)
+### Approved amendment inputs - repository merge pending
 
-`ADR-01-SPEC-AMEND-01` (2026-08-06) proposes the following evidence-based
+`ADR-01-SPEC-AMEND-01` (2026-08-06) recorded the following evidence-based
 inputs to those delegated decisions, supported by the
 [ADR-01 evidence ledger](adr-01-evidence-ledger.md) and explicit CTO
-decisions of 2026-08-06. They become binding on ADR-01 only when the
-corrected specification content is independently reviewed, explicitly
-CTO-approved and merged:
+decisions of 2026-08-06. The corrected specification content carrying them
+was independently reviewed (review `4873802457`, `APPROVED`) and explicitly
+CTO-approved (comment `5203642323`, 2026-08-06) at exact content head
+`1276c70a81e73f57d833eecb0e6886bd0cabf69e`; they become
+repository-authoritative through the merge of
+[PR #781](https://github.com/thoth-pub/thoth/pull/781). The approval-state
+commit recording this approval requires its own fresh independent
+exact-head review. ADR-01 itself must still produce ADR-0004 and the final
+inventory, and no runtime implementation is authorized:
 
 - a `DistributionPlatform` destination is distinct from the delivery adapter
   or feed profile serving it; shared adapters/feeds must not create duplicate

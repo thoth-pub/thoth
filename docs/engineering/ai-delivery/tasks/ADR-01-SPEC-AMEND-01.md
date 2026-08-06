@@ -1,6 +1,6 @@
 # ADR-01-SPEC-AMEND-01 - ADR-01 specification amendment from the approved evidence ledger
 
-Status: AUTHORIZED FOR DRAFTING - CONTENT APPROVAL PENDING
+Status: CONTENT APPROVED - APPROVAL-STATE REVIEW AND MERGE PENDING
 Programme: Publisher Services and Distribution Configuration
 Repository: `thoth-pub/thoth`
 Workflow: STANDARD
@@ -245,7 +245,31 @@ Remaining gates after this task completes:
 
 The implementing agent must not approve its own amendment.
 
-## 11. Stop conditions
+## 11. Content approval record
+
+The corrected substantive content produced by this task was approved:
+
+```text
+Approved corrected-content head:
+1276c70a81e73f57d833eecb0e6886bd0cabf69e
+
+Independent exact-head review:
+4873802457 - APPROVED (no P0, P1 or P2 findings)
+
+CTO corrected-content approval:
+Javi, CTO, 2026-08-06
+PR #781 comment 5203642323
+```
+
+The approval applies to the corrected substantive specification content at
+that exact head only. The approval-state documentation commit recording this
+approval, fresh independent exact-head review and CI of that status-only
+head, separate CTO merge authorization and the merge of PR #781 remain
+pending. Merge is not authorized. ADR-01 implementation is not authorized
+and remains blocked pending the amendment merge plus fresh implementation
+authorization from the new post-merge `develop` base.
+
+## 12. Stop conditions
 
 Return `BLOCKED` without pushing misleading content if:
 

@@ -89,12 +89,15 @@ present the historical Project MUSE defect as current.
 
 ## 6. Enum questions and amendment-proposed dispositions
 
-`ADR-01-SPEC-AMEND-01` proposes evidence-based dispositions for the questions
+`ADR-01-SPEC-AMEND-01` records evidence-based dispositions for the questions
 below, supported by the
 [ADR-01 evidence ledger](adr-01-evidence-ledger.md) and explicit CTO
-decisions of 2026-08-06. The proposed dispositions are pending fresh
-independent review and explicit CTO approval of the corrected ADR-01
-specification; this inventory remains provisional either way.
+decisions of 2026-08-06. The corrected ADR-01 specification content carrying
+these dispositions was independently reviewed and CTO-approved at exact
+content head `1276c70a81e73f57d833eecb0e6886bd0cabf69e`; merge of
+[PR #781](https://github.com/thoth-pub/thoth/pull/781) remains pending. This
+inventory itself remains provisional: no final enum is approved by that
+status change, and ADR-01 still owns the final inventory decision.
 
 ### Google Books vs Google Play
 

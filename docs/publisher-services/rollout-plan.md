@@ -59,25 +59,30 @@ Achieved evidence:
   question, finalized no inventory, and authorized no ADR-01
   implementation. That historical approval remains valid and applies only
   to the superseded pre-amendment content: the currently linked `ADR-01.md`
-  is amended content with status `AMENDMENT PROPOSED`, the corrected
-  content is not approved, and ADR-01 implementation remains blocked
-  pending fresh independent exact-head review, explicit CTO approval of the
-  corrected content, approval-state documentation, fresh review and CI,
-  merge of the amendment, and fresh implementation authorization from a new
-  verified `develop` base.
+  is amended content with status
+  `APPROVED CORRECTED CONTENT - MERGE PENDING`, and ADR-01 implementation
+  remains blocked pending fresh independent exact-head review of the
+  approval-state head, separate CTO merge authorization, merge of the
+  amendment, and fresh implementation authorization from a new verified
+  `develop` base.
 
 Amendment state (2026-08-06):
 
-- `ADR-01-SPEC-AMEND-01` proposes corrected ADR-01 specification content from
-  the CTO-approved [evidence ledger](adr-01-evidence-ledger.md); the
-  corrected content is pending fresh independent exact-head review and
-  explicit CTO approval, and the historical ADR-01 specification approval
-  applies only to the superseded pre-amendment content.
+- `ADR-01-SPEC-AMEND-01` corrected the ADR-01 specification content from the
+  CTO-approved [evidence ledger](adr-01-evidence-ledger.md); the corrected
+  content was independently reviewed (review `4873802457`, `APPROVED`) and
+  explicitly CTO-approved
+  ([PR #781](https://github.com/thoth-pub/thoth/pull/781) comment
+  `5203642323`, 2026-08-06) at exact content head
+  `1276c70a81e73f57d833eecb0e6886bd0cabf69e`; the historical ADR-01
+  specification approval applies only to the superseded pre-amendment
+  content.
 
 Outstanding evidence:
 
-- independent review, CTO approval and merge of the
-  `ADR-01-SPEC-AMEND-01` corrected specification content;
+- the approval-state documentation commit recording the amendment approval,
+  its automatic exact-head CI, fresh independent review of that status-only
+  head, separate CTO merge authorization, and the merge of PR #781;
 - Publisher Services ADR-01 implementation and final platform-inventory
   approval; the inventory in
   [`platform-inventory.md`](platform-inventory.md) remains explicitly

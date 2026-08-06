@@ -54,15 +54,19 @@ any implementation task ready.
 Issue #765 exists. ADR-01 must finalize enum values, mechanisms and ambiguous
 destinations. CG-07 remains **open**.
 
-State as of 2026-08-06: `ADR-01-SPEC-AMEND-01` proposes corrected ADR-01
+State as of 2026-08-06: `ADR-01-SPEC-AMEND-01` corrected the ADR-01
 specification content from the CTO-approved evidence ledger
 (`docs/publisher-services/adr-01-evidence-ledger.md`). The corrected content
-is pending fresh independent review and explicit CTO approval; the historical
-ADR-01 specification approval (content head `820f9cfa`, PR #780) applies only
-to the superseded pre-amendment content. ADR-01 implementation remains blocked
-pending the approved and merged amendment plus fresh implementation
-authorization from a new exact `develop` base. The final platform inventory
-remains provisional. CG-11 and CG-13 are unchanged by the amendment.
+was independently reviewed (review `4873802457`, `APPROVED`) and explicitly
+CTO-approved (PR #781 comment `5203642323`, 2026-08-06) at exact content head
+`1276c70a81e73f57d833eecb0e6886bd0cabf69e`; the approval-state documentation
+commit recording that approval requires fresh independent exact-head review,
+and the merge of PR #781 remains pending. The historical ADR-01 specification
+approval (content head `820f9cfa`, PR #780) applies only to the superseded
+pre-amendment content. CG-07 remains open. ADR-01 implementation remains
+blocked pending the amendment merge plus fresh implementation authorization
+from a new exact `develop` base. The final platform inventory remains
+provisional. CG-11 and CG-13 are unchanged by the amendment.
 
 ### CG-08 - Metrics readiness open
 

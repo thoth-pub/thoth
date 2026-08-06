@@ -434,7 +434,68 @@ the separate provenance. The overstating sentence was removed. The section
   superseded head `3251bd51`; new exact-head CI and a superseding immutable
   evidence comment are recorded on PR #781 after the remediation push.
 
-## 16. Agent self-assessment
+## 16. Content approval and approval-state commit
+
+### Re-review and approval
+
+Fresh independent exact-head re-review of the remediated head
+`1276c70a81e73f57d833eecb0e6886bd0cabf69e` (independent review
+`4873802457`) returned `APPROVED` with no P0, P1 or P2 findings, confirming
+both earlier P1 findings resolved. The GitHub review was submitted as a
+comment review because the connected identity owns the PR; the substantive
+independent control decision is `APPROVED`.
+
+Javi, CTO, explicitly approved the corrected ADR-01 specification content on
+2026-08-06 through PR #781 comment `5203642323`, bound to exact head
+`1276c70a81e73f57d833eecb0e6886bd0cabf69e`. The approval scope is the
+substantive corrected specification content at that exact head: the
+specification corrections, sanitized evidence ledger and provenance
+boundary, programme-control reconciliation, historical Project MUSE
+correction, preserved ProQuest defect, destination/adapter decisions,
+initial exclusions, Jisc NBK inactive state, shared OCLC/Ex Libris feed
+rule, conservative update/withdrawal policy, operational
+ownership/configuration authority and Thoth-managed source-file invariant.
+The approval does not authorize merge, ADR-01 implementation, ADR-0004, or
+any runtime, credential, production, workflow, deployment or release
+action.
+
+### Approval-state commit
+
+The approved content head `1276c70a` and the new approval-state head are
+distinct: the approval binds to `1276c70a`; the approval-state commit built
+on top of it records that approval as status/reporting metadata only and is
+not itself approved by review `4873802457` or comment `5203642323`. It
+requires automatic exact-head CI, fresh independent review confirming the
+diff is status-only, and separate CTO merge authorization.
+
+Files changed by the approval-state commit:
+
+```text
+CHANGELOG.md
+docs/engineering/ai-delivery/tasks/ADR-01.md
+docs/engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01.md
+docs/engineering/ai-delivery/implementation-reports/ADR-01-SPEC-AMEND-01-implementation-report.md
+docs/engineering/repository-map/control-gaps.md
+docs/publisher-services/README.md
+docs/publisher-services/decisions.md
+docs/publisher-services/platform-inventory.md
+docs/publisher-services/rollout-plan.md
+docs/publisher-services/task-status.md
+```
+
+(plus a PR-body status update). No substantive specification content,
+platform disposition, evidence entry, acceptance criterion, non-goal or
+invariant changed; `docs/publisher-services/adr-01-evidence-ledger.md` is
+unchanged. New exact-head CI results and a new immutable approval-state
+evidence comment are recorded on PR #781 after the push; the earlier
+`CHANGES REQUIRED` history in this report is preserved unchanged.
+
+Remaining gates: fresh independent exact-head review of the approval-state
+commit; separate explicit CTO merge authorization; merge of PR #781;
+obsolete local ADR-01 branch handling; fresh ADR-01 implementation
+authorization from the new post-merge `develop` head.
+
+## 17. Agent self-assessment
 
 The implementing agent may identify risks but may not approve the task.
 

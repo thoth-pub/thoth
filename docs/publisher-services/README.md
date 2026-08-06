@@ -1,6 +1,6 @@
 # Publisher Services and Distribution Configuration
 
-Status: CONTROL FOUNDATION CLOSED; BE-01 CLOSED; ADR-01 SPECIFICATION UNDER AMENDMENT (ADR-01-SPEC-AMEND-01 CORRECTED CONTENT PROPOSED, APPROVAL PENDING); ADR-01 IMPLEMENTATION BLOCKED; FINAL PLATFORM INVENTORY STILL PROVISIONAL; ALL OTHER IMPLEMENTATION GATED
+Status: CONTROL FOUNDATION CLOSED; BE-01 CLOSED; ADR-01-SPEC-AMEND-01 CORRECTED CONTENT APPROVED (INDEPENDENT REVIEW AND CTO APPROVAL AT 1276c70a; MERGE PENDING); ADR-01 IMPLEMENTATION BLOCKED; FINAL PLATFORM INVENTORY STILL PROVISIONAL; ALL OTHER IMPLEMENTATION GATED
 Programme owner: CTO
 Primary coordinating repository: `thoth-pub/thoth`
 Related repositories:
@@ -71,12 +71,17 @@ Where sources conflict, stop and escalate. Chat history is not authoritative.
 CONTROL FOUNDATION CLOSED
 BE-01 CLOSED (INACTIVE FOUNDATION MERGED THROUGH PR #779)
 CG-12 RESOLVED BY ADR-0003 ARCHITECTURE A
-ADR-01-SPEC-AMEND-01 IN PROGRESS / CORRECTED CONTENT PROPOSED
-CORRECTED ADR-01 CONTENT PENDING FRESH INDEPENDENT REVIEW AND CTO APPROVAL
+ADR-01-SPEC-AMEND-01 CONTENT APPROVED - APPROVAL-STATE REVIEW AND MERGE
+PENDING
+CORRECTED ADR-01 CONTENT INDEPENDENTLY REVIEWED (4873802457 - APPROVED) AND
+EXPLICITLY CTO-APPROVED (COMMENT 5203642323, 2026-08-06) AT EXACT HEAD
+1276c70a81e73f57d833eecb0e6886bd0cabf69e
+REPOSITORY AUTHORITY PENDING MERGE OF PR #781; APPROVAL-STATE HEAD REQUIRES
+FRESH INDEPENDENT EXACT-HEAD REVIEW
 HISTORICAL ADR-01 SPECIFICATION APPROVAL PRESERVED; APPLIES ONLY TO THE
 SUPERSEDED PRE-AMENDMENT CONTENT
-ADR-01 IMPLEMENTATION BLOCKED PENDING APPROVED AND MERGED AMENDMENT PLUS
-FRESH IMPLEMENTATION AUTHORIZATION AND A NEW EXACT DEVELOP BASE
+ADR-01 IMPLEMENTATION BLOCKED PENDING AMENDMENT MERGE PLUS FRESH
+IMPLEMENTATION AUTHORIZATION AND A NEW EXACT DEVELOP BASE
 FINAL DISTRIBUTION-PLATFORM INVENTORY REMAINS PROVISIONAL
 ALL OTHER IMPLEMENTATION REMAINS GATED
 ```
@@ -118,12 +123,11 @@ Achieved:
   the superseded pre-amendment content. It defined how the future ADR-01
   implementation determines the final distribution-platform inventory, and it
   finalized no inventory. The currently linked `ADR-01.md` is amended
-  content with status `AMENDMENT PROPOSED` and is not approved. ADR-01
+  content with status `APPROVED CORRECTED CONTENT - MERGE PENDING`. ADR-01
   implementation is not authorized: it remains blocked pending fresh
-  independent exact-head review of the amendment, explicit CTO approval of
-  the corrected content, approval-state documentation, fresh review and CI
-  of that approval-state head, merge of the amendment, and fresh
-  implementation authorization from a new verified `develop` base.
+  independent exact-head review of the approval-state head, separate CTO
+  merge authorization, merge of the amendment, and fresh implementation
+  authorization from a new verified `develop` base.
 - The bounded
   [`ADR-01-SPEC-AMEND-01`](../engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01.md)
   amendment task, authorized by the CTO on 2026-08-06, corrects and extends
@@ -132,11 +136,16 @@ Achieved:
   knowledge-base distribution; Project MUSE defect reclassification;
   destination-versus-adapter distinction; Jisc NBK; shared OCLC KBART feed;
   conservative update/withdrawal policy; Thoth-managed source-file
-  invariant). The corrected content is proposed, not approved: it requires
-  fresh independent exact-head review and explicit CTO approval. The
-  historical ADR-01 specification approval is preserved and applies only to
-  the superseded pre-amendment content. ADR-01 implementation is additionally
-  blocked pending the approved and merged amendment plus fresh implementation
+  invariant). The corrected content was independently reviewed (review
+  `4873802457`, `APPROVED`, no findings) and explicitly CTO-approved (Javi,
+  CTO, 2026-08-06, PR #781 comment `5203642323`) at exact content head
+  `1276c70a81e73f57d833eecb0e6886bd0cabf69e`; it becomes
+  repository-authoritative when PR #781 merges. The approval-state
+  documentation head recording this approval is status-only and requires
+  fresh independent exact-head review and separate CTO merge authorization.
+  The historical ADR-01 specification approval is preserved and applies only
+  to the superseded pre-amendment content. ADR-01 implementation remains
+  blocked pending the amendment merge plus fresh implementation
   authorization from a new exact `develop` base; the existing local
   pre-amendment `feature/publisher-services/adr-01` branch is clean,
   unpushed, not authoritative and not used.
