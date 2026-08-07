@@ -18,6 +18,8 @@ These documents apply across Thoth engineering programmes unless a stricter appr
 - `decision-record-template.md` - lightweight ADR/programme decision template.
 - `tasks/CTRL-FOUNDATION-01.md` - approved foundation specification.
 - `tasks/CTRL-MERGE-01.md` - terminal merge evidence and non-recursive closeout.
+- `tasks/THOTH-GQL-BATCH-01.md` - request-scoped GraphQL batching foundation
+  (`DRAFT`; depends on `ADR-0006` being approved and repository-authoritative).
 - `reviews/CTRL-FOUNDATION-01-review-brief.md` - independent review requirements.
 
 ## Core rule
