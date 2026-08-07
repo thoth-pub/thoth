@@ -17,7 +17,7 @@ Programme integration branch: None
 Task branch: `feature/publisher-services/be-02-spec`
 Head commit: the current head of that branch; the exact reviewed head is the
 GitHub pull-request record
-Pull request: the specification pull request for this branch
+Pull request: [#788](https://github.com/thoth-pub/thoth/pull/788) (draft)
 Expected branch deletion after merge: YES
 Final programme PR required: NO
 Implementing model: Claude Opus 5
