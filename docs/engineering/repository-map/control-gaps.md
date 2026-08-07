@@ -66,12 +66,34 @@ CTO merge authorization (review `4874128610`); and PR #781 merged into
 2026-08-06T11:29:53Z, making the corrected ADR-01 specification
 repository-authoritative. The specification amendment is complete. The
 historical ADR-01 specification approval (content head `820f9cfa`, PR #780)
-applies only to the superseded pre-amendment content. CG-07 remains **open**
-because ADR-01 implementation, ADR-0004 and the final inventory are not
-complete: implementation has not started and requires a fresh task
-authorization from the then-current exact `develop` head. The final platform
-inventory remains provisional. CG-11 and CG-13 are unchanged by the
-amendment and its closeout.
+applies only to the superseded pre-amendment content.
+
+Later on 2026-08-06 the ADR-01 implementation was separately and explicitly
+CTO-authorized from exact base
+`32123d363a6806d377ac322e3814fb432a803453` and delivered as a
+documentation-only draft PR on `feature/publisher-services/adr-01`,
+producing
+[ADR-0004](../decisions/ADR-0004-distribution-platform-inventory.md), the
+complete
+[evidence matrix](../../publisher-services/adr-01-evidence-matrix.md) and
+the
+[final inventory](../../publisher-services/platform-inventory.md).
+
+State as of 2026-08-07: ADR-0004 and the final inventory are `APPROVED`.
+The content was independently reviewed at exact head
+`44e6f821535fbee56c830dd6eda237fc6d06fbfd` (review `4881233664`,
+`APPROVED`) and explicitly CTO-approved (review `4881279067`). ADR-01 is
+`IMPLEMENTATION DESIGN APPROVED`.
+
+CG-07 remains **open**. Content approval is not closeout: the
+implementation PR [#783](https://github.com/thoth-pub/thoth/pull/783) is
+still a draft, so the approved decision is not yet
+repository-authoritative. CG-07 closes only after fresh independent review
+of the approval-state head, separate explicit CTO merge authorization,
+merge and post-merge reconciliation. `BE-02` remains blocked pending that
+merge and its own implementation authorization. CG-11 and CG-13 are
+unchanged by the ADR-01 implementation and by this approval-state
+recording.
 
 ### CG-08 - Metrics readiness open
 
