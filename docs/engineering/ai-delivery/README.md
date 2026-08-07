@@ -17,6 +17,7 @@ These documents apply across Thoth engineering programmes unless a stricter appr
 - `release-gates.md` - merge, staging, production and closure gates.
 - `decision-record-template.md` - lightweight ADR/programme decision template.
 - `tasks/CTRL-FOUNDATION-01.md` - approved foundation specification.
+- `tasks/CTRL-MERGE-01.md` - terminal merge evidence and non-recursive closeout.
 - `reviews/CTRL-FOUNDATION-01-review-brief.md` - independent review requirements.
 
 ## Core rule
@@ -59,3 +60,10 @@ In descending order:
 6. Conversations and agent reports.
 
 Missing evidence is missing work.
+
+For task lifecycle evidence specifically, `ADR-0005` treats the GitHub review,
+authorization, CI and merge record as terminal evidence. Committed documents
+state durable decisions and an authority condition rather than transient
+pull-request status, and no commit or PR is created solely to restate a review,
+authorization or merge that GitHub already records. See `operating-model.md`
+section 5.1.

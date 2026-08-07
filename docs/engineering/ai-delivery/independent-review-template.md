@@ -2,6 +2,15 @@
 
 Review the actual diff and evidence. Do not approve from the implementation report alone.
 
+The review is bound to the exact reviewed commit. If that head changes for any
+repository commit, substantive or not, this review does not carry forward and
+fresh review is required.
+
+Record the review on the pull request. Under `ADR-0005` the review decision is
+terminal GitHub evidence: do not commit it to a repository file, which would
+move the head and invalidate the review itself. The reviewer must not be the
+agent instance that implemented the task.
+
 # [TASK-ID] Independent Review
 
 Reviewer model:

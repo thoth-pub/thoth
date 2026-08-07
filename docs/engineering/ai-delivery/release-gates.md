@@ -21,9 +21,53 @@ A task is merge ready only when:
 - rollout and rollback are documented;
 - no unrelated changes are present.
 
-High-risk tasks require explicit CTO merge approval.
+High-risk tasks require explicit CTO merge approval. So does any task whose
+specification or governing control explicitly gates its merge, at any risk level.
 
 For a slice targeting `feature/<programme>`, this gate approves only the slice merge into the programme integration branch. It does not approve the final programme merge into `develop` or production activation.
+
+### 1.1 Guarded merge
+
+Independent review binds to an exact PR head, and CTO merge authorization, where
+required, binds to that same head.
+
+Perform the merge with an expected-head guard, so that the merge fails rather
+than proceeding if the reviewed head has moved. For example:
+
+```bash
+gh pr merge <number> --merge --match-head-commit <reviewed-sha>
+```
+
+The implementing agent must not merge its own PR.
+
+### 1.2 Terminal merge evidence
+
+Under `ADR-0005`, the successful GitHub merge event and the resulting merge
+commit are terminal evidence that the task merged.
+
+Do not open a further PR solely to record that a PR merged, its merge SHA or
+timestamp, a review or authorization identifier, or a transition to "merged" or
+"complete". Approval-state-only commits are prohibited when their sole purpose
+is copying existing GitHub review or approval metadata into repository files.
+
+Optional terminal evidence may be posted as a comment on the merged PR:
+
+```text
+TERMINAL MERGE EVIDENCE
+
+Reviewed head:            <sha>
+Independent review:       <id / APPROVED>
+CTO merge authorization:  <id>
+Merge commit:             <sha>
+Merged at:                <timestamp>
+Post-merge verification:  <results>
+Runtime activation:       NOT AUTHORIZED / NOT APPLICABLE / separately authorized
+```
+
+That comment does not modify the repository and requires no further review,
+merge authorization or PR.
+
+A material post-merge correction still requires its own bounded task and PR.
 
 
 ## 2. Programme integration gate
@@ -131,6 +175,10 @@ A task closes when:
 - temporary flags and compatibility paths have owners and deadlines;
 - programme status is current;
 - operational ownership is documented.
+
+Closure is evidenced by the GitHub merge record and, where applicable, the
+recorded observation sign-off. It does not require a repository commit that
+declares the task closed.
 
 
 ## 10. Release branch gate
