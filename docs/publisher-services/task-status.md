@@ -24,7 +24,7 @@ No task moves to `READY` without an approved specification, architecture depende
 | LIC-01 Expand `cc-license` | `cc-license` | MEDIUM | BLOCKED | `develop` / `develop` | P0-01; BR-LIC-01 or CTO exception; approved spec | #765 | TBD | NOT STARTED |
 | LIC-02 Enforce supported licences | `thoth` | HIGH | BLOCKED | `develop` / `develop` | LIC-01 release; production licence audit plan | #765 | TBD | NOT STARTED |
 | [BE-01 Publisher package model](../engineering/ai-delivery/tasks/BE-01.md) | `thoth` | HIGH | CLOSED | `develop` at `37b802776ae6853affe19d90156f3c1e0654ebe3` (PR #778 merge commit, verified before any edit) / `develop` | None remaining for BE-01 itself: the separately authorized bounded implementation was delivered on `feature/publisher-services/be-01` under ADR-0003 Architecture A and merged into `develop` through implementation PR [#779](https://github.com/thoth-pub/thoth/pull/779) after fresh independent exact-head review and explicit CTO merge authorization, as required for every HIGH-risk merge. Production migration/release execution remains separately gated by open CG-13, and the MIG-01 commercial backfill remains a separately approved CRITICAL task. | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#774](https://github.com/thoth-pub/thoth/pull/774); implementation [#779](https://github.com/thoth-pub/thoth/pull/779) | CLOSED - INACTIVE FOUNDATION - all publishers `OASIS`; no consumer, package API, mutation, UI, distribution, OAI or Metrics behaviour activated; retained-foundation operational rollback applies; evidence in the [BE-01 implementation report](../engineering/ai-delivery/implementation-reports/BE-01-implementation-report.md) and the immutable exact-head comments on PR #779 |
-| BE-02 Distribution platform model | `thoth` | HIGH | BLOCKED - ADR-01 DEPENDENCY SATISFIED | `develop` / `develop` | The ADR-01 dependency is satisfied: the ADR-01 implementation was independently approved and merged through [PR #783](https://github.com/thoth-pub/thoth/pull/783) (merge commit `299b0eff`), and the final inventory is approved and repository-authoritative, so it is no longer provisional. ADR-01 is no longer the blocker. BE-02 still cannot start: it requires its own approved written bounded specification and fresh explicit implementation authorization from the then-current exact `develop` head. | #765 | TBD | NOT STARTED |
+| [BE-02 Distribution platform model](../engineering/ai-delivery/tasks/BE-02.md) | `thoth` | HIGH | BLOCKED - ADR-01 DEPENDENCY SATISFIED | `develop` / `develop` | The ADR-01 dependency is satisfied: the ADR-01 implementation was independently approved and merged through [PR #783](https://github.com/thoth-pub/thoth/pull/783) (merge commit `299b0eff`), and the final inventory is approved and repository-authoritative, so it is no longer provisional. ADR-01 is no longer the blocker. The bounded BE-02 task specification is recorded in [`BE-02.md`](../engineering/ai-delivery/tasks/BE-02.md), which is repository-authoritative when that exact content is reachable from `develop`; live review and approval evidence is its GitHub pull-request record. BE-02 implementation still cannot start: it requires that approved bounded specification plus fresh explicit implementation authorization from the then-current exact `develop` head, and the implementation branch `feature/publisher-services/be-02` must not exist before that authorization. | #765 | Specification PR (see the [BE-02 specification](../engineering/ai-delivery/tasks/BE-02.md) task record) | NOT STARTED - specification only; no runtime `DistributionPlatform`, `publisher_distribution_platform`, migration, model, GraphQL surface or test exists |
 | BE-03 Protected service configuration | `thoth` | HIGH | BLOCKED | `develop` / `develop` | BE-01; BE-02; own approved bounded specification | #765 | TBD | NOT STARTED |
 | BE-04 Durable distribution jobs | `thoth` | HIGH | BLOCKED | `develop` / `develop` | BE-02; BE-03 | #765 | TBD | NOT STARTED |
 | MIG-01 Audit/production backfill | `thoth` + operations | CRITICAL | BLOCKED | dedicated task branch -> `develop`; separately approved production run | BE-01/02/03; licence audit; dry run | #765 | TBD | NOT STARTED |
@@ -121,11 +121,19 @@ Each branch starts from the repository's verified development branch and targets
 8. BE-02's ADR-01 dependency is satisfied: the ADR-01 implementation was
    independently approved and merged (PR #783, merge commit `299b0eff`), and
    the final inventory is approved and repository-authoritative rather than
-   provisional. ADR-01 is no longer the reason BE-02 is blocked. BE-02 is
-   HIGH risk and remains `BLOCKED` and unauthorized: it still cannot start,
-   and it requires its own approved written bounded specification plus fresh
-   explicit implementation authorization from the then-current exact
-   `develop` head.
+   provisional. ADR-01 is no longer the reason BE-02 is blocked. The bounded
+   BE-02 task specification is recorded in
+   [`BE-02.md`](../engineering/ai-delivery/tasks/BE-02.md); it settles the
+   exact 17-value enum, the `publisher_distribution_platform` schema, the
+   activation lifecycle, linked OAPEN/DOAB normalization, the code-owned
+   descriptors, `JISC_NBK` non-assignability and the four public GraphQL
+   surfaces, and is repository-authoritative when that exact content is
+   reachable from `develop`. BE-02 is HIGH risk and remains `BLOCKED` and
+   unauthorized: implementation still cannot start, and it requires that
+   approved bounded specification plus fresh explicit implementation
+   authorization from the then-current exact `develop` head. No BE-02 runtime
+   code, migration, schema, model, GraphQL surface or implementation branch
+   exists or is authorized.
 9. BE-03 remains blocked pending BE-01 and BE-02 and its own approved bounded
    specification.
 10. APP-01 remains blocked pending BE-03, app readiness controls (BR-APP-01 or
