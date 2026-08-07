@@ -137,3 +137,14 @@ not unblocked either by `ADR-0006` being drafted or by its being approved.
 Existing child resolvers are not automatically migrated by
 `THOTH-GQL-BATCH-01`; legacy remediation is evidence-led follow-up work under
 `ADR-0006` section 10.
+
+`ADR-0006` distinguishes two properties that must not be conflated. A
+loader-backed field is **correct** on every path, because a direct per-parent
+fallback always exists. It is **N+1 compliant** only where every material
+list/fan-out path capable of producing N child queries is covered by a set-based
+prefetch and that coverage is measured. The existence of a fallback is never, by
+itself, compliance evidence. Each adopting task therefore owes an exact-base
+fan-out path inventory, coverage of every material path or an explicit
+escalation, and per-path statement-count evidence. For
+`Publisher.distributionPlatforms` that inventory belongs to the `BE-02` adoption
+task, not to `THOTH-GQL-BATCH-01`.

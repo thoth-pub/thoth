@@ -110,8 +110,34 @@ Authoritative sources:
   resolver methods taking `context: &Context`;
 - Juniper look-ahead is available (`juniper` 0.16.2) and unused in the
   repository; there is no DataLoader and no `dataloader` dependency;
+- existing child fields already take result-changing arguments:
+  `Publisher.imprints` takes `limit`, `offset`, `filter` and `order`;
+  `Publisher.contacts` takes `limit`, `offset`, `order` and `contactTypes`.
+  A load-shape-free cache key is therefore not a viable shared architecture
+  (`ADR-0006` section 4.4.1);
+- `LookAheadSelection::arguments()` reads only literal AST arguments and does
+  **not** apply schema defaults (`src/executor/look_ahead.rs:577-590`), while the
+  child resolver receives the default-applied value. Shape construction must
+  normalize defaults explicitly (`ADR-0006` section 4.4.3);
+- `LookAheadChildren::select()` / `has_child()` match on `field_name()`, which is
+  **the alias when present** (`src/executor/look_ahead.rs:419-441`). Neither finds
+  `a: distributionPlatforms`, and both return only the first match. Prefetch sites
+  must iterate `children()` filtering on `field_original_name()`
+  (`ADR-0006` section 4.15.1);
+- `ThothError` derives `Error, Debug, PartialEq, Eq, Serialize, Deserialize` and
+  is **not** `Clone` (`thoth-errors/src/lib.rs:11`); it maps to a `FieldError`
+  carrying an `extensions.type` discriminant
+  (`thoth-errors/src/lib.rs:183-207`);
+- `Publisher` is reachable under a fan-out by more than its own root list query —
+  at minimum `QueryRoot.publishers` (`query.rs:521`), `QueryRoot.imprints`
+  (`query.rs:593`) `-> Imprint.publisher` (`model.rs:1366`), and
+  `QueryRoot.contacts` (`query.rs:1868`) or `Publisher.contacts`
+  `-> Contact.publisher` (`model.rs:3120`);
 - there is no SQL statement-count test facility. Diesel 2.3.10 provides
-  `set_default_instrumentation`, which is unused here.
+  `set_default_instrumentation`, which is unused here. The ordinary test pool is
+  a process-wide `OnceLock<Arc<PgPool>>` (`thoth-api/src/model/tests.rs:36,63-70`)
+  whose connections may already be established, so it must **not** be the pool
+  under measurement (`ADR-0006` section 8.1.1).
 
 The implementing agent must refresh all of the above against its own exact base
 before editing.
@@ -126,31 +152,56 @@ The task must:
    `ADR-0006` sections 4.1-4.4, initialised empty at construction, keeping
    `Context: Sync` so the async execution path continues to compile;
 2. add a focused module under `thoth-api/src/graphql/` containing the store, the
-   closed loader-identity discriminant, the set-based loader contract, key
-   de-duplication, deterministic result partitioning, and the look-ahead-driven
-   prefetch helper;
-3. implement the loader contract as a **single** set-based statement per
+   closed loader-identity discriminant, the **typed load-shape contract**, the
+   set-based loader contract, key de-duplication, deterministic result
+   partitioning, failure recording, and the look-ahead-driven prefetch helper;
+3. key the store by `(loader identity, normalized load shape, parent key)` per
+   `ADR-0006` sections 4.4-4.4.4, with the load shape typed and loader-specific,
+   never a serialized GraphQL argument string, and with a **single loader-owned
+   shape constructor** used by both the prefetch site and the child lookup so the
+   two cannot drift;
+4. implement default normalization so an omitted argument and an explicitly
+   supplied schema default produce the same shape, given that look-ahead does not
+   apply schema defaults (`ADR-0006` section 4.4.3);
+5. dispatch **once per unique `(loader identity, load shape)`** over the
+   de-duplicated key set, never once per parent and never one dispatch shared
+   across argument variants (`ADR-0006` section 4.4.4);
+6. implement the loader contract as a **single** set-based statement per
    dispatch, using Diesel `.eq_any(...)` (`WHERE key = ANY(...)`), returning raw
    canonical model rows rather than GraphQL objects (`ADR-0006` section 4.5);
-4. implement the store-read path used by a child resolver, distinguishing
-   "loaded, empty" from "not loaded", with the mandatory direct-query fallback on
-   a miss (`ADR-0006` section 4.7);
-5. implement duplicate-key handling, repeated-alias handling and the
-   non-destructive read (`ADR-0006` section 4.6);
-6. implement the fail-closed error behaviour, leaving affected keys **absent**
-   from the store on failure (`ADR-0006` section 4.9);
-7. add the explicit invalidation entry point required by `ADR-0006` section
-   4.12, unused by this task;
-8. add the SQL statement-count test facility required by `ADR-0006` section 8.1,
-   observing statements at the driver, serialised against other database tests
-   through the existing exclusive test lock;
-9. prove the mechanism end to end through Juniper execution using a
-   **test-only** GraphQL root and object type defined under `#[cfg(test)]`,
-   against an existing table, exercising real look-ahead, real set-based SQL and
-   real partitioning;
-10. update `thoth-api-server/src/lib.rs` only if `Context::new`'s signature
+7. implement the three-state store — `NotLoaded`, `Loaded(Vec<V>)` including
+   `Loaded([])`, and `LoadFailed` — with the child-resolver behaviour table of
+   `ADR-0006` section 4.7, so that only `NotLoaded` triggers the direct-query
+   fallback;
+8. implement failure recording per `ADR-0006` section 4.9: the parent list
+   resolver still returns its parents successfully, the failure is recorded once
+   per `(loader, shape)` dispatch with the attempted key set, each covered child
+   resolver returns the derived `FieldError`, and **no retry query is issued**.
+   `ThothError` is not `Clone`, so retain a shareable representation;
+9. implement duplicate-key handling, alias handling per shape and the
+   non-destructive read (`ADR-0006` section 4.6), including that a second
+   prefetch covering an already-loaded `(loader, shape, key)` set issues no
+   additional SQL;
+10. enumerate child selections by iterating `children()` and filtering on
+    `field_original_name()`, never via `select()` / `has_child()`
+    (`ADR-0006` section 4.15.1);
+11. add the explicit **whole-store** invalidation entry point required by
+    `ADR-0006` section 4.12 — clearing `Loaded` and `LoadFailed` state across all
+    loaders and all shapes — unused by this task;
+12. add the SQL statement-count test facility required by `ADR-0006` section
+    8.1.1, using a **dedicated pool constructed after the instrumentation hook is
+    installed**, under the existing exclusive database test lock, and isolating
+    the measured operation's statements from setup and migration statements;
+13. prove the mechanism end to end through Juniper execution using a
+    **test-only** GraphQL root and object types defined under `#[cfg(test)]`,
+    against existing tables, exercising real look-ahead, real set-based SQL and
+    real partitioning. The fixture must include an **argument-bearing** test-only
+    field so multi-shape behaviour is proven without adopting a production field
+    (`ADR-0006` section 4.4.6), and must support **two prefetch sites** covering
+    one loader so multi-site coverage is proven (`ADR-0006` section 4.18.3);
+14. update `thoth-api-server/src/lib.rs` only if `Context::new`'s signature
     changes; prefer initialising the store internally so it does not;
-11. add the tests of section 10 and the query-count evidence of section 9.
+15. add the tests of section 10 and the query-count evidence of section 9.
 
 ### 3.1 The proof consumer
 
@@ -175,6 +226,18 @@ Required approach, in order of preference:
 
 The proof consumer must not trigger any broader cleanup of the relationship it
 uses.
+
+The fixture must additionally provide, all within `#[cfg(test)]`:
+
+- an **argument-bearing** loader-backed field, so load-shape behaviour is proven
+  against real Juniper argument handling. The field's arguments must include at
+  least one with a **schema default**, so default normalization is exercised.
+  This must not be achieved by adding arguments to any production field
+  (`ADR-0006` sections 4.4.6 and 4.4.5);
+- **two distinct prefetch sites** covering the same loader, so `ADR-0006` section
+  4.18.3's requirement — that the mechanism supports multi-site coverage without
+  duplicate loading — is proven by the foundation rather than deferred to
+  `BE-02`.
 
 ### 3.2 Execution-path coverage
 
@@ -229,15 +292,25 @@ summary, and binding here:
 3. batching never broadens authorization or publisher scope — keys come only
    from already-resolved, already-authorized parents;
 4. database errors fail closed, never becoming an empty or unfiltered result;
-5. loader output is deterministic for a given input key set;
-6. duplicate keys cause no duplicate backend fetches within one request;
+5. loader output is deterministic for a given input key set and load shape;
+6. duplicate keys cause no duplicate backend fetches within one request, per
+   `(loader, shape)`;
 7. per-key ordering matches the owning field's contract and the direct
    per-parent result exactly;
 8. no public GraphQL schema change;
 9. no global, static or cross-request cache, and no singleton;
 10. no stale read-after-write result within one operation;
 11. a loader-backed field is correct whether or not a prefetch ran;
-12. non-adopting fields are behaviourally unchanged.
+12. non-adopting fields are behaviourally unchanged;
+13. store identity is `(loader identity, normalized load shape, parent key)`;
+    argument variants never share an entry, and omitted arguments normalize to
+    the schema default;
+14. `NotLoaded`, `Loaded([])` and `LoadFailed` are distinguishable, and only
+    `NotLoaded` triggers the fallback;
+15. a failed prefetch does not fail the parent list field, and issues no retry
+    SQL;
+16. the existence of a correctness fallback is never treated as N+1 compliance
+    evidence.
 
 ---
 
@@ -245,23 +318,39 @@ summary, and binding here:
 
 ### 6.1 Success behaviour
 
-- a parent list resolver that opts in consults look-ahead and, when the
-  loader-backed child field is selected, issues **one** set-based statement for
-  the de-duplicated parent keys and stores the partitioned result;
-- a child resolver on a stored parent key returns its bucket without any
-  database access;
-- a child resolver on a parent key absent from the store performs its ordinary
-  direct query and returns the same result it returns today;
+- a parent list resolver that opts in enumerates every requested selection of the
+  loader-backed child field, derives one normalized load shape per distinct
+  variant, and issues **one** set-based statement per shape over the
+  de-duplicated parent keys, storing the partitioned result;
+- a child resolver whose `(loader, shape, parent key)` entry is `Loaded` returns
+  its bucket without any database access, including when the bucket is empty;
+- a child resolver whose entry is `NotLoaded` performs its ordinary direct query
+  and returns the same result it returns today;
+- two aliases of the same field with the same normalized shape return identical
+  results from one dispatch; two aliases with different shapes return each
+  shape's correct result from one dispatch each;
+- an omitted argument and an explicitly supplied schema default resolve against
+  the same entry;
 - results are identical, element for element and in order, to the direct
   per-parent path.
 
 ### 6.2 Failure behaviour
 
-- a failed set-based statement propagates as a GraphQL field error, exactly as
-  the direct per-parent query's error would;
-- the affected keys are left **absent** from the store, never present-and-empty;
+- a failed set-based statement is recorded as `LoadFailed` once per
+  `(loader, shape)` dispatch, covering the attempted key set;
+- the parent list resolver still returns its parents successfully; the prefetch
+  failure does not become the parent list field's error;
+- each covered child resolver returns a `FieldError` derived from the recorded
+  failure, with the same `extensions.type` classification the direct path
+  produces;
+- **no retry query is issued** for any covered key;
+- `LoadFailed` is never represented as absence and never as `Loaded([])`;
 - no empty list, unfiltered result, silent per-parent retry, or swallowed error
-  is permitted on any path.
+  is permitted on any path;
+- the GraphQL-visible equivalence contract of `ADR-0006` section 4.9.3 —
+  `errors[].path`, null propagation, `extensions.type`, no empty substitution, no
+  extra SQL — must be verified, not asserted. Any intentional difference must be
+  documented explicitly rather than hidden.
 
 ### 6.3 Authorization
 
@@ -279,7 +368,9 @@ summary, and binding here:
 - two concurrent independent GraphQL requests must not observe each other's
   store contents, and this must be proven by test rather than argued from the
   construction site;
-- a repeated prefetch for an already-present key does not re-query it;
+- a repeated prefetch for an already-present `(loader, shape, key)` entry does
+  not re-query it, including when the repeat comes from a *different* prefetch
+  site in the same request;
 - the mechanism introduces no lock, lease, claim or background job.
 
 ### 6.5 Compatibility
@@ -334,25 +425,55 @@ the adopting task's concern.
       requests share nothing, proven by test.
 - [ ] No global, static or cross-request cache or singleton exists, verified by
       inspection of the added module.
-- [ ] The set-based loader issues exactly one statement per dispatch, using
-      `.eq_any(...)`, and never iterates keys issuing per-key statements.
+- [ ] The set-based loader issues exactly one statement per
+      `(loader, shape)` dispatch, using `.eq_any(...)`, and never iterates keys
+      issuing per-key statements.
+- [ ] Store identity is `(loader identity, normalized load shape, parent key)`;
+      the load shape is a typed loader-specific value, not a serialized argument
+      string.
+- [ ] One loader-owned shape constructor is used by both the prefetch site and
+      the child lookup.
+- [ ] An omitted argument and an explicitly supplied schema default produce the
+      same shape and resolve against the same entry.
+- [ ] Semantically different argument variants never share a stored entry, and
+      each alias returns the correct result for its own shape.
+- [ ] Distinct shapes produce exactly one dispatch each — not one per parent, and
+      not one shared dispatch across variants.
+- [ ] Prefetch sites enumerate child selections via `children()` filtered on
+      `field_original_name()`, never via `select()` / `has_child()`, so aliases
+      are found.
 - [ ] For a covered parent list of size `n`, the measured child-statement count
       does **not** scale linearly with `n`.
 - [ ] That measurement is recorded for at least **two distinct values of `n`**,
-      with the per-parent baseline recorded alongside.
+      reported as `parent count | prefetch child-query count | direct baseline
+      child-query count`, with the prefetched count bounded while the baseline
+      grows.
+- [ ] Statement counts are measured through a pool constructed **after** the
+      instrumentation hook is installed, never through the existing
+      `OnceLock<Arc<PgPool>>` test pool.
 - [ ] Duplicate parent keys produce one key in the statement and no additional
       statements.
-- [ ] Repeated aliases for the same field on the same parent cause no additional
-      statements.
-- [ ] A key absent from the store falls back to the direct query and returns the
-      correct result.
-- [ ] A key present with an empty bucket returns empty **without** a database
-      query.
+- [ ] Repeated aliases of the same normalized shape on the same parent cause no
+      additional statements.
+- [ ] A second prefetch site covering an already-loaded `(loader, shape, key)`
+      set issues no additional SQL.
+- [ ] The store distinguishes `NotLoaded`, `Loaded` (including `Loaded([])`) and
+      `LoadFailed`.
+- [ ] `NotLoaded` falls back to the direct query and returns the correct result.
+- [ ] `Loaded([])` returns empty **without** a database query and is never
+      treated as a miss.
+- [ ] `LoadFailed` returns a field error, issues **no** retry query, and is never
+      treated as absence or as an empty result.
 - [ ] A mixed present/absent key set resolves every parent correctly.
-- [ ] A database failure propagates as a field error, leaves affected keys
-      absent from the store, and never yields an empty or unfiltered result.
+- [ ] A prefetch failure does **not** fail the parent list field; the parent list
+      resolves and the error surfaces at the child field.
+- [ ] The GraphQL-visible error contract is verified against the direct path —
+      `errors[].path`, null propagation and `extensions.type` — with any
+      intentional difference documented explicitly.
 - [ ] Prefetched results equal direct per-parent results, element for element
       and in order.
+- [ ] Whole-store invalidation clears `Loaded` and `LoadFailed` state across all
+      loaders and all shapes.
 - [ ] Read-after-write coherence holds: a mutation operation that writes and
       then selects the affected field in the same operation returns the written
       value.
@@ -363,7 +484,11 @@ the adopting task's concern.
 - [ ] `thoth-api/src/schema.rs`, `thoth-api/migrations/`, `Cargo.toml` and
       `Cargo.lock` are byte-identical to the base.
 - [ ] `thoth-api/src/policy.rs` is unchanged.
-- [ ] No existing child resolver is modified.
+- [ ] No existing child resolver is modified, and no argument is added to any
+      production field.
+- [ ] The foundation declares **no** production field N+1 compliant; the
+      adoption-coverage obligations of `ADR-0006` section 4.18.2 attach to
+      adopting tasks.
 - [ ] Existing GraphQL tests pass unmodified.
 - [ ] `BE-02` remains unimplemented: no `DistributionPlatform`, no
       `publisher_distribution_platform`, no `BE-02` GraphQL field.
@@ -373,18 +498,35 @@ the adopting task's concern.
 
 ## 10. Required tests
 
-### Unit
+### Unit — state model
+
+- `NotLoaded` is representationally distinct from `Loaded([])`;
+- `LoadFailed` is representationally distinct from both;
+- a failed dispatch never triggers the fallback;
+- a successful empty bucket never triggers the fallback;
+- a genuine miss does trigger the fallback;
+- non-destructive read: two reads of the same entry return the same bucket.
+
+### Unit — load shapes
+
+- the same normalized shape de-duplicates to one entry and one dispatch;
+- different argument values produce different shapes and do not collide;
+- an omitted argument and an explicitly supplied schema default normalize to the
+  same shape;
+- one parent key may hold several shapes simultaneously, each correct;
+- two loaders with identical parent key types cannot read each other's entries;
+- the shape type's equality is semantic — two shapes built from equivalent
+  argument sets compare equal regardless of construction order or formatting.
+
+### Unit — partitioning and store
 
 - key de-duplication: `n` references to one key yield one key;
 - partitioning determinism: identical rows and keys yield identical buckets,
   repeatedly;
 - partitioning correctness: every returned row lands in the bucket for its own
   key and no other;
-- "loaded, empty" is representationally distinct from "not loaded";
-- non-destructive read: two reads of the same key return the same bucket;
-- loader-identity separation: two loaders using the same parent key type cannot
-  read each other's entries;
-- the invalidation entry point empties the store.
+- whole-store invalidation clears `Loaded` and `LoadFailed` across all loaders
+  and all shapes.
 
 ### Integration/database
 
@@ -396,14 +538,27 @@ Against the disposable test database, through Juniper execution:
   no extra statement;
 - **absent key** — a parent reached without a prefetch site falls back and
   returns the correct result;
-- **mixed present/absent** — one operation containing both shapes resolves both
+- **mixed present/absent** — one operation containing both cases resolves both
   correctly;
-- **alias/repeated reference** — two aliases of the same field on the same
-  parent both return the correct result with no extra statement;
+- **same-shape aliases** — two aliases of the same field with the same normalized
+  arguments yield one shape, one dispatch, and identical correct results for both
+  aliases;
+- **different-shape aliases** — two aliases of the same field with different
+  arguments yield distinct shapes, one dispatch each, no cross-contamination, and
+  the correct result for each alias;
+- **default equivalence** — the omitted-argument and explicit-default forms
+  resolve against the same entry and issue one dispatch between them;
+- **multi-site coverage** — two prefetch sites covering the same
+  `(loader, shape)` in one request issue no duplicate SQL, and every parent
+  resolves correctly;
 - **database error** — using the existing `failing_pool()` helper
-  (`thoth-api/src/model/tests.rs:73`) or equivalent, the prefetch failure
-  surfaces as a field error, the affected keys are absent from the store, and no
-  empty-list result is produced;
+  (`thoth-api/src/model/tests.rs:73`) or equivalent, the prefetch failure is
+  stored as `LoadFailed`, the parent list field still resolves, each covered
+  child field emits the failure, no retry SQL is issued, and no empty-list result
+  is produced;
+- **error contract** — the prefetched failure's `errors[].path`, null propagation
+  and `extensions.type` are compared against the direct per-parent failure, with
+  any intentional difference recorded;
 - **equivalence** — prefetched output equals direct per-parent output, in order;
 - **concurrent independent requests** — two `Context` values executing
   concurrently observe disjoint store contents;
@@ -447,11 +602,33 @@ The acceptance signal is **SQL statement count and bounded database work**, per
   observes actual SQL if instrumentation proves unworkable;
 - application-level counters alone are insufficient, because they cannot detect
   a per-parent statement issued by a fallback path;
-- counts recorded for at least two distinct `n`, with the per-parent baseline
-  alongside;
-- the counting test must install instrumentation before the pool it measures
-  establishes connections, and must hold the existing exclusive database test
-  lock.
+- counts recorded for at least two distinct `n`, reported as:
+
+  ```text
+  parent count | prefetch child-query count | direct baseline child-query count
+  ```
+
+  with the prefetched count bounded while the direct baseline grows with `n`.
+
+Measurement-pool lifecycle, per `ADR-0006` section 8.1.1. The hook applies only
+to connections established after installation, and the repository's ordinary test
+pool is a process-wide `OnceLock<Arc<PgPool>>` that may already hold established
+connections. Holding the test lock serializes tests; it does not recreate
+connections. The measurement must therefore **not** use that singleton pool.
+
+Required sequence:
+
+1. acquire the existing exclusive database test lock (`test_lock()`);
+2. reset and prepare the disposable test database;
+3. install the instrumentation hook;
+4. construct a **new dedicated pool** after hook installation;
+5. run the measured operation through that pool;
+6. count actual `StartQuery` events;
+7. isolate the count from setup, fixture and migration statements.
+
+If Diesel instrumentation proves unsuitable, any mechanism observing actual
+PostgreSQL/Diesel SQL — for example PostgreSQL statement-log capture — is
+acceptable. Narrative or application-counter-only evidence is not.
 
 ### Required commands
 
@@ -523,7 +700,20 @@ The implementing agent must stop and report `BLOCKED` if:
 - keeping `Context: Sync` conflicts with the store, breaking the async execution
   path;
 - read-after-write coherence cannot be satisfied under `ADR-0006` section 4.12
-  without editing mutation resolvers;
+  without editing mutation resolvers. **Report `BLOCKED` rather than widening
+  scope to touch the mutation resolvers**; the same applies if the corrected
+  load-shape or `LoadFailed` model turns out to require mutation-resolver
+  changes;
+- the three-state store cannot be represented such that `NotLoaded`,
+  `Loaded([])` and `LoadFailed` are mutually unambiguous;
+- a prefetch failure cannot be surfaced at the child field without failing the
+  parent list field, so the `ADR-0006` section 4.9.3 equivalence contract cannot
+  be met and no acceptable documented difference exists;
+- the normalized load shape cannot be constructed identically at the prefetch
+  site and at the child lookup, so the two could drift;
+- an argument-bearing test-only field cannot be added under `#[cfg(test)]`, so
+  multi-shape behaviour could only be proven by adding arguments to a production
+  field;
 - approved architecture would need to change;
 - the scope cannot be completed without unrelated changes;
 - repository state differs materially from section 2.1.
@@ -544,7 +734,14 @@ The report must additionally contain:
 
 - the statement-count table: `n`, prefetched count, per-parent baseline count,
   for at least two values of `n`;
-- the exact method used to observe SQL statements;
+- the exact method used to observe SQL statements, **including how the measured
+  pool was constructed relative to the instrumentation hook**;
+- the load-shape type for each loader implemented, and how defaults normalize;
+- the observed GraphQL error contract comparison (`errors[].path`, null
+  propagation, `extensions.type`) between the prefetched and direct failure
+  paths, with any intentional difference stated explicitly;
+- an explicit statement that the foundation declares **no** production field N+1
+  compliant, and that adoption-coverage obligations attach to adopting tasks;
 - the generated-SDL comparison result;
 - confirmation that `schema.rs`, `migrations/`, `Cargo.toml`, `Cargo.lock` and
   `policy.rs` are unchanged;
@@ -557,7 +754,10 @@ The report must additionally contain:
 
 Implementation model: strongest available Codex coding model
 Reasoning level: HIGH, using maximum practical reasoning for the store lifetime,
-partitioning, error and coherence semantics
+load-shape normalization, partitioning, failure-state and coherence semantics.
+Load-shape normalization warrants the highest care: it is the one part of this
+design whose failure returns confidently wrong data rather than a miss, because
+the correctness fallback does not cover a shape collision.
 Independent reviewer: strongest available Claude model, per `model-selection.md`
 section 3 (different model family from the implementer)
 Review reasoning level: HIGH
@@ -629,3 +829,29 @@ fresh develop verification + separate CTO BE-02 implementation authorization
 This task must not implement, prepare or anticipate any part of `BE-02`, and
 must not modify PR #788 or its branch. `BE-02` runtime implementation remains
 blocked and unauthorized throughout.
+
+### 18.1 What `BE-02` inherits, and what it must do itself
+
+`BE-02` inherits from this foundation:
+
+- the mechanism, the three-state store, the load-shape contract and the
+  measurement approach;
+- the recorded fact that `Publisher.distributionPlatforms` has **no** field
+  arguments in its approved contract, so its load shape is `Unit`
+  (`ADR-0006` section 4.4.5). This specification adds no argument to that field
+  and changes nothing in the approved `BE-02` API contract;
+- proof that several prefetch sites can cover one `(loader, shape)` in a single
+  request without duplicate loading.
+
+`BE-02` must do for itself, and this task must **not** attempt on its behalf:
+
+- the exact-base fan-out path inventory for `Publisher.distributionPlatforms`
+  required by `ADR-0006` section 4.18.2, searching its own implementation base
+  rather than treating the minimum investigation set in `ADR-0006` section 4.18.3
+  as exhaustive;
+- installing a prefetch site on every material fan-out path, or escalating if
+  compliant coverage would need architecture outside its approved scope;
+- per-path statement-count evidence.
+
+The foundation therefore leaves `BE-02` a mechanism and an obligation. It does
+not leave it a compliance claim.
