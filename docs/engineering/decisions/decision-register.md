@@ -10,6 +10,7 @@ Last updated: 2026-08-07
 | `ADR-0002` | Distribution and metrics platform domain boundaries | APPROVED | Publisher Services, Thoth Metrics | Satisfied - CTO approved strict type separation and no initial cross-domain mapping on 2026-07-27 through PR [#769](https://github.com/thoth-pub/thoth/pull/769) |
 | `ADR-0003` | Repository-authoritative Diesel schema contract | APPROVED | Shared Repository Controls, Publisher Services, Thoth Metrics | Satisfied - CTO selected Architecture A on 2026-08-05; recorded and implemented with its directly related cleanup by `THOTH-DB-CTRL-02` through PR [#778](https://github.com/thoth-pub/thoth/pull/778). Becomes repository-authoritative on merge into `develop`; the merge remains subject to independent exact-head review and explicit CTO merge authorization |
 | `ADR-0004` | Distribution platform inventory | APPROVED AND REPOSITORY-AUTHORITATIVE | Publisher Services | Satisfied - the ADR-0004 and final `DistributionPlatform` inventory content at exact head `44e6f821535fbee56c830dd6eda237fc6d06fbfd` was independently reviewed under review `4881233664` (`APPROVED`) and explicitly approved by Javi, CTO, under review `4881279067` on 2026-08-07, together with the complete [evidence matrix](../../publisher-services/adr-01-evidence-matrix.md) and the approved [final inventory](../../publisher-services/platform-inventory.md). The approval-state head `82874c2bfb0c211198252e4f4a0b669d31e14836` received final independent exact-head review `4881832108` (`APPROVED`) and CTO merge authorization `4881847699`, and ADR-01 implementation PR [#783](https://github.com/thoth-pub/thoth/pull/783) merged into `develop` as `299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb` on 2026-08-07T10:02:34Z, making `ADR-0004` repository-authoritative. `BE-02`'s ADR-01 dependency is satisfied; `BE-02` remains blocked and unauthorized pending its own approved bounded specification and explicit implementation authorization |
+| `ADR-0005` | [Terminal merge evidence and non-recursive closeout](ADR-0005-terminal-merge-evidence.md) | APPROVED | Shared Engineering Control; all programmes using the AI-led delivery controls | Satisfied - CTO-approved Shared Engineering Control decision under [issue #786](https://github.com/thoth-pub/thoth/issues/786), 2026-08-07. Repository-authoritative when the exact approved ADR content is reachable from `develop`; the policy is not effective from an unmerged branch. Live independent-review, merge-authorization, CI and merge evidence is the GitHub pull-request record. Governs lifecycle evidence only: the GitHub review, authorization, CI and merge record is terminal task evidence; approval-state-only commits are prohibited when their sole purpose is copying GitHub review or approval metadata into repository files; no post-merge PR is required merely to record that a PR merged. Every substantive control is retained - exact-head review, no implementer self-approval, guarded merge, HIGH-risk and explicitly gated CTO merge authorization, separate production activation, and bounded PRs for material post-merge corrections. Documentation and control only; no runtime, schema, migration, API, workflow, settings or production effect |
 
 ## Merge and implementation rules
 
@@ -81,3 +82,24 @@ subject to independent exact-head review and explicit CTO merge authorization.
 `ADR-0003` supersedes the `THOTH-DB-CTRL-01` structural-synchronizer approach,
 whose implementation PR
 [#777](https://github.com/thoth-pub/thoth/pull/777) was closed unmerged.
+
+`ADR-0005` adopts the terminal merge evidence rule for task lifecycle evidence
+across programmes. The GitHub review, authorization, CI and merge record is
+terminal evidence that a task merged, so no commit or pull request is created
+solely to restate it, and approval-state-only commits are prohibited when their
+sole purpose is copying that metadata into repository files. Committed control
+documents state durable decisions and an authority condition rather than
+transient pull-request status. The decision governs lifecycle evidence only: it
+changes neither what must be reviewed nor who may approve, merge, deploy or
+activate.
+
+The CTO approved the decision under
+[issue #786](https://github.com/thoth-pub/thoth/issues/786) on 2026-08-07. It is
+delivered by [`CTRL-MERGE-01`](../ai-delivery/tasks/CTRL-MERGE-01.md).
+
+The decision is repository-authoritative when the exact approved ADR content is
+reachable from `develop`; it is not effective from an unmerged branch. Live
+independent-review, merge-authorization, CI and merge evidence is the GitHub
+pull-request record. It applies to tasks starting after the approved content
+reaches `develop`; historical records are preserved as written and are not
+rewritten to conform.

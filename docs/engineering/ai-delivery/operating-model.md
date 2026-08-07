@@ -101,6 +101,22 @@ The authority order is:
 
 When authoritative sources conflict, implementation stops until the conflict is resolved and recorded.
 
+### 3.1 Lifecycle evidence
+
+For task lifecycle evidence specifically - what was reviewed, by whom, what was
+authorized, and whether it merged - `ADR-0005` refines the order above:
+
+1. committed specifications and ADRs define what is authorized and required;
+2. the exact PR diff and head define what is proposed for merge;
+3. GitHub review records define independent review decisions;
+4. GitHub CTO authorization records define merge authorization;
+5. CI records define automated validation evidence;
+6. the GitHub merge event and merge commit define whether the task merged.
+
+Do not duplicate a live GitHub lifecycle event into a new repository commit
+merely so that a Markdown file repeats it. Repository documents may reference
+the PR; they need not copy every review identifier or merge timestamp.
+
 ## 4. Mandatory task and branch boundary
 
 Use one bounded task per slice branch and pull request.
@@ -171,6 +187,15 @@ The independent reviewer applies `independent-review-template.md`.
 
 Narrative claims do not replace inspection of code, migrations and test evidence.
 
+Review is bound to an exact PR head. If the reviewed head changes for any
+repository commit, substantive or not, the previous exact-head review does not
+carry forward and fresh review is required.
+
+Do not create a commit solely to copy a review decision or approval identifier
+into the repository. That moves the head and invalidates the very review it
+records. PR body edits and GitHub comments do not change the Git commit and may
+record such metadata without invalidating the reviewed head.
+
 ### Gate 5 - Remediation
 
 Accepted findings are returned to the original implementing branch as a targeted remediation task.
@@ -200,6 +225,67 @@ A task closes only after:
 - unexpected behaviour is reconciled;
 - cleanup or follow-up tasks are recorded;
 - programme status is updated.
+
+### 5.1 Terminal merge evidence
+
+`ADR-0005` governs how a task's completion is evidenced.
+
+The successful GitHub merge event and the resulting merge commit are terminal
+evidence that a task merged. No new commit or PR is required solely to record
+review identifiers, approval identifiers, merge-authorization identifiers, the
+fact that a PR merged, the merge SHA, the merged timestamp, or a transition from
+"pending merge" to "merged" or from "implementation authorized" to
+"implementation complete", when GitHub already holds those facts.
+
+**Approval-state-only commits are prohibited** when their sole purpose is copying
+existing GitHub review or approval metadata into repository files.
+
+An optional evidence comment may be posted on the already merged PR. It is
+evidence only: it needs no branch, commit, PR, further review or further merge
+authorization.
+
+A post-merge task and PR is required only for a material repository change - for
+example a materially incorrect committed tracker, a substantive ADR
+contradiction, a migration or operational correction, a defect found in runtime
+verification, authorization or security behaviour differing from the approved
+design, a substantive documentation error, or a state that could not reasonably
+have been represented before merge.
+
+This changes only how lifecycle evidence is recorded. It does not change what
+must be reviewed, who may approve or merge, or any production control. Merge is
+not production activation.
+
+### 5.2 Normal lifecycle
+
+Where no additional merge authorization is required by specification:
+
+```text
+approved specification
+-> explicit implementation authorization
+-> implementation
+-> CI / validation
+-> independent exact-head review
+-> guarded merge
+-> DONE
+```
+
+Where CTO merge authorization is explicitly required, and always for HIGH and
+CRITICAL risk:
+
+```text
+approved specification
+-> explicit implementation authorization
+-> implementation
+-> CI / validation / migration / security / operational evidence
+-> independent exact-head review
+-> explicit CTO merge authorization
+-> guarded merge
+-> DONE
+```
+
+Production activation, deployment, migration execution and release may still
+require a separate authorization or event. That separate production gate does
+not require a new PR merely to document that the implementation PR merged.
 
 ## 6. Review decisions
 

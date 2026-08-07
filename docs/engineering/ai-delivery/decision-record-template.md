@@ -12,6 +12,13 @@ Repositories affected:
 Supersedes:
 Superseded by:
 
+Authority condition: this record is repository-authoritative when this exact
+content is reachable from the repository's authoritative integration branch.
+Live review, authorization and merge evidence is the GitHub pull-request record.
+
+The status above is the durable decision state owned by the decision owner. Do
+not add transient pull-request status such as `PENDING MERGE`.
+
 ## 1. Context
 
 Describe the problem, current state, constraints and why a decision is required.
@@ -94,3 +101,7 @@ Evidence required to prove the decision works:
 Approved by:
 Approval date:
 Notes:
+
+Record the durable decision approval here. Do not add a later commit solely to
+copy the independent review identifier, the CTO merge authorization or the merge
+commit into this file; those are terminal GitHub evidence under `ADR-0005`.

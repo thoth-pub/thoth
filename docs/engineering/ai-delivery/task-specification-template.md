@@ -4,11 +4,16 @@ Copy this file to the relevant programme task directory and replace every bracke
 
 A task may not enter implementation with unresolved required fields.
 
+Write durable state only. Do not record transient pull-request lifecycle status
+such as `PENDING MERGE` or `AWAITING CTO MERGE AUTHORIZATION`: GitHub is the
+live authority for those, and recording them here guarantees the file is stale
+after merge. See `../AGENTS.md` section 1.1 and `operating-model.md` section 5.1.
+
 ---
 
 # [TASK-ID] - [Task title]
 
-Status: DRAFT | APPROVED | IMPLEMENTING | IN REVIEW | MERGE READY | RELEASED | CLOSED
+Status: DRAFT | APPROVED
 Programme: [programme]
 Repository: [owner/repository]
 Workflow: STANDARD | PROGRAMME_INTEGRATION
@@ -20,6 +25,10 @@ Owner: [role/person]
 Approved by: [CTO/approver]
 Dependencies: [task IDs, PRs, releases or `None`]
 Target branch name: `feature/[programme-or-area]/[task-id-or-short-name]`
+
+Authority condition: this record is repository-authoritative when this exact
+content is reachable from the repository's authoritative integration branch.
+Live review, authorization and merge evidence is the GitHub pull-request record.
 
 ## 1. Objective
 
@@ -200,3 +209,7 @@ Review reasoning level: [level]
 Approved for implementation by:
 Date:
 Notes:
+
+Record only the durable implementation authorization here. Independent review
+decisions, CTO merge authorization and the merge itself are terminal GitHub
+evidence under `ADR-0005` and must not be copied back into this file.
