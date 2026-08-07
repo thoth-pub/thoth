@@ -34,7 +34,8 @@ ADR-0005.
 Implemented objective: author the complete bounded BE-02 implementation
 specification, settling every low-level representation choice from live
 repository conventions, and record it as the repository-authoritative BE-02 task
-record.
+record; then remediate the six independent-review findings recorded in
+section 16.
 
 Out-of-scope changes made: NONE.
 
@@ -130,10 +131,16 @@ repository evidence at `5a8c27b1`:
    it is transaction-start time and therefore identical across every row written
    by one logical transition, which is exactly the determinism the linked pair
    requires. `clock_timestamp()` is prohibited.
-9. **A single-row `CHECK` constraint enforces the lifecycle invariant**; the
-   cross-row OAPEN/DOAB invariant is enforced transactionally in the domain
-   layer, with an explicit written justification for not adding a trigger or
-   exclusion-constraint subsystem.
+9. **The row-level invariant is carried by `NOT NULL` declarations plus one
+   single-row `CHECK`** (specification section 6.1.1). Because a row is created
+   only by `ABSENT -> ENABLED`, every persisted row has an activation, so
+   `activation_id` and `enabled_at` are `NOT NULL` and `disabled_at` is the only
+   nullable lifecycle column. `enabled` carries **no** database default, because
+   a `DEFAULT false` would advertise a never-activated disabled row as a valid
+   persisted state. The `CHECK` then reduces to `enabled = (disabled_at IS
+   NULL)`. The cross-row OAPEN/DOAB invariant remains enforced transactionally
+   in the domain layer, with an explicit written justification for not adding a
+   trigger or exclusion-constraint subsystem.
 10. **Linked operations are evaluated at group level**, so a linked enable of a
     partially enabled group produces one new shared activation across both rows
     and repairs any pre-existing one-sided or split-activation state.
@@ -166,6 +173,42 @@ repository evidence at `5a8c27b1`:
     `thoth-client/assets/schema.graphql` is written by `thoth-client/build.rs`
     at build time and is untracked; only `assets/queries.graphql` is tracked,
     and BE-02 adds no internal-client query.
+
+Decisions taken during the independent-review remediation (section 16):
+
+19. **No transient status field is committed.** `Status`, `Approved by` and
+    `Approved for implementation by` were removed rather than corrected. Under
+    ADR-0005 any value they could hold is either false before the event or stale
+    after it, and the commit correcting them would invalidate the exact-head
+    review that justified it. The durable substitute is the approval-authority
+    triple in the header and section 24.
+20. **The foreign key locks the referenced table.** Verified against the
+    PostgreSQL 17 documentation: `ADD FOREIGN KEY` acquires `SHARE ROW
+    EXCLUSIVE` on the referenced table in addition to the constrained table, and
+    `SHARE ROW EXCLUSIVE` conflicts with `ROW EXCLUSIVE` but not with `ACCESS
+    SHARE` or `ROW SHARE`. Publisher reads therefore continue; publisher writes
+    are blocked while the lock is held. `NOT VALID` was considered and rejected:
+    the child table is created empty, so there is no scan to defer, and it would
+    not remove the referenced-table lock.
+21. **`NOT VALID` and a deferred constraint were not adopted**, and the
+    migration is not described as destructive or production-blocking. The
+    conservative statement is that it briefly blocks writes to one populated
+    table, with lock *acquisition* and queueing behind a long-running
+    transaction as the dominant risk rather than the migration's own work.
+22. **The N+1 mechanism was escalated, not chosen** (section 14). Every
+    available option changes shared GraphQL architecture, adds a dependency,
+    waives a standing control, or removes approved public API. The specification
+    states the prohibition bindingly, keeps `thoth-api/AGENTS.md` section 6
+    intact, and makes the CTO decision a hard gate before implementation
+    authorization.
+23. **Merge and environment state were separated structurally**, not by
+    rewording. Section 14.1 states only what a merge guarantees in the
+    repository; section 14.2 states environment behaviour conditionally on
+    separately authorized deployment and migration execution.
+24. **The GraphQL inventory was made binding and countable** in section 12.1,
+    including an explicit table of the three internal Rust enums that must not
+    appear in the generated SDL, so that an internal type cannot drift into the
+    public contract by assumption.
 
 Deviation from the governing controls: NONE.
 
@@ -310,14 +353,53 @@ Monitoring required: none.
 - The `EXPLAIN`-based partial-index verification is specified as "where
   practical", because planner choice depends on fixture size; the specification
   requires the implementing agent to record why if it is not practical.
-- Locking and downtime are specified as an assessment of the actual DDL
-  operations. No production duration is claimed, and no production database
-  access is authorized.
+- The migration is **not** lock-free. Establishing the foreign key takes a
+  `SHARE ROW EXCLUSIVE` lock on the populated `publisher` table, which blocks
+  publisher writes while held (reads are unaffected). The specification states
+  this in section 13.3 and requires the implementation to reassess the actual
+  generated DDL and verify the lock empirically via `pg_locks`. No production
+  duration is claimed, no production database access is authorized, and
+  production migration execution remains separately gated by CG-13.
+- The N+1 mechanism for `Publisher.distributionPlatforms` is **not settled** and
+  is escalated to the CTO (section 14 below).
 
 ## 14. Unresolved issues
 
-NONE. No unresolved architecture decision remains, and no `TBD` or placeholder
-is present in the specification. Architecture escalations: NONE.
+**One architecture escalation is open and blocks implementation authorization.**
+
+```text
+BLOCKED - N+1 CONTROL REQUIRES ARCHITECTURE DECISION
+```
+
+`thoth-api/AGENTS.md` section 6 requires new lists and reports to avoid N+1
+access and to use set-based SQL or batched loaders. Live inspection at the
+preflight base found no mechanism to reuse: no DataLoader or `dataloader`
+dependency, no `look_ahead` usage, no request-scoped state on the GraphQL
+`Context` (which holds only `db`, `user`, `s3_client`, `cloudfront_client`), and
+all 56 existing child-field resolvers in `thoth-api/src/graphql/model.rs` query
+once per parent.
+
+Adding `Publisher.distributionPlatforms` - which the approved design and
+ADR-0002 section 4.4 both require - therefore cannot satisfy section 6 by
+following any existing repository pattern. The exposure also arises through the
+**pre-existing** `publishers` root query, so no change confined to BE-02's own
+new root fields removes it.
+
+The exact CTO decision required is recorded in specification sections 9.2.1 and
+19.1, with four options: (A) authorize a request-scoped batching mechanism on
+the GraphQL `Context`; (B) authorize a DataLoader dependency; (C) grant a
+documented bounded exception to `thoth-api/AGENTS.md` section 6 for this field,
+justified by the hard 17-row-per-publisher bound; or (D) defer the field out of
+BE-02, which would contradict approved architecture.
+
+This specification deliberately does not choose. Every option either changes
+shared GraphQL architecture, adds a workspace dependency, waives a standing
+repository control, or removes approved public API - none of which is an
+implementing agent's decision. The `thoth-api/AGENTS.md` section 6 requirement
+is neither weakened nor waived by the specification.
+
+No other unresolved architecture decision remains, and no `TBD` or placeholder
+is present in the specification.
 
 ## 15. Agent self-assessment
 
@@ -350,3 +432,58 @@ Suggested review focus:
    an empty assignment set must never broaden processing.
 10. That the specification authorizes nothing: no implementation, no branch, no
     production action.
+
+Additional focus for the remediated content (section 16):
+
+11. Whether the tightened row invariant (section 6.1.1) - `activation_id` and
+    `enabled_at` `NOT NULL`, `disabled_at` nullable, no default on `enabled`,
+    and `enabled = (disabled_at IS NULL)` - is genuinely equivalent to the
+    section 7.1 state machine, and whether the row-existence rule that justifies
+    the `NOT NULL` columns holds for every transition.
+12. Whether the foreign-key lock statement (section 13.3) is accurate for
+    PostgreSQL 17 and appropriately conservative, neither understating the
+    `publisher` write block nor overstating it as destructive or
+    production-blocking.
+13. Whether the N+1 escalation (sections 9.2.1 and 19.1) is correctly blocked
+    rather than silently resolved, and whether the four options are stated
+    fairly and completely.
+14. Whether merge, environment deployment, environment migration execution,
+    assignment creation and activation are now kept strictly distinct
+    (section 14), with no residual claim that an environment changed because a
+    pull request merged.
+15. Whether the section 12.1 contract inventory is exact and agrees with
+    section 9 item for item, including the exclusion of the three internal Rust
+    enums from the public surface.
+16. Whether the lifecycle/approval metadata is durable under ADR-0005: that no
+    committed field asserts a review, approval or merge state, and that
+    repository authority, CTO specification approval and implementation
+    authorization are kept distinct (header, sections 2.1, 23 and 24).
+
+## 16. Independent-review remediation
+
+An independent review of the specification returned `CHANGES REQUIRED` with six
+findings. All six were addressed on this same branch and pull request; no new
+branch, pull request or issue was created, and no runtime file was touched.
+
+| # | Finding | Status | Resolution |
+|---:|---|---|---|
+| 1 | Lifecycle/approval wording was internally contradictory (`Status: DRAFT` alongside `Approved by: CTO` and `Approved for implementation by: CTO`, a dependency row asserting the specification was "approved", and prose saying CTO approval was still a future step) | RESOLVED | Removed `Status`, `Approved by` and `Approved for implementation by` entirely. Replaced with the durable triple `Specification approval authority: CTO` / `Specification approval evidence: GitHub pull-request record` / `Implementation authorization: separate and absent`. Section 2.1's last two rows became named **gates** rather than statuses. Section 23 became a ten-event table naming where each event's evidence lives, and separating repository authority from CTO approval and from implementation authorization. Section 24 now records approval *authority and effect* only, never whether approval occurred |
+| 2 | The lock assessment claimed the migration "takes no lock on any populated table", which is wrong because the foreign key references `publisher` | RESOLVED | Section 13.3 rewritten against the PostgreSQL 17 documentation. `ADD FOREIGN KEY` takes `SHARE ROW EXCLUSIVE` on the referenced table as well as on the constrained table. Added per-operation lock table, a blocked/not-blocked table for concurrent `publisher` operations, a conservative assessment (no parent scan; the dominant risk is lock acquisition and queueing, not duration), an explicit rejection of `NOT VALID` as unhelpful here, and mandatory `pg_locks` verification. Explicitly forbids the old claim and any production-duration claim |
+| 3 | The row check constraint permitted states the lifecycle forbids (disabled rows with null `activation_id`/`enabled_at`, enabled rows retaining `disabled_at`), and `enabled DEFAULT false` implied a valid never-activated row | RESOLVED | Tightened to `enabled boolean NOT NULL` (no default), `activation_id uuid NOT NULL`, `enabled_at timestamptz NOT NULL`, `disabled_at timestamptz NULL`, with the constraint reduced to `enabled = (disabled_at IS NULL)`. Added section 6.1.1 with the row-existence rule that justifies the `NOT NULL` columns, the two-state table, the rejected-state list, the per-operation satisfaction table and the Diesel type mapping. Model fields changed from `Option<Uuid>`/`Option<Timestamp>` to `Uuid`/`Timestamp` |
+| 4 | N+1 behaviour was underspecified for `Publisher.distributionPlatforms` under list parents | **BLOCKED - escalated** | See section 14. The prohibition is stated bindingly and `thoth-api/AGENTS.md` section 6 is preserved unweakened, but the mechanism is a CTO decision. Added section 9.2.1 (evidence, four options, per-parent-shape behaviour, what is settled regardless), section 19.1 (named blocking gate and exact decision required), section 18.7b (measured query-count evidence) and a new step 3 in the section 22 sequence |
+| 5 | Rollout conflated repository merge with environment state ("empty in every environment", queries returning empty "after merge") | RESOLVED | Section 14 split into 14.1 (what a merge actually guarantees - repository only) and 14.2 (environment behaviour, stated conditionally on separately authorized deployment and migration execution). Five events enumerated explicitly. Section 15.2 corrected to scope operational rollback to environments; section 18.11 corrected to stop attributing empty tables to merge |
+| 6 | Compatibility claimed "four new enums" while naming three, and "two new root query fields" while specifying three | RESOLVED | Added section 12.1 as the binding inventory: 3 root query fields, 1 new `Publisher` field, 2 object types, 3 GraphQL enums, 0 inputs/mutations/scalars, plus an explicit table of the 3 internal Rust enums that are deliberately **not** GraphQL enums. Section 12.2 now refers to that inventory, generated-SDL expectations were tightened, and section 18.7a asserts the inventory against the generated schema |
+
+Consequential updates made for consistency: acceptance criteria (row invariant,
+contract inventory, N+1 gate, corrected lock criterion), required tests
+(new 18.3a, 18.7a, 18.7b; extended 18.8), section 20 implementation-report
+expectations, section 22 sequence renumbering, the Publisher Services tracker
+and the `CHANGELOG.md` entry for PR #788. Pull-request body updated so its
+summary and review-focus language match the remediated specification.
+
+A classified search was performed for statements the corrections would falsify
+(`Approved by`, `Approved for implementation`, `Status: DRAFT`, `four new
+enums`, `two new root`, `no lock`, `every environment`, `enabled DEFAULT
+false`, `Option<Uuid>`, `Option<Timestamp>`). Each match was classified
+individually; no global find-and-replace was used, and historical content
+outside this pull request was not rewritten.
