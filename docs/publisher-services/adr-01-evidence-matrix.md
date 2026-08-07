@@ -1,6 +1,9 @@
 # ADR-01 Evidence Matrix
 
-Status: COMPLETE EVIDENCE RECORD FOR ADR-0004 - DECISION PROPOSED, NOT APPROVED
+Status: COMPLETE EVIDENCE RECORD FOR ADR-0004 - DECISION APPROVED
+(content approved at head `44e6f821535fbee56c830dd6eda237fc6d06fbfd` under
+independent review `4881233664` and CTO approval `4881279067`, 2026-08-07;
+repository-authoritative only on merge of PR #783)
 Task: ADR-01 - Platform inventory and final architecture
 Prepared: 2026-08-06
 Authorized base (`thoth-pub/thoth`): `32123d363a6806d377ac322e3814fb432a803453`
@@ -1771,8 +1774,13 @@ Source-owner-confirmed claims (attribution and date recorded):
 Sections 2 through 9 of this matrix are evidence. The final dispositions in
 sections 3, 6 and 7 restate the decisions proposed by
 [ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md),
-which is the decision record. ADR-0004 is `PROPOSED`; nothing in this matrix
-approves it. The sanitized source ledger
+which is the decision record. ADR-0004 is `APPROVED` - its content was
+independently reviewed at exact head
+`44e6f821535fbee56c830dd6eda237fc6d06fbfd` under review `4881233664` and
+explicitly approved by Javi, CTO, under review `4881279067` on 2026-08-07,
+and it becomes repository-authoritative only on merge of PR #783. Nothing in
+this matrix approves it: this document is evidence, not an approval
+instrument. The sanitized source ledger
 [adr-01-evidence-ledger.md](adr-01-evidence-ledger.md) is unchanged by
 ADR-01, and its section 0.0 provenance boundary (original 18 hash-covered
 entries versus the separately attributable section 9 CTO decisions) is
