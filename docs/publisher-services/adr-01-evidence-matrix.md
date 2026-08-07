@@ -1,9 +1,11 @@
 # ADR-01 Evidence Matrix
 
-Status: COMPLETE EVIDENCE RECORD FOR ADR-0004 - DECISION APPROVED
+Status: COMPLETE EVIDENCE RECORD FOR ADR-0004 - DECISION APPROVED AND
+REPOSITORY-AUTHORITATIVE
 (content approved at head `44e6f821535fbee56c830dd6eda237fc6d06fbfd` under
 independent review `4881233664` and CTO approval `4881279067`, 2026-08-07;
-repository-authoritative only on merge of PR #783)
+repository-authoritative through the merge of PR #783 as
+`299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb` on 2026-08-07T10:02:34Z)
 Task: ADR-01 - Platform inventory and final architecture
 Prepared: 2026-08-06
 Authorized base (`thoth-pub/thoth`): `32123d363a6806d377ac322e3814fb432a803453`
@@ -1774,11 +1776,12 @@ Source-owner-confirmed claims (attribution and date recorded):
 Sections 2 through 9 of this matrix are evidence. The final dispositions in
 sections 3, 6 and 7 restate the decisions proposed by
 [ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md),
-which is the decision record. ADR-0004 is `APPROVED` - its content was
-independently reviewed at exact head
-`44e6f821535fbee56c830dd6eda237fc6d06fbfd` under review `4881233664` and
+which is the decision record. ADR-0004 is `APPROVED AND
+REPOSITORY-AUTHORITATIVE` - its content was independently reviewed at exact
+head `44e6f821535fbee56c830dd6eda237fc6d06fbfd` under review `4881233664` and
 explicitly approved by Javi, CTO, under review `4881279067` on 2026-08-07,
-and it becomes repository-authoritative only on merge of PR #783. Nothing in
+and it became repository-authoritative on merge of PR #783 as
+`299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb` on 2026-08-07T10:02:34Z. Nothing in
 this matrix approves it: this document is evidence, not an approval
 instrument. The sanitized source ledger
 [adr-01-evidence-ledger.md](adr-01-evidence-ledger.md) is unchanged by

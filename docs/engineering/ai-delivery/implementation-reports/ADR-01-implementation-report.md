@@ -598,10 +598,72 @@ the approval-state head on PR #783.
 
 ### 17.6 Remaining gates
 
-1. fresh independent exact-head review of the approval-state head;
-2. separate explicit CTO merge authorization for that head - the earlier
-   merge authorization does not carry over;
-3. merge of PR [#783](https://github.com/thoth-pub/thoth/pull/783);
-4. post-merge control reconciliation, including CG-07 closeout;
-5. `BE-02` remains blocked pending the merged ADR-01 implementation, its own
-   approved bounded specification and explicit implementation authorization.
+The gates listed at the time of writing are now satisfied. They are recorded
+here in their original order with their outcomes; see section 18 for the
+complete post-merge record.
+
+1. fresh independent exact-head review of the approval-state head -
+   SATISFIED: review `4881832108` (`APPROVED`) at head
+   `82874c2bfb0c211198252e4f4a0b669d31e14836`;
+2. separate explicit CTO merge authorization for that head - SATISFIED:
+   authorization `4881847699`, bound to that exact head;
+3. merge of PR [#783](https://github.com/thoth-pub/thoth/pull/783) -
+   SATISFIED: merged into `develop` as
+   `299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb` on 2026-08-07T10:02:34Z;
+4. post-merge control reconciliation, including CG-07 closeout - SATISFIED by
+   the separate `ADR-01-CLOSEOUT-01` task; CG-07 is `RESOLVED`;
+5. `BE-02` - its ADR-01 dependency is now satisfied, but `BE-02` remains
+   blocked and unauthorized pending its own approved bounded specification
+   and explicit implementation authorization.
+
+## 18. Post-merge addendum (ADR-01-CLOSEOUT-01)
+
+This addendum was added by the separate `ADR-01-CLOSEOUT-01` closeout task
+after PR #783 merged. Sections 1 to 17 above are the immutable pre-merge
+record of what was delivered and reviewed at the pre-merge heads and are not
+rewritten. Only this addendum and the outcomes in section 17.6 were added.
+
+Merge outcome:
+
+```text
+Implementation PR:              #783
+Approved substantive content head:
+                                44e6f821535fbee56c830dd6eda237fc6d06fbfd
+Substantive independent review: 4881233664 - APPROVED
+CTO content approval:           4881279067
+Final PR head:                  82874c2bfb0c211198252e4f4a0b669d31e14836
+Final independent exact-head review:
+                                4881832108 - APPROVED
+CTO merge authorization:        4881847699
+Merge commit:                   299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb
+Merged at:                      2026-08-07T10:02:34Z
+Target:                         develop
+Post-merge closeout:            ADR-01-CLOSEOUT-01
+```
+
+The three commits above are distinct and must not be collapsed: `44e6f821` is
+the reviewed and CTO-approved substantive content head, `82874c2b` is the
+approval-state/control-reconciliation head that was independently re-reviewed
+and merge-authorized, and `299b0eff` is the merge commit that made the
+approved content repository-authoritative on `develop`.
+
+Post-merge state:
+
+```text
+ADR-01:            MERGED - COMPLETE
+ADR-0004:          APPROVED AND REPOSITORY-AUTHORITATIVE
+Final inventory:   FINAL INVENTORY APPROVED AND REPOSITORY-AUTHORITATIVE
+CG-07:             RESOLVED
+BE-02:             ADR-01 dependency satisfied; still BLOCKED and UNAUTHORIZED
+CG-11:             UNCHANGED
+CG-13:             OPEN / UNCHANGED
+```
+
+ADR-01 was an evidence and architecture-decision task. It is not runtime
+`IMPLEMENTED` and not `PRODUCTION READY`, and no runtime
+`DistributionPlatform` implementation exists.
+
+The post-merge control reconciliation itself is recorded in the dedicated
+[ADR-01-CLOSEOUT-01 implementation report](ADR-01-CLOSEOUT-01-implementation-report.md),
+under the merged specification
+[`ADR-01-CLOSEOUT-01`](../tasks/ADR-01-CLOSEOUT-01.md).

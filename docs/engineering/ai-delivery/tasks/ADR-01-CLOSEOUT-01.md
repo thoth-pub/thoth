@@ -1,6 +1,6 @@
 # ADR-01-CLOSEOUT-01 - Post-merge control closeout for ADR-01 / PR #783
 
-Status: APPROVED - PENDING MERGE; IMPLEMENTATION NOT AUTHORIZED
+Status: APPROVED AND REPOSITORY-AUTHORITATIVE - IMPLEMENTATION AUTHORIZED
 Programme: Publisher Services and Distribution Configuration
 Repository: `thoth-pub/thoth`
 Workflow: STANDARD
@@ -14,11 +14,16 @@ Independent review: `4882033346` - APPROVED
 CTO approval: Javi, CTO, 2026-08-07, review `4882035533`
 Approval scope: the ADR-01-CLOSEOUT-01 specification content at exact head
 `3229b93c351b68c65b612eb944137bd9f9d2f6e6`
-Repository authority: pending merge of PR
-[#784](https://github.com/thoth-pub/thoth/pull/784) into `develop`
-Closeout implementation: NOT AUTHORIZED - requires fresh explicit
-implementation authorization from the then-current exact `develop` head after
-this specification merges
+Approval-state head: `a7fbba3c038273c04063218b119a4c8a59e190e6` (fresh
+independent exact-head review `4882115451` - APPROVED; CTO merge
+authorization review `4882130791`)
+Repository authority: established through the merge of PR
+[#784](https://github.com/thoth-pub/thoth/pull/784) into `develop`, merge
+commit `461e61ced1084bf0f61951d1397f7f36d67b68e9`
+Closeout implementation authorization: Javi, CTO, 2026-08-07, PR
+[#784](https://github.com/thoth-pub/thoth/pull/784) comment `5216059288`;
+authorized exact implementation base
+`461e61ced1084bf0f61951d1397f7f36d67b68e9`
 Specification authoring base: `299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb`
 Target branch name: `feature/publisher-services/adr-01-closeout`
 Dependencies: merged ADR-01 implementation PR
@@ -27,9 +32,18 @@ Master programme issue:
 [#765](https://github.com/thoth-pub/thoth/issues/765)
 
 This file specifies the closeout. It does not perform it. The closeout
-implementation requires this specification to be independently reviewed,
-explicitly CTO-approved and merged, and then requires its own fresh explicit
+implementation required this specification to be independently reviewed,
+explicitly CTO-approved and merged, and then required its own fresh explicit
 implementation authorization from the then-current exact `develop` head.
+Those gates are satisfied: independent review `4882033346` (`APPROVED`) and
+CTO approval `4882035533` at content head `3229b93c`; fresh exact-head review
+`4882115451` (`APPROVED`) and CTO merge authorization `4882130791` at
+approval-state head `a7fbba3c`; merge of PR #784 as
+`461e61ced1084bf0f61951d1397f7f36d67b68e9`; and the CTO implementation
+authorization of 2026-08-07 (comment `5216059288`) from that exact base. The
+closeout implementation itself is delivered separately and remains subject to
+its own fresh independent exact-head review and separate explicit CTO merge
+authorization.
 
 ## 1. Objective
 

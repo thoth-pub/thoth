@@ -1,11 +1,14 @@
 # ADR-0004 - Distribution platform inventory
 
-Status: APPROVED
+Status: APPROVED AND REPOSITORY-AUTHORITATIVE
 Date: 2026-08-06
 Approved content head: `44e6f821535fbee56c830dd6eda237fc6d06fbfd`
 Independent review: `4881233664` (`APPROVED`)
 CTO approval: `4881279067`
 Approval date: 2026-08-07
+Repository authority: established through ADR-01 implementation PR
+[#783](https://github.com/thoth-pub/thoth/pull/783), merge commit
+`299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb`, merged 2026-08-07T10:02:34Z
 Decision owner: CTO
 Programmes affected: Publisher Services and Distribution Configuration
 Repositories affected: `thoth` (decision record only; future `BE-02`), with
@@ -425,8 +428,10 @@ evidence for later `DIS-01` work; ADR-01 edits nothing in
 
 Affected tasks:
 
-- `BE-02` (blocked until this ADR is approved and merged): implements the
-  enum and descriptor contract of section 5.
+- `BE-02` (this ADR is now approved and merged, so the ADR-01/ADR-0004
+  dependency is satisfied; `BE-02` remains blocked and unauthorized pending
+  its own approved bounded specification and explicit implementation
+  authorization): implements the enum and descriptor contract of section 5.
 - `MIG-01`: uses section 4.1 plus the per-destination
   publisher-configuration sources in the evidence matrix for its approved
   mapping; no-job import mode.
@@ -442,7 +447,9 @@ Affected tasks:
   `JISC_NBK` becomes assignable.
 
 Required sequencing: this ADR merges (after independent review and CTO
-approval) before `BE-02` finalizes the enum. Required migrations: none by
+approval) before `BE-02` finalizes the enum. That sequencing requirement is
+satisfied: PR #783 merged into `develop` as `299b0eff` on
+2026-08-07T10:02:34Z. Required migrations: none by
 this ADR. Required client changes: none by this ADR. Required operational
 changes: none by this ADR.
 
@@ -488,10 +495,16 @@ Notes: This decision record is produced by the ADR-01 implementation task
 content was independently reviewed at exact head
 `44e6f821535fbee56c830dd6eda237fc6d06fbfd` (review `4881233664`,
 `APPROVED`) and explicitly approved by the CTO (review `4881279067`). The
-approval is a content approval bound to that exact head; the decision
-becomes repository-authoritative on merge of PR
+approval is a content approval bound to that exact head, and the approved
+content is exactly that head; it did not change afterwards. The decision
+became repository-authoritative on merge of PR
 [#783](https://github.com/thoth-pub/thoth/pull/783). The approval-state
-recording changes the PR head, and that new head requires fresh
-independent review before any merge authorization is exercised. `BE-02`
-remains blocked pending the merged ADR-01 implementation and its own
-approved bounded specification.
+recording changed the PR head to
+`82874c2bfb0c211198252e4f4a0b669d31e14836`, which received fresh independent
+exact-head review `4881832108` (`APPROVED`) and CTO merge authorization
+`4881847699`; PR #783 then merged into `develop` as
+`299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb` on 2026-08-07T10:02:34Z. `BE-02`'s
+ADR-01 dependency is therefore satisfied, but `BE-02` remains blocked and
+unauthorized pending its own approved bounded specification and explicit
+implementation authorization. Post-merge control closeout is recorded by
+[ADR-01-CLOSEOUT-01](../ai-delivery/tasks/ADR-01-CLOSEOUT-01.md).
