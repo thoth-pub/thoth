@@ -1,6 +1,6 @@
 # ADR-01 - Platform inventory and final architecture
 
-Status: APPROVED AND REPOSITORY-AUTHORITATIVE - FRESH IMPLEMENTATION AUTHORIZATION REQUIRED
+Status: APPROVED AND REPOSITORY-AUTHORITATIVE - ADR-01 DELIVERY MERGED - COMPLETE
 Programme: Publisher Services and Distribution Configuration
 Repository: `thoth-pub/thoth`
 Workflow: STANDARD
@@ -27,8 +27,20 @@ independent review `4874093991` - APPROVED; CTO merge authorization review
 Repository authority: established through the merge of PR
 [#781](https://github.com/thoth-pub/thoth/pull/781), merge commit
 `a511e01c83c5e805a75e0fdaeb3b5297c39ef291` (2026-08-06T11:29:53Z)
-ADR-01 implementation: not started; requires a fresh task authorization from
-the then-current exact `develop` head
+ADR-01 implementation: `MERGED - COMPLETE`. Separately and explicitly
+CTO-authorized on 2026-08-06 from exact base
+`32123d363a6806d377ac322e3814fb432a803453` and delivered on
+`feature/publisher-services/adr-01`. Approved substantive content head
+`44e6f821535fbee56c830dd6eda237fc6d06fbfd` (independent review `4881233664` -
+APPROVED; CTO content approval `4881279067`); final PR head
+`82874c2bfb0c211198252e4f4a0b669d31e14836` (final independent review
+`4881832108` - APPROVED; CTO merge authorization `4881847699`); implementation
+PR [#783](https://github.com/thoth-pub/thoth/pull/783) merged into `develop`
+as `299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb` on 2026-08-07T10:02:34Z. ADR-01
+was an evidence and architecture-decision task: it is not runtime
+`IMPLEMENTED` and not `PRODUCTION READY`, and no runtime
+`DistributionPlatform` implementation exists. Post-merge control closeout:
+[ADR-01-CLOSEOUT-01](ADR-01-CLOSEOUT-01.md).
 Target branch name: `feature/publisher-services/adr-01`
 
 ## 0. Amendment record
@@ -1188,11 +1200,16 @@ Notes:
 - Approval of this specification, historical or corrected, does not authorize
   the ADR-01 implementation. Implementation requires a separate explicit CTO
   authorization, a freshly verified then-current `develop` base, and its own
-  task branch (`feature/publisher-services/adr-01`).
+  task branch (`feature/publisher-services/adr-01`). That separate
+  authorization was granted on 2026-08-06 and the resulting implementation
+  merged through PR [#783](https://github.com/thoth-pub/thoth/pull/783).
 - Approval settles no final platform decision beyond the evidence-resolved
   inputs recorded in section 8. The inventory in
   [`platform-inventory.md`](../../../publisher-services/platform-inventory.md)
-  remains explicitly provisional until an approved ADR-01 merges.
+  was explicitly provisional until an approved ADR-01 merged; it was
+  subsequently determined by the merged ADR-01 implementation and is now
+  `FINAL INVENTORY APPROVED AND REPOSITORY-AUTHORITATIVE` through PR #783,
+  merge commit `299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb`.
 - Approval authorizes no runtime work, no production access, no workflow
   dispatch, no credential use, no runtime or schema change, and no change to
   `thoth-app`, `thoth-dissemination`, `BE-01`, `CG-11`, `CG-13`, `BR-APP-01`

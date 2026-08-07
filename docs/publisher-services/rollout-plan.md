@@ -60,10 +60,10 @@ Achieved evidence:
   implementation. That historical approval remains valid and applies only
   to the superseded pre-amendment content: the currently linked `ADR-01.md`
   is amended content with status
-  `APPROVED AND REPOSITORY-AUTHORITATIVE - FRESH IMPLEMENTATION
-  AUTHORIZATION REQUIRED`, and ADR-01 implementation has not started and
-  requires a fresh task authorization from the then-current exact `develop`
-  head.
+  `APPROVED AND REPOSITORY-AUTHORITATIVE - ADR-01 DELIVERY MERGED -
+  COMPLETE`. The ADR-01 implementation was separately authorized on
+  2026-08-06 and merged through PR
+  [#783](https://github.com/thoth-pub/thoth/pull/783).
 
 Amendment state (2026-08-06):
 
@@ -87,26 +87,28 @@ ADR-01 implementation state (2026-08-07):
 - the ADR-01 implementation was separately and explicitly authorized by the
   CTO on 2026-08-06 from exact base
   `32123d363a6806d377ac322e3814fb432a803453` and delivered as a
-  documentation-only draft PR on `feature/publisher-services/adr-01`,
+  documentation-only PR on `feature/publisher-services/adr-01`,
   producing [ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md)
-  (`APPROVED`), the complete
+  (`APPROVED AND REPOSITORY-AUTHORITATIVE`), the complete
   [evidence matrix](adr-01-evidence-matrix.md) and the approved
   [final inventory](platform-inventory.md); the content was independently
   reviewed at exact head `44e6f821535fbee56c830dd6eda237fc6d06fbfd` (review
   `4881233664`, `APPROVED`) and explicitly CTO-approved (review
-  `4881279067`, 2026-08-07). ADR-01 is `IMPLEMENTATION DESIGN APPROVED`: it
-  is not implemented and not production ready, the approval is a content
-  approval that becomes repository-authoritative only on merge, and `BE-02`
-  remains blocked pending that merge and its own implementation
-  authorization.
+  `4881279067`, 2026-08-07); the approval-state head
+  `82874c2bfb0c211198252e4f4a0b669d31e14836` received final independent
+  review `4881832108` (`APPROVED`) and CTO merge authorization
+  `4881847699`; and PR [#783](https://github.com/thoth-pub/thoth/pull/783)
+  merged into `develop` as `299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb` on
+  2026-08-07T10:02:34Z. ADR-01 is `MERGED - COMPLETE`: an evidence and
+  architecture-decision task that is not runtime implemented and not
+  production ready. Post-merge control reconciliation is delivered by
+  [ADR-01-CLOSEOUT-01](../engineering/ai-delivery/tasks/ADR-01-CLOSEOUT-01.md).
+  `BE-02`'s ADR-01 dependency is satisfied; `BE-02` remains blocked and
+  unauthorized pending its own approved bounded specification and explicit
+  implementation authorization.
 
 Outstanding evidence:
 
-- fresh independent review of the ADR-01 approval-state head, separate
-  explicit CTO merge authorization, merge, and post-merge reconciliation;
-  until merge the approved inventory in
-  [`platform-inventory.md`](platform-inventory.md) is not yet
-  repository-authoritative and no enum may be implemented from it;
 - applicable repository/branch-readiness decisions;
 - approved task specifications and review assignments for implementation work;
 - no unresolved control contradiction.
@@ -234,8 +236,10 @@ Deliver:
 Controls:
 
 - the approved ADR-01 implementation merges before BE-02 finalizes
-  `DistributionPlatform`; BE-02 must not derive the enum from the provisional
-  inventory;
+  `DistributionPlatform` - satisfied by the merge of PR #783 as `299b0eff`;
+  BE-02 derives the enum only from the approved, repository-authoritative
+  final inventory, and only under its own approved bounded specification and
+  explicit implementation authorization;
 - every enum value has a code-owned descriptor, and no `OTHER` or fallback value
   exists;
 - linked normalization in backend;

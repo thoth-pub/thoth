@@ -149,24 +149,31 @@ Implementation dependency:
 
 ## 3. Decisions delegated to Publisher Services ADR-01
 
-State (2026-08-07): the separately authorized ADR-01 implementation has
-produced [ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md)
-(`APPROVED`), the complete
+State (2026-08-07): the separately authorized ADR-01 implementation produced
+[ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md)
+(`APPROVED AND REPOSITORY-AUTHORITATIVE`), the complete
 [evidence matrix](adr-01-evidence-matrix.md) and the
-[final inventory](platform-inventory.md) (`APPROVED`; 17 values; no
-`OTHER`; `JISC_NBK` included but inactive and non-assignable; 10 recorded
-exclusions). ADR-0004 and the final inventory were independently reviewed
-at exact head `44e6f821535fbee56c830dd6eda237fc6d06fbfd` (review
-`4881233664`, `APPROVED`) and explicitly CTO-approved (review
-`4881279067`, 2026-08-07). ADR-01 is `IMPLEMENTATION DESIGN APPROVED`; it
-is not implemented and not production ready. The approval is a content
-approval only: the decision becomes repository-authoritative on merge of
-[PR #783](https://github.com/thoth-pub/thoth/pull/783), which still
-requires fresh independent review of the approval-state head and separate
-explicit CTO merge authorization. `BE-02` remains blocked until its own
-implementation authorization and approved bounded specification.
+[final inventory](platform-inventory.md) (`FINAL INVENTORY APPROVED AND
+REPOSITORY-AUTHORITATIVE`; 17 values; no `OTHER`; `JISC_NBK` included but
+inactive and non-assignable; 10 recorded exclusions). ADR-0004 and the final
+inventory were independently reviewed at exact head
+`44e6f821535fbee56c830dd6eda237fc6d06fbfd` (review `4881233664`,
+`APPROVED`) and explicitly CTO-approved (review `4881279067`, 2026-08-07);
+the approval-state head `82874c2bfb0c211198252e4f4a0b669d31e14836` received
+final independent review `4881832108` (`APPROVED`) and CTO merge
+authorization `4881847699`; and
+[PR #783](https://github.com/thoth-pub/thoth/pull/783) merged into `develop`
+as `299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb` on 2026-08-07T10:02:34Z,
+making the decision repository-authoritative. ADR-01 is `MERGED - COMPLETE`;
+it was an evidence and architecture-decision task and is not runtime
+implemented and not production ready. Post-merge control reconciliation is
+delivered by
+[ADR-01-CLOSEOUT-01](../engineering/ai-delivery/tasks/ADR-01-CLOSEOUT-01.md).
+`BE-02`'s ADR-01 dependency is satisfied, but `BE-02` remains blocked and
+unauthorized until it has its own approved bounded specification and explicit
+implementation authorization.
 
-ADR-01 must finalize:
+The decisions delegated to ADR-01, all now settled by ADR-0004, were:
 
 1. complete user-visible distribution destination inventory;
 2. stable enum codes and display names;
@@ -196,9 +203,10 @@ CTO-approved (comment `5203642323`, 2026-08-06) at exact content head
 repository-authoritative through the merge of
 [PR #781](https://github.com/thoth-pub/thoth/pull/781) (merge commit
 `a511e01c83c5e805a75e0fdaeb3b5297c39ef291`, 2026-08-06T11:29:53Z, under CTO
-merge authorization review `4874128610`). ADR-01 itself must still produce
-ADR-0004 and the final inventory under a separately authorized
-implementation task, and no runtime implementation is authorized:
+merge authorization review `4874128610`). ADR-01 subsequently produced
+ADR-0004 and the final inventory under its separately authorized
+implementation task, merged through PR #783; no runtime implementation is
+authorized:
 
 - a `DistributionPlatform` destination is distinct from the delivery adapter
   or feed profile serving it; shared adapters/feeds must not create duplicate

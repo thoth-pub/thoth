@@ -49,10 +49,12 @@ to merge. Dependent work still requires its own approved bounded specification
 and remaining programme controls. Resolving this shared-ADR gap does not make
 any implementation task ready.
 
-### CG-07 - Publisher Services platform ADR open
+### CG-07 - Publisher Services platform ADR (RESOLVED 2026-08-07)
 
-Issue #765 exists. ADR-01 must finalize enum values, mechanisms and ambiguous
-destinations. CG-07 remains **open**.
+Issue #765 exists. ADR-01 had to finalize enum values, mechanisms and
+ambiguous destinations. CG-07 was **open** for as long as that decision was
+outstanding or not yet repository-authoritative. The historical narrative
+below is retained as evidence of how the gap was closed.
 
 State as of 2026-08-06: `ADR-01-SPEC-AMEND-01` corrected the ADR-01
 specification content from the CTO-approved evidence ledger
@@ -79,21 +81,44 @@ complete
 the
 [final inventory](../../publisher-services/platform-inventory.md).
 
-State as of 2026-08-07: ADR-0004 and the final inventory are `APPROVED`.
-The content was independently reviewed at exact head
+State as of 2026-08-07: the ADR-0004 and final-inventory content was
+independently reviewed at exact head
 `44e6f821535fbee56c830dd6eda237fc6d06fbfd` (review `4881233664`,
-`APPROVED`) and explicitly CTO-approved (review `4881279067`). ADR-01 is
-`IMPLEMENTATION DESIGN APPROVED`.
+`APPROVED`) and explicitly CTO-approved (review `4881279067`). Content
+approval was recorded on PR #783, which then carried approval-state head
+`82874c2bfb0c211198252e4f4a0b669d31e14836`.
 
-CG-07 remains **open**. Content approval is not closeout: the
-implementation PR [#783](https://github.com/thoth-pub/thoth/pull/783) is
-still a draft, so the approved decision is not yet
-repository-authoritative. CG-07 closes only after fresh independent review
-of the approval-state head, separate explicit CTO merge authorization,
-merge and post-merge reconciliation. `BE-02` remains blocked pending that
-merge and its own implementation authorization. CG-11 and CG-13 are
-unchanged by the ADR-01 implementation and by this approval-state
-recording.
+CG-07 is **RESOLVED** as of 2026-08-07. All of its closure criteria are met
+and recorded:
+
+- ADR-01 finalized the exhaustive distribution-platform inventory (17
+  included destinations, 10 recorded exclusions, no `OTHER`, no fallback, no
+  unknown or provisional included value);
+- [ADR-0004](../decisions/ADR-0004-distribution-platform-inventory.md) is
+  approved at content head `44e6f821535fbee56c830dd6eda237fc6d06fbfd`
+  (independent review `4881233664` - `APPROVED`; CTO content approval
+  `4881279067`);
+- the [final inventory](../../publisher-services/platform-inventory.md) is
+  approved as exactly that reviewed content;
+- approval state was recorded on PR #783;
+- the approval-state head `82874c2bfb0c211198252e4f4a0b669d31e14836` received
+  fresh independent exact-head review `4881832108` (`APPROVED`);
+- CTO merge authorization `4881847699` was granted for that exact head;
+- PR [#783](https://github.com/thoth-pub/thoth/pull/783) merged into
+  `develop` as `299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb` on
+  2026-08-07T10:02:34Z, making ADR-0004 and the final inventory
+  repository-authoritative;
+- the merged control state was reconciled by
+  [`ADR-01-CLOSEOUT-01`](../ai-delivery/tasks/ADR-01-CLOSEOUT-01.md).
+
+ADR-01 is `MERGED - COMPLETE`. It was an evidence and architecture-decision
+task: it is not runtime `IMPLEMENTED`, it is not `PRODUCTION READY`, and no
+runtime `DistributionPlatform` implementation exists. Resolving CG-07 makes
+no implementation task ready. `BE-02`'s ADR-01 dependency is satisfied, but
+`BE-02` remains blocked and unauthorized pending its own approved bounded
+specification and explicit implementation authorization from the
+then-current exact `develop` head. CG-11 and CG-13 are unchanged by the
+ADR-01 implementation and by this closeout.
 
 ### CG-08 - Metrics readiness open
 

@@ -1,12 +1,15 @@
 # Distribution Platform Inventory
 
-Status: FINAL INVENTORY APPROVED
+Status: FINAL INVENTORY APPROVED AND REPOSITORY-AUTHORITATIVE
 Approved content head: `44e6f821535fbee56c830dd6eda237fc6d06fbfd`
 Independent review: `4881233664` (`APPROVED`)
 CTO approval: `4881279067`
 Approval date: 2026-08-07
+Repository authority: established through ADR-01 implementation PR
+[#783](https://github.com/thoth-pub/thoth/pull/783), merge commit
+`299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb`, merged 2026-08-07T10:02:34Z
 Inventory owner: Publisher Services ADR-01
-Decision record: [ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md) (APPROVED)
+Decision record: [ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md) (APPROVED AND REPOSITORY-AUTHORITATIVE)
 Evidence: [ADR-01 evidence matrix](adr-01-evidence-matrix.md);
 [ADR-01 evidence ledger](adr-01-evidence-ledger.md) (unchanged)
 Evidence date: 2026-08-06
@@ -37,9 +40,14 @@ OAPEN/DOAB linked duplicate-safe behaviour, the conservative
 update/withdrawal policy, and the Thoth-managed source-file invariant
 recorded but not implemented.
 
-The approval is a content approval. No enum may be implemented from this
-inventory until ADR-0004 merges, and `BE-02` remains blocked pending that
-merge and its own approved bounded specification.
+The approval is a content approval bound to that exact head, and it became
+repository-authoritative when ADR-01 implementation PR
+[#783](https://github.com/thoth-pub/thoth/pull/783) merged into `develop` as
+`299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb` on 2026-08-07T10:02:34Z. No
+`DistributionPlatform` enum is implemented from this inventory: `BE-02`'s
+ADR-01 dependency is satisfied, but `BE-02` remains blocked and unauthorized
+pending its own approved bounded specification and explicit implementation
+authorization.
 
 ## 2. Behaviour vocabulary
 
@@ -141,8 +149,10 @@ value.
 
 ## 7. Safety rule
 
-This proposed inventory must not be converted into production rows, jobs or
-an implemented enum until ADR-0004 is independently reviewed, explicitly
-CTO-approved and merged. `MIG-01` must use an approved mapping, dry run and
-no-job import mode. `BE-02` remains blocked pending the approved and merged
-ADR-01 implementation and its own approved specification.
+ADR-0004 has been independently reviewed, explicitly CTO-approved and merged,
+so this inventory is final and repository-authoritative. It must still not be
+converted into production rows, jobs or an implemented enum outside a
+separately approved and authorized implementation task. `MIG-01` must use an
+approved mapping, dry run and no-job import mode. `BE-02`'s ADR-01 dependency
+is satisfied, and `BE-02` remains blocked and unauthorized pending its own
+approved bounded specification and explicit implementation authorization.

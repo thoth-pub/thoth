@@ -1,6 +1,6 @@
 # Publisher Services and Distribution Configuration
 
-Status: CONTROL FOUNDATION CLOSED; BE-01 CLOSED; ADR-01-SPEC-AMEND-01 MERGED (PR #781, MERGE COMMIT a511e01c); CORRECTED ADR-01 SPECIFICATION REPOSITORY-AUTHORITATIVE; ADR-01 IMPLEMENTATION REQUIRES FRESH AUTHORIZATION; FINAL PLATFORM INVENTORY STILL PROVISIONAL; ALL OTHER IMPLEMENTATION GATED
+Status: CONTROL FOUNDATION CLOSED; BE-01 CLOSED; ADR-01-SPEC-AMEND-01 MERGED (PR #781, MERGE COMMIT a511e01c); CORRECTED ADR-01 SPECIFICATION REPOSITORY-AUTHORITATIVE; ADR-01 MERGED - COMPLETE (PR #783, MERGE COMMIT 299b0eff); ADR-0004 AND FINAL PLATFORM INVENTORY APPROVED AND REPOSITORY-AUTHORITATIVE; CG-07 RESOLVED; BE-02 ADR-01 DEPENDENCY SATISFIED BUT STILL BLOCKED AND UNAUTHORIZED; ALL OTHER IMPLEMENTATION GATED
 Programme owner: CTO
 Primary coordinating repository: `thoth-pub/thoth`
 Related repositories:
@@ -81,9 +81,17 @@ CORRECTED ADR-01 SPECIFICATION REPOSITORY-AUTHORITATIVE THROUGH MERGE
 COMMIT a511e01c
 HISTORICAL ADR-01 SPECIFICATION APPROVAL PRESERVED; APPLIES ONLY TO THE
 SUPERSEDED PRE-AMENDMENT CONTENT
-ADR-01 IMPLEMENTATION NOT STARTED; REQUIRES FRESH IMPLEMENTATION
-AUTHORIZATION FROM THE THEN-CURRENT EXACT DEVELOP HEAD
-FINAL DISTRIBUTION-PLATFORM INVENTORY REMAINS PROVISIONAL
+ADR-01 MERGED - COMPLETE (PR #783; APPROVED CONTENT HEAD 44e6f821; FINAL PR
+HEAD 82874c2b; FINAL INDEPENDENT REVIEW 4881832108 - APPROVED; CTO MERGE
+AUTHORIZATION 4881847699; MERGE COMMIT 299b0eff; MERGED
+2026-08-07T10:02:34Z)
+ADR-01 IS NOT RUNTIME IMPLEMENTED AND NOT PRODUCTION READY; NO RUNTIME
+DistributionPlatform IMPLEMENTATION EXISTS
+ADR-0004 APPROVED AND REPOSITORY-AUTHORITATIVE
+FINAL DISTRIBUTION-PLATFORM INVENTORY APPROVED AND REPOSITORY-AUTHORITATIVE
+CG-07 RESOLVED
+BE-02 ADR-01 DEPENDENCY SATISFIED; BE-02 STILL BLOCKED AND UNAUTHORIZED
+CG-11 UNCHANGED; CG-13 OPEN / UNCHANGED
 ALL OTHER IMPLEMENTATION REMAINS GATED
 ```
 
@@ -125,10 +133,10 @@ Achieved:
   implementation determines the final distribution-platform inventory, and it
   finalized no inventory. The currently linked `ADR-01.md` is amended
   content with status
-  `APPROVED AND REPOSITORY-AUTHORITATIVE - FRESH IMPLEMENTATION
-  AUTHORIZATION REQUIRED`. ADR-01 implementation is not authorized: it has
-  not started and requires a fresh task authorization from the then-current
-  exact `develop` head.
+  `APPROVED AND REPOSITORY-AUTHORITATIVE - ADR-01 DELIVERY MERGED -
+  COMPLETE`. The ADR-01 implementation was separately authorized on
+  2026-08-06 from the then-current exact `develop` head and merged through
+  PR [#783](https://github.com/thoth-pub/thoth/pull/783).
 - The bounded
   [`ADR-01-SPEC-AMEND-01`](../engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01.md)
   amendment task, authorized by the CTO on 2026-08-06, corrects and extends
@@ -147,13 +155,35 @@ Achieved:
   `a511e01c83c5e805a75e0fdaeb3b5297c39ef291` on 2026-08-06T11:29:53Z,
   making the corrected specification repository-authoritative. The
   historical ADR-01 specification approval is preserved and applies only
-  to the superseded pre-amendment content. ADR-01 implementation has not
-  started and requires a fresh task authorization from the then-current
-  exact `develop` head; the obsolete local pre-amendment
+  to the superseded pre-amendment content. The ADR-01 implementation was
+  subsequently authorized from a freshly verified `develop` head, delivered
+  and merged; the obsolete local pre-amendment
   `feature/publisher-services/adr-01` branch (clean, unpushed, commit-free)
   was safely deleted during the
   [`ADR-01-SPEC-AMEND-01-CLOSEOUT-01`](../engineering/ai-delivery/tasks/ADR-01-SPEC-AMEND-01-CLOSEOUT-01.md)
   closeout.
+- The bounded [`ADR-01`](../engineering/ai-delivery/tasks/ADR-01.md)
+  implementation is `MERGED - COMPLETE`. Authorized by the CTO on 2026-08-06
+  from exact base `32123d363a6806d377ac322e3814fb432a803453`, it produced
+  [ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md),
+  the complete [evidence matrix](adr-01-evidence-matrix.md) and the final
+  [platform inventory](platform-inventory.md). The substantive content was
+  independently reviewed at exact head
+  `44e6f821535fbee56c830dd6eda237fc6d06fbfd` (review `4881233664`,
+  `APPROVED`) and explicitly CTO-approved (review `4881279067`, 2026-08-07);
+  the final PR head `82874c2bfb0c211198252e4f4a0b669d31e14836` received
+  independent review `4881832108` (`APPROVED`) and CTO merge authorization
+  `4881847699`; and PR
+  [#783](https://github.com/thoth-pub/thoth/pull/783) merged into `develop`
+  as `299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb` on 2026-08-07T10:02:34Z.
+  ADR-0004 and the final inventory are therefore approved and
+  repository-authoritative, and
+  [CG-07](../engineering/repository-map/control-gaps.md) is `RESOLVED`.
+  ADR-01 was an evidence and architecture-decision task: it is not runtime
+  implemented, it is not production ready, and no runtime
+  `DistributionPlatform` implementation exists. Post-merge control
+  reconciliation is delivered by
+  [`ADR-01-CLOSEOUT-01`](../engineering/ai-delivery/tasks/ADR-01-CLOSEOUT-01.md).
 
 Specification approval and gated implementation:
 
@@ -182,17 +212,21 @@ Specification approval and gated implementation:
    authorization.
 6. Protected package and effective-capability reads and the dedicated
    superuser package mutation remain BE-03 scope.
-7. ADR-01 will determine the final distribution-platform inventory. Until an
-   approved ADR-01 merges, [`platform-inventory.md`](platform-inventory.md)
-   remains an explicitly provisional baseline and must not be treated as the
-   final enum.
+7. ADR-01 determined the final distribution-platform inventory.
+   [`platform-inventory.md`](platform-inventory.md) is no longer a
+   provisional baseline: it is `FINAL INVENTORY APPROVED AND
+   REPOSITORY-AUTHORITATIVE` through the merge of PR #783 as `299b0eff`. It
+   is a decision record, not an implemented enum; no `DistributionPlatform`
+   enum exists in code.
 
 Reasons all other implementation remains gated:
 
-1. Publisher Services `ADR-01` has not finalized or approved the
-   distribution-platform enum or final distribution-platform inventory. `BE-02`
-   requires the merged ADR-01 implementation, not the ADR-01 specification
-   alone.
+1. `BE-02`'s ADR-01 dependency is satisfied - the ADR-01 implementation is
+   merged and the final inventory is repository-authoritative - but `BE-02`
+   is HIGH risk and remains blocked and unauthorized. It requires its own
+   approved written bounded specification and fresh explicit implementation
+   authorization from the then-current exact `develop` head before any
+   branch or edit.
 2. Every task still requires its own approved bounded specification, its
    applicable dependencies, and separate explicit authorization before any
    implementation branch or edit.
@@ -214,7 +248,8 @@ production work.
 
 - `decisions.md` - settled, proposed and unresolved decisions.
 - `task-status.md` - task dependencies, repository, branch, risk and evidence status.
-- `platform-inventory.md` - verified current dissemination baseline and ADR-01 questions.
+- `platform-inventory.md` - the final ADR-01 distribution-platform inventory, approved and repository-authoritative through PR #783.
+- `adr-01-evidence-matrix.md` - complete per-candidate ADR-01 evidence record for ADR-0004.
 - `adr-01-evidence-ledger.md` - sanitized CTO-approved evidence ledger for the ADR-01 specification amendment.
 - `acceptance-matrix.md` - programme requirements mapped to evidence.
 - `rollout-plan.md` - additive rollout, comparison, pilot, observation and rollback.
