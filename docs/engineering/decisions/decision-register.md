@@ -114,11 +114,24 @@ set-based SQL or batched loaders, while the repository provides no mechanism wit
 which a new field can comply. `BE-02` surfaced the gap and escalated it; the
 concern is shared, not Publisher Services-specific.
 
-The CTO selected request-scoped batching / set-based loading in principle. The
-final repository decision requires independent review and explicit CTO approval
-of the ADR content. The decision is repository-authoritative when it is
-`APPROVED` and the exact approved content is reachable from `develop`; it is not
-effective from an unmerged branch.
+The CTO selected request-scoped batching / set-based loading in principle, and
+subsequently selected **uniform top-level-response-key scoping** as the
+architecture direction for the mutation-payload boundary. Loader state is
+therefore owned by one GraphQL request but partitioned by the current top-level
+GraphQL response key, giving the store identity
+`(top-level response key, loader identity, normalized load shape, parent key)`
+uniformly for queries and mutation payloads. No loader entry crosses top-level
+response-key scopes, so correctness does not depend on the executor serializing
+top-level mutation fields, and no mutation resolver retrofit is required. The
+scope is derived through one isolated pinned-Juniper compatibility shim, which
+carries a revalidation obligation on any Juniper upgrade. The accepted cost is
+that reuse no longer spans two top-level query response keys.
+
+The final repository decision requires independent review and explicit CTO
+approval of the ADR content. The CTO's direction on the architecture is not
+approval of the resulting exact ADR content. The decision is
+repository-authoritative when it is `APPROVED` and the exact approved content is
+reachable from `develop`; it is not effective from an unmerged branch.
 
 `ADR-0006` is delivered as a runtime foundation by
 [`THOTH-GQL-BATCH-01`](../ai-delivery/tasks/THOTH-GQL-BATCH-01.md), which is

@@ -969,3 +969,270 @@ Verified unchanged by this remediation:
   architecture;
 - no approval-state or transient-status prose was written into any committed
   file.
+
+---
+
+## 18. Third remediation: CTO selection of top-level-response-key scoping
+
+### 18.1 Position at the start of this remediation
+
+```text
+Previous independent decision: BLOCKED
+Previous exact reviewed head:  0de5d0ef6d04e87e4204dc88a57d14edb313ac1d
+Blocking decision:             M1 vs M2
+CTO direction:                 M2 - uniform top-level-response-key scoping
+```
+
+The previous exact head was `BLOCKED` because `ADR-0006` could not settle the
+mutation-payload N+1 boundary on authoring authority: M1 would have waived part
+of a standing engineering control, and M2 would have enlarged the approved
+architecture. The CTO subsequently selected **M2**, which this remediation
+encodes.
+
+The direction authorizes architecture and specification remediation only. It is
+**not** approval of the resulting exact ADR content, and does not authorize
+runtime implementation, the implementation branch, `BE-02`, merge or any
+production behaviour. Per `ADR-0005` and `docs/engineering/AGENTS.md` section
+1.1, review identifiers and merge evidence are terminal GitHub evidence and are
+not copied into this file.
+
+### 18.2 How the open decision was resolved
+
+`ADR-0006` section 4.12 was rewritten from an open escalation into a binding
+architecture. The withdrawn rule, the "OPEN"/"BLOCKED" framing, the temporary
+hold on mutation-reachable prefetch sites and the M1/M2 decision set are all
+**gone** from the binding sections — not merely annotated with the outcome. The
+document no longer contains a live architecture blocker for mutation-payload
+coverage. `ADR-0006` nevertheless remains `PROPOSED`, because exact-head review
+and explicit CTO approval are still outstanding.
+
+Consequential reconciliation across the ADR: sections 4.2, 4.4, 4.4.4, 4.4.5,
+4.6, 4.7, 4.9.1, 4.9.2, 4.11, 4.13, 4.15, 4.18.2, 4.18.3, 4.19.2, section 5
+invariants, section 6, section 8.2, section 11, section 12, section 13 and
+section 14 were each updated where the scope dimension changed their meaning,
+rather than by mechanical find-and-replace.
+
+### 18.3 Exact new store identity
+
+```text
+(top-level response key, loader identity, normalized load shape, parent key)
+```
+
+with dispatch-level failure state tied to:
+
+```text
+(top-level response key, loader identity, normalized load shape, attempted key set)
+```
+
+Consequences now binding: a key loaded in scope `A` is `NotLoaded` in scope `B`;
+duplicate keys within one scope still de-duplicate; identical terminal aliases
+within one scope still reuse; direct and descendant prefetch within one scope
+share the same entry with no second namespace; multiple prefetch sites within one
+scope issue no duplicate SQL; and the same loader/key beneath two top-level
+response keys dispatches twice, once per scope. A `LoadFailed` under one scope
+does not poison another.
+
+The **load-shape dimension was not removed**, and the three-state store, failure
+ownership, descendant contract and actual-SQL measurement requirements are all
+carried forward unchanged (section 18.9).
+
+### 18.4 Why no operation-type detection is needed
+
+The rule is uniform, so nothing needs to know whether it is executing in a query
+or a mutation. That is also the only implementable option on the pinned stack:
+a field resolver's executor is always a sub-executor whose `current_type` is the
+field's own type (`src/executor/mod.rs:568-596`); `FieldPath::Root` carries only
+a `SourcePosition` (`:61-64`); `SchemaType::query_type()`/`mutation_type()`
+(`src/schema/model.rs:371,387`) describe schema shape rather than the operation
+in flight; and `GraphQLRequest` exposes only a caller-chosen `operation_name`
+(`src/http/mod.rs:55`). The ADR now prohibits attempting such detection, and
+prohibits parsing the raw GraphQL document to derive scope.
+
+### 18.5 Why mutation serialization is no longer an architecture dependency
+
+Scope isolation is structural. Entries created beneath one top-level response key
+are unreachable from another, so a write performed by a second top-level mutation
+field cannot be followed by a stale read of the first field's loader state
+**regardless of execution order**.
+
+This matters concretely, because the pinned Juniper does not serialize mutation
+root fields on the async production path: `execute_validated_query_async`
+(`src/executor/mod.rs:985`) routes mutations into the same
+`resolve_into_value_async` used for queries, which drives every field through
+`FuturesOrdered` (`src/types/async_await.rs:196,262`) with no `OperationType`-aware
+serialization, whereas the sync path uses a plain `for` loop
+(`src/executor/mod.rs:883`; `src/types/base.rs:430-470`). An architecture relying
+on serialization would have been relying on executor polling behaviour, which
+section 3.1 rejected when it eliminated variant A1. M2 does not.
+
+Read-after-write *within* one top-level mutation field remains structurally sound
+on both paths: the resolver returns `FieldResult<Publisher>`, and the value must
+exist before its sub-selection resolves.
+
+### 18.6 Accepted query reuse tradeoff
+
+Recorded explicitly in `ADR-0006` section 4.12.13 and **not** presented as
+zero-cost. The same `(loader, shape, key)` reached beneath two top-level query
+response keys is loaded once per scope, so an operation may issue a bounded
+number of extra set-based dispatches. The bound comes from the operation's
+top-level structure, is independent of parent list size, and therefore does not
+recreate `1 + N`: two top-level scopes over a 100-parent list issue **2**
+set-based statements, not 200. Request-wide reuse across top-level fields is no
+longer stated as an invariant anywhere.
+
+The foundation must prove this explicitly rather than hide it: a
+two-top-level-field query test must report 2 dispatches, not `N + N`.
+
+### 18.7 Compatibility shim design
+
+The pinned Juniper exposes no dedicated public path accessor —
+`Executor::field_path` is a private field and `FieldPath::construct_path` /
+`FieldPath::location` are private methods, so `FieldPath` is reachable but its
+contents are not. The accepted mechanism is `Executor::new_error(..)`
+(`src/executor/mod.rs:679`) followed by `ExecutionError::path()` (`:797`), taking
+the first segment.
+
+It is confined to **one** isolated helper, materially
+`top_level_response_key(executor) -> Result<ScopeKey>`, which must not call
+`push_error`, must not modify the response, must return the first response-key
+segment, must fail closed, must not parse the query string, must not inspect
+private fields, must not use `unsafe`, and must be the only site in the codebase
+using the technique. No package dependency is added for it.
+
+**Side-effect freedom is evidenced, not assumed.** `new_error` builds an
+`ExecutionError` from `field_path.construct_path(..)` and returns it
+(`:679-689`); it never touches the executor's shared error collection, which is
+what `push_error_at` does via `self.errors.write()` (`:665-677`). The constructed
+error is discarded after its path is read.
+
+**Fail-closed behaviour is specified exactly** (section 4.12.9): a prefetch site
+that cannot derive its scope performs no prefetch and does not fail the parent
+list field; a terminal resolver that cannot derive its scope treats the lookup as
+`NotLoaded`. Both degrade to the correctness fallback. Substituting a shared or
+request-global namespace is prohibited, because that is precisely what would let
+entries cross scopes.
+
+**Scope keys are response keys, therefore aliases**, and must not be normalized
+to the schema field name — `a: publishers` and `b: publishers` are two scopes.
+The ADR makes explicit that this is a different rule from selection-path
+matching, which continues to use `field_original_name()` because it identifies
+schema fields.
+
+**Field merging was investigated rather than assumed** (section 4.12.6). Juniper's
+executor does not merge selections: `resolve_selection_set_into` iterates each
+`Selection::Field` and calls `Object::add_field`, which replaces an existing value
+for the key (`src/value/object.rs:28-37`). The `OverlappingFieldsCanBeMerged`
+validation rule (`src/validation/rules/overlapping_fields_can_be_merged.rs`,
+registered at `rules/mod.rs:78`) rejects, before execution, any document where two
+selections sharing a response key differ in field name (`:398-411`), arguments
+(`:415-424`) or type (`:428-440`). Two occurrences of one response key are
+therefore validated-compatible and contribute to the same response field, so
+sharing one scope is correct and lets the second occurrence reuse the first's
+entries. **No source-position or AST-occurrence component was added**, because the
+evidence does not require one and adding one would fragment a single response
+field and cause avoidable duplicate SQL.
+
+**Upgrade policy** (section 4.12.14): any Juniper version change affecting
+`Executor`, `ExecutionError`, field-path construction, alias/response-key handling
+or `new_error()` requires revalidation of the shim before deployment. This is a
+revalidation obligation, not a prohibition on upgrading, and it is discharged
+through the repository's existing dependency-change review and release gates
+rather than through a new process.
+
+### 18.8 Risk reclassification
+
+The classification was re-run against `risk-classification.md` rather than
+carried forward. Result: **`HIGH`, unchanged**, with a strengthened rationale
+recorded in `THOTH-GQL-BATCH-01` section 1.1.
+
+It matches HIGH on "changes to canonical data semantics" and "changes capable of
+broadening processing scope", and the escalation rules apply because production
+query volume is unknown and the mechanism targets callers that do not yet exist.
+Scope extraction is now load-bearing for every lookup, and scope collision would
+be a response-correctness fault rather than a performance one.
+
+It meets **no** `Critical` criterion: no destructive or irreversible production
+migration, no canonical data rewrite at scale, no mass redistribution or external
+publication, no security boundary affecting all publishers (authorization is
+untouched; scoping is isolation, not authorization), no secrets or
+identity-provider work, no metrics recomputation, no source-of-truth cutover and
+no material legal, privacy or contractual consequence. Bounding factors: no
+migration, no production consumer at merge, no new dependency, no public API
+change, and a fail-closed path that degrades to unbatched-but-correct.
+
+The classification was neither raised merely because M2 adds partitioning nor
+kept merely because it was previously HIGH.
+
+### 18.9 Previously accepted architecture preserved
+
+Verified unchanged by this remediation:
+
+- **A2 mechanism** — look-ahead-driven set-based prefetch into request-scoped
+  GraphQL state. No external DataLoader dependency, no execution-model migration;
+- **typed load identity** — typed, loader-owned normalized load shapes, every
+  result-changing argument represented, defaults normalized, one constructor
+  shared by prefetch site and child lookup, no serialized argument strings. The
+  load-shape dimension is retained and extended by the scope dimension, not
+  replaced;
+- **store state machine** — `NotLoaded`, `Loaded(Vec<V>)`, `LoadFailed(error)`,
+  with only `NotLoaded` executing the direct fallback;
+- **failure semantics** — failed prefetch does not fail the parent list field;
+  `LoadFailed` is consumed by the terminal child resolver; no per-parent retry;
+  no successful-empty substitution; `errors[].path`, null propagation and
+  `extensions.type` tested;
+- **descendant prefetch** — the four-concept contract (selection path, terminal
+  loader identity, terminal normalized load-shape constructor, key projector),
+  recursive `children()` traversal, `field_original_name()` matching at every
+  segment, all matching terminal aliases collected, no second namespace for
+  indirect prefetch, the key-projection authorization conditions, and terminal
+  compliance kept separate from legacy intermediate N+1 performance;
+- **SQL evidence** — actual-SQL observation through a pool created after
+  instrumentation, or an equivalent real-SQL observer. Application loader
+  counters remain unacceptable as primary proof;
+- **authorization** — projected keys only from already-resolved parent rows, no
+  arbitrary IDs from user input, no bypass of intermediate policy checks,
+  child-protected data requiring its own context, no policy change. The ADR now
+  states explicitly that scoping is isolation and must never substitute for a
+  permission check.
+
+### 18.10 New tests and acceptance evidence required
+
+Added to `THOTH-GQL-BATCH-01` section 9 and section 10: scope-key store identity;
+identical scope derivation at prefetch site and terminal resolver; no entry
+visible across scopes; two top-level aliases of one schema field producing
+separate namespaces; repeated response keys sharing one scope with no
+source-position component; shim path extraction across unaliased and aliased
+top-level fields, direct children, deep descendants, inline fragments and named
+fragments; shim side-effect freedom (no error, no `errors[]` change, no result
+change, no SQL); fail-closed derivation with no global-namespace substitution;
+single-site restriction and documented pinned coupling; the full store collision
+matrix including `LoadFailed` non-poisoning and invalidation across scopes; the
+two-top-level-field query test proving 2 dispatches rather than `N + N`;
+mutation read-after-write within one top-level field; isolation across two
+top-level mutation fields proven by scope isolation rather than execution order,
+including under async interleaving with a yielding fixture where practical; and
+per-scope SQL-count reporting inside both query and mutation fan-outs, under both
+`execute_sync` and async `execute`.
+
+New stop conditions cover inability to derive the scope through the shim,
+inability to make the shim side-effect-free, inability to demonstrate
+cross-top-level mutation isolation under async execution, and any requirement to
+modify production mutation resolvers, detect operation type at nested resolvers,
+or use `new_error(..)` outside the shim module.
+
+### 18.11 Boundaries confirmed
+
+- **no runtime work was performed.** No runtime source, schema, migration,
+  `Cargo` manifest, lock file or workflow changed;
+- PR #788, its branch and the `BE-02` specification unmodified;
+- issue #765 unmodified;
+- `docs/publisher-services/task-status.md` unmodified;
+- `ADR-0006` remains `PROPOSED`; `THOTH-GQL-BATCH-01` remains `DRAFT` and `HIGH`;
+- the implementation branch `feature/shared-architecture/graphql-batching` was
+  not created;
+- no additional ADR was created — M2 was fully specifiable inside `ADR-0006`;
+- `BE-02` runtime implementation remains unauthorized, and its exact-base
+  inventory — now covering query **and** mutation paths — remains its own future
+  responsibility;
+- no approval-state or transient-status prose was written into any committed
+  file.

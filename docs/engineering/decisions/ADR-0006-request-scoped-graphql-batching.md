@@ -228,8 +228,9 @@ selection set through `Executor::look_ahead()`, and when a registered
 loader-backed field is selected — either as a direct child of those items or as
 a **descendant** beneath intermediate object fields (section 4.19) — issues
 **one** set-based query for the keys projected from those already-resolved items
-and writes the partitioned result into request-scoped state on `Context`. The
-terminal child resolver reads its parent's entry from that state.
+and writes the partitioned result into request-scoped state on `Context`, under
+the current top-level response scope (section 4.12). The terminal child resolver
+derives the same scope and reads its parent's entry from that state.
 
 Verified viable:
 
@@ -281,7 +282,8 @@ A2 pay only when the field is actually requested.
 ## 4. Decision
 
 Adopt **Option A, realised as variant A2**: look-ahead-driven set-based prefetch
-into request-scoped state on the GraphQL `Context`.
+into request-scoped state on the GraphQL `Context`, **partitioned by top-level
+GraphQL response key** (section 4.12).
 
 The following subsections are binding on the implementation. Where a point is
 deliberately left to implementation, the invariant it must satisfy is stated
@@ -307,6 +309,10 @@ constructed and dropped when `Context` is dropped.
 placed behind a process-lifetime `Arc`, or registered as actix `app_data`.** The
 existing per-request construction already satisfies this and must not change.
 
+This is the store's **storage lifetime**. Its **reuse namespace** is narrower —
+one top-level response key within that request — and the two must not be
+conflated (section 4.12.3).
+
 ### 4.3 No global cache
 
 There is no process-global, cross-request or cross-user cache, and no singleton.
@@ -315,12 +321,16 @@ discretion.
 
 ### 4.4 Batching key representation
 
-The store is keyed by the triple:
+The store is keyed by the quadruple:
 
 ```text
-(loader identity, normalized load shape, parent key)
+(top-level response key, loader identity, normalized load shape, parent key)
 ```
 
+- **top-level response key** is the execution scope of section 4.12: the first
+  GraphQL response-key path segment of the resolver currently executing. It is
+  the response key, therefore an alias when one is present (4.12.5). No loader
+  entry crosses scopes;
 - **loader identity** distinguishes one loader-backed field from another and
   must be a closed, compile-time-checked discriminant (for example a
   crate-internal enum), not a free-form string;
@@ -330,8 +340,12 @@ The store is keyed by the triple:
   (`Uuid` for every parent type currently in the model). Keys are never
   stringified into a shared namespace.
 
-Mixing two loaders' results, or two argument variants' results, is made
-impossible by construction, not by convention.
+Mixing two loaders' results, two argument variants' results, or two top-level
+scopes' results is made impossible by construction, not by convention.
+
+Sections 4.4.1 to 4.4.6 concern the load-shape dimension. The scope dimension is
+settled in section 4.12; it is listed here because it is part of the store
+identity, not because it is a load-shape concern.
 
 #### 4.4.1 Why the load shape is part of the identity
 
@@ -407,8 +421,9 @@ therefore works for variable-supplied arguments too.
 #### 4.4.4 Dispatch model
 
 ```text
-one set-based dispatch per unique (loader identity, load shape),
-covering all relevant parent keys for that shape
+one set-based dispatch per unique
+(top-level response key, loader identity, load shape),
+covering all relevant parent keys for that scope and shape
 ```
 
 Not one global dispatch for all argument variants, and not one dispatch per
@@ -416,9 +431,11 @@ parent. A request selecting two argument variants of the same field over the
 same parent list issues two dispatches — one per shape — each set-based over the
 whole key set.
 
-The number of dispatches is bounded by the number of distinct shapes actually
-requested, which is bounded by the query text. It does not grow with parent
-count.
+The number of dispatches is bounded by the number of distinct
+`(scope, shape)` combinations actually requested, which is bounded by the query
+text: the operation's top-level response fields times the argument variants it
+selects. It does **not** grow with parent count, so `1 + N` access cannot arise
+from this model (section 4.12.13).
 
 #### 4.4.5 `BE-02`'s load shape
 
@@ -433,7 +450,10 @@ DistributionPlatformsLoadShape = Unit
 and the future `BE-02` loader batches by:
 
 ```text
-(loader = PublisherDistributionPlatforms, shape = Unit, publisher_id)
+(scope = <top-level response key>,
+ loader = PublisherDistributionPlatforms,
+ shape = Unit,
+ publisher_id)
 ```
 
 with one set-based query for the requested publisher key set.
@@ -490,7 +510,8 @@ task must escalate rather than degrade to per-parent statements.
 
 ### 4.6 Duplicate keys, aliases and repeated parents
 
-All of the following are per `(loader, shape)`:
+All of the following are per `(scope, loader, shape)` — that is, **within one
+top-level response scope**:
 
 - the key set is de-duplicated before the query is issued, so `n` parent
   references to the same key produce **one** key in the statement;
@@ -502,20 +523,26 @@ All of the following are per `(loader, shape)`:
 - repeated aliases of the same field with **different** shapes
   (`a: contacts(limit: 1) b: contacts(limit: 100)`) resolve against different
   stored entries, each correct for its own shape, with one dispatch per shape;
-- a parent that appears in two different prefetched lists within one request is
+- a parent that appears in two different prefetched lists **within one scope** is
   loaded once per shape; a second prefetch that would cover an already-present
-  `(loader, shape, key)` entry does not re-query it. This is what allows several
-  prefetch sites to cover the same loader in one request without duplicate SQL
-  (section 4.18).
+  `(scope, loader, shape, key)` entry does not re-query it. This is what allows
+  several prefetch sites — direct and descendant alike — to cover the same loader
+  within one scope without duplicate SQL (sections 4.18, 4.19).
+
+Across scopes the opposite holds, and deliberately so: the same
+`(loader, shape, key)` reached under a different top-level response key is a
+different entry, is `NotLoaded` there, and is dispatched once for that scope
+(section 4.12.13).
 
 ### 4.7 Store state model
 
-The store holds, for each `(loader identity, load shape, parent key)`, exactly
-one of three states. A representation that cannot express all three is
+The store holds, for each
+`(top-level response key, loader identity, load shape, parent key)`, exactly one
+of three states. A representation that cannot express all three is
 non-compliant.
 
 ```text
-NotLoaded          // no prefetch attempted for this key under this shape
+NotLoaded          // no prefetch attempted for this key under this scope and shape
 Loaded(Vec<V>)     // prefetch succeeded; includes Loaded([]) meaning genuinely empty
 LoadFailed(error)  // the covering prefetch dispatch failed
 ```
@@ -530,8 +557,10 @@ Child-resolver behaviour is fully determined by the state:
 | `LoadFailed(e)` | return the field error derived from `e` | issue any query, retry, or return an empty result |
 
 `NotLoaded` arises when the parent was reached by a path with no prefetch site,
-or when look-ahead under-reported (section 3.1, A2). The fallback is what makes
-**correctness** independent of look-ahead accuracy. It is *not* evidence of N+1
+when the key was loaded only under a **different** top-level response scope
+(section 4.12.13), when look-ahead under-reported (section 3.1, A2), or when
+scope derivation failed closed (section 4.12.9). The fallback is what makes
+**correctness** independent of all four. It is *not* evidence of N+1
 compliance — see section 4.18, which makes that distinction binding.
 
 The three states must be mutually unambiguous. In particular `Loaded([])` must
@@ -575,7 +604,7 @@ Required sequence:
 2. the requested prefetch is attempted;
 3. if the set-based statement fails:
    - record a `LoadFailed` outcome in request state covering the attempted keys
-     for that `(loader, shape)`;
+     for that `(scope, loader, shape)`;
    - do **not** convert the failure into successful empty buckets;
    - do **not** return the prefetch error from the parent list resolver merely
      because the optimisation failed;
@@ -591,9 +620,16 @@ to prevent, on the pathological path where the database is already unhealthy.
 
 #### 4.9.2 Failure storage granularity
 
-The failure is recorded **once per `(loader identity, load shape)` dispatch**,
-together with the key set that dispatch attempted. A lookup for a key resolves
-to `LoadFailed` when that key is in a failed dispatch's attempted set.
+The failure is recorded **once per
+`(top-level response key, loader identity, load shape)` dispatch**, together
+with the key set that dispatch attempted. A lookup for a key resolves to
+`LoadFailed` when that key is in a failed dispatch's attempted set **under the
+same scope**.
+
+A `LoadFailed` recorded under scope `A` therefore does **not** poison scope `B`:
+a lookup for the same key under `B` is `NotLoaded` and takes the ordinary direct
+fallback, exactly as if `A` had never run. Failure state is partitioned by scope
+for the same reason successful state is.
 
 Justified by the fact being represented: one set-based statement failed, so one
 failure occurred, and it failed the entire dispatch. Per-key storage would
@@ -654,32 +690,22 @@ list. If a prefetch site can be reached with an unbounded parent count, the
 implementation must chunk into bounded statements — a fixed, documented number of
 statements is compliant; a per-parent statement is not.
 
-### 4.11 Caching within one request
+### 4.11 Reuse within one request, partitioned by scope
 
-Yes, within the single request, and only through the mechanism above: a
-`(loader, shape, key)` entry loaded once is not loaded again in that request.
-Two shapes of the same field over the same key are two entries and are loaded
-once each.
+Reuse happens within a single request and only through the mechanism above, but
+it is **partitioned by top-level response scope** (section 4.12). A
+`(scope, loader, shape, key)` entry loaded once is not loaded again under that
+scope. Two shapes of the same field over the same key are two entries and are
+loaded once each. The same `(loader, shape, key)` reached under two different
+top-level response keys is two entries and is loaded once per scope.
 
-### 4.12 Mutation payload reachability — OPEN, escalated to the CTO
+### 4.12 Execution scope: top-level response-key partitioning
 
-This section records an **unresolved decision**. It is not a resolved rule, and
-it must not be read as one.
+#### 4.12.1 The problem this settles
 
-#### 4.12.1 The contradiction
-
-An earlier draft of this ADR carried this rule:
-
-```text
-Prefetch sites may be installed only on resolvers that are unreachable from
-MutationRoot payload selections.
-```
-
-That rule is **withdrawn**, because it cannot coexist with section 4.18's
-all-material-path coverage rule. Both were stated as binding; both cannot hold.
-
-The conflict is live at the verification base, not hypothetical. Thoth's
-mutations return rich model objects rather than thin acknowledgement payloads:
+Thoth's mutations return rich model objects rather than thin acknowledgement
+payloads, so a mutation payload can fan out over publishers with no query
+operation involved:
 
 | Mutation | Payload type | Evidence |
 |---|---|---|
@@ -689,86 +715,247 @@ mutations return rich model objects rather than thin acknowledgement payloads:
 | `updateContact` | `Contact` | `mutation.rs:720` |
 
 `Publisher` exposes `contacts` (`model.rs:1258`) and `Contact` exposes
-`publisher` (`model.rs:3120`). So once `BE-02` exists, a mutation payload can
-fan out over publishers with no query operation involved at all:
+`publisher` (`model.rs:3120`), so this is a material fan-out path:
 
 ```graphql
 mutation {
   updatePublisher(data: { ... }) {
-    contacts {
-      publisher {
-        distributionPlatforms { platform }
-      }
-    }
+    contacts { publisher { distributionPlatforms { platform } } }
   }
 }
 ```
 
-Under the withdrawn rule this path may not carry a prefetch site. Under section
-4.18 it is a material fan-out path that must be covered or explicitly escalated.
-Leaving both in place would let a future task pick whichever rule suited its
-conclusion.
+An earlier draft attempted to confine prefetch sites to resolvers unreachable
+from `MutationRoot` payload selections. That rule is **withdrawn**: it could not
+coexist with section 4.18's all-material-path coverage rule, and it would have
+left mutation payload fan-out permanently outside the
+`thoth-api/AGENTS.md` section 6 N+1 control.
 
-#### 4.12.2 What was investigated
+An operation-type-discriminating design was investigated and rejected on
+evidence, because a nested resolver cannot determine the operation type through
+stable public Juniper API (section 4.12.7). This decision therefore does **not**
+discriminate operation type at all.
 
-The candidate architecture investigated was **operation-scoped batching**:
+#### 4.12.2 The decision
+
+> Thoth GraphQL loader state is **owned by one GraphQL request** but
+> **partitioned by the current top-level GraphQL response key**.
+>
+> Every loader lookup and every prefetch is scoped by:
+>
+> ```text
+> (top-level response key, loader identity, normalized load shape, parent key)
+> ```
+>
+> The top-level response key is derived through one isolated pinned-Juniper
+> compatibility shim (section 4.12.8) built on
+> `Executor::new_error(..)` / `ExecutionError::path()`.
+>
+> The rule applies **uniformly** to query operations and mutation payloads. No
+> loader entry crosses top-level response-key scopes.
+>
+> Within one scope, direct and descendant prefetch sites share terminal entries
+> and perform set-based loading.
+>
+> Correctness does **not** depend on Juniper serializing top-level mutation
+> fields.
+
+#### 4.12.3 Storage lifetime is not reuse namespace
+
+These are two different things and conflating them would misdescribe the
+architecture:
 
 ```text
-query operation scope    = the whole request (as section 4.11 specifies)
-mutation operation scope = the current top-level mutation field
+storage lifetime:   one GraphQL request
+reuse namespace:    one top-level response key within that request
 ```
 
-so that state prefetched while resolving one top-level mutation field can never
-be read by another top-level mutation field that has since performed its own
-write. This would have preserved the N+1 control over mutation payloads without
-retrofitting explicit invalidation onto the 88 resolver methods on
-`MutationRoot` (`thoth-api/src/graphql/mutation.rs:58-61`).
+The store still lives on the request-scoped `Context` (section 4.1), is still
+created empty per request and dropped with the request (section 4.2), and there
+is still no global, static or cross-request cache (section 4.3). M2 changes
+none of that. It partitions entries *inside* the request. This is **not** a
+cross-request or independent cache, and must not be described as one.
 
-It was verified against the pinned sources, not assumed. Two of the three
-prerequisites fail.
+#### 4.12.4 What a scope is
 
-**(a) Deriving the execution path — possible, but only off-label.**
+A scope is identified by the **first GraphQL response-key path segment** of the
+resolver currently executing:
 
-`Executor::field_path` is a private field, `FieldPath::construct_path` and
-`FieldPath::location` are private methods, and although `FieldPath` itself is
-reachable (`pub mod executor` in `src/lib.rs:33`; `pub enum FieldPath` at
-`src/executor/mod.rs:61`) it exposes no public accessor for its contents. The
-only public route to the current path is to construct a throwaway error:
-`Executor::new_error(FieldError) -> ExecutionError` (`src/executor/mod.rs:679`)
-followed by `ExecutionError::path() -> &[String]` (`:797`). Both are public and
-documented, but using an error constructor as a path accessor is off-label, and
-section 3.1 already rejected a mechanism that rests on non-contractual executor
-behaviour. Applying a weaker standard here would be inconsistent.
+```text
+top_level_response_key(executor) -> ScopeKey
+```
 
-Path segments are **response keys, i.e. aliases**, not schema field names:
-`field_sub_executor` (`:568`, and marked `#[doc(hidden)]`) stores `field_alias`,
-which both drivers supply as `response_name = f.alias.unwrap_or(f.name)`
-(`src/types/base.rs:446`; `src/types/async_await.rs:216`). Alias-keyed scope is
-conservative rather than unsafe — two aliases of one mutation field would get
-two scopes — so this part is workable.
+For:
 
-**(b) Determining the operation type — not possible.** This is the blocking
-finding.
+```graphql
+query {
+  pubs: publishers {
+    distributionPlatforms { platform }
+  }
+}
+```
 
-- a field resolver's executor is always a **sub**-executor, whose `current_type`
+the scope is `"pubs"`, for the `publishers` resolver and for every resolver
+nested beneath it, including `Publisher.distributionPlatforms`.
+
+For:
+
+```graphql
+mutation {
+  first:  updatePublisher(...) { contacts { publisher { distributionPlatforms { platform } } } }
+  second: updatePublisher(...) { contacts { publisher { distributionPlatforms { platform } } } }
+}
+```
+
+there are two distinct scopes, `"first"` and `"second"`. Every resolver beneath
+`first` shares `"first"`; every resolver beneath `second` shares `"second"`; and
+no entry created under one is visible under the other.
+
+#### 4.12.5 The scope key is a response key, therefore an alias when present
+
+This is intentional and must not be normalized away. For:
+
+```graphql
+query {
+  a: publishers { ... }
+  b: publishers { ... }
+}
+```
+
+there are two scopes, `"a"` and `"b"`, even though both are the schema field
+`publishers`. Collapsing them to `publishers` would let one top-level field's
+entries satisfy another's — exactly what the partition exists to prevent in the
+mutation case. Alias-keyed scope is the conservative direction.
+
+**Two different rules, for two different purposes, and they must not be
+confused:**
+
+| Purpose | Rule | Why |
+|---|---|---|
+| selection-path matching (4.15.1, 4.19.3) | `field_original_name()` | it identifies **schema fields**, so an alias must not be mistaken for a field name |
+| execution-scope identity (this section) | response key / alias | it identifies the **top-level response namespace**, which is exactly what an alias creates |
+
+Both are correct. A reviewer encountering `field_original_name()` in traversal
+code and a response key in scope code is looking at two deliberate, different
+decisions.
+
+#### 4.12.6 Repeated response keys and field merging
+
+A response key may appear more than once in a selection set, through repetition
+or through fragment spreads. Two occurrences of one response key **share one
+scope**, and that is correct rather than a collision.
+
+Evidence from the pinned sources:
+
+- Juniper's executor does not merge selections. `resolve_selection_set_into`
+  (`src/types/base.rs:430-470`) iterates each `Selection::Field` and calls
+  `Object::add_field(response_name, value)`, which **replaces** any existing
+  value for that key (`src/value/object.rs:28-37`). So each occurrence is
+  resolved, and they contribute to the same single response field;
+- the `OverlappingFieldsCanBeMerged` validation rule
+  (`src/validation/rules/overlapping_fields_can_be_merged.rs`, registered at
+  `rules/mod.rs:78`) rejects, before execution, any document in which two
+  selections sharing a response key have different field names (`:398-411`),
+  differing arguments (`:415-424`) or conflicting types (`:428-440`).
+
+So two occurrences of one response key are guaranteed by validation to be the
+same schema field with the same arguments, contributing to the same response
+field. Sharing a loader scope between them is correct, and lets the second
+occurrence reuse the first's entries rather than re-dispatching.
+
+**No source-position or AST-occurrence component is added to the scope key.**
+The scope is the actual GraphQL response key, not an AST occurrence identity,
+and the evidence above shows no additional component is required. Adding one
+would fragment a single response field across several namespaces and cause
+avoidable duplicate SQL.
+
+#### 4.12.7 Why no operation-type detection is required
+
+The rule is uniform, so nothing needs to know whether it is executing inside a
+query or a mutation. This is a deliberate design choice and also the only
+implementable one on the pinned stack:
+
+- a field resolver's executor is always a **sub**-executor whose `current_type`
   is that field's own type, never the root operation type
-  (`src/executor/mod.rs:568-596`). The public surface —
-  `context()`, `schema()`, `current_type()`, `variables()`,
-  `fragment_by_name()`, `location()`, `look_ahead()` — carries no operation-type
-  discriminant;
+  (`src/executor/mod.rs:568-596`);
 - `FieldPath::Root` carries only a `SourcePosition` (`:61-64`);
-- `SchemaType` exposes `query_type()` / `mutation_type()` (`src/schema/model.rs:371,387`),
-  which describe the schema's shape, not the operation in flight;
-- `GraphQLRequest` exposes only `operation_name()` (`src/http/mod.rs:55`) — a
-  caller-chosen label, not the operation type.
+- `SchemaType::query_type()` / `mutation_type()` (`src/schema/model.rs:371,387`)
+  describe the schema's shape, not the operation in flight;
+- `GraphQLRequest` exposes only `operation_name()` (`src/http/mod.rs:55`), a
+  caller-chosen label rather than the operation type.
 
-The remaining routes are both excluded: deriving the operation type by parsing
-the raw GraphQL document is prohibited, and having each mutation resolver mark
-its own scope is exactly the 88-resolver retrofit the candidate existed to
-avoid.
+Implementations **must not** attempt to detect query versus mutation at nested
+resolvers, and must not parse the raw GraphQL document to derive scope.
 
-**(c) Serial execution of top-level mutation fields — true on the sync path,
-false on the async production path.**
+#### 4.12.8 The pinned-Juniper compatibility shim
+
+M2 requires deriving the current top-level response key from a nested resolver.
+The pinned Juniper exposes no dedicated public path accessor: `Executor::field_path`
+is a private field, and `FieldPath::construct_path` / `FieldPath::location` are
+private methods, so although `FieldPath` is reachable
+(`pub mod executor`, `src/lib.rs:33`; `pub enum FieldPath`,
+`src/executor/mod.rs:61`) its contents are not.
+
+The accepted mechanism is:
+
+```text
+Executor::new_error(..) -> ExecutionError::path() -> first response-key segment
+```
+
+Both are public and documented (`src/executor/mod.rs:679`; `:797`). This is a
+**compatibility shim, not business logic**, and is accepted as a pinned-Juniper
+coupling under the controls below.
+
+**Binding contract.** One isolated helper, materially equivalent to:
+
+```text
+top_level_response_key(executor) -> Result<ScopeKey>
+```
+
+The implementation chooses the exact Rust signature. The helper must:
+
+1. call `Executor::new_error(..)` **only** to materialize the current execution
+   path;
+2. never call `push_error` or `push_error_at`;
+3. never modify the GraphQL response;
+4. return the **first** path response-key segment;
+5. **fail closed** if no top-level response key can be derived (4.12.9);
+6. never parse the raw GraphQL query string;
+7. never inspect private Juniper fields;
+8. never use `unsafe`;
+9. be the **only** location in the codebase permitted to use this technique.
+
+`new_error(..)` calls must not be scattered across loaders, prefetch sites or
+resolvers. Every caller obtains its scope from this one helper.
+
+**Why it is side-effect-free.** `new_error` constructs an `ExecutionError` from
+`field_path.construct_path(..)` and returns it (`src/executor/mod.rs:679-689`).
+It does **not** touch the executor's shared error collection — that is
+`push_error_at`, which acquires `self.errors.write()` and pushes (`:665-677`).
+Calling `new_error` therefore adds no GraphQL error, changes no `errors[]`
+entry, changes no result data, and performs no database access. The constructed
+error is discarded once its path has been read.
+
+#### 4.12.9 Fail-closed scope derivation
+
+If a top-level response key cannot be derived — for example an empty path,
+which is what `construct_path` produces at `FieldPath::Root` — the helper
+returns an error and the calling site **fails closed**:
+
+- a **prefetch site** that cannot derive its scope performs **no prefetch**. It
+  does not fall back to a request-global namespace, and it does not fail the
+  parent list field; every affected terminal lookup is then simply `NotLoaded`
+  and takes the ordinary direct-query fallback (section 4.7), so the operation
+  remains **correct** while not being batched on that path;
+- a **terminal child resolver** that cannot derive its scope treats its lookup
+  as `NotLoaded` and takes the direct-query fallback.
+
+Silently substituting a shared or global namespace is **prohibited**: it would
+allow entries to cross top-level scopes, which is the one thing this partition
+exists to prevent. Degrading to the correctness fallback is the safe direction;
+degrading to a shared namespace is not.
+
+#### 4.12.10 Why correctness does not depend on mutation serialization
 
 The GraphQL specification requires mutation root fields to execute serially. The
 pinned Juniper honours that on the sync path only:
@@ -776,107 +963,91 @@ pinned Juniper honours that on the sync path only:
 | Path | Driver | Behaviour |
 |---|---|---|
 | sync (`src/executor/mod.rs:883`) | `resolve_selection_set_into`, a plain `for` loop (`src/types/base.rs:430-470`) | serial |
-| async (`src/executor/mod.rs:985`) | `resolve_selection_set_into_async_recursive`, `FuturesOrdered` (`src/types/async_await.rs:196,262`) | concurrent — **no `OperationType`-aware serialization anywhere on this path** |
+| async (`src/executor/mod.rs:985`) | `resolve_selection_set_into_async_recursive`, `FuturesOrdered` (`src/types/async_await.rs:196,262`) | concurrent — no `OperationType`-aware serialization |
 
-The async driver selects the mutation root type and then calls exactly the same
-`resolve_into_value_async` it uses for queries. Thoth's mutation resolvers are
-all synchronous, so `juniper_codegen`'s `future::ready(..)` wrapper (section 3.1,
-A1) makes each field future complete on its first poll and they *happen* to run
-serially today — but that is inference from executor polling behaviour, which
-section 3.1 rejected as a foundation. It is also precisely the property that
-would silently break if any mutation resolver ever became genuinely async.
+M2 is **not affected by this discrepancy**, and that is the main reason it is the
+right shape. For:
 
-A scope keyed on the top-level response key would in fact be robust to that
-interleaving, since entries under one top-level field would never be visible to
-another regardless of polling order. The blocker is (b), not (c). But (c) means
-a test proving isolation under `execute_sync` would **not** prove it under the
-production async path, so the "sync and async agree" evidence the foundation
-requires cannot be obtained from the sync harness alone.
+```graphql
+mutation {
+  first:  updateSomething(...)     { ...nested loader-backed selections... }
+  second: updateSomethingElse(...) { ...nested loader-backed selections... }
+}
+```
 
-#### 4.12.3 Consequence: the decision is escalated, not narrowed
+entries loaded beneath `first` live under scope `"first"` and are structurally
+unreachable from scope `"second"`. A write performed by `second` therefore
+cannot be followed by a stale read of `first`'s loader state, **even if the
+executor interleaves the two top-level futures**.
 
-Because prerequisite (b) fails, the candidate is not implementable on the pinned
-stack through stable public API. This ADR therefore **does not** settle mutation
-payload coverage, and deliberately **does not** write an exclusion such as
-"mutation payloads are outside N+1 compliance". Narrowing a standing engineering
-control is a CTO decision, not an authoring one, and the purpose of this ADR is
-to give the repository a way to *satisfy* the control.
+Correctness rests on scope isolation, not on execution order. An architecture
+that depended on serialization would be relying on executor polling behaviour,
+which section 3.1 rejected when it eliminated variant A1; M2 does not.
 
-The decision set is recorded in section 4.12.4. Until the CTO selects one:
+#### 4.12.11 Read-after-write within one top-level mutation field
 
-- no prefetch site may be installed on a path reachable from a `MutationRoot`
-  payload selection, **and this is a temporary hold pending the decision, not a
-  finding that such paths are inherently exempt**;
-- a loader-backed field reached through a mutation payload remains **correct**,
-  because the `NotLoaded` fallback of section 4.7 always applies. It is not N+1
-  compliant on that path, and section 4.18 requires that to be reported as an
-  uncovered path rather than left unstated;
-- `BE-02` must record `updatePublisher -> Publisher -> contacts -> publisher ->
-  distributionPlatforms` and its siblings in its section 4.18.2 inventory,
-  classified as **blocked on this decision** — not as covered, and not as
-  excluded.
+A top-level mutation resolver's write completes before its payload selection set
+can resolve: the resolver returns `FieldResult<Publisher>`, and the value must
+exist before its sub-selection is resolved. A nested prefetch therefore runs
+after the write and observes current database state. This is structural on both
+execution paths, not polling-dependent.
 
-#### 4.12.4 Decision set for the CTO
+#### 4.12.12 Whole-store invalidation
 
-**M1 — explicit query-only compliance boundary.** A2 batching applies to query
-operations. Mutation payload fan-out is a **scoped, recorded exception** to the
-`thoth-api/AGENTS.md` section 6 N+1 control until a mutation-execution
-architecture exists.
+`Context` retains the explicit invalidation entry point, and it remains the
+**simplest correct primitive: whole-store invalidation**, clearing every scope,
+every loader, every shape, every key, every `Loaded` state and every
+`LoadFailed` state.
 
-- smallest implementation; the A2 query architecture is unchanged;
-- mutation payload fan-out may still exhibit N+1;
-- it is a deliberate engineering-control exception and must be recorded as one,
-  never presented as an inherent exclusion;
-- requires explicit CTO acceptance.
+Its role changes under M2. Ordinary correctness — including mutation
+read-after-write — comes from **scope isolation**, so it does **not** depend on
+mutation resolvers invoking invalidation, and no retrofit of the 88 resolver
+methods on `MutationRoot` (`thoth-api/src/graphql/mutation.rs:58-61`) is
+required. Avoiding that retrofit is a principal reason this shape was chosen.
+The primitive remains available as a conservative API for future exceptional or
+non-standard write scenarios.
 
-**M2 — expand the architecture for mutation-safe batching.** Introduce the
-additional execution-scope mechanism the investigation shows is required. On the
-evidence above the only shape that works within the pinned stack is a store
-scoped by **top-level response key**, derived through the `new_error(..).path()`
-route of 4.12.2(a), applied **uniformly to queries and mutations** because the
-operation type cannot be discriminated.
+A narrower primitive targeting `(scope)`, `(loader)`, `(loader, shape)` or
+`(scope, loader, shape, key)` is **not** provided, because no evidence yet shows
+one is needed and a narrower invalidation is the easier of the two to get subtly
+wrong. Introducing one later requires evidence that whole-store invalidation is
+materially insufficient.
 
-- preserves the N+1 control over mutation payloads;
-- costs cross-top-level-field reuse in queries: a key selected under two
-  top-level query fields would be loaded once per top-level field. This is
-  bounded by the query text and does **not** grow with parent list size, so the
-  control still holds, but section 4.6 and section 8.2 item 5 would have to be
-  restated per scope rather than per request;
-- rests on an off-label use of a public error-construction API as a path
-  accessor, which is a weaker foundation than the rest of A2;
-- materially enlarges the shared GraphQL architecture and `THOTH-GQL-BATCH-01`'s
-  scope and risk, and may warrant its own prerequisite ADR.
+#### 4.12.13 Accepted tradeoff: cross-top-level query reuse is given up
 
-This ADR does not select between them. Selecting M1 would waive part of a
-standing control; selecting M2 would enlarge the approved authoring scope.
+This is a real cost and must not be presented as zero-cost.
 
-#### 4.12.5 What is settled regardless
+Before M2, a `(loader, shape, key)` entry loaded anywhere in a request satisfied
+every later lookup in that request. Under M2 it satisfies only lookups under the
+same top-level response key. Consequently:
 
-1. Within a query operation no write occurs, so no stale read is possible. The
-   read-after-write question is confined to mutation operations;
-2. a top-level mutation resolver's write is complete before its payload
-   selection set resolves, on both paths. The resolver returns
-   `FieldResult<Publisher>` and the value must exist before its sub-selection can
-   be resolved. This is structural, not polling-dependent, so read-after-write
-   *within* one top-level mutation field is sound under either M1 or M2;
-3. `Context` exposes an explicit invalidation entry point. For the foundation it
-   is deliberately the **simplest correct primitive: whole-store invalidation**,
-   clearing every entry — `Loaded` state, `LoadFailed` state, every load shape
-   and every loader. It is unused by the foundation and exists so that a future
-   prefetch site reachable from a mutation payload has a correct mechanism
-   available rather than inventing one.
+- the same `(loader, shape, parent key)` reached beneath two top-level query
+  response keys is loaded **once per top-level response key**;
+- an operation may therefore issue a bounded number of additional set-based
+  dispatches;
+- the bound is determined by the operation's top-level response fields — that
+  is, by the query structure — and is **independent of parent list size**;
+- so it does **not** recreate `1 + N` behaviour. Two top-level scopes over a
+  100-parent list issue **2** set-based statements, not 200.
 
-   A narrower primitive targeting `(loader)`, `(loader, shape)` or
-   `(loader, shape, key)` is **not** provided, because no evidence yet shows one
-   is needed and a narrower invalidation is the easier of the two to get subtly
-   wrong. Introducing one later requires evidence that whole-store invalidation
-   is materially insufficient. Note that under M2 ordinary correctness would come
-   from scope isolation rather than from invalidation, and this primitive would
-   remain a conservative API for non-standard writes;
-4. the foundation must still prove read-after-write within a single top-level
-   mutation field, using test-only mutations and types: a mutation that writes
-   child data and then selects the affected loader-backed field in the same
-   operation returns the written value, not a prefetched one.
+Request-wide reuse across top-level fields is **no longer an invariant** and must
+not be stated as one anywhere in this repository's architecture documents.
+
+#### 4.12.14 Compatibility upgrade policy
+
+The scope shim is coupled to the pinned Juniper API surface. Binding rule:
+
+> Any future change to the `juniper` version that affects `Executor`,
+> `ExecutionError`, field-path construction, alias/response-key handling, or
+> `new_error()` requires **revalidation of the scope compatibility shim before
+> deployment**.
+
+This is a revalidation obligation, not a prohibition on upgrading Juniper. It is
+discharged through the repository's ordinary dependency-change review under
+`docs/engineering/AGENTS.md` and the release gates — no new process is created —
+and the shim's own tests (section 8.2) are the evidence. The shim's module
+documentation and tests must state the coupling explicitly so an upgrading agent
+encounters it.
 
 ### 4.13 Authorization interaction
 
@@ -902,6 +1073,12 @@ Consequences:
 The batching foundation introduces no new authorization decision and changes no
 policy in `thoth-api/src/policy.rs`.
 
+Top-level response-key scoping (section 4.12) does not change any of this.
+Scoping is **isolation, not authorization**: it partitions a request's own
+already-authorized results so they cannot be reused across top-level response
+keys. It must never be relied on as a permission check, and it neither widens
+nor narrows what a caller may see.
+
 ### 4.14 Transaction and connection model
 
 Unchanged from current practice. The prefetch query acquires a connection from
@@ -917,17 +1094,29 @@ connection checkouts relative to the per-parent path.
 Explicitly and visibly, in two coordinated places:
 
 1. the **prefetch site** — a resolver that has just resolved a list of items —
-   takes the executor argument, traverses the requested selection set to find
+   takes the executor argument, derives its **top-level response scope** through
+   the shim of section 4.12.8, traverses the requested selection set to find
    every terminal loader-backed selection it covers (4.15.1 for a direct child,
    4.19.3 for a descendant), derives a normalized terminal load shape for each
    distinct variant (4.4.2), projects the terminal loader keys from the resolved
    items (identity for a direct child, the key projector of 4.19.1 for a
    descendant), and calls the shared prefetch helper once per shape with the
    de-duplicated key set;
-2. the **terminal child resolver** builds its lookup shape with the *same*
-   loader-owned constructor, reads the `(loader, shape, parent key)` state, and
-   acts per the table in section 4.7. It is unchanged by whether the entry was
-   prefetched from its own parent list or from an ancestor (4.19.2).
+2. the **terminal child resolver** takes the executor argument, derives its
+   **top-level response scope** through the *same* shim, builds its lookup shape
+   with the *same* loader-owned constructor, reads the
+   `(scope, loader, shape, parent key)` state, and acts per the table in section
+   4.7. It is unchanged by whether the entry was prefetched from its own parent
+   list or from an ancestor (4.19.2).
+
+Both sides derive the scope from the same helper, so a prefetch site and the
+terminal resolvers beneath it necessarily agree: they share a first path
+segment by construction. That agreement is an acceptance criterion, not an
+assumption (section 8.2).
+
+Both sides also fail closed identically when scope derivation fails (section
+4.12.9): the prefetch is skipped, the lookup reads `NotLoaded`, and the field
+falls back to its direct query.
 
 There is no implicit or automatic adoption. A field that does not opt in behaves
 exactly as it does today.
@@ -1035,28 +1224,38 @@ must:
    expose the parent type under a list or fan-out of multiple parents. The
    inventory is produced by searching the base, not by copying a list from this
    ADR;
-2. **record the operation kind** of each path — reachable under a query
-   operation, under a mutation payload, or both. Mutation-payload paths are
-   currently **blocked on the section 4.12.4 decision** and must be recorded as
-   such, neither as covered nor as excluded;
-3. for each path, **identify the nearest suitable already-resolved list or
+2. for each path, **identify the nearest suitable already-resolved list or
    fan-out site** from which the terminal loader key can be safely projected —
    which may be an ancestor rather than the terminal field's own parent (4.19);
-4. **record the terminal selection path** from that site to the loader-backed
+3. **record the terminal selection path** from that site to the loader-backed
    field;
-5. **record the key projector** used at that site, and show it satisfies the four
+4. **record the terminal loader** the path resolves to;
+5. **record normalized load-shape construction** for that terminal field;
+6. **record the key projector** used at that site, and show it satisfies the four
    conditions of 4.19.4;
-6. **record any intermediate authorization boundary** the path crosses, and
+7. **record any intermediate authorization boundary** the path crosses, and
    either establish equivalent authorization before the prefetch or escalate;
-7. **install the prefetch site**, or **explicitly escalate**;
-8. **measure** — provide SQL statement-count evidence for the **terminal
-   loader** on every covered path, or on every materially distinct path class;
-9. **do not claim remediation of legacy intermediate resolvers.** Statements
-   issued by pre-existing intermediate resolvers on the measured path are
-   reported separately and never counted as terminal-loader compliance (4.19.5);
-10. **retain the direct fallback** for correctness on genuinely uncovered,
+8. **install the prefetch site**, or **explicitly escalate**;
+9. **verify that the prefetch site and the terminal lookup derive the same
+   top-level response scope** (4.12, 4.15). A site whose scope differs from its
+   terminal resolvers' scope would store entries nothing reads, leaving the path
+   correct but never batched;
+10. **measure** — provide SQL statement-count evidence for the **terminal
+    loader** on every covered path, or on every materially distinct path class,
+    reported per top-level scope (section 8.2);
+11. **do not claim remediation of legacy intermediate resolvers.** Statements
+    issued by pre-existing intermediate resolvers on the measured path are
+    reported separately and never counted as terminal-loader compliance (4.19.5);
+12. **retain the direct fallback** for correctness on genuinely uncovered,
     single-parent or unanticipated paths — but never count the existence of a
     fallback as N+1 compliance evidence.
+
+**Query and mutation paths use the same algorithm.** Operation kind is no longer
+an architecture branch: section 4.12 applies one uniform scoping rule to both, so
+a mutation-payload fan-out path is inventoried, covered and measured exactly like
+a query path. A task may still *report* operation kind where it makes the
+evidence clearer, but it must not treat mutation paths as exempt, blocked or
+excluded.
 
 A task that cannot achieve compliant coverage within its approved scope must
 **escalate**, not declare compliance on the strength of the fallback.
@@ -1067,20 +1266,32 @@ The `BE-02` adoption task must perform this exact-base path inventory for
 `Publisher.distributionPlatforms`. At minimum it must investigate:
 
 ```text
+query paths:
+
 QueryRoot.publishers                       -> Publisher.distributionPlatforms
 QueryRoot.publishersByDistributionPlatform -> Publisher.distributionPlatforms
-list paths reaching Imprint.publisher      -> Publisher.distributionPlatforms
-list paths reaching Contact.publisher      -> Publisher.distributionPlatforms
-mutation payload paths, e.g.
-  updatePublisher -> contacts -> publisher -> Publisher.distributionPlatforms
-any other exact-base list/fan-out route producing Publisher objects
+QueryRoot.imprints -> Imprint.publisher    -> Publisher.distributionPlatforms
+QueryRoot.contacts / Publisher.contacts
+                   -> Contact.publisher    -> Publisher.distributionPlatforms
+
+mutation payload paths, for example:
+
+updatePublisher -> Publisher.contacts
+                -> Contact.publisher       -> Publisher.distributionPlatforms
+
+any other exact-base list/fan-out route producing Publisher objects, under
+either operation kind
 ```
 
-The two `-> X.publisher ->` entries are **descendant** paths under section 4.19:
-the site belongs at the list resolver that produced the `Imprint`s or
-`Contact`s, projecting `publisher_id` from the resolved rows, not at
-`Imprint.publisher` or `Contact.publisher`. The mutation-payload entry is
-**blocked on the section 4.12.4 decision** and must be reported as blocked.
+The `-> X.publisher ->` entries are **descendant** paths under section 4.19: the
+site belongs at the list resolver that produced the `Imprint`s or `Contact`s,
+projecting `publisher_id` from the resolved rows, not at `Imprint.publisher` or
+`Contact.publisher`.
+
+The mutation-payload entries are **ordinary covered paths**, handled by the same
+algorithm and the same uniform scoping rule as the query paths (section 4.12).
+They are not blocked, not exempt and not excluded, and `BE-02` must inventory and
+cover them like any other material fan-out path.
 
 That list is a **minimum investigation set, not a complete answer**. `BE-02`
 must search its own exact base rather than treating these as exhaustive, and
@@ -1094,10 +1305,11 @@ remediate the per-parent `Publisher::from_id` calls in `Imprint.publisher` and
 
 The inventory belongs to `BE-02` as the adopting task. It is **not** work for
 `THOTH-GQL-BATCH-01`, which adopts no production field. What the foundation must
-prove is that the mechanism *supports* descendant prefetch (4.19) and several
-prefetch sites for one `(loader, shape)` in a single request without duplicate
-loading (4.6), so that `BE-02` can cover multiple paths when it does the
-inventory.
+prove is that the mechanism *supports* descendant prefetch (4.19), several
+prefetch sites for one `(scope, loader, shape)` within one scope without
+duplicate loading (4.6), and correct scope isolation across top-level response
+keys under both operation kinds (4.12), so that `BE-02` can cover query and
+mutation paths alike when it does the inventory.
 
 #### 4.18.4 This does not widen legacy remediation
 
@@ -1176,17 +1388,38 @@ and the list resolver:
    (`thoth-api/src/model/imprint/mod.rs:44`);
 4. de-duplicates the projected keys;
 5. dispatches the terminal loader **once** for the unique key set;
-6. stores each result under the ordinary terminal identity
-   `(PublisherDistributionPlatforms, Unit, publisher_id)`;
-7. leaves `Publisher.distributionPlatforms` to consume that ordinary entry when
-   it later resolves, per the section 4.7 table.
+6. stores each result under the ordinary terminal identity **within its own
+   top-level response scope** —
+   `("imprints", PublisherDistributionPlatforms, Unit, publisher_id)`;
+7. leaves `Publisher.distributionPlatforms` to derive the same scope from its own
+   executor and consume that ordinary entry when it later resolves, per the
+   section 4.7 table.
+
+The same holds inside a mutation payload, with no mutation-specific loader and no
+mutation-specific code path. For:
+
+```graphql
+mutation {
+  up: updatePublisher(...) {
+    contacts { publisher { distributionPlatforms { platform } } }
+  }
+}
+```
+
+the list/fan-out site writes
+`("up", PublisherDistributionPlatforms, Unit, publisher_id)`, and the terminal
+`Publisher.distributionPlatforms` resolver derives the same `"up"` scope from its
+executor and consumes that entry.
 
 **There is no separate cache namespace for indirectly prefetched entries.** The
-store identity of section 4.4 is unchanged. An entry prefetched from an ancestor
-and an entry prefetched from the terminal field's own parent list are the same
-entry, and either satisfies the other's lookup. A second namespace would
-reintroduce duplicate SQL for the same key and would break section 4.6's
-multi-site reuse guarantee.
+store identity of section 4.4 is unchanged. Within one scope, an entry prefetched
+from an ancestor and an entry prefetched from the terminal field's own parent
+list are the same entry, and either satisfies the other's lookup. A second
+namespace would reintroduce duplicate SQL for the same key and would break
+section 4.6's multi-site reuse guarantee.
+
+Scope is the *only* new partition, and it is orthogonal to direct-versus-descendant:
+both kinds of site write into, and read from, the scope they are executing under.
 
 #### 4.19.3 Selection-path traversal — binding semantics
 
@@ -1312,27 +1545,28 @@ A claim of loader-backed-field compliance must state which scope it covers.
    from already-resolved, already-authorized parents.
 4. Database errors fail closed and never become an empty or unfiltered result.
 5. Loader output is deterministic for a given input key set and load shape.
-6. Duplicate keys cause no duplicate backend fetches within one request, per
-   `(loader, shape)`.
+6. Duplicate keys cause no duplicate backend fetches within one top-level
+   response scope, per `(scope, loader, shape)`.
 7. Result ordering within each key obeys the owning field's declared contract
    and is identical to the direct per-parent result.
 8. The batching foundation introduces no public GraphQL schema change.
 9. There is no global, static or cross-request cache and no singleton.
 10. No stale read-after-write result is served within one operation. A top-level
     mutation resolver's write completes before its payload selection resolves,
-    so read-after-write within one top-level mutation field is sound. Isolation
-    *between* top-level mutation fields is **unsettled** and escalated in
-    section 4.12: until the CTO decides, no prefetch site may be installed on a
-    path reachable from a mutation payload, and that hold is a temporary
-    consequence of the open decision, not a finding that such paths are exempt
-    from the N+1 control.
+    so read-after-write within one top-level mutation field is sound; and no
+    loader entry crosses top-level response-key scopes, so a write performed by
+    one top-level field can never be followed by a stale read of another's loader
+    state. This holds **regardless of whether the executor serializes or
+    interleaves top-level fields** (section 4.12.10).
 11. A loader-backed field is correct whether or not a prefetch ran; batching is
     an optimisation layered on an always-correct fallback.
 12. Existing fields that do not opt in are behaviourally unchanged.
-13. Store identity is `(loader identity, normalized load shape, parent key)`.
+13. Store identity is
+    `(top-level response key, loader identity, normalized load shape, parent key)`.
     Semantically different argument variants of the same field never share a
-    stored entry, and an omitted argument normalizes identically to an explicitly
-    supplied schema default.
+    stored entry; an omitted argument normalizes identically to an explicitly
+    supplied schema default; and entries never cross top-level response-key
+    scopes.
 14. The store distinguishes three states — `NotLoaded`, `Loaded` (including
     `Loaded([])`) and `LoadFailed`. `LoadFailed` never triggers a fallback query,
     a retry, or an empty successful result; `Loaded([])` never triggers a
@@ -1354,6 +1588,31 @@ A claim of loader-backed-field compliance must state which scope it covers.
 19. Terminal-loader compliance and legacy intermediate resolver performance are
     separate evidence scopes. Bounding a terminal loader on a path is never
     reported as making that whole operation free of N+1 access (4.19.5).
+20. Loader state is **owned by one request but partitioned by top-level response
+    key**. Storage lifetime and reuse namespace are distinct (4.12.3): the store
+    still lives on the request-scoped `Context` and still never crosses requests
+    (invariants 1 and 9), while reuse is confined to one top-level response key
+    within that request.
+21. The scope key is the GraphQL **response key**, therefore an alias when one is
+    present, and is never normalized to the underlying schema field name. This is
+    distinct from selection-path matching, which uses `field_original_name()`
+    because it identifies schema fields (4.12.5).
+22. The scope is derived through **one** isolated pinned-Juniper compatibility
+    shim (4.12.8). It is side-effect-free — it adds no GraphQL error, alters no
+    `errors[]` entry, changes no result data and performs no database access —
+    and no other site in the codebase uses that technique.
+23. Scope derivation **fails closed** (4.12.9). A site that cannot derive its
+    scope performs no prefetch and its lookups read `NotLoaded`, falling back to
+    the direct query. Substituting a shared or request-global namespace is
+    prohibited.
+24. The rule is applied **uniformly** to query operations and mutation payloads.
+    No resolver detects operation type, and mutation-payload fan-out is a
+    supported, covered architecture path rather than an exception.
+25. Request-wide reuse across top-level response keys is **not** an invariant. The
+    same `(loader, shape, key)` reached under two top-level response keys is
+    loaded once per scope; the resulting number of extra dispatches is bounded by
+    the operation's top-level structure and never grows with parent count
+    (4.12.13).
 
 ---
 
@@ -1365,7 +1624,8 @@ listed as *expected* only where inspection supports it.
 | Area | Expected effect |
 |---|---|
 | `thoth-api/src/graphql/model.rs` | `Context` gains the request-scoped store field and its accessor/invalidation methods; `Context::new` initialises it empty |
-| a new focused module under `thoth-api/src/graphql/` | the three-state store, the loader-identity discriminant, the load-shape contract, the loader contract, key de-duplication, partitioning, failure recording and the look-ahead prefetch helper. Justified as a new module because none of the existing modules in `thoth-api/src/graphql/` is a plausible home and `model.rs` is already 107 KB |
+| a new focused module under `thoth-api/src/graphql/` | the three-state store, the scope-partitioned store identity, the loader-identity discriminant, the load-shape contract, the loader contract, key de-duplication, partitioning, failure recording and the look-ahead prefetch helper. Justified as a new module because none of the existing modules in `thoth-api/src/graphql/` is a plausible home and `model.rs` is already 107 KB |
+| a small, separate compatibility-shim module | the single `top_level_response_key(executor)` helper of section 4.12.8, its fail-closed behaviour, its documented pinned-Juniper coupling and its own regression tests. Kept separate from the store module so the coupling is visible and greppable, and so a Juniper upgrade has one place to revalidate (4.12.14) |
 | `thoth-api/src/model/**` | for an adopting field only: a set-based query function using `.eq_any(...)`. The foundation itself adds none |
 | `thoth-api-server/src/lib.rs` | none expected. `Context::new` keeps its signature if the store is initialised internally; if the signature changes, this call site changes with it |
 | `thoth-api/src/graphql/tests.rs` (or a new sibling test module) | the mechanism tests and the query-count evidence harness |
@@ -1460,33 +1720,51 @@ precisely the failure mode the evidence exists to detect.
 
 ### 8.2 Required evidence
 
+Statement counts are reported **per top-level response scope**, because the scope
+is now part of the store identity. The reporting unit is:
+
+```text
+top-level scope | parent count | prefetch terminal-query count |
+direct baseline terminal-query count | legacy intermediate-query count, if any
+```
+
 For a loader-backed field under a parent list of size `n`:
 
-1. the child-query count does **not** scale linearly with `n`;
+1. **within one top-level scope**, the terminal-query count does **not** scale
+   linearly with `n`;
 2. proved for at least **two distinct values of `n`** (for example `n = 3` and
-   `n = 25`), reported as a table of:
-
-   ```text
-   parent count | prefetch child-query count | direct baseline child-query count
-   ```
-
-   in which the prefetched count stays bounded while the direct baseline grows
-   with `n`;
+   `n = 25`), in which the prefetched count stays bounded while the direct
+   baseline grows with `n`;
 3. duplicate parent references and repeated aliases of the same normalized shape
-   add **no** child queries;
+   add **no** terminal queries;
 4. distinct load shapes add exactly one dispatch each, not one per parent;
-5. a second prefetch site covering an already-loaded `(loader, shape, key)` set
-   issues no additional SQL;
-6. the prefetched result equals the direct per-parent result, element for
+5. a second prefetch site covering an already-loaded
+   `(scope, loader, shape, key)` set issues no additional SQL **within that
+   scope**;
+6. **across two top-level scopes**, one dispatch per scope is compliant. For two
+   top-level response keys over the same parent list, **2** set-based statements
+   is compliant; `2N` terminal statements is not. This extra dispatch is the
+   accepted tradeoff of section 4.12.13 and must be reported, not hidden;
+7. increasing the parent count within either top-level field does not increase
+   that field's terminal dispatch count;
+8. the prefetched result equals the direct per-parent result, element for
    element, in order;
-7. for an adopting task, per section 4.18.2, coverage evidence for every material
-   fan-out path or path class — not only for the field's own root list query;
-8. a **descendant** path (list -> intermediate object -> loader-backed field)
-   issues one terminal dispatch for the de-duplicated projected key set, and the
-   terminal child resolver issues no fallback statement on that path;
-9. statements issued by pre-existing **intermediate** resolvers on a measured
-   path are reported as a separate figure from the terminal loader's statements
-   (4.19.5). A single combined number is not acceptable evidence.
+9. for an adopting task, per section 4.18.2, coverage evidence for every material
+   fan-out path or path class — query and mutation alike — not only for the
+   field's own root list query;
+10. a **descendant** path (list -> intermediate object -> loader-backed field)
+    issues one terminal dispatch for the de-duplicated projected key set, and the
+    terminal child resolver issues no fallback statement on that path;
+11. statements issued by pre-existing **intermediate** resolvers on a measured
+    path are reported as a separate figure from the terminal loader's statements
+    (4.19.5). A single combined number is not acceptable evidence;
+12. the prefetch site and its terminal resolvers are shown to derive the **same**
+    scope value, since a mismatch would leave the path correct but silently
+    unbatched;
+13. the compatibility shim adds **no** GraphQL error, alters no `errors[]` entry,
+    changes no result data and issues no SQL (4.12.8).
+
+Wall-clock time remains non-authoritative for every one of these.
 
 ### 8.3 Operational observability
 
@@ -1573,26 +1851,43 @@ decision exists to control.
   (section 4.5.1), which is more demanding than the per-parent query it replaces;
 - a failed prefetch fails every covered key for that shape, including keys whose
   individual query might have succeeded (section 4.9.4);
-- `Context` gains interior mutability, which must be kept `Sync`.
+- `Context` gains interior mutability, which must be kept `Sync`;
+- **cross-top-level reuse is given up.** The same `(loader, shape, key)` reached
+  under two top-level response keys is loaded once per scope, so an operation may
+  issue a bounded number of extra set-based dispatches (section 4.12.13). This is
+  a genuine cost, not a zero-cost partition, and it is accepted in exchange for
+  mutation-payload coverage that does not depend on execution order;
+- the architecture acquires an explicit, documented coupling to the pinned
+  Juniper API through the scope shim (section 4.12.8), and a Juniper upgrade
+  carries a revalidation obligation (section 4.12.14).
 
 ### Risks
 
-- **Unresolved mutation-payload boundary** — the highest-consequence *open* item.
-  Thoth's mutations return rich model objects, so a mutation payload can fan out
-  over publishers (section 4.12.1). Operation-scoped batching was investigated
-  and is not implementable on the pinned stack, because a resolver cannot
-  determine the operation type through stable public Juniper API (4.12.2). Until
-  the CTO selects M1 or M2 (4.12.4), mutation-payload paths carry no prefetch
-  site and are therefore **not** N+1 compliant, and adopting tasks must report
-  them as blocked. Mitigation of the *correctness* half only: the section 4.7
-  fallback keeps such paths correct.
-- **Coherence risk** — a future prefetch site reachable from a mutation payload
-  could serve a stale read. Mitigation: the temporary hold in section 4.12.3,
-  invariant 10, the provided whole-store invalidation entry point, and the
-  required within-field coherence test. Residual: the hold is enforced by review
-  and test, not by the type system. Note also that the pinned async path does not
-  serialize top-level mutation fields (4.12.2(c)), so sync-path evidence alone
-  does not establish async-path behaviour.
+- **Scope-extraction risk** — the highest-consequence new risk, because the scope
+  key is load-bearing for every lookup. If the shim returned a wrong or
+  insufficiently discriminating value, entries could cross top-level scopes and a
+  mutation payload could serve a stale read. Mitigations: one isolated helper
+  rather than scattered calls (4.12.8); the response key is used verbatim without
+  normalization (4.12.5); fail-closed behaviour that degrades to the correctness
+  fallback rather than to a shared namespace (4.12.9); and the binding
+  path-extraction, isolation, side-effect and collision tests of section 8.2.
+  Residual: correctness depends on a public-but-off-label use of
+  `new_error(..).path()`, which is why the coupling is documented and carries a
+  revalidation obligation.
+- **Pinned-Juniper compatibility risk** — the shim depends on `Executor`,
+  `ExecutionError`, field-path construction and alias/response-key handling
+  staying as they are in `juniper` 0.16.2. Mitigation: the single-site
+  restriction, the documented coupling in module docs and tests, and the
+  revalidation rule of section 4.12.14. Residual: a Juniper upgrade cannot be
+  treated as routine for this module.
+- **Coherence risk** — substantially reduced by this decision rather than
+  merely held. Scope isolation makes cross-top-level staleness structurally
+  impossible, and it does not depend on the executor serializing top-level
+  mutation fields — which matters, because the pinned async path drives them
+  concurrently through `FuturesOrdered` while the sync path is serial
+  (4.12.10). Residual: the guarantee rests on scope extraction being correct,
+  which is the risk above, and async-path behaviour must still be demonstrated
+  rather than inferred from sync-path evidence.
 - **Descendant key-projection risk** — an indirect site projects a terminal key
   across an intermediate field, so a projector could in principle cross an
   authorization boundary the direct traversal would have enforced. Mitigation:
@@ -1609,7 +1904,7 @@ decision exists to control.
   while a pre-existing intermediate resolver still issues one statement per
   parent, which could be misreported as whole-operation N+1 freedom. Mitigation:
   the two evidence scopes of 4.19.5, and the separate-figure requirement in
-  section 8.2 item 9.
+  section 8.2 item 11.
 - **Shape-normalization risk** — the highest-consequence new risk. A shape that
   omits a result-changing argument would let two semantically different requests
   share one bucket and return a wrong result. Mitigations: the shape is typed and
@@ -1676,8 +1971,10 @@ Binding consequences:
   `Publisher.distributionPlatforms` required by section 4.18.3, and must either
   cover every material path or escalate. That obligation belongs to `BE-02`, not
   to `THOTH-GQL-BATCH-01`. The imprint and contact routes are **descendant**
-  paths under section 4.19, and the mutation-payload routes are blocked on the
-  section 4.12.4 decision, which `BE-02` must report rather than resolve;
+  paths under section 4.19; the mutation-payload routes are **ordinary covered
+  paths** under the uniform scoping rule of section 4.12, no longer blocked on a
+  further architecture decision, and `BE-02`'s inventory must cover query and
+  mutation paths alike;
 - `Publisher.distributionPlatforms`'s load shape is `Unit` (section 4.4.5). This
   ADR adds no argument to that field and changes nothing in the approved `BE-02`
   API contract.
@@ -1703,8 +2000,24 @@ Evidence that this decision is correctly implemented:
 - different argument variants of one field resolve against distinct shapes with
   no cross-contamination, and an omitted argument normalizes identically to an
   explicitly supplied schema default;
-- several prefetch sites can cover one `(loader, shape)` in a single request
-  without duplicate SQL;
+- several prefetch sites can cover one `(scope, loader, shape)` within one
+  top-level scope without duplicate SQL;
+- the scope shim returns the field response key for an unaliased top-level field
+  and the alias for an aliased one; direct children, deeply nested descendants,
+  inline fragments and named fragments all yield the same first path segment; and
+  a prefetch site and its terminal resolvers derive identical scope values;
+- calling the scope shim adds no GraphQL error, alters no `errors[]` entry,
+  changes no result data and issues no SQL;
+- scope derivation failure is fail-closed: no prefetch runs, lookups read
+  `NotLoaded`, and no shared or request-global namespace is substituted;
+- two top-level aliases of the same schema field produce separate loader
+  namespaces, and the same `(loader, shape, key)` under two scopes never
+  collides;
+- a `LoadFailed` recorded under one scope does not poison another scope, and
+  whole-store invalidation clears both;
+- two top-level response keys over the same parent list issue two set-based
+  statements, not `2N`, and increasing the parent count within either does not
+  increase that field's dispatch count;
 - `NotLoaded`, `Loaded([])` and `LoadFailed` are distinguishable, and only
   `NotLoaded` triggers the fallback;
 - a database failure is recorded as `LoadFailed`, surfaces at the child field
@@ -1720,6 +2033,12 @@ Evidence that this decision is correctly implemented:
   are reported as separate figures on a descendant path;
 - read-after-write coherence holds within one top-level mutation field, using
   test-only mutations and types;
+- no loader entry crosses top-level mutation fields: a second top-level mutation
+  field's nested selection observes its own write, never a value cached under the
+  first, and this holds under async execution where the executor may interleave
+  the two top-level futures;
+- every M2 behaviour above is demonstrated under **both** `juniper::execute_sync`
+  and the async `execute` path, not inferred from the sync result alone;
 - the generated GraphQL SDL is byte-identical to the base;
 - `thoth-api/src/schema.rs`, `thoth-api/migrations/` and the workspace
   dependency declarations are unchanged;
@@ -1740,10 +2059,20 @@ required consumer, and directed that the N+1 control is not waived, the approved
 `BE-02` field is not removed, and shared GraphQL infrastructure is not invented
 inside `BE-02`.
 
+Further direction recorded: after an independent review returned `BLOCKED` on the
+mutation-payload N+1 boundary, the CTO selected **uniform top-level-response-key
+scoping** as the architecture direction to encode here, accepting the
+pinned-Juniper path-extraction limitation as a compatibility constraint subject to
+the isolation, regression-testing and upgrade-revalidation controls of sections
+4.12.8 and 4.12.14, and accepting the loss of cross-top-level query reuse
+(section 4.12.13). Section 4.12 records that architecture; no alternative remains
+open.
+
 That direction authorizes architecture and task-specification authoring only. It
-is not approval of this ADR's content. The final repository decision requires
-independent review and explicit CTO approval of this exact content through its
-GitHub pull-request record.
+is **not** approval of this ADR's resulting exact content, and this ADR is not
+`APPROVED` by virtue of the direction having been given. Final ADR approval
+evidence is the GitHub pull-request record on an independently reviewed exact
+head, per `ADR-0005`.
 
 This decision does not authorize runtime implementation, modification of
 `BE-02` or PR #788, migration of existing legacy resolvers, merge, deployment,
