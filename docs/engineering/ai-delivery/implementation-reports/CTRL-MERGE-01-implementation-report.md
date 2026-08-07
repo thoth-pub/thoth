@@ -47,7 +47,9 @@ or force-push was used.
   - reason: new Shared Engineering Control decision recording the terminal merge
     evidence rule, the lifecycle-evidence authority model, the durable/transient
     writing rule, the retained controls and the rejected alternative.
-  - behavioural effect: none until merged; `PROPOSED` on arrival.
+  - behavioural effect: `APPROVED` durable decision state on the CTO approval
+    recorded in issue #786; repository-authoritative only when this exact content
+    is reachable from `develop`, so no effect from an unmerged branch.
 - `docs/engineering/ai-delivery/tasks/CTRL-MERGE-01.md`
   - reason: canonical repository task record for this bounded control task.
   - behavioural effect: documentation only.

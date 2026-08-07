@@ -1,8 +1,10 @@
 # ADR-0005 - Terminal merge evidence and non-recursive closeout
 
-Status: PROPOSED
+Status: APPROVED
 Date: 2026-08-07
 Decision owner: CTO
+Approval basis: CTO-approved policy direction recorded in
+[issue #786](https://github.com/thoth-pub/thoth/issues/786), 2026-08-07
 Programmes affected: Shared Engineering Control; all programmes using the AI-led delivery controls (Publisher Services, Thoth Metrics, Shared Repository Controls)
 Repositories affected: `thoth-pub/thoth`; the shared control model it defines applies to every repository that adopts these delivery controls
 Supersedes: None
@@ -386,6 +388,20 @@ assurance beyond what the GitHub record already provides immutably.
 
 ## 14. Approval
 
-Approved by:
-Approval date:
-Notes:
+Approved by: CTO
+Approval date: 2026-08-07
+Approval basis: the CTO-approved policy direction recorded in
+[issue #786](https://github.com/thoth-pub/thoth/issues/786).
+
+Notes: this is the durable decision approval. It is the decision owner's
+adoption of the terminal merge evidence rule, and it is complete.
+
+It is distinct from the merge controls that apply to the pull request carrying
+this content. Independent exact-head review and explicit CTO merge authorization
+remain required before that pull request may merge, and they govern whether this
+exact content reaches `develop` — not whether the decision itself is adopted.
+
+Per the authority condition above, this record is repository-authoritative when
+this exact approved content is reachable from `develop`. The policy is not
+effective from an unmerged branch. Live independent-review, merge-authorization,
+CI and merge evidence is the GitHub pull-request record and is not copied here.
