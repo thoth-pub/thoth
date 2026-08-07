@@ -1,7 +1,6 @@
 # ADR-01-CLOSEOUT-01 - Post-merge control closeout for ADR-01 / PR #783
 
-Status: SPECIFICATION DRAFTED - PENDING INDEPENDENT REVIEW AND EXPLICIT CTO
-APPROVAL; IMPLEMENTATION NOT AUTHORIZED
+Status: APPROVED - PENDING MERGE; IMPLEMENTATION NOT AUTHORIZED
 Programme: Publisher Services and Distribution Configuration
 Repository: `thoth-pub/thoth`
 Workflow: STANDARD
@@ -10,7 +9,16 @@ PR target: `develop`
 Programme integration branch: None
 Risk: MEDIUM
 Owner: CTO
-Approved by: pending
+Approved content head: `3229b93c351b68c65b612eb944137bd9f9d2f6e6`
+Independent review: `4882033346` - APPROVED
+CTO approval: Javi, CTO, 2026-08-07, review `4882035533`
+Approval scope: the ADR-01-CLOSEOUT-01 specification content at exact head
+`3229b93c351b68c65b612eb944137bd9f9d2f6e6`
+Repository authority: pending merge of PR
+[#784](https://github.com/thoth-pub/thoth/pull/784) into `develop`
+Closeout implementation: NOT AUTHORIZED - requires fresh explicit
+implementation authorization from the then-current exact `develop` head after
+this specification merges
 Specification authoring base: `299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb`
 Target branch name: `feature/publisher-services/adr-01-closeout`
 Dependencies: merged ADR-01 implementation PR
