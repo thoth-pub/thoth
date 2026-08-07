@@ -500,3 +500,108 @@ focus:
   excluded-candidate `unverified` statuses support exclusion only;
 - verify the deviation record in section 3 (pre-existing commit-free branch
   at the exact authorized base).
+
+## 17. Approval-state recording (ADR-01-APPROVAL-STATE-01)
+
+This commit records approval state only.
+No ADR-0004, inventory, evidence matrix or architecture content changed.
+
+### 17.1 Approval basis
+
+```text
+Approval-state task ID:   ADR-01-APPROVAL-STATE-01
+Approved content head:    44e6f821535fbee56c830dd6eda237fc6d06fbfd
+Independent review:       4881233664 - APPROVED (exact head 44e6f821...)
+CTO approval:             4881279067 (exact head 44e6f821...)
+Approval date:            2026-08-07
+Authorized base:          32123d363a6806d377ac322e3814fb432a803453 (unmoved)
+```
+
+Both the independent review and the CTO approval are recorded against exact
+content head `44e6f821535fbee56c830dd6eda237fc6d06fbfd`. The CTO approval
+states expressly that it satisfies the content-approval gate only, that it
+authorizes this bounded approval-state recording, and that it authorizes
+neither merge, `BE-02`, runtime change, production access, deployment nor
+release. It also states that the approval-state head produced by this commit
+requires fresh independent review before any merge authorization is
+exercised, and that the earlier merge authorization for the pre-approval-state
+head must not be treated as authorization for this new head.
+
+### 17.2 State transitions recorded
+
+```text
+ADR-0004:          PROPOSED - INDEPENDENT REVIEW AND CTO APPROVAL REQUIRED -> APPROVED
+Final inventory:   FINAL INVENTORY PROPOSED -> FINAL INVENTORY APPROVED
+ADR-01:            IN PROGRESS - PENDING REVIEW/APPROVAL -> IMPLEMENTATION DESIGN APPROVED
+BE-02:             BLOCKED (unchanged)
+CG-07:             OPEN (unchanged)
+CG-11:             UNCHANGED
+CG-13:             UNCHANGED
+```
+
+ADR-01 is recorded as `IMPLEMENTATION DESIGN APPROVED`. It is explicitly not
+recorded as `IMPLEMENTED` and not as `PRODUCTION READY`. The approved
+inventory is exactly the reviewed content: 17 included destinations, 10
+recorded exclusions, no `OTHER`, no fallback, no unknown or provisional
+included value, shared adapter/feed relationships preserved, `JISC_NBK`
+included but inactive and non-assignable, `OCLC_KB` and `EX_LIBRIS_KB`
+sharing `OCLC_KBART_PUBLIC`, OAPEN/DOAB linked duplicate-safe behaviour, the
+conservative update/withdrawal policy, and the Thoth-managed source-file
+invariant recorded but not implemented.
+
+### 17.3 Files changed
+
+```text
+docs/engineering/decisions/ADR-0004-distribution-platform-inventory.md
+docs/publisher-services/platform-inventory.md
+docs/publisher-services/task-status.md
+docs/publisher-services/decisions.md
+docs/publisher-services/rollout-plan.md
+docs/engineering/repository-map/control-gaps.md
+docs/engineering/ai-delivery/implementation-reports/ADR-01-implementation-report.md
+CHANGELOG.md
+```
+
+No other file changed.
+
+### 17.4 Substantive content unchanged
+
+Confirmed unchanged by this commit:
+
+- every ADR-0004 decision, inventory table, exclusion, consequence and
+  architecture statement; only the status header and the section 12 approval
+  metadata changed;
+- every `platform-inventory.md` inventory entry, mapping, linked group,
+  shared-feed relationship and policy statement; only the status metadata and
+  the section 1 approval-state prose changed;
+- the ADR-01 evidence matrix - not modified by this commit;
+- the ADR-01 evidence ledger - not modified by this commit;
+- every platform mapping, adapter/feed decision, alias, ownership record and
+  update/withdrawal policy;
+- the evidence counts: 17 included, 10 excluded, 34 repository-verified, 21
+  source-owner-confirmed, 0 production-verified, 0 unknown/provisional
+  included values.
+
+No code, schema, migration, API, workflow, app or dissemination change is
+included. No credential identifier was introduced.
+
+### 17.5 CI
+
+Automatic documentation-only workflows were observed on the approval-state
+head; none was dispatched or rerun by the implementing agent. Expected and
+observed behaviour: `build-test-and-check` classify success with the heavy
+jobs skipped; `run-migrations` classify success with migrations skipped;
+`publish-to-dockerhub` classify success with the Docker job skipped;
+`check-changelog` success. Exact run IDs, attempt numbers and job
+conclusions are recorded in the immutable exact-head evidence comment for
+the approval-state head on PR #783.
+
+### 17.6 Remaining gates
+
+1. fresh independent exact-head review of the approval-state head;
+2. separate explicit CTO merge authorization for that head - the earlier
+   merge authorization does not carry over;
+3. merge of PR [#783](https://github.com/thoth-pub/thoth/pull/783);
+4. post-merge control reconciliation, including CG-07 closeout;
+5. `BE-02` remains blocked pending the merged ADR-01 implementation, its own
+   approved bounded specification and explicit implementation authorization.

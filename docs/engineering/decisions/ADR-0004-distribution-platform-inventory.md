@@ -1,7 +1,11 @@
 # ADR-0004 - Distribution platform inventory
 
-Status: PROPOSED - INDEPENDENT REVIEW AND CTO APPROVAL REQUIRED
+Status: APPROVED
 Date: 2026-08-06
+Approved content head: `44e6f821535fbee56c830dd6eda237fc6d06fbfd`
+Independent review: `4881233664` (`APPROVED`)
+CTO approval: `4881279067`
+Approval date: 2026-08-07
 Decision owner: CTO
 Programmes affected: Publisher Services and Distribution Configuration
 Repositories affected: `thoth` (decision record only; future `BE-02`), with
@@ -474,9 +478,20 @@ Evidence required to prove the decision works:
 Approval required from: CTO, after fresh independent exact-head review of
 the ADR-01 implementation PR.
 
-Approved by: NOT APPROVED - PROPOSED
-Approval date: -
+Approved by: Javi, CTO - APPROVED
+Approval date: 2026-08-07
+Approved content head: `44e6f821535fbee56c830dd6eda237fc6d06fbfd`
+Independent review: `4881233664` (`APPROVED`, exact head `44e6f821...`)
+CTO approval: `4881279067` (exact head `44e6f821...`)
 Notes: This decision record is produced by the ADR-01 implementation task
-(draft PR, `feature/publisher-services/adr-01`, base `32123d3`). It becomes
-authoritative only after independent review, explicit CTO approval and
-merge. `BE-02` remains blocked until then.
+(draft PR, `feature/publisher-services/adr-01`, base `32123d3`). Its
+content was independently reviewed at exact head
+`44e6f821535fbee56c830dd6eda237fc6d06fbfd` (review `4881233664`,
+`APPROVED`) and explicitly approved by the CTO (review `4881279067`). The
+approval is a content approval bound to that exact head; the decision
+becomes repository-authoritative on merge of PR
+[#783](https://github.com/thoth-pub/thoth/pull/783). The approval-state
+recording changes the PR head, and that new head requires fresh
+independent review before any merge authorization is exercised. `BE-02`
+remains blocked pending the merged ADR-01 implementation and its own
+approved bounded specification.

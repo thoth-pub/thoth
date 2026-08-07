@@ -1,9 +1,12 @@
 # Distribution Platform Inventory
 
-Status: FINAL INVENTORY PROPOSED -
-INDEPENDENT REVIEW AND CTO APPROVAL REQUIRED
+Status: FINAL INVENTORY APPROVED
+Approved content head: `44e6f821535fbee56c830dd6eda237fc6d06fbfd`
+Independent review: `4881233664` (`APPROVED`)
+CTO approval: `4881279067`
+Approval date: 2026-08-07
 Inventory owner: Publisher Services ADR-01
-Decision record: [ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md) (PROPOSED)
+Decision record: [ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md) (APPROVED)
 Evidence: [ADR-01 evidence matrix](adr-01-evidence-matrix.md);
 [ADR-01 evidence ledger](adr-01-evidence-ledger.md) (unchanged)
 Evidence date: 2026-08-06
@@ -16,15 +19,27 @@ Repository evidence: `thoth` at `32123d363a6806d377ac322e3814fb432a803453`;
 
 ## 1. Purpose
 
-This file records the final proposed user-visible `DistributionPlatform`
+This file records the final approved user-visible `DistributionPlatform`
 inventory produced by the ADR-01 implementation, replacing the earlier
 provisional baseline. It is exhaustive, contains no unsupported value and no
 `OTHER`, distinguishes every destination from the adapter or feed profile
 serving it, and identifies inactive/non-assignable destinations.
 
-It must not be treated as approved, and no enum may be implemented from it,
-until ADR-0004 receives independent review, explicit CTO approval and merge.
-`BE-02` remains blocked until then.
+The inventory content was independently reviewed at exact head
+`44e6f821535fbee56c830dd6eda237fc6d06fbfd` (review `4881233664`,
+`APPROVED`) and explicitly CTO-approved (review `4881279067`, 2026-08-07)
+together with ADR-0004. The approved inventory is exactly that reviewed
+content: 17 included destinations, 10 recorded exclusions, no `OTHER`, no
+fallback, no unknown or provisional included value, shared adapter/feed
+relationships preserved, `JISC_NBK` included but inactive and
+non-assignable, `OCLC_KB` and `EX_LIBRIS_KB` sharing `OCLC_KBART_PUBLIC`,
+OAPEN/DOAB linked duplicate-safe behaviour, the conservative
+update/withdrawal policy, and the Thoth-managed source-file invariant
+recorded but not implemented.
+
+The approval is a content approval. No enum may be implemented from this
+inventory until ADR-0004 merges, and `BE-02` remains blocked pending that
+merge and its own approved bounded specification.
 
 ## 2. Behaviour vocabulary
 

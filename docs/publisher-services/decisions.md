@@ -1,7 +1,7 @@
 # Publisher Services Decision Summary
 
 Status: ACTIVE SUMMARY
-Last updated: 2026-08-06 (ADR-01 implementation: ADR-0004 PROPOSED)
+Last updated: 2026-08-07 (ADR-01 implementation: ADR-0004 APPROVED)
 Owner: CTO
 
 This file summarizes decisions. The approved technical design and approved ADRs remain authoritative.
@@ -149,15 +149,22 @@ Implementation dependency:
 
 ## 3. Decisions delegated to Publisher Services ADR-01
 
-State (2026-08-06): the separately authorized ADR-01 implementation has
+State (2026-08-07): the separately authorized ADR-01 implementation has
 produced [ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md)
-(`PROPOSED - INDEPENDENT REVIEW AND CTO APPROVAL REQUIRED`), the complete
-[evidence matrix](adr-01-evidence-matrix.md) and the proposed
-[final inventory](platform-inventory.md) (17 values; no `OTHER`;
-`JISC_NBK` included but inactive and non-assignable; 10 recorded
-exclusions). Nothing below is approved by that proposal: ADR-0004 and the
-final inventory remain proposed pending fresh independent exact-head review
-and explicit CTO approval, and `BE-02` remains blocked.
+(`APPROVED`), the complete
+[evidence matrix](adr-01-evidence-matrix.md) and the
+[final inventory](platform-inventory.md) (`APPROVED`; 17 values; no
+`OTHER`; `JISC_NBK` included but inactive and non-assignable; 10 recorded
+exclusions). ADR-0004 and the final inventory were independently reviewed
+at exact head `44e6f821535fbee56c830dd6eda237fc6d06fbfd` (review
+`4881233664`, `APPROVED`) and explicitly CTO-approved (review
+`4881279067`, 2026-08-07). ADR-01 is `IMPLEMENTATION DESIGN APPROVED`; it
+is not implemented and not production ready. The approval is a content
+approval only: the decision becomes repository-authoritative on merge of
+[PR #783](https://github.com/thoth-pub/thoth/pull/783), which still
+requires fresh independent review of the approval-state head and separate
+explicit CTO merge authorization. `BE-02` remains blocked until its own
+implementation authorization and approved bounded specification.
 
 ADR-01 must finalize:
 
