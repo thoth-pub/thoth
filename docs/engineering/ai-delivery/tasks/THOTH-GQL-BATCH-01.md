@@ -200,7 +200,7 @@ The task must not:
 3. modify PR [#788](https://github.com/thoth-pub/thoth/pull/788), its branch, or
    the `BE-02` specification;
 4. modify [issue #765](https://github.com/thoth-pub/thoth/issues/765);
-5. migrate, refactor or "improve" any of the 63 existing child resolvers;
+5. migrate, refactor or "improve" any existing child resolver;
 6. perform performance work unrelated to the batching primitive;
 7. migrate GraphQL execution to async-only, convert resolvers to `async fn`, or
    change the test suite off `execute_sync`;

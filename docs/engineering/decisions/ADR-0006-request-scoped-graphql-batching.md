@@ -85,7 +85,7 @@ the decision is a shared GraphQL concern.
 
 ### 1.4 What is *not* claimed
 
-This ADR does **not** claim that the 63 existing child resolvers are proven
+This ADR does **not** claim that the existing child resolvers are proven
 problematic. No measurement of them exists. Their per-parent access is an
 observed structural fact; whether any particular one is a material production
 cost is unmeasured, and section 10 keeps that question in evidence-led follow-up
@@ -545,7 +545,7 @@ listed as *expected* only where inspection supports it.
 | Area | Expected effect |
 |---|---|
 | `thoth-api/src/graphql/model.rs` | `Context` gains the request-scoped store field and its accessor/invalidation methods; `Context::new` initialises it empty |
-| a new focused module under `thoth-api/src/graphql/` | the store, the loader-identity discriminant, the loader contract, key de-duplication, partitioning and the look-ahead prefetch helper. Justified as a new module because none of the existing four files in `thoth-api/src/graphql/` is a plausible home and `model.rs` is already 107 KB |
+| a new focused module under `thoth-api/src/graphql/` | the store, the loader-identity discriminant, the loader contract, key de-duplication, partitioning and the look-ahead prefetch helper. Justified as a new module because none of the existing modules in `thoth-api/src/graphql/` is a plausible home and `model.rs` is already 107 KB |
 | `thoth-api/src/model/**` | for an adopting field only: a set-based query function using `.eq_any(...)`. The foundation itself adds none |
 | `thoth-api-server/src/lib.rs` | none expected. `Context::new` keeps its signature if the store is initialised internally; if the signature changes, this call site changes with it |
 | `thoth-api/src/graphql/tests.rs` (or a new sibling test module) | the mechanism tests and the query-count evidence harness |
@@ -575,7 +575,7 @@ The foundation merges with **no broad behavioural activation**:
    production field;
 2. `BE-02` becomes the first required consumer, in its own separately authorized
    task;
-3. the 63 existing per-parent child resolvers are **unchanged**;
+3. the existing per-parent child resolvers are **unchanged**;
 4. later adoption is by bounded, evidence-led tasks (section 10).
 
 No feature flag is required, because merging the foundation changes no existing
@@ -688,8 +688,8 @@ Instead:
 5. legacy remediation is **not** a prerequisite for `BE-02`, unless evidence
    shows a specific legacy path is directly required by `BE-02`.
 
-Rationale: migrating 63 resolvers on structural suspicion alone would be a large
-unmeasured change to shared read paths, which is exactly the risk profile this
+Rationale: migrating every per-parent child resolver on structural suspicion
+alone would be a large, unmeasured change to shared read paths, which is exactly the risk profile this
 decision exists to control.
 
 ---
