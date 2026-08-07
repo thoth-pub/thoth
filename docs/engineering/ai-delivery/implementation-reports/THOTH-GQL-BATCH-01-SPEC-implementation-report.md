@@ -1236,3 +1236,387 @@ or use `new_error(..)` outside the shim module.
   responsibility;
 - no approval-state or transient-status prose was written into any committed
   file.
+
+---
+
+## 19. Fourth remediation: mutation execution scope
+
+### 19.1 Position at the start of this remediation
+
+```text
+Previous independent decision:
+BLOCKED
+
+Previous reviewed exact head:
+7991d26fe64b8a4a1770cb1062a98a64fb07ba20
+
+Blocking finding:
+TOP-LEVEL RESPONSE KEY DOES NOT UNIQUELY IDENTIFY
+A MUTATION EXECUTION ON PINNED JUNIPER
+```
+
+A second, `P1` specification-consistency finding accompanied it:
+`THOTH-GQL-BATCH-01` still carried pre-scoping binding identities such as
+`(loader, shape)` and `(loader, shape, key)` in places where the architecture
+requires the execution-scope dimension.
+
+Verified live before editing: PR #789 open and draft at exactly
+`7991d26fe64b8a4a1770cb1062a98a64fb07ba20` with no intervening commit; `develop`
+at `5a8c27b1b7c11a4f6bd26d459556468099f8c1f4`; `ADR-0006` `PROPOSED`;
+`THOTH-GQL-BATCH-01` `DRAFT`; PR #788 at `d411d4935a507804f28d8798419d405e32880d02`;
+issue #765 last updated 2026-07-27; and no implementation branch in existence.
+
+### 19.2 Pinned-source reproduction
+
+The finding was reproduced against the exact pinned `juniper` 0.16.2 sources in
+an isolated throwaway probe **outside** this repository. No repository code was
+built, added or modified for it.
+
+Confirmed:
+
+1. **validation** — `OverlappingFieldsCanBeMerged` rejects only *incompatible*
+   repeats: different field names, differing arguments or conflicting types
+   (`find_conflict`, `overlapping_fields_can_be_merged.rs:378-460`). Compatible
+   repeats sharing one response key pass. `find_conflict` never inspects
+   directives, so directive differences cannot make two occurrences conflict;
+2. **sync execution** — `resolve_selection_set_into` (`types/base.rs:436-500`)
+   iterates every `Selection::Field` occurrence and calls `resolve_field` once
+   per occurrence;
+3. **async execution** — `resolve_selection_set_into_async`
+   (`types/async_await.rs:209-283`) pushes one future per occurrence into a
+   `FuturesOrdered`;
+4. **merging** — per-occurrence results are reconciled under the shared response
+   key by `merge_key_into` (`types/base.rs:627-651`), which deep-merges objects
+   and lists. The previous ADR text cited `Object::add_field` "replacing" the
+   value; that was the wrong function, and it supported the wrong conclusion —
+   the executor **does** merge repeated selections' results while **not** merging
+   their execution;
+5. **observed behaviour** — for a mutation containing one response key twice with
+   compatible arguments, validation passed with no errors, the response carried a
+   single merged object, and the mutation resolver executed **twice**, identically
+   under `execute_sync` and async `execute`, and identically when the duplicate
+   arrived through a named fragment spread or an inline fragment;
+6. **ordering** — under async execution the *second* source occurrence's resolver
+   was observed completing first, confirming the pinned async path drives
+   top-level mutation fields concurrently rather than serially. That is a
+   pre-existing GraphQL specification deviation in the dependency; it is recorded,
+   not repaired here.
+
+The withdrawn claim was therefore
+
+```text
+one top-level response key == one top-level mutation execution
+```
+
+which is false on the pinned stack.
+
+Also established, for the guard's feasibility: `ExecutionError::path()` exposes
+response-key names only; source positions do **not** survive into any public
+nested-executor API (`Executor::field_path` private, `FieldPath::construct_path`
+and `FieldPath::location` private methods, `OwnedExecutor` no richer); the
+parser and executor **do** expose stable public operation and selection
+information at the request boundary (`pub mod parser`, `pub mod executor`,
+`parse_document_source`, `get_operation`, `Operation::operation_type`, the
+re-exported `Selection`/`Definition` AST); Juniper exposes **no** supported
+custom validation-rule extension point (`visit_all_rules` is a fixed list),
+though `validation::{visit, ValidatorContext, MultiVisitorNil, Visitor}` are
+public and a rule-shaped visitor could be run separately; and Thoth **can**
+invoke parse/validate/execute as separate public stages
+(`execute_validated_query`, `execute_validated_query_async`) rather than only
+`GraphQLRequest::execute`. Production wiring is
+`thoth-api-server/src/lib.rs:94-106` (async `GraphQLRequest::execute`), and test
+wiring is both `juniper::execute_sync` (`thoth-api/src/graphql/tests.rs`) and the
+async `GraphQLRequest::execute` harness (`thoth-api/tests/support/mod.rs:108`).
+
+### 19.3 F1 — execution occurrence identity: rejected
+
+Investigated whether a nested resolver can derive a stable identifier for the
+actual top-level resolver invocation rather than merely its response key.
+
+APIs investigated: `Executor::location()`, `Executor::new_error(..)` /
+`ExecutionError::path()` and `::location()`, `Executor::look_ahead()`,
+`FieldPath` and its variants, `OwnedExecutor`, and `Executor::field_sub_executor`.
+
+Findings:
+
+- `field_path` is a private field, and although `FieldPath::Field` carries the
+  ancestor `SourcePosition`, `construct_path` and `location` are private methods
+  with no public accessor returning the chain. A descendant cannot recover an
+  ancestor's position;
+- `Executor::location()` returns only the currently executing field's own
+  position;
+- `ExecutionError::path()` returns response-key names only, with no positional
+  component;
+- `look_ahead()` finds the current field by response name with `find_map`, so it
+  resolves to the **first** matching occurrence and cannot distinguish duplicates
+  either.
+
+Decisive counterexample, reproduced: for
+
+```graphql
+mutation {
+  x: updateA(id: 1) { ...P }
+  x: updateA(id: 1) { ...P }
+}
+fragment P on Payload { id child }
+```
+
+two distinct mutation resolver executions occurred, and the terminal `child`
+resolver under each observed an **identical** `path()` of `["x", "child"]` **and**
+an **identical** `location()`. Every publicly derivable identity signal collapses.
+Separately, F1 also fails the section 4.19 requirement that the prefetch site and
+the terminal descendant derive the *same* value, since their positions differ by
+construction.
+
+**F1 rejected** — not on cost, on impossibility with public API.
+
+### 19.4 F2 — central duplicate-mutation-response-key guard: accepted
+
+Central pre-execution detection is possible, and was reproduced end to end using
+only public, non-`unsafe` API: `GraphQLRequest`'s public `query`,
+`operation_name` and `variables` fields; `parse_document_source`;
+`RootNode::schema`; `get_operation`; `Operation::operation_type`; the public
+`Selection`/`Definition` AST; `InputValue::into_const`; `RuleError::new`;
+`GraphQLError::ValidationError`; and `GraphQLResponse::from_result`.
+
+Handling confirmed by reproduction:
+
+- **fragments** — named spreads and inline fragments expanded before counting;
+- **directives** — `@skip`/`@include` evaluated against coerced variables, so a
+  definitely-excluded duplicate is correctly **accepted**; an undecidable
+  condition rejects conservatively, recorded as a tradeoff;
+- **operation type** — read directly at the boundary, so queries are untouched;
+- **operation selection** — `operationName` honoured through `get_operation`.
+
+Two pinned-API constraints were found by compiling against the crate:
+`juniper::ast` is private, so `Fragment`, `Field`, `Directive` and
+`ast::Arguments` are not publicly nameable — fragment expansion must hold
+`&[Selection]` and directive evaluation must keep those types inferred; and
+`types::base::is_excluded` is `pub(super)`, so directive evaluation must be
+reimplemented on public API and kept behaviourally identical.
+
+Reproduced results, with a resolver-call counter:
+
+| Document | Outcome | `is_ok()` | Mutation resolver calls |
+|---|---|---|---|
+| distinct aliases | accepted | true | 2 |
+| direct duplicate response key | rejected | false | **0** |
+| duplicate via named fragment | rejected | false | **0** |
+| duplicate via inline fragment | rejected | false | **0** |
+| duplicate with literal `@skip(if: true)` | accepted | true | 1 |
+| duplicate with `@skip(if: $s)`, `$s = true` | accepted | true | 1 |
+| duplicate with `@skip(if: $s)`, `$s = false` | rejected | false | **0** |
+| duplicate response key in a **query** | accepted | true | 0 |
+| baseline: real validation error (unknown field) | rejected | false | 0 |
+
+The rejection's serialized body was byte-comparable in shape to the baseline
+juniper validation failure — an `errors` array of `{message, locations}` with no
+`data` key — so the existing handler branch yields **HTTP 400** with no new
+branch and no one-off protocol. Resolver count on rejection is **guaranteed
+zero** because rejection precedes `execute`/`execute_sync` entirely.
+
+Notably, the guard does **not** need to replace `GraphQLRequest::execute`.
+Explicit parse/validate/execute orchestration is available and was confirmed
+public, but was **not** adopted: it would reimplement juniper's request pipeline
+for no additional guarantee. The accepted cost is one extra document parse per
+mutation request, recorded rather than presented as free.
+
+**F2 accepted**, and recorded as a **shared GraphQL execution prerequisite**
+rather than a batching helper, because duplicate top-level mutation response keys
+duplicate a **write** whether or not any loader-backed field is selected.
+
+### 19.5 F3 — execution-layer correction: rejected as architecture expansion
+
+Feasibility: juniper's field-collection point,
+`resolve_selection_set_into{,_async}`, is `pub(crate)` inside the private
+`mod types`, so it cannot be replaced or wrapped externally. The only external
+interception is hand-writing `GraphQLValue`/`GraphQLValueAsync` for the mutation
+root, overriding `resolve`/`resolve_async` and delegating `resolve_field{,_async}`
+and `meta`.
+
+Scope and burden: that places Thoth in the business of maintaining GraphQL field
+collection — fragments, inline fragments, directives, sub-selection merging,
+error paths, null propagation — against a dependency whose own implementation is
+private; it must hold for both sync and async; correctness would additionally
+require fixing serial mutation execution, changing behaviour for every existing
+multi-field mutation request; and it couples Thoth to pinned execution internals
+far more tightly than the section 4.12.8 shim, making any juniper upgrade a
+re-derivation rather than a revalidation.
+
+**F3 rejected** — materially larger than `THOTH-GQL-BATCH-01`, effectively
+maintaining a partial custom GraphQL executor. Recorded as architecture
+expansion requiring its own decision, not as a batching detail.
+
+### 19.6 Selected architecture and final identity
+
+**Outcome B.** Response-key scoping survives, but **only** because the request
+boundary now guarantees uniqueness for mutation top-level response keys. The
+architecture is two coordinated controls:
+
+```text
+1. central mutation request guard:
+   each executable top-level mutation response key occurs at most once
+
+2. loader store:
+   scoped by top-level response key
+```
+
+Final store and execution identity, unchanged in shape but now sound:
+
+```text
+(top-level response key, loader identity, normalized load shape, parent key)
+```
+
+Why it uniquely corresponds to the write execution boundary: for an **accepted**
+mutation operation the guard makes each executable top-level response key
+correspond to exactly one top-level mutation resolver execution, so a scope never
+spans two writes; a top-level mutation resolver's write completes before its
+payload selection resolves, so read-after-write within a scope is sound; and no
+entry crosses scopes, so a write under one top-level field can never be followed
+by a stale read of another's state — regardless of ordering or interleaving. The
+one-to-one invariant explicitly **depends on** the guard, which is why the store
+must be unavailable without it.
+
+Terminology corrected accordingly:
+
+```text
+storage lifetime:      one GraphQL request
+reuse/execution scope: one unique executable top-level response key
+```
+
+The architecture may still be called request-scoped, because the container lives
+on one request; it must not be described as giving request-wide reuse.
+
+### 19.7 GraphQL compatibility implications
+
+The public **schema** is unchanged and the generated SDL stays byte-identical.
+The set of **accepted requests** changes: a mutation with a duplicate executable
+top-level response key is now rejected. This rejects some documents the GraphQL
+specification considers merge-compatible, and is recorded in `ADR-0006` section
+4.12.6.4 as a deliberate server safety restriction compensating for pinned
+Juniper's repeated mutation execution — explicitly **not** as ordinary
+spec-conformant validation.
+
+The restriction is deliberately narrow: queries, non-top-level duplicates,
+distinct aliases and directive-excluded duplicates are all unaffected.
+
+### 19.8 P1 specification sweep
+
+Corrected in `THOTH-GQL-BATCH-01`, by targeted search across the whole file
+rather than first occurrences:
+
+| Was | Now |
+|---|---|
+| "repeated occurrences of one response key share one scope" as a general rule | split by operation type: true for queries, impossible for accepted mutations because the guard rejects them |
+| failure recorded once per `(loader, shape)` dispatch | once per `(scope, loader, shape)` dispatch, with failure identity required to match load identity exactly |
+| second prefetch covering an already-loaded `(loader, shape, key)` | `(scope, loader, shape, key)`, **within that scope** |
+| "one statement per `(loader, shape)` dispatch" (acceptance criterion) | `(scope, loader, shape)` |
+| "Store identity is `(loader identity, normalized load shape, parent key)`" (acceptance criterion) | `(top-level response key, loader identity, normalized load shape, parent key)` |
+| repeated prefetch for an already-present `(loader, shape, key)` entry (concurrency section) | `(scope, loader, shape, key)` under the same execution scope, with cross-scope dispatch stated as correct |
+| "two prefetch sites covering the same `(loader, shape)` in one request issue no duplicate SQL" (required test) | split into **same-scope reuse** and **cross-scope isolation** as two distinct required tests |
+| "several prefetch sites can cover one `(loader, shape)` in a single request" (`BE-02` inheritance) | one `(scope, loader, shape)` under one execution scope, plus cross-scope isolation |
+
+The internal `M1`/`M2` labels were also removed from `ADR-0006` in favour of
+descriptive text, since the architecture is now two controls rather than one
+model. No binding current-specification occurrence of an unscoped identity
+remains in either document; the sole remaining `(loader, shape, key)` in the task
+is the deliberate contrast describing what is **not** shared across scopes.
+
+Historical text in this report describing prior rejected designs retains its
+original wording, as required.
+
+### 19.9 Risk reclassification
+
+Re-run against `risk-classification.md` from scratch. Result: **`HIGH`**,
+unchanged as a label but re-derived on materially different grounds.
+
+Newly engaged criteria: **production feature activation** — the guard is live on
+the production request path at merge, not dark-launched; and **cross-repository
+API contract change** — the set of accepted GraphQL mutation requests changes for
+all clients, including clients outside this repository. Previously engaged
+criteria (canonical data semantics, capable of broadening processing scope) still
+apply.
+
+Not raised to `Critical`: checked criterion by criterion, there is no destructive
+migration, no canonical data rewrite, no mass redistribution, no security
+boundary affecting all publishers (the guard only rejects, so it cannot broaden
+access), no secrets or identity-provider work, no metrics recomputation, no
+source-of-truth cutover and no material legal or contractual consequence. The
+"rollback is uncertain" escalation rule does not bite: the kill switch restores
+prior behaviour without a deploy.
+
+Not lowered to `Medium`, which would require no automatic production effect.
+
+One required control changes as a result: `risk-classification.md`'s "feature
+flag, comparison mode or controlled pilot where possible" is now genuinely
+engaged, and is discharged by the kill switch.
+
+### 19.10 Rollout and rollback implications
+
+The selected fix **does** change the common GraphQL request path before any
+loader adoption. Consequently:
+
+- the claim "no production effect because no field adopts batching" is **false**
+  for this task and is now explicitly prohibited in `ADR-0006` section 7.2 and
+  `THOTH-GQL-BATCH-01` section 11;
+- activation state at merge: store inert, **guard active**;
+- the guard is deliberately **not** initially inactive. Shipping it dark would
+  either leave the store unsafe or defer the same behaviour change to a less
+  visible merge. It is instead protected by a kill switch defaulting to enabled,
+  built on the repository's established `clap` `Arg::env(..)` configuration
+  pattern — no new mechanism is invented;
+- disabling the switch also makes the **store** unavailable, because a nested
+  resolver cannot distinguish a mutation from a query. Batching therefore never
+  operates without its prerequisite;
+- monitoring: one warning-level log record per rejection, carrying no document,
+  variables or argument values. No new alert or dashboard;
+- rollback: disable the switch (no deploy), or revert the merge commit;
+- before `BE-02` may depend on this: `ADR-0006` approved and merged;
+  `THOTH-GQL-BATCH-01` implemented, independently reviewed and merged with the
+  guard demonstrably active and its zero-execution evidence recorded; the `BE-02`
+  specification amended to adopt the final mechanism and to record the inherited
+  request-acceptance change; that amendment freshly reviewed and approved; and a
+  separate `BE-02` implementation authorization.
+
+### 19.11 A second architectural decision is flagged, not assumed
+
+The central mutation request guard was **not** part of the direction the CTO
+recorded when selecting top-level-response-key scoping. It changes the set of
+accepted GraphQL requests for every mutation and every API client, and it is a
+shared GraphQL execution control rather than a batching component.
+
+It is recorded inside `ADR-0006` rather than split into a separate ADR because it
+is inseparable from the mutation isolation guarantee — without it the store
+cannot be used on any mutation path — but `ADR-0006` section 14 now asks the CTO
+to approve it **as its own decision**, on its own merits, and states that if the
+request-boundary restriction is declined then section 4.12 does not survive in
+its present form and the mutation isolation objective returns to open, F1 being
+rejected on evidence and F3 as architecture expansion.
+
+Separately, the pinned async executor's concurrent execution of top-level
+mutation fields is recorded as a **pre-existing** specification deviation in the
+dependency. It is not repaired here, and repairing it would require its own
+architecture decision.
+
+### 19.12 Boundaries confirmed after this remediation
+
+- **no runtime work was performed.** No runtime source, schema, migration,
+  `Cargo` manifest, lock file or workflow changed. The F1/F2/F3 reproductions ran
+  in a throwaway crate outside the repository and left nothing behind in it;
+- **no authorization was granted.** `ADR-0006` remains `PROPOSED`;
+  `THOTH-GQL-BATCH-01` remains `DRAFT` and `HIGH` with implementation
+  `NOT AUTHORIZED`;
+- PR #788, its branch and the `BE-02` specification unmodified;
+- issue #765 unmodified;
+- the implementation branch `feature/shared-architecture/graphql-batching` was
+  not created;
+- no additional ADR was created; the guard is specified inside `ADR-0006` and
+  explicitly flagged for its own CTO decision;
+- authorization remains unchanged by this remediation: keys still come only from
+  already-resolved rows, no arbitrary user-input IDs are accepted, intermediate
+  authorization is not bypassed, child-protected data still requires child
+  authorization context, and scope identity remains isolation metadata rather
+  than permission. The request-boundary guard makes **no** authorization
+  decision;
+- no approval-state or transient-status prose was written into any committed
+  file.

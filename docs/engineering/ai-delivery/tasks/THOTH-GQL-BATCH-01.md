@@ -40,25 +40,36 @@ rather than escalating an architecture decision.
 The task delivers the foundation and proves it. It adopts the foundation in no
 production field.
 
-Three boundaries are set by `ADR-0006` and are binding on this task:
+Four boundaries are set by `ADR-0006` and are binding on this task:
 
+- **the central mutation request guard is in scope** (`ADR-0006` section 4.12.6).
+  Before any resolver executes, a **mutation** operation in which one executable
+  top-level response key occurs more than once is rejected at the request
+  boundary. This is a **shared GraphQL execution prerequisite**, not a batching
+  helper: it protects every mutation whether or not a loader-backed field is
+  selected, because the defect it compensates — pinned Juniper executing one
+  response key's compatible occurrences as several resolver invocations — causes
+  a duplicated **write**. Query operations are not restricted;
 - **top-level-response-key scoping is in scope** (`ADR-0006` section 4.12). The
   store is owned by one GraphQL request but partitioned by the current top-level
   GraphQL response key, giving the store identity
   `(top-level response key, loader identity, normalized load shape, parent key)`.
-  The rule is applied uniformly to queries and mutation payloads; no resolver
-  detects operation type. This requires the single pinned-Juniper compatibility
-  shim of `ADR-0006` section 4.12.8;
+  The scoping rule is applied uniformly to queries and mutation payloads; no
+  resolver detects operation type. This requires the single pinned-Juniper
+  compatibility shim of `ADR-0006` section 4.12.8. Its mutation isolation
+  guarantee **depends on** the guard above, and the store must be unavailable
+  without it (`ADR-0006` section 4.12.6.6);
 - **descendant prefetch is in scope** (`ADR-0006` section 4.19). The material
   fan-out paths the ADR identifies reach the loader-backed field through an
   intermediate object (`QueryRoot.imprints -> Imprint.publisher ->
   Publisher.distributionPlatforms`), so a direct-child-only mechanism would not
   satisfy the ADR's own coverage rule and would force `BE-02` to invent a second
   architecture;
-- **mutation-payload fan-out is a supported path**, not an exception. Scope
-  isolation makes correctness independent of whether the executor serializes or
-  interleaves top-level mutation fields, so no prohibition on mutation-reachable
-  prefetch sites applies, and **no production mutation resolver is modified**.
+- **mutation-payload fan-out is a supported path**, not an exception. The guard
+  plus scope isolation make correctness independent of whether the executor
+  serializes or interleaves top-level mutation fields, so no prohibition on
+  mutation-reachable prefetch sites applies, and **no production mutation
+  resolver is modified**.
 
 ### 1.1 Risk rationale
 
@@ -81,11 +92,56 @@ Two facts do **not** reduce the classification: that no migration is required,
 and that no field adopts the mechanism at merge. Both limit the *blast radius at
 merge*; neither limits the correctness surface of the mechanism itself.
 
-#### Re-evaluation after top-level-response-key scoping
+#### Re-evaluation after the mutation execution-scope remediation
 
-The classification was re-run against `risk-classification.md` for the expanded
-specification rather than carried forward by default. The result is unchanged at
-`HIGH`, and the rationale is now stronger rather than merely inherited.
+The classification was re-run against `risk-classification.md` from scratch after
+the remediation of `ADR-0006` section 4.12.6, rather than carried forward by
+default. The result is **`HIGH`** — unchanged as a label, but reached on
+materially different and stronger grounds, and it is no longer reached only
+through the store's correctness surface.
+
+**What changed.** The specification now carries a central request-boundary guard
+that rejects mutation operations with a duplicate executable top-level response
+key. That is runtime behaviour on the common GraphQL request path, live from the
+merge commit, affecting every mutation request from every API client.
+
+Against the framework, that engages criteria the previous classification did not:
+
+| `risk-classification.md` criterion | Engaged by |
+|---|---|
+| production feature activation | the guard is active on the production request path at merge, not dark-launched (`ADR-0006` section 7.2) |
+| cross-repository API contract change | the set of accepted GraphQL mutation requests changes for all clients, including clients outside this repository |
+| changes to canonical data semantics | unchanged from before: a data-loading path is substituted for a field's direct read |
+| changes capable of broadening processing scope | unchanged from before |
+
+The escalation rules also still apply: the affected production query volume is
+unknown, and no exhaustive inventory of external clients exists in this
+repository.
+
+**Why it is not raised to `Critical`.** Checked criterion by criterion rather
+than assumed: there is no destructive or irreversible production migration, no
+canonical data rewrite at scale, no mass redistribution or external publication,
+no security boundary affecting all publishers (the guard only ever **rejects**,
+so it cannot broaden access, and authorization is untouched), no secrets or
+identity-provider work, no historical metrics recomputation, no source-of-truth
+cutover, and no material legal, privacy or contractual consequence. Rollback is
+also **not** uncertain, which is the escalation rule that would otherwise bite:
+the kill switch of section 11 restores prior request-acceptance behaviour
+without a deploy, and reverting the merge commit is clean because nothing has
+adopted the store.
+
+**Why it is not lowered.** `Medium` would require the behaviour to be
+feature-flagged with limited data effect and no automatic production effect. The
+guard has automatic production effect at merge, so `Medium` does not fit.
+
+`HIGH` is therefore re-derived, not retained by inertia. One required control
+changes as a result: `risk-classification.md`'s "feature flag, comparison mode or
+controlled pilot where possible" is now genuinely engaged and is discharged by
+the kill switch of section 11, which was not required by the previous
+classification.
+
+The remainder of this section records the store-side rationale, which is
+unchanged.
 
 Factors raising the correctness surface:
 
@@ -106,11 +162,17 @@ Factors raising the correctness surface:
 Factors bounding it:
 
 - no database migration, no `schema.rs` change, no data semantics change on disk;
-- no production consumer at initial merge — no field adopts the mechanism;
-- no new workspace dependency, including for the shim;
-- no public GraphQL API change;
+- no production consumer of the **store** at initial merge — no field adopts the
+  batching mechanism. This no longer means the task has no production effect at
+  merge: the guard does (`ADR-0006` section 7.2);
+- no new workspace dependency, including for the shim and the guard;
+- no public GraphQL **schema** change, and the generated SDL is byte-identical.
+  The set of accepted **requests** does change (`ADR-0006` section 4.12.6.7);
 - the always-correct direct fallback means a scope-extraction failure degrades to
-  unbatched-but-correct, not to wrong data (`ADR-0006` section 4.12.9).
+  unbatched-but-correct, not to wrong data (`ADR-0006` section 4.12.9);
+- the guard fails **closed**: it only ever rejects a request, and a rejected
+  request executes no resolver and performs no write, so its failure mode is
+  refusal rather than incorrect data.
 
 Against the framework, this sits squarely in `HIGH`: it matches "changes to
 canonical data semantics" (a data-loading path substituted for a field's direct
@@ -126,8 +188,10 @@ authorization — `ADR-0006` section 4.13), no secrets or identity-provider work
 no metrics recomputation, no source-of-truth cutover, and no material legal,
 privacy or contractual consequence.
 
-`HIGH` is therefore retained deliberately, with the required controls of section
-1.2 unchanged and the additional shim-specific acceptance criteria of section 9.
+`HIGH` is therefore reached on store-side grounds too, with the shim-specific
+acceptance criteria of section 9. The required controls of section 1.2 are
+**not** unchanged: the kill switch added by the guard's re-derivation above is a
+newly engaged control.
 
 ### 1.2 Required HIGH-risk controls
 
@@ -138,8 +202,14 @@ Per `risk-classification.md` and `release-gates.md` section 1:
 - independent cross-model review;
 - failure-path and authorization tests;
 - rollout and rollback plan;
+- **kill switch** for the request-boundary guard (section 11), discharging
+  `risk-classification.md`'s "feature flag, comparison mode or controlled pilot
+  where possible" for HIGH-risk work. This control is newly engaged, because the
+  guard has production effect at merge;
 - explicit CTO merge authorization;
-- production activation, if any is ever required, separately authorized.
+- production activation of the **store**, if any is ever required, separately
+  authorized. Note that the **guard** activates at merge and is therefore covered
+  by the merge authorization itself, not by a later activation decision.
 
 ---
 
@@ -218,6 +288,49 @@ before editing.
 
 The task must:
 
+0. implement the **central mutation request guard** of `ADR-0006` section 4.12.6
+   as its own module under `thoth-api/src/graphql/`, separate from the store,
+   and invoke it from the production handler
+   (`thoth-api-server/src/lib.rs`) **before** `data.execute(&st, &ctx).await`.
+   This is numbered first because the store's mutation isolation guarantee
+   depends on it. Binding properties, all of which use public non-`unsafe`
+   juniper API only:
+
+   - it parses the incoming document with
+     `juniper::parser::parse_document_source`, selects the operation with
+     `juniper::executor::get_operation` honouring `operationName`, and reads
+     `Operation::operation_type`;
+   - it applies **only** to `OperationType::Mutation`. Query operations are
+     returned unchanged and are never restricted (4.12.6.8);
+   - it expands named fragment spreads and inline fragments before counting
+     top-level occurrences, and is cycle-safe;
+   - it evaluates `@skip`/`@include` against the request's coerced variables, so
+     a definitely-excluded occurrence is **not** counted as executable. Juniper's
+     own `is_excluded` is `pub(super)`, so this must be reimplemented on public
+     API and kept behaviourally identical;
+   - where a directive condition cannot be resolved for the concrete request, it
+     counts the occurrence as executable — rejecting conservatively rather than
+     admitting a possible duplicate write (4.12.6.7);
+   - it rejects when any executable top-level response key occurs more than once,
+     returning `GraphQLResponse::from_result(Err(GraphQLError::ValidationError(..)))`
+     carrying a `RuleError` with the colliding source positions, so the existing
+     handler branch produces **HTTP 400** with the ordinary GraphQL
+     validation-error body and no `data` key. No new handler branch and no
+     one-off HTTP protocol;
+   - the message must not expose loader, store or scope internals, and must not
+     imply the document is invalid GraphQL;
+   - it **must not** replace `GraphQLRequest::execute`, and must not make any
+     authorization decision;
+   - rejection precedes execution entirely: mutation resolver execution count and
+     database write count are both **zero** for a rejected operation;
+   - it modifies **none** of the 88 resolver methods on `MutationRoot`;
+   - it emits exactly one warning-level log record per rejection, carrying the
+     operation name if supplied and the colliding response key, and **never** the
+     document, the variables or any argument value;
+   - `juniper::ast` is a private module, so `Fragment`, `Field`, `Directive` and
+     `ast::Arguments` are not publicly nameable. Named-fragment expansion must
+     hold `&[Selection]` selection sets, and directive evaluation must be written
+     so those types are only inferred, never named in a signature;
 1. add the request-scoped store to `crate::graphql::model::Context` per
    `ADR-0006` sections 4.1-4.4, initialised empty at construction, keeping
    `Context: Sync` so the async execution path continues to compile;
@@ -238,10 +351,21 @@ The task must:
      scopes;
    - the scope key is the GraphQL **response key**, therefore the alias when one
      is present, and is never normalized to the schema field name (4.12.5);
-   - repeated occurrences of one response key share one scope (4.12.6). **No**
-     source-position or AST-occurrence component is added to the scope key;
+   - **No** source-position or AST-occurrence component is added to the scope
+     key. `ADR-0006` section 4.12.6.3 rejects that option on evidence: a nested
+     resolver cannot derive a top-level execution-occurrence identity on the
+     pinned stack, because `path()` and `location()` can both be identical
+     across two distinct top-level mutation executions;
+   - in a **query** operation, repeated occurrences of one top-level response key
+     share one scope, and that is correct and required (4.12.6.8);
+   - in a **mutation** operation, a duplicate executable top-level response key
+     cannot arise, because the section 6.6 guard rejects the request before
+     execution. The scope's one-to-one correspondence with a write execution
+     **depends on** that guard (4.12.6.4);
    - **no** resolver detects operation type, and the raw GraphQL document is
-     never parsed to derive scope (4.12.7);
+     never parsed to derive scope (4.12.7). The guard is the sole place where the
+     document is parsed and the operation type is read, and it runs at the
+     request boundary, never inside a resolver;
    - both the prefetch site and the terminal child resolver derive the scope from
      the same helper, so they necessarily agree;
 5. implement the **pinned-Juniper compatibility shim** of `ADR-0006` section
@@ -281,13 +405,16 @@ The task must:
    fallback;
 10. implement failure recording per `ADR-0006` section 4.9: the parent list
    resolver still returns its parents successfully, the failure is recorded once
-   per `(loader, shape)` dispatch with the attempted key set, each covered child
-   resolver returns the derived `FieldError`, and **no retry query is issued**.
+   per `(scope, loader, shape)` dispatch with the attempted key set, each covered
+   child resolver returns the derived `FieldError`, and **no retry query is
+   issued**. Failure-dispatch identity must match the successful-load identity
+   exactly, including its scope component, so a `LoadFailed` recorded under one
+   scope never poisons another (`ADR-0006` sections 4.9.2, 4.12; invariant 31).
    `ThothError` is not `Clone`, so retain a shareable representation;
 11. implement duplicate-key handling, alias handling per shape and the
    non-destructive read (`ADR-0006` section 4.6), including that a second
-   prefetch covering an already-loaded `(loader, shape, key)` set issues no
-   additional SQL;
+   prefetch covering an already-loaded `(scope, loader, shape, key)` set issues
+   no additional SQL **within that scope**;
 12. enumerate child selections by iterating `children()` and filtering on
     `field_original_name()`, never via `select()` / `has_child()`
     (`ADR-0006` section 4.15.1), applying this at **every** segment of a
@@ -464,8 +591,13 @@ The task must not:
     rule;
 12. implement `ADR-0006` option C (an N+1 exception) or option D (removing the
     nested field);
-13. activate any production feature, deploy, release, or run a production
-    migration;
+13. deploy, release, or run a production migration. **Narrow exception,
+    deliberate and recorded:** the section 6.6 request guard is behaviour that
+    takes effect on the common GraphQL request path at merge (section 11). That
+    is not a discretionary activation the implementing agent performs — it is a
+    property of the merge itself, covered by the CTO merge authorization, and it
+    must be reported plainly rather than described as inert. No **store** feature
+    is activated for any production field;
 14. change CI workflows, repository settings or branch protection;
 15. modify any production mutation resolver, or require mutation resolvers to
     call invalidation. Avoiding that retrofit is a principal reason `ADR-0006`
@@ -474,9 +606,23 @@ The task must not:
     mutation root fields. The architecture is designed not to depend on that
     behaviour (`ADR-0006` section 4.12.10);
 17. detect the GraphQL operation type at a nested resolver, or parse the raw
-    GraphQL document to derive execution scope;
+    GraphQL document to derive execution **scope**. The section 6.6 guard does
+    parse the document and does read the operation type, but it does so once, at
+    the **request boundary**, before any resolver runs, and never to derive a
+    scope value. That is the only permitted document parsing;
 18. use `Executor::new_error(..)` path extraction anywhere outside the single
-    compatibility-shim module.
+    compatibility-shim module;
+19. broaden the guard's compatibility restriction beyond `ADR-0006` section
+    4.12.6.7 — in particular, it must not restrict query operations, duplicate
+    response keys below the top level of a mutation, or distinct top-level
+    aliases;
+20. implement `ADR-0006` option F3 (correcting the execution layer so compatible
+    repeated top-level fields execute once), fork or patch Juniper, or begin
+    maintaining a custom GraphQL executor. That option is rejected as
+    architecture expansion in `ADR-0006` section 4.12.10.1 and would require its
+    own architecture decision;
+21. add an execution-occurrence or source-position component to the scope key.
+    `ADR-0006` section 4.12.6.3 rejects that on evidence.
 
 ---
 
@@ -537,9 +683,20 @@ summary, and binding here:
 25. correctness does not depend on the executor serializing top-level mutation
     fields;
 26. request-wide reuse across top-level response keys is **not** an invariant: the
-    same `(loader, shape, key)` under two scopes is loaded once per scope, and the
-    resulting extra dispatches are bounded by the operation's top-level structure
-    rather than by parent count.
+    same `(loader, shape, key)` sub-tuple reached under two scopes is two entries
+    and is loaded once per scope, and the resulting extra dispatches are bounded
+    by the operation's top-level structure rather than by parent count. "Two
+    prefetch sites covering the same loader in one request issue no duplicate
+    SQL" is **false** as stated and must not appear; the rule is same-scope
+    reuse;
+27. for an accepted **mutation** operation, each executable top-level response key
+    occurs exactly once, guaranteed by the section 6.6 request guard rather than
+    by GraphQL validation, so a scope corresponds to exactly one mutation
+    resolver execution;
+28. a **rejected** mutation operation executes no mutation resolver and performs
+    no database write;
+29. the store is unavailable whenever the guard is not applied; "batching on,
+    guard off" is not a representable state.
 
 ---
 
@@ -610,21 +767,95 @@ summary, and binding here:
 - two concurrent independent GraphQL requests must not observe each other's
   store contents, and this must be proven by test rather than argued from the
   construction site;
-- a repeated prefetch for an already-present `(loader, shape, key)` entry does
-  not re-query it, including when the repeat comes from a *different* prefetch
-  site in the same request;
+- a repeated prefetch for an already-present `(scope, loader, shape, key)` entry
+  does not re-query it, including when the repeat comes from a *different*
+  prefetch site **under the same execution scope**. Two prefetch sites covering
+  the same loader under *different* scopes are two entries, and the second
+  dispatch there is correct and required;
 - the mechanism introduces no lock, lease, claim or background job.
 
 ### 6.5 Compatibility
 
-- no public GraphQL contract change; the generated SDL must be byte-identical to
-  the base;
+- no public GraphQL **schema** contract change; the generated SDL must be
+  byte-identical to the base;
+- **the set of accepted requests does change**, narrowly and deliberately: a
+  mutation operation with a duplicate executable top-level response key is now
+  rejected (`ADR-0006` section 4.12.6.7). This must be stated plainly in the
+  implementation report and must not be described as a schema change, nor as
+  ordinary spec-conformant validation;
 - no database, migration or `schema.rs` change;
-- no `thoth-client` or downstream generated-client impact;
+- no `thoth-client` or downstream generated-client impact. The implementing agent
+  must confirm this by inspection rather than assumption, since `thoth-client`
+  issues GraphQL requests;
 - no dependency change;
 - existing GraphQL tests must pass **unmodified**. Editing an existing test to
   accommodate the mechanism is a signal that behaviour changed and requires
   explicit justification in the implementation report.
+
+### 6.6 Central mutation request guard
+
+Binding behaviour, over and above the construction rules in section 3 item 0.
+
+**Accepted, and unchanged from the base:**
+
+```graphql
+mutation {
+  first:  updateA(...) { ... }
+  second: updateA(...) { ... }
+}
+```
+
+Distinct top-level response keys are allowed, and each executes exactly once.
+
+**Rejected — direct duplicate:**
+
+```graphql
+mutation {
+  x: updateA(...) { a }
+  x: updateA(...) { b }
+}
+```
+
+One response key, two executable occurrences: rejected before any resolver runs.
+
+**Rejected — duplicate through a named fragment spread**, and **rejected —
+duplicate through an inline fragment**: an equivalent duplicate introduced
+indirectly is rejected identically. Fragment expansion is not optional.
+
+**Directives.** `@skip`, `@include` and variable-driven conditions must be proven
+in both directions. A syntactic duplicate that is *definitely excluded* for the
+concrete request must **not** be rejected — it is not an executable occurrence.
+Where the condition cannot be resolved, rejection is conservative and that
+tradeoff is recorded (`ADR-0006` section 4.12.6.7); it must not be presented as
+exact.
+
+**Resolver execution count.** For any rejected operation:
+
+```text
+mutation resolver execution count = 0
+database write count             = 0
+```
+
+This is mandatory and must be **measured**. A guard that rejects only after the
+first resolver has executed is non-compliant.
+
+**Query operations.** Duplicate compatible response keys remain allowed in
+queries and keep ordinary GraphQL/Juniper behaviour. The restriction must not be
+broadened to queries, to non-top-level selections, or to distinct aliases.
+
+**Failure behaviour.** HTTP status and response body follow the repository's
+existing GraphQL request-validation failure convention: `is_ok()` is `false`, the
+existing handler branch returns HTTP 400, and the body is the ordinary
+`{"errors":[{"message","locations"}]}` shape with no `data` key. No resolver
+executes, no database write occurs, and no partial mutation execution is
+possible.
+
+**Prerequisite coupling.** The store must be unavailable whenever the guard is
+not applied (`ADR-0006` section 4.12.6.6). Because a nested resolver cannot
+detect operation type, this is all-or-nothing: with the guard disabled, every
+prefetch site performs no prefetch and every lookup reads `NotLoaded`, so every
+path takes its always-correct direct fallback. The implementation must make
+"batching on, guard off" **unrepresentable**, not merely discouraged.
 
 ---
 
@@ -661,6 +892,41 @@ the adopting task's concern.
 
 - [ ] `ADR-0006` is `APPROVED` and its approved content is reachable from
       `develop` before implementation begins.
+
+**Central mutation request guard (`ADR-0006` section 4.12.6; section 6.6)**
+
+- [ ] A mutation with a duplicate executable top-level response key written
+      directly is rejected before execution.
+- [ ] The same duplicate introduced through a **named fragment spread** is
+      rejected.
+- [ ] The same duplicate introduced through an **inline fragment** is rejected.
+- [ ] For every rejected case, the **measured** mutation resolver execution count
+      is `0` and the **measured** database write count is `0`.
+- [ ] Distinct top-level mutation aliases are accepted and each executes exactly
+      once.
+- [ ] A duplicate that `@skip`/`@include` definitely excludes for the concrete
+      request is **accepted** and executes once — proven for literal conditions
+      and for variable-driven conditions, in both directions.
+- [ ] A duplicate compatible response key in a **query** operation is accepted and
+      is unaffected by the guard.
+- [ ] Duplicate response keys **below** the top level of a mutation are accepted
+      and unaffected.
+- [ ] The rejection's HTTP status and serialized body are compared against a real
+      juniper validation failure and match it; no new handler branch exists.
+- [ ] The rejection message exposes no loader, store or scope internals.
+- [ ] The guard makes no authorization decision, and `GraphQLRequest::execute` is
+      not replaced.
+- [ ] None of the 88 `MutationRoot` resolver methods is modified.
+- [ ] Exactly one warning-level log record is emitted per rejection, carrying no
+      document, variables or argument values.
+- [ ] The guard runs under **both** the async `GraphQLRequest::execute` path and
+      the `execute_sync` test path.
+- [ ] With the guard disabled by configuration, the store is unavailable: every
+      lookup reads `NotLoaded`, every path takes the direct fallback, and results
+      are unchanged. "Batching on, guard off" is unrepresentable.
+
+**Store and scoping**
+
 - [ ] The request-scoped store exists on `Context`, is initialised empty per
       construction, and `Context` remains `Sync`.
 - [ ] Store contents are unique per GraphQL request; concurrent independent
@@ -668,9 +934,10 @@ the adopting task's concern.
 - [ ] No global, static or cross-request cache or singleton exists, verified by
       inspection of the added module.
 - [ ] The set-based loader issues exactly one statement per
-      `(loader, shape)` dispatch, using `.eq_any(...)`, and never iterates keys
-      issuing per-key statements.
-- [ ] Store identity is `(loader identity, normalized load shape, parent key)`;
+      `(scope, loader, shape)` dispatch, using `.eq_any(...)`, and never iterates
+      keys issuing per-key statements.
+- [ ] Store identity is
+      `(top-level response key, loader identity, normalized load shape, parent key)`;
       the load shape is a typed loader-specific value, not a serialized argument
       string.
 - [ ] One loader-owned shape constructor is used by both the prefetch site and
@@ -697,8 +964,10 @@ the adopting task's concern.
       statements.
 - [ ] Repeated aliases of the same normalized shape on the same parent cause no
       additional statements.
-- [ ] A second prefetch site covering an already-loaded `(loader, shape, key)`
-      set issues no additional SQL.
+- [ ] A second prefetch site covering an already-loaded
+      `(scope, loader, shape, key)` set issues no additional SQL **within that
+      scope**; across distinct scopes a second bounded dispatch is correct and
+      expected.
 - [ ] The store distinguishes `NotLoaded`, `Loaded` (including `Loaded([])`) and
       `LoadFailed`.
 - [ ] `NotLoaded` falls back to the direct query and returns the correct result.
@@ -843,6 +1112,59 @@ the adopting task's concern.
 
 ## 10. Required tests
 
+### Central mutation request guard
+
+Real GraphQL tests, exercised through both `juniper::execute_sync` and the async
+`GraphQLRequest::execute` harness (`thoth-api/tests/support/mod.rs:108`). Test-only
+mutations and types; **no production mutation resolver may be modified**.
+
+- **allowed — distinct aliases**
+
+  ```graphql
+  mutation {
+    first:  updateA(...) { ... }
+    second: updateA(...) { ... }
+  }
+  ```
+
+  accepted; each executes exactly once;
+- **rejected — direct duplicate**
+
+  ```graphql
+  mutation {
+    x: updateA(...) { a }
+    x: updateA(...) { b }
+  }
+  ```
+
+  rejected before resolver execution;
+- **rejected — duplicate through a named fragment** — the equivalent duplicate
+  introduced by a fragment spread is rejected;
+- **rejected — duplicate through an inline fragment** — likewise;
+- **directives** — `@skip`, `@include` and variable-driven conditions, proven in
+  both directions. A syntactic duplicate that is definitely excluded for the
+  concrete request must be **accepted** and execute once, and must not be
+  misclassified. An undecidable condition rejects conservatively, and the test
+  must assert that recorded tradeoff rather than an exact result;
+- **resolver execution count** — for each rejected operation, a resolver-call
+  counter on the test-only mutation reads `0` **and** the statement-count harness
+  of section 10's performance tests reads `0` database writes. Both are required;
+  neither alone is sufficient;
+- **query operations** — a duplicate compatible response key in a query is
+  accepted, both occurrences share one scope, and the terminal loader issues no
+  additional statement for the second;
+- **nested duplicates** — duplicate response keys below the top level of a
+  mutation are accepted and unaffected;
+- **error shape parity** — the rejection's HTTP status and serialized body are
+  compared directly against a real juniper validation failure (for example an
+  unknown field) and match: `is_ok()` false, HTTP 400, an `errors` array of
+  `{message, locations}`, and no `data` key;
+- **operation selection** — with several named operations in one document and an
+  `operationName` supplied, the guard evaluates the **selected** operation only;
+- **guard disabled** — with the kill switch off, the previously rejected
+  documents are accepted again **and** the store is unavailable: every lookup
+  reads `NotLoaded`, every path falls back, and results are unchanged.
+
 ### Unit — state model
 
 - `NotLoaded` is representationally distinct from `Loaded([])`;
@@ -893,9 +1215,14 @@ Against the disposable test database, through Juniper execution:
   the correct result for each alias;
 - **default equivalence** — the omitted-argument and explicit-default forms
   resolve against the same entry and issue one dispatch between them;
-- **multi-site coverage** — two prefetch sites covering the same
-  `(loader, shape)` in one request issue no duplicate SQL, and every parent
-  resolves correctly;
+- **same-scope multi-site reuse** — two prefetch sites covering the same
+  `(scope, loader, shape)` **under the same execution scope** reuse the same
+  entries, issue no duplicate SQL, and resolve every parent correctly;
+- **cross-scope isolation** — the same two prefetch sites placed under
+  *different* top-level response keys are two entries: each scope issues its own
+  bounded dispatch, neither reads the other's entries, and every parent still
+  resolves correctly. This test must be distinct from the one above, and a
+  design that merges them is not compliant;
 - **database error** — using the existing `failing_pool()` helper
   (`thoth-api/src/model/tests.rs:73`) or equivalent, the prefetch failure is
   stored as `LoadFailed`, the parent list field still resolves, each covered
@@ -915,12 +1242,26 @@ Against the disposable test database, through Juniper execution:
   receives the newly written value. Batching stays bounded as the nested parent
   count rises. Use test-only mutations and types; **no production mutation
   resolver may be modified**;
-- **isolation across top-level mutation fields** — one operation contains two
-  distinct top-level response keys, the first creating loader state and the
-  second writing different data and reading the same logical loader/key. The
-  second nested selection must observe the second write, never the first scope's
-  cached value. The assertion must rest on **scope isolation, not execution
-  order**;
+- **isolation across top-level mutation fields, distinct aliases** — one
+  operation contains two distinct top-level response keys, the first creating
+  loader state and the second writing different data and reading the same logical
+  loader/key. The second nested selection must observe the second write, never
+  the first scope's cached value. The assertion must rest on **scope isolation,
+  not execution order**;
+- **duplicate compatible response keys** — the same read-after-write scenario
+  written with one duplicated top-level response key instead of two aliases must
+  be **rejected by the guard**, with zero resolver executions and zero writes. A
+  design that handles only the distinct-alias case and lets the duplicate through
+  is **not compliant**: the duplicate is precisely the case that defeated the
+  previous architecture (`ADR-0006` section 4.12.6.1);
+- **fragment-created duplicates** — the same, with the duplicate introduced
+  through a named fragment spread and through an inline fragment;
+- **shared terminal fragment** — two top-level mutation fields with **distinct
+  aliases** whose payload selections reach the terminal loader-backed field
+  through **one shared named fragment**. Scope isolation must still hold, even
+  though the terminal resolver's own source position is identical on both paths.
+  This is the case that rejected an execution-occurrence scope
+  (`ADR-0006` section 4.12.6.3), and it must be covered explicitly;
 - **async interleaving** — the isolation above must hold under async `execute`
   where the executor may interleave the two top-level futures. Where practical,
   use a deliberately yielding async test-only mutation or resolver to force
@@ -1002,7 +1343,8 @@ The acceptance signal is **SQL statement count and bounded database work**, per
   grows with `n`.
 
 **Two-top-level-field query test.** Using the test-only schema, prove the
-accepted M2 tradeoff explicitly rather than hiding it:
+accepted cross-scope reuse tradeoff explicitly rather than hiding it
+(`ADR-0006` section 4.12.13):
 
 ```graphql
 query {
@@ -1065,17 +1407,52 @@ result is not acceptable evidence.
 
 ## 11. Rollout
 
-- **initial state after merge:** foundation only. No production field adopts the
-  mechanism, so no production behaviour changes at merge;
-- **feature flag/configuration:** none, and none required. Merging changes no
-  existing field's behaviour, which is a stronger guarantee than a flag;
-- **staging/preview validation:** not required for merge, since no production
-  path is affected. It becomes required for the first adopting task;
-- **pilot:** the first adoption is `BE-02`, in its own separately specified,
-  separately reviewed and separately authorized task;
-- **activation approval:** not applicable to this task; the first adoption
-  carries it;
-- **observation period:** not applicable to this task;
+**Corrected during remediation.** This task may **no longer** claim that it has
+no production effect at merge. The store does not, but the section 6.6 guard sits
+on the common GraphQL request path and takes effect immediately. The sentence
+
+```text
+no production effect because no field adopts batching
+```
+
+is **false** for this task as specified and must not appear in the
+implementation report, the PR body or the ADR.
+
+- **initial state after merge:**
+  - the **store**: present, adopted by no production field. No existing field's
+    behaviour or statement count changes;
+  - the **guard**: **active on every mutation request**, whether or not a
+    loader-backed field is selected. From the merge commit, a mutation with a
+    duplicate executable top-level response key is rejected with HTTP 400;
+- **feature flag/configuration:** a **kill switch** is required, discharging
+  `risk-classification.md`'s "feature flag, comparison mode or controlled pilot
+  where possible" control for HIGH-risk work. A single boolean, **defaulting to
+  enabled**, following the established `clap` `Arg::env(..)` pattern in
+  `src/bin/arguments/mod.rs` and threaded through `start_server(..)` exactly as
+  existing settings are. No new configuration mechanism may be invented. When
+  disabled, the guard does not run **and the store is unavailable**
+  (`ADR-0006` sections 4.12.6.6, 7.2.1) — the two cannot be decoupled, because a
+  nested resolver cannot distinguish a mutation from a query. The switch exists
+  to bound an unforeseen client compatibility problem, not to stage the rollout,
+  and running with it disabled is an incident response rather than a supported
+  operating mode;
+- **staging/preview validation:** **required for merge**, limited to the guard.
+  Confirm on a preview deployment that ordinary single-mutation and
+  distinct-alias mutation traffic is unaffected, and that a duplicate top-level
+  response key is rejected with HTTP 400 and the ordinary validation-error body.
+  Store-side staging validation remains not required for merge and becomes
+  required for the first adopting task;
+- **pilot:** no pilot is proposed, and the reason is recorded rather than
+  omitted: the guard's effect is a discrete accept/reject decision on a document
+  shape, fully determined at the request boundary and fully covered by the
+  section 10 tests, so a shadow-comparison deployment would add operational
+  surface without adding evidence;
+- **activation approval:** the **guard** activates at merge and is therefore
+  covered by the CTO merge authorization itself. **Store** activation is not
+  applicable to this task; the first adoption carries it;
+- **observation period:** a short post-merge watch on the guard's rejection log
+  (`ADR-0006` section 8.3). A sustained non-zero rejection rate is the signal
+  that would justify the kill switch. No new alert or dashboard is created;
 - **mass adoption:** prohibited. Existing child resolvers are unchanged and are
   migrated, if at all, under `ADR-0006` section 10.
 
@@ -1083,15 +1460,22 @@ result is not acceptable evidence.
 
 ## 12. Rollback
 
-- **code rollback:** revert the merge commit. Nothing depends on the mechanism at
-  that point;
+- **code rollback:** revert the merge commit. Nothing depends on the store at
+  that point, and reverting the guard with it is correct — nothing is left
+  depending on the guarantee it provides;
+- **feature disable/kill switch:** disable the switch of section 11. This is the
+  **immediate operational rollback and requires no deploy**: mutation requests
+  are accepted exactly as before the merge, and the store is simultaneously
+  unavailable, so no path is left depending on a guarantee no longer enforced.
+  This replaces the previous "not applicable" entry, which is no longer true;
 - **after a later adoption:** revert the adopting field to its direct per-parent
   query. Because that query is retained as the mandatory fallback, the field's
-  *result* is unchanged by rollback — only its statement count is;
+  *result* is unchanged by rollback — only its statement count is. The guard must
+  **not** be reverted on its own once a field has adopted the store on a mutation
+  path; the fail-closed coupling makes the store unavailable in that
+  configuration rather than silently unsafe;
 - **data rollback or forward repair:** none. The task creates no persistent
-  state;
-- **feature disable/kill switch:** not applicable; there is nothing to disable
-  until a field adopts the mechanism;
+  state, and a rejected request performs no write;
 - **external side-effect handling:** none. No external system is contacted.
 
 ---
@@ -1149,6 +1533,33 @@ The implementing agent must stop and report `BLOCKED` if:
   detecting operation type at nested resolvers, or a `new_error(..)` call outside
   the single shim module. **Report `BLOCKED`** — each of these is prohibited by
   `ADR-0006` section 4.12;
+- the central mutation request guard cannot be implemented at the request
+  boundary using only public, non-`unsafe` pinned Juniper API — for example if
+  `parse_document_source`, `get_operation`, `Operation::operation_type` or the
+  public `Selection` AST proves insufficient to expand fragments and identify
+  executable top-level occurrences. **Report `BLOCKED`**; do not modify Juniper,
+  do not upgrade it, do not fork it, do not add a dependency, and do not
+  retrofit the 88 `MutationRoot` resolvers;
+- the guard cannot guarantee **zero** mutation resolver executions and **zero**
+  database writes for a rejected operation. A guard that rejects after the first
+  resolver has run is non-compliant and must be reported as `BLOCKED` rather than
+  shipped;
+- the guard cannot avoid rejecting a duplicate that `@skip`/`@include`
+  definitely excludes for the concrete request, so ordinary conditional documents
+  would be rejected. Report `BLOCKED` rather than broadening the compatibility
+  restriction beyond `ADR-0006` section 4.12.6.7;
+- the store cannot be made unavailable when the guard is not applied, so
+  "batching on, guard off" would be a representable state. Report `BLOCKED`
+  rather than shipping batching without its prerequisite;
+- correcting the execution layer so that compatible repeated top-level fields
+  execute once turns out to be required after all. That is option F3, rejected as
+  architecture expansion in `ADR-0006` section 4.12.10.1. Report exactly:
+
+  ```text
+  BLOCKED - REQUIRES GRAPHQL EXECUTION-LAYER ARCHITECTURE OUTSIDE THIS TASK
+  ```
+
+  and do **not** begin maintaining a custom GraphQL executor or patching Juniper;
 - the three-state store cannot be represented such that `NotLoaded`,
   `Loaded([])` and `LoadFailed` are mutually unambiguous;
 - a prefetch failure cannot be surfaced at the child field without failing the
@@ -1217,6 +1628,29 @@ The report must additionally contain:
 - the observed GraphQL error contract comparison (`errors[].path`, null
   propagation, `extensions.type`) between the prefetched and direct failure
   paths, with any intentional difference stated explicitly;
+- the **guard** as implemented: its exact placement in the request path, the
+  public Juniper APIs it calls, how it expands named and inline fragments, how it
+  evaluates `@skip`/`@include` against coerced variables, how it handles an
+  undecidable condition, and confirmation that it does not replace
+  `GraphQLRequest::execute` and makes no authorization decision;
+- the guard's **measured** zero-execution evidence: resolver call counts and
+  database write counts for every rejected case — direct duplicate, named
+  fragment duplicate and inline fragment duplicate — under both execution paths;
+- the guard's directive matrix results, showing which duplicates are accepted and
+  which rejected, and stating the conservative-rejection tradeoff explicitly
+  rather than implying exactness;
+- the observed HTTP status and serialized body of a guard rejection, compared
+  side by side with a real juniper validation failure;
+- confirmation that queries, non-top-level selections and distinct aliases are
+  unaffected, and that none of the 88 `MutationRoot` resolvers was modified;
+- the kill switch as implemented, and the evidence that with it disabled the
+  store is unavailable and every path falls back — that is, that "batching on,
+  guard off" is unrepresentable;
+- an explicit, accurate **production activation boundary** statement. The report
+  must say that the **store** is adopted by no production field at merge, **and**
+  that the **guard** is live on every mutation request from the merge commit. It
+  must **not** claim "no production effect because no field adopts batching";
+  that claim is false for this task (section 11);
 - an explicit statement that the foundation declares **no** production field N+1
   compliant, and that adoption-coverage obligations attach to adopting tasks;
 - the generated-SDL comparison result;
@@ -1317,8 +1751,11 @@ blocked and unauthorized throughout.
   arguments in its approved contract, so its load shape is `Unit`
   (`ADR-0006` section 4.4.5). This specification adds no argument to that field
   and changes nothing in the approved `BE-02` API contract;
-- proof that several prefetch sites can cover one `(loader, shape)` in a single
-  request without duplicate loading.
+- proof that several prefetch sites can cover one `(scope, loader, shape)` under
+  one execution scope without duplicate loading, and that the same sites under
+  distinct scopes are correctly isolated;
+- the central mutation request guard, which protects `BE-02`'s mutation-payload
+  paths and which `BE-02` must not reimplement or weaken.
 
 `BE-02` must do for itself, and this task must **not** attempt on its behalf:
 
