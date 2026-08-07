@@ -29,14 +29,30 @@ implementation must do once separately authorized.
 
 ## 1. Objective
 
-Give Thoth's GraphQL API a reusable, request-scoped mechanism by which a child
-field on a list of parent objects can be resolved with a bounded, set-based
-number of database statements instead of one statement per parent, so that new
-nested fields can satisfy the `thoth-api/AGENTS.md` section 6 N+1 control by
-following a repository pattern rather than escalating an architecture decision.
+Give Thoth's GraphQL API a reusable, request-scoped mechanism by which a
+loader-backed field reached from a list of parent objects — whether as a direct
+child of those parents or as a **descendant** beneath intermediate object fields
+— can be resolved with a bounded, set-based number of database statements
+instead of one statement per parent, so that new nested fields can satisfy the
+`thoth-api/AGENTS.md` section 6 N+1 control by following a repository pattern
+rather than escalating an architecture decision.
 
 The task delivers the foundation and proves it. It adopts the foundation in no
 production field.
+
+Two boundaries are set by `ADR-0006` and are binding on this task:
+
+- **descendant prefetch is in scope** (`ADR-0006` section 4.19). The material
+  fan-out paths the ADR identifies reach the loader-backed field through an
+  intermediate object (`QueryRoot.imprints -> Imprint.publisher ->
+  Publisher.distributionPlatforms`), so a direct-child-only mechanism would not
+  satisfy the ADR's own coverage rule and would force `BE-02` to invent a second
+  architecture;
+- **mutation-payload coverage is out of scope and unresolved** (`ADR-0006`
+  section 4.12). Operation-scoped batching was investigated and is not
+  implementable on the pinned stack; the decision is escalated to the CTO as M1
+  or M2. This task installs no prefetch site reachable from a mutation payload
+  and must not implement either option on its own authority.
 
 ### 1.1 Risk rationale
 
@@ -58,6 +74,15 @@ exist. Uncertainty raises the level; it does not justify lowering the controls.
 Two facts do **not** reduce the classification: that no migration is required,
 and that no field adopts the mechanism at merge. Both limit the *blast radius at
 merge*; neither limits the correctness surface of the mechanism itself.
+
+Adding descendant prefetch (`ADR-0006` section 4.19) does not change the
+classification either. It enlarges the correctness surface — recursive
+alias-safe traversal and a key projector crossing an intermediate field — but the
+task was already `HIGH`, still adopts no production field, still changes no
+public schema, adds no dependency and requires no migration. The classification
+would only move upward if the CTO were to select M2 in `ADR-0006` section 4.12.4,
+which would introduce an execution-scope mechanism this task does not contain;
+that is out of scope here and would warrant re-specification.
 
 ### 1.2 Required HIGH-risk controls
 
@@ -184,24 +209,53 @@ The task must:
    additional SQL;
 10. enumerate child selections by iterating `children()` and filtering on
     `field_original_name()`, never via `select()` / `has_child()`
-    (`ADR-0006` section 4.15.1);
-11. add the explicit **whole-store** invalidation entry point required by
-    `ADR-0006` section 4.12 — clearing `Loaded` and `LoadFailed` state across all
-    loaders and all shapes — unused by this task;
-12. add the SQL statement-count test facility required by `ADR-0006` section
+    (`ADR-0006` section 4.15.1), applying this at **every** segment of a
+    descendant selection path (`ADR-0006` section 4.19.3);
+11. implement **descendant prefetch** per `ADR-0006` section 4.19. A prefetch
+    site must be able to target a loader-backed field reached through one or more
+    intermediate object fields, and must settle all four concepts the ADR
+    requires — selection path, terminal loader identity, terminal normalized
+    load-shape constructor, and a key projector from the resolved list item to
+    the terminal loader key. The implementation chooses its own Rust
+    representation; the ADR mandates the concepts, not type names.
+
+    Binding properties:
+
+    - traversal is recursive or path-based over `LookAheadSelection::children()`,
+      matching `field_original_name()` at every segment;
+    - **every** matching terminal selection is collected, across every matching
+      intermediate branch — traversal must not stop at the first match at any
+      level;
+    - the terminal load shape is constructed from each matching **terminal**
+      selection, never from an ancestor selection;
+    - projected keys are de-duplicated before dispatch;
+    - results are stored under the **ordinary** terminal identity
+      `(loader, shape, terminal key)`. A separate cache namespace for indirectly
+      prefetched entries is prohibited — an entry prefetched from an ancestor and
+      one prefetched from the terminal field's own parent list must satisfy each
+      other's lookups;
+    - the key projector may read **only** data already present on
+      already-resolved, already-authorized items, and the four conditions of
+      `ADR-0006` section 4.19.4 must hold;
+12. add the explicit **whole-store** invalidation entry point required by
+    `ADR-0006` section 4.12.5 — clearing `Loaded` and `LoadFailed` state across
+    all loaders and all shapes — unused by this task;
+13. add the SQL statement-count test facility required by `ADR-0006` section
     8.1.1, using a **dedicated pool constructed after the instrumentation hook is
     installed**, under the existing exclusive database test lock, and isolating
     the measured operation's statements from setup and migration statements;
-13. prove the mechanism end to end through Juniper execution using a
+14. prove the mechanism end to end through Juniper execution using a
     **test-only** GraphQL root and object types defined under `#[cfg(test)]`,
     against existing tables, exercising real look-ahead, real set-based SQL and
     real partitioning. The fixture must include an **argument-bearing** test-only
     field so multi-shape behaviour is proven without adopting a production field
-    (`ADR-0006` section 4.4.6), and must support **two prefetch sites** covering
-    one loader so multi-site coverage is proven (`ADR-0006` section 4.18.3);
-14. update `thoth-api-server/src/lib.rs` only if `Context::new`'s signature
+    (`ADR-0006` section 4.4.6), must support **two prefetch sites** covering
+    one loader so multi-site coverage is proven (`ADR-0006` section 4.18.3), and
+    must include **both a direct and an indirect (descendant) path** per section
+    3.1 below;
+15. update `thoth-api-server/src/lib.rs` only if `Context::new`'s signature
     changes; prefer initialising the store internally so it does not;
-15. add the tests of section 10 and the query-count evidence of section 9.
+16. add the tests of section 10 and the query-count evidence of section 9.
 
 ### 3.1 The proof consumer
 
@@ -238,6 +292,53 @@ The fixture must additionally provide, all within `#[cfg(test)]`:
   4.18.3's requirement — that the mechanism supports multi-site coverage without
   duplicate loading — is proven by the foundation rather than deferred to
   `BE-02`.
+
+#### 3.1.1 Descendant prefetch must be proven, not only direct prefetch
+
+Proving two **direct** parent-list prefetch sites is no longer sufficient. The
+fixture must contain at least both shapes:
+
+```text
+direct path:    list -> loader-backed child
+indirect path:  list -> intermediate object -> loader-backed descendant child
+```
+
+The indirect case must prove all of:
+
+- recursive or path-based look-ahead inspection across the intermediate segment;
+- alias-safe matching at **every** level, including intermediate segments;
+- key projection from the already-resolved list item;
+- de-duplication of the projected terminal keys;
+- terminal load-shape construction from the terminal selection;
+- **one** set-based terminal dispatch for the unique key set;
+- correct terminal child results, equal to the direct per-parent result in order;
+- **no** terminal fallback statement on the covered path;
+- repeated descendant paths and repeated sites reusing already-loaded terminal
+  entries rather than re-dispatching;
+- the existing intermediate resolver behaviour being **unchanged** — the fixture
+  must not require modifying it.
+
+Use test-only GraphQL types or wrappers where necessary. A production resolver
+must **not** be modified merely to prove this. The `imprint` -> `publisher`
+relationship is a suitable model for a test-only intermediate, since
+`Imprint.publisher_id` is present on the resolved row
+(`thoth-api/src/model/imprint/mod.rs:44`), but the fixture must express it
+through its own `#[cfg(test)]` types.
+
+The measurement must additionally report the terminal-loader statement count
+**separately** from any statements issued by the intermediate resolver, per
+`ADR-0006` sections 4.19.5 and 8.2 item 9. A single combined figure is not
+acceptable evidence.
+
+**Stop condition.** If descendant prefetch cannot be expressed cleanly using
+stable pinned Juniper APIs plus already-resolved data, the implementing agent
+must stop and report:
+
+```text
+BLOCKED - A2 CANNOT COVER INDIRECT FAN-OUT WITHOUT NEW EXECUTION ARCHITECTURE
+```
+
+The unresolved architecture must **not** be pushed into `BE-02`.
 
 ### 3.2 Execution-path coverage
 
@@ -310,7 +411,19 @@ summary, and binding here:
 15. a failed prefetch does not fail the parent list field, and issues no retry
     SQL;
 16. the existence of a correctness fallback is never treated as N+1 compliance
-    evidence.
+    evidence;
+17. a prefetch site may target a descendant loader-backed field, and descendant
+    results are stored under the ordinary terminal identity of invariant 13. No
+    separate cache namespace exists for indirectly prefetched entries;
+18. a descendant key projector reads only data already present on
+    already-resolved, already-authorized items, and never bypasses an
+    intermediate authorization decision;
+19. terminal-loader compliance and legacy intermediate resolver performance are
+    reported as separate evidence scopes, and neither is presented as the other;
+20. no prefetch site reachable from a `MutationRoot` payload selection is
+    installed, as the temporary hold of `ADR-0006` section 4.12.3 pending the
+    CTO's M1/M2 decision — not as a claim that mutation payloads are exempt from
+    the N+1 control.
 
 ---
 
@@ -318,10 +431,15 @@ summary, and binding here:
 
 ### 6.1 Success behaviour
 
-- a parent list resolver that opts in enumerates every requested selection of the
-  loader-backed child field, derives one normalized load shape per distinct
-  variant, and issues **one** set-based statement per shape over the
-  de-duplicated parent keys, storing the partitioned result;
+- a prefetch site that opts in enumerates every requested terminal selection of
+  the loader-backed field — whether a direct child of the resolved items or a
+  descendant beneath intermediate object fields — derives one normalized terminal
+  load shape per distinct variant, projects and de-duplicates the terminal keys
+  from the already-resolved items, and issues **one** set-based statement per
+  shape, storing the partitioned result;
+- a descendant path resolves identically to the direct path from the terminal
+  child resolver's point of view: it reads the same
+  `(loader, shape, terminal key)` entry and cannot tell which site produced it;
 - a child resolver whose `(loader, shape, parent key)` entry is `Loaded` returns
   its bucket without any database access, including when the bucket is empty;
 - a child resolver whose entry is `NotLoaded` performs its ordinary direct query
@@ -474,10 +592,44 @@ the adopting task's concern.
       and in order.
 - [ ] Whole-store invalidation clears `Loaded` and `LoadFailed` state across all
       loaders and all shapes.
-- [ ] Read-after-write coherence holds: a mutation operation that writes and
-      then selects the affected field in the same operation returns the written
-      value.
+- [ ] Read-after-write coherence holds **within one top-level mutation field**:
+      a test-only mutation that writes child data and then selects the affected
+      loader-backed field in the same operation returns the written value, not a
+      prefetched one.
 - [ ] No prefetch site is reachable from a `MutationRoot` payload selection.
+      This is the temporary hold of `ADR-0006` section 4.12.3 pending the CTO's
+      M1/M2 decision, and the implementation report must state it as an open
+      decision rather than as an inherent exclusion.
+
+#### Descendant prefetch (`ADR-0006` section 4.19)
+
+- [ ] A **direct** path (`list -> loader-backed child`) batches correctly.
+- [ ] An **indirect** path (`list -> intermediate object -> loader-backed
+      descendant`) batches correctly.
+- [ ] Aliases at **intermediate** path segments are matched by
+      `field_original_name()` and do not defeat detection.
+- [ ] Aliases at the **terminal** segment are matched the same way.
+- [ ] **Every** matching terminal selection is discovered, including two
+      intermediate branches each carrying a terminal selection; traversal stops
+      at no level's first match.
+- [ ] Terminal load shapes normalize correctly, and are constructed from the
+      terminal selection rather than from an ancestor selection.
+- [ ] The descendant key projector derives keys **only** from data already
+      present on the already-resolved parent items.
+- [ ] Duplicate projected terminal keys are de-duplicated before dispatch.
+- [ ] A second ancestor or list site does not reload an already-loaded terminal
+      key within the same valid cache scope; results are stored under the
+      ordinary terminal identity, with **no** separate namespace for indirectly
+      prefetched entries.
+- [ ] Indirect prefetch never bypasses an intermediate authorization decision
+      (`ADR-0006` section 4.19.4).
+- [ ] The terminal child resolver issues **no** fallback statement on a covered
+      descendant path.
+- [ ] The terminal statement count stays bounded as the ancestor list grows,
+      measured at two distinct list sizes.
+- [ ] Statements issued by the **intermediate** resolver are reported as a
+      separate figure and are **not** presented as part of terminal-loader
+      compliance (`ADR-0006` section 4.19.5).
 - [ ] The mechanism is proven under both `juniper::execute_sync` and
       asynchronous `execute`.
 - [ ] The generated GraphQL SDL is byte-identical to the base.
@@ -564,10 +716,31 @@ Against the disposable test database, through Juniper execution:
   concurrently observe disjoint store contents;
 - **request isolation** — a second request with a fresh `Context` observes an
   empty store regardless of what the first loaded;
-- **read-after-write coherence** — a mutation operation writing child data and
-  then selecting the affected field returns the written value;
+- **read-after-write coherence within one top-level mutation field** — a
+  test-only mutation writes child data and then selects the affected
+  loader-backed field in the same operation, and receives the written value. Use
+  test-only mutations and types; **no production mutation resolver may be
+  modified**. Isolation *between* top-level mutation fields is not testable here,
+  because `ADR-0006` section 4.12 leaves that decision open and this task
+  installs no mutation-reachable prefetch site;
+- **descendant path** — `list -> intermediate object -> loader-backed
+  descendant` issues one terminal dispatch over the de-duplicated projected key
+  set, returns results equal to the direct per-parent result in order, and issues
+  no terminal fallback statement;
+- **descendant alias matrix** — aliases at intermediate and terminal segments,
+  and two aliased intermediate branches each carrying a terminal selection, are
+  all detected, with every terminal selection collected;
+- **descendant reuse** — a terminal key already loaded by one site is not
+  re-dispatched by a second site, proving the single shared terminal namespace;
+- **evidence separation** — the terminal-loader statement count and the
+  intermediate resolver's statement count are reported as distinct figures on the
+  same measured descendant path;
 - **execution-path parity** — the same operation produces the same result and
-  the same statement count under `execute_sync` and under async `execute`.
+  the same statement count under `execute_sync` and under async `execute`,
+  including on the descendant path. Note that the pinned Juniper serializes
+  top-level fields on the sync path but drives them through `FuturesOrdered` on
+  the async path (`ADR-0006` section 4.12.2(c)), so parity must be demonstrated
+  on both rather than inferred from the sync result.
 
 ### Authorization/security
 
@@ -699,11 +872,23 @@ The implementing agent must stop and report `BLOCKED` if:
 - a new workspace dependency turns out to be required;
 - keeping `Context: Sync` conflicts with the store, breaking the async execution
   path;
-- read-after-write coherence cannot be satisfied under `ADR-0006` section 4.12
-  without editing mutation resolvers. **Report `BLOCKED` rather than widening
-  scope to touch the mutation resolvers**; the same applies if the corrected
-  load-shape or `LoadFailed` model turns out to require mutation-resolver
-  changes;
+- read-after-write coherence within one top-level mutation field cannot be
+  satisfied without editing production mutation resolvers. **Report `BLOCKED`
+  rather than widening scope to touch the mutation resolvers**; the same applies
+  if the load-shape, `LoadFailed` or descendant model turns out to require
+  mutation-resolver changes;
+- descendant prefetch cannot be expressed cleanly using stable pinned Juniper
+  APIs plus already-resolved data. Report exactly:
+
+  ```text
+  BLOCKED - A2 CANNOT COVER INDIRECT FAN-OUT WITHOUT NEW EXECUTION ARCHITECTURE
+  ```
+
+  and do **not** push the unresolved architecture into `BE-02`;
+- the task finds itself needing to settle the mutation-payload N+1 boundary that
+  `ADR-0006` section 4.12.4 escalates. Neither M1 nor M2 may be selected or
+  implemented under this task's authority; report `BLOCKED` and leave the
+  decision with the CTO;
 - the three-state store cannot be represented such that `NotLoaded`,
   `Loaded([])` and `LoadFailed` are mutually unambiguous;
 - a prefetch failure cannot be surfaced at the child field without failing the
@@ -733,7 +918,22 @@ The agent must use:
 The report must additionally contain:
 
 - the statement-count table: `n`, prefetched count, per-parent baseline count,
-  for at least two values of `n`;
+  for at least two values of `n`, reported for **both** the direct and the
+  descendant path;
+- for the descendant path, the **terminal-loader** statement count and the
+  **intermediate-resolver** statement count as two separate figures, with an
+  explicit statement that bounding the terminal loader does not make the
+  operation globally free of N+1 access (`ADR-0006` section 4.19.5);
+- the descendant prefetch representation actually implemented — how the selection
+  path, terminal loader identity, terminal shape constructor and key projector
+  are expressed — and the stable Juniper APIs relied on for recursive,
+  alias-safe traversal;
+- confirmation that indirectly prefetched entries are stored under the ordinary
+  terminal identity, with no separate cache namespace;
+- an explicit statement that mutation-payload coverage remains the open
+  `ADR-0006` section 4.12.4 decision, that this task installed no
+  mutation-reachable prefetch site, and that this is a temporary hold rather than
+  an inherent exclusion from the N+1 control;
 - the exact method used to observe SQL statements, **including how the measured
   pool was constructed relative to the instrumentation hook**;
 - the load-shape type for each loader implemented, and how defaults normalize;

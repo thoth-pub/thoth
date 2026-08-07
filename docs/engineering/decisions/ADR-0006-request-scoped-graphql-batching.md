@@ -223,11 +223,13 @@ independent findings, each sufficient on its own:
 
 #### A2 - Look-ahead-driven set-based prefetch into request-scoped state
 
-**Selected.** A resolver that returns a list of parents inspects the requested
+**Selected.** A resolver that returns a list of items inspects the requested
 selection set through `Executor::look_ahead()`, and when a registered
-loader-backed child field is selected, issues **one** set-based query for all
-parent keys and writes the partitioned result into request-scoped state on
-`Context`. The child resolver reads its parent's entry from that state.
+loader-backed field is selected — either as a direct child of those items or as
+a **descendant** beneath intermediate object fields (section 4.19) — issues
+**one** set-based query for the keys projected from those already-resolved items
+and writes the partitioned result into request-scoped state on `Context`. The
+terminal child resolver reads its parent's entry from that state.
 
 Verified viable:
 
@@ -659,44 +661,222 @@ Yes, within the single request, and only through the mechanism above: a
 Two shapes of the same field over the same key are two entries and are loaded
 once each.
 
-### 4.12 Mutation and read-after-write coherence
+### 4.12 Mutation payload reachability — OPEN, escalated to the CTO
 
-A GraphQL operation is a query **or** a mutation; it cannot be both. Within a
-query operation no write occurs, so no stale read is possible. The risk is
-confined to a mutation operation whose payload selection reaches a prefetch site.
+This section records an **unresolved decision**. It is not a resolved rule, and
+it must not be read as one.
 
-Binding rule:
+#### 4.12.1 The contradiction
 
-> **Prefetch sites may be installed only on resolvers that are unreachable from
-> `MutationRoot` payload selections.** In the initial foundation and in `BE-02`
-> the prefetch sites are query-root list fields only (`QueryRoot::publishers`,
-> `QueryRoot::publishersByDistributionPlatform`). `MutationRoot` exposes no
-> publisher-list field, so no prefetch site is reachable from a mutation
-> payload, and no prefetched value can be read after a write in the same
-> operation.
+An earlier draft of this ADR carried this rule:
 
-Two required supports:
+```text
+Prefetch sites may be installed only on resolvers that are unreachable from
+MutationRoot payload selections.
+```
 
-1. `Context` exposes an explicit invalidation entry point. For the initial
-   foundation it is deliberately the **simplest correct primitive: whole-store
-   invalidation**, clearing every entry — successful `Loaded` state, `LoadFailed`
-   state, every load shape and every loader. It is unused by the initial
-   foundation and exists so that a future prefetch site reachable from a mutation
-   payload has a correct mechanism available rather than inventing one.
+That rule is **withdrawn**, because it cannot coexist with section 4.18's
+all-material-path coverage rule. Both were stated as binding; both cannot hold.
+
+The conflict is live at the verification base, not hypothetical. Thoth's
+mutations return rich model objects rather than thin acknowledgement payloads:
+
+| Mutation | Payload type | Evidence |
+|---|---|---|
+| `updatePublisher` | `Publisher` | `thoth-api/src/graphql/mutation.rs:405-412` |
+| `createPublisher` | `Publisher` | `mutation.rs:75` |
+| `deletePublisher` | `Publisher` | `mutation.rs:799` |
+| `updateContact` | `Contact` | `mutation.rs:720` |
+
+`Publisher` exposes `contacts` (`model.rs:1258`) and `Contact` exposes
+`publisher` (`model.rs:3120`). So once `BE-02` exists, a mutation payload can
+fan out over publishers with no query operation involved at all:
+
+```graphql
+mutation {
+  updatePublisher(data: { ... }) {
+    contacts {
+      publisher {
+        distributionPlatforms { platform }
+      }
+    }
+  }
+}
+```
+
+Under the withdrawn rule this path may not carry a prefetch site. Under section
+4.18 it is a material fan-out path that must be covered or explicitly escalated.
+Leaving both in place would let a future task pick whichever rule suited its
+conclusion.
+
+#### 4.12.2 What was investigated
+
+The candidate architecture investigated was **operation-scoped batching**:
+
+```text
+query operation scope    = the whole request (as section 4.11 specifies)
+mutation operation scope = the current top-level mutation field
+```
+
+so that state prefetched while resolving one top-level mutation field can never
+be read by another top-level mutation field that has since performed its own
+write. This would have preserved the N+1 control over mutation payloads without
+retrofitting explicit invalidation onto the 88 resolver methods on
+`MutationRoot` (`thoth-api/src/graphql/mutation.rs:58-61`).
+
+It was verified against the pinned sources, not assumed. Two of the three
+prerequisites fail.
+
+**(a) Deriving the execution path — possible, but only off-label.**
+
+`Executor::field_path` is a private field, `FieldPath::construct_path` and
+`FieldPath::location` are private methods, and although `FieldPath` itself is
+reachable (`pub mod executor` in `src/lib.rs:33`; `pub enum FieldPath` at
+`src/executor/mod.rs:61`) it exposes no public accessor for its contents. The
+only public route to the current path is to construct a throwaway error:
+`Executor::new_error(FieldError) -> ExecutionError` (`src/executor/mod.rs:679`)
+followed by `ExecutionError::path() -> &[String]` (`:797`). Both are public and
+documented, but using an error constructor as a path accessor is off-label, and
+section 3.1 already rejected a mechanism that rests on non-contractual executor
+behaviour. Applying a weaker standard here would be inconsistent.
+
+Path segments are **response keys, i.e. aliases**, not schema field names:
+`field_sub_executor` (`:568`, and marked `#[doc(hidden)]`) stores `field_alias`,
+which both drivers supply as `response_name = f.alias.unwrap_or(f.name)`
+(`src/types/base.rs:446`; `src/types/async_await.rs:216`). Alias-keyed scope is
+conservative rather than unsafe — two aliases of one mutation field would get
+two scopes — so this part is workable.
+
+**(b) Determining the operation type — not possible.** This is the blocking
+finding.
+
+- a field resolver's executor is always a **sub**-executor, whose `current_type`
+  is that field's own type, never the root operation type
+  (`src/executor/mod.rs:568-596`). The public surface —
+  `context()`, `schema()`, `current_type()`, `variables()`,
+  `fragment_by_name()`, `location()`, `look_ahead()` — carries no operation-type
+  discriminant;
+- `FieldPath::Root` carries only a `SourcePosition` (`:61-64`);
+- `SchemaType` exposes `query_type()` / `mutation_type()` (`src/schema/model.rs:371,387`),
+  which describe the schema's shape, not the operation in flight;
+- `GraphQLRequest` exposes only `operation_name()` (`src/http/mod.rs:55`) — a
+  caller-chosen label, not the operation type.
+
+The remaining routes are both excluded: deriving the operation type by parsing
+the raw GraphQL document is prohibited, and having each mutation resolver mark
+its own scope is exactly the 88-resolver retrofit the candidate existed to
+avoid.
+
+**(c) Serial execution of top-level mutation fields — true on the sync path,
+false on the async production path.**
+
+The GraphQL specification requires mutation root fields to execute serially. The
+pinned Juniper honours that on the sync path only:
+
+| Path | Driver | Behaviour |
+|---|---|---|
+| sync (`src/executor/mod.rs:883`) | `resolve_selection_set_into`, a plain `for` loop (`src/types/base.rs:430-470`) | serial |
+| async (`src/executor/mod.rs:985`) | `resolve_selection_set_into_async_recursive`, `FuturesOrdered` (`src/types/async_await.rs:196,262`) | concurrent — **no `OperationType`-aware serialization anywhere on this path** |
+
+The async driver selects the mutation root type and then calls exactly the same
+`resolve_into_value_async` it uses for queries. Thoth's mutation resolvers are
+all synchronous, so `juniper_codegen`'s `future::ready(..)` wrapper (section 3.1,
+A1) makes each field future complete on its first poll and they *happen* to run
+serially today — but that is inference from executor polling behaviour, which
+section 3.1 rejected as a foundation. It is also precisely the property that
+would silently break if any mutation resolver ever became genuinely async.
+
+A scope keyed on the top-level response key would in fact be robust to that
+interleaving, since entries under one top-level field would never be visible to
+another regardless of polling order. The blocker is (b), not (c). But (c) means
+a test proving isolation under `execute_sync` would **not** prove it under the
+production async path, so the "sync and async agree" evidence the foundation
+requires cannot be obtained from the sync harness alone.
+
+#### 4.12.3 Consequence: the decision is escalated, not narrowed
+
+Because prerequisite (b) fails, the candidate is not implementable on the pinned
+stack through stable public API. This ADR therefore **does not** settle mutation
+payload coverage, and deliberately **does not** write an exclusion such as
+"mutation payloads are outside N+1 compliance". Narrowing a standing engineering
+control is a CTO decision, not an authoring one, and the purpose of this ADR is
+to give the repository a way to *satisfy* the control.
+
+The decision set is recorded in section 4.12.4. Until the CTO selects one:
+
+- no prefetch site may be installed on a path reachable from a `MutationRoot`
+  payload selection, **and this is a temporary hold pending the decision, not a
+  finding that such paths are inherently exempt**;
+- a loader-backed field reached through a mutation payload remains **correct**,
+  because the `NotLoaded` fallback of section 4.7 always applies. It is not N+1
+  compliant on that path, and section 4.18 requires that to be reported as an
+  uncovered path rather than left unstated;
+- `BE-02` must record `updatePublisher -> Publisher -> contacts -> publisher ->
+  distributionPlatforms` and its siblings in its section 4.18.2 inventory,
+  classified as **blocked on this decision** — not as covered, and not as
+  excluded.
+
+#### 4.12.4 Decision set for the CTO
+
+**M1 — explicit query-only compliance boundary.** A2 batching applies to query
+operations. Mutation payload fan-out is a **scoped, recorded exception** to the
+`thoth-api/AGENTS.md` section 6 N+1 control until a mutation-execution
+architecture exists.
+
+- smallest implementation; the A2 query architecture is unchanged;
+- mutation payload fan-out may still exhibit N+1;
+- it is a deliberate engineering-control exception and must be recorded as one,
+  never presented as an inherent exclusion;
+- requires explicit CTO acceptance.
+
+**M2 — expand the architecture for mutation-safe batching.** Introduce the
+additional execution-scope mechanism the investigation shows is required. On the
+evidence above the only shape that works within the pinned stack is a store
+scoped by **top-level response key**, derived through the `new_error(..).path()`
+route of 4.12.2(a), applied **uniformly to queries and mutations** because the
+operation type cannot be discriminated.
+
+- preserves the N+1 control over mutation payloads;
+- costs cross-top-level-field reuse in queries: a key selected under two
+  top-level query fields would be loaded once per top-level field. This is
+  bounded by the query text and does **not** grow with parent list size, so the
+  control still holds, but section 4.6 and section 8.2 item 5 would have to be
+  restated per scope rather than per request;
+- rests on an off-label use of a public error-construction API as a path
+  accessor, which is a weaker foundation than the rest of A2;
+- materially enlarges the shared GraphQL architecture and `THOTH-GQL-BATCH-01`'s
+  scope and risk, and may warrant its own prerequisite ADR.
+
+This ADR does not select between them. Selecting M1 would waive part of a
+standing control; selecting M2 would enlarge the approved authoring scope.
+
+#### 4.12.5 What is settled regardless
+
+1. Within a query operation no write occurs, so no stale read is possible. The
+   read-after-write question is confined to mutation operations;
+2. a top-level mutation resolver's write is complete before its payload
+   selection set resolves, on both paths. The resolver returns
+   `FieldResult<Publisher>` and the value must exist before its sub-selection can
+   be resolved. This is structural, not polling-dependent, so read-after-write
+   *within* one top-level mutation field is sound under either M1 or M2;
+3. `Context` exposes an explicit invalidation entry point. For the foundation it
+   is deliberately the **simplest correct primitive: whole-store invalidation**,
+   clearing every entry — `Loaded` state, `LoadFailed` state, every load shape
+   and every loader. It is unused by the foundation and exists so that a future
+   prefetch site reachable from a mutation payload has a correct mechanism
+   available rather than inventing one.
 
    A narrower primitive targeting `(loader)`, `(loader, shape)` or
    `(loader, shape, key)` is **not** provided, because no evidence yet shows one
-   is needed, and a narrower invalidation is the easier of the two to get subtly
+   is needed and a narrower invalidation is the easier of the two to get subtly
    wrong. Introducing one later requires evidence that whole-store invalidation
-   is materially insufficient;
-2. a test proves the rule holds: a mutation operation that writes child data and
-   then selects the affected field in the same operation returns the written
-   value, not a prefetched one.
-
-Residual risk, recorded and accepted: the rule is enforced by review and by that
-test, not by the type system. Any future task installing a prefetch site
-reachable from a mutation payload **must** invalidate on write, and this is
-invariant 10 in section 5.
+   is materially insufficient. Note that under M2 ordinary correctness would come
+   from scope isolation rather than from invalidation, and this primitive would
+   remain a conservative API for non-standard writes;
+4. the foundation must still prove read-after-write within a single top-level
+   mutation field, using test-only mutations and types: a mutation that writes
+   child data and then selects the affected loader-backed field in the same
+   operation returns the written value, not a prefetched one.
 
 ### 4.13 Authorization interaction
 
@@ -736,13 +916,18 @@ connection checkouts relative to the per-parent path.
 
 Explicitly and visibly, in two coordinated places:
 
-1. the **parent list resolver** takes the executor argument, enumerates the
-   requested child selections (4.15.1), derives a normalized load shape for each
-   distinct variant (4.4.2), and calls the shared prefetch helper once per shape
-   with the de-duplicated parent keys;
-2. the **child resolver** builds its lookup shape with the *same* loader-owned
-   constructor, reads the `(loader, shape, parent key)` state, and acts per the
-   table in section 4.7.
+1. the **prefetch site** — a resolver that has just resolved a list of items —
+   takes the executor argument, traverses the requested selection set to find
+   every terminal loader-backed selection it covers (4.15.1 for a direct child,
+   4.19.3 for a descendant), derives a normalized terminal load shape for each
+   distinct variant (4.4.2), projects the terminal loader keys from the resolved
+   items (identity for a direct child, the key projector of 4.19.1 for a
+   descendant), and calls the shared prefetch helper once per shape with the
+   de-duplicated key set;
+2. the **terminal child resolver** builds its lookup shape with the *same*
+   loader-owned constructor, reads the `(loader, shape, parent key)` state, and
+   acts per the table in section 4.7. It is unchanged by whether the entry was
+   prefetched from its own parent list or from an ancestor (4.19.2).
 
 There is no implicit or automatic adoption. A field that does not opt in behaves
 exactly as it does today.
@@ -768,6 +953,9 @@ Getting this wrong is not a correctness defect — the fallback covers it — bu
 silently defeats batching for exactly the aliased and multi-shape queries the
 mechanism must handle, so it is stated here rather than left to the
 implementation.
+
+For a descendant site this requirement applies at **every** path segment, not
+only at the terminal field. Section 4.19.3 is binding there.
 
 ### 4.16 Preventing accidental direct per-parent access on loader-backed fields
 
@@ -847,16 +1035,28 @@ must:
    expose the parent type under a list or fan-out of multiple parents. The
    inventory is produced by searching the base, not by copying a list from this
    ADR;
-2. **classify** each path as one of:
-   - covered by a set-based prefetch;
-   - inherently single-parent and incapable of producing N+1;
-   - excluded, with an explicit approved reason;
-3. **add a prefetch site** for every list/fan-out path required for compliance;
-4. **measure** — provide SQL statement-count evidence for every covered path, or
-   for every materially distinct path class;
-5. **retain the direct fallback** for correctness on genuinely uncovered,
-   single-parent or unanticipated paths — but never count the existence of a
-   fallback as N+1 compliance evidence.
+2. **record the operation kind** of each path — reachable under a query
+   operation, under a mutation payload, or both. Mutation-payload paths are
+   currently **blocked on the section 4.12.4 decision** and must be recorded as
+   such, neither as covered nor as excluded;
+3. for each path, **identify the nearest suitable already-resolved list or
+   fan-out site** from which the terminal loader key can be safely projected —
+   which may be an ancestor rather than the terminal field's own parent (4.19);
+4. **record the terminal selection path** from that site to the loader-backed
+   field;
+5. **record the key projector** used at that site, and show it satisfies the four
+   conditions of 4.19.4;
+6. **record any intermediate authorization boundary** the path crosses, and
+   either establish equivalent authorization before the prefetch or escalate;
+7. **install the prefetch site**, or **explicitly escalate**;
+8. **measure** — provide SQL statement-count evidence for the **terminal
+   loader** on every covered path, or on every materially distinct path class;
+9. **do not claim remediation of legacy intermediate resolvers.** Statements
+   issued by pre-existing intermediate resolvers on the measured path are
+   reported separately and never counted as terminal-loader compliance (4.19.5);
+10. **retain the direct fallback** for correctness on genuinely uncovered,
+    single-parent or unanticipated paths — but never count the existence of a
+    fallback as N+1 compliance evidence.
 
 A task that cannot achieve compliant coverage within its approved scope must
 **escalate**, not declare compliance on the strength of the fallback.
@@ -867,29 +1067,240 @@ The `BE-02` adoption task must perform this exact-base path inventory for
 `Publisher.distributionPlatforms`. At minimum it must investigate:
 
 ```text
-QueryRoot.publishers                     -> Publisher.distributionPlatforms
+QueryRoot.publishers                       -> Publisher.distributionPlatforms
 QueryRoot.publishersByDistributionPlatform -> Publisher.distributionPlatforms
-list paths reaching Imprint.publisher    -> Publisher.distributionPlatforms
-list paths reaching Contact.publisher    -> Publisher.distributionPlatforms
+list paths reaching Imprint.publisher      -> Publisher.distributionPlatforms
+list paths reaching Contact.publisher      -> Publisher.distributionPlatforms
+mutation payload paths, e.g.
+  updatePublisher -> contacts -> publisher -> Publisher.distributionPlatforms
 any other exact-base list/fan-out route producing Publisher objects
 ```
 
+The two `-> X.publisher ->` entries are **descendant** paths under section 4.19:
+the site belongs at the list resolver that produced the `Imprint`s or
+`Contact`s, projecting `publisher_id` from the resolved rows, not at
+`Imprint.publisher` or `Contact.publisher`. The mutation-payload entry is
+**blocked on the section 4.12.4 decision** and must be reported as blocked.
+
 That list is a **minimum investigation set, not a complete answer**. `BE-02`
-must search its own exact base rather than treating these four as exhaustive,
-and must either cover every material fan-out path or explicitly escalate if
+must search its own exact base rather than treating these as exhaustive, and
+must either cover every material fan-out path or explicitly escalate if
 compliant coverage would require architecture outside its approved scope.
+
+`BE-02` must also keep the two evidence scopes of 4.19.5 separate: bounding
+`distributionPlatforms` statements on the imprint and contact paths does not
+remediate the per-parent `Publisher::from_id` calls in `Imprint.publisher` and
+`Contact.publisher`, and `BE-02` must not report that it does.
 
 The inventory belongs to `BE-02` as the adopting task. It is **not** work for
 `THOTH-GQL-BATCH-01`, which adopts no production field. What the foundation must
-prove is that the mechanism *supports* several prefetch sites for one
-`(loader, shape)` in a single request without duplicate loading (4.6), so that
-`BE-02` can cover multiple paths when it does the inventory.
+prove is that the mechanism *supports* descendant prefetch (4.19) and several
+prefetch sites for one `(loader, shape)` in a single request without duplicate
+loading (4.6), so that `BE-02` can cover multiple paths when it does the
+inventory.
 
 #### 4.18.4 This does not widen legacy remediation
 
 Coverage obligations attach to a field **when it adopts a loader**. Existing
 child resolvers adopt nothing and are unaffected; section 10 continues to govern
 them.
+
+### 4.19 Descendant prefetch: a prefetch site need not own the terminal field
+
+Section 4.18.1 identifies material fan-out paths in which the loader-backed
+field is **not** a direct child of the list item:
+
+```text
+QueryRoot.imprints -> Imprint.publisher -> Publisher.distributionPlatforms
+QueryRoot.contacts -> Contact.publisher  -> Publisher.distributionPlatforms
+Publisher.contacts -> Contact.publisher  -> Publisher.distributionPlatforms
+```
+
+A prefetch model that can only target a **direct** child of the list item cannot
+cover these, so section 4.18's coverage rule would be unsatisfiable on exactly
+the paths it identifies. This section closes that gap in the shared
+architecture. `BE-02` must not invent a second batching mechanism for descendant
+paths.
+
+#### 4.19.1 The prefetch site contract
+
+A prefetch site targets either a **direct** loader-backed child of the resolved
+list item, or a **descendant** loader-backed field reached through one or more
+intermediate object fields, whenever the terminal loader key can be safely
+projected from data already present on the resolved list items.
+
+A site settles exactly four things. These are conceptual obligations; the ADR
+does not mandate Rust type names, which the implementation may choose on the
+evidence available to it:
+
+```text
+selection path                       the ordered schema field names from the list
+                                     item's selection set down to the terminal
+                                     loader-backed field
+terminal loader identity             which loader the terminal field is backed by
+terminal load-shape constructor      the loader-owned constructor of section 4.4.2
+key projector                        resolved list item -> terminal loader key
+```
+
+A direct-child site is the degenerate case: a selection path of length one, and
+an identity key projector.
+
+#### 4.19.2 Worked example
+
+For:
+
+```graphql
+imprints(limit: 100) {
+  publisher {
+    distributionPlatforms { platform }
+  }
+}
+```
+
+the site installed at `QueryRoot.imprints` expresses:
+
+```text
+selection path:  publisher -> distributionPlatforms
+terminal loader: PublisherDistributionPlatforms
+terminal shape:  Unit
+key projector:   Imprint -> imprint.publisher_id
+```
+
+and the list resolver:
+
+1. resolves the `Imprint` list normally, through its existing authorized query;
+2. detects, by look-ahead traversal (4.19.3), that the terminal field is selected
+   beneath the intermediate field;
+3. projects the publisher keys from those already-resolved imprints —
+   `Imprint.publisher_id` is a `Uuid` present on the resolved row
+   (`thoth-api/src/model/imprint/mod.rs:44`);
+4. de-duplicates the projected keys;
+5. dispatches the terminal loader **once** for the unique key set;
+6. stores each result under the ordinary terminal identity
+   `(PublisherDistributionPlatforms, Unit, publisher_id)`;
+7. leaves `Publisher.distributionPlatforms` to consume that ordinary entry when
+   it later resolves, per the section 4.7 table.
+
+**There is no separate cache namespace for indirectly prefetched entries.** The
+store identity of section 4.4 is unchanged. An entry prefetched from an ancestor
+and an entry prefetched from the terminal field's own parent list are the same
+entry, and either satisfies the other's lookup. A second namespace would
+reintroduce duplicate SQL for the same key and would break section 4.6's
+multi-site reuse guarantee.
+
+#### 4.19.3 Selection-path traversal — binding semantics
+
+Section 4.15.1's alias correction applies at **every** segment of the path, not
+only at the terminal field.
+
+- matching is on `field_original_name()`
+  (`juniper` 0.16.2, `src/executor/look_ahead.rs:528`) at every segment.
+  `LookAheadChildren::select(name)` and `has_child(name)` must not be used at any
+  segment: both match `field_name()`, which returns the **alias** when one is
+  present, and both return only the first match (`:426-441`);
+- traversal is recursive over `LookAheadSelection::children()` (`:606`), whose
+  `iter()` (`:451`) yields child selections that themselves expose `children()`.
+  This composes to arbitrary depth using stable public API;
+- **every** matching terminal selection must be collected, across **all**
+  matching intermediate branches. Traversal must not stop at the first match at
+  any level.
+
+So this must be detected:
+
+```graphql
+imprints { p: publisher { a: distributionPlatforms { platform } } }
+```
+
+and this must yield **both** terminal selections, not one:
+
+```graphql
+imprints {
+  first:  publisher { one: distributionPlatforms { platform } }
+  second: publisher { two: distributionPlatforms { platform } }
+}
+```
+
+Load-shape extraction is performed from **each matching terminal field
+selection**, never from an ancestor selection — an intermediate field's own
+arguments are not part of the terminal loader's shape. Identical normalized
+terminal shapes de-duplicate to one dispatch; different terminal shapes remain
+separate dispatches, exactly as section 4.4.4 already requires.
+
+For `BE-02` the terminal shape remains `DistributionPlatformsLoadShape = Unit`
+(section 4.4.5). This section adds no argument to
+`Publisher.distributionPlatforms`.
+
+The `@skip` / `@include` limitation of section 3.1 (A2) is unchanged and applies
+per segment: look-ahead may over-report a directive-excluded path, costing one
+unnecessary prefetch, or under-report some fragment shapes, in which case the
+terminal child resolver falls back per section 4.7 and remains correct.
+
+#### 4.19.4 Key-projection security rule
+
+Indirect prefetch must not weaken section 4.13. A descendant site may project a
+terminal loader key from an already-resolved list item **only when all four**
+hold:
+
+1. the relationship is **deterministic from data already present on that
+   resolved item** — a foreign key on the row, not a value re-derived from user
+   input;
+2. the projected key is one that **following the GraphQL relationship would
+   itself expose**, so prefetching reveals nothing the traversal would not;
+3. the intermediate resolver applies **no additional authorization or policy
+   decision** that the prefetch would bypass;
+4. the terminal loader does not retrieve **child-protected** data without the
+   authorization context that data requires (section 4.13).
+
+`resolved authorized Imprint -> imprint.publisher_id` is admissible under this
+rule: the imprint was returned by its own authorized resolver, and the foreign
+key is on the resolved row.
+
+It must not be generalized into arbitrary ID derivation from user input, nor
+into skipping an intermediate authorization check on the grounds that its
+foreign key is already known. Where a descendant path crosses an intermediate
+resolver carrying a distinct authorization decision, the adopting task must
+either establish equivalent authorization **before** the prefetch or escalate.
+Authorization logic must not be duplicated inside a generic loader.
+
+#### 4.19.5 Boundary: descendant prefetch does not remediate legacy intermediate N+1
+
+This must not be overstated, and a future report must not be able to overstate
+it. For:
+
+```graphql
+imprints(limit: 100) {
+  publisher { distributionPlatforms { platform } }
+}
+```
+
+the intermediate `Imprint.publisher` resolver calls
+`Publisher::from_id(&context.db, &self.publisher_id)` once per imprint
+(`thoth-api/src/graphql/model.rs:1366`); `Contact.publisher` does the same
+(`model.rs:3120`). Those are **pre-existing legacy resolvers** governed by
+section 10.
+
+Installing the descendant prefetch at `QueryRoot.imprints` prevents the **new
+loader-backed terminal field** from adding a further query per imprint. It does
+**not** make the operation globally N+1-free.
+
+Two scopes of evidence are therefore distinct and binding:
+
+```text
+loader-backed-field compliance      terminal loader statements are bounded on
+                                    every material path
+
+legacy intermediate resolver        statements issued by pre-existing resolvers
+performance                         on the same path
+```
+
+`BE-02` must prove the first for `distributionPlatforms` on every material path.
+`BE-02` is **not** required to remediate `Imprint.publisher`, `Contact.publisher`
+or any other legacy access unless separate evidence and an explicit scope
+decision require it.
+
+No report may claim that a whole GraphQL operation is free of N+1 access unless
+every intermediate path in that operation was separately measured and remediated.
+A claim of loader-backed-field compliance must state which scope it covers.
 
 ---
 
@@ -907,9 +1318,14 @@ them.
    and is identical to the direct per-parent result.
 8. The batching foundation introduces no public GraphQL schema change.
 9. There is no global, static or cross-request cache and no singleton.
-10. No stale read-after-write result is served within one operation: prefetch
-    sites are unreachable from mutation payloads, and any future site that is
-    reachable must invalidate on write.
+10. No stale read-after-write result is served within one operation. A top-level
+    mutation resolver's write completes before its payload selection resolves,
+    so read-after-write within one top-level mutation field is sound. Isolation
+    *between* top-level mutation fields is **unsettled** and escalated in
+    section 4.12: until the CTO decides, no prefetch site may be installed on a
+    path reachable from a mutation payload, and that hold is a temporary
+    consequence of the open decision, not a finding that such paths are exempt
+    from the N+1 control.
 11. A loader-backed field is correct whether or not a prefetch ran; batching is
     an optimisation layered on an always-correct fallback.
 12. Existing fields that do not opt in are behaviourally unchanged.
@@ -927,6 +1343,17 @@ them.
 16. The existence of a correctness fallback is never, by itself, evidence of N+1
     compliance. Compliance requires an exact-base fan-out path inventory,
     coverage of every material path, and statement-count measurement.
+17. A prefetch site may target a descendant loader-backed field, not only a
+    direct child. Descendant results are stored under the ordinary terminal
+    identity of invariant 13; indirect prefetch never creates a second cache
+    namespace.
+18. A descendant key projector derives keys **only** from data already present
+    on already-resolved, already-authorized items, and never bypasses an
+    intermediate authorization decision (4.19.4). Invariant 3 is unweakened by
+    indirect prefetch.
+19. Terminal-loader compliance and legacy intermediate resolver performance are
+    separate evidence scopes. Bounding a terminal loader on a path is never
+    reported as making that whole operation free of N+1 access (4.19.5).
 
 ---
 
@@ -1053,7 +1480,13 @@ For a loader-backed field under a parent list of size `n`:
 6. the prefetched result equals the direct per-parent result, element for
    element, in order;
 7. for an adopting task, per section 4.18.2, coverage evidence for every material
-   fan-out path or path class — not only for the field's own root list query.
+   fan-out path or path class — not only for the field's own root list query;
+8. a **descendant** path (list -> intermediate object -> loader-backed field)
+   issues one terminal dispatch for the de-duplicated projected key set, and the
+   terminal child resolver issues no fallback statement on that path;
+9. statements issued by pre-existing **intermediate** resolvers on a measured
+   path are reported as a separate figure from the terminal loader's statements
+   (4.19.5). A single combined number is not acceptable evidence.
 
 ### 8.3 Operational observability
 
@@ -1144,10 +1577,39 @@ decision exists to control.
 
 ### Risks
 
+- **Unresolved mutation-payload boundary** — the highest-consequence *open* item.
+  Thoth's mutations return rich model objects, so a mutation payload can fan out
+  over publishers (section 4.12.1). Operation-scoped batching was investigated
+  and is not implementable on the pinned stack, because a resolver cannot
+  determine the operation type through stable public Juniper API (4.12.2). Until
+  the CTO selects M1 or M2 (4.12.4), mutation-payload paths carry no prefetch
+  site and are therefore **not** N+1 compliant, and adopting tasks must report
+  them as blocked. Mitigation of the *correctness* half only: the section 4.7
+  fallback keeps such paths correct.
 - **Coherence risk** — a future prefetch site reachable from a mutation payload
-  could serve a stale read. Mitigation: section 4.12's rule, invariant 10, the
-  provided whole-store invalidation entry point, and the required coherence test.
-  Residual: the rule is enforced by review and test, not by the type system.
+  could serve a stale read. Mitigation: the temporary hold in section 4.12.3,
+  invariant 10, the provided whole-store invalidation entry point, and the
+  required within-field coherence test. Residual: the hold is enforced by review
+  and test, not by the type system. Note also that the pinned async path does not
+  serialize top-level mutation fields (4.12.2(c)), so sync-path evidence alone
+  does not establish async-path behaviour.
+- **Descendant key-projection risk** — an indirect site projects a terminal key
+  across an intermediate field, so a projector could in principle cross an
+  authorization boundary the direct traversal would have enforced. Mitigation:
+  the four binding conditions of 4.19.4, the requirement that adopting tasks
+  record any intermediate authorization boundary (4.18.2 step 6), and the
+  prohibition on duplicating authorization logic inside a generic loader.
+- **Recursive look-ahead risk** — descendant traversal must match
+  `field_original_name()` at every segment and collect every matching terminal
+  selection across every matching branch (4.19.3). Getting it wrong silently
+  defeats batching on aliased or repeated descendant paths rather than breaking
+  correctness. Mitigation: query-count measurement on descendant paths is an
+  acceptance criterion.
+- **Legacy-visibility risk** — a descendant prefetch bounds the terminal loader
+  while a pre-existing intermediate resolver still issues one statement per
+  parent, which could be misreported as whole-operation N+1 freedom. Mitigation:
+  the two evidence scopes of 4.19.5, and the separate-figure requirement in
+  section 8.2 item 9.
 - **Shape-normalization risk** — the highest-consequence new risk. A shape that
   omits a result-changing argument would let two semantically different requests
   share one bucket and return a wrong result. Mitigations: the shape is typed and
@@ -1213,7 +1675,9 @@ Binding consequences:
 - the `BE-02` adoption task carries the exact-base fan-out path inventory for
   `Publisher.distributionPlatforms` required by section 4.18.3, and must either
   cover every material path or escalate. That obligation belongs to `BE-02`, not
-  to `THOTH-GQL-BATCH-01`;
+  to `THOTH-GQL-BATCH-01`. The imprint and contact routes are **descendant**
+  paths under section 4.19, and the mutation-payload routes are blocked on the
+  section 4.12.4 decision, which `BE-02` must report rather than resolve;
 - `Publisher.distributionPlatforms`'s load shape is `Unit` (section 4.4.5). This
   ADR adds no argument to that field and changes nothing in the approved `BE-02`
   API contract.
@@ -1247,7 +1711,15 @@ Evidence that this decision is correctly implemented:
   with the same error classification as the direct path, issues no retry SQL, and
   never becomes an empty result;
 - prefetched and direct per-parent results are identical, in order;
-- read-after-write coherence holds within one mutation operation;
+- a descendant path (list -> intermediate object -> loader-backed field) is
+  detected through recursive alias-safe look-ahead, projects and de-duplicates
+  its terminal keys from the already-resolved list items, issues one terminal
+  dispatch, stores under the ordinary terminal identity, and causes no terminal
+  fallback statement;
+- terminal-loader statements and pre-existing intermediate-resolver statements
+  are reported as separate figures on a descendant path;
+- read-after-write coherence holds within one top-level mutation field, using
+  test-only mutations and types;
 - the generated GraphQL SDL is byte-identical to the base;
 - `thoth-api/src/schema.rs`, `thoth-api/migrations/` and the workspace
   dependency declarations are unchanged;
