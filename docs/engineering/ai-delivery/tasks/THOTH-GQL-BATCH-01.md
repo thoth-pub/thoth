@@ -1,6 +1,7 @@
 # THOTH-GQL-BATCH-01 - Request-scoped GraphQL batching foundation
 
 Status: DRAFT
+Implementation: NOT AUTHORIZED
 Programme: Shared Thoth GraphQL / Backend Architecture
 Dependent programmes: Publisher Services and Distribution Configuration (first
 required consumer, `BE-02`); Thoth Metrics and any other programme resolving
@@ -13,17 +14,23 @@ Programme integration branch: None
 Risk: HIGH
 Owner: Shared backend architecture
 Approved by: not yet approved
-Dependencies: `ADR-0006` (APPROVED and repository-authoritative); this
-specification approved; a freshly verified exact `develop` base; explicit CTO
-implementation authorization
-Target branch name: `feature/shared-architecture/graphql-batching`
+Dependencies, all required before implementation may begin: `ADR-0006` approved
+and repository-authoritative; this specification approved; a freshly verified
+exact `develop` base; explicit CTO implementation authorization
+Runtime activation: separately controlled. Merge does **not** activate the guard
+(section 11); `ENFORCE` requires its own explicit CTO production activation
+approval
+Target branch name: `feature/shared-architecture/graphql-batching` (**must not
+exist** until implementation is authorized)
 
 Authority condition: this record is repository-authoritative when this exact
 content is reachable from the repository's authoritative integration branch.
 Live review, authorization and merge evidence is the GitHub pull-request record.
 
 This specification does not authorize implementation. It defines what
-implementation must do once separately authorized.
+implementation must do once separately authorized. It also does not authorize
+production activation: implementation, merge, `OBSERVE` activation and `ENFORCE`
+activation are four separate decisions (section 11.2).
 
 ---
 
@@ -92,53 +99,52 @@ Two facts do **not** reduce the classification: that no migration is required,
 and that no field adopts the mechanism at merge. Both limit the *blast radius at
 merge*; neither limits the correctness surface of the mechanism itself.
 
-#### Re-evaluation after the mutation execution-scope remediation
+#### Re-evaluation after the activation-control remediation
 
 The classification was re-run against `risk-classification.md` from scratch after
-the remediation of `ADR-0006` section 4.12.6, rather than carried forward by
-default. The result is **`HIGH`** — unchanged as a label, but reached on
-materially different and stronger grounds, and it is no longer reached only
-through the store's correctness surface.
+the rollout correction of section 11, rather than carried forward. The result is
+**`HIGH`**.
 
-**What changed.** The specification now carries a central request-boundary guard
-that rejects mutation operations with a duplicate executable top-level response
-key. That is runtime behaviour on the common GraphQL request path, live from the
-merge commit, affecting every mutation request from every API client.
+**The material fact that changed.** Merge no longer activates the guard. The
+foundation merges with `guard OFF, store unavailable, request acceptance
+unchanged`, so **"production feature activation occurs at merge" is no longer a
+grounds for `HIGH` and is withdrawn as an argument.** Any rationale resting on
+it has been removed rather than left standing.
 
-Against the framework, that engages criteria the previous classification did not:
+**Why `HIGH` still holds on the repository's actual criteria**, derived rather
+than assumed:
 
 | `risk-classification.md` criterion | Engaged by |
 |---|---|
-| production feature activation | the guard is active on the production request path at merge, not dark-launched (`ADR-0006` section 7.2) |
-| cross-repository API contract change | the set of accepted GraphQL mutation requests changes for all clients, including clients outside this repository |
-| changes to canonical data semantics | unchanged from before: a data-loading path is substituted for a field's direct read |
-| changes capable of broadening processing scope | unchanged from before |
+| production feature activation | still engaged, but at **`ENFORCE` activation**, not at merge. The task specifies and delivers that activation path, so it carries the control |
+| cross-repository API contract change | in `ENFORCE`, the set of accepted GraphQL mutation requests changes for all clients, including clients outside this repository |
+| idempotency or deduplication | the guard exists precisely because the pinned executor duplicates a mutation execution; duplicate-write prevention is the mechanism's purpose |
+| changes to canonical data semantics | a data-loading path is substituted for a field's direct read |
+| changes capable of broadening processing scope | shared request-scoped state on the `Context` used by every resolver |
 
-The escalation rules also still apply: the affected production query volume is
-unknown, and no exhaustive inventory of external clients exists in this
-repository.
+**Escalation rules** also still apply: the affected production query volume is
+unknown, and the repository cannot enumerate its external clients — which is
+exactly why `OBSERVE` exists. Uncertainty raises the level; it does not justify
+lowering the controls.
 
-**Why it is not raised to `Critical`.** Checked criterion by criterion rather
-than assumed: there is no destructive or irreversible production migration, no
-canonical data rewrite at scale, no mass redistribution or external publication,
-no security boundary affecting all publishers (the guard only ever **rejects**,
-so it cannot broaden access, and authorization is untouched), no secrets or
-identity-provider work, no historical metrics recomputation, no source-of-truth
-cutover, and no material legal, privacy or contractual consequence. Rollback is
-also **not** uncertain, which is the escalation rule that would otherwise bite:
-the kill switch of section 11 restores prior request-acceptance behaviour
-without a deploy, and reverting the merge commit is clean because nothing has
-adopted the store.
+**Not raised to `Critical`.** Checked criterion by criterion: no destructive or
+irreversible production migration, no canonical data rewrite at scale, no mass
+redistribution or external publication, no security boundary affecting all
+publishers (the guard only ever **rejects**, so it cannot broaden access, and
+authorization is untouched), no secrets or identity-provider work, no historical
+metrics recomputation, no source-of-truth cutover, and no material legal, privacy
+or contractual consequence. Rollback is **not** uncertain: `ENFORCE -> OBSERVE`
+or `ENFORCE -> OFF` is a configuration change without a deploy.
 
-**Why it is not lowered.** `Medium` would require the behaviour to be
-feature-flagged with limited data effect and no automatic production effect. The
-guard has automatic production effect at merge, so `Medium` does not fit.
+**Not lowered to `Medium`.** `Medium` covers feature-flagged behaviour with
+limited data effect. Two things exceed it: `ENFORCE` changes a cross-client
+request contract rather than an internal behaviour, and the store's correctness
+surface is a response-correctness concern rather than a limited data effect.
 
-`HIGH` is therefore re-derived, not retained by inertia. One required control
-changes as a result: `risk-classification.md`'s "feature flag, comparison mode or
-controlled pilot where possible" is now genuinely engaged and is discharged by
-the kill switch of section 11, which was not required by the previous
-classification.
+`HIGH` is therefore re-derived on current grounds. The HIGH-risk controls of
+section 1.2 apply, with `risk-classification.md`'s "feature flag, comparison mode
+or controlled pilot where possible" discharged by the **`OBSERVE` mode**
+(section 11.2) rather than by a kill switch.
 
 The remainder of this section records the store-side rationale, which is
 unchanged.
@@ -162,9 +168,12 @@ Factors raising the correctness surface:
 Factors bounding it:
 
 - no database migration, no `schema.rs` change, no data semantics change on disk;
-- no production consumer of the **store** at initial merge — no field adopts the
-  batching mechanism. This no longer means the task has no production effect at
-  merge: the guard does (`ADR-0006` section 7.2);
+- no production consumer of the **store** at initial merge, and the store is
+  unavailable outside `ENFORCE`;
+- **no production behaviour changes at merge at all**: the guard merges in `OFF`.
+  Behaviour changes only at a separately authorized `ENFORCE` activation
+  (`ADR-0006` section 7.2), which is preceded by preview acceptance and an
+  `OBSERVE` window;
 - no new workspace dependency, including for the shim and the guard;
 - no public GraphQL **schema** change, and the generated SDL is byte-identical.
   The set of accepted **requests** does change (`ADR-0006` section 4.12.6.7);
@@ -190,8 +199,9 @@ privacy or contractual consequence.
 
 `HIGH` is therefore reached on store-side grounds too, with the shim-specific
 acceptance criteria of section 9. The required controls of section 1.2 are
-**not** unchanged: the kill switch added by the guard's re-derivation above is a
-newly engaged control.
+**not** unchanged: the `OBSERVE` pilot, preview acceptance, and a separate CTO
+`ENFORCE` activation approval are all newly engaged by the re-derivation
+above.
 
 ### 1.2 Required HIGH-risk controls
 
@@ -202,14 +212,20 @@ Per `risk-classification.md` and `release-gates.md` section 1:
 - independent cross-model review;
 - failure-path and authorization tests;
 - rollout and rollback plan;
-- **kill switch** for the request-boundary guard (section 11), discharging
-  `risk-classification.md`'s "feature flag, comparison mode or controlled pilot
-  where possible" for HIGH-risk work. This control is newly engaged, because the
-  guard has production effect at merge;
+- **controlled pilot**, discharging `risk-classification.md`'s "feature flag,
+  comparison mode or controlled pilot where possible" for HIGH-risk work: the
+  guard's **`OBSERVE`** mode (section 11.2), run for an explicit observation
+  window against real traffic before any request is rejected;
+- **preview/staging acceptance** of the exact implementation candidate before
+  activation (section 11.3);
 - explicit CTO merge authorization;
-- production activation of the **store**, if any is ever required, separately
-  authorized. Note that the **guard** activates at merge and is therefore covered
-  by the merge authorization itself, not by a later activation decision.
+- **explicit CTO production activation approval for `ENFORCE`, separate from
+  merge authorization** (section 11.2). Merge authorization is **not** activation
+  authorization;
+- a named activation owner and an observation period after activation
+  (sections 11.5, 11.6);
+- production activation of the **store** is gated behind `ENFORCE` and remains
+  the adopting task's separately authorized concern.
 
 ---
 
@@ -304,13 +320,44 @@ The task must:
      returned unchanged and are never restricted (4.12.6.8);
    - it expands named fragment spreads and inline fragments before counting
      top-level occurrences, and is cycle-safe;
-   - it evaluates `@skip`/`@include` against the request's coerced variables, so
-     a definitely-excluded occurrence is **not** counted as executable. Juniper's
+   - it builds the **effective variable map** before expanding occurrences,
+     exactly as the pinned executor does (`ADR-0006` section 4.12.6.5.1):
+
+     ```text
+     effective_variables =
+         operation_defaults
+         overridden_by
+         request_variables
+     ```
+
+     concretely — start from `GraphQLRequest::variables()`; read the **selected**
+     operation's `variable_definitions`; for each variable declaring an
+     operation-level default, preserve the request value if one was supplied and
+     otherwise insert the default. This mirrors juniper's
+     `all_vars.entry(name).or_insert(default)` in
+     `execute_validated_query{,_async}`. `VariableDefinitions` and
+     `VariableDefinition` are not publicly nameable, so they must be reached by
+     field access on the `Operation` value without naming their types. Using raw
+     request variables is **prohibited** and demonstrably over-rejects;
+   - it evaluates `@skip`/`@include` against that **effective** map, so a
+     definitely-excluded occurrence is **not** counted as executable. Juniper's
      own `is_excluded` is `pub(super)`, so this must be reimplemented on public
-     API and kept behaviourally identical;
-   - where a directive condition cannot be resolved for the concrete request, it
-     counts the occurrence as executable — rejecting conservatively rather than
-     admitting a possible duplicate write (4.12.6.7);
+     API and kept behaviourally identical for literal values, variables,
+     operation defaults, request overrides, multiple directives, and directives
+     on fields, fragment spreads and inline fragments
+     (`ADR-0006` section 4.12.6.5.2);
+   - where a directive condition genuinely cannot be resolved **after applying
+     operation defaults**, it counts the occurrence as executable — rejecting
+     conservatively rather than admitting a possible duplicate write (4.12.6.7).
+     An omitted-but-defaulted variable is **resolved**, not unresolved, and must
+     never be classified as undecidable;
+   - it has a three-state **mode** — `OFF`, `OBSERVE`, `ENFORCE` — per
+     `ADR-0006` section 4.12.6.6, defaulting to `OFF`. In `OFF` it evaluates
+     nothing; in `OBSERVE` it evaluates exactly as `ENFORCE` would but rejects
+     nothing and records one observation event per would-be rejection; only in
+     `ENFORCE` does it reject. **Loader store availability must be derived from
+     this single value**, so that `guard OFF + store enabled` and
+     `guard OBSERVE + store enabled` are unrepresentable (section 11);
    - it rejects when any executable top-level response key occurs more than once,
      returning `GraphQLResponse::from_result(Err(GraphQLError::ValidationError(..)))`
      carrying a `RuleError` with the colliding source positions, so the existing
@@ -407,9 +454,12 @@ The task must:
    resolver still returns its parents successfully, the failure is recorded once
    per `(scope, loader, shape)` dispatch with the attempted key set, each covered
    child resolver returns the derived `FieldError`, and **no retry query is
-   issued**. Failure-dispatch identity must match the successful-load identity
-   exactly, including its scope component, so a `LoadFailed` recorded under one
-   scope never poisons another (`ADR-0006` sections 4.9.2, 4.12; invariant 31).
+   issued**. Failure state is keyed as
+   `(scope, loader, shape, attempted key set)` and child-lookup state as
+   `(scope, loader, shape, parent key)`; the scope component is never dropped
+   from either, so a `LoadFailed` recorded under one scope never poisons another
+   (`ADR-0006` sections 4.9.2, 4.12; invariant 31). Whole-store invalidation may
+   still clear every scope at once.
    `ThothError` is not `Clone`, so retain a shareable representation;
 11. implement duplicate-key handling, alias handling per shape and the
    non-destructive read (`ADR-0006` section 4.6), including that a second
@@ -438,10 +488,23 @@ The task must:
       selection, never from an ancestor selection;
     - projected keys are de-duplicated before dispatch;
     - results are stored under the **ordinary** terminal identity
-      `(loader, shape, terminal key)`. A separate cache namespace for indirectly
-      prefetched entries is prohibited — an entry prefetched from an ancestor and
-      one prefetched from the terminal field's own parent list must satisfy each
-      other's lookups;
+      `(scope, loader, shape, terminal key)` — that is, the full identity of
+      invariant 13, including its top-level response-key scope component. A
+      separate cache namespace for indirectly prefetched entries is prohibited:
+      within **one scope**, an entry prefetched from an ancestor and one
+      prefetched from the terminal field's own parent list must satisfy each
+      other's lookups. Across **different** scopes they are distinct entries.
+      The binding rule is:
+
+      ```text
+      same scope + same loader + same shape + same terminal key
+        => one shared entry, whichever prefetch site produced it
+      different scope
+        => distinct entries
+      ```
+
+      "Ordinary" here means *not a special ancestor-prefetched namespace*. It
+      does **not** mean *unscoped*;
     - the key projector may read **only** data already present on
       already-resolved, already-authorized items, and the four conditions of
       `ADR-0006` section 4.19.4 must hold;
@@ -657,8 +720,11 @@ summary, and binding here:
 16. the existence of a correctness fallback is never treated as N+1 compliance
     evidence;
 17. a prefetch site may target a descendant loader-backed field, and descendant
-    results are stored under the ordinary terminal identity of invariant 13. No
-    separate cache namespace exists for indirectly prefetched entries;
+    results are stored under the full scope-bearing terminal identity of
+    invariant 13 — `(scope, loader, shape, terminal key)`. No separate cache
+    namespace exists for indirectly prefetched entries, but the scope component
+    is never dropped: sharing is within one scope, and distinct scopes hold
+    distinct entries;
 18. a descendant key projector reads only data already present on
     already-resolved, already-authorized items, and never bypasses an
     intermediate authorization decision;
@@ -822,12 +888,24 @@ One response key, two executable occurrences: rejected before any resolver runs.
 duplicate through an inline fragment**: an equivalent duplicate introduced
 indirectly is rejected identically. Fragment expansion is not optional.
 
-**Directives.** `@skip`, `@include` and variable-driven conditions must be proven
-in both directions. A syntactic duplicate that is *definitely excluded* for the
-concrete request must **not** be rejected — it is not an executable occurrence.
-Where the condition cannot be resolved, rejection is conservative and that
-tradeoff is recorded (`ADR-0006` section 4.12.6.7); it must not be presented as
-exact.
+**Directives and effective variables.** `@skip`, `@include` and variable-driven
+conditions must be proven in both directions, evaluated against the **effective**
+variable map of `ADR-0006` section 4.12.6.5.1 — operation defaults overridden by
+request variables — never against raw request variables. A syntactic duplicate
+that is *definitely excluded* for the concrete request must **not** be rejected;
+it is not an executable occurrence. This includes a duplicate excluded by a
+variable the request **omitted** but the operation **defaults**. Only where the
+condition genuinely cannot be resolved after applying defaults is rejection
+conservative, and that tradeoff is recorded (`ADR-0006` section 4.12.6.7); it
+must not be presented as exact.
+
+**Pinned-stack constraint on defaulted-variable documents.** Juniper's
+`default_values_of_correct_type` rule rejects a **non-null** variable declaring a
+default (`Argument "x" has type "Boolean!" and is not nullable, so it can't have
+a default value`). Defaulted-variable tests must therefore declare the variable
+**nullable** — `$skip: Boolean = true` — which the pinned stack accepts in the
+non-null `if:` position. A test written as `Boolean! = true` never reaches the
+guard and proves nothing.
 
 **Resolver execution count.** For any rejected operation:
 
@@ -850,12 +928,32 @@ existing handler branch returns HTTP 400, and the body is the ordinary
 executes, no database write occurs, and no partial mutation execution is
 possible.
 
-**Prerequisite coupling.** The store must be unavailable whenever the guard is
-not applied (`ADR-0006` section 4.12.6.6). Because a nested resolver cannot
-detect operation type, this is all-or-nothing: with the guard disabled, every
-prefetch site performs no prefetch and every lookup reads `NotLoaded`, so every
-path takes its always-correct direct fallback. The implementation must make
-"batching on, guard off" **unrepresentable**, not merely discouraged.
+**Modes.** The behaviour above is the `ENFORCE` behaviour. Binding per mode
+(`ADR-0006` section 4.12.6.6):
+
+| Mode | Evaluates | Rejects | Observation event | Loader store |
+|---|---|---|---|---|
+| `OFF` (default, and the merged state) | no | no | none | **unavailable** |
+| `OBSERVE` | yes, exactly as `ENFORCE` | **no** | one per would-be rejection | **unavailable** |
+| `ENFORCE` | yes | yes | one per actual rejection | may be available |
+
+In `OBSERVE` the request continues through existing Juniper execution completely
+unchanged; detection must have no effect on the response.
+
+**Prerequisite coupling.** The store's mutation isolation guarantee derives from
+enforcement:
+
+```text
+loader store available  =>  guard mode == ENFORCE
+```
+
+Because a nested resolver cannot detect operation type, this is all-or-nothing:
+outside `ENFORCE` every prefetch site performs no prefetch and every lookup reads
+`NotLoaded`, so every path takes its always-correct direct fallback. The
+implementation must make both `guard OFF + store enabled` and
+`guard OBSERVE + store enabled` **unrepresentable** — store availability derived
+from the single mode value, not a second independent setting that operators are
+merely told to keep consistent.
 
 ---
 
@@ -876,15 +974,73 @@ Stop condition: if implementation finds a migration is required, stop and report
 
 ## 8. Observability and operations
 
-Required logs: none. The foundation adds no production logging.
+**Corrected during remediation.** This section previously read "Required logs:
+none / Required metrics/alerts: none / Operational runbook changes: none", which
+contradicted the guard's own requirement to emit a record per rejection and to
+produce observation evidence. The two components have different obligations and
+must be stated separately.
 
-Required metrics/alerts: none. Query-count observation is a test-time concern.
+### 8.1 Loader store — no production observability required
 
-Operational runbook changes: none.
+No production field adopts the store in this task, and the store is unavailable
+outside `ENFORCE`, so there is nothing to observe in production.
 
-Deliberate: adding production instrumentation for a mechanism no production
-field yet uses would be unmeasurable noise. Instrumentation for adopted fields is
-the adopting task's concern.
+- required logs: **none**;
+- required metrics/alerts: **none** before first adoption;
+- query-count observation remains **test and preview** evidence (section 10).
+
+Adding production instrumentation for a mechanism no production field uses would
+be unmeasurable noise. Instrumentation for adopted fields is the adopting task's
+concern.
+
+### 8.2 Mutation guard — production observability is required
+
+`OBSERVE` and `ENFORCE` both sit on the common request path, and `OBSERVE` exists
+precisely to produce evidence, so "required logs: none" is **not** an acceptable
+statement for the guard.
+
+| Mode | Required event |
+|---|---|
+| `OFF` | none — the guard evaluates nothing |
+| `OBSERVE` | one structured event per **would-be** rejection |
+| `ENFORCE` | one structured event per **actual** rejection |
+
+Each event must carry:
+
+- the guard **mode**, so `OBSERVE` and `ENFORCE` evidence can never be conflated;
+- the **colliding response key**;
+- the **operation name**, only when the request supplied one.
+
+Each event must **never** carry:
+
+- the full GraphQL document;
+- variables;
+- mutation argument values;
+- any publisher or user payload data.
+
+Mutation arguments carry user and publisher data, so this is a privacy
+requirement, not a verbosity preference.
+
+Required metrics/alerts: **none created by this task**. The event stream is the
+signal — a non-zero `OBSERVE` count blocks `ENFORCE` (section 11), and a non-zero
+`ENFORCE` count attributable to legitimate traffic is the rollback signal
+(section 12).
+
+### 8.3 Operational runbook
+
+A minimal runbook entry is required — and no more than that. It must state:
+
+- **how to change mode** for `OFF -> OBSERVE`, `OBSERVE -> ENFORCE` and
+  `ENFORCE -> OBSERVE/OFF`, using the existing configuration mechanism;
+- **what blocks `ENFORCE`**: a non-zero would-be-rejection count over the
+  observation window, until the affected callers are identified and addressed;
+- **what triggers rollback**: rejection events in `ENFORCE` attributable to
+  legitimate client traffic;
+- **how to verify store unavailability outside `ENFORCE`**, so the fail-closed
+  coupling can be confirmed operationally rather than assumed.
+
+No other operational machinery is created: no dashboard, no alerting rule, no
+on-call procedure.
 
 ---
 
@@ -905,8 +1061,36 @@ the adopting task's concern.
 - [ ] Distinct top-level mutation aliases are accepted and each executes exactly
       once.
 - [ ] A duplicate that `@skip`/`@include` definitely excludes for the concrete
-      request is **accepted** and executes once — proven for literal conditions
-      and for variable-driven conditions, in both directions.
+      request is **accepted** and executes once — proven for literal conditions,
+      request-supplied variables, **omitted variables carrying an operation
+      default**, and request variables **overriding** an operation default, in
+      both directions, and through field, fragment-spread and inline-fragment
+      directives.
+- [ ] The guard builds the effective variable map as operation defaults
+      overridden by request variables, mirroring the pinned executor's
+      `or_insert`; raw request variables are never used for directive
+      evaluation.
+- [ ] Every directive decision is asserted against **Juniper's observed
+      execution** of the same document and variables — a resolver-invocation
+      count from a real execution — not against an independently written
+      expectation.
+- [ ] An omitted-but-defaulted variable is treated as **resolved**, never as an
+      undecidable condition.
+- [ ] Guard mode defaults to `OFF`, and the merged state is `OFF`.
+- [ ] In `OFF` the guard evaluates nothing and rejects nothing; production
+      request acceptance is byte-identical to the base.
+- [ ] In `OBSERVE` a document `ENFORCE` would reject is **not** rejected,
+      executes normally with an unchanged response, and produces exactly one
+      observation event.
+- [ ] In `OBSERVE` and `OFF` the loader store is unavailable: every lookup reads
+      `NotLoaded` and every path takes the direct fallback.
+- [ ] `guard OFF + store enabled` and `guard OBSERVE + store enabled` are
+      **unrepresentable** — store availability is derived from the mode value,
+      not configured independently. Verified by inspection of the added modules,
+      not only by test.
+- [ ] Observation and rejection events carry the mode, the colliding response
+      key, and the operation name only when supplied, and never the document,
+      variables or any argument value.
 - [ ] A duplicate compatible response key in a **query** operation is accepted and
       is unaffected by the guard.
 - [ ] Duplicate response keys **below** the top level of a mutation are accepted
@@ -921,9 +1105,9 @@ the adopting task's concern.
       document, variables or argument values.
 - [ ] The guard runs under **both** the async `GraphQLRequest::execute` path and
       the `execute_sync` test path.
-- [ ] With the guard disabled by configuration, the store is unavailable: every
-      lookup reads `NotLoaded`, every path takes the direct fallback, and results
-      are unchanged. "Batching on, guard off" is unrepresentable.
+- [ ] Mode transitions are exercised in test: `OFF -> OBSERVE -> ENFORCE` and
+      `ENFORCE -> OBSERVE -> OFF`, with store availability following the mode in
+      every direction.
 
 **Store and scoping**
 
@@ -1080,9 +1264,11 @@ the adopting task's concern.
       present on the already-resolved parent items.
 - [ ] Duplicate projected terminal keys are de-duplicated before dispatch.
 - [ ] A second ancestor or list site does not reload an already-loaded terminal
-      key within the same valid cache scope; results are stored under the
-      ordinary terminal identity, with **no** separate namespace for indirectly
-      prefetched entries.
+      key **within the same execution scope**; results are stored under the full
+      `(scope, loader, shape, terminal key)` identity, with **no** separate
+      namespace for indirectly prefetched entries.
+- [ ] The same descendant terminal key reached under a **different** top-level
+      response key is a distinct entry and is dispatched once for that scope.
 - [ ] Indirect prefetch never bypasses an intermediate authorization decision
       (`ADR-0006` section 4.19.4).
 - [ ] The terminal child resolver issues **no** fallback statement on a covered
@@ -1141,11 +1327,49 @@ mutations and types; **no production mutation resolver may be modified**.
 - **rejected — duplicate through a named fragment** — the equivalent duplicate
   introduced by a fragment spread is rejected;
 - **rejected — duplicate through an inline fragment** — likewise;
-- **directives** — `@skip`, `@include` and variable-driven conditions, proven in
-  both directions. A syntactic duplicate that is definitely excluded for the
-  concrete request must be **accepted** and execute once, and must not be
-  misclassified. An undecidable condition rejects conservatively, and the test
-  must assert that recorded tradeoff rather than an exact result;
+- **directives — literal and supplied variables** — `@skip` and `@include` with
+  literal Boolean conditions and with request-supplied variables, proven in both
+  directions. A syntactic duplicate that is definitely excluded for the concrete
+  request must be **accepted** and execute once. A genuinely undecidable
+  condition rejects conservatively, and the test must assert that recorded
+  tradeoff rather than an exact result;
+- **directives — operation variable defaults.** Binding, and all of the
+  following are required. Note that the defaulted variable must be declared
+  **nullable**: the pinned `default_values_of_correct_type` rule rejects
+  `Boolean! = true` outright, so such a document never reaches the guard.
+
+  - **`@skip` default true, variable omitted**
+
+    ```graphql
+    mutation Q($skip: Boolean = true) {
+      x: updateA(...) @skip(if: $skip) { id }
+      x: updateA(...) { id }
+    }
+    ```
+
+    with `$skip` omitted → **one** executable occurrence → **accepted**, and in
+    `ENFORCE` it must **not** be rejected;
+  - **explicit override false** — the same document with `{"skip": false}` →
+    **two** executable occurrences → **rejected** in `ENFORCE`, and recorded as
+    a would-be rejection in `OBSERVE`;
+  - **`@include` default false, variable omitted** — the equivalent document
+    proving the default **excludes** the duplicate → **accepted**;
+  - **explicit override true** — the same with `{"inc": true}` → the duplicate
+    becomes executable → **rejected**;
+  - **through a named fragment** — at least one defaulted-variable case where
+    the duplicate arrives through a named fragment spread, including the case
+    where the directive sits on the **spread** itself;
+  - **through an inline fragment** — the equivalent case with the directive on
+    the inline fragment;
+  - **request value precedence** — an explicitly supplied request variable
+    overrides the operation default exactly as juniper's `or_insert` does;
+  - **no regression** — variables with **no** default, supplied `true` and
+    `false`, behave exactly as before this change.
+
+  Every one of these must assert the guard's verdict against **Juniper's
+  observed execution** of the same document and variables — a resolver-invocation
+  count from a real execution — not against a separately written expectation
+  table (`ADR-0006` section 4.12.6.5.2);
 - **resolver execution count** — for each rejected operation, a resolver-call
   counter on the test-only mutation reads `0` **and** the statement-count harness
   of section 10's performance tests reads `0` database writes. Both are required;
@@ -1161,9 +1385,24 @@ mutations and types; **no production mutation resolver may be modified**.
   `{message, locations}`, and no `data` key;
 - **operation selection** — with several named operations in one document and an
   `operationName` supplied, the guard evaluates the **selected** operation only;
-- **guard disabled** — with the kill switch off, the previously rejected
-  documents are accepted again **and** the store is unavailable: every lookup
-  reads `NotLoaded`, every path falls back, and results are unchanged.
+- **mode OFF** — the merged default. The previously rejected documents are
+  accepted, the guard evaluates nothing, no observation event is emitted, **and**
+  the store is unavailable: every lookup reads `NotLoaded`, every path falls
+  back, and results are byte-identical to the pre-foundation base;
+- **mode OBSERVE** — every document `ENFORCE` would reject is **accepted** and
+  executes normally with an unchanged response and unchanged resolver counts,
+  while producing exactly one observation event carrying the mode, the colliding
+  response key and the operation name when supplied. The store remains
+  unavailable;
+- **observation event content** — asserted positively and negatively: the event
+  contains the mode and colliding response key, and contains **no** document
+  text, **no** variables and **no** argument values;
+- **mode transitions** — `OFF -> OBSERVE -> ENFORCE` and
+  `ENFORCE -> OBSERVE -> OFF`, with store availability following the mode in
+  both directions;
+- **coupling is structural** — `guard OFF + store enabled` and
+  `guard OBSERVE + store enabled` cannot be constructed. Demonstrated by the
+  shape of the API rather than only by a runtime assertion.
 
 ### Unit — state model
 
@@ -1407,52 +1646,136 @@ result is not acceptable evidence.
 
 ## 11. Rollout
 
-**Corrected during remediation.** This task may **no longer** claim that it has
-no production effect at merge. The store does not, but the section 6.6 guard sits
-on the common GraphQL request path and takes effect immediately. The sentence
+**Corrected during remediation.** A previous revision made the guard active on
+every mutation request from the merge commit, behind a kill switch defaulting to
+enabled, and treated CTO merge authorization as authorizing that activation.
+That is withdrawn: `release-gates.md` prefers a safe post-merge state, requires a
+merge that itself changes production behaviour to satisfy the production-ready
+gate first, and requires production activation of HIGH-risk work to carry preview
+acceptance, controlled activation, monitoring, rollback, an activation owner, an
+observation period and explicit CTO approval. A cross-client request-contract
+change must not ride in on a merge.
+
+**The rule is:**
 
 ```text
-no production effect because no field adopts batching
+repository merge  !=  production ENFORCE activation
 ```
 
-is **false** for this task as specified and must not appear in the
-implementation report, the PR body or the ADR.
+### 11.1 State at merge
 
-- **initial state after merge:**
-  - the **store**: present, adopted by no production field. No existing field's
-    behaviour or statement count changes;
-  - the **guard**: **active on every mutation request**, whether or not a
-    loader-backed field is selected. From the merge commit, a mutation with a
-    duplicate executable top-level response key is rejected with HTTP 400;
-- **feature flag/configuration:** a **kill switch** is required, discharging
-  `risk-classification.md`'s "feature flag, comparison mode or controlled pilot
-  where possible" control for HIGH-risk work. A single boolean, **defaulting to
-  enabled**, following the established `clap` `Arg::env(..)` pattern in
-  `src/bin/arguments/mod.rs` and threaded through `start_server(..)` exactly as
-  existing settings are. No new configuration mechanism may be invented. When
-  disabled, the guard does not run **and the store is unavailable**
-  (`ADR-0006` sections 4.12.6.6, 7.2.1) — the two cannot be decoupled, because a
-  nested resolver cannot distinguish a mutation from a query. The switch exists
-  to bound an unforeseen client compatibility problem, not to stage the rollout,
-  and running with it disabled is an incident response rather than a supported
-  operating mode;
-- **staging/preview validation:** **required for merge**, limited to the guard.
-  Confirm on a preview deployment that ordinary single-mutation and
-  distinct-alias mutation traffic is unaffected, and that a duplicate top-level
-  response key is rejected with HTTP 400 and the ordinary validation-error body.
-  Store-side staging validation remains not required for merge and becomes
-  required for the first adopting task;
-- **pilot:** no pilot is proposed, and the reason is recorded rather than
-  omitted: the guard's effect is a discrete accept/reject decision on a document
-  shape, fully determined at the request boundary and fully covered by the
-  section 10 tests, so a shadow-comparison deployment would add operational
-  surface without adding evidence;
-- **activation approval:** the **guard** activates at merge and is therefore
-  covered by the CTO merge authorization itself. **Store** activation is not
-  applicable to this task; the first adoption carries it;
-- **observation period:** a short post-merge watch on the guard's rejection log
-  (`ADR-0006` section 8.3). A sustained non-zero rejection rate is the signal
-  that would justify the kill switch. No new alert or dashboard is created;
+```text
+guard mode                 = OFF
+loader store               = unavailable
+production request accept  = unchanged
+```
+
+- the **store** merges present but unavailable, adopted by no production field;
+- the **guard** merges present in `OFF` — it evaluates nothing and rejects
+  nothing;
+- existing per-parent child resolvers are unchanged;
+- merging therefore changes **no** production behaviour.
+
+### 11.2 Activation lifecycle
+
+Staged, and each transition is separately authorized. It must not be collapsed
+into the merge event.
+
+```text
+merge (guard OFF, store unavailable)
+  -> preview/staging acceptance of the exact implementation candidate (11.3)
+  -> OBSERVE activation authorization
+  -> OBSERVE for an explicit observation window
+  -> observation evidence reviewed (11.4)
+  -> explicit CTO ENFORCE production activation approval
+  -> ENFORCE
+  -> observation period
+  -> (only then) a later task may adopt the store on a mutation path
+```
+
+**CTO merge authorization is not production activation authorization**, and must
+not be described as such anywhere. Because `ENFORCE` changes a cross-client
+request contract and this task is HIGH risk, the transition to `ENFORCE`
+requires **separate explicit CTO production activation approval**.
+
+**`OBSERVE` is the controlled compatibility pilot.** A previous revision argued
+that a shadow-comparison period adds no evidence because the guard's decision is
+discrete and deterministic. **That reasoning is rejected.** It answers the wrong
+question. The decision function is deterministic and fully covered by tests; the
+open question is:
+
+```text
+Does real production traffic contain documents that ENFORCE would reject?
+```
+
+No unit test can answer that, and the repository cannot enumerate its external
+API clients, so the absence of a known caller using duplicate top-level mutation
+response keys is **not** evidence that none does. `OBSERVE` answers exactly this
+against real traffic while rejecting nothing. It therefore discharges
+`risk-classification.md`'s "feature flag, comparison mode or controlled pilot
+where possible" control, and it is mandatory before `ENFORCE`.
+
+No percentage-based or per-tenant staged rollout is required: the repository has
+no established mechanism for one, and `OBSERVE` already covers all traffic.
+
+### 11.3 Preview/staging acceptance, required before OBSERVE and ENFORCE
+
+Exercise the **exact implementation candidate** in a production-like or preview
+environment and prove:
+
+- ordinary single-field mutations remain accepted;
+- distinct top-level aliases remain accepted;
+- a duplicate direct top-level response key is detected;
+- a named-fragment duplicate is detected;
+- an inline-fragment duplicate is detected;
+- directive and operation-variable-default cases behave correctly (section 6.6);
+- in `OBSERVE`, none of those requests is rejected;
+- in `ENFORCE`, a rejected request executes zero resolvers and performs zero
+  writes;
+- ordinary validation failures are unchanged;
+- the store is unavailable in `OFF` and in `OBSERVE`.
+
+### 11.4 OBSERVE evidence, required before ENFORCE
+
+Run `OBSERVE` for an explicit, recorded observation window and record:
+
+```text
+number of mutation requests inspected
+number of would-be duplicate-response-key rejections
+operation names, where supplied
+colliding response keys
+period observed
+```
+
+Never recorded: full GraphQL documents, variables, mutation argument values, or
+any publisher or user payload data (section 8.2).
+
+**A non-zero would-be-rejection count blocks `ENFORCE`** until the affected
+callers have been identified and addressed. It must not be waved through on an
+assumption that the traffic is synthetic or unimportant, and the absence of a
+known affected caller is not a substitute for investigating a non-zero count.
+
+### 11.5 Activation owner
+
+Using the repository's existing control terminology, and naming no personal
+identity:
+
+- **`ENFORCE` activation approval:** the **CTO**, as for any HIGH-risk
+  production activation;
+- **execution of the mode change:** the engineering owner named in this task's
+  `Owner` field;
+- **`OBSERVE` activation:** authorized under the same task ownership, after
+  section 11.3 acceptance.
+
+### 11.6 Other rollout properties
+
+- **pilot:** `OBSERVE` is the pilot (section 11.2). No separate pilot cohort is
+  proposed;
+- **observation period:** required after `ENFORCE` activation, watching the
+  rejection event stream (section 8.2);
+- **store adoption:** `BE-02` becomes the first required consumer, in its own
+  separately specified, reviewed and authorized task, and only once `ENFORCE` is
+  active and observed (section 18);
 - **mass adoption:** prohibited. Existing child resolvers are unchanged and are
   migrated, if at all, under `ADR-0006` section 10.
 
@@ -1460,20 +1783,26 @@ implementation report, the PR body or the ADR.
 
 ## 12. Rollback
 
-- **code rollback:** revert the merge commit. Nothing depends on the store at
-  that point, and reverting the guard with it is correct — nothing is left
-  depending on the guarantee it provides;
-- **feature disable/kill switch:** disable the switch of section 11. This is the
-  **immediate operational rollback and requires no deploy**: mutation requests
-  are accepted exactly as before the merge, and the store is simultaneously
-  unavailable, so no path is left depending on a guarantee no longer enforced.
-  This replaces the previous "not applicable" entry, which is no longer true;
-- **after a later adoption:** revert the adopting field to its direct per-parent
-  query. Because that query is retained as the mandatory fallback, the field's
-  *result* is unchanged by rollback — only its statement count is. The guard must
-  **not** be reverted on its own once a field has adopted the store on a mutation
-  path; the fail-closed coupling makes the store unavailable in that
-  configuration rather than silently unsafe;
+- **primary, from `ENFORCE`, by configuration and without a deploy** wherever the
+  existing configuration mechanism supports it:
+
+  ```text
+  ENFORCE -> OBSERVE     keep collecting evidence, stop rejecting
+  ENFORCE -> OFF         stop evaluating entirely
+  ```
+
+  Both immediately restore prior request acceptance. Because store availability
+  is derived from the mode, either transition also makes the store unavailable,
+  so no path is left depending on a guarantee no longer enforced — the direct
+  fallback carries every affected field;
+- **rollback signal:** rejection events in `ENFORCE` attributable to legitimate
+  client traffic (section 8.2);
+- **code rollback:** revert the merge commit. Since the merged state is
+  `guard OFF, store unavailable`, this is a no-op for production behaviour and
+  nothing depends on the store at that point;
+- **after a later store adoption:** revert the adopting field to its direct
+  per-parent query. Because that query is retained as the mandatory fallback, the
+  field's *result* is unchanged by rollback — only its statement count is;
 - **data rollback or forward repair:** none. The task creates no persistent
   state, and a rejected request performs no write;
 - **external side-effect handling:** none. No external system is contacted.
@@ -1548,9 +1877,27 @@ The implementing agent must stop and report `BLOCKED` if:
   definitely excludes for the concrete request, so ordinary conditional documents
   would be rejected. Report `BLOCKED` rather than broadening the compatibility
   restriction beyond `ADR-0006` section 4.12.6.7;
-- the store cannot be made unavailable when the guard is not applied, so
-  "batching on, guard off" would be a representable state. Report `BLOCKED`
-  rather than shipping batching without its prerequisite;
+- the guard's directive evaluation cannot be made behaviourally equivalent to the
+  pinned executor's effective-selection semantics — including operation variable
+  defaults, request-variable override, and directives on fields, fragment spreads
+  and inline fragments. Report exactly:
+
+  ```text
+  BLOCKED - MUTATION GUARD CANNOT MATCH PINNED JUNIPER EXECUTABLE-SELECTION SEMANTICS
+  ```
+
+  Do **not** weaken the invariant to accommodate a mismatch, and do not narrow
+  the tests until they stop detecting it;
+- the guard mode cannot be threaded through the existing configuration mechanism,
+  or store availability cannot be **derived** from it so that
+  `guard OFF + store enabled` and `guard OBSERVE + store enabled` are
+  unrepresentable. Report `BLOCKED` rather than shipping two independent settings
+  with a documented convention that operators must keep them consistent;
+- `OBSERVE` cannot be made to leave the response and resolver behaviour
+  completely unchanged while still detecting would-be rejections. Report
+  `BLOCKED` rather than shipping an observation mode that perturbs traffic;
+- the store cannot be made unavailable outside `ENFORCE`, so batching could run
+  without its prerequisite. Report `BLOCKED` rather than shipping it;
 - correcting the execution layer so that compatible repeated top-level fields
   execute once turns out to be required after all. That is option F3, rejected as
   architecture expansion in `ADR-0006` section 4.12.10.1. Report exactly:
@@ -1630,9 +1977,21 @@ The report must additionally contain:
   paths, with any intentional difference stated explicitly;
 - the **guard** as implemented: its exact placement in the request path, the
   public Juniper APIs it calls, how it expands named and inline fragments, how it
-  evaluates `@skip`/`@include` against coerced variables, how it handles an
-  undecidable condition, and confirmation that it does not replace
-  `GraphQLRequest::execute` and makes no authorization decision;
+  handles a genuinely undecidable condition, and confirmation that it does not
+  replace `GraphQLRequest::execute` and makes no authorization decision;
+- the **effective-variable construction** as implemented: how operation
+  `variable_definitions` defaults are read, how request variables override them,
+  and the evidence that this matches the pinned executor's `or_insert`
+  construction. State explicitly that raw request variables are not used;
+- the **guard mode** as implemented: the three states, that the default and
+  merged state is `OFF`, and — with code evidence, not assertion — that store
+  availability is **derived** from the mode so `guard OFF + store enabled` and
+  `guard OBSERVE + store enabled` are unrepresentable;
+- the `OBSERVE` behaviour evidence: that a would-be-rejected document executes
+  with an unchanged response and unchanged resolver counts, and produces exactly
+  one observation event;
+- the observation/rejection **event content**, asserted positively and
+  negatively, confirming no document, variables or argument values are recorded;
 - the guard's **measured** zero-execution evidence: resolver call counts and
   database write counts for every rejected case — direct duplicate, named
   fragment duplicate and inline fragment duplicate — under both execution paths;
@@ -1643,14 +2002,20 @@ The report must additionally contain:
   side by side with a real juniper validation failure;
 - confirmation that queries, non-top-level selections and distinct aliases are
   unaffected, and that none of the 88 `MutationRoot` resolvers was modified;
-- the kill switch as implemented, and the evidence that with it disabled the
-  store is unavailable and every path falls back — that is, that "batching on,
-  guard off" is unrepresentable;
-- an explicit, accurate **production activation boundary** statement. The report
-  must say that the **store** is adopted by no production field at merge, **and**
-  that the **guard** is live on every mutation request from the merge commit. It
-  must **not** claim "no production effect because no field adopts batching";
-  that claim is false for this task (section 11);
+- the mode configuration as implemented, and the evidence that outside `ENFORCE`
+  the store is unavailable and every path falls back — that is, that
+  `guard OFF + store enabled` and `guard OBSERVE + store enabled` are
+  unrepresentable;
+- an explicit, accurate **production activation boundary** statement:
+  at merge, `guard mode = OFF`, `store = unavailable`, and production request
+  acceptance is unchanged, so the merge changes no production behaviour. The
+  report must state that `ENFORCE` activation is a **separate** decision
+  requiring preview acceptance, an `OBSERVE` window with a zero would-be-rejection
+  outcome, and explicit CTO production activation approval — and must **not**
+  describe CTO merge authorization as activation authorization;
+- confirmation that the section 8.2 observability and section 8.3 runbook
+  obligations are met, and that the previous "Required logs: none" statement no
+  longer applies to the guard;
 - an explicit statement that the foundation declares **no** production field N+1
   compliant, and that adoption-coverage obligations attach to adopting tasks;
 - the generated-SDL comparison result;
@@ -1705,6 +2070,9 @@ Notes: this specification requires independent review and explicit CTO approval,
 and it depends on `ADR-0006` being approved and repository-authoritative.
 Approval of this specification is not implementation authorization; that is a
 separate explicit decision bound to a freshly verified exact `develop` head.
+Neither is implementation authorization a merge authorization, and neither is
+merge authorization a **production activation** authorization: the transition to
+guard mode `ENFORCE` requires its own explicit CTO approval (section 11.2).
 
 Record only the durable implementation authorization here. Independent review
 decisions, CTO merge authorization and the merge itself are terminal GitHub
@@ -1720,8 +2088,31 @@ evidence under `ADR-0005` and must not be copied back into this file.
 ADR-0006 approved + repository-authoritative
         |
         v
-THOTH-GQL-BATCH-01 implemented, independently reviewed,
-CTO merge-authorized and merged into develop
+THOTH-GQL-BATCH-01 specification approved
+        |
+        v
+explicit CTO implementation authorization on a freshly verified exact base
+        |
+        v
+implementation + CI/tests + fresh independent exact-head review
+        |
+        v
+CTO merge authorization
+        |
+        v
+merge  --  guard mode OFF, store unavailable, request acceptance unchanged
+        |
+        v
+preview/staging acceptance (section 11.3)
+        |
+        v
+OBSERVE activation -> observation window -> evidence reviewed (section 11.4)
+        |
+        v
+explicit CTO ENFORCE production activation approval
+        |
+        v
+ENFORCE + observation period
         |
         v
 BE-02 specification amended on its existing PR #788 to replace the open
@@ -1736,6 +2127,28 @@ explicit CTO approval of the BE-02 specification
         v
 fresh develop verification + separate CTO BE-02 implementation authorization
 ```
+
+Seven distinct gates, which must never be conflated: ADR approval,
+specification approval, implementation authorization, merge authorization,
+`OBSERVE` activation, `ENFORCE` activation, and store adoption by `BE-02`.
+
+**Where `ENFORCE` sits relative to `BE-02`, at the safest reading of the
+repository gates.** Two questions were considered separately rather than
+collapsed:
+
+- *may `BE-02` runtime implementation begin before `ENFORCE`?* The conservative
+  answer is taken: **no**. Authorizing implementation against a mechanism whose
+  production activation has not been evidenced would mean building on a
+  foundation that may still be rolled back to `OFF`. `BE-02` implementation
+  authorization therefore requires `ENFORCE` activation completed and its
+  observation period passed;
+- *may `BE-02` reach production before `ENFORCE`?* Categorically **no**, and
+  structurally rather than procedurally: outside `ENFORCE` the store is
+  unavailable, so an adopting field would silently take its direct fallback and
+  its N+1 compliance claim would be false.
+
+The store must **not** be activated merely because `BE-02` later adopts it.
+Adoption is not activation, and activation carries its own CTO approval.
 
 This task must not implement, prepare or anticipate any part of `BE-02`, and
 must not modify PR #788 or its branch. `BE-02` runtime implementation remains
@@ -1755,7 +2168,9 @@ blocked and unauthorized throughout.
   one execution scope without duplicate loading, and that the same sites under
   distinct scopes are correctly isolated;
 - the central mutation request guard, which protects `BE-02`'s mutation-payload
-  paths and which `BE-02` must not reimplement or weaken.
+  paths and which `BE-02` must not reimplement or weaken. `BE-02` inherits it
+  only in its **`ENFORCE`** state; it must not assume enforcement is active, and
+  must not itself change the guard mode.
 
 `BE-02` must do for itself, and this task must **not** attempt on its behalf:
 

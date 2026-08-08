@@ -1620,3 +1620,292 @@ architecture decision.
   decision;
 - no approval-state or transient-status prose was written into any committed
   file.
+
+---
+
+## 20. Fifth remediation: activation controls, effective variables, identity sweep
+
+### 20.1 Position at the start of this remediation
+
+```text
+Previous independent decision:
+CHANGES REQUIRED
+
+Previous exact reviewed head:
+ef3a895a8acd5f372eb4440c7350cf7f09d5c527
+```
+
+Three findings:
+
+```text
+1. default-on guard violated safe post-merge / production activation controls
+2. directive evaluation omitted operation variable defaults
+3. one binding descendant identity remained unscoped
+```
+
+Verified live before editing: PR #789 open and draft at exactly
+`ef3a895a8acd5f372eb4440c7350cf7f09d5c527` with no intervening commit; `develop`
+at `5a8c27b1b7c11a4f6bd26d459556468099f8c1f4`; `ADR-0006` `PROPOSED`;
+`THOTH-GQL-BATCH-01` `DRAFT` and `HIGH`; PR #788 at
+`d411d4935a507804f28d8798419d405e32880d02`, `updatedAt` 2026-08-07T17:35:39Z;
+issue #765 `updatedAt` 2026-07-27T15:50:33Z; no implementation branch; and the
+branch diff still documentation-only.
+
+**F1, F2 and F3 were not reopened.** No fresh evidence disturbed the F2
+selection, and this remediation is bounded to the three findings above.
+
+### 20.2 Finding 1 — activation controls
+
+The previous revision made the guard active on every mutation request from the
+merge commit, behind a kill switch defaulting to enabled, and treated CTO merge
+authorization as authorizing that activation. That conflicts with
+`release-gates.md`: safe post-merge changes should prefer disabled-by-default
+behaviour; a merge that itself changes production behaviour must satisfy the
+production-ready gate first; and production activation of HIGH-risk work
+requires preview acceptance, controlled activation, monitoring, rollback, an
+activation owner, an observation period and explicit CTO approval. A change to
+accepted GraphQL mutation requests affecting every API client must not take
+effect because an implementation pull request merged.
+
+**Remediation.** The guard now has three modes (`ADR-0006` section 4.12.6.6):
+
+| Mode | Evaluates | Rejects | Event | Loader store | Request acceptance |
+|---|---|---|---|---|---|
+| `OFF` (default, merged state) | no | no | none | unavailable | unchanged |
+| `OBSERVE` | yes, as `ENFORCE` would | **no** | one per would-be rejection | unavailable | unchanged |
+| `ENFORCE` | yes | yes | one per rejection | may be available | duplicates rejected |
+
+and the binding rule is now
+
+```text
+repository merge  !=  production ENFORCE activation
+```
+
+with the merged state being `guard OFF, store unavailable, request acceptance
+unchanged`. `OFF -> OBSERVE` and `OBSERVE -> ENFORCE` are separate transitions
+with separate evidence, and `ENFORCE` requires explicit CTO production
+activation approval distinct from merge authorization.
+
+The fail-closed coupling was strengthened from "guard applied" to enforcement:
+
+```text
+loader store available  =>  guard mode == ENFORCE
+```
+
+with `guard OFF + store enabled` and `guard OBSERVE + store enabled` required to
+be **unrepresentable**, encoded structurally — store availability derived from
+the single mode value — rather than left to operator discipline.
+
+**The "a comparison period adds no evidence" rationale is withdrawn.** It
+answered the wrong question. The guard's decision function is deterministic and
+test-covered; the open question is whether real production traffic contains
+documents `ENFORCE` would reject, which no unit test can answer and which
+matters precisely because the repository cannot enumerate its external clients.
+`OBSERVE` is therefore recorded as the controlled compatibility pilot required
+by the HIGH-risk release control, and it is mandatory before `ENFORCE`. A
+non-zero would-be-rejection count **blocks** `ENFORCE` until the affected
+callers are identified and addressed.
+
+Preview/staging acceptance of the exact implementation candidate is required
+before activation; the activation owner is recorded in repository terms (CTO
+approves `ENFORCE`; the task's named engineering owner executes the change); and
+rollback from `ENFORCE` is `ENFORCE -> OBSERVE` or `ENFORCE -> OFF` by
+configuration without a deploy, with code revert as the secondary path.
+
+### 20.3 Finding 2 — effective variables
+
+The previous revision specified directive evaluation as
+`InputValue::into_const(request_variables)` — the raw request variables. The
+pinned executor does not use those.
+
+**Verified against the pinned sources.** `execute_validated_query`
+(`src/executor/mod.rs:828-855`) and `execute_validated_query_async`
+(`:926-953`) both build, byte-equivalently:
+
+```text
+default_variable_values = { name -> default for each operation variable
+                            definition declaring a default }
+all_vars = request_variables.clone()
+for (name, value) in default_variable_values:
+    all_vars.entry(name).or_insert(value)     # request value always wins
+final_vars = all_vars
+```
+
+`final_vars` is what the `Executor` carries and therefore what `is_excluded(..)`
+evaluates `@skip`/`@include` against.
+
+**Remediation.** The guard must now construct
+
+```text
+effective_variables =
+    operation_defaults
+    overridden_by
+    request_variables
+```
+
+by starting from `GraphQLRequest::variables()`, reading the **selected**
+operation's `variable_definitions`, and inserting each declared default only
+where the request supplied nothing — mirroring `or_insert` exactly, with no
+additional coercion. Raw request variables are prohibited.
+
+**Measured impact.** Reproduced in a throwaway probe outside the repository,
+comparing the guard's verdict against Juniper's **actual** mutation resolver
+execution count across thirteen documents. With raw request variables the guard
+**over-rejected six of thirteen** — every omitted-but-defaulted case, rejecting
+requests the executor runs with a single occurrence. With the effective map, the
+guard matched actual execution in **all thirteen**, including through named
+fragments, fragment-spread directives and inline-fragment directives.
+
+**A pinned-stack constraint found while proving this.** Juniper's
+`default_values_of_correct_type` rule
+(`src/validation/rules/default_values_of_correct_type.rs:31-46`) rejects a
+**non-null** variable declaring a default:
+
+```text
+Argument "skip" has type "Boolean!" and is not nullable,
+so it can't have a default value
+```
+
+This deviates from the current GraphQL specification, which permits
+`$skip: Boolean! = true`. Such a document never reaches the guard — juniper's own
+validation rejects it first — so defaulted-variable tests must declare the
+variable **nullable** (`$skip: Boolean = true`), which the pinned stack accepts
+in the non-null `if:` position. Both documents are now specified accordingly; a
+test written with `Boolean! = true` would prove nothing.
+
+The specification also now requires behavioural equivalence with the executor
+across literal values, variables, operation defaults, request overrides, multiple
+directives, and directives on fields, fragment spreads and inline fragments —
+with tests asserting against **Juniper's observed execution** rather than an
+independently written expectation table, and a stop condition of
+`BLOCKED - MUTATION GUARD CANNOT MATCH PINNED JUNIPER EXECUTABLE-SELECTION SEMANTICS`
+if equivalence proves impossible.
+
+### 20.4 Required variable-default tests added
+
+| Document | Variables | Executable occurrences | Expected |
+|---|---|---|---|
+| `@skip(if: $skip)` on the duplicate, `$skip: Boolean = true` | omitted | 1 | **accepted**, not rejected in `ENFORCE` |
+| same | `{"skip": false}` | 2 | **rejected** in `ENFORCE`; would-be rejection in `OBSERVE` |
+| `@include(if: $inc)` on the duplicate, `$inc: Boolean = false` | omitted | 1 | **accepted** |
+| same | `{"inc": true}` | 2 | **rejected** |
+| defaulted case through a **named fragment**, including a directive on the spread | omitted / overridden | 1 / 2 | accepted / rejected |
+| defaulted case through an **inline fragment** | omitted / overridden | 1 / 2 | accepted / rejected |
+| request value precedence over the operation default | supplied | per value | matches juniper's `or_insert` |
+| no default declared, supplied `true` / `false` | supplied | 1 / 2 | accepted / rejected — no regression |
+
+An omitted-but-defaulted variable is explicitly **resolved**, never classified as
+an undecidable condition.
+
+### 20.5 Finding 3 — identity sweep completed
+
+The previous remediation claimed no binding unscoped store identity remained.
+That claim was **false**. `THOTH-GQL-BATCH-01` still required descendant results
+to be stored under
+
+```text
+(loader, shape, terminal key)
+```
+
+Corrected to
+
+```text
+(scope, loader, shape, terminal key)
+```
+
+with the intended semantics stated explicitly: "ordinary" means *not a special
+ancestor-prefetched namespace*, it does **not** mean *unscoped*. The binding rule
+is now
+
+```text
+same scope + same loader + same shape + same terminal key
+  => one shared entry, whichever prefetch site produced it
+different scope
+  => distinct entries
+```
+
+Also corrected in the same sweep: the descendant invariant (task invariant 17)
+and the descendant acceptance criterion, both of which referred to the "ordinary
+terminal identity" without the scope component; the equivalent `ADR-0006`
+validation-list entry; and the failure/child-lookup identities, now stated
+explicitly as `(scope, loader, shape, attempted key set)` and
+`(scope, loader, shape, parent key)`.
+
+A full re-search of both documents for `(loader, shape)`,
+`(loader, shape, key)`, `(loader identity, normalized load shape, parent key)`,
+`ordinary terminal identity`, `one request`, `same request` and `request-wide`
+leaves only: the deliberate contrasts describing what is *not* shared across
+scopes, the narrower-invalidation-primitive discussion, explicit prohibitions of
+the withdrawn wording, and historical sections. **No binding current-specification
+identity remains unscoped.**
+
+Same-scope reuse versus cross-scope isolation remains as corrected in the
+previous remediation, with the unqualified "two prefetch sites in one request
+issue no duplicate SQL" still explicitly prohibited.
+
+### 20.6 Observability and runbook reconciled
+
+The task previously stated "Required logs: none / Required metrics/alerts: none /
+Operational runbook changes: none" while the guard elsewhere required a record
+per rejection. Split by component:
+
+- **loader store** — no production log, metric or alert required before first
+  adoption; query-count evidence remains test and preview evidence;
+- **mutation guard** — production observability **required**: one structured
+  event per would-be rejection in `OBSERVE` and per actual rejection in
+  `ENFORCE`, carrying the mode, the colliding response key and the operation name
+  only when supplied, and never the document, variables, argument values or any
+  publisher or user payload data.
+
+A minimal runbook obligation was added covering how to change mode, what blocks
+`ENFORCE`, what triggers rollback, and how to verify store unavailability outside
+`ENFORCE`. No dashboard, alerting rule or on-call procedure is created.
+
+### 20.7 Fresh risk classification
+
+Re-run against `risk-classification.md` from scratch. Result: **`HIGH`**.
+
+The material change is that **merge no longer activates the guard**, so
+"production feature activation occurs at merge" is withdrawn as grounds and was
+removed rather than left standing.
+
+`HIGH` still holds on: production feature activation — at `ENFORCE`, which this
+task specifies and delivers the path for; cross-repository API contract change —
+`ENFORCE` changes accepted mutation requests for all clients including those
+outside this repository; idempotency/deduplication — the guard exists to prevent
+a duplicated write; changes to canonical data semantics; and changes capable of
+broadening processing scope. Escalation rules apply: production query volume is
+unknown and external clients cannot be enumerated.
+
+Not `Critical`: no destructive migration, no canonical data rewrite, no mass
+redistribution, no security boundary affecting all publishers (the guard only
+rejects, so it cannot broaden access), no secrets work, no metrics recomputation,
+no source-of-truth cutover, no material legal or contractual consequence, and
+rollback is certain. Not `Medium`: `ENFORCE` changes a cross-client request
+contract, beyond flagged behaviour with limited data effect.
+
+The HIGH-risk "feature flag, comparison mode or controlled pilot where possible"
+control is now discharged by the **`OBSERVE` mode** rather than by a kill switch.
+
+### 20.8 Boundaries confirmed after this remediation
+
+- **no runtime work was performed.** No runtime source, schema, migration,
+  `Cargo` manifest, lock file or workflow changed. The effective-variable
+  reproduction ran in a throwaway crate outside the repository and left nothing
+  behind in it;
+- **no production action was taken.** No mode was activated, no deployment made,
+  no configuration changed;
+- **no authorization was granted.** `ADR-0006` remains `PROPOSED`;
+  `THOTH-GQL-BATCH-01` remains `DRAFT` and `HIGH` with implementation
+  `NOT AUTHORIZED`;
+- PR #788, its branch and the `BE-02` specification unmodified;
+- issue #765 unmodified;
+- `docs/publisher-services/task-status.md` unmodified;
+- the implementation branch `feature/shared-architecture/graphql-batching` was
+  not created;
+- F1, F2 and F3 were not reopened, and F2 remains the selected architecture;
+- authorization is unchanged: the guard makes no authorization decision, keys
+  still come only from already-resolved rows, and scope identity remains
+  isolation metadata rather than permission;
+- no approval-state or transient-status prose was written into any committed
+  file.
