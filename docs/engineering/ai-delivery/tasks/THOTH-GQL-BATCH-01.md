@@ -2699,9 +2699,24 @@ Notes: this specification requires independent review and explicit CTO approval,
 and it depends on `ADR-0006` being approved and repository-authoritative.
 Approval of this specification is not implementation authorization; that is a
 separate explicit decision bound to a freshly verified exact `develop` head.
-Neither is implementation authorization a merge authorization, and neither is
-merge authorization a **production activation** authorization: the transition to
-guard mode `ENFORCE` requires its own explicit CTO approval (section 11.2).
+
+Implementation authorization is not merge authorization.
+
+Merge authorization is not **production activation** authorization:
+`OFF -> OBSERVE` requires explicit CTO production activation approval, and
+`OBSERVE -> ENFORCE` requires a second, separate explicit CTO production
+activation approval.
+
+```text
+merge authorization
+!=
+OBSERVE activation authorization
+!=
+ENFORCE activation authorization
+```
+
+Neither activation is authorized by merge approval or by the other activation.
+See section 11.2.
 
 Record only the durable implementation authorization here. Independent review
 decisions, CTO merge authorization and the merge itself are terminal GitHub

@@ -2530,3 +2530,108 @@ this review's findings, so it was **not** changed, avoiding churn.
   `NOT AUTHORIZED`; `BE-02` remains `NOT AUTHORIZED`;
 - **this remediation is not independently approved.** The resulting exact head
   requires a fresh independent exact-head review.
+
+---
+
+## 24. Ninth remediation: authorization-note consistency
+
+### 24.1 Position at the start of this remediation
+
+```text
+Previous independently reviewed head:
+b65f22a2b96c018f7f4c89742c254cd602f1f7ec
+
+Independent decision:
+CHANGES REQUIRED
+```
+
+Verified live before editing: PR #789 open and draft, base `develop`, head
+exactly `b65f22a2b96c018f7f4c89742c254cd602f1f7ec` with **no** intervening
+commit; `develop` at `5a8c27b1b7c11a4f6bd26d459556468099f8c1f4`, unchanged;
+PR #788 at `d411d4935a507804f28d8798419d405e32880d02`, `updatedAt`
+2026-08-07T17:35:39Z; issue #765 `updatedAt` 2026-07-27T15:50:33Z; `ADR-0006`
+`PROPOSED`; `THOTH-GQL-BATCH-01` `DRAFT`, `HIGH`, implementation
+`NOT AUTHORIZED`, activation readiness `BLOCKED`; no implementation branch; PR
+diff documentation-only. The review confirmed **no new technical architecture
+blocker**.
+
+### 24.2 Finding
+
+```text
+One current task authorization note still named only ENFORCE as requiring
+explicit CTO production activation approval, contradicting the task's binding
+two-activation lifecycle.
+```
+
+The stale text, in `THOTH-GQL-BATCH-01` section 17 (Approval), read:
+
+> Neither is implementation authorization a merge authorization, and neither is
+> merge authorization a **production activation** authorization: the transition
+> to guard mode `ENFORCE` requires its own explicit CTO approval (section 11.2).
+
+Naming only `ENFORCE` conflicted with the rest of the same task, which already
+requires separate CTO production activation approval for `OFF -> OBSERVE` as
+well — `OBSERVE` activates live request-path behaviour.
+
+### 24.3 Correction
+
+```text
+Merge authorization != OBSERVE activation authorization != ENFORCE activation authorization.
+
+OFF -> OBSERVE requires explicit CTO production activation approval.
+OBSERVE -> ENFORCE requires a second, separate explicit CTO production
+activation approval.
+```
+
+Section 17 now states, in order: approval of the specification is not
+implementation authorization; implementation authorization is not merge
+authorization; merge authorization is not production activation authorization,
+with both transitions named and each carrying its own explicit CTO approval; and
+neither activation is authorized by merge approval or by the other. The existing
+`ADR-0005` terminal-evidence rule immediately follows it, unchanged, and no
+transient approval identifier was introduced.
+
+### 24.4 Sweep result
+
+A semantic sweep of the current normative task, ADR and decision-register text
+for `transition to guard mode ENFORCE requires`,
+`ENFORCE requires its own explicit CTO`, `production activation authorization`,
+`merge authorization a production activation`, `only ENFORCE`,
+`at ENFORCE activation` and `behaviour changes only` leaves **no** remaining
+normative statement that names `ENFORCE` alone.
+
+Every surviving activation-authorization statement names both transitions or
+pairs them explicitly, including `ADR-0006` invariant 32, `ADR-0006` sections
+7.2.1 and 7.2.1.1, the `ADR-0006` approval-section consequence, the decision
+register's `ADR-0006` row and dependency narrative, and the task's metadata,
+HIGH-risk controls list, section 11.2 and section 11.5.
+
+One `ADR-0006` occurrence is **historical and clearly marked as superseded**: the
+approval-section narrative describing the earlier `ef3a895a…` remediation, which
+records that at that revision only the `ENFORCE` transition carried the approval
+requirement, and which already states that a later remediation extended it to
+`OBSERVE` with section 7.2.1 controlling. It was left as written, per the rule
+that historical narrative is not rewritten merely for quoting an earlier defect.
+
+`ADR-0006` and the decision register required **no** change; both had already
+been independently verified as consistent, and no current contradiction was
+found in either.
+
+### 24.5 Explicit statements
+
+- **architecture unchanged**; **F2 unchanged**; **eligibility gate unchanged**;
+  **non-mutation fast path unchanged**;
+- effective variables, scoped identities, descendant prefetch, the compatibility
+  shim, `NotLoaded`/`Loaded`/`LoadFailed`, set-based SQL and actual query-count
+  evidence, the two-stage observation model and the performance model all
+  **unchanged**;
+- **production controls unchanged except for this consistency correction**;
+- **no runtime action**; **no production action**; no guard mode activated;
+- `CG-13` remains **unresolved**, and its control-gap document was **not**
+  modified; monitoring thresholds remain **unverified**, and none was invented;
+- no claim is made that runtime rollback is certain, immediate or deploy-free;
+- `ADR-0006` remains **`PROPOSED`**; `THOTH-GQL-BATCH-01` remains **`DRAFT`**;
+  runtime implementation remains **`NOT AUTHORIZED`**; production `OBSERVE` and
+  `ENFORCE` remain **`NOT AUTHORIZED`**; `BE-02` remains **`NOT AUTHORIZED`**;
+- **this remediation is not independently approved.** The resulting exact head
+  requires a fresh independent exact-head review.
