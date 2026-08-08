@@ -49,14 +49,25 @@ production field.
 
 Four boundaries are set by `ADR-0006` and are binding on this task:
 
-- **the central mutation request guard is in scope** (`ADR-0006` section 4.12.6).
-  Before any resolver executes, a **mutation** operation in which one executable
-  top-level response key occurs more than once is rejected at the request
-  boundary. This is a **shared GraphQL execution prerequisite**, not a batching
-  helper: it protects every mutation whether or not a loader-backed field is
-  selected, because the defect it compensates — pinned Juniper executing one
-  response key's compatible occurrences as several resolver invocations — causes
-  a duplicated **write**. Query operations are not restricted;
+- **the central mutation request guard is in scope** (`ADR-0006` section 4.12.6),
+  with its behaviour qualified by **mode**:
+
+  ```text
+  OFF:      no evaluation, no rejection, no event
+  OBSERVE:  evaluate exactly as ENFORCE would, never reject
+  ENFORCE:  a baseline-valid mutation operation in which one executable
+            top-level response key occurs more than once is rejected
+            before any resolver executes
+  ```
+
+  In every mode, a request that fails the baseline eligibility gate
+  (`ADR-0006` section 4.12.6.5.3) yields **no** guard decision and **no** event;
+  ordinary juniper remains the sole authority for its error. This is a **shared
+  GraphQL execution prerequisite**, not a batching helper: it protects every
+  mutation whether or not a loader-backed field is selected, because the defect
+  it compensates — pinned Juniper executing one response key's compatible
+  occurrences as several resolver invocations — causes a duplicated **write**.
+  Query operations are not restricted;
 - **top-level-response-key scoping is in scope** (`ADR-0006` section 4.12). The
   store is owned by one GraphQL request but partitioned by the current top-level
   GraphQL response key, giving the store identity
@@ -146,6 +157,41 @@ section 1.2 apply, with `risk-classification.md`'s "feature flag, comparison mod
 or controlled pilot where possible" discharged by the **`OBSERVE` mode**
 (section 11.2) rather than by a kill switch.
 
+#### Re-evaluation after the validation-ordering correction
+
+Re-run again against `risk-classification.md` after the eligibility-gate
+correction, rather than copied forward. The result is **`HIGH`**, unchanged.
+
+**What the correction changed, assessed factor by factor rather than assumed:**
+
+| Factor | Effect of the eligibility gate |
+|---|---|
+| **external API behaviour** | **reduced risk.** The gate's purpose is to stop the guard replacing juniper's canonical validation, operation-selection and input errors. Client-visible behaviour for invalid requests is now provably preserved rather than incidentally preserved |
+| **availability** | **slightly increased.** The guard now runs juniper's validation helpers on the mutation path in `OBSERVE`/`ENFORCE`, so a panic or pathological input in that code would affect mutation availability. Bounded by: it calls juniper's own helpers rather than new parsing logic; `OFF` short-circuits entirely; and rollback to `OFF` is a configuration change |
+| **performance** | **increased on the guarded path.** Mutations are parsed and validated twice in `OBSERVE`/`ENFORCE`. Bounded to mutations only, absent in `OFF`, absent at merge, and exercised in preview before activation |
+| **rollback certainty** | **unchanged and still high.** `ENFORCE -> OBSERVE -> OFF` remains a configuration change without a deploy, and `OFF` now provably costs nothing |
+| **pinned-dependency coupling** | **increased.** The guard now depends on juniper's *request pipeline* composition — which helpers `execute` calls and in what order — as well as on its executor semantics. This strengthens the revalidation obligation on any juniper upgrade |
+| **evidence integrity** | **materially improved.** `OBSERVE` counts can no longer be inflated by traffic juniper would never execute, so the evidence gating `ENFORCE` is now trustworthy |
+
+**Classification.** `HIGH` still holds on the same criteria as before —
+production feature activation (at `ENFORCE`, not at merge), cross-repository API
+contract change, idempotency/deduplication, canonical data semantics, and
+changes capable of broadening processing scope — with escalation applying because
+production query volume is unknown and external clients cannot be enumerated.
+
+**"Production feature activation at merge" remains withdrawn** as a ground: the
+merged state is `guard OFF, store unavailable`, and the correction reinforces
+this by making `OFF` cost-free.
+
+Not raised to `Critical`: the new work is read-only analysis on an existing
+request path that only ever *declines to act*; there is no destructive migration,
+canonical rewrite, mass redistribution, security-boundary change, secrets work,
+metrics recomputation or source-of-truth cutover, and rollback stays certain. Not
+lowered: the added availability, performance and dependency-coupling exposure all
+point the other way, and the docs-only nature of **this PR** is irrelevant — the
+classification is of the future implementation and release behaviour being
+specified.
+
 The remainder of this section records the store-side rationale, which is
 unchanged.
 
@@ -179,9 +225,10 @@ Factors bounding it:
   The set of accepted **requests** does change (`ADR-0006` section 4.12.6.7);
 - the always-correct direct fallback means a scope-extraction failure degrades to
   unbatched-but-correct, not to wrong data (`ADR-0006` section 4.12.9);
-- the guard fails **closed**: it only ever rejects a request, and a rejected
-  request executes no resolver and performs no write, so its failure mode is
-  refusal rather than incorrect data.
+- the guard fails **closed**: at most it declines a request, and a request it
+  rejects executes no resolver and performs no write, so its failure mode is
+  refusal rather than incorrect data. It never rejects outside `ENFORCE`, and
+  never for a baseline-invalid request in any mode.
 
 Against the framework, this sits squarely in `HIGH`: it matches "changes to
 canonical data semantics" (a data-loading path substituted for a field's direct
@@ -312,10 +359,31 @@ The task must:
    depends on it. Binding properties, all of which use public non-`unsafe`
    juniper API only:
 
-   - it parses the incoming document with
-     `juniper::parser::parse_document_source`, selects the operation with
-     `juniper::executor::get_operation` honouring `operationName`, and reads
-     `Operation::operation_type`;
+   - it checks its **mode first**. In `OFF` it returns immediately, before any
+     parsing or validation, so `OFF` imposes no duplicate-work cost on production
+     traffic (`ADR-0006` section 4.12.6.6);
+   - in `OBSERVE` and `ENFORCE` it then runs the **baseline eligibility gate** of
+     `ADR-0006` section 4.12.6.5.3, reproducing pinned juniper's own request
+     pipeline stages in the same order, using juniper's own public helpers:
+
+     ```text
+     parse_document_source                                      (parse)
+     ValidatorContext::new + visit_all_rules                    (document/schema)
+       + validation::visit(MultiVisitorNil.with(
+           rules::disable_introspection::factory()))
+         only when RootNode::introspection_disabled
+     get_operation(document, operationName)                     (operation selection)
+     validate_input_values(variables, operation, schema)        (input variables)
+     ```
+
+     **If any stage reports an error the request is baseline-invalid**: the guard
+     performs **no** duplicate-key analysis, emits **no** observation event,
+     returns **no** guard error, and lets the ordinary
+     `GraphQLRequest::execute()` path produce its canonical error. The gate must
+     never return, rewrite or suppress a validation error of its own — it decides
+     only whether the guard is *allowed* to decide;
+   - only for a baseline-valid request does it read `Operation::operation_type`
+     and proceed;
    - it applies **only** to `OperationType::Mutation`. Query operations are
      returned unchanged and are never restricted (4.12.6.8);
    - it expands named fragment spreads and inline fragments before counting
@@ -654,13 +722,14 @@ The task must not:
     rule;
 12. implement `ADR-0006` option C (an N+1 exception) or option D (removing the
     nested field);
-13. deploy, release, or run a production migration. **Narrow exception,
-    deliberate and recorded:** the section 6.6 request guard is behaviour that
-    takes effect on the common GraphQL request path at merge (section 11). That
-    is not a discretionary activation the implementing agent performs — it is a
-    property of the merge itself, covered by the CTO merge authorization, and it
-    must be reported plainly rather than described as inert. No **store** feature
-    is activated for any production field;
+13. deploy, release, run a production migration, or **activate any guard mode**.
+    The guard's runtime code is delivered by this task, but its merged
+    production mode is **`OFF`**: it evaluates nothing, rejects nothing and emits
+    no event, so merging changes no production request behaviour (section 11.1).
+    Moving to `OBSERVE`, and later to `ENFORCE`, are **separate authorized
+    activations** — CTO merge authorization is **not** authorization for guard
+    behaviour. No **store** feature is activated for any production field
+    either, and the store is unavailable outside `ENFORCE`;
 14. change CI workflows, repository settings or branch protection;
 15. modify any production mutation resolver, or require mutation resolvers to
     call invalidation. Avoiding that retrofit is a principal reason `ADR-0006`
@@ -759,10 +828,28 @@ summary, and binding here:
     occurs exactly once, guaranteed by the section 6.6 request guard rather than
     by GraphQL validation, so a scope corresponds to exactly one mutation
     resolver execution;
-28. a **rejected** mutation operation executes no mutation resolver and performs
-    no database write;
-29. the store is unavailable whenever the guard is not applied; "batching on,
-    guard off" is not a representable state.
+28. a mutation operation rejected **by the guard** executes no mutation resolver
+    and performs no database write. Guard rejection happens only in `ENFORCE`,
+    and only for a **baseline-valid** request;
+29. the guard makes no decision and emits no event for a request that fails the
+    baseline eligibility gate (`ADR-0006` section 4.12.6.5.3), in any mode.
+    Ordinary juniper remains the sole authority for parse, validation,
+    operation-selection and input errors, and the guard neither replaces,
+    rewrites nor suppresses any of them;
+30. loader store availability is tied to **enforcement**, not to whether the
+    guard evaluated:
+
+    ```text
+    loader store available  =>  guard mode == ENFORCE
+
+    OFF     -> loader store unavailable
+    OBSERVE -> loader store unavailable   (the detector runs; the store does not)
+    ENFORCE -> loader store may be available
+    ```
+
+    `OFF + store available` and `OBSERVE + store available` must be structurally
+    **unrepresentable**, not maintained by operator discipline over two
+    independent flags.
 
 ---
 
@@ -928,17 +1015,32 @@ existing handler branch returns HTTP 400, and the body is the ordinary
 executes, no database write occurs, and no partial mutation execution is
 possible.
 
+**Baseline eligibility.** Everything in this section applies **only** to a
+request that passes the baseline eligibility gate of `ADR-0006` section
+4.12.6.5.3. For a baseline-invalid request — parse failure, document/schema
+validation failure, introspection-disabled failure where applicable, operation
+selection failure, or input-variable validation failure — the guard makes no
+decision in any mode, emits no event, and returns no error. Ordinary juniper
+produces the canonical response.
+
 **Modes.** The behaviour above is the `ENFORCE` behaviour. Binding per mode
 (`ADR-0006` section 4.12.6.6):
 
-| Mode | Evaluates | Rejects | Observation event | Loader store |
-|---|---|---|---|---|
-| `OFF` (default, and the merged state) | no | no | none | **unavailable** |
-| `OBSERVE` | yes, exactly as `ENFORCE` | **no** | one per would-be rejection | **unavailable** |
-| `ENFORCE` | yes | yes | one per actual rejection | may be available |
+| Mode | Eligibility gate | Evaluates | Rejects | Observation event | Loader store |
+|---|---|---|---|---|---|
+| `OFF` (default, and the merged state) | **not run** | no | no | none | **unavailable** |
+| `OBSERVE` | run | yes, exactly as `ENFORCE` | **no** | one per would-be rejection, baseline-valid only | **unavailable** |
+| `ENFORCE` | run | yes | yes, baseline-valid only | one per actual rejection | may be available |
 
 In `OBSERVE` the request continues through existing Juniper execution completely
-unchanged; detection must have no effect on the response.
+unchanged; detection must have no effect on the response, the resolver counts or
+the errors.
+
+**Cost, stated accurately.** In `OBSERVE` and `ENFORCE` a mutation request is
+parsed and validated **twice** — once by the eligibility gate and once inside
+`GraphQLRequest::execute()`. This must be reported as duplicate parse **and
+validation** work, never as "one extra parse". `OFF` short-circuits ahead of all
+of it.
 
 **Prerequisite coupling.** The store's mutation isolation guarantee derives from
 enforcement:
@@ -1002,8 +1104,13 @@ statement for the guard.
 | Mode | Required event |
 |---|---|
 | `OFF` | none — the guard evaluates nothing |
-| `OBSERVE` | one structured event per **would-be** rejection |
+| `OBSERVE` | one structured event per **would-be** rejection, **baseline-valid requests only** |
 | `ENFORCE` | one structured event per **actual** rejection |
+
+A request failing the baseline eligibility gate emits **no** guard event in any
+mode. This is a correctness requirement, not a volume preference: an event for
+traffic juniper would never execute would corrupt the compatibility evidence the
+`OBSERVE` window exists to produce (section 11.4).
 
 Each event must carry:
 
@@ -1051,8 +1158,12 @@ on-call procedure.
 
 **Central mutation request guard (`ADR-0006` section 4.12.6; section 6.6)**
 
-- [ ] A mutation with a duplicate executable top-level response key written
-      directly is rejected before execution.
+All rejection criteria below apply to **baseline-valid** requests in guard mode
+**`ENFORCE`**. In `OFF` nothing is evaluated; in `OBSERVE` the same decision is
+made but nothing is rejected.
+
+- [ ] A **baseline-valid** mutation with a duplicate executable top-level
+      response key written directly is rejected before execution, in `ENFORCE`.
 - [ ] The same duplicate introduced through a **named fragment spread** is
       rejected.
 - [ ] The same duplicate introduced through an **inline fragment** is rejected.
@@ -1076,9 +1187,26 @@ on-call procedure.
       expectation.
 - [ ] An omitted-but-defaulted variable is treated as **resolved**, never as an
       undecidable condition.
+- [ ] The guard runs the baseline eligibility gate of `ADR-0006` section
+      4.12.6.5.3 — parse, document/schema validation (plus the
+      introspection-disabled rule where applicable), operation selection and
+      input-variable validation — using pinned juniper's own public helpers, in
+      that order, before any duplicate-key analysis.
+- [ ] A baseline-invalid request produces **no** guard rejection and **no**
+      observation event in any mode, and its externally visible error and HTTP
+      status are byte-comparable to ordinary juniper with no guard present.
+      Proved for each failing gate: parse, document validation, operation
+      selection and input validation.
+- [ ] The eligibility gate returns, rewrites and suppresses **no** validation
+      error of its own; it only decides whether the guard may decide.
 - [ ] Guard mode defaults to `OFF`, and the merged state is `OFF`.
+- [ ] In `OFF` the guard short-circuits **before** parsing or validating, so it
+      imposes no duplicate parse/validation cost.
 - [ ] In `OFF` the guard evaluates nothing and rejects nothing; production
       request acceptance is byte-identical to the base.
+- [ ] The implementation report states the overhead as duplicate parse **and
+      validation** on the guarded path in `OBSERVE`/`ENFORCE`, never as "one
+      extra parse".
 - [ ] In `OBSERVE` a document `ENFORCE` would reject is **not** rejected,
       executes normally with an unchanged response, and produces exactly one
       observation event.
@@ -1327,6 +1455,44 @@ mutations and types; **no production mutation resolver may be modified**.
 - **rejected — duplicate through a named fragment** — the equivalent duplicate
   introduced by a fragment spread is rejected;
 - **rejected — duplicate through an inline fragment** — likewise;
+- **baseline-invalid requests must not produce guard decisions.** Binding, and
+  the whole matrix is required. Each document must be **both** baseline-invalid
+  **and** shaped as a duplicate top-level mutation response key, so that a guard
+  which ignored the eligibility gate would visibly misbehave. For every case,
+  run the same request through the guarded path and through ordinary pinned
+  juniper with no guard present, and assert all of:
+
+  - in `OBSERVE`: the request is **not** rejected by the guard, **no**
+    would-be-rejection compatibility event is emitted, and the externally
+    visible error is the ordinary juniper error;
+  - in `ENFORCE`: the guard returns **no** duplicate-key rejection, zero
+    application resolvers run and zero writes occur (as they already would under
+    a validation failure), and the externally visible error is the ordinary
+    juniper error;
+  - in both: the response body and HTTP status are byte-comparable to the
+    no-guard baseline.
+
+  Required categories, each with a duplicate top-level response key present:
+
+  | Category | Example | Failing gate |
+  |---|---|---|
+  | unknown field | a top-level field not on `MutationRoot` | document validation |
+  | invalid field selection | a sub-selection on a scalar field | document validation |
+  | invalid directive usage | an unknown directive on a top-level field | document validation |
+  | non-null variable declaring a default | `$skip: Boolean! = true` — the form pinned juniper itself rejects | document validation |
+  | missing required variable | `$skip: Boolean!` with no value supplied | input validation |
+  | invalid variable value/type | `$skip: Boolean!` supplied a string | input validation |
+  | multiple operations, no `operationName` | two named mutations, none selected | operation selection |
+  | unknown `operationName` | a name matching no operation | operation selection |
+  | parse failure | a syntactically invalid document | parse |
+
+  The operation-selection cases specifically prove the guard makes **no**
+  collision decision before operation selection has succeeded;
+
+- **`OFF` short-circuits before the gate** — in `OFF`, none of the above
+  documents is parsed or validated by the guard at all, and behaviour is
+  byte-identical to the no-guard baseline;
+
 - **directives — literal and supplied variables** — `@skip` and `@include` with
   literal Boolean conditions and with request-supplied variables, proven in both
   directions. A syntactic duplicate that is definitely excluded for the concrete
@@ -1336,7 +1502,12 @@ mutations and types; **no production mutation resolver may be modified**.
 - **directives — operation variable defaults.** Binding, and all of the
   following are required. Note that the defaulted variable must be declared
   **nullable**: the pinned `default_values_of_correct_type` rule rejects
-  `Boolean! = true` outright, so such a document never reaches the guard.
+  `Boolean! = true` outright, so a `Boolean! = true` document is classified
+  **baseline-invalid** at the eligibility gate and never reaches the guard's
+  directive logic — it exercises juniper's validation rejection instead, and
+  proves nothing about directive evaluation. (It *does* reach the guard's
+  eligibility gate, which runs before `GraphQLRequest::execute()`; that case is
+  covered separately by the baseline-invalid matrix above.)
 
   - **`@skip` default true, variable omitted**
 
@@ -1732,7 +1903,9 @@ environment and prove:
 - in `OBSERVE`, none of those requests is rejected;
 - in `ENFORCE`, a rejected request executes zero resolvers and performs zero
   writes;
-- ordinary validation failures are unchanged;
+- ordinary validation failures are unchanged, including when the invalid document
+  also carries a duplicate top-level response key: the client receives juniper's
+  canonical error and no guard event is recorded;
 - the store is unavailable in `OFF` and in `OBSERVE`.
 
 ### 11.4 OBSERVE evidence, required before ENFORCE
@@ -1877,6 +2050,22 @@ The implementing agent must stop and report `BLOCKED` if:
   definitely excludes for the concrete request, so ordinary conditional documents
   would be rejected. Report `BLOCKED` rather than broadening the compatibility
   restriction beyond `ADR-0006` section 4.12.6.7;
+- the baseline eligibility gate cannot be reproduced on stable public pinned
+  juniper APIs — `parse_document_source`, `ValidatorContext`, `visit_all_rules`,
+  `validation::visit` with `MultiVisitorNil` and
+  `rules::disable_introspection::factory`, `get_operation`,
+  `validate_input_values`, and the public `RootNode::schema` /
+  `RootNode::introspection_disabled` fields. Report `BLOCKED`; do **not** reach
+  into private fields, use `unsafe`, manipulate raw source, or build a second
+  GraphQL implementation to get there;
+- a baseline-invalid request cannot be prevented from producing a guard
+  rejection or an observation event. Report `BLOCKED` rather than shipping a
+  guard that can replace juniper's canonical errors or corrupt the `OBSERVE`
+  compatibility evidence;
+- `OFF` cannot be made to short-circuit ahead of the eligibility gate, so `OFF`
+  would impose parse/validation cost on production traffic. Report `BLOCKED`
+  rather than accepting overhead in the mode whose purpose is to preserve
+  current behaviour exactly;
 - the guard's directive evaluation cannot be made behaviourally equivalent to the
   pinned executor's effective-selection semantics — including operation variable
   defaults, request-variable override, and directives on fields, fragment spreads
@@ -1979,6 +2168,18 @@ The report must additionally contain:
   public Juniper APIs it calls, how it expands named and inline fragments, how it
   handles a genuinely undecidable condition, and confirmation that it does not
   replace `GraphQLRequest::execute` and makes no authorization decision;
+- the **baseline eligibility gate** as implemented: the exact pinned juniper
+  entry points called, in what order, the evidence that they match
+  `execute`/`execute_sync`'s own pipeline, and confirmation that no private
+  field, `unsafe`, raw-source manipulation or second GraphQL implementation was
+  used;
+- the **baseline-invalid matrix results**: for each failing gate, the guarded
+  path compared against ordinary juniper with no guard present, showing identical
+  externally visible error and HTTP status, no guard rejection, no observation
+  event, and zero resolvers/writes;
+- the **overhead** stated accurately as duplicate parse **and validation** in
+  `OBSERVE`/`ENFORCE`, with confirmation that `OFF` short-circuits ahead of it.
+  The phrase "one extra parse" must not appear;
 - the **effective-variable construction** as implemented: how operation
   `variable_definitions` defaults are read, how request variables override them,
   and the evidence that this matches the pinned executor's `or_insert`

@@ -770,14 +770,24 @@ optimisation or a detail of the first: without it the first is unsound on the
 pinned stack, for the reasons established in section 4.12.6.
 
 > **Control 1 — central mutation request guard (section 4.12.6).**
-> At the GraphQL request boundary, before any resolver executes, Thoth rejects a
-> **mutation** operation in which one top-level response key has more than one
-> executable field occurrence:
+> At the GraphQL request boundary, and **only in guard mode `ENFORCE`**, Thoth
+> rejects — before any resolver executes — a **baseline-valid mutation**
+> operation in which one top-level response key has more than one executable
+> field occurrence:
 >
 > ```text
-> for a mutation operation:
+> for a baseline-valid mutation operation, in ENFORCE:
 >   each executable top-level response key occurs at most once
 > ```
+>
+> "Baseline-valid" means the request passed the eligibility gate of section
+> 4.12.6.5.3 — parse, document/schema validation, operation selection and
+> input-variable validation, using pinned juniper's own helpers. A
+> baseline-invalid request is left entirely to ordinary juniper, which produces
+> its canonical error; the guard makes no decision about it in any mode.
+>
+> In `OFF` the guard does not evaluate and does not reject. In `OBSERVE` it makes
+> the same decision `ENFORCE` would but never rejects (section 4.12.6.6).
 >
 > Query operations are **not** restricted and keep ordinary GraphQL/Juniper
 > behaviour.
@@ -1181,25 +1191,173 @@ Argument "skip" has type "Boolean!" and is not nullable,
 so it can't have a default value
 ```
 
-(`src/validation/rules/default_values_of_correct_type.rs:31-46`). This is a
+(`src/validation/rules/default_values_of_correct_type.rs:22-46`). This is a
 deviation from the current GraphQL specification, which permits
-`$skip: Boolean! = true`, and it means such a document never reaches the guard
-at all — juniper's own validation rejects it first. Defaulted-variable tests
-must therefore declare the variable **nullable** — `$skip: Boolean = true` —
-which the pinned stack does accept in the non-null `if:` position. Any
-specification or test that writes `Boolean! = true` is untestable on this stack.
+`$skip: Boolean! = true`. Defaulted-variable tests must therefore declare the
+variable **nullable** — `$skip: Boolean = true` — which the pinned stack does
+accept in the non-null `if:` position. Any specification or test that writes
+`Boolean! = true` exercises juniper's validation rejection rather than the
+guard's directive logic, and proves nothing about the latter.
+
+**Corrected reasoning.** An earlier revision said such a document "never reaches
+the guard at all — juniper's own validation rejects it first". **That is false**
+under the architecture specified here, and the error mattered enough to be
+load-bearing. The guard runs at the request boundary, *before*
+`GraphQLRequest::execute()`, so it sees the document first and juniper's
+validation has not run yet. A `Boolean! = true` document does reach the guard;
+section 4.12.6.5.3 is what excludes it, by classifying it **baseline-invalid**
+at the guard's own eligibility gate. Nothing about juniper's later `execute()`
+call runs before the guard.
+
+##### 4.12.6.5.3 Baseline-validation eligibility gate
+
+**This section corrects a P1 defect** found by independent review of exact head
+`78cd44eae086d8cce00661f3c6317c55579556f4`. It does **not** reopen F2.
+
+**The defect.** The guard was specified to run at the request boundary, before
+`data.execute(&st, &ctx).await`. But the pinned `GraphQLRequest::execute`
+(`src/http/mod.rs:111-131`) delegates to the crate-level `execute`, and both
+`execute` (`src/lib.rs:193-237`) and `execute_sync` (`src/lib.rs:147-189`)
+perform juniper's ordinary request pipeline *inside* that call:
+
+```text
+parse_document_source                   lib.rs:160  / 210
+document/schema validation              lib.rs:162-177 / 212-227
+  ValidatorContext::new
+  visit_all_rules
+  disable_introspection rule, if RootNode::introspection_disabled
+get_operation                           lib.rs:179  / 229
+validate_input_values                   lib.rs:181-187 / 231-235
+execute_validated_query{,_async}        lib.rs:189  / 236
+```
+
+A guard placed before that call therefore sees **every** document, including
+documents juniper would reject before executing any resolver. Consequences, all
+real rather than cosmetic:
+
+- in `ENFORCE`, a guard rejection could **replace** juniper's canonical
+  validation, operation-selection or input error, changing the error a client
+  receives for an already-invalid request;
+- in `OBSERVE`, a would-be-rejection event could be recorded for traffic juniper
+  would never execute, **corrupting the compatibility evidence** that decides
+  whether `ENFORCE` is safe — the one thing `OBSERVE` exists to measure;
+- directive evaluation could run on AST shapes the executor only ever handles
+  *after* validation has established their well-formedness.
+
+**The correction.** Successful ordinary juniper validation becomes a
+**prerequisite** for duplicate-key analysis. The request-boundary behaviour is:
+
+```text
+parse
+  -> baseline Juniper-equivalent document/schema validation
+  -> operation selection
+  -> baseline Juniper-equivalent input-variable validation
+
+  -> if baseline-invalid:
+       do not run duplicate-key analysis
+       emit no OBSERVE would-be-rejection event
+       return no guard-specific error
+       let the existing Juniper execution path produce its canonical error
+
+  -> if baseline-valid:
+       OFF:      no analysis; continue through existing Juniper execution
+       OBSERVE:  make exactly the decision ENFORCE would make;
+                 never reject; on collision emit the bounded observation event;
+                 continue through existing Juniper execution unchanged
+       ENFORCE:  collision    -> reject before resolver execution
+                 no collision -> continue through existing Juniper execution
+```
+
+**This layer is an eligibility gate, not a replacement executor.** It decides
+only whether the guard is *allowed* to make a decision. The ordinary
+`GraphQLRequest::execute()` path remains solely responsible for producing the
+canonical GraphQL response, including every validation error. The gate must
+introduce **no** externally visible validation semantics of its own: it never
+returns a validation error, never rewrites one, and never suppresses one.
+
+**The baseline conditions.** All of the following must pass before the guard may
+make an `OBSERVE` or `ENFORCE` duplicate-key decision. Any failure means *not
+eligible*:
+
+| Gate | Reproduced with | Failure examples |
+|---|---|---|
+| parse | `parse_document_source` | syntax error |
+| document/schema validation | `ValidatorContext::new` + `visit_all_rules` | unknown field, invalid selection on a scalar, unknown directive, non-null variable declaring a default |
+| introspection-disabled validation, **only if** `RootNode::introspection_disabled` | `validation::visit` + `MultiVisitorNil.with(rules::disable_introspection::factory())` | introspection field when disabled |
+| operation selection | `get_operation` | multiple operations with no `operationName`, unknown `operationName` |
+| input-variable validation | `validate_input_values` | missing required variable, wrong variable type |
+
+Thoth's `create_schema()` (`thoth-api/src/graphql/mod.rs:17-19`) uses
+`RootNode::new`, which sets `introspection_disabled: false`
+(`src/schema/model.rs:161`), so the introspection rule is currently a no-op for
+Thoth. It is specified anyway, because equivalence must not silently depend on
+that staying true.
+
+**Equivalence boundary — stated precisely, not overclaimed.** This is
+**not** a claim of byte-identical validation. What is claimed, and what the
+implementation must hold to, is narrower:
+
+> The gate runs the **same** pinned juniper validation entry points, in the
+> **same** order, against the **same** document and variables, and treats *any*
+> error from them as ineligible.
+
+It does not reimplement a rule, does not add a rule, and does not interpret the
+errors it receives — it only distinguishes "no errors" from "some errors". Since
+it calls juniper's own helpers rather than reproducing their logic, drift is
+confined to juniper changing which helpers `execute` calls or in what order, and
+that is covered by the revalidation obligation of section 4.12.14.
+
+**The honest cost.** The gate parses and validates, and then
+`GraphQLRequest::execute()` parses and validates **again**. The earlier
+description of the overhead as "one additional document parse" is **withdrawn**
+as understated. The accurate statement is:
+
+```text
+correctness / compatibility preservation
+vs
+duplicate parse + duplicate document validation + duplicate operation selection
++ duplicate input validation, on the guarded request path
+```
+
+This cost is accepted deliberately and must not be optimised away by reaching
+into juniper internals to execute an already-validated document: the pinned
+`execute_validated_query{,_async}` are public, but driving them directly would
+make Thoth responsible for reproducing the whole request pipeline, which section
+4.12.6.5 already rejected on blast-radius grounds. A future juniper version may
+offer a clean validated-document execution boundary; adopting one is outside
+this decision unless correctness requires it.
+
+**The cost is incurred only where the guard evaluates.** In `OFF` the mode is
+checked **before** any parsing or validation, so `OFF` adds no parse, no
+validation and no allocation beyond a branch — see section 4.12.6.6.
+
+**Feasibility, verified.** The entire gate was reproduced against the pinned
+crate using **only** public APIs — `juniper::parser::parse_document_source`;
+`juniper::validation::{ValidatorContext, visit_all_rules, visit,
+MultiVisitorNil, validate_input_values, rules::disable_introspection::factory}`;
+`juniper::executor::get_operation`; and the public `RootNode::schema` /
+`RootNode::introspection_disabled` fields. No private field access, no `unsafe`,
+no raw-source manipulation and no second GraphQL implementation. Across eight
+baseline-invalid documents that *also* contained a duplicate-response-key shape
+— unknown field, invalid scalar sub-selection, unknown directive, missing
+required variable, wrong variable type, non-null variable with a default,
+multiple operations without `operationName`, and unknown `operationName` — the
+gate classified **all eight** ineligible while juniper produced its own
+canonical error and executed **zero** resolvers, and it still produced the
+correct decision for every baseline-valid case.
 
 **The guard does not replace `GraphQLRequest::execute`.** It runs before it, on
 the same `GraphQLRequest` the handler already owns, and the accepted-request
-execution path is untouched. Explicit parse/validate/execute orchestration —
-`parse_document_source` → `ValidatorContext`/`visit_all_rules` →
-`execute_validated_query{,_async}` — is also fully public and was confirmed
-available, but it is **not** adopted: it would reimplement juniper's request
-pipeline and couple Thoth to far more of it than the guard needs. The accepted
-cost is instead **one additional document parse per mutation request**, which
-must be recorded as such and not presented as free. That cost is incurred only in
-`OBSERVE` and `ENFORCE`; in `OFF` the guard evaluates nothing and adds none
-(section 4.12.6.6).
+execution path is untouched. Driving `execute_validated_query{,_async}` directly
+— fully public, and confirmed available — is **not** adopted: it would make
+Thoth responsible for juniper's whole request pipeline and couple it to far more
+of that pipeline than the guard needs.
+
+The accepted cost is therefore the **duplicate parse and validation** described
+in section 4.12.6.5.3, incurred only in `OBSERVE` and `ENFORCE`. In `OFF` the
+mode is checked first and the guard performs no parse and no validation at all
+(section 4.12.6.6). This must be recorded as such and never described as "one
+additional parse", which understates it.
 
 ##### 4.12.6.6 Guard operating modes, and the fail-closed dependency
 
@@ -1213,16 +1371,22 @@ an implementation pull request merges. The "active by default" rule is
 
 The guard has exactly three operating modes.
 
-| Mode | Rejects? | Evaluates the document? | Loader store | Request acceptance |
-|---|---|---|---|---|
-| **OFF** | no | no | **unavailable** | unchanged from today |
-| **OBSERVE** | no | yes, exactly as ENFORCE would | **unavailable** | unchanged from today |
-| **ENFORCE** | yes | yes | may become available | duplicate top-level mutation response keys rejected |
+| Mode | Eligibility gate (4.12.6.5.3) | Duplicate-key analysis | Rejects? | Observation event | Loader store | Request acceptance |
+|---|---|---|---|---|---|---|
+| **OFF** | **not run** | no | no | none | **unavailable** | unchanged from today |
+| **OBSERVE** | run | yes, exactly as ENFORCE would | **no** | one per would-be rejection | **unavailable** | unchanged from today |
+| **ENFORCE** | run | yes | yes | one per actual rejection | may become available | baseline-valid duplicate top-level mutation response keys rejected |
 
 **OFF — the state at repository merge.** Binding:
 
 - it is the **default** mode, and the mode the foundation merges in;
-- the guard performs no rejection;
+- the mode is checked **first**, before any parsing or validation, so `OFF`
+  **short-circuits ahead of the eligibility gate entirely**. It performs no
+  parse, no validation and no duplicate-key analysis. This is required, not
+  merely permitted: `OFF` exists to preserve current behaviour and must not
+  impose the section 4.12.6.5.3 duplicate-work cost on production traffic that
+  gains nothing from it;
+- the guard performs no rejection and emits no event;
 - existing production request acceptance is **unchanged**;
 - the loader store is **unavailable**: every loader lookup behaves as
   `NotLoaded` and every affected field uses the existing direct-query fallback
@@ -1234,22 +1398,32 @@ behaviour at all.
 
 **OBSERVE — the controlled compatibility pilot.** Binding:
 
-- the guard parses and evaluates mutation requests **exactly as ENFORCE would**,
-  including fragment expansion and effective-variable directive evaluation
-  (section 4.12.6.5.1);
-- it detects duplicate executable top-level mutation response keys;
-- it **does not reject** the request, which continues through existing Juniper
-  execution unchanged;
-- it records one bounded compatibility-observation event per would-be rejection
+- it runs the **eligibility gate** of section 4.12.6.5.3 first. A
+  baseline-invalid request yields **no** analysis, **no** observation event and
+  **no** guard error; it continues to the ordinary juniper path, which produces
+  its canonical error;
+- for a baseline-valid **mutation** operation, it makes **exactly** the decision
+  `ENFORCE` would make, including fragment expansion and effective-variable
+  directive evaluation (section 4.12.6.5.1);
+- it **never rejects**. The request continues through existing juniper
+  execution completely unchanged — detection must not perturb the response, the
+  resolver counts, or the errors;
+- on a collision it records one bounded compatibility-observation event
   (section 8.3);
 - the loader store remains **unavailable**.
 
 **ENFORCE — the enforcing state.** Binding:
 
-- duplicate executable top-level mutation response keys are rejected **before**
-  resolver execution;
+- it runs the **eligibility gate** first. A baseline-invalid request is left
+  entirely to juniper: no duplicate-key rejection is returned, and juniper's
+  canonical validation, operation-selection or input error reaches the client
+  unchanged. Zero resolvers run, as they already would under a validation
+  failure;
+- for a baseline-valid mutation operation, a duplicate executable top-level
+  response key is rejected **before** resolver execution;
 - zero mutation resolver executions and zero database writes for a rejected
   request;
+- a non-collision request continues through ordinary juniper execution;
 - the loader store **may** become available;
 - the mutation-isolation guarantee of invariant 10 is active.
 
@@ -2179,10 +2353,16 @@ A claim of loader-backed-field compliance must state which scope it covers.
     **not** true of the pinned executor on its own (4.12.6.1), and it is **not**
     true in OFF or OBSERVE — which is exactly why the store is unavailable in
     those modes (invariant 30).
-27. A rejected mutation operation executes **no** mutation resolver and performs
-    **no** database write. Rejection precedes execution entirely. Nothing is
-    rejected in OBSERVE: a would-be rejection is recorded and the request then
-    executes normally.
+27. A mutation operation rejected **by the guard** executes **no** mutation
+    resolver and performs **no** database write. Rejection precedes execution
+    entirely, happens only in `ENFORCE`, and only for a **baseline-valid**
+    request. Nothing is rejected in `OBSERVE`: a would-be rejection is recorded
+    and the request then executes normally.
+27a. The guard never rejects, and never records an observation event, for a
+    request that fails the baseline eligibility gate of section 4.12.6.5.3. Such
+    a request is left entirely to ordinary juniper, which remains the sole
+    authority for parse, validation, operation-selection and input errors. The
+    guard neither replaces, rewrites nor suppresses any of them.
 28. The guard restricts **only** duplicate executable top-level response keys in
     **mutation** operations. Query operations, non-top-level selections, and
     distinct top-level aliases are unaffected, and a duplicate that
@@ -2236,7 +2416,7 @@ listed as *expected* only where inspection supports it.
 | a small, separate compatibility-shim module | the single `top_level_response_key(executor)` helper of section 4.12.8, its fail-closed behaviour, its documented pinned-Juniper coupling and its own regression tests. Kept separate from the store module so the coupling is visible and greppable, and so a Juniper upgrade has one place to revalidate (4.12.14) |
 | a separate request-boundary guard module under `thoth-api/src/graphql/` | the central duplicate-mutation-response-key guard of section 4.12.6: document parse, operation selection, operation-type discrimination, effective-variable construction (4.12.6.5.1), fragment and inline-fragment expansion, `@skip`/`@include` evaluation, duplicate detection, the OFF/OBSERVE/ENFORCE mode, the observation event and the `RuleError` it returns. Kept separate from the store because it is a **shared GraphQL execution** control that protects every mutation, not a batching helper (4.12.6.4) |
 | `thoth-api/src/model/**` | for an adopting field only: a set-based query function using `.eq_any(...)`. The foundation itself adds none |
-| `thoth-api-server/src/lib.rs` | **changes.** The `graphql` handler invokes the guard on the incoming `GraphQLRequest` before `data.execute(&st, &ctx).await`, returning the guard's `GraphQLResponse` unchanged through the existing `is_ok()` branch (`:103-106`) so the HTTP status behaviour is not special-cased. `Context::new` keeps its signature if the store is initialised internally; if the signature changes, this call site changes with it |
+| `thoth-api-server/src/lib.rs` | **changes.** The `graphql` handler invokes the guard on the incoming `GraphQLRequest` before `data.execute(&st, &ctx).await`. The guard checks its mode first and, in `OFF`, returns immediately without parsing (4.12.6.6). In `OBSERVE`/`ENFORCE` it runs the eligibility gate of 4.12.6.5.3 and only then may decide; a rejection is returned as a `GraphQLResponse` through the existing `is_ok()` branch (`:103-106`) so HTTP status behaviour is not special-cased, and in every other case `data.execute(..)` runs exactly as today. `Context::new` keeps its signature if the store is initialised internally; if the signature changes, this call site changes with it |
 | `src/bin/arguments/mod.rs`, `src/bin/commands/start.rs`, `thoth-api-server/src/lib.rs` | the guard **mode** setting of section 4.12.6.6 — a three-state value defaulting to `OFF` — following the repository's established `clap` `Arg::env(..)` pattern (`src/bin/arguments/mod.rs`) and threaded through `start_server(..)` as existing settings are. No new configuration mechanism is invented, and store availability must be **derived from** this one value rather than configured separately (invariant 30) |
 | `thoth-api/tests/**` | guard tests exercised through the async `GraphQLRequest::execute` harness (`tests/support/mod.rs:108`), alongside the `execute_sync` mechanism tests |
 | `thoth-api/src/graphql/tests.rs` (or a new sibling test module) | the mechanism tests and the query-count evidence harness |
@@ -2539,6 +2719,15 @@ For a loader-backed field under a parent list of size `n`:
 16c. in **OFF** and in **OBSERVE**, the loader store is unavailable: every lookup
     reads `NotLoaded`, every path takes the direct fallback, and results are
     identical to the pre-foundation base;
+16d. for a **baseline-invalid** request that also carries a duplicate-response-key
+    shape, the guard makes **no** decision in any mode: in `OBSERVE` no
+    observation event is emitted, in `ENFORCE` no duplicate-key rejection is
+    returned, and in both the externally visible error is byte-comparable to the
+    error ordinary pinned juniper produces for the same request with no guard
+    present. Proved for each baseline gate — parse, document/schema validation,
+    operation selection and input-variable validation (4.12.6.5.3);
+16e. in **OFF**, the guard performs no parse and no validation: the mode branch
+    precedes the eligibility gate entirely;
 17. distinct top-level mutation aliases are accepted and each executes once;
 18. a duplicate compatible response key in a **query** operation is accepted, and
     the two occurrences share one scope and issue no additional terminal SQL;
@@ -2568,8 +2757,13 @@ in this architecture. Required:
 | Mode | Event |
 |---|---|
 | OFF | none — the guard evaluates nothing |
-| OBSERVE | one structured event per **would-be** rejection |
+| OBSERVE | one structured event per **would-be** rejection, for **baseline-valid** requests only |
 | ENFORCE | one structured event per **actual** rejection |
+
+A request that fails the eligibility gate of section 4.12.6.5.3 emits **no**
+guard event in any mode. This is not a logging-volume preference: an event for
+traffic juniper would never execute would corrupt the very compatibility
+evidence the `OBSERVE` window exists to produce (section 7.2.2).
 
 Each event carries:
 
@@ -2767,9 +2961,28 @@ decision exists to control.
   rejects rather than silently admits a possible duplicate execution — recorded
   as a compatibility tradeoff in 4.12.6.7, not hidden. An omitted-but-defaulted
   variable is **not** undecidable and must never be classified as such.
+- **Validation-equivalence drift risk** — the guard's eligibility gate must gate
+  on the same conditions the pinned `execute`/`execute_sync` gate on. It calls
+  juniper's **own** helpers rather than reproducing their logic, so it cannot
+  drift by reimplementing a rule; but it *can* drift if a future juniper version
+  changes which helpers `execute` calls, their order, or adds a stage the gate
+  does not run. Mitigations: the gate is specified as those exact entry points in
+  that exact order (4.12.6.5.3); the required tests compare the guarded path
+  against ordinary juniper for every baseline gate; and the revalidation
+  obligation of section 4.12.14 explicitly covers the request pipeline. Residual:
+  a juniper upgrade cannot be treated as routine for this module either.
+- **Duplicate parse/validation overhead risk** — in `OBSERVE` and `ENFORCE`, a
+  mutation request is parsed and validated twice: once by the gate and once
+  inside `GraphQLRequest::execute`. This is a real latency and CPU cost on the
+  mutation path, accepted deliberately in exchange for error compatibility
+  (4.12.6.5.3). Mitigations: `OFF` short-circuits before any of it, so the cost
+  is absent at merge and absent until activation; the cost falls only on
+  mutations, never on queries; and preview/staging acceptance (7.2.3) exercises
+  the exact candidate before activation. Residual: the cost is not eliminated,
+  only bounded and deferred, and the specification must not pretend otherwise.
 - **Prerequisite-decoupling risk** — a future change could leave the store
-  enabled while the guard is not applied, which would silently reinstate exactly
-  the defect this remediation exists to close. Mitigation: section 4.12.6.6
+  enabled while the guard is not in `ENFORCE`, which would silently reinstate
+  exactly the defect this remediation exists to close. Mitigation: section 4.12.6.6
   requires that state to be **unrepresentable** rather than merely discouraged,
   and invariant 30 is binding on any later change.
 - **Scope-extraction risk** — the highest-consequence new risk, because the scope
@@ -3041,6 +3254,10 @@ Evidence that this decision is correctly implemented:
   statement for the second occurrence;
 - the guard's rejection HTTP status and serialized body match an existing
   juniper validation failure, compared directly rather than asserted;
+- a baseline-invalid request produces the ordinary juniper error, no guard
+  rejection and no observation event, in every mode — compared directly against
+  the same request executed without the guard present, for each of parse,
+  document validation, operation selection and input validation;
 - in guard mode **OFF** and in **OBSERVE**, the loader store is unavailable:
   every lookup reads `NotLoaded`, every path takes the direct fallback, and
   results are unchanged. `guard OFF + store enabled` and

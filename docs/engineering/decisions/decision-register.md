@@ -138,15 +138,39 @@ reachable from `develop`; it is not effective from an unmerged branch.
 itself `DRAFT` and unauthorized. The dependency order is:
 
 ```text
-ADR-0006 approved and repository-authoritative
-  -> THOTH-GQL-BATCH-01 implemented, reviewed, CTO merge-authorized and merged
-  -> BE-02 specification amended on PR #788 to adopt the approved mechanism
-  -> fresh exact-head review and explicit CTO approval of the BE-02 specification
+ADR-0006 independently reviewed, CTO-approved and repository-authoritative
+  -> THOTH-GQL-BATCH-01 implementation separately authorized
+  -> THOTH-GQL-BATCH-01 implemented, independently reviewed,
+     CTO merge-authorized and merged
+       (merged state: guard mode OFF, loader store unavailable,
+        production request acceptance unchanged)
+  -> preview/staging acceptance of the exact implementation candidate
+  -> separate OBSERVE activation authorization
+  -> explicit OBSERVE compatibility window completed
+  -> observation evidence reviewed, with zero unresolved
+     legitimate-client blockers
+  -> explicit CTO ENFORCE production activation approval
+  -> ENFORCE activated and required observation/acceptance evidence completed
+  -> BE-02 specification amended on PR #788 to adopt the now-active mechanism
+  -> fresh independent exact-head review of the BE-02 specification
+  -> explicit CTO approval of the BE-02 specification
+  -> fresh exact-develop verification
   -> separate CTO BE-02 implementation authorization
 ```
 
+These are distinct gates and must not be conflated. In particular, **CTO merge
+authorization is not production activation authorization**: the foundation
+merges with the guard in `OFF`, and the transitions `OFF -> OBSERVE` and
+`OBSERVE -> ENFORCE` each require their own authorization, the latter explicitly
+from the CTO.
+
 `BE-02` is a dependent of `THOTH-GQL-BATCH-01`, not a dependency of it, and is
-not unblocked either by `ADR-0006` being drafted or by its being approved.
+not unblocked either by `ADR-0006` being drafted or by its being approved. Under
+the conservative ordering the specification currently selects, `BE-02`
+implementation authorization additionally waits for the batching foundation's
+`ENFORCE` gate: the store is structurally unavailable outside `ENFORCE`, so an
+adopting field would otherwise take its direct fallback while claiming N+1
+compliance.
 Existing child resolvers are not automatically migrated by
 `THOTH-GQL-BATCH-01`; legacy remediation is evidence-led follow-up work under
 `ADR-0006` section 10.

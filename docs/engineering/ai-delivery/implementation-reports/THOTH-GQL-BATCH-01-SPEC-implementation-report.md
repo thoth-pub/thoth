@@ -1909,3 +1909,252 @@ control is now discharged by the **`OBSERVE` mode** rather than by a kill switch
   isolation metadata rather than permission;
 - no approval-state or transient-status prose was written into any committed
   file.
+
+---
+
+## 21. Sixth remediation: guard validation ordering
+
+### 21.1 Position at the start of this remediation
+
+```text
+Previous independent decision:
+CHANGES REQUIRED
+
+Previous exact reviewed head:
+78cd44eae086d8cce00661f3c6317c55579556f4
+```
+
+Verified live before editing: PR #789 open and draft, base `develop`, head
+exactly `78cd44eae086d8cce00661f3c6317c55579556f4` with **no** intervening
+commit; `develop` at `5a8c27b1b7c11a4f6bd26d459556468099f8c1f4`, **unchanged**
+from the review base, so no base drift affects the architecture evidence;
+PR #788 at `d411d4935a507804f28d8798419d405e32880d02`, `updatedAt`
+2026-08-07T17:35:39Z; issue #765 `updatedAt` 2026-07-27T15:50:33Z; `ADR-0006`
+`PROPOSED`; `THOTH-GQL-BATCH-01` `DRAFT`, `HIGH`, implementation
+`NOT AUTHORIZED`; no implementation branch; and the PR diff still
+documentation-only with no runtime, dependency, schema, migration or workflow
+file present.
+
+The review confirmed the three prior corrections — `OFF`/`OBSERVE`/`ENFORCE`
+staging, effective variables, and scope-bearing identities — as materially
+successful. **Those were not reopened, and F2 was not reopened.**
+
+### 21.2 Finding 1 (P1) — validation ordering
+
+**The defect.** The guard was specified to run before
+`data.execute(&st, &ctx).await`. But `GraphQLRequest::execute`
+(`src/http/mod.rs:111-131`) delegates to the crate-level `execute`, and both
+`execute` (`src/lib.rs:193-237`) and `execute_sync` (`src/lib.rs:147-189`)
+perform juniper's ordinary request pipeline **inside** that call:
+
+```text
+parse_document_source                   lib.rs:160  / 210
+document/schema validation              lib.rs:162-177 / 212-227
+get_operation                           lib.rs:179  / 229
+validate_input_values                   lib.rs:181-187 / 231-235
+execute_validated_query{,_async}        lib.rs:189  / 236
+```
+
+A guard placed before that call therefore sees documents juniper would reject
+before executing any resolver. The ADR's statement that such a document "never
+reaches the guard at all — juniper's own validation rejects it first" was
+**false** under the architecture as specified.
+
+**Why it mattered, beyond wording.** A document can be simultaneously invalid
+under ordinary validation *and* shaped as a duplicate-response-key collision. In
+that case the previous specification allowed:
+
+- `ENFORCE` to **replace** juniper's canonical validation, operation-selection or
+  input error with a guard rejection, changing what a client receives for an
+  already-invalid request;
+- `OBSERVE` to record a would-be rejection for traffic juniper would never
+  execute, **corrupting the compatibility evidence** used to decide whether
+  `ENFORCE` is safe — the sole purpose of the `OBSERVE` window;
+- directive evaluation to run on AST shapes the executor only handles after
+  validation has established their well-formedness.
+
+**The correction.** Successful ordinary juniper validation is now a
+**prerequisite** for duplicate-key analysis (`ADR-0006` section 4.12.6.5.3):
+
+```text
+parse -> document/schema validation -> operation selection -> input validation
+
+  baseline-invalid -> no analysis, no OBSERVE event, no guard error;
+                      ordinary Juniper produces the canonical error
+  baseline-valid   -> OFF:     no analysis
+                      OBSERVE: decide as ENFORCE would, never reject, event on collision
+                      ENFORCE: collision -> reject before resolver execution
+```
+
+The layer is an **eligibility gate**, not a replacement executor: it decides only
+whether the guard may decide, introduces no externally visible validation
+semantics, and never returns, rewrites or suppresses a validation error.
+`GraphQLRequest::execute()` remains solely responsible for the canonical
+response.
+
+### 21.3 Pinned Juniper evidence inspected
+
+Re-inspected directly against the pinned `juniper` 0.16.2 sources, and the whole
+gate was **compiled and executed** in a throwaway probe outside the repository.
+
+| Requirement | Public API | Location |
+|---|---|---|
+| `GraphQLRequest::execute` delegates to crate `execute` | `crate::execute(&self.query, op, root_node, vars, context)` | `src/http/mod.rs:111-131` |
+| pipeline order, sync | parse → validate → `get_operation` → `validate_input_values` → `execute_validated_query` | `src/lib.rs:147-189` |
+| pipeline order, async | same, then `execute_validated_query_async` | `src/lib.rs:193-237` |
+| parse | `juniper::parser::parse_document_source` | `pub mod parser`, `src/lib.rs:35`; `src/parser/document.rs:22` |
+| document validation | `validation::{ValidatorContext, visit_all_rules}` | `pub mod validation`, `src/lib.rs:39`; `src/validation/mod.rs:14-20` |
+| introspection-disabled rule | `validation::visit`, `MultiVisitorNil`, `rules::disable_introspection::factory` | `src/validation/mod.rs:14-20`; `src/validation/rules/mod.rs:5`; `disable_introspection.rs:13,18` |
+| operation selection | `juniper::executor::get_operation` | `pub mod executor`, `src/lib.rs:33`; `src/executor/mod.rs:1001` |
+| input-variable validation | `validation::validate_input_values` | `src/validation/input_value.rs:23-27` |
+| schema / introspection state | `RootNode::schema`, `RootNode::introspection_disabled` (public fields) | `src/schema/model.rs:42,45`; default `false` at `:161` |
+
+**No private field access, no `unsafe`, no raw-source manipulation and no second
+GraphQL implementation** are required. Thoth's `create_schema()`
+(`thoth-api/src/graphql/mod.rs:17-19`) uses `RootNode::new`, so
+`introspection_disabled` is currently `false`; the rule is specified anyway so
+equivalence does not silently depend on that staying true.
+
+**Probe result.** Eight documents that were each baseline-invalid **and** shaped
+as a duplicate top-level mutation response key — unknown field, invalid scalar
+sub-selection, unknown directive, non-null variable with a default, missing
+required variable, wrong variable type, multiple operations without
+`operationName`, and unknown `operationName` — were **all** classified
+ineligible by the gate, while ordinary juniper produced its canonical error and
+executed **zero** resolvers. All baseline-valid regression cases still produced
+the correct decision, including the duplicate-key collision, distinct aliases,
+the omitted-defaulted-variable acceptance and its explicit-override rejection.
+
+### 21.4 Validation-equivalence boundary, stated honestly
+
+No claim of byte-identical validation is made. The claim is narrower and is what
+the implementation must hold to: the gate runs the **same** pinned juniper
+validation entry points, in the **same** order, against the **same** document and
+variables, and treats *any* error as ineligible. It reimplements no rule, adds
+no rule, and interprets no error — only "no errors" versus "some errors". Drift
+is therefore confined to juniper changing which helpers `execute` calls or in
+what order, which the section 4.12.14 revalidation obligation now explicitly
+covers.
+
+**Overhead, corrected.** The gate parses and validates, and
+`GraphQLRequest::execute()` then does so again. The previous description of the
+cost as "one additional document parse" is **withdrawn as understated**. The
+recorded tradeoff is now:
+
+```text
+correctness / compatibility preservation
+vs
+duplicate parse + duplicate document validation + duplicate operation selection
++ duplicate input validation, on the guarded request path
+```
+
+This is not optimised away by driving `execute_validated_query{,_async}`
+directly: those are public, but using them would make Thoth responsible for
+juniper's whole request pipeline. `OFF` short-circuits before any of this work,
+which is now a binding requirement rather than an incidental property.
+
+### 21.5 Finding 1 tests added
+
+A binding invalid-request collision matrix. Each document is **both**
+baseline-invalid **and** shaped as a duplicate top-level mutation response key,
+so a guard ignoring the gate would visibly misbehave. For each, the guarded path
+is compared against ordinary juniper with no guard present, asserting: no guard
+rejection, no `OBSERVE` compatibility event, zero resolvers and writes, and a
+byte-comparable externally visible error and HTTP status.
+
+Categories: unknown field; invalid field selection on a scalar; invalid directive
+usage; non-null variable declaring a default; missing required variable; invalid
+variable value/type; multiple operations with no `operationName`; unknown
+`operationName`; and parse failure. The operation-selection cases specifically
+prove no collision decision is made before operation selection succeeds. A
+further case proves `OFF` short-circuits before the gate.
+
+All existing valid duplicate-key, directive and default-variable tests are
+retained unchanged and unweakened.
+
+### 21.6 Finding 2 — stale active-at-merge language corrected
+
+Corrected in `THOTH-GQL-BATCH-01`:
+
+- **non-goal 13** no longer says the guard "takes effect on the common GraphQL
+  request path at merge", and no longer describes CTO merge authorization as
+  covering guard behaviour. It now states that the guard's runtime code ships
+  with the foundation but its merged production mode is `OFF`, and that
+  `OBSERVE` and `ENFORCE` are separate authorized activations;
+- the **opening binding boundary** no longer says a duplicate key "is rejected at
+  the request boundary" unqualified; it is now mode-qualified, with rejection
+  confined to `ENFORCE` and to baseline-valid requests;
+- **invariant 29** no longer says the store is "unavailable whenever the guard is
+  not applied" — wording that fails in `OBSERVE`, where the detector *does* run
+  but the store must stay unavailable. It is replaced by the explicit
+  `loader store available => guard mode == ENFORCE` form with the per-mode table
+  and the structurally-unrepresentable requirement;
+- a new invariant records that the guard makes no decision and emits no event for
+  baseline-invalid requests in any mode.
+
+In `ADR-0006`, the Control 1 decision block is now mode-qualified and
+baseline-qualified, the implementation-impact row for
+`thoth-api-server/src/lib.rs` describes the mode check and gate rather than an
+unconditional guard call, invariant 27 is qualified and a new invariant 27a
+added, and the "guard is not applied" risk wording is retied to `ENFORCE`.
+
+### 21.7 Finding 3 — dependency ordering reconciled
+
+The decision register's ADR row already described the lifecycle, but its
+dependency chain still ran merge straight into the `BE-02` amendment. It now
+carries the full conservative ordering: ADR approval → implementation
+authorization → implementation/review/merge-authorization → merge with guard
+`OFF` and store unavailable → preview/staging acceptance → `OBSERVE` activation
+authorization → `OBSERVE` window → observation evidence with zero unresolved
+legitimate-client blockers → explicit CTO `ENFORCE` activation approval →
+`ENFORCE` plus required evidence → `BE-02` amendment → fresh exact-head review →
+CTO approval → fresh exact-`develop` verification → separate CTO `BE-02`
+implementation authorization. The register also now states explicitly that merge
+authorization is not activation authorization, and records why `BE-02`
+implementation waits for `ENFORCE`.
+
+### 21.8 Risk reclassification
+
+Re-run against `risk-classification.md`: **`HIGH`**, unchanged, and re-derived
+rather than copied. Factor by factor, the correction **reduces** external-API
+behaviour risk (client-visible behaviour for invalid requests is now provably
+preserved) and **materially improves** evidence integrity (`OBSERVE` counts can
+no longer be inflated by traffic juniper would never execute), while **slightly
+increasing** availability risk and **increasing** performance cost on the guarded
+path and pinned-dependency coupling — the guard now depends on juniper's request
+pipeline composition, not only its executor semantics. Rollback certainty is
+unchanged and high.
+
+"Production feature activation at merge" **remains withdrawn** as a ground; the
+merged state is `guard OFF, store unavailable`, and the correction reinforces it
+by making `OFF` cost-free. Not `Critical`: the added work is read-only analysis
+that only ever declines to act. Not lowered: the docs-only nature of this PR is
+irrelevant, since the classification is of the future implementation and release
+behaviour being specified.
+
+### 21.9 Files changed
+
+`docs/engineering/decisions/ADR-0006-request-scoped-graphql-batching.md`;
+`docs/engineering/ai-delivery/tasks/THOTH-GQL-BATCH-01.md`;
+`docs/engineering/decisions/decision-register.md`; this report; and `CHANGELOG.md`.
+
+### 21.10 Boundaries confirmed
+
+- **no runtime work.** No file under `thoth-api/src/**`, `thoth-api-server/src/**`
+  or `thoth-client/**` changed; no `Cargo` manifest or lock file; no migration;
+  no `thoth-api/src/schema.rs`; no CI workflow; no repository setting; no
+  production configuration. The eligibility-gate reproduction ran in a throwaway
+  crate outside the repository and left nothing behind in it;
+- **no production action.** No mode activated, no deployment, no configuration
+  change, no merge;
+- **no authorization granted.** `ADR-0006` remains `PROPOSED`;
+  `THOTH-GQL-BATCH-01` remains `DRAFT` with implementation `NOT AUTHORIZED`;
+  `BE-02` remains unauthorized;
+- PR #788, its branch and the `BE-02` specification unmodified; issue #765
+  unmodified; `docs/publisher-services/task-status.md` unmodified;
+- the implementation branch `feature/shared-architecture/graphql-batching` was
+  not created;
+- F1/F2/F3 not reopened; F2 remains the selected architecture; the three
+  previously accepted corrections were not regressed;
+- **this remediation is not independently approved.** The resulting exact head
+  requires a fresh independent exact-head review.
