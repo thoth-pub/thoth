@@ -1,7 +1,9 @@
 # ADR-0006 - Request-scoped GraphQL batching and set-based child loading
 
-Status: PROPOSED
+Status: APPROVED
 Date: 2026-08-07
+Approved by: CTO
+Approval date: 2026-08-08
 Decision owner: CTO
 Programmes affected: Shared Thoth GraphQL / backend architecture (owning
 programme); Publisher Services and Distribution Configuration (first required
@@ -11,17 +13,30 @@ Repositories affected: `thoth-pub/thoth`
 Supersedes: None
 Superseded by: None
 
-Direction: request-scoped batching / set-based loading selected in principle by
-the CTO. Final repository decision requires independent review and explicit CTO
-approval of this ADR.
+Decision: `ADR-0006` is approved by the CTO. The approval, given on 2026-08-08,
+covers the exact architectural content merged through PR
+[#789](https://github.com/thoth-pub/thoth/pull/789), including the final F2
+response-key-scoping design, the central mutation request guard, the
+baseline-validation eligibility gate, the non-mutation fast path, and the
+`OFF`/`OBSERVE`/`ENFORCE` production-control lifecycle.
 
 Authority condition: this record is repository-authoritative when this exact
 content is reachable from the repository's authoritative integration branch
-(`develop`) **and** its status is `APPROVED`. Committing a `PROPOSED` ADR does
-not approve it, and no implementation task may rely on it until it is approved
-(`decisions/README.md`, "Authority"). Live independent-review,
-merge-authorization, CI and merge evidence for the pull request carrying this
-content is the GitHub pull-request record.
+(`develop`) **and** its status is `APPROVED`. Both conditions are required. The
+architecture content is already reachable from `develop`; this approval-state
+recording must itself receive independent review and merge into `develop` before
+the decision is repository-authoritative, and a branch carrying
+`Status: APPROVED` is not authoritative before it merges. Until then, no
+implementation task may rely on it (`decisions/README.md`, "Authority"). Live
+independent-review, merge-authorization, CI and merge evidence for the pull
+request carrying this content is the GitHub pull-request record.
+
+Approval scope boundary: this architecture approval does not authorize
+`THOTH-GQL-BATCH-01` runtime implementation, does not authorize either the
+`OFF -> OBSERVE` or the `OBSERVE -> ENFORCE` production activation, does not
+authorize `BE-02` implementation, and does not resolve control gap CG-13 or the
+outstanding monitoring/threshold evidence. Those remain separate gates
+(sections 7.2.1, 12 and 14).
 
 Verification base: every repository finding below was verified against `develop`
 at `5a8c27b1b7c11a4f6bd26d459556468099f8c1f4`, and against the pinned dependency
@@ -3758,9 +3773,66 @@ Evidence that this decision is correctly implemented:
 
 ## 14. Approval
 
-Approval required from: CTO
-Approved by: not yet approved
-Approval date: not yet approved
+Approval authority: CTO
+Approved by: CTO
+Approval date: 2026-08-08
+Approved content: the exact `ADR-0006` architecture merged through PR
+[#789](https://github.com/thoth-pub/thoth/pull/789) (merge commit
+`22c7307eb96f05c336b00e80cbf844ec345535a5`, approved head
+`8eeb4913034561c3b9387ac6c793927ff2e42fe3`)
+
+The CTO explicitly approved that exact content on 2026-08-08. The approval is a
+direct architecture decision by the CTO; it is not recorded as, and must not be
+represented as, a GitHub pull-request review.
+
+### 14.1 What the approval covers
+
+Final CTO approval covers, as a single architecture decision:
+
+- Option A / A2 look-ahead-driven set-based prefetch;
+- request-scoped state on the GraphQL `Context`;
+- the F2 uniform top-level-response-key scope;
+- the store identity
+  `(top-level response key, loader identity, normalized load shape, parent key)`;
+- the `NotLoaded` / `Loaded` / `LoadFailed` entry states;
+- descendant prefetch;
+- the authorization and key-projector rules;
+- the **central mutation duplicate-response-key guard**, including its
+  deliberate restriction on accepted GraphQL requests (section 4.12.6.7);
+- the baseline-validation eligibility gate;
+- effective-variable handling for directive evaluation (section 4.12.6.5.1);
+- the non-mutation fast path;
+- the public-callable / doc-hidden Juniper gate coupling;
+- the `OFF` / `OBSERVE` / `ENFORCE` production-control lifecycle;
+- the requirement that **both** production activations carry their own separate
+  explicit CTO approval;
+- the CG-13 / runtime-operations prerequisite for activation;
+- the monitoring and activation-threshold prerequisite;
+- the conservative `BE-02` ordering.
+
+The central mutation request guard and its pinned-Juniper compatibility
+restriction are **within** this approval. That guard was deliberately escalated
+for the CTO's own decision because it changes the set of accepted GraphQL
+requests for every mutation and every API client; the approval recorded above
+resolves that escalation and approves the guard on its own merits.
+
+### 14.2 What the approval does not authorize
+
+Architecture approval is not implementation authorization and is not production
+activation. This approval does **not** authorize `THOTH-GQL-BATCH-01` runtime
+implementation, merge authorization for any future runtime pull request, the
+`OFF -> OBSERVE` transition, the `OBSERVE -> ENFORCE` transition, or `BE-02`
+implementation, and it does not resolve CG-13 or the monitoring/threshold
+evidence. `THOTH-GQL-BATCH-01` remains `DRAFT` with implementation
+`NOT AUTHORIZED`.
+
+### 14.3 Historical authoring context
+
+The material below records how the approved design was reached. It is
+historical. It is retained because it explains why the final architecture takes
+the form it does, and it is **no longer a statement of current approval state**;
+where it describes decisions as open or pending, those descriptions were correct
+at the revisions named and are resolved by the approval recorded in 14.1.
 
 Direction recorded: the CTO selected request-scoped batching / set-based loading
 in principle, with `BE-02`'s `Publisher.distributionPlatforms` as the first
@@ -3777,8 +3849,9 @@ the isolation, regression-testing and upgrade-revalidation controls of sections
 (section 4.12.13). Section 4.12 records that architecture; no alternative remains
 open.
 
-**Remediation recorded, and it requires a decision the CTO has not yet made.** A
-subsequent independent review of exact head
+**Remediation recorded.** At the revision described here this remediation
+required a CTO decision that had not yet been made; the final approval recorded
+in 14.1 now resolves it. A subsequent independent review of exact head
 `7991d26fe64b8a4a1770cb1062a98a64fb07ba20` returned `BLOCKED`, finding that a
 top-level response key does not uniquely identify a mutation execution on pinned
 Juniper. That finding is confirmed against the pinned sources (section 4.12.6.1)
@@ -3793,8 +3866,8 @@ The content added by this remediation is therefore
 remediation required to make the CTO-selected mutation-isolation objective sound
 ```
 
-and must **not** be read as pre-approved CTO content. Specifically, the central
-mutation request guard of section 4.12.6:
+and at that revision could **not** be read as pre-approved CTO content.
+Specifically, the central mutation request guard of section 4.12.6:
 
 - was not part of the direction recorded above;
 - changes the set of **accepted GraphQL requests**, deliberately rejecting some
@@ -3820,24 +3893,48 @@ than raw request variables (section 4.12.6.5.1); and one remaining unscoped
 descendant store identity was corrected. F1, F2 and F3 were **not** reopened —
 no fresh evidence disturbed the F2 selection.
 
-**This is flagged, not assumed.** A restriction on accepted GraphQL requests
+**This was flagged, not assumed.** A restriction on accepted GraphQL requests
 affecting all mutations and all API clients is a materially broader decision
 than the loader architecture it exists to support. It is recorded here rather
 than split into a separate ADR because it is inseparable from the mutation
 isolation guarantee — without it the loader store cannot be used on any mutation
-path (section 4.12.6.6) — but the CTO is asked to approve it **as its own
+path (section 4.12.6.6) — so the guard was put to the CTO **as its own
 decision**, on its own merits, and not as a consequence of having previously
-selected response-key scoping. If the CTO declines the request-boundary
-restriction, section 4.12 does not survive in its present form and the mutation
-isolation objective returns to open, since F1 is rejected on evidence
-(4.12.6.3) and F3 is rejected as architecture expansion (4.12.10.1).
+selected response-key scoping. Had the CTO declined the request-boundary
+restriction, section 4.12 would not have survived in its present form and the
+mutation isolation objective would have returned to open, since F1 is rejected
+on evidence (4.12.6.3) and F3 is rejected as architecture expansion (4.12.10.1).
+The CTO did not decline it: the approval recorded in 14.1 covers the central
+guard and its compatibility restriction.
 
-That direction authorizes architecture and task-specification authoring only. It
-is **not** approval of this ADR's resulting exact content, and this ADR is not
-`APPROVED` by virtue of the direction having been given. Final ADR approval
-evidence is the GitHub pull-request record on an independently reviewed exact
-head, per `ADR-0005`.
+The earlier direction, on its own, authorized architecture and task-specification
+authoring only; it was not by itself approval of this ADR's resulting exact
+content. That gap is now closed by the CTO's explicit approval of the exact
+content merged through PR #789, recorded in 14.1.
+
+### 14.4 Boundaries retained after approval
 
 This decision does not authorize runtime implementation, modification of
 `BE-02` or PR #788, migration of existing legacy resolvers, merge, deployment,
 release or any production action.
+
+Repository merge != production activation. `OFF -> OBSERVE` requires a separate
+explicit CTO production activation approval; `OBSERVE -> ENFORCE` requires a
+second, separate explicit CTO production activation approval. This ADR approval
+authorizes neither.
+
+```text
+Production activation readiness: BLOCKED
+  CG-13 runtime operations: unresolved
+  Monitoring / thresholds:   unverified
+```
+
+The ordering to implementation is unchanged:
+
+```text
+ADR-0006 APPROVED + repository-authoritative
+  -> THOTH-GQL-BATCH-01 specification approved
+  -> fresh exact develop verification
+  -> explicit CTO THOTH-GQL-BATCH-01 implementation authorization
+  -> runtime implementation
+```
