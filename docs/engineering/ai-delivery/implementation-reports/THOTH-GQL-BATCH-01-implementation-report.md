@@ -10,7 +10,7 @@ PR target: `develop`
 Programme integration branch: none (STANDARD)
 Task branch: `feature/shared-architecture/graphql-batching`
 Starting head: `d3f805542052ad430f4b4beee7248b5fb5031b65`
-Head commit: see section 3
+Head commit: see section 3 (the authoritative final exact head is the PR head)
 Pull request: [#791](https://github.com/thoth-pub/thoth/pull/791) (**draft**)
 Expected branch deletion after merge: YES
 Final programme PR required: NO
@@ -53,9 +53,20 @@ Out-of-scope changes made: NONE.
 
 ## 3. Commits
 
+Base `df2e2efe` → head, three commits (the pre-existing WIP commit `d3f80554`
+remains the branch's first commit and was not rewritten, rebased or force-pushed):
+
+- `d3f80554` — `feat(graphql): add request-scoped batch store` *(pre-existing WIP,
+  inherited; the file it added never compiled — see section 1)*
 - `0ce7d2ea` — `feat(graphql): add request-scoped batching foundation and mutation guard`
-- (this report and the changelog entry are added on top; the final exact head is
-  recorded on the pull request)
+- `f1497488` — `docs(architecture): add THOTH-GQL-BATCH-01 implementation report and changelog`
+- `f324354b` — `test(graphql): prove the query path and non-mutation fast path explicitly`
+
+One further commit adds this section. The authoritative final exact head is the
+head shown on PR [#791](https://github.com/thoth-pub/thoth/pull/791), and it is
+that head — not any commit listed here — which requires fresh independent
+cross-model review and, separately, explicit CTO merge authorization. **Any head
+movement invalidates both.**
 
 ## 4. Files changed
 
