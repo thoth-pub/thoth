@@ -2396,3 +2396,137 @@ reason for avoiding `Critical`.**
   not created;
 - **this remediation is not independently approved.** The resulting exact head
   requires a fresh independent exact-head review.
+
+---
+
+## 23. Eighth remediation: documentation-consistency sweep
+
+### 23.1 Position at the start of this remediation
+
+```text
+Previous independently reviewed head:
+b2eb3ab8dc7d36d12ff394dd30a7c0f5c097f722
+
+Decision:
+CHANGES REQUIRED
+```
+
+Verified live before editing: PR #789 open and draft, base `develop`, head
+exactly `b2eb3ab8dc7d36d12ff394dd30a7c0f5c097f722` with **no** intervening
+commit; `develop` at `5a8c27b1b7c11a4f6bd26d459556468099f8c1f4`, **unchanged**
+from the review base, so no material conflict arises; PR #788 at
+`d411d4935a507804f28d8798419d405e32880d02`, `updatedAt` 2026-08-07T17:35:39Z;
+issue #765 `updatedAt` 2026-07-27T15:50:33Z; `ADR-0006` `PROPOSED`;
+`THOTH-GQL-BATCH-01` `DRAFT`, `HIGH`, implementation `NOT AUTHORIZED`, activation
+readiness `BLOCKED`; no implementation branch; PR diff documentation-only.
+
+The review found **no new technical architecture blocker**. This remediation is
+limited to removing stale normative text contradicting the already-selected final
+architecture. **Nothing on the protected list was reopened.**
+
+### 23.2 Finding A — stale activation/control wording
+
+The final model has **two** production activations, not one. `OFF -> OBSERVE` is
+itself production activation because it adds live request-path behaviour — parse
+and operation selection on every GraphQL request, additional mutation
+validation/analysis, and structured compatibility events. `OBSERVE -> ENFORCE` is
+a second production activation because it additionally changes accepted
+mutation-request semantics. Each requires its own explicit CTO production
+activation authorization.
+
+Corrected, all in `THOTH-GQL-BATCH-01` unless noted:
+
+| Stale statement | Correction |
+|---|---|
+| risk table row: production feature activation "engaged at `ENFORCE`, not at merge" | engaged **first at `OBSERVE`**, where the shared request path changes, and **again at `ENFORCE`**, where accepted mutation-request semantics change |
+| classification paragraph: activation "at `ENFORCE`, not at merge" | first at `OBSERVE`, again at `ENFORCE`, with the two effects distinguished — `OBSERVE` is operational/request-processing activation; `ENFORCE` is operational activation **plus** a client-visible request-acceptance change |
+| bounding factor: "behaviour changes only at a separately authorized `ENFORCE` activation" | no production behaviour changes at merge because the guard is `OFF`; behaviour **first** changes at separately authorized `OBSERVE`; request-acceptance semantics **additionally** change at separately authorized `ENFORCE` |
+| HIGH-risk controls list, which named CTO approval only for `ENFORCE` | names separate explicit CTO approval for **`OFF -> OBSERVE`** and for **`OBSERVE -> ENFORCE`**, with the binding rule `merge authorization != OBSERVE activation authorization != ENFORCE activation authorization` |
+| task metadata: "Merge does not activate the guard; `ENFORCE` requires its own explicit CTO production activation approval" | merge leaves the guard `OFF`; `OBSERVE` requires explicit CTO production activation approval; `ENFORCE` requires a second, separate one; neither is authorized by merge approval or by the other |
+| section 11.6: "observation period: required after `ENFORCE` activation, watching the rejection event stream" | two observation stages. The `OBSERVE` window must evaluate **both** compatibility and operational health, and both must pass before `ENFORCE`; `ENFORCE` observation continues actual rejections, legitimate-client incidents, service health, and mode/fleet correctness. Collision and rejection events are the **compatibility signal only** |
+| implementation-report requirement describing only `ENFORCE` approval | records all three states — merge (`OFF`, store unavailable), `OBSERVE` (separate CTO authorization plus runtime-operations, monitoring/threshold and preview prerequisites), and `ENFORCE` (second separate CTO authorization plus passed compatibility **and** operational-health evidence). No approval identifier is to be committed; under `ADR-0005` live approval evidence belongs to the GitHub/release record |
+| `ADR-0006` consequences: `ENFORCE` "requires its own CTO production activation approval, separate from merge authorization" | two separately authorized activations, neither implied by merge nor by the other, each requiring its own explicit CTO approval |
+
+One `ADR-0006` occurrence was **retained as historical** rather than rewritten:
+the approval-section narrative describing the earlier remediation of head
+`ef3a895a…`, which recorded that only `ENFORCE` then carried the approval
+requirement. It is clearly introduced as a prior revision and now carries an
+explicit note that a later remediation extended the requirement to `OBSERVE`, and
+that section 7.2.1 is controlling.
+
+### 23.3 Finding B — stale performance wording
+
+`ADR-0006` still carried a normative consequence stating that once in `OBSERVE`
+or `ENFORCE` the guard adds **"one document parse per mutation request"**. That
+contradicts the accepted blast-radius architecture. Corrected to the binding
+model:
+
+```text
+OFF:
+  no guard parsing, selection or validation overhead
+
+OBSERVE / ENFORCE:
+  every GraphQL request:
+    + one additional parse
+    + one additional operation selection
+
+  mutation requests additionally:
+    + document/schema validation
+    + input-variable validation
+    + duplicate-key traversal
+
+  query / subscription requests:
+    exit through the non-mutation fast path after parse + selection
+```
+
+Ordinary juniper execution then still performs its own parsing and validation
+again for every request that continues. The accepted-cost paragraph in section
+4.12.6.5 was aligned to the same model, and now states that describing the cost
+either as "one additional parse" **or** as bounded to mutations understates it.
+
+A full re-search for `one document parse per mutation`, `one extra parse per
+mutation`, `bounded to mutations`, `mutation-only overhead`, `behaviour changes
+only`, `activation at ENFORCE`, `only at ENFORCE` and `rejection event stream`
+leaves **no** stale normative assertion: every surviving occurrence is either an
+explicit prohibition, an explicit withdrawal, or clearly-introduced historical
+narrative.
+
+### 23.4 Explicit statements
+
+- **F2 unchanged** — `(top-level response key, loader identity, normalized load
+  shape, parent key)`, `loader store available => guard mode == ENFORCE`, no
+  occurrence or source-position identity, no mutation-resolver retrofit, no
+  F1/F3 reconsideration;
+- **eligibility gate unchanged**;
+- **non-mutation fast path unchanged**;
+- **effective variables, scoped identities, descendant prefetch, compatibility
+  shim, `NotLoaded`/`Loaded`/`LoadFailed`, and set-based SQL / actual query-count
+  evidence all unchanged**;
+- **risk remains `HIGH`** — no new authoritative evidence was found that would
+  re-derive it, and the `Critical` analysis was not reopened;
+- **production activation readiness remains `BLOCKED`**;
+- **CG-13 remains open**, and its control-gap document was **not** edited;
+- **monitoring thresholds remain unverified**, and no numeric threshold was
+  invented;
+- **no runtime work occurred**, and no production action was taken.
+
+### 23.5 Files changed
+
+`docs/engineering/decisions/ADR-0006-request-scoped-graphql-batching.md`;
+`docs/engineering/ai-delivery/tasks/THOTH-GQL-BATCH-01.md`; this report;
+`CHANGELOG.md`. The decision register was inspected and found already correct for
+this review's findings, so it was **not** changed, avoiding churn.
+
+### 23.6 Boundaries confirmed
+
+- no runtime, dependency, schema, migration, workflow or production-configuration
+  file changed;
+- PR #788, issue #765, `docs/publisher-services/task-status.md`, the CG-13
+  control-gap document and ADR-0001 through ADR-0005 all unmodified;
+- the implementation branch `feature/shared-architecture/graphql-batching` was
+  not created;
+- `ADR-0006` remains `PROPOSED`; `THOTH-GQL-BATCH-01` remains `DRAFT` with
+  implementation `NOT AUTHORIZED`; production `OBSERVE` and `ENFORCE` remain
+  `NOT AUTHORIZED`; `BE-02` remains `NOT AUTHORIZED`;
+- **this remediation is not independently approved.** The resulting exact head
+  requires a fresh independent exact-head review.

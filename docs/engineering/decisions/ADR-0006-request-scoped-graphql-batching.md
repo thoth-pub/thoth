@@ -1476,11 +1476,14 @@ execution path is untouched. Driving `execute_validated_query{,_async}` directly
 Thoth responsible for juniper's whole request pipeline and couple it to far more
 of that pipeline than the guard needs.
 
-The accepted cost is therefore the **duplicate parse and validation** described
-in section 4.12.6.5.3, incurred only in `OBSERVE` and `ENFORCE`. In `OFF` the
-mode is checked first and the guard performs no parse and no validation at all
-(section 4.12.6.6). This must be recorded as such and never described as "one
-additional parse", which understates it.
+The accepted cost is therefore the **duplicate parse, selection and validation**
+described in sections 4.12.6.5.3 and 4.12.6.5.4, incurred only in `OBSERVE` and
+`ENFORCE`. Its population is the **common GraphQL request path** — every request
+is parsed and its operation selected — with document/input validation and
+duplicate-key traversal falling on mutations only. In `OFF` the mode is checked
+first and the guard performs no parse, no selection and no validation at all
+(section 4.12.6.6). This must be recorded as such, and never described either as
+"one additional parse" or as bounded to mutations: both understate it.
 
 ##### 4.12.6.6 Guard operating modes, and the fail-closed dependency
 
@@ -3308,14 +3311,35 @@ decision exists to control.
   activation lifecycle (`OFF -> OBSERVE -> ENFORCE`), each stage with its own
   evidence and approval (section 7.2.1). That is real ongoing control cost, not
   a free deferral;
-- once in OBSERVE or ENFORCE, the guard adds **one document parse per mutation
-  request**, on top of the parse juniper already performs (section 4.12.6.5).
-  In OFF it adds none;
+- once in `OBSERVE` or `ENFORCE`, the guard adds work to the **common GraphQL
+  request path**, not only to mutations (section 4.12.6.5.4):
+
+  ```text
+  OFF:
+    no guard parsing, selection or validation overhead
+
+  OBSERVE / ENFORCE:
+    every GraphQL request:
+      + one additional parse
+      + one additional operation selection
+
+    mutation requests additionally:
+      + document/schema validation
+      + input-variable validation
+      + duplicate-key traversal
+
+    query / subscription requests:
+      exit through the non-mutation fast path after parse + selection
+  ```
+
+  Ordinary juniper execution then still performs its own parsing and validation
+  again for every request that continues. In `OFF` the guard adds none of this;
 - the loader store is **unusable in production until ENFORCE is activated and
   observed**, so `BE-02`'s adoption is gated on an operational activation and
   not only on a merge (section 12);
 - the architecture acquires a second, independent pinned-Juniper coupling — the
-  guard's use of `parse_document_source`, `get_operation` and the public AST —
+  guard's use of `parse_document_source`, `get_operation` and the public AST,
+  several of those surfaces being `doc(hidden)` (section 4.12.6.5) —
   including a reimplementation of `@skip`/`@include` evaluation and of the
   executor's effective-variable construction, both of which must be kept
   behaviourally identical to juniper's private `is_excluded` and its
@@ -3777,15 +3801,20 @@ mutation request guard of section 4.12.6:
   documents the GraphQL specification considers merge-compatible (4.12.6.7);
 - is a **shared GraphQL execution control** affecting every mutation, not a
   batching component;
-- in ENFORCE, changes accepted requests for every API client, which is why its
-  activation is staged through OBSERVE and requires **its own CTO production
-  activation approval, separate from merge authorization** (section 7.2.1).
+- carries **two** separately authorized production activations, neither implied
+  by merge authorization nor by the other (section 7.2.1):
+  `OFF -> OBSERVE`, which changes request-path processing on every GraphQL
+  request, and `OBSERVE -> ENFORCE`, which additionally changes accepted requests
+  for every API client. **Each requires its own explicit CTO production
+  activation approval.**
 
 A further remediation, after an independent review returned `CHANGES REQUIRED`
 on exact head `ef3a895a8acd5f372eb4440c7350cf7f09d5c527`, corrected three things
 without reopening the F2 selection: the guard is no longer active at merge but
-carries an explicit `OFF`/`OBSERVE`/`ENFORCE` lifecycle whose ENFORCE transition
-needs separate CTO production activation approval (sections 4.12.6.6, 7.2);
+carries an explicit `OFF`/`OBSERVE`/`ENFORCE` lifecycle (sections 4.12.6.6, 7.2)
+— at that revision only the `ENFORCE` transition was required to carry separate
+CTO production activation approval; a later remediation extended that requirement
+to `OBSERVE` as well, and section 7.2.1 is controlling;
 directive evaluation now uses the executor's **effective** variable map rather
 than raw request variables (section 4.12.6.5.1); and one remaining unscoped
 descendant store identity was corrected. F1, F2 and F3 were **not** reopened —

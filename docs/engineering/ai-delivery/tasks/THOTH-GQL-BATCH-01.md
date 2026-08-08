@@ -19,9 +19,10 @@ Approved by: not yet approved
 Dependencies, all required before implementation may begin: `ADR-0006` approved
 and repository-authoritative; this specification approved; a freshly verified
 exact `develop` base; explicit CTO implementation authorization
-Runtime activation: separately controlled. Merge does **not** activate the guard
-(section 11); `ENFORCE` requires its own explicit CTO production activation
-approval
+Runtime activation: separately controlled. Merge leaves the guard `OFF`.
+`OBSERVE` requires explicit CTO production activation approval. `ENFORCE`
+requires a second, separate explicit CTO production activation approval. Neither
+is authorized by merge approval or by the other activation (section 11)
 Target branch name: `feature/shared-architecture/graphql-batching` (**must not
 exist** until implementation is authorized)
 
@@ -129,7 +130,7 @@ than assumed:
 
 | `risk-classification.md` criterion | Engaged by |
 |---|---|
-| production feature activation | still engaged, but at **`ENFORCE` activation**, not at merge. The task specifies and delivers that activation path, so it carries the control |
+| production feature activation | engaged **first at `OBSERVE`**, where the shared GraphQL request path changes — parse and operation selection on every request, plus mutation validation, analysis and structured events — and **again at `ENFORCE`**, where accepted mutation-request semantics additionally change. Not at merge. The task specifies and delivers both activation paths, so it carries the control for both |
 | cross-repository API contract change | in `ENFORCE`, the set of accepted GraphQL mutation requests changes for all clients, including clients outside this repository |
 | idempotency or deduplication | the guard exists precisely because the pinned executor duplicates a mutation execution; duplicate-write prevention is the mechanism's purpose |
 | changes to canonical data semantics | a data-loading path is substituted for a field's direct read |
@@ -176,10 +177,20 @@ correction, rather than copied forward. The result is **`HIGH`**, unchanged.
 | **evidence integrity** | **materially improved.** `OBSERVE` counts can no longer be inflated by traffic juniper would never execute, so the evidence gating `ENFORCE` is now trustworthy |
 
 **Classification.** `HIGH` still holds on the same criteria as before —
-production feature activation (at `ENFORCE`, not at merge), cross-repository API
-contract change, idempotency/deduplication, canonical data semantics, and
-changes capable of broadening processing scope — with escalation applying because
-production query volume is unknown and external clients cannot be enumerated.
+production feature activation (**first at `OBSERVE`, again at `ENFORCE`**, and
+not at merge), cross-repository API contract change, idempotency/deduplication,
+canonical data semantics, and changes capable of broadening processing scope —
+with escalation applying because production query volume is unknown and external
+clients cannot be enumerated.
+
+The two activations are **not** equivalent, and the specification must not blur
+them:
+
+```text
+OBSERVE:  operational / request-processing activation
+ENFORCE:  operational activation
+          + client-visible request-acceptance change
+```
 
 **"Production feature activation at merge" remains withdrawn** as a ground: the
 merged state is `guard OFF, store unavailable`, and the correction reinforces
@@ -282,10 +293,13 @@ Factors bounding it:
 - no database migration, no `schema.rs` change, no data semantics change on disk;
 - no production consumer of the **store** at initial merge, and the store is
   unavailable outside `ENFORCE`;
-- **no production behaviour changes at merge at all**: the guard merges in `OFF`.
-  Behaviour changes only at a separately authorized `ENFORCE` activation
-  (`ADR-0006` section 7.2), which is preceded by preview acceptance and an
-  `OBSERVE` window;
+- **no production behaviour changes at merge at all**: the guard merges in `OFF`,
+  so there is no request-path overhead and no change in request acceptance.
+  Production behaviour **first** changes at a separately authorized `OBSERVE`
+  activation, where the eligibility fast path and gate become active on the live
+  GraphQL request path; request-acceptance semantics **additionally** change at a
+  separately authorized `ENFORCE` activation (`ADR-0006` section 7.2). Neither is
+  implied by merge;
 - no new workspace dependency, including for the shim and the guard;
 - no public GraphQL **schema** change, and the generated SDL is byte-identical.
   The set of accepted **requests** does change (`ADR-0006` section 4.12.6.7);
@@ -332,13 +346,23 @@ Per `risk-classification.md` and `release-gates.md` section 1:
 - **preview/staging acceptance** of the exact implementation candidate before
   activation (section 11.3);
 - explicit CTO merge authorization;
-- **explicit CTO production activation approval for `OBSERVE`**, separate from
-  merge authorization. `OBSERVE` is itself production behaviour on the common
-  request path, so `release-gates.md` section 5's "CTO approval for high or
-  critical risk" applies to it;
-- **a separate explicit CTO production activation approval for `ENFORCE`**
-  (section 11.2). Merge authorization is **not** activation authorization for
-  either; approving `OBSERVE` does not approve `ENFORCE`, and approving
+- **explicit CTO production activation approval for `OFF -> OBSERVE`**, separate
+  from merge authorization. `OBSERVE` is itself production behaviour on the
+  common request path, so `release-gates.md` section 5's "CTO approval for high
+  or critical risk" applies to it;
+- **a separate explicit CTO production activation approval for
+  `OBSERVE -> ENFORCE`** (section 11.2). The binding rule is:
+
+  ```text
+  merge authorization
+  !=
+  OBSERVE activation authorization
+  !=
+  ENFORCE activation authorization
+  ```
+
+  None of the three implies either of the others: merge authorizes neither
+  activation, approving `OBSERVE` does not approve `ENFORCE`, and approving
   `ENFORCE` does not retroactively approve `OBSERVE`;
 - **verified runtime-operations evidence** for changing, propagating, verifying
   and rolling back the mode, per `ADR-0006` section 7.2.4 — currently blocked by
@@ -2230,8 +2254,23 @@ establish them; this specification must not invent them.
 
 - **pilot:** `OBSERVE` is the pilot (section 11.2). No separate pilot cohort is
   proposed;
-- **observation period:** required after `ENFORCE` activation, watching the
-  rejection event stream (section 8.2);
+- **observation:** there are **two** observation stages, not one, and the
+  rejection event stream is only part of the first. Collision and rejection
+  events are the **compatibility** signal alone; they say nothing about service
+  health (sections 8.2, 8.3).
+
+  **`OBSERVE` window** — must evaluate **both**, and both must pass before
+  `ENFORCE`:
+
+  | Question | Signals |
+  |---|---|
+  | **Compatibility** — are legitimate baseline-valid mutation documents present that `ENFORCE` would reject? | would-be rejection events; caller investigation; zero unresolved legitimate-client blockers |
+  | **Operational health** — does the activated gate materially degrade GraphQL service health? | latency; server/API error rate; availability; relevant resource saturation; gate internal failure or panic where observable |
+
+  **`ENFORCE` observation** — after activation, continue observing: actual guard
+  rejections; legitimate-client rejection incidents; GraphQL service health
+  (latency, error rate, availability); and mode/fleet correctness as established
+  by the runtime-operations controls of section 11.7;
 - **store adoption:** `BE-02` becomes the first required consumer, in its own
   separately specified, reviewed and authorized task, and only once `ENFORCE` is
   active and observed (section 18);
@@ -2577,13 +2616,32 @@ The report must additionally contain:
   the store is unavailable and every path falls back — that is, that
   `guard OFF + store enabled` and `guard OBSERVE + store enabled` are
   unrepresentable;
-- an explicit, accurate **production activation boundary** statement:
-  at merge, `guard mode = OFF`, `store = unavailable`, and production request
-  acceptance is unchanged, so the merge changes no production behaviour. The
-  report must state that `ENFORCE` activation is a **separate** decision
-  requiring preview acceptance, an `OBSERVE` window with a zero would-be-rejection
-  outcome, and explicit CTO production activation approval — and must **not**
-  describe CTO merge authorization as activation authorization;
+- an explicit, accurate **production activation boundary** statement, recording
+  all three states separately:
+
+  ```text
+  merge state:
+    OFF, store unavailable, no request-path overhead,
+    production request acceptance unchanged
+
+  OBSERVE:
+    separate explicit CTO production authorization
+    runtime-operations prerequisite satisfied (section 11.7)
+    monitoring/threshold prerequisite satisfied (section 8.3)
+    preview/staging evidence satisfied (section 11.3)
+
+  ENFORCE:
+    separate second explicit CTO production authorization
+    OBSERVE compatibility evidence passed
+    OBSERVE operational-health evidence passed
+  ```
+
+  The report must **not** describe CTO merge authorization as activation
+  authorization for either transition, must **not** present `ENFORCE` as the only
+  activation, and must **not** treat approval of one activation as approval of
+  the other. Live approval and activation evidence belongs to the relevant GitHub
+  or release record under `ADR-0005`; **no approval identifier is to be committed
+  to this repository**;
 - confirmation that the section 8.2 observability and section 8.3 runbook
   obligations are met, and that the previous "Required logs: none" statement no
   longer applies to the guard;
