@@ -2158,3 +2158,241 @@ behaviour being specified.
   previously accepted corrections were not regressed;
 - **this remediation is not independently approved.** The resulting exact head
   requires a fresh independent exact-head review.
+
+---
+
+## 22. Seventh remediation: production-control corrections
+
+### 22.1 Position at the start of this remediation
+
+```text
+Previous reviewed head:
+b1a4b6c99b0e52ca787ce8366f4fab2c4055e688
+
+Decision:
+CHANGES REQUIRED
+```
+
+Verified live before editing: PR #789 open and draft, base `develop`, head
+exactly `b1a4b6c99b0e52ca787ce8366f4fab2c4055e688` with **no** intervening
+commit; `develop` at `5a8c27b1b7c11a4f6bd26d459556468099f8c1f4`, **unchanged**
+from the review base, so no repository or pinned-Juniper assumption is affected;
+PR #788 at `d411d4935a507804f28d8798419d405e32880d02`, `updatedAt`
+2026-08-07T17:35:39Z; issue #765 `updatedAt` 2026-07-27T15:50:33Z; `ADR-0006`
+`PROPOSED`; `THOTH-GQL-BATCH-01` `DRAFT`, `HIGH`, implementation
+`NOT AUTHORIZED`; no implementation branch; PR diff still documentation-only with
+no runtime, dependency, schema, migration, workflow or production-config file.
+
+The review found the validation-ordering correction **technically sound**. The
+remaining defects were production-control specification defects, not failures of
+F2. **Nothing in the protected list was reopened**: F1/F2/F3, top-level-response-key
+scope, the duplicate-mutation guard, baseline-validation eligibility gating,
+effective operation variables, descendant prefetch, scoped identities, the
+three-state store, the compatibility shim and actual-SQL evidence are all
+unchanged.
+
+### 22.2 Finding 1 (P1) — eligibility-gate cost was wrongly described as mutation-only
+
+**Evidence inspected.** The specified algorithm parses and selects an operation
+before it can read `Operation::operation_type`, so in `OBSERVE`/`ENFORCE` it
+necessarily touches every GraphQL request. The prior claims — "bounded to
+mutations, never queries" and an availability surface on "the mutation path" —
+were unsupported.
+
+**Mandatory investigation performed.** Whether a safe earlier non-mutation
+discriminator exists was investigated against pinned source, subject to the
+stated constraints (no reimplemented parsing, no trusting unvalidated AST
+semantics, no changed external errors, no private fields, no `unsafe`, no string
+heuristics, no replacement of `GraphQLRequest::execute`, no broadened
+architecture).
+
+**Conclusion A holds, partially.** Operation type is determinable after **parse +
+`get_operation`** alone. This is safe because `operation_type` is a parser-level
+token; it is obtained by exactly the call juniper itself makes at
+`src/lib.rs:179` / `:229`; the fast path only ever decides to do **less**, so a
+misclassification could never cause a wrong rejection or event; and parse or
+selection failure exits as "no decision", matching the ineligible path. Verified
+across simple, anonymous, named-operation-selected and **invalid** documents of
+both kinds: **zero mismatches** against juniper's own operation typing.
+
+**But the cost is not eliminated.** In a throwaway probe, document and input
+validation accounted for roughly three fifths of gate cost across simple, list,
+fragment-heavy and deeply nested documents — so the fast path is worth adopting —
+while parse and selection, the remaining share, still fall on every request. Those
+probe figures justify the design's *shape* only; they are synthetic
+single-process measurements, are **not** production evidence, and no threshold
+may be derived from them.
+
+**Final correction.** The fast path is adopted, and the blast radius is restated
+as three distinct costs that must never be conflated:
+
+| Cost | Applies to |
+|---|---|
+| parse + operation selection | **every GraphQL request** in `OBSERVE`/`ENFORCE` |
+| document/schema + input-variable validation | mutations only, via the fast path |
+| duplicate-key traversal, and rejection | mutations only |
+
+Availability and latency risk are now written against the **common request
+path**, not the mutation path. Runtime implementation changed: **no**. F2
+changed: **no**. Eligibility-gate architecture changed: only the internal
+ordering (selection before validation, safe because the gate never surfaces an
+error and treats any failure as ineligible) plus the corrected performance
+characterisation.
+
+### 22.3 Finding 2 (P1) — OBSERVE required explicit CTO production authorization
+
+**Evidence inspected.** `release-gates.md` section 5 requires CTO approval for
+production activation of high-risk work. `OBSERVE` parses and selects for every
+request, validates and analyses mutations, and emits structured logs — it is live
+production behaviour, not a dry run.
+
+**Final correction.** Both transitions now require their own explicit CTO
+production activation approval: `OFF -> OBSERVE` and, separately,
+`OBSERVE -> ENFORCE`. Merge authorization authorizes neither; approving
+`OBSERVE` does not approve `ENFORCE`; approving `ENFORCE` does not retroactively
+approve `OBSERVE`. Ownership is now tabulated (CTO approves; the named
+engineering/release owner executes; observation sign-off per the runtime-operations
+control), and the two owners the repository cannot currently identify are recorded
+as **activation blockers** rather than invented.
+
+Runtime implementation changed: **no**. F2 changed: **no**.
+
+### 22.4 Finding 3 (P1) — rollback certainty contradicted open CG-13
+
+**Evidence inspected.** `docs/engineering/repository-map/control-gaps.md`:
+**CG-13 — "Thoth runtime operations unmapped"**, "Document runtime, deployment,
+migration execution, rollback, restore verification and approvers"; and the same
+register's verification-gaps section: "Thoth hosting/rollback remain unverified.
+Missing evidence is missing work." The `clap` `Arg::env(..)` pattern proves a
+configuration **input** exists and nothing more.
+
+**Final correction.** The claims "rollback is certain" and "a configuration
+change without a deploy" are **withdrawn** from the ADR and the task. The
+specification now states that the code-level control is the mode value, while the
+production mechanism to change, propagate, restart/redeploy, verify and roll it
+back is **not established by this ADR**, and that production `OBSERVE` and
+`ENFORCE` are **blocked** until CG-13 — or a bounded successor resolving the
+Thoth GraphQL configuration/deployment/rollback mechanism for this feature — is
+satisfied. Ten specific activation questions must be answered, including
+propagation interval, fleet-wide verification and partial-fleet handling.
+
+**Mixed-mode safety is recorded as load-bearing**: store availability derives
+from the mode and mutation isolation depends on `ENFORCE`, so a split fleet
+yields inconsistent client acceptance *and* inconsistent store availability
+simultaneously. The operations plan must supply either an atomic/shared
+mechanism or bounded, verified rollout semantics; this ADR deliberately does not
+invent one.
+
+**Merge-ready is distinguished from activation-ready**: none of this blocks
+merging an inert `OFF` foundation. If CG-13 needs its own remediation task, that
+task is recorded as a dependency of activation, not of merge or of this
+specification's approval; resolving CG-13 is outside this task's authorization
+and was not attempted.
+
+Runtime implementation changed: **no**. F2 changed: **no**.
+
+### 22.5 Finding 4 (P1) — monitoring and thresholds were insufficient
+
+**Evidence inspected.** `release-gates.md` section 5 requires "monitoring and
+alert thresholds"; section 8 requires observation to "monitor correctness,
+errors, latency and backlog". The previous "Required metrics/alerts: none … the
+event stream is the signal" covered only guard compatibility.
+
+**Final correction.** Signals are now split. The collision event stream remains
+the **compatibility** signal, with its privacy exclusions unchanged. A new
+**service-health** requirement lists what must be verified to exist before
+`OBSERVE` — latency, error rate, availability, resource saturation where
+material, and guard-path panic/internal failure where distinguishable — with
+explicit activation and rollback thresholds derived from existing baselines or
+SLOs and approved beforehand.
+
+**No numeric threshold is invented.** This repository establishes no
+authoritative GraphQL latency or error-rate baseline, so the specification
+records the correct status as
+`BLOCKED FOR PRODUCTION ACTIVATION - MONITORING / THRESHOLDS UNVERIFIED` and
+folds threshold definition into the runtime-operations prerequisite. Two distinct
+observation questions are now required — compatibility **and** operational — with
+the inference "zero collision events ⇒ ENFORCE safe" explicitly prohibited, and
+rollback triggers requiring **both** legitimate-client rejection and material
+service-health regression. The runbook obligation is expanded to the twelve items
+the operations prerequisite must supply.
+
+Runtime implementation changed: **no**. F2 changed: **no**.
+
+### 22.6 Finding 5 (P2) — Juniper API surface wording
+
+**Evidence inspected**, at exact pinned source. Every principal eligibility-gate
+surface is exported **and** marked `#[doc(hidden)]`:
+
+| Surface | Location |
+|---|---|
+| `parse_document_source` | `src/parser/document.rs:21-22` |
+| `ValidatorContext` | `src/validation/context.rs:19-20` |
+| `visit_all_rules` | `src/validation/rules/mod.rs:37-38` |
+| `validation::visit` | `src/validation/visitor.rs:14-15` |
+| `get_operation` | `src/executor/mod.rs:1000-1001` |
+| `validate_input_values` | `src/validation/input_value.rs:22-23` |
+| `RootNode::schema`, `RootNode::introspection_disabled` | `src/schema/model.rs:41-45` |
+
+**Final correction.** "Stable public API" is replaced by **"public-callable APIs
+on the exact pinned juniper version, several of them `doc(hidden)`"**, with the
+consequences stated: usable without private-field access or `unsafe`; a stronger
+compatibility coupling than ordinary documented API, with **no** semantic-version
+stability promise; revalidation required before merge **and** before activation
+on any juniper change; and the implementation must **fail closed** — failing to
+compile, or degrading to `OFF` with the store unavailable — if a surface
+disappears or changes semantics.
+
+### 22.7 Risk outcome
+
+Re-run against `risk-classification.md` from current evidence, and now recorded
+as **two separate things**, which conflating had obscured:
+
+```text
+Implementation task risk:        HIGH
+Production activation readiness: BLOCKED
+```
+
+`HIGH` is derived from production feature activation (at `OBSERVE` and
+`ENFORCE`), cross-repository API contract change, idempotency/deduplication,
+canonical data semantics and processing scope, with escalation applying for
+unknown traffic volume, unenumerable clients and — newly — an eligibility gate
+touching all GraphQL traffic once activated.
+
+`Critical` was assessed criterion by criterion and **none is engaged**: no
+destructive migration, no canonical rewrite, no mass redistribution, no security
+boundary affecting all publishers, no secrets work, no metrics recomputation, no
+source-of-truth cutover, no material legal or contractual consequence. The
+escalation factors — incomplete evidence, unknown volume, uncertain rollback —
+are real and are discharged by making **activation blocked**, not by inflating
+the implementation label. **Rollback certainty is explicitly not offered as a
+reason for avoiding `Critical`.**
+
+### 22.8 Files changed
+
+`docs/engineering/decisions/ADR-0006-request-scoped-graphql-batching.md`;
+`docs/engineering/ai-delivery/tasks/THOTH-GQL-BATCH-01.md`;
+`docs/engineering/decisions/decision-register.md`; this report; `CHANGELOG.md`.
+
+### 22.9 Boundaries confirmed
+
+- **no runtime work.** No file under `thoth-api/src/**`, `thoth-api-server/src/**`
+  or `thoth-client/**`; no `Cargo` manifest or lock file; no migration; no
+  `thoth-api/src/schema.rs`; no CI workflow; no repository setting; no production
+  configuration. The fast-path investigation ran in a throwaway crate outside the
+  repository and left nothing behind in it;
+- **no production action.** No mode activated, no deployment, no configuration
+  change, no merge;
+- **CG-13 was not modified.** No control-gap document was edited to imply CG-13 is
+  resolved; it is recorded as an open activation prerequisite;
+- **no authorization granted.** `ADR-0006` remains `PROPOSED`;
+  `THOTH-GQL-BATCH-01` remains `DRAFT`, `HIGH`, implementation `NOT AUTHORIZED`;
+  `BE-02` remains unauthorized; production `OBSERVE` and `ENFORCE` remain
+  unauthorized;
+- PR #788, its branch and the `BE-02` specification unmodified; issue #765
+  unmodified; `docs/publisher-services/task-status.md` unmodified; ADR-0001
+  through ADR-0005 unmodified;
+- the implementation branch `feature/shared-architecture/graphql-batching` was
+  not created;
+- **this remediation is not independently approved.** The resulting exact head
+  requires a fresh independent exact-head review.

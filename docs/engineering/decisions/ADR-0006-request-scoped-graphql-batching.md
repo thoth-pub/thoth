@@ -1327,17 +1327,140 @@ make Thoth responsible for reproducing the whole request pipeline, which section
 offer a clean validated-document execution boundary; adopting one is outside
 this decision unless correctness requires it.
 
-**The cost is incurred only where the guard evaluates.** In `OFF` the mode is
-checked **before** any parsing or validation, so `OFF` adds no parse, no
-validation and no allocation beyond a branch — see section 4.12.6.6.
+##### 4.12.6.5.4 Request-path blast radius, and the non-mutation fast path
 
-**Feasibility, verified.** The entire gate was reproduced against the pinned
-crate using **only** public APIs — `juniper::parser::parse_document_source`;
-`juniper::validation::{ValidatorContext, visit_all_rules, visit,
-MultiVisitorNil, validate_input_values, rules::disable_introspection::factory}`;
-`juniper::executor::get_operation`; and the public `RootNode::schema` /
-`RootNode::introspection_disabled` fields. No private field access, no `unsafe`,
-no raw-source manipulation and no second GraphQL implementation. Across eight
+**This section corrects a P1 characterisation defect.** An earlier revision said
+the duplicate parse/validation cost was "bounded to mutations, never queries",
+and described the added availability surface as being on "the mutation path".
+**Both are false** for the algorithm actually specified: the gate must parse and
+select an operation *before* it can know whether the request is a mutation at
+all, so in `OBSERVE` and `ENFORCE` it necessarily touches **every** GraphQL
+request.
+
+**A safe earlier discriminator was investigated, and one exists.** Operation type
+can be determined after **parse + operation selection alone**, without document
+validation and without input-variable validation:
+
+```text
+parse_document_source            -> Document
+get_operation(doc, operationName) -> Spanning<Operation>
+operation.item.operation_type     -> Query | Mutation | Subscription
+```
+
+**Why this is safe**, which is the part that matters:
+
+- `operation_type` is a **parser-level token**, not a semantic property that
+  validation establishes. Nothing about it is "unvalidated AST semantics" in the
+  dangerous sense;
+- it is obtained by **exactly the call juniper itself makes**
+  (`get_operation(&document, operation_name)`, `src/lib.rs:179` / `:229`) on a
+  document parsed from the same source with the same `operationName`, so the
+  value is identical to the one `execute_validated_query` will later match on;
+- the fast path only ever decides to **do less**. A non-mutation exits having
+  made **no** decision — no rejection, no observation event — which is
+  indistinguishable from "no collision". Misclassification could therefore only
+  cause the guard to skip work, never to reject or log wrongly;
+- parse failure or selection failure exits the same way: **no decision**, which
+  is exactly the ineligible outcome section 4.12.6.5.3 already requires.
+
+**Verified.** Across simple queries, anonymous queries, simple mutations,
+named-operation documents with `operationName` selecting either a query or a
+mutation, and **invalid** documents of both kinds, parse-plus-selection agreed
+with juniper's own operation typing in every case, with zero mismatches.
+
+**The reordering is safe, and is confined to our own eligibility decision.**
+Juniper validates *then* selects; the fast path selects *then* validates. That
+divergence never reaches a client, because the gate produces no error in either
+order and treats any failure as ineligible. Every request that reaches a guard
+**decision** has still passed all the section 4.12.6.5.3 gates.
+
+**The corrected blast radius.** Three costs, which must never be conflated:
+
+| Cost | Applies to | Modes |
+|---|---|---|
+| parse + operation selection | **every GraphQL request**, query and mutation alike | `OBSERVE`, `ENFORCE` |
+| document/schema + input-variable validation | **mutations only**, via the fast path | `OBSERVE`, `ENFORCE` |
+| duplicate-key traversal, and rejection | **mutations only** | traversal in `OBSERVE`+`ENFORCE`; rejection in `ENFORCE` only |
+
+So the binding statement is:
+
+```text
+OFF:
+    no additional request-processing overhead
+
+OBSERVE / ENFORCE:
+    every GraphQL request is parsed and its operation selected by the gate
+
+baseline-valid query:
+    exits after operation-type discrimination
+    no document validation, no input validation, no duplicate-key analysis
+    ordinary Juniper still parses and validates it again
+
+baseline-valid mutation:
+    completes the full eligibility gate
+    duplicate-key analysis proceeds
+    ordinary Juniper parses and validates again if not rejected
+```
+
+**The fast path narrows the cost; it does not remove it.** In a throwaway probe
+against the pinned crate, document and input validation accounted for roughly
+three fifths of total gate cost across simple, list, fragment-heavy and deeply
+nested documents — so the fast path is worth specifying — but parse and
+selection, the remaining share, still fall on **every** request while the mode
+is `OBSERVE` or `ENFORCE`. Those probe figures justify the *shape* of the design
+only. They are a synthetic single-process measurement and are **not** production
+evidence; section 7.2.3 requires real preview measurement before activation, and
+no threshold may be derived from them.
+
+**Consequently the availability and latency surface of `OBSERVE`/`ENFORCE` is the
+common GraphQL request path, not the mutation path.** Every risk, monitoring and
+threshold statement in this decision is written against that population.
+
+**The cost is incurred only where the guard evaluates.** In `OFF` the mode is
+checked **before** any parsing, selection or validation, so `OFF` adds no parse,
+no validation and no allocation beyond a branch — see section 4.12.6.6.
+
+**Feasibility, verified — and the API surface described accurately.** The entire
+gate was reproduced against the pinned crate without private-field access,
+without `unsafe`, without raw-source manipulation and without a second GraphQL
+implementation. But the surfaces it depends on must **not** be called "stable
+public API": almost all of them are exported yet marked `#[doc(hidden)]` on
+pinned 0.16.2.
+
+| Surface | Exported | `#[doc(hidden)]` | Location |
+|---|---|---|---|
+| `parse_document_source` | yes | **yes** | `src/parser/document.rs:21-22` |
+| `ValidatorContext` | yes | **yes** | `src/validation/context.rs:19-20` |
+| `visit_all_rules` | yes | **yes** | `src/validation/rules/mod.rs:37-38` |
+| `validation::visit` | yes | **yes** | `src/validation/visitor.rs:14-15` |
+| `get_operation` | yes | **yes** | `src/executor/mod.rs:1000-1001` |
+| `validate_input_values` | yes | **yes** | `src/validation/input_value.rs:22-23` |
+| `RootNode::schema`, `RootNode::introspection_disabled` | yes | **yes** | `src/schema/model.rs:41-45` |
+| `MultiVisitorNil`, `rules::disable_introspection::factory` | yes | no | `src/validation/multi_visitor.rs`; `rules/disable_introspection.rs:13,18` |
+
+For contrast, and so the caveat is not over-generalised: the **compatibility
+shim** (`Executor::new_error`, `ExecutionError::path`) and the **descendant
+traversal** (`Executor::look_ahead`, `LookAheadChildren::children`,
+`field_original_name`) use ordinary **documented** public API and are *not*
+`doc(hidden)`. The stronger coupling below applies specifically to the
+eligibility gate.
+
+The accurate description is therefore **"public-callable APIs on the exact pinned
+juniper version, several of them `doc(hidden)`"**. The consequences are binding:
+
+- they are usable **without** private-field access and **without** `unsafe`, so
+  the implementation does not need to do anything unsound to reach them;
+- they are nonetheless a **stronger compatibility coupling than ordinary
+  documented API**. `doc(hidden)` is an explicit signal that the author makes no
+  documentation-level commitment, and juniper offers **no semantic-versioning
+  stability promise** for them. This decision must not imply otherwise;
+- **any** juniper version change requires revalidation of the whole eligibility
+  gate before merge *and* before any activation, not merely before deployment
+  (section 4.12.14);
+- the implementation must **fail closed** if any of these surfaces disappears or
+  changes semantics: it must fail to compile, or fail to a state equivalent to
+  `OFF` with the loader store unavailable, never silently degrade to a gate that
+  admits baseline-invalid requests to a guard decision. Across eight
 baseline-invalid documents that *also* contained a duplicate-response-key shape
 — unknown field, invalid scalar sub-selection, unknown directive, missing
 required variable, wrong variable type, non-null variable with a default,
@@ -1371,18 +1494,24 @@ an implementation pull request merges. The "active by default" rule is
 
 The guard has exactly three operating modes.
 
-| Mode | Eligibility gate (4.12.6.5.3) | Duplicate-key analysis | Rejects? | Observation event | Loader store | Request acceptance |
-|---|---|---|---|---|---|---|
-| **OFF** | **not run** | no | no | none | **unavailable** | unchanged from today |
-| **OBSERVE** | run | yes, exactly as ENFORCE would | **no** | one per would-be rejection | **unavailable** | unchanged from today |
-| **ENFORCE** | run | yes | yes | one per actual rejection | may become available | baseline-valid duplicate top-level mutation response keys rejected |
+| Mode | Parse + selection | Full eligibility gate | Duplicate-key analysis | Rejects? | Observation event | Loader store | Request acceptance |
+|---|---|---|---|---|---|---|---|
+| **OFF** | **not run** | **not run** | no | no | none | **unavailable** | unchanged from today |
+| **OBSERVE** | **all requests** | mutations only | mutations only, exactly as ENFORCE would | **no** | one per would-be rejection | **unavailable** | unchanged from today |
+| **ENFORCE** | **all requests** | mutations only | mutations only | yes, mutations only | one per actual rejection | may become available | baseline-valid duplicate top-level mutation response keys rejected |
+
+Note the first column: in `OBSERVE` and `ENFORCE` the gate parses and selects an
+operation for **every** GraphQL request, because it cannot know the operation
+kind before doing so (section 4.12.6.5.4). Only the later columns are
+mutation-only.
 
 **OFF — the state at repository merge.** Binding:
 
 - it is the **default** mode, and the mode the foundation merges in;
-- the mode is checked **first**, before any parsing or validation, so `OFF`
-  **short-circuits ahead of the eligibility gate entirely**. It performs no
-  parse, no validation and no duplicate-key analysis. This is required, not
+- the mode is checked **first**, before any parsing, operation selection or
+  validation, so `OFF` **short-circuits ahead of the eligibility gate entirely**.
+  It performs no parse, no selection, no validation and no duplicate-key
+  analysis, on any request of any kind. This is required, not
   merely permitted: `OFF` exists to preserve current behaviour and must not
   impose the section 4.12.6.5.3 duplicate-work cost on production traffic that
   gains nothing from it;
@@ -1398,7 +1527,10 @@ behaviour at all.
 
 **OBSERVE — the controlled compatibility pilot.** Binding:
 
-- it runs the **eligibility gate** of section 4.12.6.5.3 first. A
+- it parses and selects an operation for **every** request, then applies the
+  non-mutation fast path of section 4.12.6.5.4: a query or subscription exits
+  immediately, having made no decision and emitted no event;
+- for a mutation it completes the **eligibility gate** of section 4.12.6.5.3. A
   baseline-invalid request yields **no** analysis, **no** observation event and
   **no** guard error; it continues to the ordinary juniper path, which produces
   its canonical error;
@@ -1414,11 +1546,13 @@ behaviour at all.
 
 **ENFORCE — the enforcing state.** Binding:
 
-- it runs the **eligibility gate** first. A baseline-invalid request is left
-  entirely to juniper: no duplicate-key rejection is returned, and juniper's
-  canonical validation, operation-selection or input error reaches the client
-  unchanged. Zero resolvers run, as they already would under a validation
-  failure;
+- it parses and selects for every request and applies the same non-mutation fast
+  path: queries and subscriptions are never restricted and exit immediately;
+- for a mutation it completes the **eligibility gate** first. A baseline-invalid
+  request is left entirely to juniper: no duplicate-key rejection is returned,
+  and juniper's canonical validation, operation-selection or input error reaches
+  the client unchanged. Zero resolvers run, as they already would under a
+  validation failure;
 - for a baseline-valid mutation operation, a duplicate executable top-level
   response key is rejected **before** resolver execution;
 - zero mutation resolver executions and zero database writes for a rejected
@@ -2154,7 +2288,10 @@ only at the terminal field.
   present, and both return only the first match (`:426-441`);
 - traversal is recursive over `LookAheadSelection::children()` (`:606`), whose
   `iter()` (`:451`) yields child selections that themselves expose `children()`.
-  This composes to arbitrary depth using stable public API;
+  This composes to arbitrary depth. Unlike the eligibility gate's surfaces
+  (section 4.12.6.5), `look_ahead()`, `children()` and `field_original_name()`
+  are **ordinary documented public API** — not `doc(hidden)` — so the descendant
+  traversal carries the weaker of the two coupling risks;
 - **every** matching terminal selection must be collected, across **all**
   matching intermediate branches. Traversal must not stop at the first match at
   any level.
@@ -2392,10 +2529,23 @@ A claim of loader-backed-field compliance must state which scope it covers.
     scope at once (4.12.12).
 32. Repository merge is **not** production activation. The foundation merges with
     the guard in **OFF** and the store unavailable, so merging changes no
-    production behaviour. `OFF -> OBSERVE` and `OBSERVE -> ENFORCE` are separate
-    transitions carrying their own evidence and approvals, and the transition to
-    ENFORCE requires explicit CTO production activation approval, distinct from
-    merge authorization (4.12.6.6, 7.2.1).
+    production behaviour and adds no request-path overhead. `OFF -> OBSERVE` and
+    `OBSERVE -> ENFORCE` are separate transitions, **each** requiring its own
+    explicit CTO production activation approval, distinct from merge
+    authorization and from each other. Authorizing `OBSERVE` does not authorize
+    `ENFORCE`; authorizing `ENFORCE` does not retroactively authorize `OBSERVE`
+    (4.12.6.6, 7.2.1).
+34. In `OBSERVE` and `ENFORCE` the eligibility gate parses and selects an
+    operation for **every** GraphQL request. Only document/input validation,
+    duplicate-key analysis and rejection are mutation-only (4.12.6.5.4). No
+    statement in this repository may describe the gate's cost or availability
+    surface as bounded to mutations.
+35. Production activation of `OBSERVE` — and therefore of everything downstream —
+    is **blocked** until the runtime-operations prerequisite of section 7.2.4 is
+    satisfied for this feature, and until the service-health signals and
+    activation thresholds of section 8.3.2 are verified. Rollback timing and
+    mechanism are **unverified** until then, and must not be described as certain
+    or as requiring no deploy.
 33. The guard's directive evaluation uses the **effective** variable map — the
     selected operation's variable defaults, overridden by the request-supplied
     variables — exactly as the pinned executor constructs it before resolving.
@@ -2481,22 +2631,61 @@ Activation is a separate, staged, separately approved sequence. It must not be
 collapsed into the merge event.
 
 ```text
-merge (guard OFF, store unavailable)
-   -> preview/staging acceptance of the exact implementation candidate
-   -> OBSERVE activation authorization
-   -> OBSERVE, for an explicit observation window
-   -> observation evidence reviewed
-   -> CTO ENFORCE production activation authorization
-   -> ENFORCE
-   -> observation period
+merge (guard OFF, store unavailable, no request-path overhead)
+   -> verified runtime-operations evidence for mode control (7.2.4)
+   -> verified monitoring signals and activation thresholds (8.3.2)
+   -> preview/staging acceptance of the exact implementation candidate,
+      including the performance evidence of 7.2.3
+   -> explicit CTO production activation authorization for OFF -> OBSERVE
+   -> controlled OBSERVE activation
+   -> explicit observation window
+   -> compatibility evidence AND operational evidence reviewed and signed off
+   -> production-ready evidence for ENFORCE
+   -> separate explicit CTO production activation authorization for
+      OBSERVE -> ENFORCE
+   -> ENFORCE activation
+   -> post-activation observation period
    -> (only then) a later task may adopt the store on a mutation path
 ```
 
-`OFF -> OBSERVE` and `OBSERVE -> ENFORCE` are distinct transitions with distinct
-evidence requirements. **CTO merge authorization is not production activation
-authorization**, and must never be described as such. Because ENFORCE changes a
-cross-client request contract and the task is HIGH risk, the transition to
-ENFORCE requires **separate explicit CTO production activation approval**.
+**Corrected during remediation: `OBSERVE` is itself a HIGH-risk production
+activation.** An earlier revision let `OBSERVE` proceed under ordinary task
+ownership after preview, reserving explicit CTO approval for `ENFORCE`. That is
+withdrawn. `OBSERVE` parses and selects an operation for **every** GraphQL
+request, validates and analyses mutations, and emits structured logs — it is
+live behaviour on the common request path, and `release-gates.md` section 5
+requires CTO approval for production activation of high-risk work. Therefore:
+
+- `OFF -> OBSERVE` requires **explicit CTO production activation approval**;
+- `OBSERVE -> ENFORCE` requires a **separate** explicit CTO production activation
+  approval;
+- **CTO merge authorization is not production activation authorization** for
+  either;
+- authorization for `OBSERVE` does **not** authorize `ENFORCE`, and
+  authorization for `ENFORCE` does **not** retroactively authorize `OBSERVE`.
+  They are separate decisions over different production effects — added overhead
+  on all traffic versus changed request acceptance for clients.
+
+#### 7.2.1.1 Activation ownership
+
+Using the repository's existing control terminology, and naming no individual:
+
+| Decision | Owner |
+|---|---|
+| merge authorization | **CTO**, because the task is HIGH risk |
+| `OFF -> OBSERVE` production activation approval | **CTO** |
+| `OBSERVE -> ENFORCE` production activation approval | **CTO**, separately |
+| execution of a mode change | the **named engineering/release owner** recorded on `THOTH-GQL-BATCH-01` |
+| post-activation observation sign-off | the role identified by the runtime-operations control of section 7.2.4 |
+
+**Two of these are not yet identifiable, and that is itself an activation
+blocker.** `release-gates.md` section 5 requires an "explicit activation owner",
+and section 8 requires observation to end with "an explicit sign-off". The
+repository does not currently identify a production execution owner or an
+observation sign-off owner for `thoth` runtime, because control gap **CG-13**
+(`docs/engineering/repository-map/control-gaps.md`, "Thoth runtime operations
+unmapped") is open. Those owners must be established by the section 7.2.4
+prerequisite rather than assumed or invented here.
 
 #### 7.2.2 OBSERVE is the controlled pilot, and it does add evidence
 
@@ -2524,6 +2713,36 @@ evidence across all traffic; one may be introduced later only if evidence shows
 it useful.
 
 #### 7.2.3 Evidence required before ENFORCE
+
+**Performance evidence, required before `OBSERVE`.** Because the eligibility gate
+touches the common GraphQL request path (section 4.12.6.5.4), overhead must be
+measured before production activation, not assumed. Using repository-supported
+tooling rather than a new benchmark subsystem, measure at least:
+
+- representative **query** latency with mode `OFF`;
+- the same representative queries with `OBSERVE`;
+- representative **mutation** latency with `OFF`;
+- the same representative mutations with `OBSERVE`;
+- CPU/resource impact, where existing test or preview instrumentation exposes it;
+- behaviour for requests that fail validation;
+- high-complexity but valid documents;
+- fragment-heavy documents;
+- and, where materially different from `OBSERVE`, the same for `ENFORCE`.
+
+The evidence must answer one question:
+
+```text
+Does enabling OBSERVE create an unacceptable latency, error-rate or
+resource regression on the real common request path?
+```
+
+**Thresholds must come from repository evidence, not from this decision.** No
+numeric threshold is stated here, because no authoritative production latency or
+error-rate baseline for the `thoth` GraphQL API is established in this
+repository. Deriving and approving explicit acceptance thresholds from verified
+production baselines or SLOs is therefore a **hard activation prerequisite**
+(section 8.3.2). If no authoritative baseline can be established, activation is
+blocked; a number must not be invented to unblock it.
 
 **Preview/staging acceptance.** Exercise the exact implementation candidate in a
 production-like or preview environment and prove:
@@ -2560,26 +2779,111 @@ affected callers have been identified and addressed. A non-zero count must not
 be waved through on the assumption that the traffic is synthetic or
 unimportant.
 
-**Activation owner.** Both transitions are performed under the repository's
-existing control terminology: the **CTO** authorizes ENFORCE activation, as for
-any HIGH-risk production activation, and the change is executed by the
-**engineering owner named on the task** (section 20's `Owner` field). No
-personal identity is recorded here.
+**Activation owner.** See section 7.2.1.1, which now covers both transitions and
+records the two ownership questions CG-13 leaves open.
+
+#### 7.2.4 Runtime-operations prerequisite (CG-13)
+
+**Corrected during remediation.** An earlier revision claimed rollback was
+"certain" and that `ENFORCE -> OBSERVE -> OFF` was "a configuration change
+without a deploy". **Those claims are withdrawn.** They are not
+repository-authoritative facts.
+
+What is actually established is only this: the mode would be supplied through the
+repository's existing `clap` `Arg::env(..)` process-start configuration pattern
+(`src/bin/arguments/mod.rs`). That proves a configuration **input** exists. It
+does **not** establish any of:
+
+- whether the value is dynamically reloadable;
+- whether changing it takes effect without a process restart;
+- whether changing it requires a deployment or rollout;
+- how long propagation takes across instances;
+- whether all replicas observe the same value atomically;
+- which orchestration mechanism owns the value;
+- who is permitted to change it;
+- how a change, or a rollback, is verified on the running service.
+
+Control gap **CG-13 — "Thoth runtime operations unmapped"**
+(`docs/engineering/repository-map/control-gaps.md`) states that runtime,
+deployment, rollback, restore verification and approvers remain undocumented,
+and the same register records that "Thoth hosting/rollback remain unverified.
+Missing evidence is missing work."
+
+**Binding statement:**
+
+```text
+The code-level rollback control is OFF / OBSERVE / ENFORCE mode configuration.
+
+The production mechanism by which that value is changed, propagated,
+restarted or redeployed if necessary, verified across instances, and rolled
+back is NOT established by this ADR.
+
+Production OBSERVE and ENFORCE activation are blocked until CG-13, or a
+bounded successor runtime-operations control resolving the Thoth GraphQL
+configuration, deployment and rollback mechanism, is satisfied for this
+feature.
+```
+
+A bounded partial resolution is acceptable where the repository's control process
+permits one: CG-13 need not be resolved for unrelated systems. But the questions
+below, which are specific to this feature, must be answered before `OBSERVE`:
+
+1. the production runtime/deployment owner;
+2. where the mode value is configured;
+3. whether a mode change requires a process restart or a deploy;
+4. how a mode change reaches **all** replicas;
+5. the expected and observed propagation interval;
+6. how the effective mode is verified on the running service;
+7. the rollback procedure;
+8. who authorizes a rollback;
+9. a preview/staging rehearsal of the change and the rollback, with timing;
+10. how a partial-fleet mode change is detected and handled.
+
+**Mixed-mode safety (item 10) is load-bearing, not hygiene.** Store availability
+is derived from the mode, and mutation isolation depends on `ENFORCE`. A fleet in
+which one replica is `ENFORCE` and another `OBSERVE` yields inconsistent client
+acceptance *and* inconsistent store availability. The operations plan must
+therefore establish either an atomic or shared configuration mechanism, or
+rollout semantics and verification that make mixed-mode periods **safe and
+bounded**. This ADR deliberately does **not** invent that mechanism, because
+production orchestration is unknown; it makes it an activation prerequisite.
+
+**Merge-ready is not activation-ready.** These prerequisites do **not** block
+merging the foundation, provided the merged code is genuinely inert: mode `OFF`,
+store unavailable, no request-path overhead, no production behaviour change.
+They block `OBSERVE`, and therefore everything downstream of it.
 
 ### 7.3 Rollback
 
-Rollback from ENFORCE is a **configuration** change, not a deploy, wherever the
-existing configuration mechanism supports it:
+**Corrected during remediation.** An earlier revision stated that rollback was
+"certain" and was "a configuration change without a deploy". **Both claims are
+withdrawn** — see section 7.2.4. They asserted operational properties this
+repository has not verified, while CG-13 leaves Thoth runtime operations
+unmapped.
+
+What **is** established, at the code level:
 
 ```text
-ENFORCE -> OBSERVE     keep collecting evidence, stop rejecting
+The rollback control is the OFF / OBSERVE / ENFORCE mode value.
+
+ENFORCE -> OBSERVE     stop rejecting; keep collecting evidence
 ENFORCE -> OFF         stop evaluating entirely
+OBSERVE -> OFF         stop evaluating entirely
 ```
 
-Both immediately restore prior request acceptance. Because store availability is
-derivable only from the mode (section 4.12.6.6), either transition also makes
-the store unavailable, so no path is left depending on a guarantee no longer
-enforced — the fallback carries every affected field.
+Each of those transitions restores the prior request-acceptance behaviour, and
+because store availability is derived only from the mode (section 4.12.6.6),
+each also makes the store unavailable — so no path is left depending on a
+guarantee no longer enforced, and the direct fallback carries every affected
+field.
+
+What is **not** established: how that value is changed in production, whether the
+change requires a restart or a deploy, how long it takes to propagate, how it is
+verified across replicas, and who authorizes it. Until the section 7.2.4
+prerequisite answers those questions, **rollback timing and mechanism are
+unverified**, and this decision does not claim otherwise. Rollback must be
+**rehearsed in preview/staging with measured timing** before `OBSERVE`, and its
+measured bound recorded.
 
 Secondary and later rollbacks:
 
@@ -2749,6 +3053,8 @@ first adoption, and query-count evidence remains **test and preview** evidence
 (sections 8.1, 8.2). A store metric becomes a question for the first adopting
 task, not this one.
 
+#### 8.3.1 Guard compatibility signal
+
 **Mutation guard — production observability is required.** OBSERVE and ENFORCE
 both sit on the common request path, and OBSERVE exists precisely to produce
 evidence, so "required logs: none" is **not** an acceptable statement anywhere
@@ -2783,27 +3089,122 @@ Each event must **never** carry:
 Mutation arguments carry user and publisher data, so this exclusion is a privacy
 requirement, not a verbosity preference.
 
-No new alert or dashboard is created by this decision. The event stream is the
-signal; a non-zero OBSERVE count blocks ENFORCE (section 7.2.3), and a non-zero
-ENFORCE count after activation is the rollback signal (section 7.3).
+**These events are the compatibility signal only, and they are not sufficient on
+their own.** An earlier revision said "no new alert or dashboard is required …
+the event stream is the signal". That is **withdrawn**: the collision event
+stream answers whether clients send colliding documents, and says nothing about
+the latency, error-rate or availability effects the eligibility gate introduces
+on the common request path. Section 8.3.2 records what else is required.
 
-#### 8.3.1 Runbook obligation
+#### 8.3.2 Service-health signals and activation thresholds
 
-The mode transitions need a minimal operational runbook entry — and no more than
-that. It must state:
+`release-gates.md` section 5 requires "monitoring and alert thresholds" for
+production activation, and section 8 requires observation to "monitor
+correctness, errors, latency and backlog". Because `OBSERVE` and `ENFORCE` add
+work to every GraphQL request (section 4.12.6.5.4), both apply here.
 
-- **how to change mode**, for `OFF -> OBSERVE`, `OBSERVE -> ENFORCE` and
-  `ENFORCE -> OBSERVE/OFF`, using the existing configuration mechanism;
-- **what blocks ENFORCE**: a non-zero would-be-rejection count over the
-  observation window, until the affected callers are identified and addressed;
-- **what triggers rollback**: rejection events in ENFORCE attributable to
-  legitimate client traffic;
-- **how to verify store unavailability outside ENFORCE**, so the fail-closed
-  coupling of section 4.12.6.6 can be confirmed operationally rather than
-  assumed.
+**This decision creates no dashboard, telemetry pipeline or alerting rule.** It
+requires that authoritative signals be **identified and verified to exist**
+before activation. Before `OBSERVE` may be authorized, there must be a verified
+way to observe:
+
+- GraphQL/API request **latency**, at an agreed percentile;
+- server/GraphQL **error rate**;
+- service **availability** / HTTP failure rate as appropriate;
+- **resource saturation**, where already available and material to the duplicate
+  validation work;
+- guard/eligibility-path **panic or internal failure**, where distinguishable.
+
+**Thresholds.** Explicit activation and rollback thresholds must be derived from
+existing operational baselines or SLOs and approved before activation, in a form
+such as:
+
+```text
+OBSERVE must not proceed, or must roll back, if p95 latency exceeds the
+approved baseline threshold.
+
+OBSERVE must roll back if the server error rate exceeds the approved
+release threshold.
+
+ENFORCE must not proceed while would-be legitimate-client collisions
+remain unresolved.
+```
+
+**No numeric value is stated here, deliberately.** This repository establishes no
+authoritative production latency, error-rate or SLO baseline for the `thoth`
+GraphQL API, and inventing one would be worse than recording its absence. If no
+authoritative metrics, SLO or threshold evidence can be found, the correct status
+is:
+
+```text
+BLOCKED FOR PRODUCTION ACTIVATION - MONITORING / THRESHOLDS UNVERIFIED
+```
+
+and defining them becomes part of the section 7.2.4 runtime-operations
+prerequisite. The ADR may still be approved and the `OFF` foundation may still be
+implemented and merged if the repository gates otherwise permit, because the
+merged state is inert; **`OBSERVE` cannot be production-authorized without this
+evidence.**
+
+#### 8.3.3 The two observation questions
+
+`OBSERVE` must answer **both**, and both must pass:
+
+| Question | Evidence |
+|---|---|
+| **Compatibility** — are legitimate production clients sending baseline-valid mutation documents that `ENFORCE` would reject? | would-be rejection count; caller investigation; zero unresolved legitimate-client blockers |
+| **Operational** — does the eligibility gate materially degrade the GraphQL service? | latency; error rate; availability; resource pressure where relevant; incidents |
+
+Explicitly prohibited:
+
+```text
+zero collision events  =>  ENFORCE is safe
+```
+
+That inference is invalid if service health regressed. A clean compatibility
+result with a degraded operational result blocks `ENFORCE` just as firmly as a
+non-zero collision count does.
+
+#### 8.3.4 Monitoring after ENFORCE
+
+Continue to monitor: actual guard rejections; any legitimate-client rejection
+incident; GraphQL latency, error rate and availability; **mode state across the
+running fleet** (section 7.2.4 item 10); and store availability state where
+operationally observable.
+
+Rollback triggers are **both** of:
+
+```text
+legitimate client rejection
+material service-health regression attributable to the guard
+```
+
+Collision events must **not** be the sole rollback signal.
+
+#### 8.3.5 Runbook obligation
+
+The mode transitions need an operational runbook — and no more than that. Its
+contents depend on facts the section 7.2.4 prerequisite must establish, so this
+decision **requires** them rather than fabricating them. The runbook must state:
+
+- the **verified mechanism for setting the mode**;
+- **whether a restart or redeploy is required** to change it;
+- **how a mode change propagates to all replicas**;
+- **how to verify the effective mode fleet-wide**;
+- the **expected propagation interval**;
+- the `OFF -> OBSERVE` procedure;
+- the `OBSERVE -> ENFORCE` procedure;
+- the `ENFORCE -> OBSERVE/OFF` rollback procedure;
+- **who authorizes a rollback**;
+- **service-health** rollback criteria (section 8.3.2 thresholds);
+- **compatibility** rollback criteria (legitimate-client rejections);
+- **how store unavailability outside `ENFORCE` is verified**, so the fail-closed
+  coupling of section 4.12.6.6 is confirmed operationally rather than assumed.
 
 No other operational machinery is created. This decision adds no dashboard, no
-alerting rule, no on-call procedure and no new runbook beyond the entry above.
+alerting rule and no on-call procedure of its own; section 8.3.2 requires that
+authoritative health signals be **identified and verified to exist**, not that
+new ones be built here.
 
 ---
 
@@ -2961,6 +3362,20 @@ decision exists to control.
   rejects rather than silently admits a possible duplicate execution — recorded
   as a compatibility tradeoff in 4.12.6.7, not hidden. An omitted-but-defaulted
   variable is **not** undecidable and must never be classified as such.
+- **Pinned-Juniper `doc(hidden)` coupling risk** — almost every surface the
+  eligibility gate depends on (`parse_document_source`, `ValidatorContext`,
+  `visit_all_rules`, `validation::visit`, `get_operation`,
+  `validate_input_values`, `RootNode::schema`,
+  `RootNode::introspection_disabled`) is exported but marked `#[doc(hidden)]`
+  (4.12.6.5). They are reachable without `unsafe` or private-field access, but
+  juniper makes no documentation-level or semantic-versioning commitment about
+  them. Mitigations: the exact surfaces and locations are tabulated; revalidation
+  is required before merge **and** before activation on any juniper change
+  (4.12.14); and the implementation must fail closed — failing to compile, or
+  degrading to `OFF` with the store unavailable — rather than silently admitting
+  baseline-invalid requests to a guard decision. Residual: a juniper upgrade is
+  materially harder for this module than for ordinary dependent code, and that
+  cost is permanent for as long as the gate exists.
 - **Validation-equivalence drift risk** — the guard's eligibility gate must gate
   on the same conditions the pinned `execute`/`execute_sync` gate on. It calls
   juniper's **own** helpers rather than reproducing their logic, so it cannot
@@ -2971,15 +3386,42 @@ decision exists to control.
   against ordinary juniper for every baseline gate; and the revalidation
   obligation of section 4.12.14 explicitly covers the request pipeline. Residual:
   a juniper upgrade cannot be treated as routine for this module either.
-- **Duplicate parse/validation overhead risk** — in `OBSERVE` and `ENFORCE`, a
-  mutation request is parsed and validated twice: once by the gate and once
-  inside `GraphQLRequest::execute`. This is a real latency and CPU cost on the
-  mutation path, accepted deliberately in exchange for error compatibility
-  (4.12.6.5.3). Mitigations: `OFF` short-circuits before any of it, so the cost
-  is absent at merge and absent until activation; the cost falls only on
-  mutations, never on queries; and preview/staging acceptance (7.2.3) exercises
-  the exact candidate before activation. Residual: the cost is not eliminated,
-  only bounded and deferred, and the specification must not pretend otherwise.
+- **Common-request-path overhead risk** — corrected during remediation, and
+  materially larger than previously described. In `OBSERVE` and `ENFORCE` the
+  gate parses and selects an operation for **every** GraphQL request, and
+  additionally validates every **mutation**, all before
+  `GraphQLRequest::execute` does the same work again (4.12.6.5.4). The affected
+  population is the common request path, **not** the mutation path. Mitigations:
+  `OFF` short-circuits before any of it, so the cost is absent at merge and
+  absent until a separately authorized activation; the non-mutation fast path
+  removes document and input validation for queries, roughly three fifths of the
+  gate cost in probe measurements; measured preview evidence and approved
+  thresholds are hard prerequisites for `OBSERVE` (7.2.3, 8.3.2); and
+  service-health rollback triggers apply after activation (8.3.4). Residual: the
+  parse and selection cost is **not** eliminated for any request, production
+  traffic volume is unknown, and no authoritative latency baseline currently
+  exists against which to judge it — which is why activation is blocked rather
+  than merely monitored.
+- **Availability risk on shared request handling** — the gate executes juniper
+  parsing and validation code on the common request path in
+  `OBSERVE`/`ENFORCE`. A panic or pathological input there would affect GraphQL
+  availability broadly, not only mutations. Mitigations: it calls juniper's own
+  helpers rather than new parsing logic, so it inherits their behaviour on
+  hostile input; `OFF` is unaffected; the fast path limits validation to
+  mutations; preview acceptance exercises high-complexity and fragment-heavy
+  documents (7.2.3); and 8.3.2 requires a verified way to observe error rate and
+  availability before activation. Residual: unbounded pathological-document cost
+  is a juniper property this decision does not change.
+- **Runtime-operations uncertainty (CG-13)** — the production mechanism for
+  changing, propagating, verifying and rolling back the mode is **not
+  established** (7.2.4). Rollback timing and mechanism are therefore unverified,
+  and a partial-fleet mode change could produce inconsistent client acceptance
+  and inconsistent store availability simultaneously. Mitigations: activation is
+  **blocked** until the prerequisite is satisfied; merge remains safe because the
+  merged state is inert; a preview rehearsal with measured timing is required.
+  Residual: this is an open repository control gap, not something this decision
+  can close, and it is the single largest obstacle between merge and any
+  production benefit.
 - **Prerequisite-decoupling risk** — a future change could leave the store
   enabled while the guard is not in `ENFORCE`, which would silently reinstate
   exactly the defect this remediation exists to close. Mitigation: section 4.12.6.6
@@ -3089,25 +3531,35 @@ CTO merge authorization
         |
         v
 merge into develop  --  guard mode OFF, loader store unavailable,
-                        production request acceptance unchanged
+                        production request acceptance unchanged,
+                        no request-path overhead
         |
         v
-preview/staging acceptance of the exact implementation candidate (7.2.3)
+runtime-operations evidence for mode control verified (7.2.4 / CG-13)
         |
         v
-OBSERVE activation authorization
+service-health signals and activation thresholds verified (8.3.2)
+        |
+        v
+preview/staging acceptance of the exact candidate, including the
+performance evidence of 7.2.3 and a rehearsed, timed rollback
+        |
+        v
+explicit CTO production activation approval for OFF -> OBSERVE
         |
         v
 OBSERVE for an explicit observation window
         |
         v
-observation evidence reviewed; non-zero would-be rejections block ENFORCE
+compatibility AND operational evidence reviewed and signed off;
+either a non-zero unresolved would-be rejection count or a
+service-health regression blocks ENFORCE
         |
         v
-explicit CTO ENFORCE production activation approval
+separate explicit CTO production activation approval for OBSERVE -> ENFORCE
         |
         v
-ENFORCE + observation period
+ENFORCE + post-activation observation period
         |
         v
 BE-02 specification amended on its existing PR #788 to replace the open
