@@ -1,7 +1,12 @@
 use crate::arguments;
 use clap::{ArgMatches, Command};
 use lazy_static::lazy_static;
-use thoth::{api_server, errors::ThothResult, export_server};
+use thoth::{
+    api::graphql::MutationGuardMode,
+    api_server,
+    errors::{ThothError, ThothResult},
+    export_server,
+};
 
 lazy_static! {
     pub(crate) static ref COMMAND: Command = Command::new("start")
@@ -19,6 +24,7 @@ lazy_static! {
                 .arg(arguments::gql_url())
                 .arg(arguments::key())
                 .arg(arguments::zitadel_url())
+                .arg(arguments::mutation_guard_mode())
                 .arg(arguments::aws_access_key_id())
                 .arg(arguments::aws_secret_access_key())
                 .arg(arguments::aws_region()),
@@ -48,6 +54,14 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
         .get_one::<String>("zitadel-url")
         .unwrap()
         .to_owned();
+    // Defaults to `OFF`; `clap`'s `value_parser` has already restricted the
+    // string to the three accepted modes.
+    let mutation_guard_mode = arguments
+        .get_one::<String>("mutation-guard-mode")
+        .map(String::as_str)
+        .unwrap_or("OFF")
+        .parse::<MutationGuardMode>()
+        .map_err(ThothError::InternalError)?;
 
     api_server(
         database_url,
@@ -58,6 +72,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
         url,
         private_key,
         zitadel_url,
+        mutation_guard_mode,
         arguments
             .get_one::<String>("aws-access-key-id")
             .unwrap()

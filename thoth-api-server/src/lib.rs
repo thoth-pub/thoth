@@ -16,7 +16,9 @@ use base64::{engine::general_purpose, Engine as _};
 use serde::Serialize;
 use thoth_api::{
     db::{init_pool, PgPool},
-    graphql::{create_schema, Context, GraphQLRequest, Schema},
+    graphql::{
+        create_schema, run_mutation_guard, Context, GraphQLRequest, MutationGuardMode, Schema,
+    },
     storage::{create_cloudfront_client, create_s3_client, CloudFrontClient, S3Client},
 };
 use zitadel::{
@@ -90,14 +92,34 @@ async fn graphql(
     pool: Data<PgPool>,
     s3_client: Data<S3Client>,
     cloudfront_client: Data<CloudFrontClient>,
+    guard_mode: Data<MutationGuardMode>,
     user: Option<IntrospectedUser>,
     data: Json<GraphQLRequest>,
 ) -> Result<HttpResponse, Error> {
-    let ctx = Context::new(
+    let mode = *guard_mode.into_inner().as_ref();
+
+    // Central mutation request guard (`ADR-0006` section 4.12.6), evaluated at
+    // the GraphQL HTTP request boundary **before** ordinary Juniper execution.
+    //
+    // In `OFF` — the default and the merged production state — this returns
+    // before any parsing, so it adds no request-path work of any kind. It never
+    // replaces `GraphQLRequest::execute`, and it makes no authorization
+    // decision.
+    if let Some(rejection) = run_mutation_guard(mode, &data, &st) {
+        // A guard rejection is an ordinary validation-style failure:
+        // `is_ok()` is false, so the *existing* branch below returns HTTP 400
+        // with the ordinary GraphQL error body and no `data` key.
+        return Ok(HttpResponse::BadRequest().json(rejection));
+    }
+
+    // The request context carries the same guard mode, so store availability is
+    // derived from it and can never disagree with the guard.
+    let ctx = Context::with_guard_mode(
         pool.into_inner(),
         user,
         s3_client.into_inner(),
         cloudfront_client.into_inner(),
+        mode,
     );
     let result = data.execute(&st, &ctx).await;
     match result.is_ok() {
@@ -117,6 +139,7 @@ pub async fn start_server(
     public_url: String,
     private_key: String,
     zitadel_url: String,
+    mutation_guard_mode: MutationGuardMode,
     aws_access_key_id: String,
     aws_secret_access_key: String,
     aws_region: String,
@@ -158,6 +181,7 @@ pub async fn start_server(
             .app_data(Data::new(s3_client.clone()))
             .app_data(Data::new(cloudfront_client.clone()))
             .app_data(Data::new(Arc::new(create_schema())))
+            .app_data(Data::new(mutation_guard_mode))
             .service(index)
             .service(graphql_index)
             .service(graphql)
