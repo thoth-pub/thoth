@@ -233,7 +233,7 @@ cargo test --workspace
 ```
 
 ```text
-thoth-api            965 passed; 0 failed  (869 pre-existing + 96 added)
+thoth-api            969 passed; 0 failed  (869 pre-existing + 100 added)
 graphql_permissions   13 passed; 0 failed  (unmodified)
 thoth-export-server  143 passed; 0 failed
 thoth-errors          11 passed; 0 failed
@@ -248,7 +248,7 @@ cargo test -p thoth-api --features backend
 ```
 
 ```text
-965 passed; 0 failed; 0 ignored
+969 passed; 0 failed; 0 ignored
 ```
 
 The complete pre-existing GraphQL test suite passes **unmodified** — no existing
@@ -812,7 +812,7 @@ Verified by inspection (above) *and* by test
 
 ## B. Test-matrix results
 
-96 tests added; **all passing**; no existing test modified.
+100 tests added; **all passing**; no existing test modified.
 
 ### B.1 Store (11 + collision matrix)
 
@@ -879,6 +879,19 @@ them), and isolation is asserted **structurally**: each scope holds its own
 entries (`entry_count() == 2`) and the second field observes its own write. The
 isolation invariant itself is **not weakened** — it does not depend on execution
 order, which is precisely why the architecture is order-independent.
+
+### B.5a Query path and the non-mutation fast path
+
+a valid query is never restricted and emits no event in `OFF`, `OBSERVE` and
+`ENFORCE` ✔ · a valid query's response is **byte-identical** to the no-guard
+baseline in every mode ✔ · an invalid query keeps juniper's canonical error
+exactly and produces no guard event in any mode ✔ · a query with a duplicate
+top-level response key is accepted, both occurrences **share one scope**, and the
+second issues no additional terminal statement ✔
+
+A non-mutation exits at operation-type discrimination, before document and input
+validation and before any duplicate-key analysis, which is why it can emit no
+event.
 
 ### B.6 Guard
 

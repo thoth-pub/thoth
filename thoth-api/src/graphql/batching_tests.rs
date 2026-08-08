@@ -1672,6 +1672,147 @@ mod guard_tests {
 }
 
 // ---------------------------------------------------------------------------
+// Guard — query-path behaviour and the non-mutation fast path
+// ---------------------------------------------------------------------------
+//
+// The eligibility gate touches EVERY request in `OBSERVE`/`ENFORCE`, so query
+// behaviour must be proven equivalent to the no-guard baseline in every
+// observable respect except measurable overhead.
+
+mod query_path {
+    use super::*;
+
+    const VALID_QUERY: &str = "{ testPublishers { publisherId imprints { imprintName } } }";
+    const INVALID_QUERY: &str = "{ testPublishers { noSuchField } }";
+
+    #[test]
+    fn a_valid_query_is_never_restricted_and_emits_no_event_in_any_mode() {
+        let (_guard, pool) = test_db::setup_test_db();
+        seed(&pool, 2, 2);
+        let schema = test_schema();
+        let req = request(VALID_QUERY, None, None);
+
+        for mode in [
+            MutationGuardMode::Off,
+            MutationGuardMode::Observe,
+            MutationGuardMode::Enforce,
+        ] {
+            let decision = guard(mode, &schema, &req);
+            assert_eq!(
+                decision.outcome,
+                GuardOutcome::Proceed,
+                "{mode:?}: a query must never be restricted"
+            );
+            assert!(
+                decision.event.is_none(),
+                "{mode:?}: a non-mutation must exit at operation-type discrimination \
+                 without any duplicate-key analysis, so it can emit no event"
+            );
+        }
+    }
+
+    #[test]
+    fn a_valid_query_response_is_byte_identical_across_every_mode() {
+        let (_guard, pool) = test_db::setup_test_db();
+        seed(&pool, 3, 2);
+        let schema = test_schema();
+        let req = request(VALID_QUERY, None, None);
+
+        // The no-guard baseline.
+        let baseline_ctx = context_in_mode(Arc::clone(&pool), MutationGuardMode::Off);
+        let baseline = req.execute_sync(&schema, &baseline_ctx);
+        let baseline_ok = baseline.is_ok();
+        let baseline_body = serde_json::to_value(&baseline).expect("serialize");
+
+        for mode in [MutationGuardMode::Observe, MutationGuardMode::Enforce] {
+            assert_eq!(guard(mode, &schema, &req).outcome, GuardOutcome::Proceed);
+            let ctx = context_in_mode(Arc::clone(&pool), mode);
+            let guarded = req.execute_sync(&schema, &ctx);
+            assert_eq!(guarded.is_ok(), baseline_ok, "{mode:?}: status must match");
+            assert_eq!(
+                serde_json::to_value(&guarded).expect("serialize"),
+                baseline_body,
+                "{mode:?}: a query response must be byte-identical to the no-guard baseline"
+            );
+        }
+    }
+
+    #[test]
+    fn an_invalid_query_keeps_juniper_canonical_error_and_produces_no_guard_event() {
+        let (_guard, pool) = test_db::setup_test_db();
+        seed(&pool, 1, 1);
+        let schema = test_schema();
+        let req = request(INVALID_QUERY, None, None);
+
+        let baseline_ctx = context_in_mode(Arc::clone(&pool), MutationGuardMode::Off);
+        let baseline = req.execute_sync(&schema, &baseline_ctx);
+        assert!(
+            !baseline.is_ok(),
+            "the fixture query must really be invalid"
+        );
+        let baseline_body = serde_json::to_value(&baseline).expect("serialize");
+
+        for mode in [
+            MutationGuardMode::Off,
+            MutationGuardMode::Observe,
+            MutationGuardMode::Enforce,
+        ] {
+            let decision = guard(mode, &schema, &req);
+            assert_eq!(decision.outcome, GuardOutcome::Proceed, "{mode:?}");
+            assert!(decision.event.is_none(), "{mode:?}: no guard event");
+
+            let ctx = context_in_mode(Arc::clone(&pool), mode);
+            let guarded = req.execute_sync(&schema, &ctx);
+            assert!(!guarded.is_ok());
+            assert_eq!(
+                serde_json::to_value(&guarded).expect("serialize"),
+                baseline_body,
+                "{mode:?}: juniper's canonical error must be preserved exactly"
+            );
+        }
+    }
+
+    #[test]
+    fn a_query_with_a_duplicate_response_key_shares_one_scope_and_adds_no_statement() {
+        // Repeated occurrences of ONE top-level query response key share one
+        // scope, and that is correct and required.
+        let (_guard, pool) = test_db::setup_test_db();
+        let publishers = seed(&pool, 3, 2);
+        let schema = test_schema();
+        let req = request(
+            "query { x: testPublishers { imprints { imprintName } } \
+                     x: testPublishers { imprints { imprintName } } }",
+            None,
+            None,
+        );
+
+        // Never restricted.
+        assert_eq!(
+            guard(MutationGuardMode::Enforce, &schema, &req).outcome,
+            GuardOutcome::Proceed
+        );
+
+        let context = context_in_mode(Arc::clone(&pool), MutationGuardMode::Enforce);
+        reset_counters();
+        let response = req.execute_sync(&schema, &context);
+        assert!(response.is_ok());
+
+        // One shared scope `x`, so one entry per publisher — not two per
+        // publisher as two distinct top-level aliases would produce.
+        assert_eq!(
+            context.batch_store.entry_count(),
+            publishers.len(),
+            "repeated occurrences of one response key must share one scope"
+        );
+        assert_eq!(
+            terminal_fallback_calls(),
+            0,
+            "the second occurrence must issue no additional terminal statement"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Guard — baseline eligibility matrix
 // ---------------------------------------------------------------------------
 
