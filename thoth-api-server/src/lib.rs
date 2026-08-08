@@ -372,6 +372,17 @@ mod tests {
             !body.contains("selected more than once"),
             "OFF must never produce a guard rejection; got: {body}"
         );
+        // These requests carry no credentials, so `PublisherPolicy::can_create`
+        // declines before `Publisher::create` runs. Asserting that pins two
+        // things down: the request really did reach ordinary execution rather
+        // than being turned away by the guard, and this test performs **no
+        // write** to the shared test database. If a future change let it write,
+        // this assertion fails rather than silently mutating fixture data.
+        assert!(
+            body.contains("Invalid credentials."),
+            "expected the anonymous request to stop at the authorization check, \
+             so no row is written; got: {body}"
+        );
     }
 
     #[actix_web::test]
