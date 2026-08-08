@@ -76,8 +76,16 @@ use super::mutation_guard::MutationGuardMode;
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub(crate) enum LoaderIdentity {
     /// Proof loader used by this task's `#[cfg(test)]` fixture: imprints keyed
-    /// by `publisher_id`. No production field maps to it.
+    /// by `publisher_id`, ordered ascending. No production field maps to it.
     TestImprints,
+    /// A **second** proof loader over the same parent-key Rust type (`Uuid`),
+    /// the same value type and the same shape identity, differing only in this
+    /// discriminant and in the order it returns rows.
+    ///
+    /// It exists so that different-loader isolation is proven behaviourally
+    /// with two loaders actually instantiated, rather than argued structurally
+    /// from a single-variant enum. No production field maps to it either.
+    TestImprintsDescending,
 }
 
 /// Normalized, loader-owned cache-shape identity (`ADR-0006` section 4.4.2).

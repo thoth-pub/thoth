@@ -10,6 +10,7 @@ PR target: `develop`
 Programme integration branch: none (STANDARD)
 Task branch: `feature/shared-architecture/graphql-batching`
 Starting head: `d3f805542052ad430f4b4beee7248b5fb5031b65`
+Independently reviewed head: `acf4ca2881f40662b57dd6cfa15a261fea659506` — decision **CHANGES REQUIRED**, three blocking findings
 Head commit: see section 3 (the authoritative final exact head is the PR head)
 Pull request: [#791](https://github.com/thoth-pub/thoth/pull/791) (**draft**)
 Expected branch deletion after merge: YES
@@ -62,11 +63,18 @@ remains the branch's first commit and was not rewritten, rebased or force-pushed
 - `f1497488` — `docs(architecture): add THOTH-GQL-BATCH-01 implementation report and changelog`
 - `f324354b` — `test(graphql): prove the query path and non-mutation fast path explicitly`
 
-One further commit adds this section. The authoritative final exact head is the
-head shown on PR [#791](https://github.com/thoth-pub/thoth/pull/791), and it is
-that head — not any commit listed here — which requires fresh independent
-cross-model review and, separately, explicit CTO merge authorization. **Any head
-movement invalidates both.**
+- `acf4ca28` — `docs(architecture): record the full commit sequence in the implementation report`
+  *(the head submitted for independent review)*
+
+Independent review of `acf4ca28` returned **CHANGES REQUIRED** with three
+blocking findings. Remediation commits follow it on the same branch; no branch
+or PR was created, and nothing was rebased, reset or force-pushed.
+
+The authoritative final exact head is the head shown on PR
+[#791](https://github.com/thoth-pub/thoth/pull/791), and it is that head — not
+any commit listed here — which requires **fresh** independent cross-model review
+(the reviewed SHA has changed) and, separately, explicit CTO merge
+authorization. **Any head movement invalidates both.**
 
 ## 4. Files changed
 
@@ -97,8 +105,15 @@ Runtime:
 - `thoth-api-server/src/lib.rs`
   - reason: wire the guard at the GraphQL HTTP request boundary before
     `data.execute(&st, &ctx).await`, and build the request `Context` with the
-    same mode.
-  - behavioural effect: none at `OFF`.
+    same mode. **Remediated at review**: both paths now produce one
+    `GraphQLResponse` that falls through the single pre-existing
+    `match result.is_ok()` status branch; the guard-specific early return was
+    removed. Adds a `#[cfg(test)]` module driving the real handler through
+    `actix_web::test`.
+  - behavioural effect: none at `OFF`. HTTP status and body for a guard
+    rejection are unchanged from the reviewed head (400 + ordinary errors body);
+    what changed is that they are now produced by the common branch rather than
+    by a bespoke one.
 - `src/bin/arguments/mod.rs`, `src/bin/commands/start.rs`
   - reason: expose the mode through the existing `clap` `Arg::env(..)` pattern.
   - behavioural effect: none — the default is `OFF`.
@@ -152,6 +167,19 @@ Documentation: `CHANGELOG.md`, this report.
 
 5. **The fixture's direct fallback uses `IntoFieldError`, not `?`/`Into`.** See
    section 13, limitation 1 — this is a genuine finding about the repository.
+
+6. **Three independent-review findings were remediated** on this branch, at the
+   reviewer's direction and without reopening `ADR-0006`, broadening production
+   adoption or altering the production-activation controls:
+
+   | # | Finding | Remediation |
+   |---|---|---|
+   | 1 | the handler carried a guard-specific HTTP branch | both paths now yield one `GraphQLResponse` through the single pre-existing status branch; handler-level tests added (B.4a) |
+   | 2 | the two-loader collision test instantiated only one loader | a second test-only loader identity sharing the same parent-key type was added and both are now dispatched and asserted (B.1.1) |
+   | 3 | the same-scope multi-site test used one site invoked once | a two-site fixture under one scope was added and measured on both execution paths (B.1.2) |
+
+   In each case the previous report wording was corrected rather than left
+   standing; the corrections are recorded inline at B.1.1, B.1.2 and A.6.
 
 Deviations from the specification: **NONE**.
 
@@ -244,8 +272,9 @@ cargo test --workspace
 ```
 
 ```text
-thoth-api            969 passed; 0 failed  (869 pre-existing + 100 added)
+thoth-api            973 passed; 0 failed  (869 pre-existing + 104 added)
 graphql_permissions   13 passed; 0 failed  (unmodified)
+thoth-api-server       3 passed; 0 failed  (new handler tests)
 thoth-export-server  143 passed; 0 failed
 thoth-errors          11 passed; 0 failed
 thoth-client           4 passed; 0 failed
@@ -259,7 +288,7 @@ cargo test -p thoth-api --features backend
 ```
 
 ```text
-969 passed; 0 failed; 0 ignored
+973 passed; 0 failed; 0 ignored
 ```
 
 The complete pre-existing GraphQL test suite passes **unmodified** — no existing
@@ -385,6 +414,8 @@ the measured pool.
 | `testImprints` (descendant, query) | 6 | **2** | — | **12** |
 | `only` (direct, **mutation payload**) | 3 | **1** dispatch, 0 fallbacks | — | — |
 | `only` (direct, **mutation payload**) | 6 | **1** dispatch, 0 fallbacks | — | — |
+| `testTwoSites` (**two distinct sites, one scope**) | 3 | **1** total for the pair, 0 fallbacks | — | — |
+| `testTwoSites` (**two distinct sites, one scope**) | 6 | **1** total for the pair, 0 fallbacks | — | — |
 
 The prefetched count is **bounded within each scope** while the direct baseline
 grows with `n`.
@@ -418,7 +449,15 @@ governed by `ADR-0006` section 10, and these are two distinct evidence scopes.
 ## 11. CI
 
 CI status: see the pull request for the exact-head result; the CI section of this
-report is completed against run IDs bound to the final head.
+report is completed against run IDs bound to the final head, and the exact-head
+CI evidence is posted as a PR comment so it can be recorded without moving the
+head it describes.
+
+The `test` job runs `cargo test --workspace` against a real `postgres:17`
+service plus `redis:alpine`, so the database-backed batching, guard, scope,
+mutation and SQL statement-count cases — and the new `thoth-api-server` handler
+tests, which require `TEST_DATABASE_URL` (set in the workflow environment) —
+execute in CI, not only locally.
 
 Workflows triggered on the exact head: `build-test-and-check`
 (`classify`, `format_check`, `lint`, `build`, `test`), `check-changelog`,
@@ -738,6 +777,33 @@ carrying the colliding source positions. `is_ok()` is `false`, so the **existing
 handler branch returns HTTP 400 with the ordinary GraphQL validation-error body
 and no `data` key. **No new handler branch and no one-off HTTP protocol.**
 
+**Corrected at independent review.** The head reviewed at `acf4ca28` did *not*
+satisfy this claim. The handler carried a guard-specific early return —
+`return Ok(HttpResponse::BadRequest().json(rejection))` — which is exactly the
+extra branch and bespoke status mapping the specification forbids, even though
+the resulting status happened to match. The claim was therefore **false as
+written** at that head. The handler now produces **one** `GraphQLResponse` from
+either path and falls through to the single pre-existing status branch:
+
+```rust
+let result = match run_mutation_guard(mode, &data, &st) {
+    Some(rejection) => rejection,
+    None => {
+        let ctx = Context::with_guard_mode(/* … */, mode);
+        data.execute(&st, &ctx).await
+    }
+};
+
+match result.is_ok() {
+    true => Ok(HttpResponse::Ok().json(result)),
+    false => Ok(HttpResponse::BadRequest().json(result)),
+}
+```
+
+Structural evidence: the `graphql` handler now contains exactly **two**
+`HttpResponse::…()` constructions — the `Ok` and `BadRequest` arms of that one
+`match result.is_ok()` — and no other status-producing return.
+
 ### A.7 Juniper API-surface characterisation
 
 These required surfaces are **`#[doc(hidden)]` on pinned 0.16.2**:
@@ -823,7 +889,10 @@ Verified by inspection (above) *and* by test
 
 ## B. Test-matrix results
 
-100 tests added; **all passing**; no existing test modified.
+107 tests added (104 in `thoth-api`, 3 in `thoth-api-server`); **all passing**;
+no *pre-existing* test modified. Two tests added earlier in this task were
+replaced during review remediation because they did not prove what they claimed
+— see B.1.1 and B.1.2.
 
 ### B.1 Store (11 + collision matrix)
 
@@ -840,20 +909,118 @@ key holding several shapes simultaneously, each correct ✔ · concurrent
 independent requests share nothing ✔ · a fresh `Context` observes an empty store ✔
 
 Full collision matrix: same key+loader+shape under **different scopes** never
-collides ✔ · same scope+key, **different loaders** structurally separated ✔ ·
-same scope+loader+key, **different shapes** never collide ✔ · the exact full key
-returns the expected stored value ✔ · `LoadFailed` under scope A does **not**
-poison scope B (B reads `NotLoaded` and can still load) ✔ · invalidation clears
-both ✔
+collides ✔ · same scope+key, **different loaders** proven isolated with **two
+actual loaders instantiated** (see B.1.1) ✔ · same scope+loader+key, **different
+shapes** never collide ✔ · the exact full key returns the expected stored value ✔
+· `LoadFailed` under scope A does **not** poison scope B (B reads `NotLoaded` and
+can still load) ✔ · a `LoadFailed` under loader A does **not** poison loader B,
+and survives B's dispatch ✔ · invalidation clears both ✔
+
+#### B.1.1 Two-loader isolation — corrected at independent review
+
+**The previous claim was not supported.** At `acf4ca28` the test named
+`two_loaders_with_identical_key_types_cannot_read_each_others_entries`
+instantiated only **one** loader and asserted a structural/compile-time property
+plus an unrelated `NotLoaded` lookup. It did not satisfy its own name or the
+acceptance criterion, and the report's "different loaders structurally
+separated" wording papered over that. Both are corrected here.
+
+A second test-only loader, `TestImprintDescendingLoader`
+(`LoaderIdentity::TestImprintsDescending`), now exists. It shares
+`TestImprintLoader`'s **parent-key type** (`Uuid`), **value type** (`Imprint`)
+and **shape identity** (`LoadShapeKey::TestImprints { limit }` — asserted equal
+in the test), so the *only* discriminator is the loader identity. It returns each
+parent's imprints in **descending** name order, so the two loaders are observably
+different and a namespace collision cannot pass unnoticed.
+
+Measured, with three deterministically named imprints on one publisher, one
+store, one `ScopeKey`, one parent key and one shape:
+
+| Step | Observed |
+|---|---|
+| before any dispatch | A `NotLoaded`, B `NotLoaded` |
+| after A dispatches | A `Loaded`; **B still `NotLoaded`** — A's dispatch does not satisfy B |
+| B then dispatches | `DispatchResult::Loaded` — B still needs its own dispatch |
+| A lookup | `["AAA-first", "BBB-middle", "CCC-last"]` — A's own value |
+| B lookup | `["CCC-last", "BBB-middle", "AAA-first"]` — B's own value, and A's entry not overwritten |
+| entry count | **2** under one `(scope, key, shape)` |
+
+**The test is not vacuous, and this was verified rather than assumed.** Setting
+`TestImprintDescendingLoader::IDENTITY` to `LoaderIdentity::TestImprints` — a
+simulated namespace collision — makes it fail at exactly the right assertion
+(`loader A's dispatch must not satisfy loader B`). The original identity was
+restored immediately afterwards.
+
+Both loaders are test-only. Neither is a production loader, and no production
+field adopts either. `LoaderIdentity` remains a closed typed discriminant, and no
+package dependency was added.
+
+#### B.1.2 Same-scope multi-site reuse — corrected at independent review
+
+**The previous claim was not supported.** At `acf4ca28` the test named
+`same_scope_multi_site_reuse_issues_no_duplicate_work` executed a document with
+**one** prefetch site invoked **once**. It asserted an entry count and a zero
+fallback count, neither of which demonstrates that a *second* site reuses the
+first's entries. It did not satisfy the `ADR-0006` section 4.6 / 4.18.3
+guarantee it was named for.
+
+A genuine fixture now exists. `TestTwoSiteContainer` exposes two sibling fields,
+`left` and `right`, each of which resolves its **own** parent list and installs
+its **own** prefetch site. Both are nested below one top-level field
+(`testTwoSites`), so both derive the **same** `ScopeKey`, the same loader
+identity, the same normalized shape and the same parent key set:
+
+```graphql
+{ testTwoSites {
+    left  { publisherId imprints { imprintName } }
+    right { publisherId imprints { imprintName } }
+} }
+```
+
+Per-site dispatch outcomes are recorded, so reuse is asserted **behaviourally**
+rather than only inferred from a SQL count:
+
+| Execution path | site `left` | site `right` | entries | fallbacks | results |
+|---|---|---|---|---|---|
+| `juniper::execute_sync` | `Loaded` (one set-based dispatch) | **`AlreadyLoaded`** | one per parent | 0 | equal to the direct per-parent reference, and `left == right` |
+| async `juniper::execute` | `Loaded` | **`AlreadyLoaded`** | one per parent | 0 | `left == right` |
+
+Measured terminal-loader SQL for the pair, through the instrumented pool:
+
+```text
+SAME-SCOPE TWO SITES | scope=testTwoSites | rows (n, terminal stmts, fallbacks)
+                     = [(3, 1, 0), (6, 1, 0)]
+```
+
+**Total terminal-loader SQL for the two sites = 1**, at both list sizes, on both
+execution paths.
+
+**No coordination primitive was required, and none was added.** The reviewer
+flagged that if two sites could both observe `NotLoaded` before either stored its
+result, the async path would show two dispatches and that would be a real defect.
+It was measured, not assumed: the async path shows **one** dispatch. The reason
+is that the fixture's resolvers are synchronous bodies and the pinned executor
+drives a selection set through `FuturesOrdered` polled from a single task, so a
+site's dispatch — read, load, write — completes within one poll before the
+sibling site's body runs. No global or static cache, background task, external
+lock manager, new dependency or production state was introduced. Had the
+measurement shown two dispatches, request-local coordination would have been
+required instead of relaxing the criterion.
+
+**This is distinct from cross-scope isolation**, and a separate test asserts both
+in one place: the same-scope two-site document yields one entry per parent, while
+two top-level response keys yield two entries per parent and correctly require
+two dispatches (the accepted `ADR-0006` section 4.12.13 cost).
 
 ### B.2 Prefetch
 
 direct path ✔ · indirect/descendant path ✔ · aliases at terminal and
 intermediate segments ✔ · two aliased intermediate branches both discovered ✔ ·
-repeated selections ✔ · two top-level fields → **2** bounded dispatches, not
-`N + N` ✔ · sync execution ✔ · async execution ✔ · **no production field
-adoption** ✔ · a list with no prefetch site falls back and is still correct ✔ ·
-mixed covered/uncovered in one operation, both correct ✔
+repeated selections ✔ · **two distinct prefetch sites under one scope → one
+dispatch, second site `AlreadyLoaded`** (see B.1.2) ✔ · two top-level fields →
+**2** bounded dispatches, not `N + N` ✔ · sync execution ✔ · async execution ✔ ·
+**no production field adoption** ✔ · a list with no prefetch site falls back and
+is still correct ✔ · mixed covered/uncovered in one operation, both correct ✔
 
 ### B.3 Failure / error
 
@@ -890,6 +1057,33 @@ them), and isolation is asserted **structurally**: each scope holds its own
 entries (`entry_count() == 2`) and the second field observes its own write. The
 isolation invariant itself is **not weakened** — it does not depend on execution
 order, which is precisely why the architecture is order-independent.
+
+### B.4a Common HTTP response branch — handler-level evidence
+
+Three tests in `thoth-api-server` drive the **real** `graphql` handler through
+`actix_web::test`, on the same route, with the production schema:
+
+| Case | Mode | Status | Body |
+|---|---|---|---|
+| duplicate top-level response key (guard rejection) | `ENFORCE` | **400** | `{"errors":[…]}`, each error carrying `message` + `locations`, **no** `data` key; message is the guard's own |
+| unknown field (ordinary juniper validation failure) | `OFF` | **400** | same shape |
+| `{ __typename }` (success) | `ENFORCE` | **200** | carries `data` |
+| the same duplicate document | `OFF` | — | **no** guard rejection produced |
+
+The success case matters: it exercises the `is_ok() == true` arm, proving the
+branch is genuinely common rather than a failure-only path.
+
+**Scope of these assertions, stated precisely.** `thoth-api-server` does not
+depend on `serde_json`, and no dependency was added, so these assert against the
+raw serialized body (prefix, key presence/absence, status). The precise
+structural comparison — top-level key sets and per-error key sets of a guard
+rejection versus a real juniper validation failure — is asserted in `thoth-api`,
+where `serde_json` is available
+(`baseline_matrix::a_rejected_operation_and_a_real_validation_failure_have_the_same_error_shape`).
+Neither test alone is claimed to prove both properties.
+
+Neither case reaches the database: a guard rejection runs no resolver, juniper
+rejects an invalid document during validation, and `__typename` is a meta field.
 
 ### B.5a Query path and the non-mutation fast path
 

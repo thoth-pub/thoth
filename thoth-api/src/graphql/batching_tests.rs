@@ -13,11 +13,11 @@ use serde_json::{json, Value as JsonValue};
 use uuid::Uuid;
 
 use crate::db::PgPool;
-use crate::graphql::batching::{BatchLookup, DispatchResult, GraphqlBatchStore};
+use crate::graphql::batching::{BatchLoader, BatchLookup, DispatchResult, GraphqlBatchStore};
 use crate::graphql::batching_fixture::{
-    direct_imprint_names, intermediate_resolver_calls, mutation_resolver_calls, reset_counters,
-    terminal_fallback_calls, test_schema, SqlProbe, TestImprintLoader, TestSchema,
-    DEFAULT_IMPRINT_LIMIT,
+    direct_imprint_names, insert_imprint, intermediate_resolver_calls, mutation_resolver_calls,
+    reset_counters, terminal_fallback_calls, test_schema, SqlProbe, TestImprintDescendingLoader,
+    TestImprintLoader, TestSchema, DEFAULT_IMPRINT_LIMIT,
 };
 use crate::graphql::mutation_guard::{self, GuardOutcome, MutationGuardMode};
 use crate::graphql::Context;
@@ -39,6 +39,11 @@ fn seed(pool: &PgPool, publishers: usize, imprints_each: usize) -> Vec<Publisher
         created.push(publisher);
     }
     created
+}
+
+/// Insert an imprint with a chosen name, so ordering is deterministic.
+fn insert_named_imprint(pool: &PgPool, publisher_id: Uuid, name: &str) {
+    insert_imprint(pool, publisher_id, name).expect("failed to insert named imprint");
 }
 
 /// Build a request context whose store availability is *derived* from `mode`.
@@ -545,23 +550,176 @@ mod store_state {
 
     #[test]
     fn two_loaders_with_identical_key_types_cannot_read_each_others_entries() {
-        // `LoaderIdentity` is a closed discriminant and is part of the store
-        // key, so two loaders sharing `Uuid` keys are structurally separated.
-        // With only one loader defined, the property is asserted on the key
-        // type: a lookup names its loader through the type parameter, so there
-        // is no way to spell "the other loader's entry".
+        // Both loaders are actually instantiated and dispatched. They share the
+        // same parent-key type (`Uuid`), the same value type (`Imprint`) and the
+        // same shape identity, so the ONLY thing separating their namespaces is
+        // the `LoaderIdentity` discriminant. Their results are observably
+        // different (ascending vs descending name order), so a namespace
+        // collision would return wrong data rather than pass unnoticed.
+        let (_guard, pool) = test_db::setup_test_db();
+        let publisher = test_db::create_publisher(&pool);
+        // Deterministic, distinguishable names so asc != desc.
+        for name in ["AAA-first", "BBB-middle", "CCC-last"] {
+            insert_named_imprint(&pool, publisher.publisher_id, name);
+        }
+        let key = publisher.publisher_id;
+
         let store = enforce_store();
-        assert!(!std::mem::needs_drop::<
-            crate::graphql::batching::LoaderIdentity,
-        >());
-        let lookup = store
-            .lookup::<TestImprintLoader>(
-                &ScopeKey::new("s"),
-                &TestImprintLoader::shape(1),
-                &Uuid::new_v4(),
-            )
-            .expect("lookup");
-        assert!(matches!(lookup, BatchLookup::NotLoaded));
+        let scope = ScopeKey::new("sharedScope");
+        let shape = TestImprintLoader::shape(3);
+
+        // Same store, same scope, same parent key, same shape identity.
+        assert_eq!(
+            TestImprintLoader::shape_key(&shape),
+            TestImprintDescendingLoader::shape_key(&shape),
+            "the two loaders must share a shape identity, so only the loader differs"
+        );
+
+        // --- before either dispatch: both NotLoaded ------------------------
+        assert!(matches!(
+            store
+                .lookup::<TestImprintLoader>(&scope, &shape, &key)
+                .expect("lookup"),
+            BatchLookup::NotLoaded
+        ));
+        assert!(matches!(
+            store
+                .lookup::<TestImprintDescendingLoader>(&scope, &shape, &key)
+                .expect("lookup"),
+            BatchLookup::NotLoaded
+        ));
+
+        // --- loader A dispatches -------------------------------------------
+        assert_eq!(
+            store
+                .dispatch::<TestImprintLoader>(&pool, &scope, &shape, &[key])
+                .expect("dispatch A"),
+            DispatchResult::Loaded
+        );
+
+        // loader A dispatch must NOT make loader B Loaded
+        assert!(
+            matches!(
+                store
+                    .lookup::<TestImprintDescendingLoader>(&scope, &shape, &key)
+                    .expect("lookup"),
+                BatchLookup::NotLoaded
+            ),
+            "loader A's dispatch must not satisfy loader B"
+        );
+
+        // --- loader B dispatches -------------------------------------------
+        assert_eq!(
+            store
+                .dispatch::<TestImprintDescendingLoader>(&pool, &scope, &shape, &[key])
+                .expect("dispatch B"),
+            DispatchResult::Loaded,
+            "loader B must still need its own dispatch"
+        );
+
+        // --- both hold their OWN values ------------------------------------
+        let ascending: Vec<String> = match store
+            .lookup::<TestImprintLoader>(&scope, &shape, &key)
+            .expect("lookup A")
+        {
+            BatchLookup::Loaded(rows) => rows.into_iter().map(|r| r.imprint_name).collect(),
+            _ => panic!("expected loader A Loaded"),
+        };
+        let descending: Vec<String> = match store
+            .lookup::<TestImprintDescendingLoader>(&scope, &shape, &key)
+            .expect("lookup B")
+        {
+            BatchLookup::Loaded(rows) => rows.into_iter().map(|r| r.imprint_name).collect(),
+            _ => panic!("expected loader B Loaded"),
+        };
+
+        assert_eq!(
+            ascending,
+            vec![
+                "AAA-first".to_string(),
+                "BBB-middle".to_string(),
+                "CCC-last".to_string()
+            ],
+            "loader A lookup must return A's own value"
+        );
+        assert_eq!(
+            descending,
+            vec![
+                "CCC-last".to_string(),
+                "BBB-middle".to_string(),
+                "AAA-first".to_string()
+            ],
+            "loader B lookup must return B's own value, not A's"
+        );
+        assert_ne!(
+            ascending, descending,
+            "the two loaders must be observably distinguishable, or this test could pass \
+             through a namespace collision unnoticed"
+        );
+
+        // loader B's dispatch must not have overwritten loader A
+        assert_eq!(
+            ascending.first().map(String::as_str),
+            Some("AAA-first"),
+            "loader B's dispatch must not overwrite loader A's entry"
+        );
+
+        // Two distinct entries under one (scope, shape, key).
+        assert_eq!(
+            store.entry_count(),
+            2,
+            "same scope + same parent key + different loaders must be two entries"
+        );
+    }
+
+    #[test]
+    fn a_failure_under_one_loader_does_not_poison_another_loader() {
+        // The failure namespace is loader-scoped too.
+        let (_guard, pool) = test_db::setup_test_db();
+        let publisher = test_db::create_publisher(&pool);
+        insert_named_imprint(&pool, publisher.publisher_id, "AAA-only");
+        let key = publisher.publisher_id;
+
+        let store = enforce_store();
+        let scope = ScopeKey::new("sharedScope");
+        let shape = TestImprintLoader::shape(3);
+
+        // Loader A fails.
+        assert_eq!(
+            store
+                .dispatch::<TestImprintLoader>(&test_db::failing_pool(), &scope, &shape, &[key])
+                .expect("dispatch A"),
+            DispatchResult::Failed
+        );
+
+        // Loader B is untouched and can still load successfully.
+        assert!(matches!(
+            store
+                .lookup::<TestImprintDescendingLoader>(&scope, &shape, &key)
+                .expect("lookup B"),
+            BatchLookup::NotLoaded
+        ));
+        assert_eq!(
+            store
+                .dispatch::<TestImprintDescendingLoader>(&pool, &scope, &shape, &[key])
+                .expect("dispatch B"),
+            DispatchResult::Loaded
+        );
+        match store
+            .lookup::<TestImprintDescendingLoader>(&scope, &shape, &key)
+            .expect("lookup B")
+        {
+            BatchLookup::Loaded(rows) => assert_eq!(rows.len(), 1),
+            _ => panic!("loader B must be unaffected by loader A's failure"),
+        }
+        // And loader A is still failed, not silently repaired by B.
+        match store
+            .lookup::<TestImprintLoader>(&scope, &shape, &key)
+            .expect("lookup A")
+        {
+            BatchLookup::LoadFailed(_) => {}
+            _ => panic!("loader A's retained failure must survive loader B's dispatch"),
+        }
     }
 
     #[test]
@@ -1002,19 +1160,148 @@ mod integration {
         assert_eq!(terminal_fallback_calls(), 0);
     }
 
+    /// One top-level scope containing **two distinct prefetch sites** that both
+    /// cover the same `(loader, shape, key set)`.
+    ///
+    /// This is the genuine same-scope multi-site reuse case: `left` and `right`
+    /// are separate resolvers, each resolving its own parent list and each
+    /// installing its own prefetch, but both nested below one top-level field so
+    /// both derive the same `ScopeKey`.
+    pub(super) const TWO_SITE_QUERY: &str = "{ testTwoSites { \
+         left { publisherId imprints { imprintName } } \
+         right { publisherId imprints { imprintName } } \
+       } }";
+
+    /// Assert the invariant on an already-executed two-site run.
+    fn assert_two_site_reuse(
+        label: &str,
+        context: &Context,
+        data: &JsonValue,
+        publisher_count: usize,
+    ) {
+        use crate::graphql::batching_fixture::site_outcomes;
+
+        let outcomes = site_outcomes();
+        assert_eq!(
+            outcomes.len(),
+            2,
+            "[{label}] both prefetch sites must have executed; got {outcomes:?}"
+        );
+        assert_eq!(
+            outcomes[0],
+            ("left", DispatchResult::Loaded),
+            "[{label}] the first site must perform one set-based dispatch"
+        );
+        assert_eq!(
+            outcomes[1],
+            ("right", DispatchResult::AlreadyLoaded),
+            "[{label}] the second site must REUSE the already-loaded entries, \
+             not dispatch again; got {outcomes:?}"
+        );
+
+        // One entry per parent — not two — because both sites share one scope.
+        assert_eq!(
+            context.batch_store.entry_count(),
+            publisher_count,
+            "[{label}] the two sites must share one namespace within the scope"
+        );
+        assert_eq!(
+            terminal_fallback_calls(),
+            0,
+            "[{label}] neither site's parents may fall back"
+        );
+
+        // All parent results correct, and identical between the two sites.
+        let left = &data["testTwoSites"]["left"];
+        let right = &data["testTwoSites"]["right"];
+        assert_eq!(
+            left.as_array().map(|a| a.len()),
+            Some(publisher_count),
+            "[{label}] left must resolve every parent"
+        );
+        assert_eq!(left, right, "[{label}] both sites must resolve identically");
+    }
+
     #[test]
-    fn same_scope_multi_site_reuse_issues_no_duplicate_work() {
+    fn same_scope_two_prefetch_sites_reuse_under_execute_sync() {
         let (_guard, pool) = test_db::setup_test_db();
-        let publishers = seed(&pool, 3, 2);
+        let publishers = seed(&pool, 4, 2);
         let context = context_in_mode(Arc::clone(&pool), MutationGuardMode::Enforce);
         let schema = test_schema();
         reset_counters();
 
-        // One top-level scope; the site runs once and covers everything.
-        let (_data, errors) = run_sync(&schema, &context, DIRECT_QUERY, Variables::new());
+        let (data, errors) = run_sync(&schema, &context, TWO_SITE_QUERY, Variables::new());
+        assert!(errors.is_empty(), "unexpected errors: {errors:?}");
+        assert_two_site_reuse("execute_sync", &context, &data, publishers.len());
+
+        // And the results equal the direct per-parent reference.
+        for item in data["testTwoSites"]["left"].as_array().unwrap() {
+            let publisher_id: Uuid = item["publisherId"].as_str().unwrap().parse().unwrap();
+            let names: Vec<String> = item["imprints"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|i| i["imprintName"].as_str().unwrap().to_string())
+                .collect();
+            assert_eq!(
+                names,
+                direct_imprint_names(&pool, publisher_id, DEFAULT_IMPRINT_LIMIT)
+            );
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn same_scope_two_prefetch_sites_reuse_under_async_execute() {
+        // The same invariant must hold on the production async path, where the
+        // pinned executor drives a selection set through `FuturesOrdered`. If
+        // both sites could observe `NotLoaded` before either stored its result,
+        // this would show two dispatches — which would be a real defect, not an
+        // acceptable difference.
+        let (_guard, pool) = test_db::setup_test_db();
+        let publishers = seed(&pool, 4, 2);
+        let context = context_in_mode(Arc::clone(&pool), MutationGuardMode::Enforce);
+        let schema = test_schema();
+        reset_counters();
+
+        let (data, errors) = run_async(&schema, &context, TWO_SITE_QUERY, Variables::new()).await;
+        assert!(errors.is_empty(), "unexpected errors: {errors:?}");
+        assert_two_site_reuse("async execute", &context, &data, publishers.len());
+    }
+
+    #[test]
+    fn same_scope_two_site_reuse_is_distinct_from_cross_scope_isolation() {
+        // The two-site case shares one scope and dispatches ONCE.
+        // Two top-level response keys are two scopes and correctly dispatch
+        // TWICE. Asserting both here keeps the distinction explicit.
+        let (_guard, pool) = test_db::setup_test_db();
+        let publishers = seed(&pool, 3, 2);
+        let schema = test_schema();
+
+        let same_scope = context_in_mode(Arc::clone(&pool), MutationGuardMode::Enforce);
+        reset_counters();
+        let (_d, errors) = run_sync(&schema, &same_scope, TWO_SITE_QUERY, Variables::new());
         assert!(errors.is_empty());
-        assert_eq!(context.batch_store.entry_count(), publishers.len());
-        assert_eq!(terminal_fallback_calls(), 0);
+        assert_eq!(
+            same_scope.batch_store.entry_count(),
+            publishers.len(),
+            "one scope -> one entry per parent"
+        );
+
+        let cross_scope = context_in_mode(Arc::clone(&pool), MutationGuardMode::Enforce);
+        reset_counters();
+        let (_d, errors) = run_sync(
+            &schema,
+            &cross_scope,
+            "{ first: testPublishers { imprints { imprintName } } \
+               second: testPublishers { imprints { imprintName } } }",
+            Variables::new(),
+        );
+        assert!(errors.is_empty());
+        assert_eq!(
+            cross_scope.batch_store.entry_count(),
+            publishers.len() * 2,
+            "two top-level response keys -> two scopes -> two entries per parent"
+        );
     }
 
     #[test]
@@ -2846,6 +3133,51 @@ mod statement_counts {
             assert_eq!(*fallbacks, 0, "n={n}: no per-parent fallback");
         }
         eprintln!("MUTATION FAN-OUT | scope=only | rows (n, dispatches, fallbacks) = {rows:?}");
+    }
+
+    #[test]
+    fn same_scope_two_prefetch_sites_issue_exactly_one_terminal_statement() {
+        // The measured proof for the genuine two-site fixture: two distinct
+        // prefetch sites, one scope, one set-based dispatch between them.
+        let mut rows = Vec::new();
+        for n in [3usize, 6usize] {
+            let (_guard, pool) = test_db::setup_test_db();
+            seed(&pool, n, 2);
+
+            let (statements, data) = measure(
+                &pool,
+                MutationGuardMode::Enforce,
+                super::integration::TWO_SITE_QUERY,
+            );
+            let dispatches = statements.iter().filter(|sql| sql.contains("ANY")).count();
+
+            assert_eq!(
+                statements.len(),
+                1,
+                "n={n}: the two sites must issue exactly ONE terminal-loader statement \
+                 between them; got {statements:#?}"
+            );
+            assert_eq!(
+                dispatches, 1,
+                "n={n}: and it must be the set-based dispatch"
+            );
+            assert_eq!(
+                terminal_fallback_calls(),
+                0,
+                "n={n}: no parent may fall back"
+            );
+            assert_eq!(
+                data["testTwoSites"]["left"], data["testTwoSites"]["right"],
+                "n={n}: both sites must resolve identically"
+            );
+            rows.push((n, statements.len(), terminal_fallback_calls()));
+        }
+
+        // Bounded, and independent of the parent count.
+        assert_eq!(rows[0].1, rows[1].1);
+        eprintln!(
+            "SAME-SCOPE TWO SITES | scope=testTwoSites | rows (n, terminal stmts, fallbacks) = {rows:?}"
+        );
     }
 
     #[test]

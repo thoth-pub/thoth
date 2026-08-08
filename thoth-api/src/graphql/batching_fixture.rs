@@ -159,6 +159,71 @@ impl BatchLoader for TestImprintLoader {
     }
 }
 
+/// A **second** test-only loader sharing `TestImprintLoader`'s parent-key type
+/// (`Uuid`), value type (`Imprint`) and shape identity
+/// (`LoadShapeKey::TestImprints`), and differing **only** in its
+/// [`LoaderIdentity`].
+///
+/// It exists to prove different-loader isolation behaviourally
+/// (`ADR-0006` invariant 13 / the store collision matrix): two loaders with
+/// identical parent-key types must not be able to read each other's entries.
+///
+/// It returns each parent's imprints in **descending** name order, so for a
+/// parent with two or more imprints the two loaders' buckets differ in their
+/// first element. A namespace collision would therefore return *observably
+/// wrong data* and fail the assertion, rather than slipping through because
+/// both loaders happened to return the same thing.
+pub(crate) struct TestImprintDescendingLoader;
+
+impl BatchLoader for TestImprintDescendingLoader {
+    type Key = Uuid;
+    type Value = Imprint;
+    type Shape = TestImprintShape;
+
+    const IDENTITY: LoaderIdentity = LoaderIdentity::TestImprintsDescending;
+
+    /// Deliberately the **same** shape identity as `TestImprintLoader`, so the
+    /// only thing distinguishing the two store namespaces is the loader
+    /// discriminant.
+    fn shape_key(shape: &Self::Shape) -> LoadShapeKey {
+        LoadShapeKey::TestImprints { limit: shape.limit }
+    }
+
+    fn stored_key(key: &Self::Key) -> StoredParentKey {
+        StoredParentKey::Uuid(*key)
+    }
+
+    fn key_for_value(value: &Self::Value) -> Self::Key {
+        value.publisher_id
+    }
+
+    /// One set-based statement, as for the ascending loader, but ordered
+    /// `imprint_name DESC`.
+    fn load(db: &PgPool, keys: &[Self::Key], shape: &Self::Shape) -> ThothResult<Vec<Self::Value>> {
+        let mut connection = db.get().map_err(ThothError::from)?;
+        let rows: Vec<Imprint> = imprint::table
+            .filter(imprint::publisher_id.eq_any(keys))
+            .order((imprint::publisher_id.asc(), imprint::imprint_name.desc()))
+            .load(&mut connection)
+            .map_err(ThothError::from)?;
+
+        let mut out: Vec<Imprint> = Vec::with_capacity(rows.len());
+        let mut current: Option<Uuid> = None;
+        let mut taken = 0usize;
+        for row in rows {
+            if current != Some(row.publisher_id) {
+                current = Some(row.publisher_id);
+                taken = 0;
+            }
+            if (taken as i32) < shape.limit {
+                taken += 1;
+                out.push(row);
+            }
+        }
+        Ok(out)
+    }
+}
+
 /// The direct per-parent query the terminal field falls back to.
 ///
 /// This is the always-correct fallback of `ADR-0006` section 4.7, and the
@@ -197,6 +262,10 @@ pub(crate) fn reset_counters() {
     MUTATION_RESOLVER_CALLS.store(0, Ordering::SeqCst);
     TERMINAL_FALLBACK_CALLS.store(0, Ordering::SeqCst);
     INTERMEDIATE_RESOLVER_CALLS.store(0, Ordering::SeqCst);
+    site_outcome_sink()
+        .lock()
+        .expect("site outcome lock")
+        .clear();
 }
 
 pub(crate) fn mutation_resolver_calls() -> usize {
@@ -209,6 +278,31 @@ pub(crate) fn terminal_fallback_calls() -> usize {
 
 pub(crate) fn intermediate_resolver_calls() -> usize {
     INTERMEDIATE_RESOLVER_CALLS.load(Ordering::SeqCst)
+}
+
+/// Per-prefetch-site dispatch outcomes, in execution order.
+///
+/// This lets the same-scope multi-site test assert *behaviourally* that the
+/// second site reused the first site's entries (`AlreadyLoaded`) rather than
+/// inferring it only from a SQL count.
+static SITE_OUTCOMES: OnceLock<Mutex<Vec<(&'static str, DispatchResult)>>> = OnceLock::new();
+
+fn site_outcome_sink() -> &'static Mutex<Vec<(&'static str, DispatchResult)>> {
+    SITE_OUTCOMES.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+fn record_site_outcomes(site: &'static str, outcomes: &[(TestImprintShape, DispatchResult)]) {
+    let mut sink = site_outcome_sink().lock().expect("site outcome lock");
+    for (_, outcome) in outcomes {
+        sink.push((site, *outcome));
+    }
+}
+
+pub(crate) fn site_outcomes() -> Vec<(&'static str, DispatchResult)> {
+    site_outcome_sink()
+        .lock()
+        .expect("site outcome lock")
+        .clone()
 }
 
 // ---------------------------------------------------------------------------
@@ -473,7 +567,7 @@ const DIRECT_PATH: &[&str] = &["imprints"];
 const DESCENDANT_PATH: &[&str] = &["publisher", "imprints"];
 
 /// Install the direct prefetch site over a resolved list of publishers.
-fn run_direct_prefetch(
+pub(crate) fn run_direct_prefetch(
     context: &Context,
     executor: &Executor<'_, '_, Context>,
     items: &[TestPublisherNode],
@@ -511,6 +605,53 @@ fn run_descendant_prefetch(
 // ---------------------------------------------------------------------------
 // Test-only roots
 // ---------------------------------------------------------------------------
+
+/// A container carrying **two distinct prefetch sites** that both cover the
+/// same terminal loader, under **one** top-level response-key scope.
+///
+/// This is the fixture for `ADR-0006` section 4.6 / 4.18.3's same-scope
+/// multi-site reuse guarantee:
+///
+/// ```text
+/// same top-level response-key scope
+/// same loader identity
+/// same normalized load shape
+/// same parent key set
+///   => the first site dispatches once; the second reuses its entries
+/// ```
+///
+/// It is deliberately **not** the cross-scope case: both `left` and `right` are
+/// nested *below* one top-level field, so both derive the same `ScopeKey`. Two
+/// top-level response keys correctly require separate dispatches, and that is a
+/// different test.
+pub(crate) struct TestTwoSiteContainer;
+
+#[graphql_object(Context = Context, Scalar = DefaultScalarValue, name = "TestTwoSiteContainer")]
+impl TestTwoSiteContainer {
+    /// Prefetch site **A**.
+    fn left(
+        context: &Context,
+        executor: &Executor<'_, '_, Context>,
+    ) -> FieldResult<Vec<TestPublisherNode>> {
+        let publishers = all_publishers(&context.db)?;
+        let outcomes = run_direct_prefetch(context, executor, &publishers);
+        record_site_outcomes("left", &outcomes);
+        Ok(publishers)
+    }
+
+    /// Prefetch site **B** — a genuinely distinct site, resolving its own list
+    /// and installing its own prefetch, but reaching the same
+    /// `(scope, loader, shape, key set)`.
+    fn right(
+        context: &Context,
+        executor: &Executor<'_, '_, Context>,
+    ) -> FieldResult<Vec<TestPublisherNode>> {
+        let publishers = all_publishers(&context.db)?;
+        let outcomes = run_direct_prefetch(context, executor, &publishers);
+        record_site_outcomes("right", &outcomes);
+        Ok(publishers)
+    }
+}
 
 pub(crate) struct TestQueryRoot;
 
@@ -552,6 +693,12 @@ impl TestQueryRoot {
     /// reachable in an operation that otherwise batches.
     fn test_publishers_unprefetched(context: &Context) -> FieldResult<Vec<TestPublisherNode>> {
         Ok(all_publishers(&context.db)?)
+    }
+
+    /// Two distinct prefetch sites covering the same terminal loader, under one
+    /// top-level response-key scope.
+    fn test_two_sites() -> TestTwoSiteContainer {
+        TestTwoSiteContainer
     }
 
     /// The parent list resolves normally; only the terminal field's **direct**
@@ -639,7 +786,11 @@ fn all_imprints(db: &PgPool) -> ThothResult<Vec<TestImprintNode>> {
     Ok(rows.into_iter().map(TestImprintNode).collect())
 }
 
-fn insert_imprint(db: &PgPool, publisher_id: Uuid, imprint_name: &str) -> ThothResult<()> {
+pub(crate) fn insert_imprint(
+    db: &PgPool,
+    publisher_id: Uuid,
+    imprint_name: &str,
+) -> ThothResult<()> {
     use crate::model::imprint::NewImprint;
     let mut connection = db.get().map_err(ThothError::from)?;
     diesel::insert_into(imprint::table)
