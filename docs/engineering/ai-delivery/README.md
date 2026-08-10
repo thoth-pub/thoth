@@ -26,8 +26,9 @@ These documents apply across Thoth engineering programmes unless a stricter appr
   to make and verify one does not yet exist, and specifies the bounded
   prerequisites that must deliver it. It distinguishes the merged `develop`
   state, the deployed production release — which predates the guard and is
-  recorded as **pre-guard** — and production activation state. It terminates at
-  CG-13 disposition
+  recorded as **pre-guard** on combined repository and external deployment
+  evidence, never on repository evidence alone — and production activation
+  state. It terminates at CG-13 disposition
   `C - BLOCKED`, leaves the `ADR-0006` runtime-operations gate `NOT SATISFIED`,
   and activates nothing).
 - `reviews/CTRL-FOUNDATION-01-review-brief.md` - independent review requirements.

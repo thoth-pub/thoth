@@ -215,7 +215,10 @@ merged develop state
 The release currently deployed to production **predates**
 `THOTH-GQL-BATCH-01`: its binary contains no mutation guard at all, so it is
 recorded as **pre-guard** and is not described as running
-`MutationGuardMode::OFF`. Merging `THOTH-GQL-BATCH-01` deployed nothing and
+`MutationGuardMode::OFF`. That conclusion rests on two evidence classes and on
+neither alone — repository evidence establishes that the relevant release code
+contains no mutation guard, and previously established scoped authoritative
+deployment metadata establishes that it is the release production runs. Merging `THOTH-GQL-BATCH-01` deployed nothing and
 activated nothing. No environment has been transitioned to `OBSERVE` or
 `ENFORCE`, and any guard-enabled candidate remains effectively `OFF` unless
 separately authorized.

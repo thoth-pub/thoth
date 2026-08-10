@@ -400,19 +400,61 @@ Steps and observed results:
    without exposing secret material.
 
 8. **Deployment-path applicability of the entrypoint gap, established — and
-   distinguished from the deployed release.** Two separate facts:
+   distinguished from the deployed release, with evidence provenance kept
+   separate.** The repository establishes what a release *contains*; only the
+   authoritative deployment source establishes what production *runs*. The two
+   are recorded separately and combined explicitly:
 
-   - *the deployed release.* `[REPO]` The release line `master` contains no
+   - *release-code state.* `[REPO]` The release line `master` contains no
      `MutationGuardMode`, defines no `mutation_guard_mode()` CLI argument and has
      no mutation-guard wiring on its GraphQL startup path; the most recent
-     release tag likewise contains none. The production image is built from a
-     published GitHub release, so the **currently deployed production release
-     predates `THOTH-GQL-BATCH-01` and its binary contains no mutation guard at
-     all.** It is therefore **pre-guard**: it does not literally have
-     `MutationGuardMode::OFF`, and it is not described as having any guard mode.
-     Merging `THOTH-GQL-BATCH-01` deployed nothing;
+     release tag likewise contains none; and the production image is built from a
+     published GitHub release
+     (`.github/workflows/docker_build_and_push_to_dockerhub_release.yml`).
+
+     ```text
+     Release-code state [REPO]:
+     The relevant release/master code contains no mutation guard and is
+     PRE-GUARD.
+     ```
+
+     This is the whole of what the repository establishes. **It does not
+     establish which release production is running**, and it is not offered as
+     evidence of that;
+
+   - *deployment state.* `[EXTERNAL]` Which release or image production actually
+     runs is deployment-state evidence and is not derivable from this repository.
+     It rests on the scoped authoritative deployment metadata already collected
+     during this task's authorized read-only discovery (section 10, finding 7),
+     under the section 2.2.5 scoped-read rules. **No further read of that source
+     was performed for this correction**, and no value, identifier or
+     configuration detail from it is recorded here.
+
+     ```text
+     Deployment state [EXTERNAL]:
+     Previously established scoped authoritative deployment metadata identifies
+     that release/image as the one currently deployed to production.
+     ```
+
+   - *combined conclusion.* `[REPO + EXTERNAL]` Neither class establishes it
+     alone:
+
+     ```text
+     Combined conclusion [REPO + EXTERNAL]:
+     Current production is therefore PRE-GUARD and is not
+     MutationGuardMode::OFF.
+     ```
+
+     It is not described as having any guard mode, and merging
+     `THOTH-GQL-BATCH-01` deployed nothing. Had the `[EXTERNAL]` half been
+     unobtainable under the scoped-read rules, the correct action would have been
+     to downgrade this conclusion to `[UNVERIFIED]` — never to re-derive it from
+     `[REPO]` evidence, and never to widen access;
+
    - *the deployment path.* `[EXTERNAL]` The production GraphQL API service does
      not override the container command and so inherits the image default `init`.
+     This is a separate `[EXTERNAL]` fact from the deployed-release identity above
+     and is likewise drawn from the metadata already collected.
 
    Combined with finding 5, the established consequence is a property of the
    **path**, not of the deployed binary:
@@ -466,8 +508,9 @@ Failures or warnings: recorded on the PR.
 Initial state after merge:
 
 ```text
-deployed production release       = pre-guard (no guard mode exists)
-guard-enabled candidate default   = OFF, loader store unavailable
+deployed production release       = pre-guard, no guard mode exists
+                                    [REPO + EXTERNAL]
+guard-enabled candidate default   = OFF, loader store unavailable   [REPO]
 environments transitioned         = none
 production request acceptance     = unchanged
 ```
@@ -507,7 +550,8 @@ Monitoring required: none introduced by this change.
   is deployed. An `OFF -> OBSERVE` transition of a guard-enabled candidate is
   therefore not operationally performable through the current deployment path.
   This is a deployment-path property; the release currently deployed to
-  production is **pre-guard** and has no guard mode at all (section 10, finding
+  production is **pre-guard** and has no guard mode at all — a
+  `[REPO + EXTERNAL]` conclusion, not a repository-only one (section 10, finding
   8). Recorded, not fixed; `THOTH-GQL-OPS-02` must close it.
 - **Capability gap 2:** no implemented mechanism proves the effective mode of a
   serving instance. The specification requires the smallest separately reviewable
@@ -583,9 +627,13 @@ Suggested review focus:
 9. **Non-implementation** — confirm the diff contains no runtime file, that the
    fleet-verification mechanism is specified rather than built, and that no
    environment was transitioned.
-10. **Deployment-state accuracy** — re-derive specification section 2.2.0 from
-    `master`, the most recent release tag and the release workflow; confirm that
-    no document describes a pre-guard release as `MutationGuardMode::OFF`, that
-    nothing implies merging `THOTH-GQL-BATCH-01` deployed the guard, and that
-    capability gap 1 is stated as a deployment-path property without being
-    weakened.
+10. **Deployment-state accuracy and evidence provenance** — re-derive the
+    `[REPO]` half of specification section 2.2.0 from `master`, the most recent
+    release tag and the release workflow, and confirm it is not stretched to
+    cover the deployed-release identity, which is `[EXTERNAL]`. Confirm that the
+    current-production pre-guard conclusion is labelled `[REPO + EXTERNAL]`
+    everywhere it appears, that no deployed-state statement anywhere in the diff
+    is attributed to `[REPO]` alone, that no document describes a pre-guard
+    release as `MutationGuardMode::OFF`, that nothing implies merging
+    `THOTH-GQL-BATCH-01` deployed the guard, and that capability gap 1 is still
+    stated as a deployment-path property without being weakened.

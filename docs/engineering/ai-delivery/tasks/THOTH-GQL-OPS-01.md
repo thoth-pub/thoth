@@ -37,7 +37,10 @@ merged develop state
 
 The currently deployed production release **predates** `THOTH-GQL-BATCH-01`. Its
 binary contains no mutation guard at all, so it is recorded as **pre-guard** and
-must never be described as running `MutationGuardMode::OFF`. Merging
+must never be described as running `MutationGuardMode::OFF`. That conclusion is
+`[REPO + EXTERNAL]`: repository evidence establishes that the relevant release
+code is pre-guard, and previously established scoped deployment metadata
+establishes that it is the release production runs. Merging
 `THOTH-GQL-BATCH-01` deployed nothing. Every guard-mode statement below applies
 to a **guard-enabled candidate** — a build that contains the merged foundation —
 and not to the pre-guard release currently serving production.
@@ -186,7 +189,14 @@ merged develop state
     != production activation state
 ```
 
-**Established `[REPO]`:**
+The current-production conclusion below rests on **two** evidence classes, and
+the split is binding. This repository can establish what a given release
+*contains*; it cannot establish which release production is *running*. Attributing
+the deployed-release identity to `[REPO]` alone would be an evidence-provenance
+error of exactly the kind the section 2.2.5 labelling rule exists to prevent.
+
+**Release-code state — `[REPO]`.** Established from this repository at the exact
+base:
 
 - the mutation guard, `MutationGuardMode` and the CLI argument
   `mutation_guard_mode()` exist on `develop`, delivered by
@@ -200,10 +210,37 @@ merged develop state
   (`.github/workflows/docker_build_and_push_to_dockerhub_release.yml`), and the
   most recent release tag likewise contains no `MutationGuardMode`.
 
-**Established consequence:**
+```text
+Release-code state [REPO]:
+The relevant release/master code contains no mutation guard and is PRE-GUARD.
+```
+
+This is the whole of what the repository establishes. It says nothing about which
+release production runs.
+
+**Deployment state — `[EXTERNAL]`.** Which release or image production is
+actually running is deployment-state evidence and is **not** derivable from this
+repository at all. It was established during this task's authorized read-only
+discovery, from previously collected scoped metadata of the authoritative
+deployment source named in section 2.2.4, under the scoped-read rules of section
+2.2.5:
 
 ```text
-CURRENT DEPLOYED PRODUCTION
+Deployment state [EXTERNAL]:
+Previously established scoped authoritative deployment metadata identifies
+that release/image as the one currently deployed to production.
+```
+
+No value, identifier or configuration detail from that source is recorded here;
+only the ownership/version fact the criterion requires.
+
+**Combined conclusion — `[REPO + EXTERNAL]`.** Neither class establishes it
+alone; the two together do:
+
+```text
+Combined conclusion [REPO + EXTERNAL]:
+Current production is therefore PRE-GUARD and is not
+MutationGuardMode::OFF.
 
 - the currently deployed release predates THOTH-GQL-BATCH-01;
 - its binary does not contain the mutation guard at all;
@@ -212,9 +249,15 @@ CURRENT DEPLOYED PRODUCTION
   relabel a pre-guard binary as having an effective guard mode.
 ```
 
+If an implementing agent cannot re-establish the `[EXTERNAL]` half from scoped
+metadata at its own execution time, the deployed-state conclusion must be
+downgraded to **`[UNVERIFIED]`** and reported as missing work. It must **not** be
+re-derived from `[REPO]` evidence, and access must **not** be widened to obtain
+it. The `[REPO]` half stands on its own regardless.
+
 Merging `THOTH-GQL-BATCH-01` deployed nothing and activated nothing. The merged
-foundation is inert *and* undeployed; those are two separate facts, and neither
-implies the other.
+foundation is inert *and* undeployed; those are two separate facts, established
+by two different evidence classes, and neither implies the other.
 
 **Vocabulary, binding on this specification and on every successor it
 specifies:**
@@ -482,10 +525,24 @@ becomes a breach only if the material is copied onward.
 records must be labelled with the source class that establishes it:
 
 ```text
-[REPO]      established by thoth-pub/thoth at the exact base
-[EXTERNAL]  established by the authoritative deployment source
-[UNVERIFIED] not established -- missing evidence is missing work
+[REPO]            established by thoth-pub/thoth at the exact base
+[EXTERNAL]        established by the authoritative deployment source
+[REPO + EXTERNAL] established only by both together; neither class
+                  establishes it alone, and it may not be attributed
+                  to either one
+[UNVERIFIED]      not established -- missing evidence is missing work
 ```
+
+`[REPO + EXTERNAL]` exists because the two classes answer different questions and
+must not be substituted for one another. This repository can establish what a
+release *contains*; only the authoritative deployment source can establish which
+release an environment *runs*. Every statement about the deployed state of an
+environment — including the current-production pre-guard conclusion of section
+2.2.0 — therefore carries `[REPO + EXTERNAL]` or `[UNVERIFIED]`, never `[REPO]`.
+Where the `[EXTERNAL]` half cannot be obtained under the scoped-read rules above,
+the conclusion is downgraded to `[UNVERIFIED]` and reported as missing work;
+widening access to obtain it is forbidden, and re-deriving it from `[REPO]`
+evidence is an evidence-provenance error.
 
 An `[UNVERIFIED]` answer to any acceptance criterion in section 9 is a failure of
 that criterion, not a permitted outcome.
@@ -529,8 +586,11 @@ Establish:
 5. **which release each environment is actually running**, distinguishing a
    **pre-guard** release from a **guard-enabled** one per section 2.2.0. A
    pre-guard environment has no guard mode and must be recorded as pre-guard, not
-   as `MutationGuardMode::OFF`. The task must not infer the deployed release from
-   the state of `develop`;
+   as `MutationGuardMode::OFF`. This is `[EXTERNAL]` evidence: the deployed
+   release identity is not derivable from this repository, so the task must not
+   infer it from the state of `develop`, `master` or any release tag. The
+   resulting deployed-state conclusion is `[REPO + EXTERNAL]`, or `[UNVERIFIED]`
+   if the `[EXTERNAL]` half cannot be obtained under section 2.2.5;
 6. behaviour for an **absent** value in a guard-enabled build — established
    `[REPO]`: `clap` supplies the declared default `OFF`;
 7. behaviour for an **invalid** value — established `[REPO]`: `clap`'s

@@ -150,7 +150,9 @@ ADR-0006 independently reviewed, CTO-approved and repository-authoritative
        (merged state: guard mode OFF, loader store unavailable,
         production request acceptance unchanged. Merging deploys
         nothing: the deployed production release predates this work
-        and is PRE-GUARD, with no guard mode at all)
+        and is PRE-GUARD, with no guard mode at all -- established
+        by repository release-code evidence and scoped deployment
+        metadata together, not by either alone)
   -> runtime-operations evidence for mode control verified
      (control gap CG-13, or a bounded successor, satisfied for this feature).
       This gate is NOT satisfied by documenting the mechanism. The proposed
