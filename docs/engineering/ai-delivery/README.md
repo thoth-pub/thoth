@@ -30,7 +30,28 @@ These documents apply across Thoth engineering programmes unless a stricter appr
   evidence, never on repository evidence alone — and production activation
   state. It terminates at CG-13 disposition
   `C - BLOCKED`, leaves the `ADR-0006` runtime-operations gate `NOT SATISFIED`,
-  and activates nothing).
+  and activates nothing). Its delivered output is the
+  [operational-control record](../repository-map/graphql-mutation-guard-runtime-operations.md)
+  and the **provisional**
+  [mode-transition runbook](../repository-map/graphql-mutation-guard-mode-transition-runbook.md).
+- `tasks/THOTH-GQL-OPS-02.md` - mutation-guard mode-control path
+  (`DRAFT`; implementation `NOT AUTHORIZED`; branch must not exist). Makes
+  `THOTH_GRAPHQL_MUTATION_GUARD_MODE` consumable on the production-applicable
+  command path while preserving all existing `init` migration and startup
+  semantics. Closes capability gap 1. Making the mode settable is not setting it.
+- `tasks/THOTH-GQL-OPS-03.md` - effective-mode fleet-verification mechanism
+  (`DRAFT`; implementation `NOT AUTHORIZED`; branch must not exist). Implements
+  the smallest mechanism proving the effective mode of every serving instance,
+  with per-instance attribution and mixed-fleet detection, without affecting
+  request acceptance. Closes capability gap 2. A verifier is not a verified
+  fleet.
+- `tasks/THOTH-GQL-OPS-04.md` - bounded runtime-operations verification and
+  closure (`DRAFT`; implementation `NOT AUTHORIZED`; branch must not exist).
+  After `-02` and `-03` merge, re-establishes all external evidence, proves both
+  capabilities against the real runtime, finalises the runbook, and decides CG-13
+  disposition `A` or `C` on evidence. It is the earliest task that may record the
+  runtime-operations gate as `SATISFIED`, and it may return `C` again. It must
+  not activate `OBSERVE`.
 - `reviews/CTRL-FOUNDATION-01-review-brief.md` - independent review requirements.
 
 ## Core rule

@@ -181,16 +181,22 @@ Document runtime, deployment, migration execution, rollback, restore verificatio
 
 CG-13 is **OPEN**.
 
-A bounded feature-specific successor is proposed for one subset of it:
-[`THOTH-GQL-OPS-01`](../ai-delivery/tasks/THOTH-GQL-OPS-01.md), which addresses
-runtime mode control for the merged GraphQL mutation guard
+A bounded feature-specific successor addresses one subset of it:
+[`THOTH-GQL-OPS-01`](../ai-delivery/tasks/THOTH-GQL-OPS-01.md), covering runtime
+mode control for the merged GraphQL mutation guard
 (`THOTH_GRAPHQL_MUTATION_GUARD_MODE`) — configuration authority, restart/redeploy
 semantics, fleet propagation and verification, partial-fleet handling, rollback,
-change authority and evidence. That specification is `DRAFT` and its
-implementation is `NOT AUTHORIZED`.
+change authority and evidence. Its delivered output is the
+[mutation-guard runtime-operations control record](./graphql-mutation-guard-runtime-operations.md)
+and the **provisional**
+[mode-transition runbook](./graphql-mutation-guard-mode-transition-runbook.md).
 
-**`THOTH-GQL-OPS-01` cannot, by itself, satisfy even that subset.** Its discovery
-establishes two capability gaps that documentation cannot close:
+**Feature-subset disposition: `C` — insufficient operational capability/evidence;
+BLOCKED.**
+
+**`THOTH-GQL-OPS-01` cannot, by itself, satisfy even that subset.** Its discovery,
+independently re-derived at implementation time against the exact base, confirms
+two capability gaps that documentation cannot close:
 
 1. the current production deployment path cannot consume
    `THOTH_GRAPHQL_MUTATION_GUARD_MODE`. Production configuration inherits the
@@ -212,30 +218,66 @@ merged develop state
     != production activation state
 ```
 
-The release currently deployed to production **predates**
-`THOTH-GQL-BATCH-01`: its binary contains no mutation guard at all, so it is
-recorded as **pre-guard** and is not described as running
-`MutationGuardMode::OFF`. That conclusion rests on two evidence classes and on
-neither alone — repository evidence establishes that the relevant release code
-contains no mutation guard, and previously established scoped authoritative
-deployment metadata establishes that it is the release production runs. Merging `THOTH-GQL-BATCH-01` deployed nothing and
+The releases currently deployed **predate** `THOTH-GQL-BATCH-01`: their binaries
+contain no mutation guard at all, so they are recorded as **pre-guard** and are
+not described as running `MutationGuardMode::OFF`. That conclusion rests on two
+evidence classes and on neither alone — repository evidence establishes that the
+relevant release code contains no mutation guard, and scoped authoritative
+deployment metadata establishes that it is the release those environments run.
+Implementation re-established the same conclusion for the **test** environment,
+which is also pre-guard; there is consequently no environment in which a mode
+could currently be changed. Merging `THOTH-GQL-BATCH-01` deployed nothing and
 activated nothing. No environment has been transitioned to `OBSERVE` or
 `ENFORCE`, and any guard-enabled candidate remains effectively `OFF` unless
 separately authorized.
 
-Its expected terminal disposition is therefore **C — insufficient operational
+The terminal disposition is therefore **C — insufficient operational
 capability/evidence; BLOCKED**, and the `ADR-0006` runtime-operations gate
-remains **NOT SATISFIED** on its completion. Closing the two gaps requires
-separate bounded tasks — `THOTH-GQL-OPS-02` (mode-control path) and
-`THOTH-GQL-OPS-03` (fleet-verification mechanism) — each implemented,
-independently reviewed and merged on its own authority. Only then may
-`THOTH-GQL-OPS-04` re-verify against the real runtime and decide, on evidence,
-whether the feature-specific subset is satisfied.
+remains **NOT SATISFIED**. Closing the two gaps requires separate bounded tasks —
+[`THOTH-GQL-OPS-02`](../ai-delivery/tasks/THOTH-GQL-OPS-02.md) (mode-control
+path) and [`THOTH-GQL-OPS-03`](../ai-delivery/tasks/THOTH-GQL-OPS-03.md)
+(fleet-verification mechanism) — each implemented, independently reviewed and
+merged on its own authority. Only then may
+[`THOTH-GQL-OPS-04`](../ai-delivery/tasks/THOTH-GQL-OPS-04.md) re-verify against
+the real runtime and decide, on evidence, whether the feature-specific subset is
+satisfied. All three specifications are `DRAFT` and their implementation is
+`NOT AUTHORIZED`; none of their branches exists.
+
+```text
+Runtime-operations gate: NOT SATISFIED
+Blocking prerequisites:  THOTH-GQL-OPS-02, THOTH-GQL-OPS-03
+Earliest satisfaction:   THOTH-GQL-OPS-04, on evidence
+OFF -> OBSERVE:          NOT AUTHORIZED
+OBSERVE -> ENFORCE:      NOT AUTHORIZED
+BE-02 runtime:           NOT AUTHORIZED
+```
 
 None of these tasks closes CG-13. Migration execution, backup and restore
 verification, and approver mapping for concerns other than this feature remain
 open here regardless of their outcome. Any broader closure would need its own
 evidence, independent review and CTO decision recorded in this register.
+
+Beyond the two capability gaps, the control record leaves further evidence
+explicitly unresolved and recorded as missing work. Four of these block an
+acceptance criterion outright, and `THOTH-GQL-OPS-04` must obtain each:
+
+- the **accountable production runtime owner**. Execution *capability* is
+  established from an access record; accountable *ownership* is not, and is not
+  derivable from one — it requires an explicit CTO designation. This repository
+  still lists production deployment owners among the controls it lacks;
+- the **post-activation observation sign-off owner**, which the control record
+  proposes but does not establish, pending explicit CTO confirmation;
+- whether **operational rollback additionally requires CTO approval**, or may be
+  executed on the technical team's own authority;
+- the **live expected replica population**, readable only from live orchestrator
+  state.
+
+Also unresolved, and not blocking a criterion: configuration drift between the
+authoritative deployment source and the live orchestrator; the approved `OBSERVE`
+observation-window duration and therefore whether the finite configured runtime
+log retention covers it, with no remedy pre-selected; and the measured
+propagation, mixed-window and rollback durations, which are owned by the
+**downstream** preview/staging rehearsal rather than by `THOTH-GQL-OPS-04`.
 
 ## Verification gaps
 
