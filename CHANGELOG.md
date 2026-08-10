@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+  - [794](https://github.com/thoth-pub/thoth/pull/794) - Declare the `xlink` namespace on the Crossref DOI deposit root element (`CROSSREF_NS`), so deposits whose JATS abstract markup contains `<jats:ext-link xlink:href="...">` are no longer rejected by Crossref with "The prefix "xlink" for attribute "xlink:href" ... is not bound"
 
 ## [[1.6.1]](https://github.com/thoth-pub/thoth/releases/tag/v1.6.1) - 2026-07-23
 ### Fixed
