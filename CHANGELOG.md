@@ -48,6 +48,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
   - [778](https://github.com/thoth-pub/thoth/pull/778) - Remove the stale, unused root `diesel.toml`, which never parsed, did not target the canonical `thoth-api/src/schema.rs`, and was not part of any supported build, test, migration, or schema-generation command; the Diesel Rust crates and the embedded `diesel_migrations` runner are unaffected
 
+## [[1.6.2]](https://github.com/thoth-pub/thoth/releases/tag/v1.6.2) - 2026-08-10
+### Fixed
+  - [794](https://github.com/thoth-pub/thoth/pull/794) - Declare the `xlink` namespace on the Crossref DOI deposit root element (`CROSSREF_NS`), so the DOI deposit XML binds the `xlink` prefix required by JATS abstract links using `xlink:href`, and deposits whose abstract markup contains `<jats:ext-link xlink:href="...">` are no longer rejected by Crossref with "The prefix "xlink" for attribute "xlink:href" ... is not bound"
+
 ## [[1.6.1]](https://github.com/thoth-pub/thoth/releases/tag/v1.6.1) - 2026-07-23
 ### Fixed
   - [763](https://github.com/thoth-pub/thoth/pull/763) - Validate a publication upload's canonical location before copying the object to its final key and inserting the file record in `complete_file_upload`, so a `LocationUrlError` (e.g. a work with no landing page) no longer leaves an orphaned file record and S3 object behind (`FileUpload::precheck_related_metadata`)
