@@ -179,6 +179,64 @@ and explicit CTO merge authorization. CG-13 remains open.
 
 Document runtime, deployment, migration execution, rollback, restore verification and approvers.
 
+CG-13 is **OPEN**.
+
+A bounded feature-specific successor is proposed for one subset of it:
+[`THOTH-GQL-OPS-01`](../ai-delivery/tasks/THOTH-GQL-OPS-01.md), which addresses
+runtime mode control for the merged GraphQL mutation guard
+(`THOTH_GRAPHQL_MUTATION_GUARD_MODE`) — configuration authority, restart/redeploy
+semantics, fleet propagation and verification, partial-fleet handling, rollback,
+change authority and evidence. That specification is `DRAFT` and its
+implementation is `NOT AUTHORIZED`.
+
+**`THOTH-GQL-OPS-01` cannot, by itself, satisfy even that subset.** Its discovery
+establishes two capability gaps that documentation cannot close:
+
+1. the current production deployment path cannot consume
+   `THOTH_GRAPHQL_MUTATION_GUARD_MODE`. Production configuration inherits the
+   container image's default `init` command, and `init` does not register the
+   guard argument, so a **guard-enabled** release deployed through that path
+   would silently ignore the configured value and remain effectively `OFF`. An
+   `OFF -> OBSERVE` transition of a guard-enabled candidate is therefore not
+   operationally performable through the current deployment path. This is the
+   `THOTH-GQL-OPS-02` capability gap;
+2. no implemented mechanism can prove the effective mode of every serving
+   instance, so a mode change could not be verified even if one could be made.
+
+The deployed production release is a separate matter from either gap, and the
+three states must not be conflated:
+
+```text
+merged develop state
+    != deployed production release
+    != production activation state
+```
+
+The release currently deployed to production **predates**
+`THOTH-GQL-BATCH-01`: its binary contains no mutation guard at all, so it is
+recorded as **pre-guard** and is not described as running
+`MutationGuardMode::OFF`. That conclusion rests on two evidence classes and on
+neither alone — repository evidence establishes that the relevant release code
+contains no mutation guard, and previously established scoped authoritative
+deployment metadata establishes that it is the release production runs. Merging `THOTH-GQL-BATCH-01` deployed nothing and
+activated nothing. No environment has been transitioned to `OBSERVE` or
+`ENFORCE`, and any guard-enabled candidate remains effectively `OFF` unless
+separately authorized.
+
+Its expected terminal disposition is therefore **C — insufficient operational
+capability/evidence; BLOCKED**, and the `ADR-0006` runtime-operations gate
+remains **NOT SATISFIED** on its completion. Closing the two gaps requires
+separate bounded tasks — `THOTH-GQL-OPS-02` (mode-control path) and
+`THOTH-GQL-OPS-03` (fleet-verification mechanism) — each implemented,
+independently reviewed and merged on its own authority. Only then may
+`THOTH-GQL-OPS-04` re-verify against the real runtime and decide, on evidence,
+whether the feature-specific subset is satisfied.
+
+None of these tasks closes CG-13. Migration execution, backup and restore
+verification, and approver mapping for concerns other than this feature remain
+open here regardless of their outcome. Any broader closure would need its own
+evidence, independent review and CTO decision recorded in this register.
+
 ## Verification gaps
 
 Branch protections, required checks, environment reviewers, crate publication, secret ownership, production database configuration and Thoth hosting/rollback remain unverified. Missing evidence is missing work.

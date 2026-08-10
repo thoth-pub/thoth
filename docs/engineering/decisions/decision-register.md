@@ -148,9 +148,31 @@ ADR-0006 independently reviewed, CTO-approved and repository-authoritative
   -> THOTH-GQL-BATCH-01 implemented, independently reviewed,
      CTO merge-authorized and merged
        (merged state: guard mode OFF, loader store unavailable,
-        production request acceptance unchanged)
+        production request acceptance unchanged. Merging deploys
+        nothing: the deployed production release predates this work
+        and is PRE-GUARD, with no guard mode at all -- established
+        by repository release-code evidence and scoped deployment
+        metadata together, not by either alone)
   -> runtime-operations evidence for mode control verified
-     (control gap CG-13, or a bounded successor, satisfied for this feature)
+     (control gap CG-13, or a bounded successor, satisfied for this feature).
+      This gate is NOT satisfied by documenting the mechanism. The proposed
+      bounded successors, all DRAFT and NOT AUTHORIZED, and none of which
+      closes CG-13, are:
+        THOTH-GQL-OPS-01  control record, provisional runbook and the
+                          prerequisite specifications; terminates at
+                          disposition C - BLOCKED, gate NOT SATISFIED
+        THOTH-GQL-OPS-02  mode-control path, so the value can be consumed
+                          at all (the production deployment path inherits
+                          the image default `init`, which does not register
+                          the guard argument, so a guard-enabled release
+                          deployed through that path would remain
+                          effectively OFF and no OFF -> OBSERVE transition
+                          would be performable)
+        THOTH-GQL-OPS-03  mechanism proving the effective mode of every
+                          serving instance
+        THOTH-GQL-OPS-04  fresh bounded verification and closure; the
+                          earliest point at which this gate may be
+                          satisfied, and only on evidence
   -> service-health signals and activation thresholds verified
   -> preview/staging acceptance of the exact implementation candidate,
      including performance evidence and a rehearsed, timed rollback

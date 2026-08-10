@@ -20,6 +20,17 @@ These documents apply across Thoth engineering programmes unless a stricter appr
 - `tasks/CTRL-MERGE-01.md` - terminal merge evidence and non-recursive closeout.
 - `tasks/THOTH-GQL-BATCH-01.md` - request-scoped GraphQL batching foundation
   (`DRAFT`; depends on `ADR-0006` being approved and repository-authoritative).
+- `tasks/THOTH-GQL-OPS-01.md` - GraphQL mutation-guard runtime operations
+  (`DRAFT`; bounded feature-specific successor to CG-13 for mode control. It
+  establishes how a mode change would be controlled, proves that the capability
+  to make and verify one does not yet exist, and specifies the bounded
+  prerequisites that must deliver it. It distinguishes the merged `develop`
+  state, the deployed production release — which predates the guard and is
+  recorded as **pre-guard** on combined repository and external deployment
+  evidence, never on repository evidence alone — and production activation
+  state. It terminates at CG-13 disposition
+  `C - BLOCKED`, leaves the `ADR-0006` runtime-operations gate `NOT SATISFIED`,
+  and activates nothing).
 - `reviews/CTRL-FOUNDATION-01-review-brief.md` - independent review requirements.
 
 ## Core rule
