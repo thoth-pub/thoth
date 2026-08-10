@@ -26,6 +26,22 @@ capability/evidence; BLOCKED** (section 12.1). This is the expected outcome, not
 a failure of the task.
 Runtime-operations gate on completion: **NOT SATISFIED** (section 12.2).
 
+Deployment-state distinction, binding on every statement in this specification
+(established in section 2.2.0):
+
+```text
+merged develop state
+    != deployed production release
+    != production activation state
+```
+
+The currently deployed production release **predates** `THOTH-GQL-BATCH-01`. Its
+binary contains no mutation guard at all, so it is recorded as **pre-guard** and
+must never be described as running `MutationGuardMode::OFF`. Merging
+`THOTH-GQL-BATCH-01` deployed nothing. Every guard-mode statement below applies
+to a **guard-enabled candidate** — a build that contains the merged foundation —
+and not to the pre-guard release currently serving production.
+
 Authority condition: this record is repository-authoritative when this exact
 content is reachable from the repository's authoritative integration branch.
 Live review, authorization and merge evidence is the GitHub pull-request record.
@@ -61,23 +77,27 @@ by itself a discharge of the `ADR-0006` runtime-operations gate.
 establishes two capability gaps that this task cannot close by documenting them:
 
 ```text
-1. no effective production mode-control path exists that can actually
-   consume THOTH_GRAPHQL_MUTATION_GUARD_MODE;
+1. the currently authoritative production deployment path cannot consume
+   THOTH_GRAPHQL_MUTATION_GUARD_MODE, so a guard-enabled release deployed
+   through that path would remain effectively OFF and no mode change would
+   be performable;
 
 2. no implemented, independently reviewed mechanism exists that can prove
    the effective mode of every serving instance.
 ```
 
 Until **both** are delivered — implemented, independently reviewed and merged —
-the mode cannot be changed in production and a change could not be verified if it
-were. Documenting that fact, and specifying the tasks that would fix it, is
-necessary work and is this task's purpose; it is **not** equivalent to having the
-capability. Section 12 therefore requires this task to terminate at disposition
-**C — BLOCKED**, and section 11 records the runtime-operations gate as
-**NOT SATISFIED** on completion.
+the mode of a guard-enabled release could not be changed in production, and a
+change could not be verified if it were made. Documenting that fact, and
+specifying the tasks that would fix it, is necessary work and is this task's
+purpose; it is **not** equivalent to having the capability. Section 12 therefore
+requires this task to terminate at disposition **C — BLOCKED**, and section 11
+records the runtime-operations gate as **NOT SATISFIED** on completion.
 
-At completion the guard mode remains `OFF`, the loader store remains unavailable,
-and production request acceptance remains unchanged.
+At completion no environment has been transitioned. Environments running a
+pre-guard release remain **pre-guard**; any guard-enabled candidate or
+environment remains effectively `OFF` with the loader store unavailable; and
+production request acceptance is unchanged.
 
 ## 2. Background and authority
 
@@ -154,6 +174,65 @@ against the pinned dependency sources resolved by the workspace `Cargo.lock`
 (`clap` 4.6.1, `clap_builder` 4.6.0). An implementing agent **must refresh every
 finding against its own exact base** before relying on it.
 
+#### 2.2.0 Merged state, deployed release and activation state are three different things
+
+This distinction is established first because every other finding in section 2.2
+is conditional on it, and conflating the three would misdescribe the production
+service.
+
+```text
+merged develop state
+    != deployed production release
+    != production activation state
+```
+
+**Established `[REPO]`:**
+
+- the mutation guard, `MutationGuardMode` and the CLI argument
+  `mutation_guard_mode()` exist on `develop`, delivered by
+  [`THOTH-GQL-BATCH-01`](THOTH-GQL-BATCH-01.md) through merged PR
+  [#791](https://github.com/thoth-pub/thoth/pull/791);
+- they do **not** exist on the release line `master`: `master` contains no
+  `MutationGuardMode`, its CLI defines no `mutation_guard_mode()`, and its
+  GraphQL startup path has no mutation-guard wiring;
+- the production release artefact is the container image published from a
+  **published GitHub release**
+  (`.github/workflows/docker_build_and_push_to_dockerhub_release.yml`), and the
+  most recent release tag likewise contains no `MutationGuardMode`.
+
+**Established consequence:**
+
+```text
+CURRENT DEPLOYED PRODUCTION
+
+- the currently deployed release predates THOTH-GQL-BATCH-01;
+- its binary does not contain the mutation guard at all;
+- it therefore does not literally have MutationGuardMode::OFF;
+- it is recorded as PRE-GUARD, and no statement in this family of tasks may
+  relabel a pre-guard binary as having an effective guard mode.
+```
+
+Merging `THOTH-GQL-BATCH-01` deployed nothing and activated nothing. The merged
+foundation is inert *and* undeployed; those are two separate facts, and neither
+implies the other.
+
+**Vocabulary, binding on this specification and on every successor it
+specifies:**
+
+| Term | Meaning |
+|---|---|
+| **pre-guard** | a release, image or environment whose binary contains no mutation guard. It has no guard mode — not `OFF`, not any other value |
+| **guard-enabled candidate** | a build, image or release containing the merged `THOTH-GQL-BATCH-01` foundation. It has a guard mode, whose default is `OFF` |
+| **guard-enabled environment** | an environment actually running a guard-enabled candidate |
+| **activation** | an authorized `OFF -> OBSERVE` or `OBSERVE -> ENFORCE` transition of a guard-enabled environment. None exists |
+
+Sections 2.2.1, 2.2.2 and 2.2.3 describe the behaviour of a **guard-enabled**
+build. They are statements about what would happen once such a build is deployed;
+they are **not** descriptions of the pre-guard binary currently serving
+production. The implementing agent must re-establish which release each
+environment is actually running, under the scoped-read rules of section 2.2.5,
+rather than assuming that `develop` and production agree.
+
 #### 2.2.1 Where the mode is read, and when
 
 | Question | Finding | Evidence |
@@ -192,7 +271,10 @@ disposition A until that task has merged.
 
 #### 2.2.3 The `init` entrypoint does not accept the mode — proven
 
-This is the decisive finding of the discovery phase.
+This is the decisive finding of the discovery phase. Per section 2.2.0 it is a
+finding about the **guard-enabled** code merged to `develop`: it describes what
+the deployment path would do with a guard-enabled release, not the behaviour of
+the pre-guard binary currently deployed.
 
 1. The container's default command is `init`:
 
@@ -233,36 +315,50 @@ This is the decisive finding of the discovery phase.
 **Established consequence:**
 
 ```text
-When the GraphQL API container runs the image default command `init`,
-THOTH_GRAPHQL_MUTATION_GUARD_MODE is silently ignored and the effective
-mode is unconditionally OFF.
+When a GUARD-ENABLED container runs the image default command `init`,
+THOTH_GRAPHQL_MUTATION_GUARD_MODE is silently ignored and that process's
+effective mode is unconditionally OFF.
 ```
 
 The failure is **silent** and **fail-safe**. It cannot cause an unintended
 activation, it does not affect the correctness of the merged inert state, and it
-is not a production incident: `OFF` is exactly the merged and intended state. But
-it means that setting the environment variable would appear to succeed while
-changing nothing, which is precisely the class of failure the fleet-verification
-and partial-fleet requirements of this task exist to detect.
+is not a production incident — production is not running guard-enabled code at
+all (section 2.2.0), and `OFF` is in any case the intended state of a
+guard-enabled candidate. But it means that setting the environment variable would
+appear to succeed while changing nothing, which is precisely the class of failure
+the fleet-verification and partial-fleet requirements of this task exist to
+detect.
 
 Steps 1 to 6 are fully verifiable `[REPO]` from this repository and its pinned
-dependencies. **Production applicability is established `[EXTERNAL]`:** the
-production GraphQL API service inherits the image default and does not override
-the container command, so production currently runs the `init` path. The
-implementing agent must re-confirm this from the authoritative source at
-execution time under the scoped-read rules of section 2.2.5.
+dependencies. **Deployment-path applicability is established `[EXTERNAL]`:** the
+production GraphQL API service does not override the container command and so
+inherits the image default `init`. That is a property of the **deployment path**,
+which a guard-enabled release would execute through unchanged; it is not a claim
+about the guard state of the pre-guard binary currently deployed.
 
 **Established consequence for this task:**
 
 ```text
-The effective production mutation-guard mode is currently fixed at OFF and
-cannot be changed by configuration at all.
+Under the currently authoritative production deployment command path, a
+guard-enabled release containing the merged foundation would execute
+through `init`.
+
+Until THOTH-GQL-OPS-02 is delivered, that path cannot consume
+THOTH_GRAPHQL_MUTATION_GUARD_MODE.
+
+Therefore an OFF -> OBSERVE transition of a guard-enabled candidate is not
+operationally performable through the current deployment path.
 ```
 
-This is **capability gap 1** of section 1. It is not a caveat on a later
-activation: while it holds, `OFF -> OBSERVE` is not merely unauthorized, it is
-not **performable**. Section 12.1 forbids disposition A until it is remediated by
-a separate task (`THOTH-GQL-OPS-02`).
+This is **capability gap 1** of section 1, and it is the **OPS-02 capability
+gap**. It is not a caveat on a later activation: while it holds,
+`OFF -> OBSERVE` is not merely unauthorized, it is not **performable** by any
+guard-enabled release deployed through this path. Section 12.1 forbids
+disposition A until it is remediated by a separate task
+(`THOTH-GQL-OPS-02`). The implementing agent must re-confirm the container
+command from the authoritative source at execution time under the scoped-read
+rules of section 2.2.5, and must separately re-confirm which release each
+environment is running.
 
 ##### 2.2.3.1 `init` is not interchangeable with `start graphql-api`
 
@@ -425,20 +521,26 @@ Establish:
    another mechanism;
 4. **which command the production GraphQL API container actually runs**, and to
    confirm the section 2.2.3 established finding that it is the image default
-   `init`. This is load-bearing because under `init` the variable has no effect
-   at all. This item asks **what production runs**; it must not be read as
-   offering a change of command as a remedy — sections 2.2.3.1 and 13.1.1 put
-   any such change out of bounded scope;
-5. behaviour for an **absent** value — established `[REPO]`: `clap` supplies the
-   declared default `OFF`;
-6. behaviour for an **invalid** value — established `[REPO]`: `clap`'s
+   `init`. This is load-bearing because a guard-enabled release executing through
+   `init` cannot consume the variable at all. This item asks **what the
+   deployment path runs**; it must not be read as offering a change of command as
+   a remedy — sections 2.2.3.1 and 13.1.1 put any such change out of bounded
+   scope;
+5. **which release each environment is actually running**, distinguishing a
+   **pre-guard** release from a **guard-enabled** one per section 2.2.0. A
+   pre-guard environment has no guard mode and must be recorded as pre-guard, not
+   as `MutationGuardMode::OFF`. The task must not infer the deployed release from
+   the state of `develop`;
+6. behaviour for an **absent** value in a guard-enabled build — established
+   `[REPO]`: `clap` supplies the declared default `OFF`;
+7. behaviour for an **invalid** value — established `[REPO]`: `clap`'s
    `value_parser` rejects any string outside `OFF`/`OBSERVE`/`ENFORCE`, so the
    process fails to start rather than starting in an unintended mode. The task
    must verify what the orchestrator does with a task that fails to start, since
    a rejected value manifests as a failing deployment rather than as a
    misconfigured running service;
-7. who may **request** a change;
-8. who may **execute** a change.
+8. who may **request** a change;
+9. who may **execute** a change.
 
 No secret value may be recorded. The mode itself is not a secret; its three
 values are already public in this repository.
@@ -741,7 +843,8 @@ Task identifiers follow the repository's existing family convention
 #### 3.12.1 `THOTH-GQL-OPS-02` — mutation-guard mode-control path
 
 Objective: make `THOTH_GRAPHQL_MUTATION_GUARD_MODE` actually consumable on the
-path production runs, so that a mode change is possible at all.
+command path the production deployment runs, so that once a guard-enabled release
+is deployed a mode change is possible at all.
 
 Binding scope constraints:
 
@@ -837,11 +940,14 @@ The task must **not**:
 
 The implementation must preserve:
 
-1. `THOTH_GRAPHQL_MUTATION_GUARD_MODE` remains `OFF` in every environment the
-   task touches;
-2. the loader store remains unavailable, which follows structurally from
-   invariant 1 (`ADR-0006` invariant 30: store availability is derived only from
-   the mode);
+1. no production activation is performed by this task; no environment is
+   transitioned to `OBSERVE` or `ENFORCE`; any guard-enabled candidate or
+   environment remains effectively `OFF` unless separately authorized; and an
+   environment running a pre-guard release is recorded as **pre-guard** and is
+   never described as `MutationGuardMode::OFF` (section 2.2.0);
+2. the loader store remains unavailable wherever a guard exists at all, which
+   follows structurally from invariant 1 (`ADR-0006` invariant 30: store
+   availability is derived only from the mode);
 3. production request acceptance is unchanged;
 4. no runtime, schema, migration, `Cargo` or workflow file is changed;
 5. no production action of any kind is performed;
@@ -1016,9 +1122,11 @@ class. `[UNVERIFIED]` is a failure, not an outcome.
       absorbed. *Evidence: the delivered document; `ADR-0006` section 8.3.2.*
 - [ ] **AC-20** `BE-02` remains unauthorized and untouched. *Evidence: the
       complete PR diff; PR #788 and issue #765 unchanged.*
-- [ ] **AC-21** Guard mode remains `OFF` and the store remains unavailable in
-      every environment. *Evidence: the deployment source, unchanged by this
-      task.*
+- [ ] **AC-21** No environment is transitioned. Every guard-enabled candidate or
+      environment remains effectively `OFF` with the store unavailable, and every
+      environment running a pre-guard release is recorded as **pre-guard** rather
+      than as `MutationGuardMode::OFF`. *Evidence: the deployment source,
+      unchanged by this task; section 2.2.0.*
 - [ ] **AC-22** The fleet-verification mechanism is specified but **not**
       implemented in this task's PR. *Evidence: the complete PR diff contains no
       runtime file.*
@@ -1026,11 +1134,14 @@ class. `[UNVERIFIED]` is a failure, not an outcome.
 The following criteria exist so that the criteria above cannot, between them,
 be read as discharging the gate. They are additions; none relaxes AC-1 to AC-22.
 
-- [ ] **AC-23** Capability gap 1 — the absence of an effective production
-      mode-control path — is recorded explicitly, with its production
-      applicability established rather than left open. *Evidence: sections 2.2.3
-      and 2.2.3.1; `[EXTERNAL]` confirmation of the production container command
-      under the section 2.2.5 scoped-read rules.*
+- [ ] **AC-23** Capability gap 1 — the inability of the current production
+      deployment path to consume `THOTH_GRAPHQL_MUTATION_GUARD_MODE` once
+      guard-enabled code is deployed — is recorded explicitly, as a
+      deployment-path property, with its applicability established rather than
+      left open, and without describing any pre-guard release as having a guard
+      mode. *Evidence: sections 2.2.0, 2.2.3 and 2.2.3.1; `[EXTERNAL]`
+      confirmation of the production container command under the section 2.2.5
+      scoped-read rules.*
 - [ ] **AC-24** Capability gap 2 — the absence of an implemented effective-mode
       verification mechanism — is recorded explicitly as an unclosed gap, and is
       **not** reported as closed by AC-8. *Evidence: section 2.2.2 and the
@@ -1077,6 +1188,9 @@ Also verify:
   permits;
 - no runtime, schema, migration, `Cargo` or workflow path appears in the diff;
 - CG-13 is not marked globally resolved;
+- no statement describes a **pre-guard** release, image or environment as having
+  a guard mode, or as being in `MutationGuardMode::OFF` (section 2.2.0), and no
+  statement implies that merging `THOTH-GQL-BATCH-01` deployed the guard;
 - `OBSERVE` and `ENFORCE` remain recorded as NOT AUTHORIZED;
 - `BE-02` remains recorded as NOT AUTHORIZED;
 - a `CHANGELOG.md` entry exists under `## [Unreleased]`;
@@ -1084,10 +1198,13 @@ Also verify:
 
 ### Manual verification
 
-- re-derive section 2.2.1, 2.2.2 and 2.2.3 against the task's own exact base
-  before relying on them;
+- re-derive sections 2.2.0, 2.2.1, 2.2.2 and 2.2.3 against the task's own exact
+  base before relying on them;
 - confirm the production container command from the authoritative source;
-- confirm that no environment's guard mode was changed.
+- confirm, separately from the command, **which release each environment is
+  actually running**, and record pre-guard environments as pre-guard;
+- confirm that no environment was transitioned and that no guard-enabled
+  candidate was activated.
 
 ### Performance
 
@@ -1098,16 +1215,18 @@ Not applicable.
 - **initial state after merge:** unchanged. Documentation only.
 
   ```text
-  THOTH_GRAPHQL_MUTATION_GUARD_MODE = OFF
-  loader store                      = unavailable
+  deployed production release       = pre-guard (no guard mode exists)
+  guard-enabled candidate default   = OFF, loader store unavailable
+  environments transitioned         = none
   production request acceptance     = unchanged
   ```
 
 - **feature flag/configuration:** none introduced. The guard mode is the existing
-  control and is not changed;
+  control of a guard-enabled build and is not changed;
 - **repository-managed deployment configuration:** this repository holds none. If
-  the task discovers that it must touch any, the touched configuration must
-  remain `OFF` and must require separate production activation authorization;
+  the task discovers that it must touch any, the touched configuration must leave
+  every guard-enabled candidate effectively `OFF` and must require separate
+  production activation authorization;
 - **staging/preview validation:** the rehearsal is **defined** by this task and
   **executed** at the later preview/staging gate (section 3.8);
 - **pilot:** not applicable. `OBSERVE` is itself the controlled pilot
@@ -1190,9 +1309,11 @@ reference to the bounded successors; it may not mark CG-13 resolved.
 ```text
 Disposition A is FORBIDDEN while either of the following is true:
 
-1. no effective production mode-control path exists that can actually
-   consume THOTH_GRAPHQL_MUTATION_GUARD_MODE
-   (capability gap 1; sections 2.2.3 and 3.12.1);
+1. the currently authoritative production deployment path cannot consume
+   THOTH_GRAPHQL_MUTATION_GUARD_MODE, so a guard-enabled release deployed
+   through it would remain effectively OFF and no OFF -> OBSERVE transition
+   would be performable
+   (capability gap 1, the OPS-02 gap; sections 2.2.3 and 3.12.1);
 
 2. no implemented, independently reviewed and merged mechanism exists that
    can prove the effective mode of every serving instance
@@ -1214,8 +1335,10 @@ specifying what closes them.
   is not delivering it;
 - having *documented* the entrypoint gap thoroughly. Documenting a missing
   capability does not supply it;
-- the mode being `OFF` already, and therefore "correct". `OFF` being the desired
-  state is why the gap is fail-safe; it is not evidence that the control works;
+- the guard being inert everywhere already, and therefore "correct". That the
+  intended state of a guard-enabled candidate is `OFF` — and that production is
+  not even running guard-enabled code (section 2.2.0) — is why the gap is
+  fail-safe; it is not evidence that the control works;
 - an argument that the remaining work is small, obvious or low-risk. Size is not
   the criterion; delivery is.
 
@@ -1279,10 +1402,13 @@ The implementing agent must stop and report `BLOCKED` if:
 
 ### 13.1 The entrypoint gap: a blocking prerequisite, not a stop condition
 
-Section 2.2.3 establishes that the `init` entrypoint silently ignores the mode
-variable in a release build, and that production runs `init`. **The mode is
-therefore not currently controllable in production at all**, and remediation is a
-hard, blocking prerequisite for `OFF -> OBSERVE` (section 12.1, capability gap 1).
+Section 2.2.3 establishes that a guard-enabled build running the `init`
+entrypoint silently ignores the mode variable in a release build, and that the
+production deployment path runs `init`. **A guard-enabled release deployed
+through the current path would therefore have no controllable mode at all**, and
+remediation is a hard, blocking prerequisite for `OFF -> OBSERVE` (section 12.1,
+capability gap 1). This is a property of the deployment path, not a claim about
+the pre-guard binary currently deployed (section 2.2.0).
 
 It is a **blocking prerequisite** rather than a **stop condition** because the
 approved architecture is intact: the `OFF`/`OBSERVE`/`ENFORCE` lifecycle needs no
@@ -1378,6 +1504,10 @@ must record:
   true; the accurate and expected statement is that secret-bearing configuration
   was encountered during authorized read-only discovery and that no value was
   copied into any output;
+- the deployment-state distinction of section 2.2.0, stated explicitly: which
+  release each environment actually runs, with pre-guard environments recorded as
+  **pre-guard** rather than as `MutationGuardMode::OFF`, and with capability gap 1
+  stated as a property of the deployment path rather than of the deployed binary;
 - explicit confirmation that `OBSERVE`, `ENFORCE` and `BE-02` remain
   unauthorized;
 - CI status and the docs-only classification.

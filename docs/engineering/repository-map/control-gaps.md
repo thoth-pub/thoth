@@ -192,12 +192,33 @@ implementation is `NOT AUTHORIZED`.
 **`THOTH-GQL-OPS-01` cannot, by itself, satisfy even that subset.** Its discovery
 establishes two capability gaps that documentation cannot close:
 
-1. no effective production mode-control path exists that can consume
-   `THOTH_GRAPHQL_MUTATION_GUARD_MODE` — production runs the container image's
-   default `init` command, which does not accept the value, so the effective
-   production mode is currently fixed at `OFF`;
+1. the current production deployment path cannot consume
+   `THOTH_GRAPHQL_MUTATION_GUARD_MODE`. Production configuration inherits the
+   container image's default `init` command, and `init` does not register the
+   guard argument, so a **guard-enabled** release deployed through that path
+   would silently ignore the configured value and remain effectively `OFF`. An
+   `OFF -> OBSERVE` transition of a guard-enabled candidate is therefore not
+   operationally performable through the current deployment path. This is the
+   `THOTH-GQL-OPS-02` capability gap;
 2. no implemented mechanism can prove the effective mode of every serving
    instance, so a mode change could not be verified even if one could be made.
+
+The deployed production release is a separate matter from either gap, and the
+three states must not be conflated:
+
+```text
+merged develop state
+    != deployed production release
+    != production activation state
+```
+
+The release currently deployed to production **predates**
+`THOTH-GQL-BATCH-01`: its binary contains no mutation guard at all, so it is
+recorded as **pre-guard** and is not described as running
+`MutationGuardMode::OFF`. Merging `THOTH-GQL-BATCH-01` deployed nothing and
+activated nothing. No environment has been transitioned to `OBSERVE` or
+`ENFORCE`, and any guard-enabled candidate remains effectively `OFF` unless
+separately authorized.
 
 Its expected terminal disposition is therefore **C — insufficient operational
 capability/evidence; BLOCKED**, and the `ADR-0006` runtime-operations gate

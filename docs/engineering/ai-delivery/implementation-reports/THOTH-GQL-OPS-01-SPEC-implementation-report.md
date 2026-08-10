@@ -91,10 +91,25 @@ Runtime files changed: **NONE.** No Rust, SQL, migration, `schema.rs`,
 
 ## 5. Implementation decisions
 
-1. **The specification is bounded to mode control.** CG-13's migration
-   execution, restore verification and general approver mapping are left open and
-   are explicitly listed as non-goals. Disposition class **A** is the default the
-   specification mandates.
+1. **The specification is bounded to mode control, and its mandatory terminal
+   disposition is C.** CG-13's migration execution, restore verification and
+   general approver mapping are left open and are explicitly listed as non-goals.
+
+   ```text
+   THOTH-GQL-OPS-01 is bounded to mutation-guard mode-control discovery.
+
+   Its mandatory expected terminal disposition on the currently established
+   evidence is C - BLOCKED.
+
+   Disposition A is forbidden while either capability gap remains open and
+   becomes reachable only through THOTH-GQL-OPS-04 after OPS-02 and OPS-03
+   have been implemented, independently reviewed and merged.
+   ```
+
+   *Historical note, superseded:* the pre-remediation head
+   `27becee16e048eef30017fc5ff509362f0808ba3` did default to disposition **A**.
+   That statement is **withdrawn** and is recorded here only as superseded
+   history; it is not a current statement of the specification.
 
 2. **Every operational statement carries an evidence class.** The specification
    introduces a binding `[REPO]` / `[EXTERNAL]` / `[UNVERIFIED]` labelling rule,
@@ -154,10 +169,12 @@ The review returned `CHANGES REQUIRED` at head
 one security/audit correction. All three are addressed.
 
 10. **P1-1 — the specification could satisfy the runtime-operations gate while
-    the mechanisms it depends on were absent.** The original text was internally
-    inconsistent: its success behaviour promised an operator who could execute,
-    verify and roll back a mode change, while AC-8/AC-22 required the verifier
-    only to be *specified*, and section 12 defaulted to disposition **A**.
+    the mechanisms it depends on were absent.** *(Historical, describing the
+    superseded head `27becee16e048eef30017fc5ff509362f0808ba3`.)* That text was
+    internally inconsistent: its success behaviour promised an operator who could
+    execute, verify and roll back a mode change, while AC-8/AC-22 required the
+    verifier only to be *specified*, and its section 12 defaulted to disposition
+    **A**. All of that is **superseded**.
 
     Corrected by making the two capability gaps first-class and terminal:
 
@@ -382,11 +399,39 @@ Steps and observed results:
    metadata-only retrieval, and `BLOCKED` where a criterion cannot be satisfied
    without exposing secret material.
 
-8. **Production applicability of the entrypoint gap, established.** The
-   production GraphQL API service does not override the container command and so
-   inherits the image default `init`. Combined with finding 5, the effective
-   production mutation-guard mode is currently **fixed at `OFF` and not
-   changeable by configuration** — capability gap 1.
+8. **Deployment-path applicability of the entrypoint gap, established — and
+   distinguished from the deployed release.** Two separate facts:
+
+   - *the deployed release.* `[REPO]` The release line `master` contains no
+     `MutationGuardMode`, defines no `mutation_guard_mode()` CLI argument and has
+     no mutation-guard wiring on its GraphQL startup path; the most recent
+     release tag likewise contains none. The production image is built from a
+     published GitHub release, so the **currently deployed production release
+     predates `THOTH-GQL-BATCH-01` and its binary contains no mutation guard at
+     all.** It is therefore **pre-guard**: it does not literally have
+     `MutationGuardMode::OFF`, and it is not described as having any guard mode.
+     Merging `THOTH-GQL-BATCH-01` deployed nothing;
+   - *the deployment path.* `[EXTERNAL]` The production GraphQL API service does
+     not override the container command and so inherits the image default `init`.
+
+   Combined with finding 5, the established consequence is a property of the
+   **path**, not of the deployed binary:
+
+   ```text
+   Under the currently authoritative production deployment command path, a
+   guard-enabled release containing the merged foundation would execute
+   through `init`.
+
+   Until THOTH-GQL-OPS-02 is delivered, that path cannot consume
+   THOTH_GRAPHQL_MUTATION_GUARD_MODE.
+
+   Therefore an OFF -> OBSERVE transition of a guard-enabled candidate is not
+   operationally performable through the current deployment path.
+   ```
+
+   This is capability gap 1 — the OPS-02 gap. It is a hard blocking
+   prerequisite, and it is not weakened by the fact that production is not yet
+   running guard-enabled code.
 
 9. **`init` and `start graphql-api` are not interchangeable.** `src/bin/thoth.rs`
    shows `init` running `commands::run_migrations(arguments)?` before
@@ -421,14 +466,25 @@ Failures or warnings: recorded on the PR.
 Initial state after merge:
 
 ```text
-THOTH_GRAPHQL_MUTATION_GUARD_MODE = OFF
-loader store                      = unavailable
+deployed production release       = pre-guard (no guard mode exists)
+guard-enabled candidate default   = OFF, loader store unavailable
+environments transitioned         = none
 production request acceptance     = unchanged
 ```
 
-Activation required: none by this change. Merging it authorizes nothing.
-`OFF -> OBSERVE` and `OBSERVE -> ENFORCE` each still require their own separate
-explicit CTO production activation approval.
+Merge, release and activation remain three distinct events:
+
+```text
+merged develop state
+    != deployed production release
+    != production activation state
+```
+
+Activation required: none by this change. Merging it authorizes nothing, and
+merging `THOTH-GQL-BATCH-01` deployed nothing. `OFF -> OBSERVE` and
+`OBSERVE -> ENFORCE` each still require their own separate explicit CTO
+production activation approval, and each applies only to a guard-enabled
+environment.
 
 Feature flag/configuration: none introduced.
 Migration sequence: not applicable.
@@ -445,10 +501,14 @@ Monitoring required: none introduced by this change.
   satisfy it.** Its expected terminal CG-13 disposition is **C — BLOCKED**. The
   gate is satisfiable no earlier than `THOTH-GQL-OPS-04`, and only after
   `THOTH-GQL-OPS-02` and `THOTH-GQL-OPS-03` have merged.
-- **Capability gap 1:** the effective production mutation-guard mode is currently
-  fixed at `OFF` and not changeable by configuration, because production runs the
-  image default `init` and `init` does not accept the mode. Recorded, not fixed;
-  `THOTH-GQL-OPS-02` must close it.
+- **Capability gap 1 (the OPS-02 gap):** the current production deployment path
+  runs the image default `init`, and `init` does not accept the mode, so that
+  path cannot consume `THOTH_GRAPHQL_MUTATION_GUARD_MODE` once guard-enabled code
+  is deployed. An `OFF -> OBSERVE` transition of a guard-enabled candidate is
+  therefore not operationally performable through the current deployment path.
+  This is a deployment-path property; the release currently deployed to
+  production is **pre-guard** and has no guard mode at all (section 10, finding
+  8). Recorded, not fixed; `THOTH-GQL-OPS-02` must close it.
 - **Capability gap 2:** no implemented mechanism proves the effective mode of a
   serving instance. The specification requires the smallest separately reviewable
   mechanism to be defined; it is neither designed in detail nor implemented here.
@@ -522,4 +582,10 @@ Suggested review focus:
    decisions, and that nothing in the diff grants any of them.
 9. **Non-implementation** — confirm the diff contains no runtime file, that the
    fleet-verification mechanism is specified rather than built, and that no
-   environment's guard mode was changed.
+   environment was transitioned.
+10. **Deployment-state accuracy** — re-derive specification section 2.2.0 from
+    `master`, the most recent release tag and the release workflow; confirm that
+    no document describes a pre-guard release as `MutationGuardMode::OFF`, that
+    nothing implies merging `THOTH-GQL-BATCH-01` deployed the guard, and that
+    capability gap 1 is stated as a deployment-path property without being
+    weakened.

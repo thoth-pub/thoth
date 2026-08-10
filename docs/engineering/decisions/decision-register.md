@@ -148,7 +148,9 @@ ADR-0006 independently reviewed, CTO-approved and repository-authoritative
   -> THOTH-GQL-BATCH-01 implemented, independently reviewed,
      CTO merge-authorized and merged
        (merged state: guard mode OFF, loader store unavailable,
-        production request acceptance unchanged)
+        production request acceptance unchanged. Merging deploys
+        nothing: the deployed production release predates this work
+        and is PRE-GUARD, with no guard mode at all)
   -> runtime-operations evidence for mode control verified
      (control gap CG-13, or a bounded successor, satisfied for this feature).
       This gate is NOT satisfied by documenting the mechanism. The proposed
@@ -158,9 +160,12 @@ ADR-0006 independently reviewed, CTO-approved and repository-authoritative
                           prerequisite specifications; terminates at
                           disposition C - BLOCKED, gate NOT SATISFIED
         THOTH-GQL-OPS-02  mode-control path, so the value can be consumed
-                          at all (production currently runs the image
-                          default `init`, which does not accept it, so the
-                          effective production mode is fixed at OFF)
+                          at all (the production deployment path inherits
+                          the image default `init`, which does not register
+                          the guard argument, so a guard-enabled release
+                          deployed through that path would remain
+                          effectively OFF and no OFF -> OBSERVE transition
+                          would be performable)
         THOTH-GQL-OPS-03  mechanism proving the effective mode of every
                           serving instance
         THOTH-GQL-OPS-04  fresh bounded verification and closure; the
