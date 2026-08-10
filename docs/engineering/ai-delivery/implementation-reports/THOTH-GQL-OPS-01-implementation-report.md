@@ -27,17 +27,55 @@ BE-02 runtime:           NOT AUTHORIZED
 Repository: `thoth-pub/thoth`
 Workflow: STANDARD
 Base branch: `develop`
-Base commit: `8b144a6de75ad6289f481c4e17e02c4c5f0f6328`
+Original authorized / branch-creation base:
+`develop @ 8b144a6de75ad6289f481c4e17e02c4c5f0f6328`
+Later `develop` synchronization checkpoint:
+`develop @ f9d816744ac7adc3764860d6422855cc42e1dc66`
 PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/shared-architecture/graphql-runtime-ops`
-Head commit: recorded on the pull request; the PR head is the authority
-Pull request: opened as **DRAFT**; not marked ready, not approved, not
-self-reviewed, not merged
+Pull request: [#793](https://github.com/thoth-pub/thoth/pull/793)
+Live review, readiness, authorization, exact-head and merge evidence:
+GitHub PR [#793](https://github.com/thoth-pub/thoth/pull/793)
 Expected branch deletion after merge: YES
 Final programme PR required: NO
 Implementing model: Claude Opus 5
 Reasoning level: HIGH
+
+**Durable rule, independent of lifecycle state.** The implementing agent may not
+approve or merge its own work, and did not: it opened a draft pull request and
+left review, readiness, merge authorization and merge itself to the separate
+actors who own those decisions. That constraint is a property of the delivery,
+not a snapshot of the pull request's state, and it remains true at every point in
+the lifecycle. Current readiness, review and merge state is live GitHub evidence
+under [`ADR-0005`](../../decisions/ADR-0005-terminal-merge-evidence.md) and is
+deliberately not transcribed here.
+
+### 1.0 Base terminology, binding for this report
+
+Two distinct base facts are recorded, and they must not be conflated:
+
+```text
+ORIGINAL AUTHORIZED / BRANCH-CREATION BASE
+  develop @ 8b144a6de75ad6289f481c4e17e02c4c5f0f6328
+  The base named by the CTO implementation authorization on merged
+  PR #792, and the commit this task branch was created from.
+  This is a HISTORICAL fact and does not change.
+
+LATER DEVELOP SYNCHRONIZATION CHECKPOINT
+  develop @ f9d816744ac7adc3764860d6422855cc42e1dc66
+  develop moved after branch creation and was subsequently merged into
+  the task branch, before the later independent-review remediation
+  rounds. A HISTORICAL checkpoint, not a claim about current develop.
+
+LIVE PR TARGET / BASE AND FINAL REVIEW HEAD
+  GitHub PR #793 is the authority. Not transcribed here.
+```
+
+The synchronization brought the branch up to date with `develop`; it changed **no
+task scope, no acceptance criterion, no disposition and no production
+authorization**. Nothing in this report describes current `develop` as still
+standing at the original authorized base.
 
 ### 1.1 Pre-implementation verification
 
@@ -57,13 +95,19 @@ git ls-remote --heads origin | grep -E 'ops-0[234]|runtime-ops'
   -> no OPS-02/03/04 implementation branch exists.
 ```
 
-`develop` had **not** moved from the authorized base, so no rebase, no
-re-evaluation and no escalation was required. The branch was created directly
-from `8b144a6de75ad6289f481c4e17e02c4c5f0f6328`.
+**At that moment**, `develop` stood at the authorized base, so no rebase, no
+re-evaluation and no escalation was required, and the branch was created directly
+from `8b144a6de75ad6289f481c4e17e02c4c5f0f6328`. That is a statement about the
+state observed at branch creation. `develop` moved afterwards — see section 1.0
+and the synchronization checkpoint `f9d816744ac7adc3764860d6422855cc42e1dc66` —
+and this report makes no claim that current `develop` still stands at the
+original authorized base.
 
 CTO implementation authorization was verified as terminal GitHub evidence on
 merged PR [#792](https://github.com/thoth-pub/thoth/pull/792), naming the exact
-authorized base `develop @ 8b144a6de75ad6289f481c4e17e02c4c5f0f6328`.
+authorized base `develop @ 8b144a6de75ad6289f481c4e17e02c4c5f0f6328`. That
+authorization is tied to the original base and was **not** widened by the later
+synchronization.
 
 ## 2. Scope confirmation
 
@@ -90,21 +134,24 @@ Exact commit sequence and final head:
 GitHub PR #793 is terminal authority.
 ```
 
-The branch was squashed to a single commit during independent-review remediation
-(section 3.1), so no commit SHA is restated here: any SHA written into a file on
-the branch is invalidated by the act of writing it, and `ADR-0005` makes the
-GitHub pull-request record the authority for lifecycle facts of exactly this
-kind.
+No commit SHA and no commit count is restated here. Any SHA written into a file
+on the branch is invalidated by the act of writing it, and any count is
+invalidated by the next remediation commit — including the one that would carry
+the count. `ADR-0005` makes the GitHub pull-request record the authority for
+lifecycle facts of exactly this kind, and PR #793 carries the exact commit
+sequence.
 
-### 3.1 Branch-history rewrite during remediation
+### 3.1 Branch history: one deliberate rewrite, then fast-forward remediation
 
-Independent review required that excess public detail in the security record be
-removed from the **mergeable branch history**, not merely from the working tree.
-Before rewriting, all three hygiene preconditions were verified and held:
+**Round with a rewrite.** One independent-review round required that excess
+public detail in the security record be removed from the **mergeable branch
+history**, not merely from the working tree. Before rewriting, all three hygiene
+preconditions were verified and held:
 
 ```text
 1. the branch contained only the implementing agent's own work
-     -> 3 commits, all authored and committed under the same identity
+     -> 3 commits at that time, all authored and committed under the
+        same identity
 
 2. no third-party or concurrent commits had appeared
      -> local branch tip == origin branch tip; no other author present
@@ -114,13 +161,96 @@ Before rewriting, all three hygiene preconditions were verified and held:
         returned only this implementation branch
 ```
 
-The branch was then squashed to one commit and force-pushed deliberately. Had any
-concurrent third-party work existed, the correct action would have been to stop
-and report rather than overwrite it.
+The then-existing implementation history was squashed to one commit and
+force-pushed deliberately. Had any concurrent third-party work existed, the
+correct action would have been to stop and report rather than overwrite it.
 
-The rewrite necessarily produced a **new exact head**, which requires **fresh
-independent review**. The previously reviewed head
-`491d67dea7402641be42b9acc4d18b58b169f2b8` no longer exists on the branch.
+**Every round after that proceeded without a rewrite.** Subsequent
+independent-review findings were remediated by **bounded fast-forward remediation
+commits** added on top of the existing branch — no squash, no rebase, no
+force-push. `develop` was also **merged into the task branch** during that
+period, at the synchronization checkpoint recorded in section 1.0, bringing in
+release and unrelated fix work from `develop` without altering this task's scope.
+
+Consequently the branch is **not** a single-commit branch, and this report
+deliberately records **no commit count** — the next remediation commit would
+falsify it. The authoritative, exact commit sequence is the GitHub PR #793
+record.
+
+**Each new exact head requires fresh independent review**, whether it was
+produced by a rewrite or by a fast-forward commit.
+
+### 3.2 What the later independent-review remediation rounds established
+
+Recorded here because the operating model requires this report to be updated
+during accepted-finding remediation, not only at first delivery. Each item below
+is durable content of the delivered documents; none reopens a decision.
+
+**Production-secret access boundary.**
+
+1. The secret encounter recorded at the approved minimum in section 8.1 is
+   classified as a **control/process exception requiring escalation**, not an
+   acceptable routine read pattern. Earlier wording treating it as compliant
+   because nothing was copied onward is superseded: not copying limits the
+   *consequence*, and does not make the access itself acceptable.
+2. The required response, binding on every successor, is **immediate stop of that
+   source/read path, escalation at the minimum safe level, and no further
+   secret-bearing production-source read** for the task, with dependent criteria
+   recorded `BLOCKED`.
+3. **`CL-1` is OPEN** (section 13): the merged parent specification's scoped-read
+   rule conflicts with the stricter repository/project prohibition, the stricter
+   rule governs successor execution, and the conflict must be corrected before
+   any successor requiring that access is authorized. **Owner: CTO / control
+   owner; not closable by an implementing agent.** The approved parent
+   specification was **not** amended — that requires its own authorization.
+4. Successors obtain external runtime and deployment facts through **Route A**
+   (a sanitized metadata-only source that structurally cannot expose a production
+   secret value) or **Route B** (evidence from an explicitly authorized
+   human/operator or control owner, or a sanitized artefact generated under that
+   non-agent control). **No AI agent is a valid Route B source.** If neither
+   route can supply a fact, the criterion is `BLOCKED`.
+
+**Operational actor boundary.**
+
+5. Real operational actions belong exclusively to an **AUTHORIZED NON-AGENT
+   DEPLOYMENT ACTOR**, in one of exactly two forms: an authorized human/operator,
+   or existing deployment automation and infrastructure executing under that
+   authorized human/operator's own control or initiation.
+6. The prohibition binds **every AI agent or model**, of every role, family and
+   session — implementing, assisting, reviewing, orchestrating, supervising,
+   delegated or sub-agent — and not merely the implementing agent. No AI agent
+   may initiate, trigger, dispatch or execute a deployment, perform a
+   real-environment mode transition, create, manipulate or restore real fleet
+   state, execute a real-environment rollback, or use deployment credentials.
+   Being separately or independently controlled does not qualify an agent.
+7. **Deployment automation is an execution mechanism, not an AI-agent
+   delegation**: it must be initiated and controlled by the authorized non-agent
+   human/operator. An AI agent invoking it is an AI agent deploying.
+8. Where no authorized non-agent deployment actor or adequate evidence is
+   available, the affected criterion is **`BLOCKED`** and the disposition is
+   **`C`** — never expanded agent authority, and never a local or simulated
+   substitute for the real non-production evidence `THOTH-GQL-OPS-04` still
+   requires. Ordinary local, disposable and CI repository testing by implementing
+   agents is explicitly unrestricted.
+
+**Conduct during every remediation round.**
+
+```text
+Private authoritative deployment source read:            NONE
+Deployment performed, in any environment:                NONE
+Real-environment mode transition:                        NONE
+Deployment automation / workflow dispatched:             NONE
+Production action of any kind:                           NONE
+Security issue created or modified:                      NONE
+```
+
+No accepted conclusion was reopened by these rounds: `AC-1`, `AC-2`, `AC-7` and
+`AC-13` remain FAIL/BLOCKED, disposition remains **C**, the runtime-operations
+gate remains **NOT SATISFIED**, CG-13 remains **OPEN**, `OPS-02`/`03`/`04` remain
+`DRAFT` / `NOT AUTHORIZED` with no implementation branch, and `OBSERVE`,
+`ENFORCE` and `BE-02` runtime remain `NOT AUTHORIZED`. Part-1/Part-2 retention
+ownership, the downstream timed rehearsal and the absence of any rollback
+same-latency or same-authorization inference are likewise unchanged.
 
 ## 4. Files changed
 
@@ -658,24 +788,39 @@ per-conclusion evidence sources.
 Exact-head CI results: GitHub PR #793 is terminal authority.
 ```
 
-No head-specific CI result is transcribed into this file. The branch history was
-rewritten during remediation (section 3.1), so any head recorded here would name
-a commit that no longer exists — the recursive-transcription failure `ADR-0005`
-exists to prevent.
+No head-specific CI result is transcribed into this file, and the reason is a
+division of authority rather than an accident of history:
 
-CI status at the time of writing: **PASSING**, with **no failing job**.
+```text
+This committed report records:  the original authorized base, the later
+                                develop synchronization checkpoint, the
+                                local checks actually run, the scope, and
+                                the substantive evidence.
 
-Checks: the repository's changelog check plus the classifier-driven jobs.
+GitHub PR #793 records:         the exact final review head, exact-head
+                                CI and its per-job classification,
+                                review, authorization and the merge
+                                lifecycle.
+```
+
+That split is `ADR-0005`. It also avoids a recursive failure that is structural,
+not incidental: writing an exact head into a file on the branch changes the
+commit containing that file, so the recorded head is falsified by the act of
+recording it. This holds for a fast-forward commit exactly as it holds after a
+rewrite.
+
+Checks run: the repository's changelog check plus the classifier-driven jobs.
 
 **PASS and SKIPPED are classified independently.** The change is
 documentation-only, so the repository's own classifier deliberately classifies
 the Rust build/test/lint/format and migration jobs, and the staging image build,
 out of scope. A job skipped by that classifier is **not** a failure and is not
-counted as one. No job was skipped by error.
+counted as one, and no job is skipped by error.
 
-The exact per-job PASS / SKIPPED / FAIL breakdown at the current head is recorded
-as a comment on PR #793 and is visible on the pull request itself, which remains
-the authority.
+**Exact-head CI and its per-job PASS / SKIPPED / FAIL classification are recorded
+as a comment on PR [#793](https://github.com/thoth-pub/thoth/pull/793) for each
+exact head, and the pull request is the authority.** No CI verdict for any head
+is asserted in this file.
 
 ## 11.1 Acceptance criteria — explicit AC-1 to AC-30 matrix
 
@@ -929,8 +1074,12 @@ concerns other than this feature, and general Thoth runtime ownership.
 ## 15. Agent self-assessment
 
 The agent may identify risks but may not approve the task. This implementation
-was not self-reviewed, and the pull request was left as a **DRAFT** that the
-agent did not mark ready, approve or merge.
+was not self-reviewed: the implementing agent opened a draft pull request and
+left readiness, review, merge authorization and merge to the separate actors who
+own those decisions. Independent review and CTO merge authorization are distinct
+decisions from each other and from production activation authorization, and this
+agent holds none of them. The pull request's current lifecycle state is live
+GitHub evidence under `ADR-0005`.
 
 Suggested review focus:
 
@@ -960,7 +1109,10 @@ Suggested review focus:
    accurately reports that secret material *was* encountered rather than claiming
    it was not; and that the public record stops at the approved minimum fact,
    carrying no description of where the material was found, what kind it was, or
-   what it relates to — **including in the squashed branch history**.
+   what it relates to — **including everywhere in the branch history**. Confirm
+   also that the encounter is classified as a control/process exception rather
+   than an acceptable read pattern, and that `CL-1` (section 13) is recorded
+   OPEN and CTO/control-owner owned.
 6. **Migration boundary** — confirm no remediation altering migration execution
    is selected or specified, and that every mention of a production
    container-command override carries the section 13.1.1 classification.
