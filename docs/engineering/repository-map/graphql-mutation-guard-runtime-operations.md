@@ -81,11 +81,33 @@ repository records about that source.
 **read-only**, **metadata-only** and **narrowly scoped** to the specific criterion
 being satisfied, per `THOTH-GQL-OPS-01` section 2.2.5.
 
-During that authorized narrowly scoped read-only discovery, the implementing
-agent encountered existing secret-bearing configuration in the private
-authoritative deployment source. No secret value was copied into any repository
-file, pull-request text, report, changelog, prompt or commit message; no
-credential was used, changed or rotated.
+During that narrowly scoped read-only discovery, the implementing agent
+encountered existing secret-bearing configuration in the private authoritative
+deployment source. No secret value was copied into any repository file,
+pull-request text, report, changelog, prompt or commit message; no credential was
+used, changed or rotated.
+
+**That encounter is a control/process exception requiring escalation, not an
+acceptable routine read pattern.** The absence of onward copying limits its
+consequence; it does not make the access itself acceptable.
+
+**Binding on every successor task, and stricter than section 2.2.5.** An
+implementing agent must **not** read secret-bearing production configuration
+directly. External deployment facts must be obtained from a sanitized
+metadata-only source that structurally cannot expose a secret value, or from
+evidence supplied by an explicitly authorized human operator or control owner; if
+neither is available the affected criterion is **`BLOCKED`**. If secret material
+is nevertheless exposed to an implementing agent, it must stop that source/read
+path immediately, report the exposure at the minimum safe level, and perform no
+further read of that secret-bearing source for the task.
+
+**Control limitation, OPEN.** `THOTH-GQL-OPS-01` section 2.2.5 treats such an
+incidental encounter as "not a breach" until the material is copied onward. The
+stricter repository/project prohibition above governs successor execution. The
+merged parent specification is not amended here — that requires its own explicit
+authorization — and the conflict must be corrected before any successor requiring
+secret-bearing production-source access is authorized. Owner: CTO / control
+owner; not closable by an implementing agent.
 
 The exposure remains a separate CTO-controlled security matter and is outside
 this task's scope. No further characterisation of it is recorded here, and none
@@ -390,6 +412,15 @@ Conclusion:      Whether the RUNNING service matches its declared definition --
 also pre-guard, the rehearsal cannot begin by changing a mode there: it must
 first deploy a guard-enabled candidate to that environment. That is an additional
 prerequisite the rehearsal specification must carry.
+
+**Actor, binding.** That deployment — and any mode transition, mixed-fleet
+creation or rollback in a real environment, production or not — is performed by
+an **authorized human operator or other independently controlled deployment
+actor**, never by an implementing agent. An implementing agent may specify what
+is required, evaluate the sanitized evidence returned and record the outcome; it
+may not deploy, dispatch a deployment workflow, transition a mode in a real
+environment or use deployment credentials. Where that actor or its evidence is
+unavailable, the dependent criterion is **`BLOCKED`**.
 
 ### 3.6 Behaviour for an absent value
 

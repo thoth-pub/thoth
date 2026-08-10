@@ -89,11 +89,12 @@ Consequently:
   effective mode is a fixed property of a process rather than a queryable
   setting.
 
-Established `[EXTERNAL]`, under the `THOTH-GQL-OPS-01` section 2.2.5 scoped-read
-rules: serving instances sit behind a **shared load balancer**, the service is
-deployed by **rolling replacement** so old and new instances serve concurrently,
-and the service is **autoscaled**, so the serving population is a range with a
-live current value rather than a fixed number.
+Established `[EXTERNAL]`: serving instances sit behind a **shared load balancer**,
+the service is deployed by **rolling replacement** so old and new instances serve
+concurrently, and the service is **autoscaled**, so the serving population is a
+range with a live current value rather than a fixed number. Any re-confirmation
+of these facts at this task's execution time is governed by the evidence boundary
+of section 6.6.
 
 Established `[REPO]`: a guard-enabled container running the image default `init`
 silently ignores the configured mode and runs unconditionally in `OFF`. This is
@@ -263,6 +264,11 @@ The task performs no production access, executes no deployment, uses or changes
 no credential, dispatches no workflow, makes no change to the private
 authoritative deployment source, and sets no mode in any environment.
 
+The implementing agent performs no deployment in **any** environment, production
+or not, and dispatches no deployment workflow. Any external deployment fact it
+needs is obtained only through the evidence boundary of section 6.6; the
+implementing agent reads no secret-bearing production configuration.
+
 The mechanism itself must not introduce a new authorization decision, and must
 not weaken an existing one.
 
@@ -278,6 +284,63 @@ same answer for the life of that process.
 No database, client or deployment-contract change. The public GraphQL schema is
 untouched and the generated SDL is unchanged. Any HTTP surface added is additive
 and must not alter the behaviour, status codes or payloads of existing routes.
+
+### 6.6 Evidence boundary for external deployment facts — binding
+
+This task is designed so that its mechanism is built and tested **in-repository**,
+against locally reproducible fleet conditions, and it introduces no requirement to
+read production configuration. Where an external deployment fact is nevertheless
+needed — the load-balancer arrangement, the rolling-replacement semantics or the
+autoscaling model of section 2, if re-confirmed rather than inherited — the fact
+must reach the implementing agent through exactly one of:
+
+```text
+ROUTE A -- a SANITIZED METADATA-ONLY SOURCE that structurally cannot
+           expose a production secret value.
+
+ROUTE B -- EVIDENCE SUPPLIED BY AN EXPLICITLY AUTHORIZED human operator,
+           control owner or other independently controlled actor, in
+           sanitized non-secret form, attributed to a named role.
+```
+
+**The implementing agent must not read secret-bearing production configuration
+directly**, by any route, including one it believes to be narrowly scoped. This
+prohibition is stricter than, and **governs over**, the scoped-read rules of
+`THOTH-GQL-OPS-01` section 2.2.5 — see section 6.6.1.
+
+If neither route can supply a required fact, the criterion that needs it is
+**`BLOCKED`** and is recorded as missing work. It is never satisfied by a direct
+implementing-agent read.
+
+If secret material is nevertheless exposed to the implementing agent, it must
+**stop that source/read path immediately**, report the exposure at the minimum
+safe level — the fact and the affected read path, with no value, location,
+resource identifier or infrastructure detail — **perform no further read of that
+source**, and record the dependent criteria as `BLOCKED`. Copying secret material
+into any output is prohibited absolutely, and not copying does **not** make the
+access acceptable: the encounter is a control/process exception requiring
+escalation.
+
+This does not broaden the task. It fixes the permitted route to facts the task
+already needed, and adds no new fact to obtain.
+
+#### 6.6.1 Control limitation — the parent scoped-read rule does not govern here
+
+`THOTH-GQL-OPS-01` section 2.2.5 permits a narrowly scoped direct read of the
+secret-bearing source and treats an incidental encounter with secret material as
+"not a breach" until the material is copied onward.
+
+```text
+The stricter repository/project prohibition on implementing-agent access
+to production secrets GOVERNS successor execution. Where this
+specification and THOTH-GQL-OPS-01 section 2.2.5 differ, THIS section
+applies to THOTH-GQL-OPS-03.
+
+CONTROL LIMITATION, OPEN: the parent rule must be corrected before any
+successor requiring secret-bearing production-source access is
+authorized. Owner: CTO / control owner. Not closable by an implementing
+agent.
+```
 
 ## 7. Data and migration requirements
 
@@ -357,6 +420,14 @@ marking.
       `NOT AUTHORIZED`; PR #788 and issue #765 are unchanged.
 - [ ] **AC-19** The `THOTH-GQL-OPS-02` and `THOTH-GQL-OPS-04` branches do not
       exist and neither task is implemented in this pull request.
+- [ ] **AC-20** Any external deployment fact relied on was obtained through the
+      section 6.6 evidence boundary — sanitized non-secret metadata, or authorized
+      operator-supplied evidence — and the implementing agent performed no direct
+      read of secret-bearing production configuration. Where neither route could
+      supply a required fact, the affected criterion is recorded **`BLOCKED`**.
+- [ ] **AC-21** The implementing agent performed no deployment in any
+      environment, production or not, dispatched no deployment workflow and used
+      no deployment credential. The report states this explicitly.
 
 ## 10. Required tests
 
@@ -402,7 +473,15 @@ marking.
 
 - observe the effective mode of a locally running instance in each mode;
 - demonstrate detection of a two-instance mixed fleet locally;
-- confirm no environment was transitioned and no mode was set anywhere.
+- confirm no environment was transitioned and no mode was set anywhere;
+- confirm that the implementing agent performed no deployment in any environment,
+  dispatched no deployment workflow, used no deployment credential and read no
+  secret-bearing production configuration.
+
+Every step above is **local and disposable**. Proving the mechanism against a
+**real** deployed fleet belongs to `THOTH-GQL-OPS-04`, where the operational
+actions are performed by an authorized deployment actor rather than by the
+implementing agent.
 
 ### Performance
 
@@ -471,8 +550,19 @@ The implementing agent must stop and report `BLOCKED` if:
   out to be required;
 - a production action, deployment or mode change would be needed to satisfy an
   acceptance criterion;
+- any step would require the implementing agent itself to deploy, dispatch a
+  deployment workflow, transition a mode in a real environment or use deployment
+  credentials — in production or in any non-production environment;
+- an external deployment fact can be obtained only by a direct
+  implementing-agent read of secret-bearing production configuration, with
+  neither section 6.6 route available;
+- secret material is exposed to the implementing agent — in which case it stops
+  that read path immediately, reports the exposure at the minimum safe level,
+  performs no further read of that source, and records the dependent criteria as
+  `BLOCKED`;
 - approved architecture would need to change;
-- required production information or secrets are unavailable;
+- required production information is unavailable through the section 6.6
+  evidence boundary;
 - scope cannot be completed without unrelated changes.
 
 ## 14. Expected implementation report
@@ -485,9 +575,17 @@ silent-adoption detection test; explicit confirmation that request acceptance,
 guard, batching and store semantics are unchanged, with the regression evidence;
 explicit confirmation that **no fleet was verified** and that implementing a
 verifier is not verifying a fleet; explicit confirmation that no mode was set in
-any environment and no production action occurred; the CG-13 state and the
-runtime-operations gate state, both unchanged; confirmation that the runbook
-remains `PROVISIONAL`; and CI status with the classification of each job.
+any environment and no production action occurred; explicit confirmation that the
+implementing agent performed no deployment in any environment, dispatched no
+deployment workflow, used no deployment credential and performed no direct read
+of secret-bearing production configuration — and, if secret material was
+nevertheless exposed, that the read path was stopped immediately, the exposure
+reported at the minimum safe level, no further read of that source performed and
+the dependent criteria recorded `BLOCKED`, classified as a control/process
+exception rather than an acceptable read; the section 6.6 route supplying any
+external deployment fact relied on; the CG-13 state and the runtime-operations
+gate state, both unchanged; confirmation that the runbook remains `PROVISIONAL`;
+and CI status with the classification of each job.
 
 ## 15. Recommended execution
 

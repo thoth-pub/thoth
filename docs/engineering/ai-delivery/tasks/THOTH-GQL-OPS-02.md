@@ -76,11 +76,11 @@ Current behaviour, established `[REPO]` and reproduced in an isolated probe:
   `value_parser` never runs, so the process starts normally in `OFF` rather than
   failing to start.
 
-Established `[EXTERNAL]`, under the `THOTH-GQL-OPS-01` section 2.2.5 scoped-read
-rules: the production GraphQL API service supplies no container command override
-and so inherits the image default `init`. That is a property of the **deployment
-path**; it is not a claim about the guard state of the pre-guard binary currently
-deployed.
+Established `[EXTERNAL]`: the production GraphQL API service supplies no container
+command override and so inherits the image default `init`. That is a property of
+the **deployment path**; it is not a claim about the guard state of the pre-guard
+binary currently deployed. Re-confirming it at this task's execution time is
+governed by the evidence boundary of section 6.6.
 
 Established `[REPO]`: `init` runs database migrations first and aborts startup if
 they fail, then starts the GraphQL API; `start graphql-api` starts the API
@@ -206,6 +206,11 @@ The task performs no production access, executes no deployment, uses or changes
 no credential, dispatches no workflow, and makes no change to the private
 authoritative deployment source. It sets no mode in any environment.
 
+The implementing agent performs no deployment in **any** environment, production
+or not, and dispatches no deployment workflow. External deployment facts are
+obtained only through the evidence boundary of section 6.6; the implementing
+agent reads no secret-bearing production configuration.
+
 ### 6.4 Concurrency and idempotency
 
 Not applicable — process-start configuration only. No concurrent or repeated
@@ -263,8 +268,78 @@ change. No such environment is known — the variable is absent everywhere — b
 the task must re-confirm that at its own execution time rather than inheriting
 this statement, and must record the result.
 
+**How that re-confirmation is obtained is constrained.** It must come through the
+section 6.6 evidence boundary — sanitized metadata carrying variable names
+without values, or evidence supplied by an authorized operator — and never from a
+direct implementing-agent read of secret-bearing production configuration. If
+neither route is available, the re-confirmation is **`BLOCKED`** and AC-17 fails:
+it is recorded as missing work, not inherited from this specification and not
+obtained by widening access.
+
 None of this activates anything: the default remains `OFF`, and making the mode
 settable is not setting it.
+
+### 6.6 Evidence boundary for external deployment facts — binding
+
+This task needs two external deployment facts: that the production service
+supplies no container-command override (section 2), and that no environment
+supplies a mutation-guard value that would newly fail startup (section 6.5,
+AC-17). Both must be **re-confirmed at this task's own execution time** rather
+than inherited from this specification.
+
+**The implementing agent must not obtain them by reading secret-bearing
+production configuration directly**, and must not do so by any route it believes
+to be narrowly scoped. This prohibition is stricter than, and **governs over**,
+the scoped-read rules of `THOTH-GQL-OPS-01` section 2.2.5 — see section 6.6.1.
+
+Each fact must reach the implementing agent through exactly one of:
+
+```text
+ROUTE A -- a SANITIZED METADATA-ONLY SOURCE that structurally cannot
+           expose a production secret value: a values-suppressed or
+           redacted export, a presence/absence listing of variable NAMES
+           with values absent by construction, or an equivalent artefact.
+
+ROUTE B -- EVIDENCE SUPPLIED BY AN EXPLICITLY AUTHORIZED human operator,
+           control owner or other independently controlled actor, in
+           sanitized non-secret form, attributed to a named role.
+```
+
+If neither route can supply a fact, the criterion that needs it — AC-17 for the
+mutation-guard value, and the section 2 re-confirmation for the container command
+— is **`BLOCKED`**, and the report records it as missing work. It is never
+satisfied by a direct implementing-agent read, and never by inheriting this
+specification's statement.
+
+If secret material is nevertheless exposed to the implementing agent, it must
+**stop that source/read path immediately**, report the exposure at the minimum
+safe level — the fact and the affected read path, with no value, location,
+resource identifier or infrastructure detail — **perform no further read of that
+source**, and record the dependent criteria as `BLOCKED`. Copying secret material
+into any output is prohibited absolutely, and not copying does **not** make the
+access acceptable: the encounter is a control/process exception requiring
+escalation.
+
+This does not broaden the task. The facts required are exactly those already
+required; only the permitted route to them is fixed.
+
+#### 6.6.1 Control limitation — the parent scoped-read rule does not govern here
+
+`THOTH-GQL-OPS-01` section 2.2.5 permits a narrowly scoped direct read of the
+secret-bearing source and treats an incidental encounter with secret material as
+"not a breach" until the material is copied onward.
+
+```text
+The stricter repository/project prohibition on implementing-agent access
+to production secrets GOVERNS successor execution. Where this
+specification and THOTH-GQL-OPS-01 section 2.2.5 differ, THIS section
+applies to THOTH-GQL-OPS-02.
+
+CONTROL LIMITATION, OPEN: the parent rule must be corrected before any
+successor requiring secret-bearing production-source access is
+authorized. Owner: CTO / control owner. Not closable by an implementing
+agent.
+```
 
 ## 7. Data and migration requirements
 
@@ -334,7 +409,17 @@ open. Only `THOTH-GQL-OPS-04` may lift that marking.
       recorded as intentional rather than described as no change.
 - [ ] **AC-17** It is re-confirmed at the task's own execution time that no
       environment currently supplies a value that would newly fail startup, and
-      the result is recorded rather than inherited from this specification.
+      the result is recorded rather than inherited from this specification. The
+      re-confirmation is obtained **only** through the section 6.6 evidence
+      boundary — sanitized non-secret metadata, or authorized operator-supplied
+      evidence — with no direct implementing-agent read of secret-bearing
+      production configuration. If neither route can supply it, this criterion is
+      **`BLOCKED`**, and `BLOCKED` is the required outcome rather than a widened
+      read.
+- [ ] **AC-18** The implementing agent performed no deployment in any
+      environment, production or not, dispatched no deployment workflow, used no
+      deployment credential, and read no secret-bearing production configuration.
+      The report states this explicitly.
 
 ## 10. Required tests
 
@@ -386,10 +471,14 @@ Additionally:
 - build a **release** binary and confirm the section 6.1 matrix on the
   production-applicable path;
 - build a **debug** binary and confirm the identical matrix with no panic;
-- re-confirm, at this task's own execution time, that no environment supplies a
-  mutation-guard value that would newly fail startup under the section 6.5
-  change, and record the result;
-- confirm no environment was transitioned and no mode was set anywhere.
+- re-confirm, at this task's own execution time and **through the section 6.6
+  evidence boundary only**, that no environment supplies a mutation-guard value
+  that would newly fail startup under the section 6.5 change, and record the
+  result — or record `BLOCKED` if neither route can supply it;
+- confirm no environment was transitioned and no mode was set anywhere;
+- confirm that the implementing agent performed no deployment in any environment,
+  dispatched no deployment workflow, used no deployment credential and read no
+  secret-bearing production configuration.
 
 ### Performance
 
@@ -450,6 +539,16 @@ The implementing agent must stop and report `BLOCKED` if:
 - the fix cannot be made without changing guard, batching or store semantics;
 - a production action, deployment or mode change would be needed to satisfy an
   acceptance criterion;
+- any step would require the implementing agent itself to deploy, dispatch a
+  deployment workflow, transition a mode in a real environment or use deployment
+  credentials — in production or in any non-production environment;
+- an external deployment fact can be obtained only by a direct
+  implementing-agent read of secret-bearing production configuration, with
+  neither section 6.6 route available;
+- secret material is exposed to the implementing agent — in which case it stops
+  that read path immediately, reports the exposure at the minimum safe level,
+  performs no further read of that source, and records the dependent criteria as
+  `BLOCKED`;
 - the pinned `clap`/`clap_builder` behaviour at the task's own exact base differs
   from the behaviour recorded in section 2, such that the established diagnosis
   no longer holds;
@@ -491,10 +590,18 @@ results for the section 6.1 matrix; the **section 6.5 compatibility assessment
 stated per deployment class**, recording the two intentional `init`-path
 behaviour changes as intentional rather than as no change, together with the
 re-confirmation that no environment supplies a value that would newly fail
-startup; explicit confirmation that no mode was set in any environment and no
-production action occurred; explicit confirmation that no container-command
-override was made or specified; the CG-13 state and the runtime-operations gate
-state, both unchanged; and CI status with the classification of each job.
+startup — stating which section 6.6 route supplied it, or recording it
+`BLOCKED`; explicit confirmation that no mode was set in any environment and no
+production action occurred; explicit confirmation that the implementing agent
+performed no deployment in any environment, dispatched no deployment workflow,
+used no deployment credential and performed no direct read of secret-bearing
+production configuration — and, if secret material was nevertheless exposed, that
+the read path was stopped immediately, the exposure reported at the minimum safe
+level, no further read of that source performed and the dependent criteria
+recorded `BLOCKED`, classified as a control/process exception rather than an
+acceptable read; explicit confirmation that no container-command override was made
+or specified; the CG-13 state and the runtime-operations gate state, both
+unchanged; and CI status with the classification of each job.
 
 ## 15. Recommended execution
 

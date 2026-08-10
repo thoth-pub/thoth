@@ -304,23 +304,49 @@ structural-key listings with values suppressed, and single-key reads for one
 parameter. **No whole-file read of a secret-bearing configuration file was
 emitted, and no broad recursive dump was performed.**
 
-**Secret material was encountered.** This report does **not** claim otherwise.
+**Secret material was encountered.** This report does **not** claim otherwise,
+and does **not** claim that the encounter was compliant.
 
-Under section 2.2.5 an incidental encounter during an otherwise scoped read is
-**not a breach**, and it is reported here as an **escalation** rather than
-quietly absorbed. It would become a breach only if the material were copied
-onward.
+**Classification, corrected.** The encounter is a **control/process exception**
+requiring escalation — not an acceptable routine read pattern. This report does
+**not** rely on the parent specification's section 2.2.5 statement that an
+incidental encounter is "not a breach" until the material is copied onward. That
+interpretation does not govern here: the repository/project rule prohibiting an
+implementing agent from accessing production secrets is stricter, and it governs.
+The fact that no value was copied onward limits the **consequence** of the
+exposure; it does **not** make the original access acceptable. The conflict
+between the two rules is recorded as a control limitation in section 13.
+
+**Required action once an implementing agent encounters production secret
+material, binding:**
+
+```text
+1. STOP that source/read path immediately;
+2. ESCALATE the exposure at the minimum safe level;
+3. PERFORM NO FURTHER secret-bearing production-source reads for the task.
+```
+
+Those three steps are what this task did and what every successor must do. No
+further read of the secret-bearing source was performed by this implementing
+agent after the encounter, and none is permitted to it for this task.
 
 **Escalation, recorded at the approved minimum and deliberately no further:**
 
 ```text
-During authorized narrowly scoped read-only discovery, the implementing
-agent encountered existing secret-bearing configuration in the private
+During narrowly scoped read-only discovery, the implementing agent
+encountered existing secret-bearing configuration in the private
 authoritative deployment source.
 
 No secret value was copied into any repository file, PR text, report,
 changelog, prompt or commit message; no credential was used, changed or
 rotated.
+
+This encounter is a control/process exception requiring escalation. It is
+not an acceptable routine read pattern, and "not copied onward" does not
+make the access itself acceptable.
+
+No further secret-bearing production-source read is permitted to this
+implementing agent for this task.
 
 The exposure remains a separate CTO-controlled security matter and is
 outside this task's scope.
@@ -697,7 +723,7 @@ FAIL/BLOCKED  4   -- AC-1, AC-2, AC-7, AC-13
 | **AC-27** three prerequisite specs exist, `DRAFT` / `NOT AUTHORIZED`, no branches | PASS | delivered files; `git branch -a`; `git ls-remote` | `[REPO]` | All three carry both markers in their first four lines. **No branch exists locally or remotely.** Specifications existing ≠ tasks authorized ≠ branches existing. |
 | **AC-28** no migration-altering remediation selected/specified; override carries §13.1 classification | PASS | control record §4.4; runbook §9; `THOTH-GQL-OPS-02` §13.1; `THOTH-GQL-OPS-04` §13.1 | `[REPO]` | Classification reproduced verbatim at every mention. The OPS-02 mechanism is deliberately **not** selected. |
 | **AC-29** runbook marked **PROVISIONAL** and states it is not executable until prerequisites merge | PASS | delivered runbook | `[REPO]` | Blocking banner plus a two-part status (§0.2) making clear that even after `THOTH-GQL-OPS-04` the runbook is not production-executable. |
-| **AC-30** every private-source read complied with §2.2.5; incidental encounter escalated | PASS | this report §8.1 | `[REPO]` | Method statement records scoped, read-only, metadata-only reads and reports the encounter as an escalation at the approved minimum, without claiming none occurred. |
+| **AC-30** every private-source read complied with §2.2.5; incidental encounter escalated | PASS | this report §8.1 | `[REPO]` | Method statement records scoped, read-only, metadata-only reads, and reports the encounter as an escalation at the approved minimum without claiming none occurred. §8.1 additionally classifies the encounter as a **control/process exception**, not an acceptable read pattern: the criterion's own §2.2.5 wording is satisfied, but satisfying it is not a finding that the access was acceptable. See the §13 control limitation. |
 
 ### 11.1.1 The four failures, and why they are not defects of this task
 
@@ -780,6 +806,33 @@ CAPABILITY GAP 2 (the OPS-03 gap)                            OPEN
   verified even if one could be made.
 ```
 
+**Control limitation — the parent scoped-read rule conflicts with the stricter
+production-secret prohibition, and must be corrected.**
+
+```text
+CONTROL LIMITATION (CL-1)                                     OPEN
+
+The merged THOTH-GQL-OPS-01 specification, section 2.2.5, states that an
+incidental encounter with secret material during an otherwise scoped read
+is "not a breach" and becomes one only if the material is copied onward.
+
+The repository/project rule is stricter: an implementing agent must not
+access production secrets at all. Under that rule an encounter is a
+control/process exception requiring immediate stop and escalation.
+
+The two rules are inconsistent. The stricter rule GOVERNS successor
+execution, and the successor specifications in this pull request state so
+explicitly and impose a strict evidence boundary in place of a direct-read
+model.
+
+The merged parent specification is NOT edited by this task: amending an
+approved specification requires its own explicit authorization. This
+limitation must be corrected in the parent before any successor that would
+require secret-bearing production-source access is authorized.
+
+Owner: CTO / control owner. Not closable by an implementing agent.
+```
+
 **Unresolved evidence — missing evidence is missing work.**
 
 Each item is labelled with the part of the runbook's section 0.2 status that owns
@@ -822,14 +875,20 @@ concerns other than this feature, and general Thoth runtime ownership.
 ## 14. Unresolved issues
 
 1. **Secret-bearing configuration in the private authoritative deployment
-   source.** Escalated in section 8.1 at the approved minimum. During authorized
-   narrowly scoped read-only discovery, the implementing agent encountered
-   existing secret-bearing configuration in that source. No secret value was
-   copied into any repository file, PR text, report, changelog, prompt or commit
-   message; no credential was used, changed or rotated. The exposure remains a
-   separate CTO-controlled security matter and is outside this task's scope. No
-   security issue was created or modified, and no further characterisation is
-   recorded publicly.
+   source.** Escalated in section 8.1 at the approved minimum. During narrowly
+   scoped read-only discovery, the implementing agent encountered existing
+   secret-bearing configuration in that source. No secret value was copied into
+   any repository file, PR text, report, changelog, prompt or commit message; no
+   credential was used, changed or rotated. **This is a control/process exception
+   requiring escalation, not an acceptable routine read pattern**, and "not
+   copied onward" does not make the access itself acceptable. The required
+   response — applied here and binding on every successor — is immediate stop of
+   that source/read path, escalation at the minimum safe level, and no further
+   secret-bearing production-source read by that implementing agent for the task.
+   The exposure remains a separate CTO-controlled security matter and is outside
+   this task's scope. No security issue was created or modified, and no further
+   characterisation is recorded publicly. See also the section 13 control
+   limitation `CL-1`.
 2. **Observation-evidence retention is unresolved, and so is the window it must
    cover.** Established `[EXTERNAL]`: runtime log retention is configured to a
    finite duration. `[UNVERIFIED]`, and all three **downstream** (part 2): the

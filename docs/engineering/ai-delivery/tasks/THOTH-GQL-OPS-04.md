@@ -35,15 +35,32 @@ production activation. `OFF -> OBSERVE` and `OBSERVE -> ENFORCE` each remain
 subject to their own separate explicit CTO production activation approval
 (`ADR-0006` section 7.2.1), and **this task may not grant either**.
 
+**Execution actor, binding (section 2.2).** This specification authorizes the
+implementing agent to prepare repository changes, run local and disposable tests,
+evaluate supplied evidence and record outcomes. It does **not** authorize the
+implementing agent to deploy, to dispatch a deployment workflow, or to perform a
+mode transition in any real environment — including a non-production one. Every
+such action belongs to an authorized human operator or other independently
+controlled deployment actor. Approval of this specification, and any authorization
+recorded in section 17, transfer no operational action to the implementing agent.
+
 ## 1. Objective
 
-After `THOTH-GQL-OPS-02` and `THOTH-GQL-OPS-03` have merged, perform a **fresh**
+After `THOTH-GQL-OPS-02` and `THOTH-GQL-OPS-03` have merged, complete a **fresh**
 bounded operational verification against the real runtime: re-establish every
-external fact, confirm ownership, prove the mode-control capability actually
-operates, prove the fleet-verification capability actually operates, instantiate
-the live fleet predicate, resolve the outstanding runtime-operations decisions,
-and only then decide — on evidence — whether the **mode-control** subset of CG-13
-may become disposition **A**.
+external fact, confirm ownership, establish that the mode-control capability
+actually operates, establish that the fleet-verification capability actually
+operates, instantiate the live fleet predicate, obtain the outstanding part-1
+runtime-operations decisions, and only then decide — on evidence — whether the
+**mode-control** subset of CG-13 may become disposition **A**.
+
+**The implementing agent does not perform the operational actions.** Every
+deployment, mode transition, mixed-fleet creation and rollback required below is
+performed by an **authorized deployment actor** who is not the implementing agent
+(section 2.2). The implementing agent prepares repository changes, runs local and
+disposable tests, evaluates the evidence that actor supplies, and records the
+outcome. The evidence requirement is unchanged; only the actor performing the
+operational action is fixed.
 
 This is the **earliest** task in this family that may record:
 
@@ -93,21 +110,84 @@ guard mode at all.
 Deployment state is not durable repository state. Nothing recorded in the control
 record about the deployed release, the container command, the fleet, the rollout
 semantics, retention or ownership may be **relied on** by this task. Each must be
-re-established from the authoritative source at this task's own execution time,
-under the scoped-read rules restated in section 6.3.
+re-established at this task's own execution time, through the **evidence
+boundary** of section 6.3 — which the implementing agent may not bypass by
+reading secret-bearing production configuration itself.
 
 Where a fact has changed, the change is a finding in its own right and may itself
-block closure.
+block closure. Where a fact cannot be re-established through the evidence
+boundary, the affected criterion is `BLOCKED` (section 6.2). `BLOCKED` is the
+correct outcome; widening the implementing agent's access is not.
+
+### 2.2 Execution actor model — binding
+
+Two distinct actors execute this task. The separation is a **project control**,
+not a convenience, and no approval recorded in this specification, in its
+section 17, or in any successor prompt may transfer an action from the second
+actor to the first.
+
+**The IMPLEMENTING AGENT** — the model executing this task — **may**:
+
+1. prepare repository changes: specifications, control records, runbook, report,
+   changelog;
+2. run local, disposable and CI tests, including the merged `THOTH-GQL-OPS-02`
+   and `THOTH-GQL-OPS-03` suites at its own exact base;
+3. inspect **allowed sanitized or read-only evidence** within the section 6.3
+   boundary;
+4. evaluate evidence supplied by the authorized deployment actor, and challenge
+   it as insufficient;
+5. update the control record, the runbook and the implementation report;
+6. commit, push and open a **draft** pull request.
+
+**The IMPLEMENTING AGENT must NOT**:
+
+```text
+- trigger a deployment, in any environment, production or not;
+- dispatch, re-run or otherwise start a deployment workflow;
+- perform a mode transition itself in ANY real environment, including a
+  non-production one;
+- create, modify or restore a real fleet state;
+- execute a rollback in a real environment;
+- use, request or hold deployment credentials;
+- access production secret-bearing configuration (section 6.3).
+```
+
+**An AUTHORIZED HUMAN OPERATOR, or another independently controlled deployment
+actor** — never the implementing agent — performs, under the relevant separate
+authorization:
+
+```text
+- any required NON-PRODUCTION deployment of a guard-enabled candidate;
+- the OFF / OBSERVE / ENFORCE mode changes in that environment;
+- the deliberate mixed-fleet and silent-adoption states;
+- the rollback and the restoration of the starting mode;
+- the live orchestrator reads,
+```
+
+and then **supplies sanitized, non-secret evidence and results** to the
+implementing agent.
+
+`THOTH-GQL-OPS-04` then **evaluates those results** and decides `A` or `C`.
+
+**If the authorized deployment actor is unavailable, or the evidence they supply
+is inadequate, the affected criterion is `BLOCKED` and the task returns
+disposition `C`.** Absence of the actor never converts into agent authority, and
+never into a weaker evidence requirement.
 
 ## 3. Explicit scope
+
+Each item below states what the task must **establish**. Where an item requires a
+real operational action, that action is performed by the authorized deployment
+actor of section 2.2 and the implementing agent evaluates the resulting evidence.
 
 The task must:
 
 1. **re-establish every external fact** the control record carries, at execution
-   time: the container command actually run; which release each environment
-   actually runs, distinguishing pre-guard from guard-enabled; the configuration
-   authority and precedence; rollout and replacement semantics; the autoscaling
-   model; log retention; and access/ownership;
+   time, **through the section 6.3 evidence boundary**: the container command
+   actually run; which release each environment actually runs, distinguishing
+   pre-guard from guard-enabled; the configuration authority and precedence;
+   rollout and replacement semantics; the autoscaling model; log retention; and
+   access/ownership;
 2. **confirm ownership** as roles: the execution owner, the request/approval
    authority, and — by explicit CTO confirmation rather than derivation — the
    post-activation observation sign-off owner;
@@ -118,17 +198,21 @@ The task must:
    In particular, it **re-establishes the observation-evidence retention
    position** per section 3.4 — recording the requirement and the unresolved
    dependency — and does **not** select or implement a retention remedy;
-4. **prove the mode-control path operates** against the real runtime: that a
-   guard-enabled release deployed through the production-applicable path actually
-   consumes the configured value, in a **non-production** environment;
-5. **prove fleet verification operates**: that the `THOTH-GQL-OPS-03` mechanism
-   enumerates the actual serving population, attributes an effective mode to each
-   member, and detects a mixed fleet, against a real deployed fleet in a
-   **non-production** environment;
-6. **read the live expected replica population** from orchestrator state and
+4. **establish that the mode-control path operates** against the real runtime:
+   that a guard-enabled release deployed through the production-applicable path
+   actually consumes the configured value, in a **non-production** environment.
+   The deployment and the mode changes are performed by the authorized deployment
+   actor (section 2.2); the implementing agent evaluates the evidence returned;
+5. **establish that fleet verification operates**: that the `THOTH-GQL-OPS-03`
+   mechanism enumerates the actual serving population, attributes an effective
+   mode to each member, and detects a mixed fleet, against a real deployed fleet
+   in a **non-production** environment. The fleet states are created by the
+   authorized deployment actor; the implementing agent evaluates the evidence;
+6. **obtain the live expected replica population** from orchestrator state — read
+   by the authorized deployment actor and supplied as sanitized evidence — and
    record the predicate as instantiated rather than as defined, and record any
-   configuration drift found between the authoritative deployment source and the
-   live orchestrator;
+   configuration drift reported between the authoritative deployment source and
+   the live orchestrator;
 7. **resolve the runtime-operations `PROVISIONAL` state of the runbook** — see
    section 3.2 — recording the resolved decisions and the proven capabilities,
    and leaving every downstream-owned field explicitly outstanding;
@@ -139,13 +223,34 @@ The task must:
    implementation report and the pull-request body;
 10. add the changelog entry and the implementation report.
 
-### 3.1 A guard-enabled non-production environment is a prerequisite
+### 3.1 A guard-enabled non-production environment is a prerequisite — and the implementing agent does not create it
 
 The test environment is **pre-guard**, so there is no mode there to change.
-Deploying a **guard-enabled candidate to a non-production environment** is
-therefore a prerequisite of items 4 and 5, and is itself a deployment action
-requiring its own authorization. It is a **non-production** deployment only;
-nothing in this task authorizes a production deployment.
+A **guard-enabled candidate deployed to a non-production environment** is
+therefore a prerequisite of items 4 and 5. It is a **non-production** deployment
+only; nothing in this task authorizes a production deployment.
+
+**Actor, binding.** That deployment is performed by the **authorized deployment
+actor** of section 2.2 — a human operator or another independently controlled
+deployment actor — under its own separate authorization. The implementing agent
+**must not** perform it, must not dispatch a workflow that performs it, and must
+not hold or use the credentials that would perform it. "Separately authorized"
+authorizes the *action*; it does not make the implementing agent the *actor*, and
+no reading of this specification may make it one.
+
+The implementing agent's role for this prerequisite is limited to:
+
+1. stating precisely which candidate, environment and configuration the
+   verification requires, so the deployment actor can act unambiguously;
+2. stating precisely which observations must be returned, and in what sanitized
+   non-secret form;
+3. evaluating what is returned, and rejecting it as insufficient if it is.
+
+If no authorized deployment actor performs the prerequisite, or the returned
+evidence is inadequate, items 4 and 5 are `BLOCKED`, the dependent acceptance
+criteria fail, and the disposition is `C`. The task does **not** substitute a
+local, simulated or agent-performed deployment for the missing evidence, and does
+**not** relax what the evidence must show.
 
 ### 3.2 What this task may resolve, and what it must leave downstream
 
@@ -177,6 +282,11 @@ downstream gates that this task must not absorb**.
 | preview/staging acceptance of the exact candidate | **downstream** — preview/staging gate |
 | the **timed rollback rehearsal** and its four measurements | **downstream** — preview/staging gate |
 | `OFF -> OBSERVE` authorization | **downstream** — explicit CTO decision |
+
+The column above records which **gate owns** an item, not which actor performs the
+operational step. Ownership by "this task" never means the implementing agent
+performs a deployment or a mode transition: those remain with the authorized
+deployment actor of section 2.2 in every row.
 
 Consequently this task **does not** execute the timed rehearsal, **does not** own
 the four rehearsal measurements
@@ -286,11 +396,21 @@ The task must not:
 18. write any production configuration value, secret or resource identifier into
     this repository;
 19. remediate or rotate any credential, or create or modify a security issue;
-20. make any change to the private authoritative deployment source beyond a
-    separately authorized **non-production** deployment required by section 3.1;
-21. modify `BE-02`, PR [#788](https://github.com/thoth-pub/thoth/pull/788) or
+20. make any change to the private authoritative deployment source. The
+    **non-production** deployment required by section 3.1 is performed by the
+    authorized deployment actor under its own authorization, and is not a change
+    this task's implementing agent makes;
+21. **have the implementing agent trigger a deployment, dispatch a deployment
+    workflow, perform a mode transition in any real environment, create or
+    restore a real fleet state, execute a rollback in a real environment, or use
+    deployment credentials** — in production or in any non-production
+    environment (section 2.2);
+22. **have the implementing agent read secret-bearing production configuration
+    directly**, by any route, including one it believes to be narrowly scoped
+    (section 6.3);
+23. modify `BE-02`, PR [#788](https://github.com/thoth-pub/thoth/pull/788) or
     issue [#765](https://github.com/thoth-pub/thoth/issues/765);
-22. implement `BE-02`.
+24. implement `BE-02`.
 
 ## 5. Invariants
 
@@ -316,7 +436,18 @@ The implementation must preserve:
 11. every external fact is **re-established** at execution time and none is
     inherited from a predecessor record;
 12. disposition `A` is recorded only if **both** capability gaps are closed by
-    merged work **and** the runtime evidence obtained here supports it.
+    merged work **and** the runtime evidence obtained here supports it;
+13. **the actor separation of section 2.2 holds throughout**: no deployment, no
+    workflow dispatch, no real-environment mode transition, no real fleet
+    manipulation, no rollback execution and no use of deployment credentials is
+    performed by the implementing agent, in any environment;
+14. **the evidence boundary of section 6.3 holds throughout**: the implementing
+    agent reads no secret-bearing production configuration, and every external
+    fact reaches it either as sanitized metadata that structurally cannot carry a
+    production secret value, or as evidence supplied by an authorized operator;
+15. where the actor of invariant 13 or the evidence of invariant 14 is
+    unavailable, the affected criterion is `BLOCKED` — never satisfied by
+    widening what the implementing agent may do.
 
 ## 6. Required behaviour
 
@@ -332,7 +463,8 @@ The task succeeds when it has:
   leaving every **part-2** decision explicitly unresolved and downstream. Those
   sections deliberately list both, so obtaining *every* entry in them is **not**
   the success condition and would mean absorbing downstream gates;
-- proven, against a real non-production runtime, that the mode-control path
+- established, against a real non-production runtime and on evidence supplied by
+  the authorized deployment actor of section 2.2, that the mode-control path
   operates and that fleet verification operates — **operation, not timing**;
 - instantiated the live fleet predicate;
 - resolved, or deliberately **not** resolved, the runbook's
@@ -361,39 +493,102 @@ path works in isolation but not through the real deployment path — the task
 records disposition **C** again, records precisely what is still missing, and
 specifies the bounded successor that would close it.
 
-### 6.3 Authorization
+### 6.3 Authorization and the evidence boundary
 
-Inspection of the private authoritative deployment source is **read-only**,
-limited to ownership, mechanism and configuration **metadata**, and bound by the
-scoped-read rules of `THOTH-GQL-OPS-01` section 2.2.5, restated here as binding:
+**Binding, and stricter than the parent rule it replaces.** The implementing
+agent **must not inspect secret-bearing production configuration directly**. It
+holds no read authorization over the private authoritative deployment source for
+this task, and it may not create one for itself by scoping a read more narrowly.
 
-1. use **narrowly scoped searches or line/range reads** targeted at the specific
-   criterion — never a whole-file read of a secret-bearing configuration file,
-   and never a broad recursive dump;
-2. retrieve **only the metadata the criterion requires** and stop there;
-3. **never copy secret-bearing ranges** into a report, a specification, a
-   changelog, a pull request, a commit message, a prompt or any other output;
-4. treat the source as strictly **read-only**, except for the separately
-   authorized non-production deployment of section 3.1, and use no credential
-   found there;
-5. stop and report `BLOCKED` if a criterion's evidence cannot be obtained without
-   exposing secret material.
+Every external runtime or deployment fact this task requires — the container
+command, the deployed release per environment, configuration authority and
+precedence, rollout and replacement semantics, the autoscaling model, log
+retention, access and ownership, the live replica population and any drift —
+must reach the implementing agent through **exactly one** of:
 
-Incidental encounter with secret material during an otherwise scoped read is not
-a breach and must be **escalated** rather than quietly absorbed; it becomes a
-breach only if the material is copied onward. Remediating the credential exposure
-remains **outside this task's scope** and is a separate CTO-controlled security
-matter.
+```text
+ROUTE A -- a SANITIZED METADATA-ONLY SOURCE that structurally cannot
+           expose a production secret value: a redacted or
+           values-suppressed export, a metadata-only listing, or an
+           equivalent artefact from which secret values are absent by
+           construction rather than by the reader's care.
 
-Live orchestrator reads required by section 3 item 6 are **read-only** and must
-not extend to production databases or to any mutating operation.
+ROUTE B -- EVIDENCE SUPPLIED BY AN EXPLICITLY AUTHORIZED human operator,
+           control owner or other independently controlled actor, in
+           sanitized non-secret form, attributed to a named role.
+```
+
+There is no route C. If a fact cannot be obtained by Route A or Route B, the
+criterion that needs it is **`BLOCKED`**. A `BLOCKED` criterion is missing work
+and is recorded as such; it is never satisfied by the implementing agent reading
+the secret-bearing source itself.
+
+**If secret material is nevertheless exposed to the implementing agent** — a
+sanitized source turns out not to be sanitized, or supplied evidence carries more
+than it should — the agent must:
+
+```text
+1. STOP that source/read path immediately;
+2. REPORT the exposure at the minimum safe level -- the fact of the
+   exposure and the affected read path, and nothing further: no value, no
+   location, no resource identifier, no infrastructure detail;
+3. PERFORM NO FURTHER READS of that secret-bearing source for this task;
+4. record every criterion that depended on it as BLOCKED.
+```
+
+Copying secret material onward — into a report, a specification, a changelog, a
+pull request, a commit message, a prompt or any other output — is prohibited
+absolutely. **Not copying does not make the access acceptable.** An exposure is a
+**control/process exception requiring escalation** whether or not anything was
+copied, and this specification does not describe any such encounter as
+permissible, routine or "not a breach".
+
+Remediating any credential exposure remains **outside this task's scope** and is
+a separate CTO-controlled security matter. This task creates and modifies no
+security issue.
+
+**Live orchestrator reads** required by section 3 item 6 are performed by the
+authorized deployment actor of section 2.2, are **read-only**, must not extend to
+production databases or to any mutating operation, and reach the implementing
+agent as sanitized evidence under Route B.
+
+#### 6.3.1 Control limitation — the parent scoped-read rule does not govern here
+
+`THOTH-GQL-OPS-01` section 2.2.5 permits a narrowly scoped direct read of the
+secret-bearing source and states that an incidental encounter with secret
+material is "not a breach" until the material is copied onward.
+
+```text
+The stricter repository/project prohibition on implementing-agent access
+to production secrets GOVERNS successor execution. Where this
+specification and THOTH-GQL-OPS-01 section 2.2.5 differ, THIS section
+applies to THOTH-GQL-OPS-04.
+
+The merged parent specification is NOT amended by the pull request that
+introduced this text: amending an approved specification requires its own
+explicit authorization.
+
+CONTROL LIMITATION, OPEN: the parent rule must be corrected before any
+successor requiring secret-bearing production-source access is
+authorized. Owner: CTO / control owner. Not closable by an implementing
+agent.
+```
 
 ### 6.4 Concurrency and idempotency
 
-Not applicable to the repository output. The non-production capability
-verification of section 3 items 4 and 5 must itself be repeatable without leaving
-that environment in a changed mode: it ends by restoring the starting mode and
-verifying the restoration.
+Not applicable to the repository output.
+
+The non-production capability verification of section 3 items 4 and 5 must be
+repeatable without leaving that environment in a changed mode: it ends with the
+starting mode restored and the restoration verified. **Both the restoration and
+its verification are actions of the authorized deployment actor of section 2.2**,
+not of the implementing agent, which may only require them, evaluate the evidence
+that they occurred, and record whether they did.
+
+If the evidence does not show the starting mode restored and the restoration
+verified, that is a stop condition (section 13) and the environment's reported
+state is recorded explicitly. The implementing agent must not attempt to restore
+the environment itself.
 
 ### 6.5 Compatibility
 
@@ -410,8 +605,16 @@ GraphQL schema change:                       NO
 Public API change:                           NO
 Production mode change:                      NO
 Production deployment:                       NO
-Non-production deployment:                   YES -- separately authorized,
-                                             required by section 3.1
+Non-production deployment:                   YES -- required by section 3.1,
+                                             separately authorized, and
+                                             PERFORMED BY THE AUTHORIZED
+                                             DEPLOYMENT ACTOR of section 2.2
+
+Deployment performed by the implementing agent:            NONE, in any
+                                                           environment
+Deployment workflow dispatched by the implementing agent:  NONE
+Real-environment mode transition by the implementing agent: NONE
+Deployment credentials used by the implementing agent:      NONE
 ```
 
 Any contrary discovery is a stop and escalation condition (section 13).
@@ -439,11 +642,18 @@ until the downstream gates close (section 3.3).
 
 ## 9. Acceptance criteria
 
+Each criterion below is satisfied by **evidence**. Where the evidence requires a
+real operational action, that action is performed by the authorized deployment
+actor of section 2.2 and the implementing agent evaluates the result. A criterion
+whose evidence is unavailable within the section 2.2 actor model and the section
+6.3 evidence boundary is **`BLOCKED`**, never satisfied by widening either.
+
 - [ ] **AC-1** Every external fact in the control record is re-established at this
-      task's execution time, with evidence source and class, and any change from
-      the previously recorded state is reported as a finding.
+      task's execution time **through the section 6.3 evidence boundary**, with
+      evidence source, route (A or B) and class, and any change from the
+      previously recorded state is reported as a finding.
 - [ ] **AC-2** The container command actually run by the production GraphQL API
-      service is re-confirmed.
+      service is re-confirmed through the section 6.3 evidence boundary.
 - [ ] **AC-3** Which release each environment actually runs is re-confirmed, with
       pre-guard environments recorded as **pre-guard** and never as
       `MutationGuardMode::OFF`.
@@ -460,24 +670,30 @@ until the downstream gates close (section 3.3).
       recorded as unresolved and **downstream**; and **no remedy is selected,
       implemented or confirmed in place**. Selecting a remedy here would fail
       this criterion, not satisfy it.
-- [ ] **AC-8** The mode-control path is **proven to operate** against a real
-      non-production runtime: a guard-enabled release deployed through the
-      production-applicable path consumes the configured value.
-- [ ] **AC-9** Fleet verification is **proven to operate** against a real
+- [ ] **AC-8** The mode-control path is **shown to operate** against a real
+      non-production runtime: a guard-enabled release, deployed **by the
+      authorized deployment actor** through the production-applicable path,
+      consumes the configured value. The evidence is supplied by that actor and
+      evaluated here; the implementing agent performs neither the deployment nor
+      the mode change.
+- [ ] **AC-9** Fleet verification is **shown to operate** against a real
       non-production fleet: the serving population is enumerated, each member is
-      attributed an effective mode, and a mixed fleet is detected.
-- [ ] **AC-10** A partial-fleet state is deliberately created in the
-      non-production environment and shown to be **detected** by the
-      `THOTH-GQL-OPS-03` mechanism. This proves detection **operates**; it does
-      not measure how long a mixed window lasts, which is downstream.
-- [ ] **AC-11** The silent-adoption failure class is deliberately exercised and
-      shown to be detected.
+      attributed an effective mode, and a mixed fleet is detected. The fleet is
+      deployed and manipulated by the authorized deployment actor.
+- [ ] **AC-10** A partial-fleet state is deliberately created **by the authorized
+      deployment actor** in the non-production environment and shown to be
+      **detected** by the `THOTH-GQL-OPS-03` mechanism. This shows detection
+      **operates**; it does not measure how long a mixed window lasts, which is
+      downstream.
+- [ ] **AC-11** The silent-adoption failure class is deliberately exercised — by
+      the authorized deployment actor — and shown to be detected.
 - [ ] **AC-12** Store unavailability outside `ENFORCE` is confirmed
-      **operationally**, not assumed.
+      **operationally**, not assumed, on evidence from that same verification.
 - [ ] **AC-13** The live expected replica population is read from orchestrator
-      state, and the fleet predicate is recorded as instantiated. Any drift
-      between the authoritative deployment source and the live orchestrator is
-      recorded.
+      state **by the authorized deployment actor** and supplied as sanitized
+      evidence, and the fleet predicate is recorded as instantiated. Any drift
+      reported between the authoritative deployment source and the live
+      orchestrator is recorded.
 - [ ] **AC-14** No numeric threshold and no duration is invented. Every timing
       field in the runbook remains marked
       `TO BE MEASURED AT PREVIEW/STAGING GATE`, and thresholds remain the
@@ -507,10 +723,34 @@ until the downstream gates close (section 3.3).
       `NOT AUTHORIZED`; PR #788 and issue #765 are unchanged.
 - [ ] **AC-23** No production configuration value, secret or resource identifier
       appears anywhere in the diff.
-- [ ] **AC-24** Every read of the private authoritative source complied with the
-      section 6.3 scoped-read rules, and any incidental encounter with secret
-      material was escalated rather than copied onward.
-- [ ] **AC-25** No runtime, schema, migration, `Cargo` or workflow file appears
+- [ ] **AC-24** Every external fact was obtained through the section 6.3 evidence
+      boundary — Route A sanitized metadata or Route B authorized
+      operator-supplied evidence — and the implementing agent performed **no**
+      direct read of secret-bearing production configuration. Any criterion whose
+      evidence could not be obtained that way is recorded `BLOCKED`.
+- [ ] **AC-25** If secret material was exposed to the implementing agent
+      notwithstanding AC-24, the report records that the read path was stopped
+      immediately, that the exposure was reported at the minimum safe level, that
+      no further read of that source occurred, and that the dependent criteria
+      were recorded `BLOCKED`. No detail beyond the minimum appears anywhere in
+      the diff, and the encounter is recorded as a **control/process exception**,
+      not as an acceptable read pattern.
+- [ ] **AC-26** The section 2.2 actor separation held: the implementing agent
+      triggered no deployment, dispatched no deployment workflow, performed no
+      mode transition in any real environment, created or restored no real fleet
+      state, executed no rollback in a real environment and used no deployment
+      credentials. The report states this explicitly, for **non-production as
+      well as production**.
+- [ ] **AC-27** Every operational result relied on by AC-8 to AC-13 is attributed
+      to the authorized deployment actor that produced it, by role, with its
+      evidence class. No such result is recorded as having been produced by the
+      implementing agent.
+- [ ] **AC-28** Where the authorized deployment actor was unavailable or the
+      supplied evidence was inadequate, the affected criteria are recorded
+      `BLOCKED` and the disposition is `C`. No agent authority was expanded, no
+      simulated or local substitute was accepted in place of real non-production
+      evidence, and no evidence requirement was relaxed.
+- [ ] **AC-29** No runtime, schema, migration, `Cargo` or workflow file appears
       in the diff.
 
 ## 10. Required tests
@@ -537,23 +777,47 @@ recorded as `NOT AUTHORIZED`; a `CHANGELOG.md` entry exists under
 
 ### Manual verification
 
-- re-establish every external fact under the section 6.3 scoped-read rules;
-- deploy a guard-enabled candidate to the **non-production** environment under
-  separate authorization;
+Split by actor, per section 2.2. The steps are not reassignable between the two
+lists.
+
+**Performed by the AUTHORIZED DEPLOYMENT ACTOR, under its own separate
+authorization, and reported to the implementing agent as sanitized non-secret
+evidence:**
+
+- deploy a guard-enabled candidate to the **non-production** environment;
 - exercise each of `OFF`, `OBSERVE` and `ENFORCE` there through the
-  production-applicable command path, and confirm the effective mode with the
-  `THOTH-GQL-OPS-03` mechanism;
+  production-applicable command path, and capture the effective mode reported by
+  the `THOTH-GQL-OPS-03` mechanism at each;
 - enumerate the serving population from live orchestrator state and attribute an
   effective mode to every member;
-- deliberately create and detect a mixed fleet;
-- deliberately exercise and detect the silent-adoption failure class;
-- confirm store unavailability outside `ENFORCE` operationally;
-- exercise a rollback in the non-production environment far enough to prove the
-  rollback path **operates** and to restore the starting mode, verifying the
-  restoration. Do **not** time it, and do **not** record the four rehearsal
-  measurements: proving operation is this task's scope, and measuring timing is
-  the downstream preview/staging rehearsal's (section 3.2);
-- confirm that **no production environment was touched**.
+- deliberately create a mixed fleet, and capture whether it is detected;
+- deliberately exercise the silent-adoption failure class, and capture whether it
+  is detected;
+- exercise the loader store outside `ENFORCE` and capture the observed
+  availability;
+- exercise a rollback in the non-production environment far enough to show the
+  rollback path **operates**, then restore the starting mode and verify the
+  restoration. Do **not** time it, and do **not** produce the four rehearsal
+  measurements: showing operation is this task's scope, and measuring timing is
+  the downstream preview/staging rehearsal's (section 3.2).
+
+**Performed by the IMPLEMENTING AGENT:**
+
+- state, before the above, exactly which candidate, environment, configuration
+  and observations the verification requires, and in what sanitized form the
+  results must be returned;
+- re-establish every external fact through the section 6.3 evidence boundary —
+  Route A or Route B — performing no direct read of secret-bearing production
+  configuration;
+- evaluate the returned evidence against AC-8 to AC-13, reject it where it is
+  insufficient, and record `BLOCKED` where it is absent;
+- confirm from that evidence that the starting mode was restored and the
+  restoration verified;
+- confirm that **no production environment was touched**, and that no deployment,
+  workflow dispatch, real-environment mode transition or credential use was
+  performed by the implementing agent in **any** environment;
+- run the merged `THOTH-GQL-OPS-02` and `THOTH-GQL-OPS-03` suites at this task's
+  own exact base, locally and in CI.
 
 ### Performance
 
@@ -570,16 +834,20 @@ Not applicable to this task. The guard's request-path performance evidence is
   production guard mode             = unchanged by this task
   environments transitioned         = none in production
   production request acceptance     = unchanged
+  deployments performed by the implementing agent = none, in any
+                                      environment
   ```
 
 - **feature flag/configuration:** none introduced;
 - **repository-managed deployment configuration:** this repository holds none;
 - **staging/preview validation:** **not** performed by this task. This task
-  performs bounded non-production **capability verification** — proving that the
-  mode-control and fleet-verification capabilities operate. The preview/staging
-  **acceptance gate**, including the performance evidence of `ADR-0006` section
-  7.2.3 and the timed rollback rehearsal, is a separate downstream gate
-  (section 3.2);
+  records bounded non-production **capability verification** — evidence that the
+  mode-control and fleet-verification capabilities operate, produced by the
+  authorized deployment actor of section 2.2 and evaluated here. The
+  implementing agent performs no part of that deployment or transition itself.
+  The preview/staging **acceptance gate**, including the performance evidence of
+  `ADR-0006` section 7.2.3 and the timed rollback rehearsal, is a separate
+  downstream gate (section 3.2);
 - **pilot:** not applicable. `OBSERVE` is itself the controlled pilot and is not
   authorized by this task;
 - **activation approval:** unchanged and still required. Even if this task
@@ -596,9 +864,13 @@ Not applicable to this task. The guard's request-path performance evidence is
 - **data rollback or forward repair:** none;
 - **feature disable/kill switch:** not applicable. The task activates nothing;
 - **external side-effect handling:** the non-production capability verification
-  restores the starting mode and verifies the restoration before the task
-  completes. If it cannot, that is a stop condition and the non-production
-  environment's state is reported explicitly.
+  ends with the starting mode restored and the restoration verified, before the
+  task completes. **Both are actions of the authorized deployment actor of
+  section 2.2**; the implementing agent requires them, evaluates the evidence
+  that they occurred, and records the result. If the evidence does not show them,
+  that is a stop condition (section 13), the non-production environment's
+  reported state is recorded explicitly, and the implementing agent does **not**
+  attempt the restoration itself.
 
 ## 13. Stop conditions
 
@@ -609,25 +881,44 @@ The implementing agent must stop and report `BLOCKED` if:
 - production runtime ownership or the observation sign-off owner cannot be
   confirmed;
 - configuration authority cannot be re-established;
-- deployed-state evidence cannot be safely obtained under the section 6.3 rules;
-- required metadata cannot be retrieved without exposing secret material;
+- deployed-state evidence cannot be obtained through the section 6.3 evidence
+  boundary — no sanitized metadata source and no authorized operator-supplied
+  evidence is available;
+- required metadata could only be retrieved by a direct implementing-agent read
+  of secret-bearing production configuration;
+- secret material is exposed to the implementing agent — in which case it stops
+  that read path immediately, reports the exposure at the minimum safe level,
+  performs no further read of that source, and records the dependent criteria as
+  `BLOCKED` (section 6.3);
+- **no authorized deployment actor is available** to perform the non-production
+  deployment, the mode transitions, the mixed-fleet creation, the rollback or the
+  restoration required by section 3.1;
+- **the evidence that actor supplies is inadequate** to decide AC-8 to AC-13;
+- **any step would require the implementing agent itself to deploy, dispatch a
+  deployment workflow, transition a mode in a real environment or use deployment
+  credentials** — including in a non-production environment;
 - the mode-control path does not actually operate against the real runtime;
 - the fleet-verification mechanism cannot achieve complete coverage of a real
   fleet;
 - a partial-fleet state cannot be detected;
-- the non-production capability verification cannot be completed, or cannot
-  restore the starting mode;
+- the non-production capability verification cannot be completed, or the evidence
+  does not show the starting mode restored and the restoration verified;
 - the actual runtime contradicts the approved `OFF`/`OBSERVE`/`ENFORCE`
   lifecycle;
 - an architecture change is required;
 - a change to migration behaviour is required;
-- a change to another repository is required beyond the separately authorized
-  non-production deployment;
+- a change to another repository is required, beyond the non-production
+  deployment that the authorized deployment actor performs under its own
+  authorization;
 - runtime implementation is required — that is a new bounded task, not this one;
 - a **production** action would be necessary to answer an acceptance criterion.
 
-A stop condition does not authorize scope expansion, and it does not authorize
-returning disposition `A` on partial evidence.
+A stop condition does not authorize scope expansion. It does not authorize
+returning disposition `A` on partial evidence, it does not authorize the
+implementing agent to perform an operational action reserved to the authorized
+deployment actor, and it does not authorize a direct read of secret-bearing
+production configuration. The correct response to a missing actor or missing
+evidence is `BLOCKED`.
 
 ### 13.1 The production container-command override: binding classification
 
@@ -665,11 +956,30 @@ with its justification; the runtime-operations gate state, stated identically
 everywhere it appears; whether the runbook's runtime-operations-specific
 `PROVISIONAL` state was resolved and why; the two-part status of section 3.3,
 stated without being collapsed; an explicit statement that no production
-deployment, production mode change or production activation occurred; a **method
-statement** for every read of the private authoritative source confirming
-compliance with the section 6.3 rules and reporting any incidental encounter with
-secret material as an escalation; and CI status with the classification of each
-job.
+deployment, production mode change or production activation occurred; and CI
+status with the classification of each job.
+
+It must additionally record:
+
+- an **actor statement**, per section 2.2: that the implementing agent triggered
+  no deployment, dispatched no deployment workflow, performed no mode transition
+  in any real environment, created or restored no real fleet state, executed no
+  rollback in a real environment and used no deployment credentials — **in
+  non-production as well as production** — and, for every operational result
+  relied on, the authorized deployment actor role that produced it;
+- an **evidence-boundary statement**, per section 6.3: that every external fact
+  was obtained by Route A sanitized metadata or Route B authorized
+  operator-supplied evidence, that the implementing agent performed no direct
+  read of secret-bearing production configuration, and — if secret material was
+  nevertheless exposed — that the read path was stopped immediately, the exposure
+  reported at the minimum safe level with no further detail, no further read of
+  that source performed, and the dependent criteria recorded `BLOCKED`. Such an
+  encounter must be recorded as a **control/process exception requiring
+  escalation**, and must not be described as acceptable, routine or "not a
+  breach" on the ground that nothing was copied onward;
+- for each `BLOCKED` criterion, whether it was blocked by a missing authorized
+  deployment actor, by inadequate supplied evidence, or by the evidence boundary
+  — and the confirmation that no agent authority was expanded in response.
 
 The report must **not** claim the four rehearsal measurements, must **not** claim
 the preview/staging acceptance gate, must **not** claim a selected or verified
@@ -687,6 +997,20 @@ Reasoning level: HIGH / maximum practical
 Independent reviewer: an independent model family that did not author the
 implementation
 Review reasoning level: HIGH
+
+**The recommended implementation model is the implementing agent of section 2.2,
+and nothing more.** It may inspect, edit, run local and disposable tests, commit,
+push and open a draft pull request. It is **not** the deployment actor: it does
+not deploy, does not dispatch a deployment workflow, does not transition a mode
+in any real environment — production or non-production — and does not hold
+deployment credentials.
+
+Execution therefore additionally requires an **authorized deployment actor** — a
+human operator or another independently controlled actor — to perform the
+section 3.1 non-production deployment and the section 10 operational steps, and
+to supply sanitized evidence. **Scheduling this task without that actor available
+is scheduling a `BLOCKED` outcome**, and authorizing implementation does not
+create the actor.
 
 ## 16. Branch and integration plan
 
@@ -711,3 +1035,10 @@ Record only the durable implementation authorization here. Independent review
 decisions, CTO merge authorization and the merge itself are terminal GitHub
 evidence under [`ADR-0005`](../../decisions/ADR-0005-terminal-merge-evidence.md)
 and must not be copied back into this file.
+
+An authorization recorded above authorizes the implementing agent to execute the
+**agent** half of section 2.2 only. It does not make the implementing agent the
+deployment actor, does not authorize it to deploy or dispatch a deployment
+workflow in any environment, and does not permit it to read secret-bearing
+production configuration (section 6.3). The authorization of the deployment actor
+is a separate decision recorded elsewhere.
