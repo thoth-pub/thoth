@@ -68,10 +68,11 @@ Authoritative sources:
 - [`THOTH-GQL-OPS-01`](THOTH-GQL-OPS-01.md), in particular sections 2.2.0, 2.2.5,
   3.12.3, 12, 12.1 and 12.2;
 - the [mutation-guard runtime-operations control record](../../repository-map/graphql-mutation-guard-runtime-operations.md),
-  in particular section 14, which lists the unresolved evidence this task must
-  obtain;
+  in particular section 14, which lists unresolved evidence and identifies which
+  items belong to this task versus downstream gates;
 - the [mode-transition runbook](../../repository-map/graphql-mutation-guard-mode-transition-runbook.md),
-  in particular section 10, which lists the decisions it is waiting on;
+  in particular section 10, which lists the decisions it is waiting on and labels
+  each with the part of its section 0.2 status that owns it;
 - [`THOTH-GQL-OPS-02`](THOTH-GQL-OPS-02.md) and
   [`THOTH-GQL-OPS-03`](THOTH-GQL-OPS-03.md), as merged, and their implementation
   reports;
@@ -326,8 +327,11 @@ The task succeeds when it has:
 - re-established every external fact, with evidence source and class;
 - confirmed ownership, including explicit CTO confirmation of the observation
   sign-off owner;
-- obtained every unresolved decision listed in control record section 14 and
-  runbook section 10;
+- obtained every **part-1** runtime-operations decision assigned to
+  `THOTH-GQL-OPS-04` in control record section 14 and runbook section 10, while
+  leaving every **part-2** decision explicitly unresolved and downstream. Those
+  sections deliberately list both, so obtaining *every* entry in them is **not**
+  the success condition and would mean absorbing downstream gates;
 - proven, against a real non-production runtime, that the mode-control path
   operates and that fleet verification operates — **operation, not timing**;
 - instantiated the live fleet predicate;

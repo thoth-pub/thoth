@@ -782,17 +782,33 @@ CAPABILITY GAP 2 (the OPS-03 gap)                            OPEN
 
 **Unresolved evidence — missing evidence is missing work.**
 
-| # | Missing | Class | Who must obtain it |
-|---|---|---|---|
-| 1 | live current expected replica population | `[UNVERIFIED]` | `THOTH-GQL-OPS-04`, from live orchestrator state |
-| 2 | whether the running service matches its declared definition (drift) | `[UNVERIFIED]` | `THOTH-GQL-OPS-04` |
-| 3 | the effective mode of any serving instance | `[UNVERIFIED]` | requires `THOTH-GQL-OPS-03` first |
-| 4 | propagation duration | `[UNVERIFIED]` | measured in the rehearsal |
-| 5 | mixed-window duration bound | `[UNVERIFIED]` | measured in the rehearsal |
-| 6 | rollback duration | `[UNVERIFIED]` | measured in the rehearsal |
-| 7 | whether operational rollback needs CTO approval | `[UNVERIFIED]` | explicit CTO decision |
-| 8 | CTO confirmation of the derived observation sign-off owner | `[UNVERIFIED]` | explicit CTO confirmation |
-| 9 | observation-evidence retention remedy | `[UNVERIFIED]` | `THOTH-GQL-OPS-04` |
+Each item is labelled with the part of the runbook's section 0.2 status that owns
+it, so that no downstream-owned item is misread as a `THOTH-GQL-OPS-04`
+obligation. This mirrors control record section 14 and runbook section 10.
+
+| # | Missing | Class | Part | Who must obtain it |
+|---|---|---|---|---|
+| 1 | accountable production runtime owner — a designation, not an access record | `[UNVERIFIED]` | **1** | explicit CTO designation, obtained by `THOTH-GQL-OPS-04` |
+| 2 | observation sign-off owner — confirmation of the proposal, or a different designation | `[UNVERIFIED]` | **1** | explicit CTO confirmation, obtained by `THOTH-GQL-OPS-04` |
+| 3 | whether operational rollback additionally requires CTO approval | `[UNVERIFIED]` | **1** | explicit CTO decision, obtained by `THOTH-GQL-OPS-04` |
+| 4 | live current expected replica population | `[UNVERIFIED]` | **1** | `THOTH-GQL-OPS-04`, from live orchestrator state |
+| 5 | whether the running service matches its declared definition (drift) | `[UNVERIFIED]` | **1** | `THOTH-GQL-OPS-04` |
+| 6 | the effective mode of any serving instance | `[UNVERIFIED]` | **1** | requires `THOTH-GQL-OPS-03` first |
+| 7 | approved `OBSERVE` observation-window duration | `[UNVERIFIED]` | **2** | downstream activation gate |
+| 8 | whether the current finite retention covers that approved window | `[UNVERIFIED]` | **2** | downstream activation gate, after item 7 |
+| 9 | retention **remedy**, if item 8 proves one necessary — selected, implemented and verified | `[UNVERIFIED]` | **2** | downstream activation gate; **not** `THOTH-GQL-OPS-04` |
+| 10 | propagation duration | `[UNVERIFIED]` | **2** | measured at the downstream preview/staging rehearsal |
+| 11 | mixed-window duration bound | `[UNVERIFIED]` | **2** | measured at the downstream preview/staging rehearsal |
+| 12 | rollback latency/duration | `[UNVERIFIED]` | **2** | measured at the downstream preview/staging rehearsal |
+
+`THOTH-GQL-OPS-04` obtains items **1 to 6** only. Items 7 to 12 belong to
+downstream gates, and its inability to answer them is **not** a reason to leave
+the runtime-operations gate unresolved.
+
+On retention specifically, the dependency runs 7 → 8 → 9: a remedy cannot be
+selected before the duration it must cover is approved. `THOTH-GQL-OPS-04`
+records the requirement and re-establishes that current retention is a finite
+configured duration; it selects nothing.
 
 **Deferred work, each separately specified, approved, reviewed and authorized:**
 `THOTH-GQL-OPS-02`, `THOTH-GQL-OPS-03`, `THOTH-GQL-OPS-04`; then service-health
@@ -816,12 +832,14 @@ concerns other than this feature, and general Thoth runtime ownership.
    recorded publicly.
 2. **Observation-evidence retention is unresolved, and so is the window it must
    cover.** Established `[EXTERNAL]`: runtime log retention is configured to a
-   finite duration. `[UNVERIFIED]`: the approved `OBSERVE` observation-window
-   duration, and therefore whether the configured retention covers it. The
+   finite duration. `[UNVERIFIED]`, and all three **downstream** (part 2): the
+   approved `OBSERVE` observation-window duration; whether the configured
+   retention covers it; and any remedy that coverage proves necessary. The
    binding requirement stands — observation evidence must be retained for at
    least the complete approved observation window and remain available through
-   review and sign-off — but **no remedy is selected**, because selecting one
-   would presuppose a window duration nobody has set.
+   review and sign-off — but **no remedy is selected here, and selecting one is
+   not `THOTH-GQL-OPS-04`'s job either**, because it would presuppose a window
+   duration nobody has set.
 3. **No environment currently runs guard-enabled code.** Both production and test
    are pre-guard, so any future non-production verification and the downstream
    rehearsal must first deploy a guard-enabled candidate — an additional
