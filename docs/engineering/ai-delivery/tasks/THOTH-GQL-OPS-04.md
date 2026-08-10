@@ -38,11 +38,14 @@ subject to their own separate explicit CTO production activation approval
 **Execution actor, binding (section 2.2).** This specification authorizes the
 implementing agent to prepare repository changes, run local and disposable tests,
 evaluate supplied evidence and record outcomes. It does **not** authorize the
-implementing agent to deploy, to dispatch a deployment workflow, or to perform a
-mode transition in any real environment — including a non-production one. Every
-such action belongs to an authorized human operator or other independently
-controlled deployment actor. Approval of this specification, and any authorization
-recorded in section 17, transfer no operational action to the implementing agent.
+implementing agent — or **any other AI agent or model, of any role, family or
+session** — to deploy, to dispatch a deployment workflow, or to perform a mode
+transition in any real environment, including a non-production one. Every such
+action belongs to an **authorized non-agent deployment actor** as defined in
+section 2.2.1: an authorized human/operator, or existing deployment automation
+executing under that human/operator's own control or initiation. Approval of this
+specification, and any authorization recorded in section 17, transfer no
+operational action to any AI agent.
 
 ## 1. Objective
 
@@ -54,13 +57,16 @@ operates, instantiate the live fleet predicate, obtain the outstanding part-1
 runtime-operations decisions, and only then decide — on evidence — whether the
 **mode-control** subset of CG-13 may become disposition **A**.
 
-**The implementing agent does not perform the operational actions.** Every
-deployment, mode transition, mixed-fleet creation and rollback required below is
-performed by an **authorized deployment actor** who is not the implementing agent
-(section 2.2). The implementing agent prepares repository changes, runs local and
-disposable tests, evaluates the evidence that actor supplies, and records the
-outcome. The evidence requirement is unchanged; only the actor performing the
-operational action is fixed.
+**No AI agent performs the operational actions.** Every deployment, mode
+transition, mixed-fleet creation and rollback required below is performed by an
+**authorized non-agent deployment actor** (section 2.2.1) — an authorized
+human/operator, or existing deployment automation under that human/operator's own
+control or initiation. The prohibition is not limited to the implementing agent:
+**no AI agent or model of any role, family or session** may perform, initiate,
+dispatch or delegate any of those actions. The implementing agent prepares
+repository changes, runs local and disposable tests, evaluates the evidence that
+actor supplies, and records the outcome. The evidence requirement is unchanged;
+only the actor performing the operational action is fixed.
 
 This is the **earliest** task in this family that may record:
 
@@ -121,25 +127,77 @@ correct outcome; widening the implementing agent's access is not.
 
 ### 2.2 Execution actor model — binding
 
-Two distinct actors execute this task. The separation is a **project control**,
-not a convenience, and no approval recorded in this specification, in its
-section 17, or in any successor prompt may transfer an action from the second
-actor to the first.
+Two distinct classes of actor execute this task. The separation is a **project
+control**, not a convenience, and no approval recorded in this specification, in
+its section 17, or in any successor prompt may transfer an action from the second
+class to the first.
+
+#### 2.2.1 The AUTHORIZED NON-AGENT DEPLOYMENT ACTOR — definition, binding
+
+Every real operational action this task depends on is performed by an
+**AUTHORIZED NON-AGENT DEPLOYMENT ACTOR**. That term is used throughout this
+specification, and it has exactly two permitted forms:
+
+```text
+FORM 1 -- an AUTHORIZED HUMAN / OPERATOR acting under the relevant
+          authorization;
+
+FORM 2 -- EXISTING DEPLOYMENT AUTOMATION OR INFRASTRUCTURE that executes
+          under that authorized human/operator's own control or
+          initiation.
+```
+
+There is no third form. **No AI agent or model qualifies, in any role.** This is
+not a restriction on one particular model or on "the implementing agent" alone:
+it binds **every** AI agent or model of every role and family — implementing,
+assisting, reviewing, orchestrating, supervising, delegated, sub-agent or
+otherwise, whether or not it is separately or independently controlled.
+
+**Binding prohibition, applying to EVERY AI agent or model:**
+
+```text
+No AI agent or model may:
+
+- initiate, trigger, dispatch or execute a deployment, in any
+  environment, production or not;
+- perform a mode transition in a real environment;
+- create, manipulate or restore real fleet state;
+- execute a rollback in a real environment;
+- use, request or hold deployment credentials;
+- substitute for the authorized human/operator by invoking deployment
+  automation.
+
+Being "independently controlled", or being a different agent, model,
+model family, session or role from the implementing agent, does NOT
+qualify an AI agent as the authorized non-agent deployment actor.
+```
+
+**Form 2 is an execution mechanism, not an AI-agent delegation.** Existing
+deployment automation and infrastructure may perform the mechanical work, but it
+must be **initiated and controlled by the authorized non-agent human/operator**
+under the relevant authorization. An AI agent invoking that automation is an AI
+agent performing the deployment, and is prohibited by the block above. Automation
+does not launder an agent-initiated action into a non-agent one.
+
+#### 2.2.2 The IMPLEMENTING AGENT
 
 **The IMPLEMENTING AGENT** — the model executing this task — **may**:
 
 1. prepare repository changes: specifications, control records, runbook, report,
    changelog;
-2. run local, disposable and CI tests, including the merged `THOTH-GQL-OPS-02`
-   and `THOTH-GQL-OPS-03` suites at its own exact base;
+2. run **local, disposable and CI tests**, including the merged
+   `THOTH-GQL-OPS-02` and `THOTH-GQL-OPS-03` suites at its own exact base. This
+   ordinary repository testing is **unrestricted** by section 2.2.1, which
+   governs real operational environments and actions only;
 3. inspect **allowed sanitized or read-only evidence** within the section 6.3
    boundary;
-4. evaluate evidence supplied by the authorized deployment actor, and challenge
-   it as insufficient;
+4. evaluate evidence supplied by the authorized non-agent deployment actor, and
+   challenge it as insufficient;
 5. update the control record, the runbook and the implementation report;
 6. commit, push and open a **draft** pull request.
 
-**The IMPLEMENTING AGENT must NOT**:
+**The IMPLEMENTING AGENT must NOT** — as one instance of the section 2.2.1
+prohibition, which binds every AI agent equally:
 
 ```text
 - trigger a deployment, in any environment, production or not;
@@ -149,12 +207,17 @@ actor to the first.
 - create, modify or restore a real fleet state;
 - execute a rollback in a real environment;
 - use, request or hold deployment credentials;
-- access production secret-bearing configuration (section 6.3).
+- invoke deployment automation in place of the authorized human/operator;
+- access production secret-bearing configuration (section 6.3);
+- delegate any of the above to another AI agent or model of any role or
+  family, or accept a result produced by one as if it satisfied the
+  requirement.
 ```
 
-**An AUTHORIZED HUMAN OPERATOR, or another independently controlled deployment
-actor** — never the implementing agent — performs, under the relevant separate
-authorization:
+#### 2.2.3 Division of the work
+
+**The AUTHORIZED NON-AGENT DEPLOYMENT ACTOR** — never any AI agent — performs,
+under the relevant separate authorization:
 
 ```text
 - any required NON-PRODUCTION deployment of a guard-enabled candidate;
@@ -169,16 +232,20 @@ implementing agent.
 
 `THOTH-GQL-OPS-04` then **evaluates those results** and decides `A` or `C`.
 
-**If the authorized deployment actor is unavailable, or the evidence they supply
-is inadequate, the affected criterion is `BLOCKED` and the task returns
+**If no authorized non-agent deployment actor is available, or the evidence
+supplied is inadequate, the affected criterion is `BLOCKED` and the task returns
 disposition `C`.** Absence of the actor never converts into agent authority, and
-never into a weaker evidence requirement.
+never into a weaker evidence requirement. An AI agent stepping in — of any role,
+family or session — is not an available actor; it is a control violation.
 
 ## 3. Explicit scope
 
 Each item below states what the task must **establish**. Where an item requires a
-real operational action, that action is performed by the authorized deployment
-actor of section 2.2 and the implementing agent evaluates the resulting evidence.
+real operational action, that action is performed by the **authorized non-agent
+deployment actor** of section 2.2.1 — an authorized human/operator, or deployment
+automation under that human/operator's own control — and **never by an AI agent
+or model of any role, family or session**. The implementing agent evaluates the
+resulting evidence.
 
 The task must:
 
@@ -201,15 +268,18 @@ The task must:
 4. **establish that the mode-control path operates** against the real runtime:
    that a guard-enabled release deployed through the production-applicable path
    actually consumes the configured value, in a **non-production** environment.
-   The deployment and the mode changes are performed by the authorized deployment
-   actor (section 2.2); the implementing agent evaluates the evidence returned;
+   The deployment and the mode changes are performed by the **authorized
+   non-agent deployment actor** (section 2.2.1) — never by an AI agent of any
+   role; the implementing agent evaluates the evidence returned;
 5. **establish that fleet verification operates**: that the `THOTH-GQL-OPS-03`
    mechanism enumerates the actual serving population, attributes an effective
    mode to each member, and detects a mixed fleet, against a real deployed fleet
    in a **non-production** environment. The fleet states are created by the
-   authorized deployment actor; the implementing agent evaluates the evidence;
+   **authorized non-agent deployment actor** (section 2.2.1) — never by an AI
+   agent of any role; the implementing agent evaluates the evidence;
 6. **obtain the live expected replica population** from orchestrator state — read
-   by the authorized deployment actor and supplied as sanitized evidence — and
+   by the authorized non-agent deployment actor (section 2.2.1) and supplied as
+   sanitized evidence — and
    record the predicate as instantiated rather than as defined, and record any
    configuration drift reported between the authoritative deployment source and
    the live orchestrator;
@@ -223,34 +293,43 @@ The task must:
    implementation report and the pull-request body;
 10. add the changelog entry and the implementation report.
 
-### 3.1 A guard-enabled non-production environment is a prerequisite — and the implementing agent does not create it
+### 3.1 A guard-enabled non-production environment is a prerequisite — and no AI agent creates it
 
 The test environment is **pre-guard**, so there is no mode there to change.
 A **guard-enabled candidate deployed to a non-production environment** is
 therefore a prerequisite of items 4 and 5. It is a **non-production** deployment
 only; nothing in this task authorizes a production deployment.
 
-**Actor, binding.** That deployment is performed by the **authorized deployment
-actor** of section 2.2 — a human operator or another independently controlled
-deployment actor — under its own separate authorization. The implementing agent
-**must not** perform it, must not dispatch a workflow that performs it, and must
-not hold or use the credentials that would perform it. "Separately authorized"
-authorizes the *action*; it does not make the implementing agent the *actor*, and
-no reading of this specification may make it one.
+**Actor, binding.** That deployment is performed by the **authorized non-agent
+deployment actor** of section 2.2.1 — an authorized human/operator, or existing
+deployment automation executing under that human/operator's own control or
+initiation — under its own separate authorization.
+
+**No AI agent or model may perform it, in any role, family or session.** The
+implementing agent must not perform it, must not dispatch a workflow that
+performs it, must not invoke deployment automation in place of the authorized
+human/operator, and must not hold or use the credentials that would perform it —
+and neither may any assisting, reviewing, orchestrating, supervising, delegated
+or sub-agent model. "Separately authorized" authorizes the *action*; it does not
+make any AI agent the *actor*, and no reading of this specification may make one.
+Being a different agent from the implementing agent, or being independently
+controlled, does not qualify.
 
 The implementing agent's role for this prerequisite is limited to:
 
 1. stating precisely which candidate, environment and configuration the
-   verification requires, so the deployment actor can act unambiguously;
+   verification requires, so the authorized non-agent deployment actor can act
+   unambiguously;
 2. stating precisely which observations must be returned, and in what sanitized
    non-secret form;
 3. evaluating what is returned, and rejecting it as insufficient if it is.
 
-If no authorized deployment actor performs the prerequisite, or the returned
-evidence is inadequate, items 4 and 5 are `BLOCKED`, the dependent acceptance
-criteria fail, and the disposition is `C`. The task does **not** substitute a
-local, simulated or agent-performed deployment for the missing evidence, and does
-**not** relax what the evidence must show.
+If no authorized non-agent deployment actor performs the prerequisite, or the
+returned evidence is inadequate, items 4 and 5 are `BLOCKED`, the dependent
+acceptance criteria fail, and the disposition is `C`. The task does **not**
+substitute a local, simulated or agent-performed deployment for the missing
+evidence, does **not** treat an action performed by another AI agent as
+satisfying it, and does **not** relax what the evidence must show.
 
 ### 3.2 What this task may resolve, and what it must leave downstream
 
@@ -284,9 +363,10 @@ downstream gates that this task must not absorb**.
 | `OFF -> OBSERVE` authorization | **downstream** — explicit CTO decision |
 
 The column above records which **gate owns** an item, not which actor performs the
-operational step. Ownership by "this task" never means the implementing agent
-performs a deployment or a mode transition: those remain with the authorized
-deployment actor of section 2.2 in every row.
+operational step. Ownership by "this task" never means that an AI agent performs
+a deployment or a mode transition: in every row those remain with the
+**authorized non-agent deployment actor** of section 2.2.1, and no AI agent of
+any role, family or session may perform them.
 
 Consequently this task **does not** execute the timed rehearsal, **does not** own
 the four rehearsal measurements
@@ -398,19 +478,24 @@ The task must not:
 19. remediate or rotate any credential, or create or modify a security issue;
 20. make any change to the private authoritative deployment source. The
     **non-production** deployment required by section 3.1 is performed by the
-    authorized deployment actor under its own authorization, and is not a change
-    this task's implementing agent makes;
-21. **have the implementing agent trigger a deployment, dispatch a deployment
-    workflow, perform a mode transition in any real environment, create or
-    restore a real fleet state, execute a rollback in a real environment, or use
-    deployment credentials** — in production or in any non-production
-    environment (section 2.2);
-22. **have the implementing agent read secret-bearing production configuration
+    **authorized non-agent deployment actor** under its own authorization, and is
+    not a change this task's implementing agent makes;
+21. **have ANY AI agent or model — the implementing agent or any other, of any
+    role, family or session — trigger a deployment, dispatch a deployment
+    workflow, perform a mode transition in any real environment, create,
+    manipulate or restore real fleet state, execute a rollback in a real
+    environment, use deployment credentials, or invoke deployment automation in
+    place of the authorized human/operator** — in production or in any
+    non-production environment (section 2.2.1);
+22. treat an operational action performed by another AI agent, or delegated to
+    one, as satisfying a requirement reserved to the authorized non-agent
+    deployment actor;
+23. **have the implementing agent read secret-bearing production configuration
     directly**, by any route, including one it believes to be narrowly scoped
     (section 6.3);
-23. modify `BE-02`, PR [#788](https://github.com/thoth-pub/thoth/pull/788) or
+24. modify `BE-02`, PR [#788](https://github.com/thoth-pub/thoth/pull/788) or
     issue [#765](https://github.com/thoth-pub/thoth/issues/765);
-24. implement `BE-02`.
+25. implement `BE-02`.
 
 ## 5. Invariants
 
@@ -439,8 +524,11 @@ The implementation must preserve:
     merged work **and** the runtime evidence obtained here supports it;
 13. **the actor separation of section 2.2 holds throughout**: no deployment, no
     workflow dispatch, no real-environment mode transition, no real fleet
-    manipulation, no rollback execution and no use of deployment credentials is
-    performed by the implementing agent, in any environment;
+    manipulation, no rollback execution, no use of deployment credentials and no
+    invocation of deployment automation is performed by **any AI agent or
+    model** — the implementing agent or any other, of any role, family or
+    session — in any environment. Every such action is performed only by the
+    **authorized non-agent deployment actor** of section 2.2.1;
 14. **the evidence boundary of section 6.3 holds throughout**: the implementing
     agent reads no secret-bearing production configuration, and every external
     fact reaches it either as sanitized metadata that structurally cannot carry a
@@ -464,8 +552,9 @@ The task succeeds when it has:
   sections deliberately list both, so obtaining *every* entry in them is **not**
   the success condition and would mean absorbing downstream gates;
 - established, against a real non-production runtime and on evidence supplied by
-  the authorized deployment actor of section 2.2, that the mode-control path
-  operates and that fleet verification operates — **operation, not timing**;
+  the **authorized non-agent deployment actor** of section 2.2.1 — never by an AI
+  agent — that the mode-control path operates and that fleet verification
+  operates — **operation, not timing**;
 - instantiated the live fleet predicate;
 - resolved, or deliberately **not** resolved, the runbook's
   runtime-operations-specific `PROVISIONAL` state, consistently with the
@@ -513,9 +602,15 @@ ROUTE A -- a SANITIZED METADATA-ONLY SOURCE that structurally cannot
            equivalent artefact from which secret values are absent by
            construction rather than by the reader's care.
 
-ROUTE B -- EVIDENCE SUPPLIED BY AN EXPLICITLY AUTHORIZED human operator,
-           control owner or other independently controlled actor, in
-           sanitized non-secret form, attributed to a named role.
+ROUTE B -- EVIDENCE SUPPLIED BY AN EXPLICITLY AUTHORIZED HUMAN /
+           OPERATOR or CONTROL OWNER, in sanitized non-secret form,
+           attributed to a named role -- or a sanitized artefact
+           generated under that non-agent human/operator's own control.
+
+           NO AI AGENT OR MODEL is a valid Route B source, in any role,
+           family or session. Evidence produced by an AI agent that
+           itself inspected production runtime or secret-bearing
+           configuration is NOT Route B evidence and must be refused.
 ```
 
 There is no route C. If a fact cannot be obtained by Route A or Route B, the
@@ -548,7 +643,7 @@ a separate CTO-controlled security matter. This task creates and modifies no
 security issue.
 
 **Live orchestrator reads** required by section 3 item 6 are performed by the
-authorized deployment actor of section 2.2, are **read-only**, must not extend to
+authorized non-agent deployment actor of section 2.2, are **read-only**, must not extend to
 production databases or to any mutating operation, and reach the implementing
 agent as sanitized evidence under Route B.
 
@@ -581,14 +676,15 @@ Not applicable to the repository output.
 The non-production capability verification of section 3 items 4 and 5 must be
 repeatable without leaving that environment in a changed mode: it ends with the
 starting mode restored and the restoration verified. **Both the restoration and
-its verification are actions of the authorized deployment actor of section 2.2**,
-not of the implementing agent, which may only require them, evaluate the evidence
-that they occurred, and record whether they did.
+its verification are actions of the authorized non-agent deployment actor of
+section 2.2.1**, and of no AI agent. The implementing agent may only require
+them, evaluate the evidence that they occurred, and record whether they did.
 
 If the evidence does not show the starting mode restored and the restoration
 verified, that is a stop condition (section 13) and the environment's reported
-state is recorded explicitly. The implementing agent must not attempt to restore
-the environment itself.
+state is recorded explicitly. **No AI agent may attempt the restoration** — not
+the implementing agent, and not any other agent or model of any role, family or
+session, whether directly or by invoking deployment automation.
 
 ### 6.5 Compatibility
 
@@ -610,11 +706,16 @@ Non-production deployment:                   YES -- required by section 3.1,
                                              PERFORMED BY THE AUTHORIZED
                                              DEPLOYMENT ACTOR of section 2.2
 
-Deployment performed by the implementing agent:            NONE, in any
+Deployment performed by ANY AI agent or model:             NONE, in any
                                                            environment
-Deployment workflow dispatched by the implementing agent:  NONE
-Real-environment mode transition by the implementing agent: NONE
-Deployment credentials used by the implementing agent:      NONE
+Deployment workflow dispatched by ANY AI agent or model:   NONE
+Real-environment mode transition by ANY AI agent or model: NONE
+Deployment credentials used by ANY AI agent or model:      NONE
+Deployment automation invoked by ANY AI agent or model:    NONE
+
+"ANY AI agent or model" means the implementing agent and every other
+agent or model of every role, family and session -- assisting,
+reviewing, orchestrating, supervising, delegated or sub-agent.
 ```
 
 Any contrary discovery is a stop and escalation condition (section 13).
@@ -672,25 +773,25 @@ whose evidence is unavailable within the section 2.2 actor model and the section
       this criterion, not satisfy it.
 - [ ] **AC-8** The mode-control path is **shown to operate** against a real
       non-production runtime: a guard-enabled release, deployed **by the
-      authorized deployment actor** through the production-applicable path,
-      consumes the configured value. The evidence is supplied by that actor and
-      evaluated here; the implementing agent performs neither the deployment nor
-      the mode change.
+      authorized non-agent deployment actor** (section 2.2.1) through the
+      production-applicable path, consumes the configured value. The evidence is
+      supplied by that actor and evaluated here; no AI agent performs the
+      deployment or the mode change.
 - [ ] **AC-9** Fleet verification is **shown to operate** against a real
       non-production fleet: the serving population is enumerated, each member is
       attributed an effective mode, and a mixed fleet is detected. The fleet is
-      deployed and manipulated by the authorized deployment actor.
+      deployed and manipulated by the authorized non-agent deployment actor.
 - [ ] **AC-10** A partial-fleet state is deliberately created **by the authorized
-      deployment actor** in the non-production environment and shown to be
+      non-agent deployment actor** in the non-production environment and shown to be
       **detected** by the `THOTH-GQL-OPS-03` mechanism. This shows detection
       **operates**; it does not measure how long a mixed window lasts, which is
       downstream.
 - [ ] **AC-11** The silent-adoption failure class is deliberately exercised — by
-      the authorized deployment actor — and shown to be detected.
+      the authorized non-agent deployment actor — and shown to be detected.
 - [ ] **AC-12** Store unavailability outside `ENFORCE` is confirmed
       **operationally**, not assumed, on evidence from that same verification.
 - [ ] **AC-13** The live expected replica population is read from orchestrator
-      state **by the authorized deployment actor** and supplied as sanitized
+      state **by the authorized non-agent deployment actor** and supplied as sanitized
       evidence, and the fleet predicate is recorded as instantiated. Any drift
       reported between the authoritative deployment source and the live
       orchestrator is recorded.
@@ -735,19 +836,25 @@ whose evidence is unavailable within the section 2.2 actor model and the section
       were recorded `BLOCKED`. No detail beyond the minimum appears anywhere in
       the diff, and the encounter is recorded as a **control/process exception**,
       not as an acceptable read pattern.
-- [ ] **AC-26** The section 2.2 actor separation held: the implementing agent
-      triggered no deployment, dispatched no deployment workflow, performed no
-      mode transition in any real environment, created or restored no real fleet
-      state, executed no rollback in a real environment and used no deployment
-      credentials. The report states this explicitly, for **non-production as
-      well as production**.
+- [ ] **AC-26** The section 2.2 actor separation held for **every AI agent or
+      model**, not only the implementing agent: no agent of any role, family or
+      session triggered a deployment, dispatched a deployment workflow, performed
+      a mode transition in any real environment, created, manipulated or restored
+      real fleet state, executed a rollback in a real environment, used
+      deployment credentials, or invoked deployment automation in place of the
+      authorized human/operator. The report states this explicitly, for
+      **non-production as well as production**. Local and disposable repository
+      testing by the implementing agent is **not** restricted by this criterion.
 - [ ] **AC-27** Every operational result relied on by AC-8 to AC-13 is attributed
-      to the authorized deployment actor that produced it, by role, with its
-      evidence class. No such result is recorded as having been produced by the
-      implementing agent.
-- [ ] **AC-28** Where the authorized deployment actor was unavailable or the
-      supplied evidence was inadequate, the affected criteria are recorded
-      `BLOCKED` and the disposition is `C`. No agent authority was expanded, no
+      to the **authorized non-agent deployment actor** that produced it, by role,
+      with its evidence class, and identified as Form 1 (authorized
+      human/operator) or Form 2 (deployment automation under that
+      human/operator's own control or initiation). No such result is recorded as
+      having been produced by, initiated by or delegated to any AI agent.
+- [ ] **AC-28** Where no authorized non-agent deployment actor was available, or
+      the supplied evidence was inadequate, the affected criteria are recorded
+      `BLOCKED` and the disposition is `C`. No agent authority was expanded, **no
+      AI agent of any role or family substituted for the missing actor**, no
       simulated or local substitute was accepted in place of real non-production
       evidence, and no evidence requirement was relaxed.
 - [ ] **AC-29** No runtime, schema, migration, `Cargo` or workflow file appears
@@ -778,11 +885,14 @@ recorded as `NOT AUTHORIZED`; a `CHANGELOG.md` entry exists under
 ### Manual verification
 
 Split by actor, per section 2.2. The steps are not reassignable between the two
-lists.
+lists, and no AI agent of any role, family or session may perform a step from the
+first list.
 
-**Performed by the AUTHORIZED DEPLOYMENT ACTOR, under its own separate
-authorization, and reported to the implementing agent as sanitized non-secret
-evidence:**
+**Performed by the AUTHORIZED NON-AGENT DEPLOYMENT ACTOR** — an authorized
+human/operator (Form 1), or existing deployment automation under that
+human/operator's own control or initiation (Form 2), **never an AI agent** —
+under its own separate authorization, and reported to the implementing agent as
+sanitized non-secret evidence:
 
 - deploy a guard-enabled candidate to the **non-production** environment;
 - exercise each of `OFF`, `OBSERVE` and `ENFORCE` there through the
@@ -814,10 +924,13 @@ evidence:**
 - confirm from that evidence that the starting mode was restored and the
   restoration verified;
 - confirm that **no production environment was touched**, and that no deployment,
-  workflow dispatch, real-environment mode transition or credential use was
-  performed by the implementing agent in **any** environment;
+  workflow dispatch, real-environment mode transition, credential use or
+  invocation of deployment automation was performed by the implementing agent —
+  **or by any other AI agent or model of any role, family or session** — in
+  **any** environment;
 - run the merged `THOTH-GQL-OPS-02` and `THOTH-GQL-OPS-03` suites at this task's
-  own exact base, locally and in CI.
+  own exact base, locally and in CI. This local, disposable and CI testing is
+  ordinary repository work and is **not** restricted by section 2.2.1.
 
 ### Performance
 
@@ -834,8 +947,7 @@ Not applicable to this task. The guard's request-path performance evidence is
   production guard mode             = unchanged by this task
   environments transitioned         = none in production
   production request acceptance     = unchanged
-  deployments performed by the implementing agent = none, in any
-                                      environment
+  deployments performed by ANY AI agent = none, in any environment
   ```
 
 - **feature flag/configuration:** none introduced;
@@ -843,8 +955,9 @@ Not applicable to this task. The guard's request-path performance evidence is
 - **staging/preview validation:** **not** performed by this task. This task
   records bounded non-production **capability verification** — evidence that the
   mode-control and fleet-verification capabilities operate, produced by the
-  authorized deployment actor of section 2.2 and evaluated here. The
-  implementing agent performs no part of that deployment or transition itself.
+  **authorized non-agent deployment actor** of section 2.2.1 and evaluated here.
+  No AI agent — the implementing agent or any other — performs any part of that
+  deployment or transition, directly or by invoking deployment automation.
   The preview/staging **acceptance gate**, including the performance evidence of
   `ADR-0006` section 7.2.3 and the timed rollback rehearsal, is a separate
   downstream gate (section 3.2);
@@ -865,12 +978,13 @@ Not applicable to this task. The guard's request-path performance evidence is
 - **feature disable/kill switch:** not applicable. The task activates nothing;
 - **external side-effect handling:** the non-production capability verification
   ends with the starting mode restored and the restoration verified, before the
-  task completes. **Both are actions of the authorized deployment actor of
-  section 2.2**; the implementing agent requires them, evaluates the evidence
-  that they occurred, and records the result. If the evidence does not show them,
-  that is a stop condition (section 13), the non-production environment's
-  reported state is recorded explicitly, and the implementing agent does **not**
-  attempt the restoration itself.
+  task completes. **Both are actions of the authorized non-agent deployment actor
+  of section 2.2.1**, and of no AI agent; the implementing agent requires them,
+  evaluates the evidence that they occurred, and records the result. If the
+  evidence does not show them, that is a stop condition (section 13), the
+  non-production environment's reported state is recorded explicitly, and **no AI
+  agent of any role or family attempts the restoration** — neither directly nor
+  by invoking deployment automation.
 
 ## 13. Stop conditions
 
@@ -890,13 +1004,17 @@ The implementing agent must stop and report `BLOCKED` if:
   that read path immediately, reports the exposure at the minimum safe level,
   performs no further read of that source, and records the dependent criteria as
   `BLOCKED` (section 6.3);
-- **no authorized deployment actor is available** to perform the non-production
-  deployment, the mode transitions, the mixed-fleet creation, the rollback or the
-  restoration required by section 3.1;
+- **no authorized non-agent deployment actor is available** — Form 1 or Form 2 of
+  section 2.2.1 — to perform the non-production deployment, the mode transitions,
+  the mixed-fleet creation, the rollback or the restoration required by section
+  3.1. An AI agent offering to act in its place does **not** make one available;
 - **the evidence that actor supplies is inadequate** to decide AC-8 to AC-13;
-- **any step would require the implementing agent itself to deploy, dispatch a
-  deployment workflow, transition a mode in a real environment or use deployment
-  credentials** — including in a non-production environment;
+- **any step would require an AI agent or model — the implementing agent or any
+  other, of any role, family or session — to deploy, dispatch a deployment
+  workflow, transition a mode in a real environment, manipulate real fleet state,
+  execute a real-environment rollback, use deployment credentials or invoke
+  deployment automation in place of the authorized human/operator** — including
+  in a non-production environment;
 - the mode-control path does not actually operate against the real runtime;
 - the fleet-verification mechanism cannot achieve complete coverage of a real
   fleet;
@@ -908,17 +1026,17 @@ The implementing agent must stop and report `BLOCKED` if:
 - an architecture change is required;
 - a change to migration behaviour is required;
 - a change to another repository is required, beyond the non-production
-  deployment that the authorized deployment actor performs under its own
+  deployment that the authorized non-agent deployment actor performs under its own
   authorization;
 - runtime implementation is required — that is a new bounded task, not this one;
 - a **production** action would be necessary to answer an acceptance criterion.
 
 A stop condition does not authorize scope expansion. It does not authorize
 returning disposition `A` on partial evidence, it does not authorize the
-implementing agent to perform an operational action reserved to the authorized
-deployment actor, and it does not authorize a direct read of secret-bearing
-production configuration. The correct response to a missing actor or missing
-evidence is `BLOCKED`.
+implementing agent — or any other AI agent or model — to perform an operational
+action reserved to the authorized non-agent deployment actor, and it does not
+authorize a direct read of secret-bearing production configuration. The correct
+response to a missing actor or missing evidence is `BLOCKED`.
 
 ### 13.1 The production container-command override: binding classification
 
@@ -961,12 +1079,17 @@ status with the classification of each job.
 
 It must additionally record:
 
-- an **actor statement**, per section 2.2: that the implementing agent triggered
-  no deployment, dispatched no deployment workflow, performed no mode transition
-  in any real environment, created or restored no real fleet state, executed no
-  rollback in a real environment and used no deployment credentials — **in
-  non-production as well as production** — and, for every operational result
-  relied on, the authorized deployment actor role that produced it;
+- an **actor statement**, per section 2.2: that **no AI agent or model of any
+  role, family or session** — the implementing agent or any other — triggered a
+  deployment, dispatched a deployment workflow, performed a mode transition in
+  any real environment, created, manipulated or restored real fleet state,
+  executed a rollback in a real environment, used deployment credentials or
+  invoked deployment automation in place of the authorized human/operator, **in
+  non-production as well as production**; and, for every operational result
+  relied on, the **authorized non-agent deployment actor** role that produced it,
+  identified as Form 1 or Form 2 of section 2.2.1. Local, disposable and CI
+  repository testing by the implementing agent is ordinary work and is reported
+  as such, not as a restricted action;
 - an **evidence-boundary statement**, per section 6.3: that every external fact
   was obtained by Route A sanitized metadata or Route B authorized
   operator-supplied evidence, that the implementing agent performed no direct
@@ -978,8 +1101,9 @@ It must additionally record:
   escalation**, and must not be described as acceptable, routine or "not a
   breach" on the ground that nothing was copied onward;
 - for each `BLOCKED` criterion, whether it was blocked by a missing authorized
-  deployment actor, by inadequate supplied evidence, or by the evidence boundary
-  — and the confirmation that no agent authority was expanded in response.
+  non-agent deployment actor, by inadequate supplied evidence, or by the evidence
+  boundary — and the confirmation that no agent authority was expanded in
+  response and that no AI agent substituted for the missing actor.
 
 The report must **not** claim the four rehearsal measurements, must **not** claim
 the preview/staging acceptance gate, must **not** claim a selected or verified
@@ -998,15 +1122,18 @@ Independent reviewer: an independent model family that did not author the
 implementation
 Review reasoning level: HIGH
 
-**The recommended implementation model is the implementing agent of section 2.2,
+**The recommended implementation model is the implementing agent of section 2.2.2,
 and nothing more.** It may inspect, edit, run local and disposable tests, commit,
-push and open a draft pull request. It is **not** the deployment actor: it does
-not deploy, does not dispatch a deployment workflow, does not transition a mode
-in any real environment — production or non-production — and does not hold
-deployment credentials.
+push and open a draft pull request — ordinary repository testing is unrestricted.
+It is **not** the deployment actor, and **no substitute AI agent or model is
+either**: no AI agent of any role, family or session may deploy, dispatch a
+deployment workflow, transition a mode in any real environment — production or
+non-production — invoke deployment automation in place of the authorized
+human/operator, or hold deployment credentials.
 
-Execution therefore additionally requires an **authorized deployment actor** — a
-human operator or another independently controlled actor — to perform the
+Execution therefore additionally requires an **authorized non-agent deployment
+actor** (section 2.2.1) — an authorized human/operator, or existing deployment
+automation under that human/operator's own control or initiation — to perform the
 section 3.1 non-production deployment and the section 10 operational steps, and
 to supply sanitized evidence. **Scheduling this task without that actor available
 is scheduling a `BLOCKED` outcome**, and authorizing implementation does not
@@ -1037,8 +1164,11 @@ evidence under [`ADR-0005`](../../decisions/ADR-0005-terminal-merge-evidence.md)
 and must not be copied back into this file.
 
 An authorization recorded above authorizes the implementing agent to execute the
-**agent** half of section 2.2 only. It does not make the implementing agent the
-deployment actor, does not authorize it to deploy or dispatch a deployment
-workflow in any environment, and does not permit it to read secret-bearing
-production configuration (section 6.3). The authorization of the deployment actor
-is a separate decision recorded elsewhere.
+**agent** half of section 2.2 (section 2.2.2) only. It does not make the
+implementing agent — or any other AI agent or model, of any role, family or
+session — the deployment actor, does not authorize any AI agent to deploy,
+dispatch a deployment workflow or invoke deployment automation in any
+environment, and does not permit the implementing agent to read secret-bearing
+production configuration (section 6.3). The authorization of the **authorized
+non-agent deployment actor** (section 2.2.1) is a separate decision recorded
+elsewhere, and it is never satisfied by an AI agent.

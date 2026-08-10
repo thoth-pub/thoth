@@ -95,11 +95,16 @@ consequence; it does not make the access itself acceptable.
 implementing agent must **not** read secret-bearing production configuration
 directly. External deployment facts must be obtained from a sanitized
 metadata-only source that structurally cannot expose a secret value, or from
-evidence supplied by an explicitly authorized human operator or control owner; if
-neither is available the affected criterion is **`BLOCKED`**. If secret material
-is nevertheless exposed to an implementing agent, it must stop that source/read
-path immediately, report the exposure at the minimum safe level, and perform no
-further read of that secret-bearing source for the task.
+evidence supplied by an explicitly authorized **human/operator or control
+owner** — or a sanitized artefact generated under that non-agent
+human/operator's own control. **No AI agent or model is a valid evidence source
+for this purpose**, in any role, family or session; evidence produced by an AI
+agent that itself inspected production runtime or secret-bearing configuration
+must be refused. If neither route is available the affected criterion is
+**`BLOCKED`**. If secret material is nevertheless exposed to an implementing
+agent, it must stop that source/read path immediately, report the exposure at the
+minimum safe level, and perform no further read of that secret-bearing source for
+the task.
 
 **Control limitation, OPEN.** `THOTH-GQL-OPS-01` section 2.2.5 treats such an
 incidental encounter as "not a breach" until the material is copied onward. The
@@ -415,12 +420,42 @@ prerequisite the rehearsal specification must carry.
 
 **Actor, binding.** That deployment — and any mode transition, mixed-fleet
 creation or rollback in a real environment, production or not — is performed by
-an **authorized human operator or other independently controlled deployment
-actor**, never by an implementing agent. An implementing agent may specify what
-is required, evaluate the sanitized evidence returned and record the outcome; it
-may not deploy, dispatch a deployment workflow, transition a mode in a real
-environment or use deployment credentials. Where that actor or its evidence is
-unavailable, the dependent criterion is **`BLOCKED`**.
+an **AUTHORIZED NON-AGENT DEPLOYMENT ACTOR**, which has exactly two permitted
+forms:
+
+```text
+FORM 1 -- an AUTHORIZED HUMAN / OPERATOR acting under the relevant
+          authorization;
+
+FORM 2 -- EXISTING DEPLOYMENT AUTOMATION OR INFRASTRUCTURE that executes
+          under that authorized human/operator's own control or
+          initiation.
+
+There is no third form, and NO AI AGENT OR MODEL qualifies -- in any
+role, family or session, and whether or not it is separately or
+independently controlled.
+
+No AI agent or model may initiate, trigger, dispatch or execute a
+deployment; perform a real-environment mode transition; create,
+manipulate or restore real fleet state; execute a real-environment
+rollback; use deployment credentials; or substitute for the authorized
+human/operator by invoking deployment automation.
+
+An automated deployment system is an EXECUTION MECHANISM, not an AI-agent
+delegation: it must be initiated and controlled by the authorized
+non-agent operator under the relevant authorization.
+```
+
+The prohibition is not limited to the implementing agent of any one task; it
+binds every assisting, reviewing, orchestrating, supervising, delegated or
+sub-agent model equally. An AI agent may specify what is required, evaluate the
+sanitized evidence returned and record the outcome. Where no authorized
+non-agent deployment actor or its evidence is available, the dependent criterion
+is **`BLOCKED`** — an AI agent stepping in is not an available actor.
+
+Ordinary local, disposable and CI repository testing by an implementing agent is
+unaffected by this paragraph, which governs real operational environments and
+actions only.
 
 ### 3.6 Behaviour for an absent value
 

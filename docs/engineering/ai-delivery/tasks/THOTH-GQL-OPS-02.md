@@ -206,10 +206,20 @@ The task performs no production access, executes no deployment, uses or changes
 no credential, dispatches no workflow, and makes no change to the private
 authoritative deployment source. It sets no mode in any environment.
 
-The implementing agent performs no deployment in **any** environment, production
-or not, and dispatches no deployment workflow. External deployment facts are
-obtained only through the evidence boundary of section 6.6; the implementing
-agent reads no secret-bearing production configuration.
+**No AI agent or model — the implementing agent or any other, of any role, family
+or session — performs a deployment in any environment, production or not,
+dispatches a deployment workflow, transitions a mode in a real environment, uses
+deployment credentials, or invokes deployment automation in place of an
+authorized human/operator.** Any such action belongs to an **authorized non-agent
+deployment actor**: an authorized human/operator, or existing deployment
+automation executing under that human/operator's own control or initiation. An
+automated deployment system is an execution mechanism, not an AI-agent
+delegation.
+
+External deployment facts are obtained only through the evidence boundary of
+section 6.6; the implementing agent reads no secret-bearing production
+configuration. Local, disposable and CI repository testing is ordinary work and
+is **not** restricted by this paragraph.
 
 ### 6.4 Concurrency and idempotency
 
@@ -300,9 +310,15 @@ ROUTE A -- a SANITIZED METADATA-ONLY SOURCE that structurally cannot
            redacted export, a presence/absence listing of variable NAMES
            with values absent by construction, or an equivalent artefact.
 
-ROUTE B -- EVIDENCE SUPPLIED BY AN EXPLICITLY AUTHORIZED human operator,
-           control owner or other independently controlled actor, in
-           sanitized non-secret form, attributed to a named role.
+ROUTE B -- EVIDENCE SUPPLIED BY AN EXPLICITLY AUTHORIZED HUMAN /
+           OPERATOR or CONTROL OWNER, in sanitized non-secret form,
+           attributed to a named role -- or a sanitized artefact
+           generated under that non-agent human/operator's own control.
+
+           NO AI AGENT OR MODEL is a valid Route B source, in any role,
+           family or session. Evidence produced by an AI agent that
+           itself inspected production runtime or secret-bearing
+           configuration is NOT Route B evidence and must be refused.
 ```
 
 If neither route can supply a fact, the criterion that needs it — AC-17 for the
@@ -416,10 +432,13 @@ open. Only `THOTH-GQL-OPS-04` may lift that marking.
       production configuration. If neither route can supply it, this criterion is
       **`BLOCKED`**, and `BLOCKED` is the required outcome rather than a widened
       read.
-- [ ] **AC-18** The implementing agent performed no deployment in any
-      environment, production or not, dispatched no deployment workflow, used no
-      deployment credential, and read no secret-bearing production configuration.
-      The report states this explicitly.
+- [ ] **AC-18** **No AI agent or model of any role, family or session** — the
+      implementing agent or any other — performed a deployment in any
+      environment, production or not, dispatched a deployment workflow, used a
+      deployment credential, invoked deployment automation in place of an
+      authorized human/operator, or read secret-bearing production configuration.
+      The report states this explicitly. Local, disposable and CI repository
+      testing is not restricted by this criterion.
 
 ## 10. Required tests
 
@@ -476,9 +495,11 @@ Additionally:
   that would newly fail startup under the section 6.5 change, and record the
   result — or record `BLOCKED` if neither route can supply it;
 - confirm no environment was transitioned and no mode was set anywhere;
-- confirm that the implementing agent performed no deployment in any environment,
-  dispatched no deployment workflow, used no deployment credential and read no
-  secret-bearing production configuration.
+- confirm that **no AI agent or model of any role, family or session** performed
+  a deployment in any environment, dispatched a deployment workflow, used a
+  deployment credential, invoked deployment automation in place of an authorized
+  human/operator, or read secret-bearing production configuration. Local,
+  disposable and CI repository testing is unrestricted.
 
 ### Performance
 
@@ -539,9 +560,11 @@ The implementing agent must stop and report `BLOCKED` if:
 - the fix cannot be made without changing guard, batching or store semantics;
 - a production action, deployment or mode change would be needed to satisfy an
   acceptance criterion;
-- any step would require the implementing agent itself to deploy, dispatch a
-  deployment workflow, transition a mode in a real environment or use deployment
-  credentials — in production or in any non-production environment;
+- any step would require an AI agent or model — the implementing agent or any
+  other, of any role, family or session — to deploy, dispatch a deployment
+  workflow, transition a mode in a real environment, use deployment credentials
+  or invoke deployment automation in place of an authorized human/operator — in
+  production or in any non-production environment;
 - an external deployment fact can be obtained only by a direct
   implementing-agent read of secret-bearing production configuration, with
   neither section 6.6 route available;
@@ -592,10 +615,11 @@ behaviour changes as intentional rather than as no change, together with the
 re-confirmation that no environment supplies a value that would newly fail
 startup — stating which section 6.6 route supplied it, or recording it
 `BLOCKED`; explicit confirmation that no mode was set in any environment and no
-production action occurred; explicit confirmation that the implementing agent
-performed no deployment in any environment, dispatched no deployment workflow,
-used no deployment credential and performed no direct read of secret-bearing
-production configuration — and, if secret material was nevertheless exposed, that
+production action occurred; explicit confirmation that **no AI agent or model of
+any role, family or session** performed a deployment in any environment,
+dispatched a deployment workflow, used a deployment credential, invoked
+deployment automation in place of an authorized human/operator, or performed a
+direct read of secret-bearing production configuration — and, if secret material was nevertheless exposed, that
 the read path was stopped immediately, the exposure reported at the minimum safe
 level, no further read of that source performed and the dependent criteria
 recorded `BLOCKED`, classified as a control/process exception rather than an
