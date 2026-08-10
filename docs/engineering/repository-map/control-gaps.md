@@ -189,12 +189,29 @@ semantics, fleet propagation and verification, partial-fleet handling, rollback,
 change authority and evidence. That specification is `DRAFT` and its
 implementation is `NOT AUTHORIZED`.
 
-`THOTH-GQL-OPS-01` does **not** close CG-13. Migration execution, backup and
-restore verification, and approver mapping for concerns other than that feature
-remain open here regardless of its outcome, and it is required to default
-conservatively to "feature-specific subset satisfied; broad CG-13 remains open".
-Any broader closure would need its own evidence, independent review and CTO
-decision recorded in this register.
+**`THOTH-GQL-OPS-01` cannot, by itself, satisfy even that subset.** Its discovery
+establishes two capability gaps that documentation cannot close:
+
+1. no effective production mode-control path exists that can consume
+   `THOTH_GRAPHQL_MUTATION_GUARD_MODE` — production runs the container image's
+   default `init` command, which does not accept the value, so the effective
+   production mode is currently fixed at `OFF`;
+2. no implemented mechanism can prove the effective mode of every serving
+   instance, so a mode change could not be verified even if one could be made.
+
+Its expected terminal disposition is therefore **C — insufficient operational
+capability/evidence; BLOCKED**, and the `ADR-0006` runtime-operations gate
+remains **NOT SATISFIED** on its completion. Closing the two gaps requires
+separate bounded tasks — `THOTH-GQL-OPS-02` (mode-control path) and
+`THOTH-GQL-OPS-03` (fleet-verification mechanism) — each implemented,
+independently reviewed and merged on its own authority. Only then may
+`THOTH-GQL-OPS-04` re-verify against the real runtime and decide, on evidence,
+whether the feature-specific subset is satisfied.
+
+None of these tasks closes CG-13. Migration execution, backup and restore
+verification, and approver mapping for concerns other than this feature remain
+open here regardless of their outcome. Any broader closure would need its own
+evidence, independent review and CTO decision recorded in this register.
 
 ## Verification gaps
 

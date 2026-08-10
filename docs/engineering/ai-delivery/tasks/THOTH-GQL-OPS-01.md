@@ -21,6 +21,10 @@ Suggested target branch name: `feature/shared-architecture/graphql-runtime-ops`
 (**must not exist** until implementation is authorized)
 Production activation effect: NONE. This task establishes how a mode change
 would be controlled. It does not perform one.
+Expected terminal CG-13 disposition: **C — insufficient operational
+capability/evidence; BLOCKED** (section 12.1). This is the expected outcome, not
+a failure of the task.
+Runtime-operations gate on completion: **NOT SATISFIED** (section 12.2).
 
 Authority condition: this record is repository-authoritative when this exact
 content is reachable from the repository's authoritative integration branch.
@@ -38,8 +42,10 @@ subject to their own separate explicit CTO production activation approval
 Establish, from verified evidence, how the merged GraphQL mutation guard's
 operating mode is configured, changed, deployed, propagated across every serving
 replica, verified fleet-wide, detected when only partially applied, rolled back,
-authorized and evidenced — so that a later `OFF -> OBSERVE` activation becomes
-operationally controllable, without this task activating anything.
+authorized and evidenced — and, where the operational capability required to do
+any of that **does not currently exist**, identify the missing capability,
+specify the bounded prerequisite task that must deliver it, and record the
+runtime-operations gate as **unsatisfied**.
 
 The subject of the control is the single value:
 
@@ -47,9 +53,31 @@ The subject of the control is the single value:
 THOTH_GRAPHQL_MUTATION_GUARD_MODE   in { OFF, OBSERVE, ENFORCE }
 ```
 
-The task's output is an approved operational-control record and runbook, not a
-production change. At completion the guard mode remains `OFF`, the loader store
-remains unavailable, and production request acceptance remains unchanged.
+The task's output is a control record, a provisional runbook and a set of
+specified prerequisite tasks. It is **not** a production change, and it is **not**
+by itself a discharge of the `ADR-0006` runtime-operations gate.
+
+**Binding limit on what this task can achieve.** Discovery (section 2.2)
+establishes two capability gaps that this task cannot close by documenting them:
+
+```text
+1. no effective production mode-control path exists that can actually
+   consume THOTH_GRAPHQL_MUTATION_GUARD_MODE;
+
+2. no implemented, independently reviewed mechanism exists that can prove
+   the effective mode of every serving instance.
+```
+
+Until **both** are delivered — implemented, independently reviewed and merged —
+the mode cannot be changed in production and a change could not be verified if it
+were. Documenting that fact, and specifying the tasks that would fix it, is
+necessary work and is this task's purpose; it is **not** equivalent to having the
+capability. Section 12 therefore requires this task to terminate at disposition
+**C — BLOCKED**, and section 11 records the runtime-operations gate as
+**NOT SATISFIED** on completion.
+
+At completion the guard mode remains `OFF`, the loader store remains unavailable,
+and production request acceptance remains unchanged.
 
 ## 2. Background and authority
 
@@ -94,17 +122,30 @@ feature-specific successor**. It addresses the mutation-guard runtime-mode-contr
 subset of CG-13 and nothing else. Closing all of CG-13 is an explicit non-goal
 (section 4), and the disposition rule is section 12.
 
-This task is the **first** item of the authoritative dependency sequence recorded
-in `ADR-0006` section 12 and in the
-[decision register](../../decisions/decision-register.md):
+`THOTH-GQL-OPS-01` opens the runtime-operations gate recorded in `ADR-0006`
+section 12 and in the
+[decision register](../../decisions/decision-register.md). It does **not** close
+it. The materially correct sequence, which section 11.1 restates as the
+authoritative form, is:
 
 ```text
-runtime-operations evidence for mode control          <- THIS TASK
-    -> service-health signals and activation thresholds
-    -> preview/staging acceptance + performance evidence
-       + timed rollback rehearsal
+THOTH-GQL-OPS-01 discovery/control work            <- THIS TASK
+    -> entrypoint/configuration remediation
+       implemented + reviewed + merged             (THOTH-GQL-OPS-02)
+    -> fleet-verification mechanism
+       implemented + reviewed + merged             (THOTH-GQL-OPS-03)
+    -> fresh bounded runtime-operations
+       verification/closure                        (THOTH-GQL-OPS-04)
+    -> feature-specific CG-13 subset may become satisfied
+    -> service-health signals / activation thresholds
+    -> preview/staging performance + timed rollback rehearsal
     -> explicit CTO OFF -> OBSERVE authorization
 ```
+
+The three successor tasks are **specified** by this one (section 3.12) and
+implemented by nobody until each is separately approved and authorized. Their
+branches must not exist, and none of them may be implemented in this task's
+pull request.
 
 ### 2.2 Current behaviour, established at base `75f44aabc52d98596ea6ce69ab068b3698fcd524`
 
@@ -141,8 +182,13 @@ for this codebase.
 effective mode of a serving instance. In particular `OFF` and `OBSERVE` are
 externally indistinguishable — `OBSERVE` never rejects, and its only output is a
 server-side event emitted solely when a colliding document happens to arrive.
-This is a hard blocker for acceptance criterion AC-7 and is why section 3.5
-requires a mechanism to be specified.
+
+This is **capability gap 2** of section 1. It is not merely an input to a later
+activation checklist: while it holds, no mode change could be verified even if
+one could be made, so the runtime-operations gate cannot be discharged. Section
+3.5 requires the mechanism to be **specified**; section 3.12 requires it to be
+delivered by a separate task (`THOTH-GQL-OPS-03`); and section 12.1 forbids
+disposition A until that task has merged.
 
 #### 2.2.3 The `init` entrypoint does not accept the mode — proven
 
@@ -199,11 +245,58 @@ it means that setting the environment variable would appear to succeed while
 changing nothing, which is precisely the class of failure the fleet-verification
 and partial-fleet requirements of this task exist to detect.
 
-Steps 1 to 6 are fully verifiable from this repository and its pinned
-dependencies. Whether the **production** GraphQL API container runs `init` or an
-explicit `start graphql-api` command is a property of the deployment
-configuration, which is owned outside this repository — see section 2.2.4 and
-requirement 3.2.
+Steps 1 to 6 are fully verifiable `[REPO]` from this repository and its pinned
+dependencies. **Production applicability is established `[EXTERNAL]`:** the
+production GraphQL API service inherits the image default and does not override
+the container command, so production currently runs the `init` path. The
+implementing agent must re-confirm this from the authoritative source at
+execution time under the scoped-read rules of section 2.2.5.
+
+**Established consequence for this task:**
+
+```text
+The effective production mutation-guard mode is currently fixed at OFF and
+cannot be changed by configuration at all.
+```
+
+This is **capability gap 1** of section 1. It is not a caveat on a later
+activation: while it holds, `OFF -> OBSERVE` is not merely unauthorized, it is
+not **performable**. Section 12.1 forbids disposition A until it is remediated by
+a separate task (`THOTH-GQL-OPS-02`).
+
+##### 2.2.3.1 `init` is not interchangeable with `start graphql-api`
+
+This distinction is binding on every remediation discussion in this
+specification, and getting it wrong would silently widen scope into the migration
+half of CG-13.
+
+`init` and `start graphql-api` are **not** two spellings of the same thing.
+Established `[REPO]` from `src/bin/thoth.rs`:
+
+```rust
+Some(("init", arguments)) => {
+    commands::run_migrations(arguments)?;
+    commands::start::graphql_api(arguments)
+}
+```
+
+so:
+
+| Command | Runs database migrations | Starts the GraphQL API |
+|---|---|---|
+| `init` | **yes**, first, and aborts on failure | yes, only if migrations succeeded |
+| `start graphql-api` | **no** | yes |
+
+The `Dockerfile` states the same intent directly: "By default run `thoth init`
+(runs migrations and starts the server on port 8080)".
+
+**Consequence:** replacing the production container command with
+`start graphql-api` would **remove migration execution from the deployment
+path**. That is a change to the existing migration-execution and deployment
+contract, it intersects the broader CG-13 migration/deployment problem that this
+task explicitly does not address, and it is therefore **out of bounded scope**.
+It must never be presented as an interchangeable feature-local fix for the mode
+gap. Section 13.1 states the binding classification.
 
 #### 2.2.4 What this repository knows about production runtime
 
@@ -231,27 +324,63 @@ procedure remain unverified under control gap CG-13".
 
 **The authoritative deployment configuration is owned outside this repository.**
 Discovery identified the owning control system from evidence as the private
-repository `thoth-pub/infrastructure`, which holds the AWS CloudFormation
+repository `thoth-pub/infrastructure`. It holds the authoritative deployment
 definitions for the Thoth production and test services, including the container
-image version, the container command, and the task environment variables for the
-production GraphQL API service. Its recorded update procedure is a
-CloudFormation stack update driven from that repository.
+image version, the container command and the task environment variables for the
+production GraphQL API service, and it carries its own documented update
+procedure.
 
-Deliberately **not** recorded in this public repository: account identifiers,
-resource ARNs, stack, cluster or service names, hostnames beyond those already
-published in `environments.md`, autoscaling parameter values, and every value of
-every environment variable. The implementing agent must read the current values
-from the authoritative source at execution time rather than from this document,
-and must not copy them here.
+That pointer is the **whole** of what this public repository records about that
+source, and is recorded only because the specification cannot identify its
+configuration authority without it. Deliberately **not** recorded here, in this
+or any successor task: credential values, resource identifiers, account
+identifiers, production topology, platform or orchestration detail, stack,
+cluster or service names, hostnames beyond those already published in
+`environments.md`, scaling parameters, and every value of every environment
+variable. The implementing agent must establish current mechanism and values from
+the authoritative source at execution time, under the scoped-read rules of
+section 2.2.5, rather than from this document — and must not copy them here.
 
 **Hazard, recorded because it constrains how this task may work.** The
-authoritative deployment source carries production credential material inline in
-template parameters. The implementing agent must therefore treat that source as
-read-only, must not reproduce any value from it in the repository, the pull
-request, the implementation report or the runbook, and must reference
-configuration by **name and location only**. Remediating that exposure is
-**outside this task's scope**; it is a separate matter for the CTO and must be
-escalated rather than handled here.
+authoritative deployment source is **secret-bearing**: it carries production
+credential material inline in configuration. That single fact is the whole of
+what this repository records about it, and it is recorded only because it
+constrains the method of section 2.2.5. Remediating the exposure is **outside
+this task's scope**; it remains a separate CTO-controlled security matter and
+must be escalated rather than handled here, in this task or any successor
+specified by it.
+
+No further detail about that source may be published here or in any public
+output. In particular: no credential value, no resource identifier, no account
+identifier, no production topology, no stack, cluster or service name, and no
+private configuration.
+
+#### 2.2.5 Scoped-read rules for the private authoritative source
+
+Binding on `THOTH-GQL-OPS-01` and on every successor task it specifies. These
+rules exist because the source is secret-bearing, so the ordinary technique of
+reading a configuration file whole is not available.
+
+The implementing agent must:
+
+1. use **narrowly scoped searches or line/range reads** targeted at the specific
+   acceptance criterion being satisfied — never a whole-file read of a
+   secret-bearing configuration file, and never a broad recursive dump;
+2. retrieve **only the metadata the criterion requires** — typically the presence
+   or absence of a setting, the name of a mechanism, an ownership record, or a
+   rollout semantic — and stop there;
+3. **never copy secret-bearing ranges** into a report, a specification, a
+   changelog, a pull request, a commit message, a prompt or any other output,
+   whether or not the value appears relevant;
+4. treat the source as strictly **read-only**: make no change, open no pull
+   request, dispatch no workflow and use no credential found there;
+5. stop and report **`BLOCKED`** if the evidence a criterion needs cannot be
+   obtained without exposing secret material. An unobtainable criterion is
+   missing work, and a criterion is never satisfied by widening the read.
+
+Incidental encounter with secret material during an otherwise scoped read is not
+a breach, and must be reported as an escalation rather than quietly absorbed; it
+becomes a breach only if the material is copied onward.
 
 **Evidence-classification rule, binding.** Every operational statement the task
 records must be labelled with the source class that establishes it:
@@ -294,9 +423,12 @@ Establish:
 2. which source is **authoritative** when more than one could set it;
 3. whether the value is an environment variable, a deployment parameter or
    another mechanism;
-4. **which command the production GraphQL API container actually runs** — the
-   image default `init`, or an explicit `start graphql-api`. This is load-bearing
-   because of section 2.2.3: under `init` the variable has no effect at all;
+4. **which command the production GraphQL API container actually runs**, and to
+   confirm the section 2.2.3 established finding that it is the image default
+   `init`. This is load-bearing because under `init` the variable has no effect
+   at all. This item asks **what production runs**; it must not be read as
+   offering a change of command as a remedy — sections 2.2.3.1 and 13.1.1 put
+   any such change out of bounded scope;
 5. behaviour for an **absent** value — established `[REPO]`: `clap` supplies the
    declared default `OFF`;
 6. behaviour for an **invalid** value — established `[REPO]`: `clap`'s
@@ -390,15 +522,30 @@ If current application telemetry cannot prove effective fleet mode — and secti
 separately reviewable mechanism that can. Binding constraints on that
 specification:
 
-- it must be **specified** here and **implemented and reviewed separately**. The
-  task must not add runtime observability in its own documentation PR, and must
-  not add it silently anywhere;
+- it must be **specified** here and **implemented and reviewed separately**, as
+  `THOTH-GQL-OPS-03` (section 3.12). The task must not add runtime observability
+  in its own documentation PR, and must not add it silently anywhere;
 - it must not expose the mode on an unauthenticated public surface unless the
   task establishes that doing so is acceptable, with reasoning — the guard mode
   describes a server-side request-acceptance policy, and publishing it is an
   information-disclosure decision, not a formatting choice;
 - it must not change guard semantics, batching semantics or store semantics;
 - it must remain inert with respect to request acceptance.
+
+**Specifying the mechanism does not verify the fleet.** This is binding and is
+the distinction the whole task turns on:
+
+```text
+a specification for a verifier   !=   a verifier
+a verifier                       !=   a verified fleet
+```
+
+Satisfying acceptance criterion AC-8 means a mechanism has been **defined**. It
+does not mean the effective mode of any instance has been established, and it
+must never be recorded, summarised or reported as though it did. Until
+`THOTH-GQL-OPS-03` is implemented, independently reviewed and merged, the
+effective fleet mode remains **unverifiable**, and section 12.1 forbids
+disposition A on that ground alone.
 
 ### 3.6 Partial-fleet handling
 
@@ -560,11 +707,91 @@ Binding:
    carrying its evidence source and evidence class;
 2. the mode-transition **runbook** required by `ADR-0006` section 8.3.5, covering
    every item that section lists, including how store unavailability outside
-   `ENFORCE` is verified operationally rather than assumed;
-3. a **separately reviewable specification** for the smallest fleet-verification
-   mechanism (section 3.5), not its implementation;
-4. the CG-13 disposition statement required by section 12;
-5. the changelog entry and the implementation report.
+   `ENFORCE` is verified operationally rather than assumed. The runbook is
+   necessarily **PROVISIONAL** and must be marked so: it describes procedures
+   that cannot be executed until the section 3.12 prerequisites have merged, and
+   it must not read as an executable runbook before then;
+3. the three **prerequisite task specifications** required by section 3.12,
+   written to `task-specification-template.md`, each `DRAFT` and each with
+   implementation `NOT AUTHORIZED`;
+4. the CG-13 disposition statement required by section 12, which under section
+   12.1 must be **C — BLOCKED** unless both prerequisites have already merged;
+5. an explicit statement that the `ADR-0006` runtime-operations gate is
+   **NOT SATISFIED** on completion (section 12.2);
+6. the changelog entry and the implementation report.
+
+### 3.12 Required prerequisite task specifications
+
+Discovery established two capability gaps (section 1) that this task cannot close
+by documenting them. The task must **specify** the bounded successors that close
+them, and must **not** implement any of them, create their branches, or treat
+their specification as their delivery.
+
+Task identifiers follow the repository's existing family convention
+(`THOTH-DB-CTRL-01` / `-02`, `THOTH-GQL-BATCH-01`), and branch names follow
+`feature/<programme-or-area>/<short-name>` per
+[`task-specification-template.md`](../task-specification-template.md).
+
+| Task | Closes | Type | Suggested branch (must not exist) |
+|---|---|---|---|
+| `THOTH-GQL-OPS-02` | capability gap 1 — mode-control path | runtime code | `feature/shared-architecture/graphql-guard-mode-entrypoint` |
+| `THOTH-GQL-OPS-03` | capability gap 2 — effective-mode fleet verification | runtime code | `feature/shared-architecture/graphql-guard-mode-fleet-verification` |
+| `THOTH-GQL-OPS-04` | the gate itself | documentation/control | `feature/shared-architecture/graphql-runtime-ops-closure` |
+
+#### 3.12.1 `THOTH-GQL-OPS-02` — mutation-guard mode-control path
+
+Objective: make `THOTH_GRAPHQL_MUTATION_GUARD_MODE` actually consumable on the
+path production runs, so that a mode change is possible at all.
+
+Binding scope constraints:
+
+- the remediation class is **feature-local and in-repository**: registering and
+  propagating the mutation-guard mode through the `init` command **while
+  preserving all existing `init` migration and startup semantics**, or another
+  equally bounded in-repository solution that preserves those semantics;
+- `init` must continue to run migrations first and to abort startup if they fail
+  (section 2.2.3.1). A remediation that changes, reorders, conditionalises or
+  removes migration execution is **out of scope** and must be escalated;
+- the default remains `OFF`, and the merged state remains inert. Making the mode
+  settable is **not** setting it;
+- **an explicit production container-command override is not an alternative
+  within this task.** See section 13.1 for the binding classification;
+- `THOTH-GQL-OPS-01` must **not** select the fix. It records the class and the
+  constraints; `THOTH-GQL-OPS-02`'s own approved specification selects the
+  mechanism after the owning parties have been consulted.
+
+Required evidence: that the mode is consumable on the production-applicable path
+in a **release** build; that the debug-build panic path is also resolved; that
+migration execution is unchanged; and that the default and merged state remain
+`OFF` with the store unavailable.
+
+#### 3.12.2 `THOTH-GQL-OPS-03` — effective-mode fleet-verification mechanism
+
+Objective: implement the smallest mechanism specified under section 3.5, so the
+effective mode of every serving instance can be established.
+
+Binding scope constraints:
+
+- it must satisfy every requirement of section 3.5, including per-instance
+  attribution and proof of **effective** rather than intended mode;
+- it must be able to detect the section 2.2.3 failure class specifically — a
+  configured mode that the process silently did not adopt — since that failure is
+  otherwise invisible;
+- it must remain inert with respect to request acceptance, guard semantics,
+  batching semantics and store semantics;
+- it must expose no secret and no publisher or user data.
+
+#### 3.12.3 `THOTH-GQL-OPS-04` — bounded runtime-operations verification and closure
+
+Objective: after `THOTH-GQL-OPS-02` and `THOTH-GQL-OPS-03` have merged, verify
+the mode-control path and the verification mechanism against the real runtime,
+finalise the runbook from provisional to executable, and only then decide whether
+the feature-specific CG-13 subset is satisfied.
+
+`THOTH-GQL-OPS-04` is the **only** task in this family that may return CG-13
+disposition **A**, and it may do so only on evidence, subject to its own
+independent review and CTO decision. It may equally return **C** again if the
+delivered capability proves insufficient.
 
 ## 4. Non-goals
 
@@ -594,9 +821,17 @@ The task must **not**:
 20. implement the fleet-verification mechanism of section 3.5 in this task's
     pull request;
 21. remediate the credential-exposure hazard noted in section 2.2.4 — escalate it
-    instead;
+    instead, and create or modify no security issue without separate explicit CTO
+    authorization;
 22. write any production configuration value, secret or resource identifier into
-    this repository.
+    this repository;
+23. implement any of `THOTH-GQL-OPS-02`, `-03` or `-04`, or create their branches;
+24. select the `THOTH-GQL-OPS-02` remediation mechanism (section 3.12.1);
+25. change the production container command, or specify doing so as a
+    feature-local fix (section 13.1);
+26. return CG-13 disposition **A**, or record the runtime-operations gate as
+    satisfied, while either capability gap of section 1 remains open
+    (section 12.1).
 
 ## 5. Invariants
 
@@ -616,15 +851,46 @@ The implementation must preserve:
 8. `BE-02` remains unauthorized;
 9. no secret or production configuration value enters the repository;
 10. no operational claim is recorded without a named evidence source and
-    evidence class.
+    evidence class;
+11. migration execution on the production startup path is unchanged, and no
+    remediation that alters it is selected or specified here
+    (sections 2.2.3.1 and 13.1);
+12. the runtime-operations gate is recorded as **NOT SATISFIED**, and the CG-13
+    disposition as **C**, unless both capability gaps of section 1 have already
+    been closed by merged work (section 12.1).
 
 ## 6. Required behaviour
 
 ### 6.1 Success behaviour
 
-An approved specification and runbook exist from which an authorized operator
-could execute `OFF -> OBSERVE`, verify it fleet-wide, detect a partial fleet,
-and roll back — with every step evidenced and no step requiring an invented fact.
+The task succeeds when it has produced a complete, evidenced control record; a
+**provisional** runbook; the three prerequisite task specifications of section
+3.12; and an explicit, correct statement that the runtime-operations gate is
+**NOT SATISFIED** and the CG-13 disposition is **C — BLOCKED**.
+
+**Success is not an operator being able to act.** The earlier formulation of this
+section — "an authorized operator could execute `OFF -> OBSERVE`, verify it
+fleet-wide, detect a partial fleet and roll back" — is **withdrawn** as the
+success condition for this task, because it is unachievable by documentation:
+section 2.2.3 establishes that the mode cannot be changed at all on the
+production-applicable path, and section 2.2.2 establishes that no change could be
+verified. That formulation describes the success condition of
+`THOTH-GQL-OPS-04`, after `-02` and `-03` have merged.
+
+The distinction is binding:
+
+```text
+THOTH-GQL-OPS-01 succeeds by  establishing the control record,
+                              proving the capability gaps and
+                              specifying what must close them
+
+THOTH-GQL-OPS-04 succeeds by  an operator actually being able to
+                              execute, verify, detect and roll back
+```
+
+A `THOTH-GQL-OPS-01` result that claims the operator capability, or that reports
+the gate as satisfied, is **wrong** regardless of how complete its documentation
+is.
 
 ### 6.2 Failure behaviour
 
@@ -633,12 +899,19 @@ and returns `BLOCKED` for the affected criterion. It does not substitute a
 plausible mechanism, and it does not soften an unanswerable question into a
 narrative. Missing evidence is missing work.
 
+Where a required **capability** is unavailable, the same rule applies with equal
+force: the task records the gap, specifies the task that would close it, and
+does not treat the specification as the capability. Missing capability is missing
+work.
+
 ### 6.3 Authorization
 
-The task performs no production access, executes no deployment, retrieves no
-secret and dispatches no workflow. Inspection of any external authoritative
-source is **read-only** and limited to ownership, mechanism and configuration
-**metadata**.
+The task performs no production access, executes no deployment, uses or changes
+no credential and dispatches no workflow. Inspection of any external
+authoritative source is **read-only**, limited to ownership, mechanism and
+configuration **metadata**, and bound by the scoped-read rules of section 2.2.5.
+Because that source is secret-bearing, the task must expect to encounter secret
+material and must handle it under those rules rather than assume it will not.
 
 ### 6.4 Concurrency and idempotency
 
@@ -666,12 +939,15 @@ Any contrary discovery is a stop and escalation condition (section 13).
 Required logs: none added by this task.
 
 Required metrics/alerts: none added by this task. Section 3.5 **specifies** a
-fleet-verification mechanism; it does not build one. Service-health signals and
-activation thresholds are explicitly **out of scope** and remain a separate
-gate — see section 11.
+fleet-verification mechanism; it does not build one, and `THOTH-GQL-OPS-03`
+delivers it. Until that task merges, the effective fleet mode remains
+unverifiable. Service-health signals and activation thresholds are explicitly
+**out of scope** and remain a separate gate — see section 11.
 
 Operational runbook changes: this task produces the mode-transition runbook
-required by `ADR-0006` section 8.3.5. The runbook is documentation. Its
+required by `ADR-0006` section 8.3.5, marked **PROVISIONAL**: its procedures
+cannot be executed until `THOTH-GQL-OPS-02` and `THOTH-GQL-OPS-03` have merged,
+and it must not read as executable before then. The runbook is documentation. Its
 existence changes no production behaviour and authorizes no transition.
 
 ## 9. Acceptance criteria
@@ -708,6 +984,9 @@ class. `[UNVERIFIED]` is a failure, not an outcome.
       **effect** rather than intent, attributing mode to instance, and
       distinguishing all three modes. *Evidence: the section 3.5 specification,
       plus the section 2.2.2 finding that no such mechanism exists today.*
+      **AC-8 is satisfied by a definition and is deliberately not sufficient for
+      AC-23 to AC-26; it must never be reported as fleet verification having
+      occurred.**
 - [ ] **AC-9** Partial-fleet state detectable by that mechanism. *Evidence: the
       detection procedure in the runbook.*
 - [ ] **AC-10** Partial-fleet state explicitly treated as **failed** activation,
@@ -731,7 +1010,8 @@ class. `[UNVERIFIED]` is a failure, not an outcome.
 - [ ] **AC-17** Production activation remains unauthorized, and the document says
       so. *Evidence: the delivered document.*
 - [ ] **AC-18** Broad CG-13 disposition explicit and classified A, B or C per
-      section 12. *Evidence: `control-gaps.md` as delivered.*
+      section 12, and consistent with the mandatory rule in section 12.1.
+      *Evidence: `control-gaps.md` as delivered.*
 - [ ] **AC-19** Monitoring and threshold work remains separately gated and is not
       absorbed. *Evidence: the delivered document; `ADR-0006` section 8.3.2.*
 - [ ] **AC-20** `BE-02` remains unauthorized and untouched. *Evidence: the
@@ -742,6 +1022,41 @@ class. `[UNVERIFIED]` is a failure, not an outcome.
 - [ ] **AC-22** The fleet-verification mechanism is specified but **not**
       implemented in this task's PR. *Evidence: the complete PR diff contains no
       runtime file.*
+
+The following criteria exist so that the criteria above cannot, between them,
+be read as discharging the gate. They are additions; none relaxes AC-1 to AC-22.
+
+- [ ] **AC-23** Capability gap 1 — the absence of an effective production
+      mode-control path — is recorded explicitly, with its production
+      applicability established rather than left open. *Evidence: sections 2.2.3
+      and 2.2.3.1; `[EXTERNAL]` confirmation of the production container command
+      under the section 2.2.5 scoped-read rules.*
+- [ ] **AC-24** Capability gap 2 — the absence of an implemented effective-mode
+      verification mechanism — is recorded explicitly as an unclosed gap, and is
+      **not** reported as closed by AC-8. *Evidence: section 2.2.2 and the
+      delivered document.*
+- [ ] **AC-25** The CG-13 disposition is **C — BLOCKED**, unless **both**
+      `THOTH-GQL-OPS-02` and `THOTH-GQL-OPS-03` have already been implemented,
+      independently reviewed and merged at the task's exact base. *Evidence:
+      section 12.1; the merge state of those tasks on `develop`.*
+- [ ] **AC-26** The `ADR-0006` runtime-operations gate is recorded as
+      **NOT SATISFIED** on completion, in the specification, the control record,
+      the implementation report and the pull-request body alike. *Evidence:
+      section 12.2 and the delivered artefacts.*
+- [ ] **AC-27** The three prerequisite task specifications of section 3.12 exist,
+      each `DRAFT` with implementation `NOT AUTHORIZED`, and none of their
+      branches exists. *Evidence: the delivered files; `git branch -r`.*
+- [ ] **AC-28** No remediation that changes migration execution on the startup
+      path is selected or specified, and any documented production
+      container-command override carries the section 13.1 classification.
+      *Evidence: the delivered document; section 2.2.3.1.*
+- [ ] **AC-29** The runbook is marked **PROVISIONAL** and states that its
+      procedures are not executable until the section 3.12 prerequisites merge.
+      *Evidence: the delivered runbook.*
+- [ ] **AC-30** Every read of the private authoritative source complied with the
+      section 2.2.5 scoped-read rules, and any incidental encounter with secret
+      material was escalated rather than copied onward. *Evidence: the
+      implementation report's method statement.*
 
 ## 10. Required tests
 
@@ -801,15 +1116,37 @@ Not applicable.
   does **not** authorize `OBSERVE`;
 - **observation period:** not applicable to this task.
 
-**The gates remaining after this task completes:**
+### 11.1 The gates remaining after this task completes
+
+This is the authoritative sequence, and it supersedes any shorter form. Note that
+the runtime-operations gate this task belongs to is **still open** when the task
+completes:
 
 ```text
-service-health signals / activation thresholds   (ADR-0006 section 8.3.2)
-    -> preview/staging performance + timed rollback evidence
+THOTH-GQL-OPS-01 merged      (control record, provisional runbook,
+                              prerequisite specifications;
+                              runtime-operations gate NOT SATISFIED)
+    -> THOTH-GQL-OPS-02  entrypoint/configuration remediation
+                         specified, approved, implemented,
+                         independently reviewed and merged
+    -> THOTH-GQL-OPS-03  fleet-verification mechanism
+                         specified, approved, implemented,
+                         independently reviewed and merged
+    -> THOTH-GQL-OPS-04  fresh bounded runtime-operations
+                         verification and closure
+    -> feature-specific CG-13 subset MAY become satisfied
+       (runtime-operations gate satisfied at the earliest here)
+    -> service-health signals / activation thresholds
+                                        (ADR-0006 section 8.3.2)
+    -> preview/staging performance + timed rollback rehearsal
     -> explicit CTO OFF -> OBSERVE authorization
 ```
 
-### 11.1 Monitoring boundary
+Each arrow is a separate approval. `THOTH-GQL-OPS-02` and `-03` are runtime-code
+tasks and carry their own risk classification, independent review and merge
+authorization; neither is authorized by this specification's approval.
+
+### 11.2 Monitoring boundary
 
 This task is immediately followed by the separate gate "service-health signals
 and activation thresholds verified". That work must **not** be absorbed here
@@ -832,21 +1169,86 @@ A. feature-specific CG-13 subset satisfied;
 B. evidence proves the same control genuinely resolves all of CG-13;
    propose broader closure for independent review / CTO decision
 
-C. insufficient evidence;
+C. insufficient operational capability/evidence;
    BLOCKED
 ```
-
-**Default conservatively to A** unless evidence genuinely supports B.
 
 CG-13 requires documentation of runtime, deployment, **migration execution**,
 **rollback**, **restore verification** and approvers. This task addresses the
 mutation-guard runtime-mode-control subset only. Migration execution, backup and
 restore verification, and approver mapping for concerns other than this feature
-are untouched by it, so B is unlikely on this task's evidence and must not be
+are untouched by it, so **B is excluded on this task's evidence** and must not be
 claimed merely because the guard mode has been operationally mapped.
 
 Recording the result must keep CG-13 **open**. The task may add a durable
-reference to the bounded successor; it may not mark CG-13 resolved.
+reference to the bounded successors; it may not mark CG-13 resolved.
+
+### 12.1 Mandatory disposition rule
+
+**This rule is binding and is not subject to the implementing agent's judgement.**
+
+```text
+Disposition A is FORBIDDEN while either of the following is true:
+
+1. no effective production mode-control path exists that can actually
+   consume THOTH_GRAPHQL_MUTATION_GUARD_MODE
+   (capability gap 1; sections 2.2.3 and 3.12.1);
+
+2. no implemented, independently reviewed and merged mechanism exists that
+   can prove the effective mode of every serving instance
+   (capability gap 2; sections 2.2.2 and 3.12.2).
+
+While either holds, the required disposition is C - BLOCKED.
+```
+
+At this specification's base both are true, so `THOTH-GQL-OPS-01`'s expected
+terminal disposition is **C**. That is the correct outcome of the task, not a
+failure of it: the task's value is establishing the gaps rigorously and
+specifying what closes them.
+
+**What does not satisfy the rule.** None of the following converts C into A:
+
+- having *specified* the fleet-verification mechanism (AC-8). A specification for
+  a verifier is not a verifier, and a verifier is not a verified fleet;
+- having *specified* `THOTH-GQL-OPS-02` or `THOTH-GQL-OPS-03`. Specifying a task
+  is not delivering it;
+- having *documented* the entrypoint gap thoroughly. Documenting a missing
+  capability does not supply it;
+- the mode being `OFF` already, and therefore "correct". `OFF` being the desired
+  state is why the gap is fail-safe; it is not evidence that the control works;
+- an argument that the remaining work is small, obvious or low-risk. Size is not
+  the criterion; delivery is.
+
+**When A becomes reachable.** Only after both `THOTH-GQL-OPS-02` and
+`THOTH-GQL-OPS-03` are implemented, independently reviewed and merged, and only
+through `THOTH-GQL-OPS-04` (section 3.12.3), which must re-verify against the
+real runtime and reach its own evidenced conclusion. `THOTH-GQL-OPS-04` may also
+return C again.
+
+### 12.2 Effect on the ADR-0006 runtime-operations gate
+
+The `ADR-0006` section 7.2.4 / section 12 gate reads:
+
+```text
+runtime-operations evidence for mode control verified
+```
+
+`THOTH-GQL-OPS-01` **does not satisfy this gate.** The gate requires that mode
+control be *verified*, and at this task's base the mode cannot be changed on the
+production-applicable path and no change could be verified if it were. The task
+must record, in the specification, the control record, the implementation report
+and the pull-request body alike:
+
+```text
+Runtime-operations gate: NOT SATISFIED
+Blocking prerequisites:  THOTH-GQL-OPS-02, THOTH-GQL-OPS-03
+Earliest satisfaction:   THOTH-GQL-OPS-04, on evidence
+```
+
+Consequently `OFF -> OBSERVE` remains blocked on this gate in addition to every
+other gate `ADR-0006` imposes, and nothing downstream of it — service-health
+thresholds, preview/staging rehearsal, activation authorization — may proceed on
+the basis that this gate has been discharged.
 
 ## 13. Stop conditions
 
@@ -875,28 +1277,75 @@ The implementing agent must stop and report `BLOCKED` if:
 - a migration, data change, schema change or public API change turns out to be
   required.
 
-### 13.1 Known prerequisite that is not, by itself, a stop condition
+### 13.1 The entrypoint gap: a blocking prerequisite, not a stop condition
 
 Section 2.2.3 establishes that the `init` entrypoint silently ignores the mode
-variable in a release build. If the production GraphQL API container runs `init`,
-then **the mode is not currently controllable in production at all**, and a
-bounded remediation is a hard prerequisite for `OBSERVE`.
+variable in a release build, and that production runs `init`. **The mode is
+therefore not currently controllable in production at all**, and remediation is a
+hard, blocking prerequisite for `OFF -> OBSERVE` (section 12.1, capability gap 1).
 
-That remediation is **not** an architecture change: the `OFF`/`OBSERVE`/`ENFORCE`
-lifecycle approved by `ADR-0006` is intact, and the merged inert state is
-correct and fail-safe. The task must therefore:
+It is a **blocking prerequisite** rather than a **stop condition** because the
+approved architecture is intact: the `OFF`/`OBSERVE`/`ENFORCE` lifecycle needs no
+change, the merged state is correct and fail-safe, and the gap is closable by
+bounded runtime work. `THOTH-GQL-OPS-01` therefore proceeds, records the gap, and
+terminates at disposition C — it does not abort.
 
-- record the finding, with its evidence and its production applicability;
-- specify the remediation options it identifies — for example registering the
-  guard argument on the `init` command, or setting an explicit container command
-  — **without implementing any of them**, and without asserting which is correct
-  before the owning repository has been consulted;
-- record the remediation as a **separately specified, separately reviewed,
-  separately authorized** prerequisite of `OFF -> OBSERVE`;
-- require that the fleet-verification mechanism of section 3.5 be able to detect
-  this exact failure, since its defining characteristic is that it is silent.
+The task must:
 
-Recording it is required. Fixing it here is prohibited.
+- record the finding with its evidence and its established production
+  applicability;
+- record it as **capability gap 1**, blocking under section 12.1;
+- hand remediation to `THOTH-GQL-OPS-02` (section 3.12.1) as separately
+  specified, separately reviewed, separately authorized work;
+- require the section 3.5 mechanism to detect this exact failure class, since its
+  defining characteristic is that it is silent;
+- **not select the remediation mechanism**, and not implement one.
+
+#### 13.1.1 Remediation classes, and the binding boundary between them
+
+**Class 1 — feature-local, in scope for `THOTH-GQL-OPS-02`.**
+
+Registering and propagating the mutation-guard mode through the `init` command
+**while preserving all existing `init` migration and startup semantics**, or
+another equally bounded in-repository solution that preserves those semantics.
+
+The defining property of this class is that migration execution on the startup
+path is **unchanged**: `init` still runs migrations first and still aborts
+startup if they fail (section 2.2.3.1).
+
+**Class 2 — production container-command override, NOT in this class and NOT
+interchangeable.**
+
+Replacing the production container command with `start graphql-api` is **not** an
+alternative spelling of the class 1 fix and must never be documented as one.
+Established in section 2.2.3.1: `init` runs migrations and then starts the API,
+whereas `start graphql-api` starts the API **without running migrations**. An
+override would therefore **remove migration execution from the deployment path**.
+
+Binding classification, to be reproduced wherever an override is mentioned at
+all:
+
+```text
+An explicit production command override is NOT an interchangeable
+feature-local fix. It changes the current `init` execution path by removing
+migration execution from deployment, and therefore requires separate
+migration/deployment-control analysis and approval under the broader CG-13
+migration/deployment problem.
+```
+
+Consequences, binding:
+
+- an override is **out of bounded scope** for `THOTH-GQL-OPS-01` and for
+  `THOTH-GQL-OPS-02`;
+- it must not be offered as an option, a fallback, a "simpler alternative" or an
+  expedient anywhere in this family of tasks;
+- if evidence later shows that only an override can work, that is an escalation
+  to the CTO under the migration/deployment half of CG-13 — not a decision either
+  task may take;
+- **no production command or configuration change is authorized** by this
+  specification, by `THOTH-GQL-OPS-02`, or by their approval.
+
+Recording all of this is required. Fixing it here is prohibited.
 
 ## 14. Expected implementation report
 
@@ -908,9 +1357,27 @@ must record:
 - actual files changed;
 - the evidence class of every operational conclusion;
 - the exact evidence that is missing, where any is;
-- the CG-13 disposition and its justification;
-- explicit confirmation that no production action, no mode change, no deployment
-  and no secret retrieval occurred;
+- **the exact capability that is missing**, distinguished from missing evidence;
+- the CG-13 disposition and its justification. Under section 12.1 this must be
+  **C — BLOCKED** unless both prerequisites have already merged, and the report
+  must state which of the two capability gaps remain open;
+- an explicit statement that the **runtime-operations gate is NOT SATISFIED**,
+  naming `THOTH-GQL-OPS-02` and `THOTH-GQL-OPS-03` as the blocking prerequisites
+  and `THOTH-GQL-OPS-04` as the earliest point of satisfaction;
+- explicit confirmation that the runbook is marked **PROVISIONAL**;
+- explicit confirmation that no remediation altering migration execution was
+  selected or specified, and that any documented production command override
+  carries the section 13.1.1 classification;
+- explicit confirmation that no production action, no mode change, no deployment,
+  no credential use, change or rotation, and no production service or database
+  access occurred;
+- a **method statement** for every read of the private authoritative source,
+  confirming compliance with the section 2.2.5 scoped-read rules and reporting
+  any incidental encounter with secret material as an escalation. The report must
+  **not** claim that no secret material was encountered unless that is literally
+  true; the accurate and expected statement is that secret-bearing configuration
+  was encountered during authorized read-only discovery and that no value was
+  copied into any output;
 - explicit confirmation that `OBSERVE`, `ENFORCE` and `BE-02` remain
   unauthorized;
 - CI status and the docs-only classification.

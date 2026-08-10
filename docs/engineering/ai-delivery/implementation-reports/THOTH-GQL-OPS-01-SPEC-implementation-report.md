@@ -38,9 +38,17 @@ Implemented objective: produce a bounded, evidence-driven operational-control
 specification establishing how the merged mutation guard's
 `THOTH_GRAPHQL_MUTATION_GUARD_MODE` is configured, changed, deployed,
 propagated, verified fleet-wide, detected when partially applied, rolled back,
-authorized and evidenced — without activating anything.
+authorized and evidenced — and, where the operational capability to do any of
+that does not exist, identifying the gap, specifying the bounded task that must
+close it, and recording the runtime-operations gate as **NOT SATISFIED**.
+Without activating anything.
 
 Out-of-scope changes made: NONE.
+
+Independent review: `CHANGES REQUIRED` at head
+`27becee16e048eef30017fc5ff509362f0808ba3` (two P1 specification defects, one
+security/audit correction). All three are remediated on this same branch and
+pull request; no new branch or PR was created. See section 5.1.
 
 ## 3. Commits
 
@@ -116,13 +124,13 @@ Runtime files changed: **NONE.** No Rust, SQL, migration, `schema.rs`,
    and service names, autoscaling parameter values and every environment-variable
    value were excluded on purpose.
 
-6. **The `init` entrypoint finding is recorded as a prerequisite, not as a stop
-   condition.** It is a bounded runtime-code gap, not an architecture change:
-   the approved `OFF`/`OBSERVE`/`ENFORCE` lifecycle is intact and the merged
-   inert state remains correct and fail-safe. Section 13.1 records it, requires
-   remediation options to be specified without being implemented, and requires
-   the fleet-verification mechanism to be able to detect exactly this silent
-   failure.
+6. **The `init` entrypoint finding is recorded as a blocking prerequisite, not as
+   a stop condition.** It is a bounded runtime-code gap, not an architecture
+   change: the approved `OFF`/`OBSERVE`/`ENFORCE` lifecycle is intact and the
+   merged inert state remains correct and fail-safe. Section 13.1 records it,
+   hands remediation to a separate task, forbids selecting the mechanism here,
+   and requires the fleet-verification mechanism to detect exactly this silent
+   failure class.
 
 7. **The rehearsal boundary was settled explicitly, as required.** The rehearsal
    is defined here and executed at the later preview/staging gate, because it
@@ -138,6 +146,61 @@ Runtime files changed: **NONE.** No Rust, SQL, migration, `schema.rs`,
    telemetry proves effective mode and fleet consistency; it is forbidden from
    inventing service-health thresholds, latency or error-rate baselines, or
    availability SLOs. That work remains the separate next gate.
+
+### 5.1 Decisions added by remediation of the independent review
+
+The review returned `CHANGES REQUIRED` at head
+`27becee16e048eef30017fc5ff509362f0808ba3` with two P1 specification defects and
+one security/audit correction. All three are addressed.
+
+10. **P1-1 — the specification could satisfy the runtime-operations gate while
+    the mechanisms it depends on were absent.** The original text was internally
+    inconsistent: its success behaviour promised an operator who could execute,
+    verify and roll back a mode change, while AC-8/AC-22 required the verifier
+    only to be *specified*, and section 12 defaulted to disposition **A**.
+
+    Corrected by making the two capability gaps first-class and terminal:
+
+    - section 1 names them, states that documenting them is not closing them, and
+      records the expected terminal disposition as **C — BLOCKED**;
+    - section 6.1 **withdraws** the operator-capability success condition and
+      reassigns it to `THOTH-GQL-OPS-04`;
+    - new section 12.1 makes disposition **A forbidden** while either gap holds,
+      and enumerates what specifically does *not* convert C into A — including
+      having specified the verifier, and having specified the prerequisite tasks;
+    - new section 12.2 requires the runtime-operations gate to be recorded
+      **NOT SATISFIED** in specification, control record, report and PR body;
+    - new section 3.12 specifies the three bounded successors;
+    - section 11.1 restates the full dependency sequence with the gate satisfied
+      no earlier than `THOTH-GQL-OPS-04`;
+    - AC-8 is annotated rather than weakened, and eight criteria (**AC-23** to
+      **AC-30**) were **added**. No existing criterion was relaxed or removed.
+
+11. **P1-2 — `start graphql-api` was implicitly offered as an equivalent fix.**
+    The original section 13.1 listed "setting an explicit container command" beside
+    the `init` fix as interchangeable options. That was wrong: `init` runs
+    migrations then starts the API, so an override would remove migration
+    execution from the deployment path and intersect the broader CG-13
+    migration/deployment problem.
+
+    Corrected by new section 2.2.3.1, which establishes the difference from
+    `src/bin/thoth.rs` and the `Dockerfile`, and by rewritten section 13.1.1,
+    which splits remediation into class 1 (feature-local, preserves all `init`
+    migration and startup semantics — in scope for `THOTH-GQL-OPS-02`) and class 2
+    (production command override — **not** interchangeable, out of bounded scope,
+    requiring separate migration/deployment-control analysis and approval). New
+    non-goals 24 and 25 and invariant 11 enforce it, and the specification does
+    not select the fix.
+
+12. **Security/audit correction.** The report's "no secret was retrieved" is
+    withdrawn as materially inaccurate and replaced with the accurate account in
+    section 8. New specification section 2.2.5 binds this task and every successor
+    to scoped reads of the secret-bearing source. Section 2.2.4 was reduced to the
+    minimum durable hazard and control boundary, with no further detail about
+    credential values, resource identifiers, production topology, account
+    identifiers, or stack, cluster or service names. Secret remediation remains a
+    separate CTO-controlled task and is not in this PR; no security issue was
+    created or modified.
 
 Deviations from the task brief: NONE.
 
@@ -166,16 +229,47 @@ Authorization paths changed: NONE. `thoth-api/src/policy.rs` is untouched.
 Roles/scopes involved: none exercised.
 Negative authorization tests: not applicable — no code changed.
 
-Secret or personal-data handling: **no secret value was recorded anywhere in the
-diff.** During authorized read-only discovery, the authoritative deployment
-source was found to carry production credential material inline in template
-parameters. No such value was copied into this repository, this report, the
-specification, the pull request or the changelog. The specification records the
-hazard as a constraint on how the future task may work, names remediation as
-outside its scope, and requires escalation instead.
+Secret or personal-data handling — **corrected during remediation.** An earlier
+revision of this report stated that "no secret was retrieved". That wording is
+**withdrawn** as materially inaccurate: it is inconsistent with the discovery
+actually performed, and it understated what a reader needs to know.
+
+The accurate statement is:
+
+> During authorized read-only discovery, the implementing agent encountered
+> existing secret-bearing configuration in the private authoritative deployment
+> source.
+>
+> No secret value was copied into the public `thoth` repository, the PR body, the
+> specification, the implementation report or the changelog; no credential was
+> used, changed or rotated; and no production service or database was accessed.
+>
+> The discovery is a process/security escalation and is not part of this
+> specification's implementation scope.
+
+**No secret value, credential identifier, ARN, account identifier, private key,
+password, token or sensitive configuration appears anywhere in this PR.** The
+specification records only the minimum durable hazard and control boundary
+necessary for the task — that the source is secret-bearing, and that reads of it
+must therefore be scoped — and publishes no further detail about credential
+values, resource identifiers, production topology, account identifiers, stack,
+cluster or service names, or private configuration.
+
+Remediation of the exposure is **not** in this PR and is not this task's to
+perform. It remains a **separate CTO-controlled security matter**. No security
+issue was created or modified, and none may be without separate explicit CTO
+authorization.
+
+Constraint added for successor work: specification section 2.2.5 now binds
+`THOTH-GQL-OPS-01` and every task it specifies to scoped reads of that source —
+narrowly scoped searches or line/range reads, retrieval of only the metadata a
+criterion requires, never copying secret-bearing ranges into reports or prompts,
+and stopping with `BLOCKED` if required evidence cannot be obtained without
+exposing secret material.
 
 Security limitations: this task performed read-only inspection only. It changed
-no credential, rotated no secret, and accessed no production database or service.
+no credential, rotated no secret, used no credential, and accessed no production
+service or database.
 
 ## 9. Tests and checks
 
@@ -281,14 +375,35 @@ Steps and observed results:
    only. Nothing was changed, dispatched or executed there, and no value was
    copied out.
 
-8. **Negative evidence recorded.** A connected infrastructure provider account
-   was checked read-only and contains no Thoth service; it is not the Thoth
-   production runtime. No platform was inferred from the Docker image or the
-   release workflow.
+   **Method statement.** That source is secret-bearing, and secret-bearing
+   configuration was encountered during this read-only discovery. No secret value
+   was copied into any output; see section 8. Section 2.2.5 of the specification
+   now binds all successor reads to narrowly scoped searches or line/range reads,
+   metadata-only retrieval, and `BLOCKED` where a criterion cannot be satisfied
+   without exposing secret material.
 
-9. **No production action.** No mode was changed in any environment, no
-   deployment or workflow was dispatched, no secret was retrieved, and no
-   production database or service was accessed.
+8. **Production applicability of the entrypoint gap, established.** The
+   production GraphQL API service does not override the container command and so
+   inherits the image default `init`. Combined with finding 5, the effective
+   production mutation-guard mode is currently **fixed at `OFF` and not
+   changeable by configuration** — capability gap 1.
+
+9. **`init` and `start graphql-api` are not interchangeable.** `src/bin/thoth.rs`
+   shows `init` running `commands::run_migrations(arguments)?` before
+   `commands::start::graphql_api(arguments)`, while `start graphql-api` runs no
+   migrations; the `Dockerfile` comment states the same intent. An explicit
+   production command override would therefore remove migration execution from
+   the deployment path, so it is **not** an interchangeable feature-local fix and
+   is classified out of bounded scope in specification section 13.1.1.
+
+10. **Negative evidence recorded.** A connected infrastructure provider account
+    was checked read-only and contains no Thoth service; it is not the Thoth
+    production runtime. No platform was inferred from the Docker image or the
+    release workflow.
+
+11. **No production action.** No mode was changed in any environment, no
+    deployment or workflow was dispatched, no credential was used, changed or
+    rotated, and no production service or database was accessed.
 
 Evidence link: the pull request diff and this report.
 
@@ -326,32 +441,45 @@ Monitoring required: none introduced by this change.
 - The specification is `DRAFT`. It requires fresh independent exact-head review
   and explicit CTO specification approval before `THOTH-GQL-OPS-01`
   implementation may be authorized.
-- The `init` entrypoint gap means that, if the production GraphQL API container
-  runs the image default command, the mode is **not currently controllable in
-  production**. A bounded, separately specified and separately reviewed
-  remediation is a hard prerequisite for `OBSERVE`. It is recorded, not fixed.
-- No mechanism exists today that proves the effective mode of a serving
-  instance. The specification requires the smallest separately reviewable
-  mechanism to be defined; that mechanism is not designed in detail here and is
-  not implemented.
+- **The runtime-operations gate is NOT SATISFIED, and `THOTH-GQL-OPS-01` cannot
+  satisfy it.** Its expected terminal CG-13 disposition is **C — BLOCKED**. The
+  gate is satisfiable no earlier than `THOTH-GQL-OPS-04`, and only after
+  `THOTH-GQL-OPS-02` and `THOTH-GQL-OPS-03` have merged.
+- **Capability gap 1:** the effective production mutation-guard mode is currently
+  fixed at `OFF` and not changeable by configuration, because production runs the
+  image default `init` and `init` does not accept the mode. Recorded, not fixed;
+  `THOTH-GQL-OPS-02` must close it.
+- **Capability gap 2:** no implemented mechanism proves the effective mode of a
+  serving instance. The specification requires the smallest separately reviewable
+  mechanism to be defined; it is neither designed in detail nor implemented here.
+  `THOTH-GQL-OPS-03` must close it.
+- The runbook `THOTH-GQL-OPS-01` produces is **PROVISIONAL**. Its procedures
+  cannot be executed until both prerequisites merge.
+- The three prerequisite task specifications are **named and scoped** here but
+  are **not written**; writing them is `THOTH-GQL-OPS-01` implementation work,
+  and none of their branches exists.
 - Propagation interval, rollback duration and fleet-consistency timing remain
   unmeasured by design. They are required to be measured in the later
   preview/staging rehearsal, and no numeric value was invented.
 - Service-health signals, activation thresholds and any latency, error-rate or
   availability baseline remain outside this task and are the separate next gate.
-- The credential-exposure hazard observed in the authoritative deployment source
-  is recorded as a constraint and escalated. It is not remediated here and is not
-  this task's to remediate.
+- The credential exposure in the authoritative deployment source is recorded only
+  as the minimum hazard and control boundary. It is not remediated here, is not
+  this task's to remediate, and remains a separate CTO-controlled security
+  matter.
 
 ## 14. Unresolved issues
 
-- The production container command must be confirmed from the authoritative
-  deployment source by the implementing agent at execution time. This report
-  records the repository-side half of the finding as proven and the
-  production-applicability half as requiring that confirmation.
 - The production runtime execution owner and the observation sign-off owner are
   not yet identified as roles. Both are acceptance criteria of the output task
   and stop conditions if unobtainable.
+- The `THOTH-GQL-OPS-02` remediation mechanism is deliberately **unselected**.
+  The specification records the permitted class and its migration-preserving
+  constraint; selecting the mechanism belongs to that task's own approved
+  specification, after the owning parties have been consulted.
+- Whether an explicit production command override could ever be appropriate is
+  **not** decided here. It is classified out of bounded scope and escalated to
+  the migration/deployment half of CG-13.
 
 ## 15. Agent self-assessment
 
@@ -360,26 +488,38 @@ is made or implied here.
 
 Suggested review focus:
 
-1. **Scope discipline** — confirm the specification addresses only the
-   mutation-guard runtime-mode-control subset and does not drift into
-   service-health thresholds, migration execution, restore verification or
-   general CG-13 closure.
-2. **CG-13 disposition** — confirm CG-13 remains open, that only a durable
-   forward reference was added, and that no closure criterion was smuggled in.
-3. **Evidence discipline** — confirm no operational claim is recorded without an
-   evidence source, that no propagation or rollback duration was invented, and
-   that no runtime platform was inferred from the Docker image or the release
-   workflow.
-4. **The `init` finding** — re-derive it independently from `Dockerfile`,
+1. **P1-1 closure — can the gate still be claimed?** Attempt to construct a
+   reading of the remediated specification under which `THOTH-GQL-OPS-01` returns
+   disposition A or reports the runtime-operations gate as satisfied. Section 12.1
+   is intended to make that impossible; if any route remains, the remediation is
+   incomplete.
+2. **Criteria not weakened** — confirm AC-1 to AC-22 are intact, that AC-8 gained
+   only a clarifying annotation, and that AC-23 to AC-30 are genuine additions
+   rather than replacements.
+3. **P1-2 closure — migration semantics** — re-derive section 2.2.3.1 from
+   `src/bin/thoth.rs` and the `Dockerfile`, and confirm that no remaining text
+   presents a production command override as an interchangeable feature-local
+   fix, and that the class 2 classification appears wherever an override is
+   mentioned.
+4. **Prerequisite task boundaries** — confirm `THOTH-GQL-OPS-02`, `-03` and `-04`
+   are scoped without being implemented, that no branch was created, and that the
+   `-02` mechanism is genuinely left unselected.
+5. **The `init` finding** — re-derive it independently from `Dockerfile`,
    `src/bin/commands/mod.rs`, `src/bin/thoth.rs`, `src/bin/commands/start.rs` and
    the pinned `clap_builder` sources, and challenge its classification as a
-   prerequisite rather than a stop condition.
-5. **Secret hygiene** — confirm the diff contains no production configuration
-   value, resource identifier or credential, and assess whether the level of
-   deployment detail recorded is appropriate for a public repository.
-6. **Authorization boundaries** — confirm merge authorization, `OFF -> OBSERVE`
+   blocking prerequisite rather than a stop condition.
+6. **Secret hygiene and the audit correction** — confirm the diff contains no
+   credential, resource identifier or configuration value; that section 8's
+   corrected wording is materially accurate; that section 2.2.5's scoped-read
+   rules are workable; and that the published hazard detail is the minimum
+   necessary for a public repository.
+7. **Scope discipline** — confirm the specification still addresses only the
+   mutation-guard runtime-mode-control subset and has not drifted into
+   service-health thresholds, migration execution, restore verification or
+   general CG-13 closure.
+8. **Authorization boundaries** — confirm merge authorization, `OFF -> OBSERVE`
    authorization and `OBSERVE -> ENFORCE` authorization remain three separate
    decisions, and that nothing in the diff grants any of them.
-7. **Non-implementation** — confirm the diff contains no runtime file, that the
+9. **Non-implementation** — confirm the diff contains no runtime file, that the
    fleet-verification mechanism is specified rather than built, and that no
    environment's guard mode was changed.

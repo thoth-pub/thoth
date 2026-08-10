@@ -150,9 +150,22 @@ ADR-0006 independently reviewed, CTO-approved and repository-authoritative
        (merged state: guard mode OFF, loader store unavailable,
         production request acceptance unchanged)
   -> runtime-operations evidence for mode control verified
-     (control gap CG-13, or a bounded successor, satisfied for this feature;
-      the proposed bounded successor is THOTH-GQL-OPS-01, itself DRAFT and
-      NOT AUTHORIZED, and it does not close CG-13)
+     (control gap CG-13, or a bounded successor, satisfied for this feature).
+      This gate is NOT satisfied by documenting the mechanism. The proposed
+      bounded successors, all DRAFT and NOT AUTHORIZED, and none of which
+      closes CG-13, are:
+        THOTH-GQL-OPS-01  control record, provisional runbook and the
+                          prerequisite specifications; terminates at
+                          disposition C - BLOCKED, gate NOT SATISFIED
+        THOTH-GQL-OPS-02  mode-control path, so the value can be consumed
+                          at all (production currently runs the image
+                          default `init`, which does not accept it, so the
+                          effective production mode is fixed at OFF)
+        THOTH-GQL-OPS-03  mechanism proving the effective mode of every
+                          serving instance
+        THOTH-GQL-OPS-04  fresh bounded verification and closure; the
+                          earliest point at which this gate may be
+                          satisfied, and only on evidence
   -> service-health signals and activation thresholds verified
   -> preview/staging acceptance of the exact implementation candidate,
      including performance evidence and a rehearsed, timed rollback
