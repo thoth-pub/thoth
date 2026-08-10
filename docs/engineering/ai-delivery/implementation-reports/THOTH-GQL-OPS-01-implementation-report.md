@@ -474,12 +474,14 @@ rollout percentages and environment-variable slots
 
 **Evidence-classification sweep.**
 
+The sweep asserts an **invariant**, not a headcount. Exact totals are
+deliberately not recorded: they change with every editorial pass, cannot be
+verified from a checkout without re-running the sweep, and a stale total is worse
+than no total. All four evidence classes — `[REPO]`, `[EXTERNAL]`,
+`[REPO + EXTERNAL]` and `[UNVERIFIED]` — are in use in the control record.
+
 ```text
-control record: 43 'Conclusion:' statements, 44 'Evidence class:' labels,
-27 'Evidence source:' labels, plus 27 inline table classes.
-Conclusions lacking a preceding evidence class: 0.
-Class distribution: [REPO] 17, [EXTERNAL] 11, [REPO + EXTERNAL] 9,
-[UNVERIFIED] 7.
+Operational conclusions lacking an evidence class: 0
   PASS
 ```
 
@@ -743,10 +745,17 @@ was written into this repository.
 Migration sequence: not applicable.
 
 Rollback/disable procedure: revert the merge commit. The change is documentation
-only, so a revert has no production effect. Note that the guard mode itself is
-**not** a kill switch: the control record establishes that changing it requires a
-configuration change **and** a deployment, with the same mechanism, authority and
-latency as the forward change.
+only, so a revert has no production effect.
+
+Note that the guard mode itself is **not** a kill switch: the control record
+establishes that changing it requires a configuration change **and** a
+deployment. What that record establishes about a guard-mode rollback is limited
+to the **technical execution mechanism** — a rollback uses the same
+configuration/deployment mechanism and is technically executed by the same
+execution-capability team as a forward transition. Its actual latency/duration
+remains `[UNVERIFIED]`, and whether it additionally requires CTO approval remains
+`[UNVERIFIED]`. No authorization equivalence is inferred from sharing the
+technical mechanism.
 
 Monitoring required: none by this task. Service-health signals and activation
 thresholds remain the separate `ADR-0006` section 8.3.2 gate and were **not**
@@ -825,12 +834,20 @@ concerns other than this feature, and general Thoth runtime ownership.
    control record proposes the CTO with its reasoning shown, precisely so the CTO
    has something concrete to confirm or reject. It is not treated as established.
    This blocks AC-2.
-6. **Rollback approval authority is unresolved.** Rollback shares the forward
-   change's mechanism and execution-capability team, but whether it
-   *additionally* requires CTO approval is undecided. This blocks AC-13.
+6. **Rollback approval authority is unresolved.** What is established is limited
+   to the technical execution mechanism: rollback uses the same
+   configuration/deployment mechanism and is technically executed by the same
+   execution-capability team. Whether it *additionally* requires CTO approval is
+   undecided, and no authorization equivalence is inferred from sharing that
+   mechanism. This blocks AC-13.
 7. **Rollback latency is unmeasured.** Sharing a mechanism is not sharing a
    measured time; the duration remains `[UNVERIFIED]` and belongs to the
    downstream preview/staging rehearsal.
+8. **Observation-evidence retention has an unresolved dependency chain.** The
+   requirement is established and current retention is a finite configured
+   duration, but the observation-window duration, the coverage question and any
+   remedy are all downstream — a remedy cannot be chosen before the duration it
+   must cover is approved.
 
 ## 15. Agent self-assessment
 

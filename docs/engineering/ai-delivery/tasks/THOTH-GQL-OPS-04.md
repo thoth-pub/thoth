@@ -110,10 +110,13 @@ The task must:
 2. **confirm ownership** as roles: the execution owner, the request/approval
    authority, and — by explicit CTO confirmation rather than derivation — the
    post-activation observation sign-off owner;
-3. **obtain the unresolved decisions** listed in control record section 14 and
-   runbook section 10, including whether operational rollback requires CTO
-   approval or may be executed on the technical team's own authority, and which
-   observation-evidence retention remedy is adopted;
+3. **obtain the part-1 unresolved decisions** listed in control record section 14
+   and runbook section 10 — including whether operational rollback additionally
+   requires CTO approval or may be executed on the execution-capability team's
+   own authority. It must **not** attempt the part-2 items, which are downstream.
+   In particular, it **re-establishes the observation-evidence retention
+   position** per section 3.4 — recording the requirement and the unresolved
+   dependency — and does **not** select or implement a retention remedy;
 4. **prove the mode-control path operates** against the real runtime: that a
    guard-enabled release deployed through the production-applicable path actually
    consumes the configured value, in a **non-production** environment;
@@ -204,6 +207,49 @@ Timing fields in the runbook remain marked
 of resolving the runtime-operations-specific `PROVISIONAL` state, and this task
 must not treat it as one.
 
+### 3.4 Observation-evidence retention — requirement here, remedy downstream
+
+The retention question has a **dependency order** that this task must respect
+rather than short-circuit. A retention remedy cannot be chosen before the
+duration it must cover has been approved, and that duration is a **part 2**
+decision belonging to the activation gate.
+
+**This task (part 1) establishes only:**
+
+```text
+- observation evidence must be retained for the complete approved
+  observation window and remain available through review/sign-off;
+- current runtime log retention is a FINITE configured duration,
+  re-established at this task's own execution time;
+- the approved OBSERVE observation-window duration is NOT yet established;
+- whether current retention is sufficient is therefore NOT yet
+  established;
+- consequently the actual retention remedy remains DOWNSTREAM.
+```
+
+**This task must NOT:**
+
+```text
+- choose between extended retention and out-of-band capture;
+- prove that current retention covers a duration that has not been
+  approved;
+- implement any retention change;
+- confirm that a specific retention remedy is in place.
+```
+
+**The downstream gate (part 2) then:**
+
+```text
+- approves the observation-window duration;
+- determines whether current retention covers it;
+- if not, selects and implements a remedy;
+- verifies the final retention arrangement before production activation.
+```
+
+Recording the requirement and the unresolved dependency **is** the complete part-1
+obligation. Leaving the remedy unselected is the correct outcome, not an omission,
+and must not be treated as blocking the runtime-operations gate.
+
 ## 4. Non-goals
 
 The task must not:
@@ -227,20 +273,23 @@ The task must not:
 12. **establish the preview/staging acceptance gate** — likewise downstream;
 13. treat the population of the runbook's timing fields as a condition of
     resolving the runtime-operations-specific `PROVISIONAL` state (section 3.3);
-14. close **all** of CG-13. Migration execution, backup and restore verification,
+14. **select, implement or confirm an observation-evidence retention remedy**, or
+    approve the observation-window duration it would depend on — both are
+    downstream (section 3.4);
+15. close **all** of CG-13. Migration execution, backup and restore verification,
     and approver mapping for concerns other than this feature remain open
     regardless of this task's outcome;
-15. return CG-13 disposition **B**;
-16. return disposition **A** while either capability gap remains open, or on any
+16. return CG-13 disposition **B**;
+17. return disposition **A** while either capability gap remains open, or on any
     basis other than evidence obtained at this task's own execution time;
-17. write any production configuration value, secret or resource identifier into
+18. write any production configuration value, secret or resource identifier into
     this repository;
-18. remediate or rotate any credential, or create or modify a security issue;
-19. make any change to the private authoritative deployment source beyond a
+19. remediate or rotate any credential, or create or modify a security issue;
+20. make any change to the private authoritative deployment source beyond a
     separately authorized **non-production** deployment required by section 3.1;
-20. modify `BE-02`, PR [#788](https://github.com/thoth-pub/thoth/pull/788) or
+21. modify `BE-02`, PR [#788](https://github.com/thoth-pub/thoth/pull/788) or
     issue [#765](https://github.com/thoth-pub/thoth/issues/765);
-21. implement `BE-02`.
+22. implement `BE-02`.
 
 ## 5. Invariants
 
@@ -400,8 +449,13 @@ until the downstream gates close (section 3.3).
       **explicit CTO confirmation**, not by derivation.
 - [ ] **AC-6** Rollback authority is resolved by explicit CTO decision, and any
       difference from forward-change authority is stated.
-- [ ] **AC-7** The observation-evidence retention remedy is decided and confirmed
-      to be in place.
+- [ ] **AC-7** The observation-evidence **retention position** is established per
+      section 3.4: the retention requirement is recorded; current runtime log
+      retention is re-established as a finite configured duration; the approved
+      observation-window duration and therefore the coverage question are
+      recorded as unresolved and **downstream**; and **no remedy is selected,
+      implemented or confirmed in place**. Selecting a remedy here would fail
+      this criterion, not satisfy it.
 - [ ] **AC-8** The mode-control path is **proven to operate** against a real
       non-production runtime: a guard-enabled release deployed through the
       production-applicable path consumes the configured value.
@@ -594,23 +648,29 @@ The agent must use
 must record: the exact base and head; every re-established external fact with its
 evidence source and class, and every change from the previously recorded state;
 the confirmed ownership, including the CTO's explicit confirmation of the
-observation sign-off owner; every resolved decision from control record section
-14 and runbook section 10; the evidence that the mode-control and
-fleet-verification capabilities **operate**, including the partial-fleet
-detection and silent-adoption detection results; the instantiated fleet predicate
-and any drift found; the CG-13 mode-control subset disposition with its
-justification; the runtime-operations gate state, stated identically everywhere
-it appears; whether the runbook's runtime-operations-specific `PROVISIONAL` state
-was resolved and why; the two-part status of section 3.3, stated without being
-collapsed; an explicit statement that no production deployment, production mode
-change or production activation occurred; a **method statement** for every read of
-the private authoritative source confirming compliance with the section 6.3 rules
-and reporting any incidental encounter with secret material as an escalation; and
-CI status with the classification of each job.
+observation sign-off owner; every resolved **part-1** decision from control record
+section 14 and runbook section 10, including whether rollback additionally
+requires CTO approval; the **retention position** of section 3.4 — the
+requirement, the re-established finite configured retention, and the explicit
+record that the observation-window duration and the coverage question remain
+unresolved and downstream, **with no remedy selected**; the evidence that the
+mode-control and fleet-verification capabilities **operate**, including the
+partial-fleet detection and silent-adoption detection results; the instantiated
+fleet predicate and any drift found; the CG-13 mode-control subset disposition
+with its justification; the runtime-operations gate state, stated identically
+everywhere it appears; whether the runbook's runtime-operations-specific
+`PROVISIONAL` state was resolved and why; the two-part status of section 3.3,
+stated without being collapsed; an explicit statement that no production
+deployment, production mode change or production activation occurred; a **method
+statement** for every read of the private authoritative source confirming
+compliance with the section 6.3 rules and reporting any incidental encounter with
+secret material as an escalation; and CI status with the classification of each
+job.
 
 The report must **not** claim the four rehearsal measurements, must **not** claim
-the preview/staging acceptance gate, and must **not** state or imply that the
-runbook is production-executable. Those remain downstream (section 3.2), and the
+the preview/staging acceptance gate, must **not** claim a selected or verified
+retention remedy, and must **not** state or imply that the runbook is
+production-executable. Those remain downstream (sections 3.2 and 3.4), and the
 report must say so explicitly.
 
 If the disposition is `C`, the report must specify the bounded successor task

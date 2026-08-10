@@ -382,11 +382,11 @@ Conclusion:      Whether the RUNNING service matches its declared definition --
                  authoritative deployment source and the live orchestrator --
                  is NOT established. Establishing it requires a live orchestrator
                  read, which this task is not authorized to perform. This is the
-                 same evidence that capability gap 2 (section 6) exists to
+                 same evidence that capability gap 2 (section 7) exists to
                  supply.
 ```
 
-**Consequence for the rehearsal of section 9.** Because the test environment is
+**Consequence for the rehearsal of section 10.** Because the test environment is
 also pre-guard, the rehearsal cannot begin by changing a mode there: it must
 first deploy a guard-enabled candidate to that environment. That is an additional
 prerequisite the rehearsal specification must carry.
@@ -500,7 +500,7 @@ Conclusion:     There is today NO mechanism that proves the effective mode of a
                 a server-side event emitted solely when a colliding document
                 happens to arrive.
 
-                This is CAPABILITY GAP 2 (section 6).
+                This is CAPABILITY GAP 2 (section 7).
 ```
 
 ### 4.3 The `init` entrypoint does not accept the mode — re-proven
@@ -565,7 +565,7 @@ activation, and it is not a production incident — production is not running
 guard-enabled code at all (section 3.5), and `OFF` is in any case the intended
 state of a guard-enabled candidate. But it means setting the environment variable
 would appear to succeed while changing nothing, which is precisely the class of
-failure the fleet-verification requirement of section 6 exists to detect.
+failure the fleet-verification requirement of section 7 exists to detect.
 
 ```text
 Evidence class: [REPO + EXTERNAL]
@@ -704,7 +704,7 @@ Conclusion:     A mode change is BOTH a configuration change AND a deployment.
 Evidence class: [UNVERIFIED]
 Conclusion:     No authoritative propagation, replacement or rollback interval
                 is established, and none is invented here. Every such duration
-                is TO BE MEASURED in the rehearsal of section 9.
+                is TO BE MEASURED in the downstream rehearsal of section 10.
 ```
 
 ---
@@ -805,8 +805,8 @@ Conclusion:     The LIVE current value of E is not established by this record.
 ```text
 Evidence class: [UNVERIFIED]
 Conclusion:     No propagation interval is established, and none is invented.
-                It is TO BE MEASURED in the rehearsal of section 9, and the
-                measured value becomes the recorded expectation.
+                It is TO BE MEASURED in the downstream rehearsal of section 10,
+                and the measured value becomes the recorded expectation.
 ```
 
 ---
@@ -909,7 +909,7 @@ not yet exist.
 | | `OFF -> OBSERVE` | `OBSERVE -> ENFORCE` (future) |
 |---|---|---|
 | **Detection** | enumerate the live instance set and establish each instance's effective mode; a fleet is mixed when two enumerated instances report different modes, or when any instance cannot be attributed a mode | as left |
-| **Abort criteria** | the fleet remains mixed beyond the measured propagation bound established in section 9; or any instance reports a mode that is neither the previous nor the intended mode; or the instance set cannot be completely enumerated | as left, **plus** any legitimate-client rejection observed during the window |
+| **Abort criteria** | the fleet remains mixed beyond the measured propagation bound established in section 10; or any instance reports a mode that is neither the previous nor the intended mode; or the instance set cannot be completely enumerated | as left, **plus** any legitimate-client rejection observed during the window |
 | **Rollback trigger** | abort criteria met; or a service-health regression attributable to the change; the observation-gap window alone is **not** a rollback trigger, because acceptance is unchanged | abort criteria met; **or any legitimate-client rejection**, which makes rollback mandatory rather than optional |
 | **Rollback authority** | section 9.3 | section 9.3 |
 | **Evidence required after recovery** | the enumerated instance set re-read after recovery; the effective mode of every member; a statement that no member reports the aborted mode; the elapsed time; the observation record annotated with the mixed window so the evidence is not read as complete | as left, **plus** confirmation that no client-visible rejection persists |
@@ -919,8 +919,8 @@ not yet exist.
 ```text
 Evidence class: [UNVERIFIED]
 Conclusion:     No numeric bound on a mixed-mode window is established, and none
-                is invented. The bound is TO BE MEASURED in the rehearsal of
-                section 9 and approved before activation.
+                is invented. The bound is TO BE MEASURED in the downstream
+                rehearsal of section 10 and approved before activation.
 ```
 
 ---
@@ -962,36 +962,64 @@ ENFORCE -> OFF          as above. Stops evaluation entirely.
 
 ### 9.3 Rollback authority, stated plainly
 
-```text
-Evidence source: sections 2.1 and 2.2 of this record; release-gates.md section 5
-Evidence class:  [REPO + EXTERNAL]
-Conclusion:      Rollback is EXECUTED by the same technical team that executes a
-                 forward change, through the same mechanism, with the same
-                 latency. There is no separate, faster or differently
-                 authorized rollback path.
+Three separate questions, deliberately not collapsed. Sharing a technical
+mechanism establishes nothing about timing and nothing about authorization.
 
-                 Whether a rollback additionally requires CTO approval is NOT
-                 established by any current record. This record does not invent
-                 one. THOTH-GQL-OPS-04 must obtain an explicit CTO decision on
-                 whether an operational rollback may be executed on the technical
-                 team's own authority, and the runbook records the answer before
-                 it becomes executable.
+```text
+Evidence source: sections 2.1 and 2.2 of this record
+Evidence class:  [REPO + EXTERNAL]
+Conclusion:      ESTABLISHED -- technical execution mechanism only.
+
+                 Rollback uses the same configuration/deployment mechanism as a
+                 forward transition -- an edit to a private repository, a push,
+                 a stack update and a full task replacement -- and is
+                 technically executed by the same execution-capability team.
+
+                 This is a statement about HOW the change is applied. It is not
+                 a statement about how long it takes, and it is not a statement
+                 about who must approve it.
 ```
+
+```text
+Evidence class: [UNVERIFIED]
+Conclusion:      Actual rollback latency/duration remains [UNVERIFIED].
+                 See section 9.4.
+```
+
+```text
+Evidence class: [UNVERIFIED]
+Conclusion:      Whether rollback ADDITIONALLY requires CTO approval remains
+                 [UNVERIFIED].
+
+                 No authorization equivalence is inferred from sharing the
+                 technical mechanism. That two operations are applied the same
+                 way says nothing about whether they need the same approval,
+                 and this record does not treat the former as evidence of the
+                 latter.
+
+                 THOTH-GQL-OPS-04 must obtain an explicit CTO decision on
+                 whether an operational rollback may be executed on the
+                 execution-capability team's own authority. This record does not
+                 make that decision.
+```
+
+This is why acceptance criterion **AC-13 is recorded as FAIL/BLOCKED**: the
+criterion asks for rollback authority to be *defined*, and only the execution
+mechanism is established.
 
 ```text
 Evidence class: [REPO + EXTERNAL]
 Conclusion:     THIS IS NOT A KILL SWITCH.
 
-                Established: a rollback uses the SAME configuration/deployment
-                mechanism as the forward transition -- an edit to a private
-                repository, a push, a stack update and a full task replacement --
-                and the SAME execution-capability team. There is no separate,
-                distinct or expedited rollback path.
+                A rollback requires an edit to a private repository, a push, a
+                stack update and a full task replacement. It must not be
+                described as immediate, as deploy-free, or as a kill switch
+                anywhere.
 
-                NOT established: that it takes the same TIME. See section 9.4.
-
-                It must not be described as immediate, as deploy-free, or as a
-                kill switch anywhere.
+                Note what is NOT claimed here: no expedited path is known to
+                exist, but neither its absence nor its presence is established
+                as an authorization fact -- only the technical mechanism above
+                is.
 ```
 
 ### 9.4 Duration
@@ -1183,13 +1211,33 @@ evidence.
 The guard's compatibility events (`ADR-0006` section 8.3.1) are runtime log
 events, so this requirement binds on runtime log retention specifically.
 
-**No remedy is selected here.** Whether the requirement is met by extending
-retention, by capturing evidence out of band, or by choosing a window the
-existing retention already covers, is an open choice that depends on the window
-duration nobody has yet set. Pre-selecting one would invent the very evidence
-this record is recording as missing. `THOTH-GQL-OPS-04` must record the decision
-and confirm it is in place; changing retention would be a change to the private
-deployment source and is **not** authorized by this record.
+**No remedy is selected here, and selecting one is not `THOTH-GQL-OPS-04`'s
+job either.** Whether the requirement is met by extending retention, by capturing
+evidence out of band, or by choosing a window the existing retention already
+covers, is an open choice that depends on the window duration nobody has yet set.
+Pre-selecting one would invent the very evidence this record is recording as
+missing.
+
+The dependency order is therefore binding:
+
+```text
+PART 1 -- THOTH-GQL-OPS-04, runtime-operations gate
+  record the retention requirement;
+  re-establish that current retention is a FINITE configured duration;
+  record the observation-window duration as NOT established;
+  record coverage as therefore NOT established;
+  record that the remedy is DOWNSTREAM.
+  Select nothing. Implement nothing. Confirm nothing in place.
+
+PART 2 -- downstream activation gate, in this order
+  approve the observation-window duration;
+  determine whether current retention covers it;
+  if not, select and implement a remedy;
+  verify the final retention arrangement before production activation.
+```
+
+Changing retention would be a change to the private deployment source and is
+**not** authorized by this record.
 
 ---
 
@@ -1283,9 +1331,9 @@ Each arrow is a separate approval.
 | 4 | **whether operational rollback needs CTO approval** or may be executed on the technical team's own authority (section 9.3) | `[UNVERIFIED]` | explicit CTO decision, obtained by `THOTH-GQL-OPS-04` | AC-13 |
 | 5 | whether the running service matches its declared definition (drift) | `[UNVERIFIED]` | `THOTH-GQL-OPS-04` | — |
 | 6 | the effective mode of any serving instance | `[UNVERIFIED]` | requires `THOTH-GQL-OPS-03` first | — |
-| 7 | the approved `OBSERVE` observation-window duration (section 12.2) | `[UNVERIFIED]` | the activation gate | — |
-| 8 | whether configured retention covers that window (section 12.2) | `[UNVERIFIED]` | follows from item 7 | — |
-| 9 | how observation evidence is retained for the whole window (section 12.2) | `[UNVERIFIED]` | CTO decision, recorded by `THOTH-GQL-OPS-04` | — |
+| 7 | the approved `OBSERVE` observation-window duration (section 12.2) | `[UNVERIFIED]` | the **downstream** activation gate | — |
+| 8 | whether the finite configured retention covers that window (section 12.2) | `[UNVERIFIED]` | the **downstream** activation gate, once item 7 exists | — |
+| 9 | the retention **remedy**, if item 8 shows one is needed — selected, implemented and verified (section 12.2) | `[UNVERIFIED]` | the **downstream** activation gate; **not** `THOTH-GQL-OPS-04` | — |
 | 10 | propagation duration | `[UNVERIFIED]` | measured at the **downstream** preview/staging rehearsal | — |
 | 11 | mixed-window duration bound | `[UNVERIFIED]` | measured at the **downstream** preview/staging rehearsal | — |
 | 12 | rollback latency/duration (section 9.4) | `[UNVERIFIED]` | measured at the **downstream** preview/staging rehearsal | — |

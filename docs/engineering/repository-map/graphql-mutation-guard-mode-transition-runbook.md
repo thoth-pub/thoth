@@ -121,6 +121,14 @@ PART 1 -- runtime-operations procedure
   operate, who owns execution, approval, sign-off and rollback, and how the
   fleet predicate is instantiated.
 
+  On observation-evidence retention, part 1 establishes only:
+    - the retention REQUIREMENT (section 5.4);
+    - that current runtime log retention is a FINITE configured duration;
+    - that the observation-window duration is NOT yet established;
+    - that coverage is therefore NOT yet established;
+    - and hence that the actual remedy is DOWNSTREAM.
+  Part 1 does NOT select, implement or confirm a retention remedy.
+
   Resolved by:  THOTH-GQL-OPS-04, on evidence.
   Blocked by:   capability gaps 1 and 2.
 
@@ -128,12 +136,24 @@ PART 2 -- production transition readiness
 
   Whether a transition may actually be performed in production.
 
+  On retention, part 2:
+    - approves the observation-window duration;
+    - determines whether current retention covers it;
+    - if not, selects and implements a remedy;
+    - verifies the final retention arrangement before activation.
+
   Resolved by:  the downstream gates, in order --
                   service-health/threshold gate
                   preview/staging rehearsal (supplies every timing field)
                   explicit CTO activation authorization
   NOT resolved by THOTH-GQL-OPS-04.
 ```
+
+**Why the retention split runs this way.** A remedy cannot be chosen before the
+duration it must cover is approved. Requiring `THOTH-GQL-OPS-04` to pick one
+would force it either to invent a window duration or to verify coverage of a
+duration nobody has set — both of which would manufacture the evidence this
+runbook exists to record as missing.
 
 So, once `THOTH-GQL-OPS-04` succeeds, the correct recorded state is:
 
@@ -194,14 +214,18 @@ Every transition below requires **all** of the following. Any one unmet is a sto
   - [ ] the preview/staging acceptance gate passed, including the timed rehearsal
         of section 7, with its measured timings recorded and approved and this
         runbook's timing fields populated from them;
-- [ ] observation-evidence retention resolved (section 10, item 5). Established
-      `[EXTERNAL]`: runtime log retention for this service is configured to a
-      finite duration. **Not** established: the approved observation-window
-      duration, and therefore whether the configured retention covers it. Before
-      activation, observation evidence must be retained for at least the complete
-      approved observation window and remain available through review and
-      sign-off; **how** that is achieved remains an open choice and is not
-      pre-selected here;
+- [ ] observation-evidence retention resolved, in dependency order (section 10,
+      items 5 to 7), all of which are **part 2**:
+  - [ ] the `OBSERVE` observation-window duration approved;
+  - [ ] whether the current finite configured runtime log retention covers that
+        approved window determined;
+  - [ ] if it does not, a remedy selected, implemented and verified.
+
+        The binding requirement is that observation evidence be retained for at
+        least the complete approved observation window and remain available
+        through review and sign-off. **How** that is achieved is not pre-selected
+        anywhere in this runbook, and `THOTH-GQL-OPS-04` neither selects nor
+        verifies it;
 - [ ] **explicit CTO production activation approval for this specific
       transition**, recorded on the authorizing GitHub record. Merge
       authorization is not activation authorization, and approval of one
@@ -376,10 +400,16 @@ remain available through review and sign-off. An observation window whose
 evidence expires before it is reviewed is not evidence.
 
 Established `[EXTERNAL]`: runtime log retention for this service is configured to
-a **finite** duration. Not established: the approved observation-window duration,
-and therefore whether the configured retention covers it. Both must be resolved
-before activation, and the means of meeting the requirement is **not**
-pre-selected here.
+a **finite** duration.
+
+Not established, and resolved **downstream** in this order (section 10, items 5
+to 7): the approved observation-window duration; then whether the configured
+retention covers it; then, only if it does not, a remedy — selected, implemented
+and verified before activation.
+
+`THOTH-GQL-OPS-04` records the requirement and re-establishes the finite
+retention. It does **not** select a remedy, and the means of meeting the
+requirement is **not** pre-selected anywhere here.
 
 ---
 
@@ -498,12 +528,19 @@ ADR-0006 section 8.3.2.
 ## 8. Rollback
 
 **NOT A KILL SWITCH.** A rollback requires an edit to a private repository, a
-push, a stack update and a full task replacement. It uses the **same
-configuration/deployment mechanism** and the **same execution-capability team**
-as the forward transition, with no separate or expedited path. Its actual
-latency/duration remains **`[UNVERIFIED]`** and must be measured at the
-downstream preview/staging rehearsal — it is not inferred from the forward
-change. It must not be described as immediate or deploy-free.
+push, a stack update and a full task replacement.
+
+Established, and limited to the technical execution mechanism: rollback uses the
+**same configuration/deployment mechanism** and is **technically executed by the
+same execution-capability team** as a forward transition.
+
+Not established: its actual latency/duration, which remains **`[UNVERIFIED]`**
+and must be measured at the downstream preview/staging rehearsal (section 8.4);
+and whether it **additionally requires CTO approval**, which likewise remains
+**`[UNVERIFIED]`** (section 8.3). No authorization equivalence is inferred from
+sharing the technical mechanism.
+
+It must not be described as immediate or deploy-free.
 
 ### 8.1 Four different things, which must not be conflated
 
@@ -538,17 +575,27 @@ the direct fallback carries every affected field.
 ### 8.3 Rollback authority
 
 ```text
-ESTABLISHED: rollback is EXECUTED by the same technical team that executes a
-forward change, through the same configuration/deployment mechanism. There is
-no separate or differently authorized rollback path.
+ESTABLISHED -- technical execution mechanism only:
+  rollback uses the same configuration/deployment mechanism as a forward
+  transition, and is technically executed by the same execution-capability
+  team.
 
-NOT ESTABLISHED: that it takes the same time. Actual rollback
-latency/duration remains [UNVERIFIED] -- see section 8.4.
+  This says HOW a rollback is applied. It says nothing about how long it
+  takes, and nothing about who must approve it.
 
-NOT ESTABLISHED: whether a rollback ADDITIONALLY requires CTO approval, or
-may be executed on the technical team's own authority. This runbook does not
-invent an answer. THOTH-GQL-OPS-04 must obtain an explicit CTO decision and
-record it here as part of resolving part 1 of section 0.2.
+NOT ESTABLISHED -- timing:
+  actual rollback latency/duration remains [UNVERIFIED]. See section 8.4.
+
+NOT ESTABLISHED -- authorization:
+  whether rollback ADDITIONALLY requires CTO approval remains [UNVERIFIED].
+
+  No authorization equivalence is inferred from sharing the technical
+  mechanism. This runbook does not invent an answer in either direction:
+  asserting that rollback needs the same approval, and asserting that it
+  needs none, are both authorization claims the evidence does not support.
+
+  THOTH-GQL-OPS-04 must obtain an explicit CTO decision and record it here
+  as part of resolving part 1 of section 0.2.
 ```
 
 ### 8.4 Duration
@@ -612,16 +659,22 @@ downstream-owned item is mistaken for a `THOTH-GQL-OPS-04` obligation.
 | 2 | confirmation of the post-activation observation sign-off owner | **1** | explicit CTO confirmation, obtained by `THOTH-GQL-OPS-04` |
 | 3 | whether operational rollback needs CTO approval or may be executed on the technical team's own authority | **1** | explicit CTO decision, obtained by `THOTH-GQL-OPS-04` |
 | 4 | the live expected replica population and any configuration drift | **1** | `THOTH-GQL-OPS-04`, from live orchestrator state |
-| 5 | how observation evidence is retained for at least the complete approved observation window | **1** for the decision; depends on item 6 for the window itself | CTO, executed by the technical team |
-| 6 | the approved `OBSERVE` observation-window duration | **2** | the activation gate; `[UNVERIFIED]` today |
-| 7 | measured propagation interval | **2** | downstream preview/staging rehearsal (section 7) |
-| 8 | measured mixed-window bound | **2** | downstream preview/staging rehearsal (section 7) |
-| 9 | measured rollback and rollback-verification durations | **2** | downstream preview/staging rehearsal (section 7) |
-| 10 | service-health signals and activation thresholds | **2** | separate downstream gate, `ADR-0006` section 8.3.2 |
+| 5 | the approved `OBSERVE` observation-window duration | **2** | the activation gate; `[UNVERIFIED]` today |
+| 6 | whether current finite runtime log retention covers that approved window | **2** | the activation gate, once item 5 exists |
+| 7 | the observation-evidence retention **remedy**, if item 6 shows one is needed — selected, implemented and verified | **2** | the activation gate; CTO decision, executed by the execution-capability team |
+| 8 | measured propagation interval | **2** | downstream preview/staging rehearsal (section 7) |
+| 9 | measured mixed-window bound | **2** | downstream preview/staging rehearsal (section 7) |
+| 10 | measured rollback and rollback-verification durations | **2** | downstream preview/staging rehearsal (section 7) |
+| 11 | service-health signals and activation thresholds | **2** | separate downstream gate, `ADR-0006` section 8.3.2 |
 
-`THOTH-GQL-OPS-04` must obtain items 1 to 5 and record the answers here. It must
-**not** attempt items 6 to 10, and its inability to answer them is **not** a
+`THOTH-GQL-OPS-04` must obtain items **1 to 4** and record the answers here. It
+must **not** attempt items 5 to 11, and its inability to answer them is **not** a
 reason to leave part 1 unresolved.
+
+On retention specifically, `THOTH-GQL-OPS-04` records the **requirement** and
+re-establishes that current retention is a finite configured duration; items 5,
+6 and 7 then run in that order downstream. Selecting a remedy before item 5
+exists would mean choosing a remedy for an unknown target.
 
 ---
 
