@@ -42,6 +42,35 @@ pub fn port(default_value: &'static str, env_value: &'static str) -> Arg {
         .num_args(1)
 }
 
+/// Guard mode for the central GraphQL mutation request guard
+/// (`ADR-0006` section 4.12.6).
+///
+/// Exactly three values are exposed, and the default is `OFF`:
+///
+/// ```text
+/// OFF      evaluate nothing, reject nothing, emit nothing; loader store unavailable
+/// OBSERVE  evaluate as ENFORCE would but never reject;     loader store unavailable
+/// ENFORCE  reject a baseline-valid mutation whose executable top-level
+///          response key occurs more than once;             loader store may be used
+/// ```
+///
+/// Loader store availability is **derived** from this single value, so there is
+/// deliberately no separate store-enable argument: `OFF + store enabled` and
+/// `OBSERVE + store enabled` are unrepresentable.
+///
+/// Changing this away from `OFF` in production is a separately authorized
+/// activation, not a deployment detail.
+pub fn mutation_guard_mode() -> Arg {
+    Arg::new("mutation-guard-mode")
+        .long("mutation-guard-mode")
+        .value_name("THOTH_GRAPHQL_MUTATION_GUARD_MODE")
+        .env("THOTH_GRAPHQL_MUTATION_GUARD_MODE")
+        .default_value("OFF")
+        .value_parser(["OFF", "OBSERVE", "ENFORCE"])
+        .help("GraphQL mutation request guard mode: OFF, OBSERVE or ENFORCE")
+        .num_args(1)
+}
+
 pub fn key() -> Arg {
     Arg::new("key")
         .short('k')

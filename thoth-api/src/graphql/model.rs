@@ -5,6 +5,8 @@ use juniper::{FieldError, FieldResult};
 use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
 
+use super::batching::GraphqlBatchStore;
+use super::mutation_guard::MutationGuardMode;
 use super::types::inputs::{
     ContributionOrderBy, Convert, Direction, FundingOrderBy, IssueOrderBy, LanguageOrderBy,
     LengthUnit, PriceOrderBy, SubjectOrderBy, TimeExpression, WeightUnit,
@@ -56,20 +58,64 @@ pub struct Context {
     pub user: Option<IntrospectedUser>,
     pub s3_client: Arc<S3Client>,
     pub cloudfront_client: Arc<CloudFrontClient>,
+    /// Request-scoped GraphQL batch store (`ADR-0006` sections 4.1-4.4).
+    ///
+    /// Initialised empty per construction and dropped with the request, so it
+    /// never crosses GraphQL requests. It uses interior mutability
+    /// (`RwLock`) internally, which keeps `Context: Sync` so the async
+    /// execution path continues to compile.
+    ///
+    /// Its availability is derived from the guard mode this `Context` was
+    /// built with, and from nothing else.
+    ///
+    /// Read only by loader-backed prefetch sites and terminal child resolvers.
+    /// THOTH-GQL-BATCH-01 adopts the foundation in **no production field**, so
+    /// in a non-test build nothing reads it yet — that is the specified merged
+    /// state (guard `OFF`, store unavailable), not an oversight.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) batch_store: GraphqlBatchStore,
 }
 
 impl Context {
+    /// Construct a request context with the guard **`OFF`**, and therefore with
+    /// the batch store **unavailable**.
+    ///
+    /// This is the default and the merged production state. Keeping this
+    /// signature unchanged preserves every existing call site.
     pub fn new(
         pool: Arc<PgPool>,
         user: Option<IntrospectedUser>,
         s3_client: Arc<S3Client>,
         cloudfront_client: Arc<CloudFrontClient>,
     ) -> Self {
+        Self::with_guard_mode(
+            pool,
+            user,
+            s3_client,
+            cloudfront_client,
+            MutationGuardMode::Off,
+        )
+    }
+
+    /// Construct the same request context with an explicit guard mode.
+    ///
+    /// Store availability is **derived** from `mode` — there is no separate
+    /// store-enable parameter here or anywhere else — so `OFF + store enabled`
+    /// and `OBSERVE + store enabled` are unrepresentable
+    /// (`ADR-0006` invariant 30).
+    pub fn with_guard_mode(
+        pool: Arc<PgPool>,
+        user: Option<IntrospectedUser>,
+        s3_client: Arc<S3Client>,
+        cloudfront_client: Arc<CloudFrontClient>,
+        mode: MutationGuardMode,
+    ) -> Self {
         Self {
             db: pool,
             user,
             s3_client,
             cloudfront_client,
+            batch_store: GraphqlBatchStore::new(mode),
         }
     }
 
