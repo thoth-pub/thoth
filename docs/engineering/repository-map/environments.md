@@ -51,6 +51,23 @@ Image: `ghcr.io/thoth-pub/thoth`
 
 The production compute platform, database migration execution path, deployment approval and rollback procedure remain unverified under control gap [CG-13](./control-gaps.md#cg-13---thoth-runtime-operations-unmapped) and require a separately specified operations inventory.
 
+One bounded subset is now mapped: the GraphQL mutation-guard runtime mode
+(`THOTH_GRAPHQL_MUTATION_GUARD_MODE`), in the
+[mutation-guard runtime-operations control record](./graphql-mutation-guard-runtime-operations.md)
+and its **provisional**
+[mode-transition runbook](./graphql-mutation-guard-mode-transition-runbook.md).
+That subset is recorded at disposition `C - BLOCKED`; the `ADR-0006`
+runtime-operations gate remains `NOT SATISFIED`, and CG-13 remains open. The
+authoritative deployment configuration for the Thoth GraphQL API services is
+owned outside this repository and is secret-bearing; no value from it is recorded
+here.
+
+The Thoth GraphQL API releases currently deployed to the production and test
+environments are **pre-guard** — their binaries contain no mutation guard, so
+they have no guard mode and must never be described as running
+`MutationGuardMode::OFF`. That conclusion rests on repository release-code
+evidence and scoped external deployment metadata together, not on either alone.
+
 ### Thoth Dissemination
 
 Release artefact: Docker Hub image

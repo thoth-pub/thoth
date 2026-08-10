@@ -155,12 +155,13 @@ ADR-0006 independently reviewed, CTO-approved and repository-authoritative
         metadata together, not by either alone)
   -> runtime-operations evidence for mode control verified
      (control gap CG-13, or a bounded successor, satisfied for this feature).
-      This gate is NOT satisfied by documenting the mechanism. The proposed
-      bounded successors, all DRAFT and NOT AUTHORIZED, and none of which
-      closes CG-13, are:
+      This gate is NOT satisfied by documenting the mechanism. The bounded
+      successors, none of which closes CG-13, are:
         THOTH-GQL-OPS-01  control record, provisional runbook and the
                           prerequisite specifications; terminates at
-                          disposition C - BLOCKED, gate NOT SATISFIED
+                          disposition C - BLOCKED, gate NOT SATISFIED.
+                          Its delivered control record and PROVISIONAL
+                          runbook live in docs/engineering/repository-map/
         THOTH-GQL-OPS-02  mode-control path, so the value can be consumed
                           at all (the production deployment path inherits
                           the image default `init`, which does not register
@@ -173,6 +174,9 @@ ADR-0006 independently reviewed, CTO-approved and repository-authoritative
         THOTH-GQL-OPS-04  fresh bounded verification and closure; the
                           earliest point at which this gate may be
                           satisfied, and only on evidence
+      THOTH-GQL-OPS-02, -03 and -04 are specified, DRAFT and NOT AUTHORIZED,
+      and none of their branches exists. Specifying a task is not delivering
+      it, and a specification for a verifier is not a verified fleet
   -> service-health signals and activation thresholds verified
   -> preview/staging acceptance of the exact implementation candidate,
      including performance evidence and a rehearsed, timed rollback
