@@ -150,7 +150,9 @@ ADR-0006 independently reviewed, CTO-approved and repository-authoritative
        (merged state: guard mode OFF, loader store unavailable,
         production request acceptance unchanged)
   -> runtime-operations evidence for mode control verified
-     (control gap CG-13, or a bounded successor, satisfied for this feature)
+     (control gap CG-13, or a bounded successor, satisfied for this feature;
+      the proposed bounded successor is THOTH-GQL-OPS-01, itself DRAFT and
+      NOT AUTHORIZED, and it does not close CG-13)
   -> service-health signals and activation thresholds verified
   -> preview/staging acceptance of the exact implementation candidate,
      including performance evidence and a rehearsed, timed rollback

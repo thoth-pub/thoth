@@ -179,6 +179,23 @@ and explicit CTO merge authorization. CG-13 remains open.
 
 Document runtime, deployment, migration execution, rollback, restore verification and approvers.
 
+CG-13 is **OPEN**.
+
+A bounded feature-specific successor is proposed for one subset of it:
+[`THOTH-GQL-OPS-01`](../ai-delivery/tasks/THOTH-GQL-OPS-01.md), which addresses
+runtime mode control for the merged GraphQL mutation guard
+(`THOTH_GRAPHQL_MUTATION_GUARD_MODE`) — configuration authority, restart/redeploy
+semantics, fleet propagation and verification, partial-fleet handling, rollback,
+change authority and evidence. That specification is `DRAFT` and its
+implementation is `NOT AUTHORIZED`.
+
+`THOTH-GQL-OPS-01` does **not** close CG-13. Migration execution, backup and
+restore verification, and approver mapping for concerns other than that feature
+remain open here regardless of its outcome, and it is required to default
+conservatively to "feature-specific subset satisfied; broad CG-13 remains open".
+Any broader closure would need its own evidence, independent review and CTO
+decision recorded in this register.
+
 ## Verification gaps
 
 Branch protections, required checks, environment reviewers, crate publication, secret ownership, production database configuration and Thoth hosting/rollback remain unverified. Missing evidence is missing work.
