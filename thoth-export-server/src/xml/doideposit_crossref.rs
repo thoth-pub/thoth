@@ -30,6 +30,9 @@ const CROSSREF_NS: &[(&str, &str)] = &[
     ("xmlns:ai", "http://www.crossref.org/AccessIndicators.xsd"),
     ("xmlns:jats", "http://www.ncbi.nlm.nih.gov/JATS1"),
     ("xmlns:fr", "http://www.crossref.org/fundref.xsd"),
+    // Required by JATS abstract markup such as `<jats:ext-link xlink:href="...">`,
+    // which Crossref rejects if the `xlink` prefix is not bound.
+    ("xmlns:xlink", "http://www.w3.org/1999/xlink"),
 ];
 
 // Output format based on schema documentation at https://data.crossref.org/reports/help/schema_doc/5.4.0/index.html
@@ -1387,6 +1390,14 @@ mod tests {
             assert!(wrapped_output.is_err());
             wrapped_output.unwrap_err().to_string()
         }
+    }
+
+    // Unlike `generate_test_output`, this produces the complete deposit document,
+    // including the `doi_batch` root element where the namespaces are declared.
+    fn generate_test_document(work: &Work) -> String {
+        DoiDepositCrossref {}
+            .generate(std::slice::from_ref(work), None)
+            .expect("Failed to generate Crossref deposit document")
     }
 
     #[test]
@@ -2947,5 +2958,124 @@ mod tests {
             output,
             "<jats:list><jats:list-item>Item 1</jats:list-item><jats:list-item>Item 2</jats:list-item></jats:list>"
         );
+    }
+
+    #[test]
+    // Crossref rejects deposits containing JATS links (`<jats:ext-link xlink:href="...">`)
+    // unless the `xlink` prefix is bound on the `doi_batch` root element:
+    // "The prefix "xlink" for attribute "xlink:href" ... is not bound."
+    fn test_doideposit_crossref_declares_xlink_namespace() {
+        let test_work = Work {
+            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            work_status: WorkStatus::ACTIVE,
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: None,
+                canonical: true,
+            }],
+            abstracts: vec![thoth_client::WorkAbstracts {
+                abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                content:
+                    r#"<p>See <ext-link xlink:href="https://example.org">a link</ext-link>.</p>"#
+                        .to_string(),
+                locale_code: thoth_client::LocaleCode::EN,
+                abstract_type: thoth_client::AbstractType::LONG,
+                canonical: true,
+            }],
+            work_type: WorkType::MONOGRAPH,
+            reference: None,
+            edition: Some(1),
+            doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
+            publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
+            withdrawn_date: None,
+            license: None,
+            copyright_holder: None,
+            general_note: None,
+            bibliography_note: None,
+            place: None,
+            page_count: None,
+            page_breakdown: None,
+            first_page: None,
+            last_page: None,
+            page_interval: None,
+            image_count: None,
+            table_count: None,
+            audio_count: None,
+            video_count: None,
+            landing_page: Some("https://www.book.com".to_string()),
+            toc: None,
+            lccn: None,
+            oclc: None,
+            cover_url: None,
+            cover_caption: None,
+            imprint: WorkImprint {
+                imprint_name: "OA Editions Imprint".to_string(),
+                imprint_url: None,
+                crossmark_doi: None,
+                default_currency: None,
+                default_place: None,
+                default_locale: None,
+                publisher: WorkImprintPublisher {
+                    publisher_name: "OA Editions".to_string(),
+                    publisher_shortname: None,
+                    publisher_url: None,
+                    accessibility_statement: None,
+                    contacts: vec![],
+                },
+            },
+            issues: vec![],
+            contributions: vec![],
+            languages: vec![],
+            publications: vec![WorkPublications {
+                publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
+                publication_type: PublicationType::PDF,
+                isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+                width_mm: None,
+                width_cm: None,
+                width_in: None,
+                height_mm: None,
+                height_cm: None,
+                height_in: None,
+                depth_mm: None,
+                depth_cm: None,
+                depth_in: None,
+                weight_g: None,
+                weight_oz: None,
+                accessibility_standard: None,
+                accessibility_additional_standard: None,
+                accessibility_exception: None,
+                accessibility_report_url: None,
+                prices: vec![],
+                locations: vec![WorkPublicationsLocations {
+                    landing_page: Some("https://www.book.com/pdf_landing".to_string()),
+                    full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
+                    location_platform: LocationPlatform::OTHER,
+                    canonical: true,
+                }],
+            }],
+            subjects: vec![],
+            fundings: vec![],
+            relations: vec![],
+            references: vec![],
+        };
+
+        let output = generate_test_document(&test_work);
+
+        // The root element must bind the `xlink` prefix used by JATS abstract markup.
+        assert!(output.contains(r#"xmlns:xlink="http://www.w3.org/1999/xlink""#));
+        // The JATS link is still emitted as markup (not escaped as text) and retains `xlink:href`.
+        assert!(output
+            .contains(r#"<jats:ext-link xlink:href="https://example.org">a link</jats:ext-link>"#));
+        assert!(!output.contains("&lt;jats:ext-link"));
+        // Pre-existing namespace declarations are preserved.
+        assert!(output.contains(r#"xmlns="http://www.crossref.org/schema/5.4.0""#));
+        assert!(output.contains(r#"xmlns:jats="http://www.ncbi.nlm.nih.gov/JATS1""#));
+        assert!(output.contains(r#"xmlns:ai="http://www.crossref.org/AccessIndicators.xsd""#));
+        assert!(output.contains(r#"xmlns:fr="http://www.crossref.org/fundref.xsd""#));
+        assert!(output.contains(r#"xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance""#));
     }
 }
