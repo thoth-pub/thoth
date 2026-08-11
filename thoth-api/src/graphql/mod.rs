@@ -1,6 +1,10 @@
 pub mod model;
 pub mod types;
 
+// Temporary compile bridge while Context is migrated off the superseded A2
+// store in this same bounded implementation. This module is removed before the
+// implementation is presented for review.
+mod batching;
 mod dataloader;
 mod mutation;
 mod mutation_guard;
