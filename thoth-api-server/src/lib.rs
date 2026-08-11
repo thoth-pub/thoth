@@ -177,13 +177,24 @@ pub async fn start_server(
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     // `THOTH-GQL-OPS-03`: exactly one effective-mode record per process, on the
-    // process's own log stream, which the orchestration plane already collects
-    // per instance. It is emitted here — immediately after logging is
-    // initialised and before any startup step that can fail — so a serving
-    // instance's effective mode is establishable out of band without any public
-    // surface, and so that an instance failing later startup still reports the
-    // mode it computed. It carries the mode and the minimum correlation
-    // identity and nothing else, and it is never emitted again.
+    // process's own log stream. It is emitted here — immediately after logging
+    // is initialised and before any startup step that can fail — so that an
+    // instance failing later startup still reports the mode it computed. It
+    // carries the mode and the correlation identity and nothing else, and it is
+    // never emitted again.
+    //
+    // NOT YET TRUSTED EVIDENCE. This record shares one `log` facade, level and
+    // sink with the access log below, which interpolates attacker-controlled
+    // `POST /graphql` request bodies. A collector cannot presently distinguish
+    // this emitter from that request text (independent review 4906399962,
+    // finding 1), and whether the real collection plane preserves per-instance
+    // provenance is unevidenced (finding 2). Emitting is harmless — it is inert
+    // with respect to request acceptance — but nothing may treat the resulting
+    // text as proof of a serving instance's mode until both are closed.
+    //
+    // Emission is also conditional on `info` being enabled: suppressed level ->
+    // no record -> member UNKNOWN -> verification NOT ESTABLISHED. Fail-closed,
+    // never OFF.
     log::info!("{}", effective_mode_observation(&guard_mode).record());
 
     let decoded_private_key = general_purpose::STANDARD

@@ -4,15 +4,32 @@ Implementation of the approved
 [`THOTH-GQL-OPS-03`](../tasks/THOTH-GQL-OPS-03.md) specification: the
 **effective-mode fleet-verification mechanism**.
 
-The feasibility question the specification deliberately left open
-(section 3.2.3) is answered **FEASIBLE**. A compliant mechanism exists inside
-the approved section 3.2 boundary, and it is implemented here.
+## STATUS: BLOCKED
+
+Independent exact-head review
+[4906399962](https://github.com/thoth-pub/thoth/pull/799#pullrequestreview-4906399962)
+returned **`CHANGES REQUIRED`** against head `8604dbf9`. Both findings are
+**correct**, and the second cannot be closed by the implementing agent.
 
 ```text
-feasibility:                           FEASIBLE
-capability gap 2 (fleet verification): implementation candidate exists;
-                                       NOT closed until the review/merge
-                                       lifecycle completes
+feasibility:                           BLOCKED
+
+FINDING 1  observation provenance forgeable      OPEN
+           - defect independently REPRODUCED from repository code
+           - a compliant fix cannot be SELECTED without the finding-2
+             evidence, because every candidate trust property depends on
+             real collection-plane behaviour
+
+FINDING 2  external correlation contract         BLOCKED
+           - facts E1-E5 are NOT established
+           - no Route A or Route B evidence has been supplied
+           - the implementing agent may not obtain it (section 6.6)
+
+AC-3:                                  BLOCKED
+AC-20:                                 BLOCKED
+
+capability gap 2 (fleet verification): NOT closed. The implementation on
+                                       this branch is not usable as proof.
 real fleet verified:                   NO - none, anywhere
 deployment performed:                  NONE
 runtime transition performed:          NONE
@@ -26,8 +43,19 @@ BE-02 runtime:                         NOT AUTHORIZED
 THOTH-GQL-OPS-04:                      NOT IMPLEMENTED, branch absent
 ```
 
-**Implementing a verifier is not verifying a fleet.** This task delivers the
-middle term of the specification's binding distinction and nothing beyond it.
+**This earlier report claimed `FEASIBLE`, `External deployment facts relied on:
+NONE` and `AC-20: PASS (not engaged)`. Those claims were wrong** and are
+corrected throughout. The mechanism's feasibility depends on a real correlation
+contract, so the section 6.6 evidence boundary **is** engaged.
+
+An authorized human/operator or the CTO/control owner must supply the sanitized
+Route B facts in section 12.2 before feasibility can be re-established and
+before finding 1's fix can be selected. Until then this branch carries an
+implementation candidate that **must not be used as proof of any fleet's
+effective mode**.
+
+**Implementing a verifier is not verifying a fleet** — and a verifier whose
+provenance is forgeable is not yet a verifier.
 
 ## 1. Repository state
 
@@ -91,7 +119,18 @@ prove the process-effective mutation-guard mode of every member of an enumerated
 serving population, detect a mixed-mode fleet, keep `UNKNOWN` distinct from
 `OFF`, and expose the silent-adoption failure class.
 
+**Objective NOT met.** The verifier half meets it; the producer and collection
+half does not, because an observation cannot yet be shown to have come from the
+process it claims (finding 1) or attributed to an enumerated member (finding 2).
+
 Out-of-scope changes made: NONE.
+
+Remediation scope actually performed: documentation, code-comment and test-comment
+reconciliation only. **No mechanism change was made**, deliberately — see
+sections 3.1.1 and 12.2 for why selecting one now would repeat the error the
+review identified. `thoth-api-server/src/logger.rs` was **inspected** to
+reproduce the defect, as permitted, and **not modified**: its general
+request-logging behaviour is pre-existing and out of scope.
 
 Not done, deliberately: no mode activated anywhere, no environment transitioned,
 no deployment, no workflow dispatch, no credential use, no real fleet verified,
@@ -123,6 +162,65 @@ The producer lives in `thoth-api-server` (four lines of runtime change); the
 record format, the identity type and the verifier live in one new module,
 `thoth-api/src/graphql/fleet_verification.rs`.
 
+### 3.1.1 Finding 1 — this channel is not yet trustworthy
+
+Verified independently from repository code, not accepted on the reviewer's
+word:
+
+```text
+thoth-api-server/src/logger.rs:77-81
+    BodyLogger captures the RAW BODY of every public POST /graphql request
+    into the request extensions.
+
+thoth-api-server/src/logger.rs:19,30-35
+    Logger's %{QUERY}xi field interpolates that captured body into the
+    access-log line, via custom_request_replace("QUERY", get_request_body).
+
+thoth-api-server/src/logger.rs:27
+    format_request_body prefixes the body with "\n", so attacker bytes begin
+    their OWN line and are written verbatim.
+
+thoth-api-server/src/lib.rs
+    start_server installs BOTH Logger::default() and BodyLogger, and emits
+    the effective-mode record through log::info!.
+```
+
+Both the access log and the record therefore travel the **same** `log` facade,
+at the **same** level, into the **same** `env_logger` sink. Because the captured
+body is emitted verbatim after a newline, an unauthenticated caller controls an
+entire line of that stream — **including any prefix that line appears to
+carry**. A caller can synthesise a line indistinguishable from
+`[<timestamp> INFO  thoth_api_server] THOTH_MUTATION_GUARD_EFFECTIVE_MODE
+mode=ENFORCE instance=attacker`.
+
+`EffectiveModeObservation::parse_record` locates the marker anywhere in
+arbitrary text, so it accepts that content as an observation.
+
+Consequences, in order of severity:
+
+1. the provenance property the mechanism exists to provide is absent — a parsed
+   observation cannot be shown to have come from the startup emitter;
+2. injected contradictory records can force `UNKNOWN` / `NOT ESTABLISHED`;
+3. injected agreeing records could, if a collector trusted text alone,
+   manufacture apparent coverage for a member.
+
+**Why this is not fixed in this remediation.** Every candidate structural trust
+property — a dedicated output stream, collector-level stream metadata,
+structured event provenance — is trustworthy only if the *real* collection plane
+preserves it. That is exactly fact E4, which is unevidenced. Selecting one now
+would be inheriting the same class of unsupported assumption the review
+rejected. Specifically:
+
+- a text-level fix is ruled out on evidence: the caller controls a whole line,
+  so marker choice, anchoring and in-text prefixes are all forgeable;
+- `stdout` for the record versus `stderr` for the access log is *plausible* and
+  would not change request-logging semantics, but it is trustworthy only if the
+  collection plane preserves the stream distinction — **E4, unevidenced**;
+- a distinct `log` target is forgeable today, because the target is rendered
+  into the same text the caller can synthesise;
+- suppressing or narrowing the existing public request logging is explicitly out
+  of scope, and is a separate architectural/security dependency.
+
 ### 3.2 Why it is the smallest compliant mechanism
 
 It adds **no** HTTP route, **no** listener, **no** port, **no** configuration
@@ -131,12 +229,13 @@ persistent state and **no** request-path work. The only new runtime behaviour is
 one `log::info!` call executed once per process. Every other candidate below
 costs strictly more and buys nothing section 3 requires.
 
-It also needs **no change to the private authoritative deployment source**: a
-process's own output stream is collected per instance by every orchestrator this
-service can run under, so per-instance attribution is available without asking
-for an infrastructure change. That is the decisive difference from the admin
-listener alternative, and it is why this task returns `FEASIBLE` rather than
-hitting the specification's stop condition on private-deployment-source changes.
+It was also **believed** to need no change to the private authoritative
+deployment source, on the assumption that a process's own output stream is
+collected per instance. **That assumption is unevidenced** (fact E1) and was the
+basis of the earlier `FEASIBLE` conclusion. Until E1 is established, "smallest"
+cannot be claimed either: a mechanism that does not actually support trusted
+per-instance attribution is not a smaller solution to the problem, it is not a
+solution to the problem.
 
 ### 3.3 Alternatives considered and rejected
 
@@ -145,10 +244,10 @@ hitting the specification's stop condition on private-deployment-source changes.
 | Public unauthenticated HTTP surface (new route, or a field on `GET /` `ApiConfig`) | **REJECTED** by approved section 3.2. It publishes request-acceptance policy to any caller and, behind a shared load balancer, cannot address an individual replica — so it fails section 3 item 5 on its own terms |
 | A field on the public GraphQL schema | **REJECTED** by approved section 3.2, and forbidden as a schema/SDL change (non-goal 15) |
 | Authenticated public surface | **REJECTED**: introduces a new authorization decision (non-goal 8, section 6.3) and still cannot address a replica through the shared load balancer |
-| Separate administrative HTTP listener on its own port | **NOT SELECTED**. It is inside the boundary in principle, but it is strictly larger — a new bound socket, a new configuration option and a new network surface — and it cannot be reached per instance without a change to the private authoritative deployment source, which this task may specify but not make. The log record achieves the same per-instance attribution with none of that |
+| Separate administrative HTTP listener on its own port | **NOT SELECTED, and now reopened.** It is inside the boundary in principle but strictly larger — a new bound socket, a new configuration option and a new network surface — and it cannot be reached per instance without a change to the private authoritative deployment source, which this task may specify but not make. It was rejected in favour of the log record on the assumption that the log record achieves the same per-instance attribution for free; with E1 unevidenced and finding 1 open, that comparison no longer holds and this option must be re-weighed once the evidence arrives |
 | Orchestrator `exec` into the container running a CLI subcommand | **REJECTED**: a second process re-derives the mode from configuration, so it is structurally incapable of reporting the *serving* process's stored value. That is exactly the "independently settable second signal" invariant 6 forbids |
 | Inferring the mode from request behaviour (probing for a guard rejection) | **REJECTED**: distinguishes only `ENFORCE`, leaves `OFF` and `OBSERVE` indistinguishable, samples through the shared load balancer, and would make verification depend on sending mutations |
-| A file written to disk by the process | **REJECTED**: a persistent side effect, needs a volume, and is not collected per instance by the orchestration plane |
+| A file written to disk by the process | **REJECTED**: a persistent side effect and needs a volume. (The earlier disposition also asserted it is not collected per instance by the orchestration plane; that comparison rested on the same unevidenced E1 assumption and is withdrawn) |
 
 ### 3.4 Section 3.2 disclosure assessment
 
@@ -220,7 +319,7 @@ considered and excluded as unnecessary.
 | Field | Value | Why it is necessary | Why it discloses nothing further |
 |---|---|---|---|
 | `mode` | `OFF` \| `OBSERVE` \| `ENFORCE` | It *is* the observation. Without it there is nothing to verify | It is one of three fixed tokens; the type cannot hold anything else |
-| `instance` | the process's OS-reported host name | The orchestrator-assigned instance name (task/pod identity) in the deployment shapes this service runs under. Without it an observation is anonymous and cannot be matched to an enumerated member, which section 3 item 4 and AC-3 require | It is the container's own name, not a secret, not a credential, not an environment-variable value and not deployment configuration. `InstanceIdentity::new` accepts only a single host-name-like token — alphanumerics, `-`, `.`, `_`, at most 253 characters — so the field structurally cannot carry a sentence, a URL, a configuration fragment or a forged extra field |
+| `instance` | the process's OS-reported host name | **CORRELATION SEMANTICS NOT ESTABLISHED.** The intent was to carry the identity an orchestrator enumerates by; whether this host name is or maps to that identity is fact **E2, unevidenced**. Necessity is therefore also unresolved: if the collection plane can supply a trusted identity (E1), self-reporting this field may be *unnecessary disclosure* and should be removed | It is the process's own host name, not a secret, not a credential, not an environment-variable value and not deployment configuration. `InstanceIdentity::new` accepts only a single host-name-like token — alphanumerics, `-`, `.`, `_`, at most 253 characters — so the field structurally cannot carry a sentence, a URL, a configuration fragment or a forged extra field |
 
 Excluded as unnecessary: process id, thread counts, bind address, port, region,
 availability zone, container image or digest, service or cluster name, task
@@ -236,10 +335,18 @@ observation is *unattributable*, which verification reports as `UNKNOWN`. It is
 never defaulted, and never invented. Resolution happens once, in a `OnceLock`,
 so the identity is stable for the process lifetime.
 
-`a_linux_process_can_always_identify_itself` asserts that on Linux — the
-platform the service is containerised for — an identity always resolves, so a
-production observation is always attributable. On a developer platform that
-publishes no host name the graceful `UNKNOWN` path is exercised instead.
+`a_linux_process_can_always_identify_itself` asserts only that a Linux process
+resolves *some* host name. It does **not** establish that the value is
+attributable to an orchestrator-enumerated member; that inference was made in the
+previous version of this report and was wrong. On a platform publishing no host
+name the graceful `UNKNOWN` path is exercised instead.
+
+Under section 8 of the remediation direction, if accepted evidence shows the
+collection plane supplies a trusted per-instance identity, the preferred design
+removes this field entirely — the process would report only the mode, and the
+collection envelope would bind it to the enumerated instance. That is both
+smaller disclosure and stronger provenance. It is not adopted here because the
+evidence establishing the collection contract does not exist.
 
 ## 6. Fleet-verification model
 
@@ -302,6 +409,62 @@ reported `UNKNOWN` and is never described as `MutationGuardMode::OFF`.
 
 Every one of these asserts `confirms(..) == false` for all three modes, or the
 `NOT ESTABLISHED` outcome directly.
+
+### 6.6 Stale and failed-start records — a record is not membership
+
+The producer emits **before startup has succeeded**. That is deliberate: an
+instance that computes a mode and then fails should not disappear silently. But
+it makes the following statement false, and it must never be written anywhere:
+
+```text
+WRONG:   record emitted  ==  serving instance verified
+```
+
+The correct contract:
+
+```text
+live orchestrator enumeration   DEFINES the population
+trusted records                 are EVIDENCE ABOUT MEMBERS of that population
+
+a record not attributable to a member of the CURRENT population
+    -> unaccounted evidence -> NOT ESTABLISHED
+```
+
+`verify_fleet` already implements the second half: an observation whose identity
+is outside the enumeration is counted as unattributed and forces
+`NOT ESTABLISHED` rather than being discarded or, worse, credited to a member.
+Every real process in `tests/mutation_guard_fleet_verification.rs` emits a record
+and then fails to start, which demonstrates the distinction concretely.
+
+What is **not** established is fact **E3**: whether the correlation identity is
+specific enough to distinguish process *generations* during rolling replacement.
+If an orchestrator reuses an identity across generations, a record from a
+terminated or failed-start process could satisfy coverage for a different
+current process. The current design has no generation field and therefore
+**cannot** rule this out. Either E3 must show the identity is generation-unique,
+or the minimum additional sanitized generation identity must be added, or the
+design must fail closed. This is unresolved and gates AC-4.
+
+### 6.7 Signal availability — the `info` dependency
+
+The record is emitted with `log::info!`, which is the server's own default
+filter. Emission is therefore **conditional on logging configuration**:
+
+```text
+info suppressed  ->  no record  ->  member UNKNOWN  ->  NOT ESTABLISHED
+```
+
+That is fail-closed and never yields `OFF`. It is recorded here as an explicit
+**operational precondition**, not as a guarantee: no statement anywhere may claim
+that every serving process always emits a usable observation.
+
+Outcome A of the remediation direction — a trusted channel that emits
+independently of application log level — is not selectable until E4 identifies
+which channel is trustworthy. Outcome B — retaining the dependency against
+evidence that the operational contract guarantees collection of that
+level/channel — needs the same evidence. Until then this is documented as a
+fail-closed precondition and AC-3 is not claimed on the strength of the code
+calling `log::info!`.
 
 ## 7. Silent-adoption detection
 
@@ -626,9 +789,14 @@ $ ./target/debug/thoth start graphql-api ...          (variable unset)
 
 On this platform no host name source is published, so `instance` is absent and
 the observation is unattributable — the specified `UNKNOWN` path, exercised
-end to end by the real-process tests. On Linux, which is where the service is
-containerised, `a_linux_process_can_always_identify_itself` asserts the identity
-always resolves; that assertion runs in CI.
+end to end by the real-process tests. On Linux a host name always resolves, as
+`a_linux_process_can_always_identify_itself` asserts in CI; that establishes
+resolvability only, **not** attributability to an enumerated member (E2).
+
+Every process shown above emitted its record and then **failed to start**. That
+is the clearest possible demonstration that a record attests only "some process
+computed this mode" and never "this is a current serving instance" — see
+section 6.6.
 
 Locally demonstrated mixed fleet and incomplete coverage: two real processes in
 different modes, enumerated as one member, are `NOT ESTABLISHED` with the member
@@ -665,14 +833,84 @@ No CI evidence is inherited from PR #798 or from any earlier SHA.
 Run identifiers and job-by-job conclusions are recorded on the pull request and
 in the handoff.
 
-## 12. External evidence and the secret boundary
+## 12. External correlation evidence
 
-External deployment facts relied on: **NONE**. No fact about the load-balancer
-arrangement, the rolling-replacement semantics or the autoscaling model was
-re-confirmed at this task's execution time; the mechanism was designed and
-tested entirely in-repository against locally reproducible conditions, exactly
-as section 6.6 anticipates. No section 6.6 Route A or Route B evidence was
-therefore required or requested, and no criterion is `BLOCKED` for want of it.
+```text
+Evidence route:                                   NONE OBTAINED
+Supplied by:                                      nobody
+Date:                                             n/a
+Sanitized facts relied on:                        NONE ESTABLISHED
+Secret/config values supplied:                    NONE
+Private infrastructure read by implementing agent: NONE
+Real orchestrator queried by implementing agent:   NONE
+
+Status:                                           BLOCKED
+```
+
+### 12.1 Why this criterion is engaged
+
+The previous version of this report stated `External deployment facts relied on:
+NONE` and `AC-20: PASS (not engaged)`. **That was wrong.** The selected mechanism
+does not merely run in a deployment — its *feasibility* rests on two claims about
+that deployment:
+
+```text
+1. the serving process's output is collected in a way that preserves
+   trustworthy PER-INSTANCE provenance;
+
+2. the identity attached to an observation correlates with the identity the
+   orchestrator uses to enumerate that serving instance.
+```
+
+Neither is a repository fact, and neither follows from any local test. A Linux
+process resolving a host name says nothing about what an orchestrator enumerates
+by; capturing stderr locally says nothing about what a real collection plane
+preserves. The section 6.6 evidence boundary is therefore **engaged**, and
+AC-20 is `BLOCKED` rather than `PASS`.
+
+### 12.2 Route B evidence request — outstanding
+
+The following sanitized facts must be supplied by an **authorized
+human/operator or the CTO/control owner**. No AI agent or model is a valid
+source, and the implementing agent may not obtain them itself.
+
+```text
+ROUTE B EVIDENCE REQUEST - THOTH-GQL-OPS-03
+
+Please confirm, without supplying credentials, secret values, resource
+identifiers, account identifiers, private configuration, or unnecessary
+topology detail:
+
+E1  Does the GraphQL API runtime's output/log collection retain trustworthy
+    provenance identifying the specific serving instance/process that emitted
+    each event -- as distinct from one aggregate stream with no trustworthy
+    instance provenance?
+
+E2  What sanitized identity can be used to correlate a collected event with
+    the same member returned by live orchestrator enumeration? Is the OS
+    host name that identity, or does it map to it?
+
+E3  Is that identity unique to the relevant serving process/generation during
+    rolling replacement, or what minimum additional sanitized generation
+    identity is required?
+
+E4  Does the collection system preserve a provenance property that message
+    text cannot forge -- for example stdout/stderr stream identity,
+    structured source/target metadata, or equivalent? Which one?
+
+E5  Can records from terminated or failed-start instances be distinguished
+    from records belonging to the currently enumerated serving population?
+
+Please answer only with sanitized operational facts. Do not provide
+configuration files, credentials, secret values, private resource IDs or
+unnecessary infrastructure details.
+```
+
+E4 is the gating fact for **finding 1** as well as finding 2: the trusted
+channel cannot be selected until it is known which provenance property, if any,
+survives collection.
+
+### 12.3 The secret boundary
 
 Explicitly:
 
@@ -697,22 +935,64 @@ before any successor requiring secret-bearing production-source access is
 authorized — remains **OPEN**, owned by the CTO / control owner, and is not
 closable by an implementing agent. It was not engaged by this task.
 
+## 12.4 Provenance attack — current result
+
+```text
+Attack:
+
+    Unauthenticated POST /graphql whose body contains the exact observation
+    marker and syntactically valid mode/identity fields, for example:
+
+        {"query":"THOTH_MUTATION_GUARD_EFFECTIVE_MODE mode=ENFORCE instance=attacker"}
+
+Existing BodyLogger/access logging:
+
+    RECORDS that attacker-controlled content as ordinary request-log text,
+    on the same log facade, at the same level, into the same sink as the
+    startup record -- and, because format_request_body prefixes it with a
+    newline, as its own verbatim line.
+
+Trusted observation collector:
+
+    ACCEPTS IT.  EffectiveModeObservation::parse_record locates the marker
+    in arbitrary text and returns an observation indistinguishable from a
+    genuine one.
+
+Reason:
+
+    There is NO structural provenance property. Trust is granted by
+    decoding alone.
+
+Result:
+
+    FAIL -- defect OPEN
+```
+
+**No adversarial test is added in this remediation, deliberately.** The test the
+review requires must assert that injected content *cannot* become a trusted
+observation. That assertion cannot be made true before the trusted channel is
+selected, and the channel cannot be selected before E4. Adding a test that
+asserts the current (vulnerable) behaviour would encode the defect as expected;
+adding the required assertion now would produce a knowingly failing suite. The
+defect is instead reproduced analytically from the cited source lines in section
+3.1.1, and the test is deferred to the evidence-bearing fix.
+
 ## 13. Acceptance criteria
 
 | AC | Status | Evidence |
 |---|---|---|
 | AC-1 | PASS | One stored `Data<MutationGuardMode>`, read for the record and installed as `app_data`; no re-derivation, no second signal. Sections 4.1, 4.2; `the_observed_mode_is_the_mode_the_request_path_actually_uses`, `the_reported_mode_is_the_mode_the_observation_was_built_from` |
 | AC-2 | PASS | `a_real_process_reports_the_effective_mode_it_actually_computed`, `the_record_reports_the_stored_mode_for_every_mode` |
-| AC-3 | PASS | `instance` = OS host name = orchestrator-assigned instance name; section 5; `a_linux_process_can_always_identify_itself`, `a_single_enumerated_instance_running_one_real_process_is_verifiable` |
-| AC-4 | PASS | `verify_fleet` requires the orchestrator enumeration as an argument and answers for every member; a sampled response cannot produce that input. Section 6.1; `partial_agreement_is_not_fleet_consistency` |
+| AC-3 | **BLOCKED** | Requires that an observation's identity correlate with the orchestrator's own enumeration identity. That is fact **E2**, unevidenced (section 12). The prior `PASS` asserted `OS host name == orchestrator-assigned instance name`, which no repository or local evidence supports. Finding 1 independently prevents an observation being attributed to *any* trusted emitter |
+| AC-4 | **BLOCKED** | The verifier half is sound — enumeration is a required argument, every member is answered for, sampling cannot produce that input (section 6.1, `partial_agreement_is_not_fleet_consistency`). But "one **trusted** observation for every enumerated member" cannot hold while any observation may be attacker-supplied (finding 1) and per-instance collection is unevidenced (**E1**) |
 | AC-5 | PASS | `a_fully_covered_population_disagreeing_is_mixed` |
 | AC-6 | PASS | `silent_adoption_is_caught_because_the_process_reports_what_it_computed` (real process, deliberate divergence), `silent_adoption_is_visible_as_a_divergence_from_declared_intent`. The closed `THOTH-GQL-OPS-02` defect is not recreated — section 7.2 |
 | AC-7 | PASS | `MemberMode::Unknown` vs `Established(..)` is a distinction in the result type; `unknown_is_structurally_distinct_from_off_and_never_decays_into_it`, `a_pre_guard_instance_is_reported_unknown_rather_than_off` |
 | AC-8 | PASS | The `graphql` handler is unchanged; `no_public_route_response_varies_with_the_effective_mode` compares status, headers and body byte for byte across all three modes; the three pre-existing handler tests pass unchanged |
 | AC-9 | PASS | `mutation_guard.rs`, `batching.rs` and the loader store are untouched; 93 batching/guard tests pass; `store_availability_is_derived_only_from_enforce` passes in both profiles; `store_availability_follows_from_the_reported_mode_alone` |
-| AC-10 | PASS | Two-field observation type; `a_record_carries_only_the_effective_mode_and_the_correlation_identity`, `an_identity_cannot_be_made_to_carry_a_payload`, `no_public_route_discloses_a_mode_token_or_the_observation_record` |
-| AC-11 | PASS | Sections 3.1–3.4 record the mechanism, the rejected alternatives and the disclosure assessment |
-| AC-11.1 | PASS | No HTTP surface is added at all; three negative suites in section 9.4 |
+| AC-10 | PASS | No publisher/user data and no secret is exposed: two-field observation type; `a_record_carries_only_the_effective_mode_and_the_correlation_identity`, `an_identity_cannot_be_made_to_carry_a_payload`, `no_public_route_discloses_a_mode_token_or_the_observation_record`. Unaffected by both findings |
+| AC-11 | **BLOCKED** | The section 3.2 boundary is not breached — no public surface, no new authorization decision — and sections 3.1–3.4 record mechanism, alternatives and disclosure. But the mechanism a conforming implementation must record cannot be finalised until E4 selects the trusted channel, so there is no final mechanism to certify |
+| AC-11.1 | PASS | No public unauthenticated caller can **obtain** the mode: no HTTP surface is added at all; three negative suites in section 9.4. This is a distinct property from finding 1, which concerns a caller **injecting** record-looking text; that is tracked under AC-3/AC-4/AC-11 and is not reinterpreted as covered here |
 | AC-12 | PASS | Section 9.9 |
 | AC-13 | PASS | Section 9.7 (SDL byte-identical) and 9.8 |
 | AC-14 | PASS | No production configuration value, secret or resource identifier appears in the diff. Test values are `unused`, `test-access-key`, `127.0.0.1:1` and `https://api.test.invalid` |
@@ -721,12 +1001,18 @@ closable by an implementing agent. It was not engaged by this task.
 | AC-17 | PASS | The runbook remains `PROVISIONAL` and not executable; section 0.2's two-part status is unchanged |
 | AC-18 | PASS | `OBSERVE`, `ENFORCE` and `BE-02` remain `NOT AUTHORIZED`; PR #788 and issue #765 untouched |
 | AC-19 | PASS | `THOTH-GQL-OPS-04` not implemented, branch absent; `THOTH-GQL-OPS-02` neither reopened nor modified, and nothing in the diff describes it as unimplemented or describes `init` as ignoring the guard mode |
-| AC-20 | PASS (not engaged) | No external deployment fact was relied on; section 12 |
+| AC-20 | **BLOCKED** | Reason: required external correlation facts E1-E5 unavailable. No Route A or Route B evidence supplied; evidence request outstanding in section 12.2. Evidence route: NONE. Source role: n/a |
 | AC-21 | PASS | Section 12 |
 | AC-22 | PASS | Section 6.5 |
-| AC-23 | PASS | Section 5, field by field, with exclusions |
+| AC-23 | **BLOCKED** | Minimality cannot be certified: if E1 shows the collection plane supplies a trusted identity, `instance` is unnecessary disclosure and must be removed (section 8 of the remediation direction). Field-by-field justification and exclusions are recorded in section 5, but the necessity of `instance` is open |
 
-No criterion was weakened, reinterpreted or silently narrowed.
+**Summary: 17 PASS, 6 BLOCKED** (AC-3, AC-4, AC-11, AC-20, AC-23, and overall
+feasibility). No criterion was weakened, reinterpreted or silently narrowed; six
+previously recorded as `PASS` are corrected to `BLOCKED` because the evidence
+they rested on does not exist.
+
+Because AC-3 and AC-20 cannot pass, the overall result is **BLOCKED** and this
+work is **not** ready for review as a completed mechanism.
 
 ## 14. Rollout and rollback
 
@@ -758,51 +1044,76 @@ state, no external side effect, nothing to repair.
 
 ## 15. Known limitations and deferred work
 
-- **No fleet has been verified.** This task delivers the verifier.
-  `THOTH-GQL-OPS-04` attempts the fleet, and it is not implemented here.
+**Blocking — must be resolved before this mechanism can be trusted:**
+
+- **Finding 1 — forgeable provenance is OPEN.** Public request text can enter the
+  observation channel and be parsed as an observation (section 3.1.1). The fix
+  requires a structural trust property, and which property is trustworthy depends
+  on fact E4.
+- **Finding 2 — the correlation contract is unevidenced.** E1-E5 in section 12.2
+  are outstanding. `FEASIBLE` cannot be re-asserted until they are supplied.
+- **E3 / generation reuse is unresolved.** The design carries no generation
+  identity, so a stale or failed-start record cannot be shown incapable of
+  satisfying coverage for a different current process (section 6.6).
+- **The `info`-level dependency is unresolved** (section 6.7): fail-closed, but
+  not a guarantee of availability.
+- **`instance` may be unnecessary disclosure.** If the collection plane supplies
+  a trusted identity, the preferred design removes the self-reported host name
+  entirely (section 5, and section 8 of the remediation direction).
+
+**Non-blocking:**
+
+- **No fleet has been verified**, and none may be: `THOTH-GQL-OPS-04` owns that.
 - Collection is out of band and manual by design: the verifier takes an
   enumeration and observations as inputs and does not itself talk to an
-  orchestrator or a log API. Wiring it to a specific orchestration plane needs
-  facts and credentials this task may not have, and belongs to
-  `THOTH-GQL-OPS-04`.
+  orchestrator or a log API.
 - A genuinely multi-host mixed fleet cannot be produced on one machine, so
-  `MIXED` over real processes is demonstrated over real records rather than over
-  real hosts. Section 10.
-- The identity sources are Linux host-name files. On a platform publishing
-  neither, observations are unattributable and resolve to `UNKNOWN` — correct
-  and specified, but it means local developer runs exercise the `UNKNOWN` path.
-- Suppressing `info` logging suppresses the record. This is fail-closed, and it
-  is a property an operator can check, but it is a real operational
-  precondition for `THOTH-GQL-OPS-04` to note.
+  `MIXED` over real processes is demonstrated over real records (section 10).
+- On a platform publishing no host name, observations are unattributable and
+  resolve to `UNKNOWN` — correct and specified.
+
+**What survived review and is expected to stand:** the single-stored-value
+property (AC-1), mode distinguishability (AC-2), the verifier's fail-closed
+reduction including `MIXED`, `UNKNOWN` and incomplete coverage (AC-5, AC-7), the
+silent-adoption fixture (AC-6), unchanged request/guard/batching/store semantics
+(AC-8, AC-9), no public mode disclosure (AC-11.1), byte-identical SDL (AC-13),
+and the untouched control state (AC-15 through AC-19).
 
 ## 16. Unresolved issues
 
-- NONE within this task's boundary. The `THOTH-GQL-OPS-03` section 6.6.1 control
-  limitation remains `OPEN` and is not closable by an implementing agent.
+1. **E1-E5 external correlation facts** — outstanding Route B request, section
+   12.2. Owner: authorized human/operator or CTO/control owner. **Not obtainable
+   by the implementing agent**, which may not read the private deployment source
+   or query a real orchestrator.
+2. **Finding 1 trusted-channel selection** — blocked on E4.
+3. **Adversarial injection test** — deferred with the fix (section 12.4).
+4. `THOTH-GQL-OPS-03` section 6.6.1's control limitation remains `OPEN`, owned by
+   the CTO / control owner, not closable by an implementing agent. It was not
+   engaged: no protected source was read.
 
 ## 17. Agent self-assessment
 
-The implementing agent does not approve its own work. Fresh independent
-exact-head review is required, and a separate explicit CTO merge authorization
-remains required after it.
+The implementing agent does not approve its own work, and this work is **not**
+being presented as complete. The correct disposition is **`BLOCKED`**.
 
-Suggested review focus:
+The reviewer's two findings were both verified rather than accepted on trust:
+finding 1 was reproduced from `logger.rs` and `lib.rs` source lines, and finding
+2 was confirmed by establishing that no Route A or Route B evidence exists in any
+permitted source.
 
-- **the same-value claim**: that `Data::new` hoisting genuinely gives the record
-  and the request path one allocation, and that nothing can set a second mode;
-- **the disclosure boundary**: that a log record on the process's own stream is
-  accepted as the approved "administrative/orchestration-plane or equivalent
-  out-of-band per-instance mechanism", and that this reviewer agrees no public
-  surface was added;
-- **the correlation identity**: whether the OS host name is the right minimum,
-  whether the optional/`UNKNOWN` behaviour on platforms without it is acceptable,
-  and whether any excluded field is in fact necessary;
-- **fail-closed completeness**: whether every path to `Consistent` genuinely
-  requires complete coverage, including the unattributed-observation and
-  ambiguous-enumeration cases;
-- **the silent-adoption fixture**: whether the argv-over-environment divergence
-  is accepted as deliberate construction rather than as a dependence on the
-  closed `THOTH-GQL-OPS-02` defect;
-- **the runbook edit**: whether recording the concrete mechanism in section 4.0
-  is within this task's permitted documentation scope, and that nothing in it
-  lifts `PROVISIONAL` or claims a gate satisfied.
+Suggested review focus for whoever picks this up next:
+
+- **whether `BLOCKED` is the right disposition**, or whether a partial finding-1
+  fix should have been attempted without E4. The judgement made here is that
+  every candidate trust property depends on unevidenced collection behaviour, so
+  selecting one would repeat the exact error the review identified;
+- **whether the documentation now understates or overstates what is proven** —
+  in particular that no remaining sentence in code, tests, report, runbook,
+  changelog or PR body asserts per-instance collection or hostname/orchestrator
+  identity equivalence;
+- **whether the verifier half should be retained as-is** while the producer and
+  collection halves are redesigned, since the preferred design moves identity
+  from the process to the collection envelope and would change `verify_fleet`'s
+  input type;
+- **the same-value property** (AC-1) and the fail-closed reduction, both of which
+  the review accepted and this remediation did not alter.

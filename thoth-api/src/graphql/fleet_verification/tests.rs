@@ -130,10 +130,11 @@ fn the_identity_is_read_from_the_first_source_that_publishes_a_usable_host_name(
 #[test]
 #[cfg(target_os = "linux")]
 fn a_linux_process_can_always_identify_itself() {
-    // The service runs in Linux containers, where the host name is the
-    // orchestrator-assigned instance name. An observation from such a process
-    // must be attributable; only a platform publishing no host name at all may
-    // produce an unattributable one.
+    // A Linux process can always resolve a host name. That is ALL this test
+    // establishes: it does NOT establish that the host name is, or correlates
+    // with, the identity the real orchestrator uses to enumerate a serving
+    // instance — that fact is unevidenced (independent review 4906399962,
+    // finding 2) and must not be inferred from this test passing.
     let identity = process_instance_identity().expect(
         "a Linux process must resolve a runtime identity, \
          otherwise every production observation would be UNKNOWN",

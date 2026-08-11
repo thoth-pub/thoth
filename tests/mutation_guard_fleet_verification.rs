@@ -13,10 +13,22 @@
 //! Each process is started on the real `start graphql-api` command path with a
 //! deliberately invalid private key. The record is emitted immediately after
 //! logging is initialised and **before** the first startup step that can fail,
-//! so the process reports its mode and then aborts on the key. That ordering is
-//! the point: an instance whose startup later fails has still told the
-//! orchestration plane which mode it computed. If the record were ever moved
-//! after a fallible step, these tests would stop finding it.
+//! so the process reports its mode and then aborts on the key. If the record
+//! were ever moved after a fallible step, these tests would stop finding it.
+//!
+//! **That ordering also means a record proves nothing about fleet membership.**
+//! Every process in this file emits a record and then *fails to start*. A record
+//! therefore attests only "some process computed this mode", never "this is a
+//! current serving instance". Live orchestrator enumeration remains the sole
+//! authority on the population; records are evidence *about members of it*.
+//!
+//! ## NOT TRUSTED EVIDENCE
+//!
+//! Independent review 4906399962 (`CHANGES REQUIRED`) established that a public
+//! caller can inject record-looking text into this same log stream (finding 1),
+//! and that the real per-instance collection and identity-correlation contract
+//! is unevidenced (finding 2). These tests show what a real process *emits*;
+//! they do not, and cannot, show that a collector may trust it.
 //!
 //! Nothing here binds a socket, reaches a database, reads a secret, contacts a
 //! network service or touches any environment: every process is local,

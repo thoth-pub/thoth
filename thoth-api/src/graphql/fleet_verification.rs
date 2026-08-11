@@ -20,13 +20,46 @@
 //!               ORCHESTRATOR enumerated
 //! ```
 //!
+//! The verifier half is sound and independently reviewed. The **producer and
+//! collection** half is not yet trustworthy — see the status block below.
+//!
+//! # STATUS — NOT TRUSTED EVIDENCE
+//!
+//! ```text
+//! Independent review 4906399962 returned CHANGES REQUIRED.
+//!
+//! FINDING 1  observation provenance is FORGEABLE.  OPEN.
+//! FINDING 2  the external correlation contract is UNEVIDENCED.  OPEN.
+//!
+//! This module MUST NOT be used as proof of any fleet's effective mode
+//! until both are closed. It is an implementation candidate only.
+//! ```
+//!
+//! **Finding 1, concretely.** `thoth-api-server`'s `BodyLogger` captures the raw
+//! body of every public `POST /graphql` request and `Logger` interpolates it
+//! into the access-log line. Both that access log and the startup record below
+//! travel through the **same** `log` facade, at the **same** level, into the
+//! **same** sink. The captured body is emitted verbatim after a newline, so an
+//! unauthenticated caller controls a whole line of that stream — including any
+//! prefix it may appear to carry. [`EffectiveModeObservation::parse_record`]
+//! locates the marker in arbitrary text and therefore **cannot** distinguish the
+//! startup emitter from attacker-supplied request content. Trust must become
+//! structural; a longer or different marker does not fix it.
+//!
+//! **Finding 2, concretely.** Whether the real collection plane preserves
+//! per-instance provenance, and whether the identity below correlates with the
+//! orchestrator's own enumeration identity, are **deployment facts that have not
+//! been established** through the `THOTH-GQL-OPS-03` section 6.6 evidence
+//! boundary. Nothing in this module may be read as asserting either.
+//!
 //! # Disclosure boundary (`THOTH-GQL-OPS-03` section 3.2)
 //!
 //! The observation is carried **out of band**, on the serving process's own log
-//! stream, which the orchestration plane already collects per instance. It
-//! never crosses the public listener: this module adds **no** HTTP route, no
-//! GraphQL field, no header and no new authorization decision, so no public
-//! unauthenticated caller can reach it at all.
+//! stream. It never crosses the public listener: this module adds **no** HTTP
+//! route, no GraphQL field, no header and no new authorization decision, so no
+//! public unauthenticated caller can *obtain* the mode. That is a separate
+//! property from Finding 1, which is about a caller *injecting* record-looking
+//! text into the collection channel.
 //!
 //! A record carries exactly two things, and the types make a third impossible:
 //!
@@ -90,11 +123,16 @@ fn mode_token(mode: MutationGuardMode) -> &'static str {
 /// The minimum runtime identity that correlates one observation with one
 /// orchestrator-enumerated serving instance.
 ///
-/// This is the OS-reported host name of the serving process. It is the
-/// orchestrator-assigned instance name in the deployment shapes this service
-/// can run under — a container host name is the task/pod identity — so it is
-/// the field that maps an observation onto an enumerated member. Without it an
-/// observation is anonymous and cannot be attributed.
+/// This is the OS-reported host name of the serving process.
+///
+/// **Its correlation semantics are NOT established.** Whether this host name is,
+/// or maps to, the identity the real orchestrator uses to enumerate a serving
+/// instance is a deployment fact that has not been supplied through the
+/// `THOTH-GQL-OPS-03` section 6.6 evidence boundary (independent review
+/// 4906399962, finding 2). Until it is, an observation carrying this field is
+/// **not** established as attributable to an enumerated member, and this field
+/// may yet be replaced by an identity supplied by the collection plane instead
+/// of self-reported from inside the process.
 ///
 /// The accepted shape is restricted to a single host-name-like token. That is a
 /// **disclosure control**, not cosmetics: a value containing whitespace or `=`
@@ -156,9 +194,12 @@ pub fn process_instance_identity() -> Option<&'static InstanceIdentity> {
 
 /// Where the operating system publishes this process's own host name.
 ///
-/// Both are the container's own host name under every Linux container runtime,
-/// which is where this service runs. Neither is secret-bearing, and neither is
-/// deployment configuration. A platform publishing neither yields no identity.
+/// Both are the host name the kernel reports for the process's own UTS
+/// namespace. Neither is secret-bearing, and neither is deployment
+/// configuration. A platform publishing neither yields no identity.
+///
+/// What that host name *means* to the orchestrator is deliberately not asserted
+/// here — see [`InstanceIdentity`].
 const HOSTNAME_SOURCES: [&str; 2] = ["/proc/sys/kernel/hostname", "/etc/hostname"];
 
 fn resolve_instance_identity() -> Option<InstanceIdentity> {

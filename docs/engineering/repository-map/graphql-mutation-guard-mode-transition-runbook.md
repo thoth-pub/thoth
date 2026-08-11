@@ -274,61 +274,80 @@ executing this runbook.
 
 ## 4. Fleet verification
 
-The verification **mechanism** is delivered by
-[`THOTH-GQL-OPS-03`](../ai-delivery/tasks/THOTH-GQL-OPS-03.md). The capability-gap-2
-text in section 0 records the diagnosis as it stood before that task and is
-historical from here on.
+A verification mechanism is **under construction** by
+[`THOTH-GQL-OPS-03`](../ai-delivery/tasks/THOTH-GQL-OPS-03.md) and is **not yet
+usable** — see section 4.0. The capability-gap-2 text in section 0 therefore
+still stands: **no trustworthy mechanism proves the effective mode of a serving
+instance.**
 
-**Delivering a verifier is not verifying a fleet.** No fleet has been verified,
-this section is still **not executable**, and section 0.2's two-part
-`PROVISIONAL` status is unchanged: `THOTH-GQL-OPS-04` resolves part 1 against the
-real runtime, and the downstream gates resolve part 2.
+**Delivering a verifier is not verifying a fleet**, and a verifier whose
+provenance is forgeable is not yet a verifier. No fleet has been verified, this
+section is **not executable**, and section 0.2's two-part `PROVISIONAL` status is
+unchanged: `THOTH-GQL-OPS-04` resolves part 1 against the real runtime, and the
+downstream gates resolve part 2.
 
-### 4.0 The concrete mechanism
+### 4.0 Mechanism status — NOT ESTABLISHED
 
 ```text
-PER-INSTANCE SIGNAL
-
-  Each serving process emits ONE structured record on its OWN log stream,
-  once, at startup:
-
-      THOTH_MUTATION_GUARD_EFFECTIVE_MODE mode=<OFF|OBSERVE|ENFORCE> instance=<id>
-
-  It is read out of the SAME stored value the request path uses, so the
-  reported mode and the effective mode cannot disagree. It carries the mode
-  and the minimum correlation identity and nothing else, and it crosses no
-  public listener: there is no HTTP route, no GraphQL field and no new
-  authorization decision.
-
-  `instance` is the process's OS-reported host name -- the orchestrator's own
-  instance name. A process that cannot identify itself omits the field, and
-  its observation is then UNATTRIBUTABLE rather than attributed to anything.
-
-COLLECTION
-
-  Out of band, through the orchestration/logging plane, per instance --
-  never by sampling traffic through the shared load balancer.
-
-VERIFIER
-
-  `thoth_api::graphql::verify_fleet(enumerated, observations)`, where
-  `enumerated` is the instance set read from live orchestrator state:
-
-      CONSISTENT(mode)   every enumerated member established that one mode
-      MIXED              every member established a mode, and they differ
-      NOT ESTABLISHED    any member UNKNOWN, any enumeration ambiguity, or
-                         any observation the enumeration cannot account for
-
-  UNKNOWN is a distinct result from OFF and is never resolved to a mode. A
-  pre-guard instance therefore reports UNKNOWN, never `MutationGuardMode::OFF`.
-  Partial coverage cannot pass.
-
-SILENT-ADOPTION CHECK
-
-  `divergences_from_declared_intent(declared)` compares the declared intent of
-  the change against what each process actually computed. Nothing re-reads
-  configuration, so the two can be compared rather than confused.
++---------------------------------------------------------------+
+|  THE VERIFICATION MECHANISM IS NOT YET USABLE.                |
+|                                                               |
+|  Independent review 4906399962 of the THOTH-GQL-OPS-03        |
+|  implementation candidate returned CHANGES REQUIRED:          |
+|                                                               |
+|    FINDING 1  observation provenance is FORGEABLE -- public   |
+|               request text can enter the same log stream and  |
+|               parse as an observation.                        |
+|                                                               |
+|    FINDING 2  the per-instance collection and identity-       |
+|               correlation contract is UNEVIDENCED.            |
+|                                                               |
+|  Capability gap 2 is therefore NOT closed. Do not collect,    |
+|  correlate or rely on any effective-mode record until both    |
+|  are closed and a fresh independent review accepts the fix.   |
++---------------------------------------------------------------+
 ```
+
+The verifier's reduction — complete coverage, `MIXED`, `UNKNOWN`, fail-closed —
+was accepted by review. What is **not** established is that any observation
+reaching it is trustworthy or attributable.
+
+### 4.0.1 The correlation contract OPS-04 will require
+
+Whatever mechanism survives remediation must supply, and `THOTH-GQL-OPS-04` must
+be given, sanitized answers to:
+
+```text
+E1  per-instance output provenance -- collection associates each observation
+    with ONE specific serving process, not one aggregate stream
+E2  identity correlation -- the identity on an observation maps to the identity
+    used by live orchestrator enumeration
+E3  generation uniqueness -- that identity distinguishes the process generation
+    during rolling replacement
+E4  channel provenance -- collection preserves a property that message text
+    cannot forge, so the startup emitter is distinguishable from request/access
+    log content
+E5  current-instance filtering -- records from terminated or failed-start
+    processes are distinguishable from the current population
+```
+
+None is established today. A record proves only that *some* process computed a
+mode; it never proves that process is a current serving member.
+
+### 4.0.2 The OPS-04 procedure, once a mechanism exists
+
+Do **not** perform any of these now.
+
+1. enumerate the current serving population from live orchestrator state;
+2. collect **only** observations carrying trusted provenance;
+3. correlate them using the accepted per-instance/generation contract;
+4. disregard and flag stale or failed-start evidence not belonging to the
+   current population;
+5. require **complete** coverage of the enumerated population;
+6. treat any missing, untrusted or unattributable member as `UNKNOWN`;
+7. return `NOT ESTABLISHED` for incomplete coverage — never a partial success;
+8. compare declared intent against effective mode to expose silent adoption;
+9. **never** substitute log sampling or load-balancer sampling for enumeration.
 
 ### 4.1 What "verified" means
 
@@ -352,11 +371,12 @@ Never substitute the former for the latter.
    sample traffic: instances sit behind a shared load balancer, so a sampled
    response proves only that *at least one* instance carries the observed mode.
 4. **Establish the effective mode of every enumerated instance** by collecting
-   each instance's own effective-mode record (section 4.0) and passing the
-   enumeration and the observations to the verifier. Effective mode means the
-   mode the process actually computed — not the configured intent. Configured
-   intent is insufficient evidence, because capability gap 1 is precisely a case
-   where the two diverge silently.
+   each instance's own effective-mode record **with trusted provenance** and
+   passing the enumeration and the observations to the verifier, per sections
+   4.0.1 and 4.0.2. No such trusted collection exists yet. Effective mode means
+   the mode the process actually computed — not the configured intent.
+   Configured intent is insufficient evidence, because capability gap 1 is
+   precisely a case where the two diverge silently.
 5. **Treat any instance started during the window as unknown-mode** until the
    verifier has attributed a mode to it. Both service-definition revisions are
    live during a rollout, so a task started mid-window may start under either.
