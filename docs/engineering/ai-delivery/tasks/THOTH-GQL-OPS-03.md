@@ -15,15 +15,36 @@ Dependencies, all required before implementation may begin:
 [`ADR-0006`](../../decisions/ADR-0006-request-scoped-graphql-batching.md)
 approved and repository-authoritative;
 [`THOTH-GQL-BATCH-01`](THOTH-GQL-BATCH-01.md) merged;
-[`THOTH-GQL-OPS-01`](THOTH-GQL-OPS-01.md) merged; this specification approved;
-an explicit approved decision on the information-disclosure boundary of section
-3.2; a freshly verified exact `develop` base; explicit CTO implementation
-authorization
+[`THOTH-GQL-OPS-01`](THOTH-GQL-OPS-01.md) merged;
+[`THOTH-GQL-OPS-02`](THOTH-GQL-OPS-02.md) **implemented, independently reviewed
+and merged**; this specification approved, which is also the approval of the
+section 3.2 information-disclosure boundary it selects; a freshly verified exact
+`develop` base; explicit CTO implementation authorization
 Target branch name:
 `feature/shared-architecture/graphql-guard-mode-fleet-verification`
 (**must not exist** until implementation is authorized)
 Production activation effect: NONE. The mechanism observes; it does not
 transition anything.
+
+Dependency state at the time this approval candidate was prepared, from
+repository and GitHub evidence rather than from narrative:
+
+```text
+ADR-0006                        approved / repository-authoritative
+THOTH-GQL-BATCH-01              merged
+THOTH-GQL-OPS-01                merged
+THOTH-GQL-OPS-02                implemented, independently reviewed and
+                                merged (PR #797)
+section 3.2 disclosure decision RESOLVED by this approval candidate,
+                                binding on implementation once this
+                                specification is approved
+fresh exact `develop` base      still required at implementation time
+explicit CTO implementation
+  authorization                 still required, and still separate
+```
+
+Approving this specification does **not** authorize implementation. The two are
+distinct decisions, and neither implies the other.
 
 Authority condition: this record is repository-authoritative when this exact
 content is reachable from the repository's authoritative integration branch.
@@ -42,8 +63,10 @@ GraphQL API, so that a mode change can be verified fleet-wide, a mixed-mode flee
 can be detected, and the silent-adoption failure class can be caught.
 
 This task closes **capability gap 2** of
-[`THOTH-GQL-OPS-01`](THOTH-GQL-OPS-01.md). It does not close the
-runtime-operations gate, it verifies no fleet by existing, and it activates
+[`THOTH-GQL-OPS-01`](THOTH-GQL-OPS-01.md). Capability gap 1 is already closed
+in-repository by the merged [`THOTH-GQL-OPS-02`](THOTH-GQL-OPS-02.md); gap 2
+remains open, and closing it is this task's whole objective. It does not close
+the runtime-operations gate, it verifies no fleet by existing, and it activates
 nothing.
 
 **Binding distinction, which this task exists because of:**
@@ -63,11 +86,16 @@ Authoritative sources:
 - [`THOTH-GQL-OPS-01`](THOTH-GQL-OPS-01.md), in particular sections 2.2.2, 3.5
   and 3.12.2;
 - the [mutation-guard runtime-operations control record](../../repository-map/graphql-mutation-guard-runtime-operations.md),
-  sections 4.2, 4.3, 6 and 7;
+  sections 4.2, 6 and 7. Its section 4.3 records the capability-gap-1 diagnosis
+  as it stood at `THOTH-GQL-OPS-01`'s base; that gap is now closed in-repository
+  by the merged `THOTH-GQL-OPS-02`, so section 4.3 is read here as historical
+  evidence of the failure **class**, not as current `init` behaviour;
 - the [mode-transition runbook](../../repository-map/graphql-mutation-guard-mode-transition-runbook.md)
   section 4, which is the consumer of this mechanism;
 - [`ADR-0006`](../../decisions/ADR-0006-request-scoped-graphql-batching.md)
   sections 4.12.6.6, 7.2.4, 8.3, 8.3.1, 8.3.4 and 8.3.5;
+- [`THOTH-GQL-OPS-02`](THOTH-GQL-OPS-02.md) **as merged**, and its
+  [implementation report](../implementation-reports/THOTH-GQL-OPS-02-implementation-report.md);
 - [CG-13](../../repository-map/control-gaps.md#cg-13---thoth-runtime-operations-unmapped).
 
 Current behaviour, established `[REPO]`:
@@ -96,11 +124,57 @@ range with a live current value rather than a fixed number. Any re-confirmation
 of these facts at this task's execution time is governed by the evidence boundary
 of section 6.6.
 
-Established `[REPO]`: a guard-enabled container running the image default `init`
-silently ignores the configured mode and runs unconditionally in `OFF`. This is
-the **silent-adoption failure class**: configured intent and effective mode
-diverge with no symptom. It is the specific failure this mechanism must be able
-to catch.
+Established `[REPO]`: **configured intent is not proof of process-effective
+mode.** Where the two diverge, they diverge with no symptom — the process starts
+healthily, serves traffic normally, and reports nothing about the mode it
+actually computed. This is the **silent-adoption failure class**, and it is the
+specific failure class this mechanism must be able to catch. It is stated here as
+a class rather than as any particular defect (section 2.1).
+
+### 2.1 Post-`THOTH-GQL-OPS-02` reconciliation — binding
+
+This specification was first drafted before `THOTH-GQL-OPS-02` existed, and its
+earlier text used the then-current `init` defect as the worked example of the
+silent-adoption class. **That defect no longer exists**, and no statement in this
+specification may describe it as current repository behaviour.
+
+```text
+THOTH-GQL-OPS-02   CLOSED capability gap 1, in-repository.
+
+                   The production-applicable `init` command now consumes
+                   THOTH_GRAPHQL_MUTATION_GUARD_MODE:
+
+                       OFF / OBSERVE / ENFORCE   ->  that effective mode
+                       unset                     ->  OFF
+                       invalid value             ->  startup failure
+
+                   in both the release and the debug build profile.
+
+THOTH-GQL-OPS-03   capability gap 2 remains OPEN.
+
+                   No implemented mechanism proves the effective mode of
+                   every serving process / fleet member.
+```
+
+**The failure class survives the fix; only that one instance of it is gone.** A
+verifier is still required, because:
+
+- configuration intent is not proof of process-effective state, and no mechanism
+  currently establishes the latter;
+- rolling replacement can produce mixed generations, and therefore mixed modes,
+  concurrently behind one load balancer;
+- an unknown or unreachable instance must remain **unknown**, and be visible as
+  such;
+- a future regression, a deployment mismatch or a divergence introduced anywhere
+  on the startup path must be **detectable** rather than silent;
+- complete fleet verification cannot be inferred by sampling the shared load
+  balancer, which can only ever prove that *at least one* instance carries the
+  observed mode.
+
+`THOTH-GQL-OPS-02` made the mode **settable** on the production-applicable path.
+It did not make any process's effective mode **observable**, and it added no
+surface, log or signal that reports it — the current-behaviour table above is
+re-derived at this specification's own base and still holds in full.
 
 ## 3. Explicit scope
 
@@ -118,15 +192,21 @@ The task must:
 4. carry a **runtime identity** for the reporting instance that can be correlated
    with the orchestrator's own instance identity, so an observation can be matched
    to an enumerated instance rather than to an anonymous responder;
-5. support **complete coverage** of the actual serving population — enumeration
+5. **require** complete coverage of the actual serving population — enumeration
    of the running instance set from the orchestrator's live state, with a
    per-instance signal for each member — rather than sampling traffic through the
    shared load balancer. A sampled response proves only that *at least one*
-   instance carries the observed mode and can never establish fleet consistency;
+   instance carries the observed mode and can never establish fleet consistency,
+   and a result short of complete coverage is a failure rather than a partial
+   success;
 6. detect a **mixed-mode fleet**;
-7. detect the **silent-adoption failure class** specifically — a configured mode
-   that the process did not adopt — since that failure is otherwise invisible;
-8. resolve and document the information-disclosure boundary of section 3.2;
+7. detect the **silent-adoption failure class** specifically — a process whose
+   effective mode differs from the configured intent — since that divergence is
+   otherwise invisible. The class is defined generically (section 2.1) and must
+   not be reduced to any single historical defect;
+8. satisfy the information-disclosure boundary **selected in section 3.2**, and
+   record the mechanism chosen within it, the alternatives rejected, and the
+   disclosure assessment for the choice;
 9. add the tests required by section 10;
 10. add the changelog entry and the implementation report.
 
@@ -137,29 +217,82 @@ not become a general observability, telemetry or admin subsystem, and it must no
 grow a second responsibility. Reviewers should reject additions that are useful
 but not required by section 3.
 
-### 3.2 Information-disclosure boundary — an explicit decision, not a formatting choice
+### 3.2 Information-disclosure boundary — RESOLVED, and binding on implementation
 
 The guard mode describes a server-side **request-acceptance policy**. Publishing
 it tells a caller whether baseline-valid duplicate top-level mutation response
 keys are currently rejected, which has reconnaissance value for probing
 request-acceptance behaviour.
 
-Binding:
+`THOTH-GQL-OPS-01` deliberately left this decision open and did not grant a
+public-disclosure acceptance. **This specification closes it, and closes it
+narrowly.** The boundary below is the decision an approval of this specification
+approves; it is not an implementation choice the implementing task may revisit.
 
-- a **public unauthenticated** mode surface must **not** be selected casually. If
-  one is proposed, this specification's approval must record the
-  information-disclosure implications explicitly and the CTO must accept them;
-- `THOTH-GQL-OPS-01` did **not** grant that acceptance, and this specification
-  does not grant it either. It is a listed dependency above;
-- the mechanism must expose **no** secret and **no** publisher or user data under
-  any option;
-- a surface reachable only from the orchestration/administrative plane, or a
-  per-instance signal consumed out of band, avoids the disclosure question
-  entirely and should be preferred unless evidence shows it cannot satisfy
-  section 3.
+#### 3.2.1 The selected boundary
 
-The task must record which option was selected, the alternatives considered, and
-the disclosure assessment for the selected one.
+```text
+SELECTED BOUNDARY
+
+The effective-mode verification signal MUST be available only through an
+orchestration/administrative-plane or equivalent out-of-band per-instance
+mechanism.
+
+A public unauthenticated effective-mode surface is REJECTED.
+
+The public GraphQL schema MUST remain unchanged.
+
+No public unauthenticated HTTP endpoint may expose OFF / OBSERVE / ENFORCE.
+
+The verification mechanism may expose only:
+
+    1. the process's actual effective MutationGuardMode; and
+    2. the minimum runtime identity necessary to correlate that observation
+       to the orchestrator's enumerated serving instance.
+
+It must expose no:
+
+    - secret;
+    - credential;
+    - environment-variable value;
+    - deployment configuration;
+    - publisher data;
+    - user data;
+    - request data;
+    - unnecessary topology or infrastructure metadata.
+```
+
+**Reason.** The mode is server-side request-acceptance policy, so it carries
+reconnaissance value, and no public caller needs it in order for
+`THOTH-GQL-OPS-03` to do its job. The administrative/out-of-band boundary
+satisfies the fleet-verification requirement of section 3 in full while avoiding
+a disclosure the task does not need. Choosing the narrower boundary costs the
+task nothing it requires.
+
+#### 3.2.2 Alternatives considered and rejected
+
+| Option | Disposition |
+|---|---|
+| **Public unauthenticated HTTP surface** (a new route, or a new field on `GET /` `ApiConfig`) | **REJECTED.** It publishes request-acceptance policy to any caller, and — because instances sit behind a shared load balancer — it cannot address an individual replica, so it fails section 3 item 5 on its own terms. It buys the disclosure without buying the capability |
+| **A field on the public GraphQL schema** | **REJECTED.** Same disclosure, plus a public schema/SDL change the task is forbidden to make (section 4 item 15, section 5 invariant 7) |
+| **Authenticated public surface** | **NOT SELECTED.** It would introduce a new authorization decision, which section 4 item 8 and section 6.3 forbid, and it still cannot address an individual replica through the shared load balancer |
+| **Administrative/orchestration-plane or out-of-band per-instance signal** | **SELECTED.** It is per-instance by construction, it is collected the same way the orchestrator enumerates the fleet, and it requires no public disclosure and no new authorization decision |
+
+#### 3.2.3 What this decision does and does not fix
+
+This decision fixes the **boundary**, not the **mechanism**. Within the boundary
+above, the implementing task selects the smallest transport or signal that
+satisfies section 3, and records that selection, the alternatives it rejected and
+its disclosure assessment (section 3 item 8, AC-11). At least one mechanism class
+within this boundary is available in-repository without infrastructure change, so
+the boundary is not vacuous; this specification deliberately does **not** name
+which, because naming one would pre-empt the smallest-mechanism analysis that
+belongs to the implementing task under section 3.1.
+
+If implementation-time evidence proves that **no** administrative or out-of-band
+mechanism can satisfy section 3, that is a **stop** (section 13). It is not a
+licence to fall back to a public surface: reopening the disclosure decision
+requires the CTO, not the implementing task.
 
 ## 4. Non-goals
 
@@ -179,8 +312,10 @@ The task must not:
    procedure;
 10. invent service-health thresholds, latency or error-rate baselines, or
     availability SLOs — that remains the separate `ADR-0006` section 8.3.2 gate;
-11. implement the mode-control path — that is
-    [`THOTH-GQL-OPS-02`](THOTH-GQL-OPS-02.md);
+11. re-open, re-implement or modify the mode-control path delivered by the merged
+    [`THOTH-GQL-OPS-02`](THOTH-GQL-OPS-02.md). Its `init` argument registration,
+    its `OFF` default, its invalid-value startup failure and its migration
+    ordering are settled and out of bounds here;
 12. change the production container command, or specify doing so;
 13. change, reorder, conditionalise or remove migration execution;
 14. add a database migration, schema change or data change;
@@ -194,9 +329,12 @@ The task must not:
 19. close CG-13, or record the runtime-operations gate as satisfied;
 20. lift the `PROVISIONAL` marking from the mode-transition runbook — only
     `THOTH-GQL-OPS-04` may do that;
-21. implement `THOTH-GQL-OPS-02` or `THOTH-GQL-OPS-04`, or create their branches;
+21. implement `THOTH-GQL-OPS-04` or create its branch;
 22. modify `BE-02`, PR [#788](https://github.com/thoth-pub/thoth/pull/788) or
-    issue [#765](https://github.com/thoth-pub/thoth/issues/765).
+    issue [#765](https://github.com/thoth-pub/thoth/issues/765);
+23. expose the effective mode on a **public unauthenticated** surface of any
+    kind, or otherwise depart from the section 3.2 boundary. That boundary is
+    approved architecture for this task, not an implementation preference.
 
 ## 5. Invariants
 
@@ -224,7 +362,18 @@ The implementation must preserve:
 12. an environment running a **pre-guard** release is recorded as pre-guard and
     is never described as `MutationGuardMode::OFF`. A pre-guard instance has no
     mode for the mechanism to report, and the mechanism's absence on such an
-    instance must not be read as `OFF`.
+    instance must not be read as `OFF`;
+13. **no public unauthenticated surface exposes the effective mode**, and the
+    section 3.2 boundary holds in the merged state — not merely in the design
+    narrative;
+14. the mechanism discloses **only** the effective mode and the minimum runtime
+    identity needed to correlate one observation to one orchestrator-enumerated
+    instance. No environment-variable value, deployment configuration, request
+    data, or topology/infrastructure metadata beyond that minimum is exposed;
+15. `THOTH-GQL-OPS-02`'s merged behaviour is unchanged: the production-applicable
+    path still consumes `OFF`/`OBSERVE`/`ENFORCE`, an absent value still yields
+    `OFF`, an invalid value still fails startup, and `init` still runs migrations
+    first and aborts if they fail.
 
 ## 6. Required behaviour
 
@@ -254,7 +403,9 @@ never defaulted to any mode.
   unknown is a distinct outcome from `OFF`. It must never be silently coerced to
   a mode;
 - an incomplete enumeration of the serving population is a **failed
-  verification**, not a partial success;
+  verification**, not a partial success. Partial coverage **cannot pass**: there
+  is no result shape in which "most instances reported the intended mode" is a
+  success;
 - the mechanism must fail **closed** with respect to conclusions: it may report
   "not established", and it must never report consistency it did not observe.
 
@@ -292,8 +443,13 @@ same answer for the life of that process.
 ### 6.5 Compatibility
 
 No database, client or deployment-contract change. The public GraphQL schema is
-untouched and the generated SDL is unchanged. Any HTTP surface added is additive
-and must not alter the behaviour, status codes or payloads of existing routes.
+untouched and the generated SDL is unchanged. Any surface added must lie within
+the section 3.2 boundary; where it is an HTTP surface, it is additive, it is
+**not reachable by an unauthenticated public caller**, and it must not alter the
+behaviour, status codes or payloads of existing routes. Because section 6.3 also
+forbids introducing a new authorization decision, an HTTP surface that satisfies
+both constraints is one the public caller cannot reach at all rather than one
+gated by new authorization logic.
 
 ### 6.6 Evidence boundary for external deployment facts — binding
 
@@ -377,9 +533,12 @@ Any contrary discovery is a stop and escalation condition (section 13).
 ## 8. Observability and operations
 
 Required logs: as required by the selected mechanism, and no more. Any log or
-signal the mechanism emits must carry the guard mode and the instance identity,
-and must **never** carry the full GraphQL document, variables, mutation argument
-values, or any publisher or user payload data (`ADR-0006` section 8.3).
+signal the mechanism emits must stay within the section 3.2 boundary: it carries
+the guard mode and the minimum correlation identity, and it must **never** carry
+the full GraphQL document, variables, mutation argument values, any publisher or
+user payload data (`ADR-0006` section 8.3), any environment-variable value, any
+deployment configuration, or topology/infrastructure metadata beyond that
+minimum.
 
 Required metrics/alerts: none. This task identifies and delivers the
 **effective-mode** signal only. Service-health signals and activation thresholds
@@ -401,15 +560,21 @@ marking.
 - [ ] **AC-3** An observed mode is attributed to a specific, identified serving
       instance, and the instance identity can be correlated with the
       orchestrator's own instance identity.
-- [ ] **AC-4** The mechanism supports complete coverage of the running instance
-      set by per-instance signal, and does **not** rely on sampling traffic
-      through the shared load balancer.
+- [ ] **AC-4** The mechanism **requires** complete enumeration of the running
+      instance set and supplies a per-instance signal for every enumerated
+      member. It does **not** rely on sampling traffic through the shared load
+      balancer, and a design that can only sample does not satisfy this
+      criterion.
 - [ ] **AC-5** A mixed-mode fleet is detectable.
 - [ ] **AC-6** The silent-adoption failure class is detectable: a test
-      demonstrates an instance whose configured intent and effective mode differ,
-      and shows the mechanism reporting the **effective** value.
+      demonstrates a process whose configured intent and effective mode differ,
+      and shows the mechanism reporting the **effective** value, so the
+      divergence is visible. The test constructs the divergence deliberately and
+      does **not** depend on, reintroduce or assume the `init` defect closed by
+      `THOTH-GQL-OPS-02`.
 - [ ] **AC-7** An unreachable or unattributable instance is reported as
-      **unknown** and is never coerced to a mode.
+      **unknown** and is never coerced to a mode. `UNKNOWN` is a distinct outcome
+      from `OFF` in the result shape itself, not only in prose.
 - [ ] **AC-8** Request acceptance is unchanged in every mode. A test asserts that
       identical requests produce identical responses, statuses and errors with
       the mechanism present.
@@ -417,10 +582,15 @@ marking.
       availability remains derived only from the mode.
 - [ ] **AC-10** No publisher or user data and no secret is exposed by the
       mechanism in any mode.
-- [ ] **AC-11** The information-disclosure boundary is documented: the option
-      selected, the alternatives considered, and the assessment for the selected
-      one. If a public unauthenticated surface was selected, the explicit
-      approval of that disclosure is recorded.
+- [ ] **AC-11** The implementation conforms to the **approved section 3.2
+      boundary**, and the report records the mechanism chosen within it, the
+      alternatives rejected, and the disclosure assessment for the choice.
+- [ ] **AC-11.1** **No public unauthenticated surface exposes the effective
+      mode.** A negative test proves that an unauthenticated public caller cannot
+      obtain `OFF`, `OBSERVE` or `ENFORCE` from any route, response body or
+      header of the public listener, including `GET /` (`ApiConfig`) and every
+      existing GraphQL route. A public unauthenticated mode surface is a **fail**,
+      not a documented trade-off.
 - [ ] **AC-12** The mechanism is read-only, side-effect-free and safe to invoke
       concurrently and during a rollout.
 - [ ] **AC-13** No migration, schema, data or public GraphQL schema change
@@ -434,8 +604,10 @@ marking.
 - [ ] **AC-17** The runbook remains marked `PROVISIONAL`.
 - [ ] **AC-18** `OBSERVE`, `ENFORCE` and `BE-02` remain recorded as
       `NOT AUTHORIZED`; PR #788 and issue #765 are unchanged.
-- [ ] **AC-19** The `THOTH-GQL-OPS-02` and `THOTH-GQL-OPS-04` branches do not
-      exist and neither task is implemented in this pull request.
+- [ ] **AC-19** `THOTH-GQL-OPS-04` is not implemented in this pull request and
+      its branch does not exist. `THOTH-GQL-OPS-02` is merged and is neither
+      re-opened nor modified here, and no statement in the diff describes it as
+      unimplemented or describes the `init` path as ignoring the guard mode.
 - [ ] **AC-20** Any external deployment fact relied on was obtained through the
       section 6.6 evidence boundary — sanitized non-secret metadata, or authorized
       operator-supplied evidence — and the implementing agent performed no direct
@@ -447,6 +619,18 @@ marking.
       deployment credential, or invoked deployment automation in place of an
       authorized human/operator. The report states this explicitly. Local,
       disposable and CI repository testing is not restricted by this criterion.
+- [ ] **AC-22** Incomplete fleet coverage **cannot pass**. A test drives the
+      mechanism against an enumerated population in which at least one member is
+      unreachable or unattributable, and shows the verification outcome is a
+      failure/not-established result rather than a success, with the affected
+      member reported `UNKNOWN`.
+- [ ] **AC-23** **Minimum disclosure.** The observation carries only the
+      effective mode and the minimum runtime identity needed to correlate it to
+      one orchestrator-enumerated instance. A test or an enumerated field-by-field
+      justification shows that no secret, credential, environment-variable value,
+      deployment configuration, request data, publisher or user data, or
+      unnecessary topology/infrastructure metadata is carried, and the report
+      states why each disclosed identity field is necessary for correlation.
 
 ## 10. Required tests
 
@@ -463,10 +647,16 @@ marking.
 
 - the mechanism is exercised against a running server instance in each of the
   three modes and reports the correct effective mode in each;
-- **silent-adoption regression:** an instance started on a command path that does
-  not consume the configured value reports the mode it actually computed, and the
-  divergence from configured intent is visible. This is the defining test of this
-  task;
+- **silent-adoption detection:** a process whose declared/configured intent
+  differs from the mode it actually computed reports the **computed** value, and
+  comparing the two surfaces the divergence. This is the defining test of this
+  task. The divergence is constructed deliberately in the test fixture — it must
+  **not** be produced by reintroducing, weakening or depending on the `init`
+  defect that `THOTH-GQL-OPS-02` closed, and the test must keep passing however
+  the startup path is later refactored;
+- **incomplete coverage fails closed:** an enumerated population containing an
+  unreachable or unattributable member yields a failed/not-established
+  verification and reports that member `UNKNOWN`, never `OFF` and never omitted;
 - concurrent observation during simulated load returns consistent answers and
   perturbs no request;
 - no database access is introduced by the mechanism.
@@ -476,6 +666,14 @@ marking.
 - the mechanism introduces no new authorization decision and changes none;
 - negative test: the mechanism exposes no publisher or user data and no secret in
   any mode;
+- **negative test for the section 3.2 boundary:** an unauthenticated public
+  caller cannot obtain the effective mode from any route, response body or header
+  of the public listener — `GET /` (`ApiConfig`), `GET /graphiql`,
+  `GET /graphql`, `GET /schema.graphql` and `POST /graphql` are each asserted to
+  disclose no mode;
+- **minimum-disclosure test:** the observation's payload carries the effective
+  mode and the correlation identity and nothing further — no environment-variable
+  value, no deployment configuration, no request data;
 - where a network surface is added, tests cover its reachability boundary
   explicitly — including a negative test for any caller class that must **not**
   reach it.
@@ -483,6 +681,10 @@ marking.
 ### Regression
 
 - the existing `THOTH-GQL-BATCH-01` guard and batching suites pass unchanged;
+- the `THOTH-GQL-OPS-02` mode-control suite passes unchanged, in **both** build
+  profiles: the production-applicable path still consumes `OFF`/`OBSERVE`/
+  `ENFORCE`, an absent value still yields `OFF`, an invalid value still fails
+  startup, and migrations still run first and abort startup on failure;
 - identical GraphQL requests produce identical responses, statuses and errors
   with the mechanism present, in every mode;
 - `MutationGuardMode::store_available()` remains true only for `Enforce`;
@@ -531,8 +733,10 @@ to the activation gate, not to this task.
 - **repository-managed deployment configuration:** this repository holds none,
   and this task adds none;
 - **staging/preview validation:** the timed rehearsal is defined by
-  `THOTH-GQL-OPS-01` and executed at the later preview/staging gate, after both
-  this task and `THOTH-GQL-OPS-02` have merged. It is not executed here;
+  `THOTH-GQL-OPS-01` and executed at the later preview/staging gate.
+  `THOTH-GQL-OPS-02` has merged, so this task is the remaining capability
+  prerequisite — but the rehearsal still sits behind `THOTH-GQL-OPS-04` and the
+  service-health/threshold gate, and it is not executed here;
 - **pilot:** not applicable;
 - **activation approval:** unchanged and still required. Completing this task
   does **not** authorize `OBSERVE`;
@@ -563,8 +767,12 @@ The implementing agent must stop and report `BLOCKED` if:
   **specifying** such a change is in scope, whereas **making** it is not;
 - complete coverage of the serving population cannot be achieved by any
   mechanism this task may implement;
-- the only workable mechanism requires a public unauthenticated surface **and**
-  that disclosure has not been explicitly approved;
+- **no administrative/orchestration-plane or out-of-band mechanism can satisfy
+  section 3** — in which case the task stops and escalates. Falling back to a
+  public unauthenticated surface is **not** an available resolution: the section
+  3.2 boundary is approved architecture, and only the CTO may reopen it;
+- the only workable mechanism requires a public unauthenticated effective-mode
+  surface, or otherwise departs from the section 3.2 boundary;
 - the mechanism cannot avoid exposing publisher or user data, or a secret;
 - the mechanism would require a new authorization decision;
 - an `ADR-0006` architecture change would be required;
@@ -593,9 +801,16 @@ The implementing agent must stop and report `BLOCKED` if:
 
 The agent must use
 [`implementation-report-template.md`](../implementation-report-template.md) and
-must record: the exact base and head; the mechanism selected and the alternatives
-rejected, with the section 3.2 disclosure assessment; explicit evidence for the
-silent-adoption detection test; explicit confirmation that request acceptance,
+must record: the exact base and head; the mechanism selected within the approved
+section 3.2 boundary and the alternatives rejected, with the disclosure
+assessment and a field-by-field justification of the correlation identity
+disclosed; explicit confirmation that **no public unauthenticated surface exposes
+the effective mode**, with the negative-test evidence; explicit evidence for the
+silent-adoption detection test, stating how the divergence was constructed
+without depending on the `init` defect closed by `THOTH-GQL-OPS-02`; explicit
+evidence that incomplete fleet coverage fails closed and that `UNKNOWN` is
+distinct from `OFF`; explicit confirmation that the merged `THOTH-GQL-OPS-02`
+behaviour is unchanged; explicit confirmation that request acceptance,
 guard, batching and store semantics are unchanged, with the regression evidence;
 explicit confirmation that **no fleet was verified** and that implementing a
 verifier is not verifying a fleet; explicit confirmation that no mode was set in
@@ -622,11 +837,12 @@ Review reasoning level: HIGH
 
 ## 16. Branch and integration plan
 
-- branch source: a freshly verified exact `develop` head;
+- branch source: a freshly verified exact `develop` head. `develop` has moved
+  since this specification was first drafted — `THOTH-GQL-OPS-02` has merged —
+  so no base recorded in this file may be reused;
 - pull-request target: `develop`;
-- expected merge order: after `THOTH-GQL-OPS-01`, and before
-  `THOTH-GQL-OPS-04`. It is independent of `THOTH-GQL-OPS-02` and the two may
-  proceed in either order;
+- expected merge order: after `THOTH-GQL-OPS-01` and after the now-merged
+  `THOTH-GQL-OPS-02`, and before `THOTH-GQL-OPS-04`;
 - parent programme branch refresh requirement: not applicable — STANDARD
   workflow, no programme integration branch;
 - branch deletion after merge: YES;
@@ -634,6 +850,29 @@ Review reasoning level: HIGH
 - final release path: `develop -> master`.
 
 ## 17. Approval
+
+### 17.1 What approving this specification decides
+
+Approving this specification is a **specification** decision. It decides exactly
+two things and nothing else:
+
+```text
+1. that this specification is the approved statement of THOTH-GQL-OPS-03;
+2. that the section 3.2 information-disclosure boundary it selects --
+   administrative / orchestration-plane or out-of-band only, with a public
+   unauthenticated effective-mode surface REJECTED -- is the approved
+   boundary, binding on the implementing task.
+```
+
+It does **not** authorize implementation, create the implementation branch,
+authorize any deployment, or authorize `OFF -> OBSERVE`, `OBSERVE -> ENFORCE` or
+`BE-02` runtime. Until implementation is separately and explicitly authorized,
+this record stands at `Status: DRAFT` and
+`Implementation: NOT AUTHORIZED`, and the implementation branch
+`feature/shared-architecture/graphql-guard-mode-fleet-verification` must not
+exist.
+
+### 17.2 Implementation authorization
 
 Approved for implementation by:
 Date:

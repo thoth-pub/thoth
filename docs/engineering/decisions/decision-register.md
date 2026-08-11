@@ -2,7 +2,7 @@
 
 Status: ACTIVE
 Owner: CTO
-Last updated: 2026-08-08
+Last updated: 2026-08-11
 
 | ADR | Decision | Status | Programmes | Approval blocker |
 |---|---|---|---|---|
@@ -163,20 +163,29 @@ ADR-0006 independently reviewed, CTO-approved and repository-authoritative
                           Its delivered control record and PROVISIONAL
                           runbook live in docs/engineering/repository-map/
         THOTH-GQL-OPS-02  mode-control path, so the value can be consumed
-                          at all (the production deployment path inherits
-                          the image default `init`, which does not register
-                          the guard argument, so a guard-enabled release
-                          deployed through that path would remain
-                          effectively OFF and no OFF -> OBSERVE transition
-                          would be performable)
+                          at all. MERGED (PR #797): the production-applicable
+                          `init` command now registers the guard argument, so
+                          OFF/OBSERVE/ENFORCE are consumed, an absent value
+                          yields OFF and an invalid value fails startup.
+                          Capability gap 1 is CLOSED in-repository. The mode
+                          is now settable; it is not set, and nothing is
+                          activated
         THOTH-GQL-OPS-03  mechanism proving the effective mode of every
-                          serving instance
+                          serving instance. Capability gap 2 remains OPEN:
+                          configured intent is still not proof of
+                          process-effective mode, and no surface, log or
+                          signal reports the mode a serving process actually
+                          computed
         THOTH-GQL-OPS-04  fresh bounded verification and closure; the
                           earliest point at which this gate may be
                           satisfied, and only on evidence
-      THOTH-GQL-OPS-02, -03 and -04 are specified, DRAFT and NOT AUTHORIZED,
-      and none of their branches exists. Specifying a task is not delivering
-      it, and a specification for a verifier is not a verified fleet
+      THOTH-GQL-OPS-03 and -04 are specified, DRAFT and NOT AUTHORIZED, and
+      neither of their branches exists. Specifying a task is not delivering
+      it, and a specification for a verifier is not a verified fleet.
+      THOTH-GQL-OPS-02 merging closed one capability gap and closed no gate:
+      CG-13 remains OPEN, the runtime-operations gate remains NOT SATISFIED,
+      the mode-transition runbook remains PROVISIONAL, and both activations
+      remain unauthorized
   -> service-health signals and activation thresholds verified
   -> preview/staging acceptance of the exact implementation candidate,
      including performance evidence and a rehearsed, timed rollback
