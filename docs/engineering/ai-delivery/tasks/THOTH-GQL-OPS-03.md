@@ -1,7 +1,7 @@
 # THOTH-GQL-OPS-03 - Effective-mode fleet-verification mechanism
 
-Status: DRAFT
-Implementation: NOT AUTHORIZED
+Status: APPROVED
+Implementation: AUTHORIZED
 Programme: Shared Thoth GraphQL / Backend Architecture
 Repository: `thoth-pub/thoth`
 Workflow: STANDARD
@@ -10,7 +10,7 @@ PR target: `develop`
 Programme integration branch: None
 Risk: HIGH
 Owner: Shared backend architecture
-Approved by: not yet approved
+Approved by: CTO / control owner
 Dependencies, all required before implementation may begin:
 [`ADR-0006`](../../decisions/ADR-0006-request-scoped-graphql-batching.md)
 approved and repository-authoritative;
@@ -900,9 +900,13 @@ exist.
 
 ### 17.2 Implementation authorization
 
-Approved for implementation by:
-Date:
-Notes:
+Approved for implementation by: CTO / control owner
+Date: 2026-08-11
+Notes: Implementation authorization recorded in PR
+[#798](https://github.com/thoth-pub/thoth/pull/798) comment
+[5252526720](https://github.com/thoth-pub/thoth/pull/798#issuecomment-5252526720),
+anchored to exact `develop` base
+`2bec75e6698232f7643862120e5437452fcfa252`.
 
 Record only the durable implementation authorization here. Independent review
 decisions, CTO merge authorization and the merge itself are terminal GitHub

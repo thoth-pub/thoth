@@ -6,6 +6,7 @@ mod batching;
 mod batching_fixture;
 #[cfg(test)]
 mod batching_tests;
+mod fleet_verification;
 mod mutation;
 mod mutation_guard;
 mod prefetch;
@@ -14,6 +15,10 @@ mod scope;
 
 pub use juniper::http::GraphQLRequest;
 
+pub use fleet_verification::{
+    verify_fleet, EffectiveModeObservation, FleetOutcome, FleetVerification, InstanceIdentity,
+    MemberMode, MemberVerification, EFFECTIVE_MODE_RECORD_TAG,
+};
 pub use model::Context;
 pub use mutation::MutationRoot;
 pub use mutation_guard::MutationGuardMode;
