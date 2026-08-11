@@ -40,7 +40,7 @@ the CTO after fresh independent exact-head review.
 Recommended implementation model: a high-reasoning implementing agent for the
 bounded implementation, and a separate high-reasoning independent reviewer of
 the exact PR head. The implementing agent must not approve or merge its own
-work (section 15).
+work (section 16).
 
 ---
 
@@ -184,7 +184,7 @@ Before any code change the implementing agent must:
    Cargo dependencies, Diesel/pool abstractions, error handling, the generated
    SDL, or repository delivery requirements. Unrelated movement is recorded as
    reconciliation and the new exact base is used; material movement is a stop
-   condition (section 13);
+   condition (section 14);
 3. confirm `ADR-0007` is still `APPROVED` and repository-authoritative;
 4. confirm the resolved versions of `juniper` (0.16.2), `juniper_codegen`
    (0.16.0), `diesel` (2.3.10) and `tokio` (1.52.3) are unchanged, or run the
@@ -557,25 +557,55 @@ Why: the store is retired (7.1); the replacement request-local loader bundle
 (section 3.3) is owned here instead, with availability independent of guard
 mode (`ADR-0007` invariant 13).
 
-### 7.5 Removed: A2-specific tests in `thoth-api/src/graphql/batching_tests.rs`
+### 7.5 Removed or split: A2-specific tests in `thoth-api/src/graphql/batching_tests.rs`
 
-The modules whose purpose is to prove the superseded architecture are removed
-with it: `store_state`, `collision_matrix`, `traversal`, `traversal_unit`,
-`integration`, `error_contract`, `query_path`, `statement_counts`,
+The modules whose purpose is wholly to prove the superseded architecture are
+removed with it: `store_state`, `collision_matrix`, `traversal`,
+`traversal_unit`, `integration`, `error_contract`, `statement_counts`,
 `configuration`, `execution_parity`, and the store/scope-specific parts of
 `mutation_behaviour` (its read-after-write and scope-isolation tests prove
 store coherence machinery that no longer exists; the *property*
 read-after-write freshness is re-proven for DataLoader by section 10.7).
 
+The `query_path` module is **mixed-purpose** and must be split, not removed
+wholesale:
+
+- **preserve/rehost** — its A2-independent mutation-guard/query-path
+  regressions, which prove guard behaviour on the query operation path and do
+  not depend on the store, scope or prefetch machinery. At minimum the
+  implementation must preserve tests equivalent to:
+  1. a valid query operation is never restricted by the mutation guard and
+     emits no guard event in any mode
+     (`a_valid_query_is_never_restricted_and_emits_no_event_in_any_mode`);
+  2. a valid query response remains equivalent to the no-guard baseline
+     across guard modes
+     (`a_valid_query_response_is_byte_identical_across_every_mode`);
+  3. a baseline-invalid query preserves Juniper's canonical response/error
+     behaviour and emits no guard event
+     (`an_invalid_query_keeps_juniper_canonical_error_and_produces_no_guard_event`).
+
+  These are mutation-guard/query-path regressions, not A2 batching tests.
+  They are rehosted onto A2-independent fixtures with the other preserved
+  guard tests (section 8.3);
+- **retire** — its A2 store/scope-specific coverage: the test asserting
+  shared `batch_store` entry counts, a shared top-level response scope and no
+  additional A2 statement due to stored-result reuse
+  (`a_query_with_a_duplicate_response_key_shares_one_scope_and_adds_no_statement`)
+  proves retired store/scope machinery and is removed with it. Obsolete A2
+  assertions must not be preserved merely because they currently share a Rust
+  module with guard tests.
+
 Why: `ADR-0007` section 4.1 permits removing tests whose purpose is
 specifically to exercise retired A2/store/scope behaviour. The properties
 worth keeping (set-based statement counts, failure semantics, isolation,
 freshness) are re-established for the DataLoader foundation by the section 10
-evidence matrix, not silently dropped.
+evidence matrix, not silently dropped — and guard regressions that merely
+co-reside with A2 fixtures are rehosted, never dropped.
 
 The modules that are **not** A2-specific — `guard_tests`, `baseline_matrix`,
 `directives` — are mutation-guard regression coverage and are preserved by
-rehosting (section 8.3).
+rehosting, together with the preserved A2-independent `query_path`
+regressions above (section 8.3).
 
 ### 7.6 Retired/rehosted: `thoth-api/src/graphql/batching_fixture.rs`
 
@@ -621,10 +651,18 @@ batching-specific coupling to the guard.
 
 The following current surfaces must survive with activation state unchanged:
 
-- `thoth-api/src/graphql/mutation_guard.rs` in full: `MutationGuardMode`,
-  `evaluate`, `GuardDecision`, `GuardOutcome`, `emit_event`,
-  `collision_positions`, `rejection_response`, and the baseline eligibility
-  gate;
+- the independent mutation-guard mechanism in
+  `thoth-api/src/graphql/mutation_guard.rs`: the `MutationGuardMode`
+  enum (`Off`, `Observe`, `Enforce`) with default `OFF` and its
+  parsing/`FromStr` behaviour; guard evaluation (`evaluate`); the baseline
+  eligibility gate; duplicate-response-key detection; `GuardDecision`;
+  `GuardOutcome`; event construction/emission (`emit_event`);
+  `collision_positions`; and `rejection_response`. `mutation_guard.rs` is
+  **not** preserved in full: its single A2-only coupling API,
+  `MutationGuardMode::store_available()`, and the coupling documentation
+  around it are removed under section 8.2. `MutationGuardMode` remains
+  because the mutation guard remains; `store_available()` does not remain
+  because the A2 store does not;
 - `run_mutation_guard(..)` in `thoth-api/src/graphql/mod.rs` and its call at
   the request boundary in `thoth-api-server/src/lib.rs` (`graphql` handler),
   evaluated before `GraphQLRequest::execute`;
@@ -636,6 +674,28 @@ The following current surfaces must survive with activation state unchanged:
 
 ### 8.2 Removed guard coupling
 
+- the implementation **must remove** `MutationGuardMode::store_available()`
+  (`thoth-api/src/graphql/mutation_guard.rs:142`). Its only purpose is to
+  derive A2 store availability from guard mode — the superseded `ADR-0006`
+  invariant 30 coupling that `ADR-0007` explicitly retires. With the A2
+  store removed (section 7.1), the method answers a question that no longer
+  exists;
+- the implementation must also remove all documentation/comments whose only
+  purpose is to describe that coupling: the `MutationGuardMode` enum and
+  method doc comments presenting guard mode as the sole switch controlling
+  loader/store availability and `ENFORCE` as the prerequisite for
+  batching/store availability (`mutation_guard.rs:110-144`), and the
+  equivalent `ADR-0006` invariant 30 coupling comments at
+  `thoth-api/src/graphql/model.rs:105` and
+  `thoth-api/src/model/tests.rs:154` (section 7.8). Assertions on
+  `store_available()` inside otherwise-preserved test surfaces — the CLI
+  mode-resolution tests in `src/bin/thoth.rs:337-339` — are removed with the
+  method while the mode-resolution tests themselves are preserved;
+- this is **not** a guard redesign. It is the deletion of superseded
+  batching-specific coupling required by `ADR-0007`. The guard mechanism,
+  its evaluation semantics and its activation state are untouched:
+  production guard mode remains `OFF`, no guard activation occurs, and the
+  duplicate-mutation concern remains unresolved and separately controlled;
 - `Context` no longer derives any batching availability from guard mode;
   `GraphqlBatchStore::new(mode)` disappears with the store. The
   `Context::with_guard_mode` constructor loses its reason to exist: the
@@ -644,8 +704,9 @@ The following current surfaces must survive with activation state unchanged:
   sites (`thoth-api-server/src/lib.rs`, `thoth-api/src/model/tests.rs`). The
   guard keeps receiving its mode at the request boundary
   (`run_mutation_guard`), which never depended on `Context`;
-- loader availability is unconditional on their approved resolver paths,
-  regardless of `OFF` / `OBSERVE` / `ENFORCE` (`ADR-0007` invariant 13).
+- DataLoader availability is independent of guard mode: loaders are
+  unconditionally available on their approved resolver paths, regardless of
+  `OFF` / `OBSERVE` / `ENFORCE` (`ADR-0007` invariant 13).
 
 ### 8.3 Rehosted regression evidence
 
@@ -667,6 +728,11 @@ A2 dependency:
   verdict against Juniper's **actual observed** mutation resolver execution
   count, across `@skip`/`@include` literal, variable, defaulted and overridden
   forms);
+- the preserved A2-independent `query_path` regressions (section 7.5): a valid
+  query operation is never restricted by the mutation guard and emits no guard
+  event in any mode; a valid query response remains equivalent to the no-guard
+  baseline across guard modes; a baseline-invalid query preserves Juniper's
+  canonical response/error behaviour and emits no guard event;
 - independent duplicate-mutation-execution evidence: tests proving that
   pinned Juniper 0.16.2 still executes a compatible repeated top-level
   mutation response key once per occurrence under **async** execution while
@@ -857,9 +923,59 @@ migration sequence is additive-first:
 
 No production child field adopts the loader at any step.
 
-## 12. Rollout and rollback
+## 12. Observability and operations
 
-### 12.1 Rollout
+### 12.1 Required production logs
+
+**NONE.** No new production DataLoader/batching logs are required by this
+foundation because:
+
+- no production GraphQL field adopts the loader;
+- there is no production/client cutover;
+- the task must introduce no production diagnostic dependency.
+
+Test instrumentation used to prove batching/query counts (the rehosted
+`SqlProbe` mechanism of section 7.6, the section 10.9 statement-count
+evidence) is test evidence, not production observability. The implementation
+must not add permanent production logs merely to satisfy the specification
+template.
+
+### 12.2 Required metrics/alerts
+
+**NONE.** No new production metric or alert is required because no production
+resolver consumes the DataLoader foundation in this task. Future production
+adoption tasks (`BE-02`, Thoth Metrics, or any later consumer) must define
+their own monitoring requirements under their own approved specifications.
+
+### 12.3 Operational runbook changes
+
+**NONE.** No operational runbook change is required because this task:
+
+- deploys nothing;
+- activates nothing;
+- changes no guard mode;
+- creates no new operator action;
+- changes no request-acceptance policy;
+- changes no public API.
+
+This task does not close or modify any mutation-guard operational gate; the
+guard's operational disposition remains a separate concern
+(`ADR-0007` section 7.4).
+
+### 12.4 Operational effects
+
+- Deployment: **NONE**
+- Production activation: **NONE**
+- Runtime configuration change: **NONE**
+- Guard mode change: **NONE**
+- GraphQL request-acceptance change: **NONE**
+- Database migration: **NONE**
+- Data migration: **NONE**
+- GraphQL schema migration: **NONE**
+
+## 13. Rollout and rollback
+
+### 13.1 Rollout
 
 Foundation rollout has no public/client cutover. The implementation PR itself
 must not: deploy; activate a feature; change GraphQL SDL; change request
@@ -871,7 +987,7 @@ requirements. `BE-02` still needs its own freshly reconciled approved
 task/specification after this foundation is merged; nothing in this task
 pre-authorizes it.
 
-### 12.2 Rollback
+### 13.2 Rollback
 
 Before any production consumer depends on the foundation, rollback is one
 bounded revert of the `THOTH-GQL-DATALOADER-01` implementation PR. Rollback
@@ -884,7 +1000,7 @@ production fields; each adopting task defines its own, and rollback to an N+1
 implementation is not an available option under the standing control
 (`ADR-0007` section 13).
 
-## 13. Stop conditions
+## 14. Stop conditions
 
 The implementing agent must stop and return `BLOCKED` if:
 
@@ -910,7 +1026,7 @@ The implementing agent must stop and return `BLOCKED` if:
 - required production information or secrets are unavailable;
 - scope cannot be completed without unrelated changes.
 
-## 14. Expected implementation report
+## 15. Expected implementation report
 
 The agent must use
 `docs/engineering/ai-delivery/implementation-report-template.md`, including
@@ -918,7 +1034,7 @@ exact base and head commits, the resolved `dataloader`/`tokio` versions, the
 complete evidence of section 10 with real command output, and the SDL byte
 length/SHA-256 comparison.
 
-## 15. Recommended execution
+## 16. Recommended execution
 
 Implementation model: high-reasoning agent
 Reasoning level: high
@@ -930,7 +1046,7 @@ The implementing agent must not approve its own work. Because risk is HIGH,
 merge requires fresh independent exact-head review **and** separate explicit
 CTO merge authorization; neither is granted by this specification.
 
-## 16. Branch and integration plan
+## 17. Branch and integration plan
 
 - branch source: fresh, reconciled `develop`;
 - one bounded implementation branch:
@@ -948,7 +1064,7 @@ CTO merge authorization; neither is granted by this specification.
 - final programme PR required: NO
 - final release path: `develop -> master`
 
-## 17. Approval
+## 18. Approval
 
 Approved for implementation by:
 Date:
