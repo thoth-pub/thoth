@@ -10,20 +10,22 @@ task's own execution time were initially unobtainable and recorded `BLOCKED`;
 authorized **Route B** operator evidence supplied on **2026-08-11** has since
 supplied both, and they are now `PASS`. See sections 8.1 and 11.1.
 
-**One criterion requires a control-owner disposition.** AC-18, as approved, binds
-every AI agent "of any role, family or session". During the independent review a
-reviewer-side read path unexpectedly exposed secret material. The implementing
-execution satisfies every limb of AC-18, but the criterion as written is broader
-than implementation execution, so this report does **not** self-certify it
-`PASS`. See sections 8.2 and 11.1.
+**AC-18 has been disposed of by the control owner.** During a CTO-directed
+control review, a reviewer-side read path unexpectedly encountered secret
+material. This report previously recorded AC-18 `BLOCKED - control-owner
+disposition required` rather than self-certifying it. The CTO/control owner has
+since issued that disposition and determined **AC-18: PASS** for this execution.
+The review-time exception remains recorded, and the disposition creates no
+standing waiver. See sections 8.2, 8.2.1 and 11.1.
 
 ```text
 capability gap 1 (mode-control path):  CLOSED in-repository
 AC-17 (external re-confirmation):      PASS - Route B operator evidence,
                                        supplied 2026-08-11
 section 2 container-command re-check:  PASS - same Route B evidence
-AC-18 (no-AI-agent boundary):          BLOCKED - control-owner disposition
-                                       required (section 8.2)
+AC-18 (no-AI-agent boundary):          PASS - explicit CTO/control-owner
+                                       disposition, PR #797 comment
+                                       5251314845 (section 8.2.1)
 
 CG-13:                                 OPEN
 Runtime-operations gate:               NOT SATISFIED
@@ -422,58 +424,76 @@ fail startup — is now closed for both current deployment classes on authorized
 evidence. It is not closed by assumption, and it is not extended to environments
 the evidence does not cover.
 
-### 8.2 Operational-actor statement, and the AC-18 reconciliation
+### 8.2 Operational-actor statement, and the AC-18 disposition
 
-The two lifecycle stages are stated separately, because they differ and
-collapsing them would misreport the evidence.
+Three things are stated separately, because they differ and collapsing them
+would misreport the evidence.
 
 **IMPLEMENTATION EXECUTION — every limb satisfied:**
 
 ```text
-Deployment performed by the implementing agent:             NONE
-Deployment workflow / automation dispatched:                NONE
-Real-environment mode transition:                           NONE
-Real fleet state created, manipulated or restored:          NONE
-Deployment credentials used or held:                        NONE
-Secret-bearing production configuration read:               NONE
-Private authoritative deployment source accessed:           NONE
-Production configuration changed:                           NONE
-Production action of any kind:                              NONE
-Security issue created or modified:                         NONE
-Mode set in any environment:                                NONE
+Deployment performed by the implementing agent:              NONE
+Deployment workflow / automation dispatched by the
+  implementing agent:                                        NONE
+Real-environment mode transition by the implementing agent:  NONE
+Real fleet state created, manipulated or restored by the
+  implementing agent:                                        NONE
+Deployment credentials used or held by the implementing
+  agent:                                                     NONE
+Secret-bearing production configuration read by the
+  implementing agent:                                        NONE
+Private authoritative deployment source accessed by the
+  implementing agent:                                        NONE
+Production configuration changed by the implementing agent:  NONE
+Production action of any kind by the implementing agent:     NONE
+Security issue created or modified:                          NONE
+Mode set in any environment:                                 NONE
 ```
+
+Each line above is scoped to the **implementing agent** deliberately. An
+unqualified, lifecycle-wide `NONE` would contradict the control-review exception
+recorded immediately below, and this report does not make that claim.
 
 Local, disposable and CI repository testing is ordinary work and is not
 restricted by that boundary; all testing in section 9 was local and disposable.
 
-**INDEPENDENT REVIEW — a control/process exception, recorded at the minimum safe
-level:**
+**CONTROL REVIEW — an exception, recorded at the minimum safe level:**
 
 ```text
-During the independent review preceding this evidence reconciliation, an AI
-reviewer attempted an external-evidence read against the private
-infrastructure source. That read path unexpectedly exposed secret material.
+During CTO-directed independent control review, an AI reviewer
+unexpectedly encountered secret material while inspecting a protected
+deployment source.
 
-The reviewer:
-  - stopped that source/read path immediately;
-  - did not continue into the target deployment files;
-  - did not use the exposed credential;
-  - did not reproduce the secret in review output;
-  - obtained NEITHER OPS-02 external deployment fact from that source;
-  - relied thereafter only on the sanitized human-supplied Route B
-    evidence of section 8.1.
+The source/read path was stopped immediately.
 
-Classification: REVIEW-TIME CONTROL/PROCESS EXCEPTION.
-It is NOT valid Route A evidence, and no Route A success is claimed.
+The material was not used or reproduced.
+
+No credential was used. No deployment was performed or dispatched. No
+production configuration was changed. No guard mode was changed.
+
+The source supplied NEITHER OPS-02 external acceptance fact.
+
+The accepted deployment evidence was supplied separately through
+authorized Route B operator evidence (section 8.1).
+
+Classification:
+    REVIEW-TIME CONTROL/PROCESS EXCEPTION
+
+Route A evidence:
+    NONE
+
+Control-owner disposition:
+    PR #797 comment 5251314845
 ```
 
 Deliberately not recorded, here or anywhere in this pull request: the secret
-value, its location, credential contents, resource identifiers, or any
-infrastructure detail derived from that read.
+value, its location, credential contents, resource identifiers, account or stack
+identifiers, task-definition identifiers, or any other infrastructure detail
+derived from that read.
 
-#### 8.2.1 Why AC-18 is not self-certified `PASS`
+#### 8.2.1 AC-18 — control-owner disposition, not self-certification
 
-The approved AC-18 reads, in full:
+The approved AC-18 reads, in full, and is **unchanged**:
 
 > **AC-18** **No AI agent or model of any role, family or session** — the
 > implementing agent or any other — performed a deployment in any environment,
@@ -483,46 +503,58 @@ The approved AC-18 reads, in full:
 > states this explicitly. Local, disposable and CI repository testing is not
 > restricted by this criterion.
 
-Read literally, and this report declines to read it any other way:
+An earlier revision of this report recorded
+`AC-18: BLOCKED - control-owner disposition required`, because the actor clause
+is unrestricted as to role and session and carries no temporal qualifier, so the
+implementing agent could neither certify it `PASS` against the review-time
+exception nor narrow the wording to resolve the tension itself. Narrowing,
+waiving or amending would each have been an implementing agent disposing of a
+control question reserved to the control owner.
 
-1. the actor clause is **unrestricted as to role and session** — "of any role,
-   family or session", "the implementing agent **or any other**". A reviewing
-   agent is squarely within that language;
-2. the actor clause carries **no temporal qualifier**. The drafter time-scoped
-   AC-17 explicitly ("at the task's own execution time") and did **not** do so
-   for AC-18. That asymmetry is deliberate on its face and cuts against reading
-   an implied "during implementation only" into AC-18;
-3. the prohibited act includes reading secret-bearing production configuration.
-   A review-time read path into the private infrastructure source exposed secret
-   material.
-
-On that wording the implementing agent cannot honestly certify AC-18 `PASS`,
-because the criterion reaches conduct outside its own execution that did occur.
-
-Equally, the implementing agent must **not** resolve the tension the other way:
-it may not narrow the approved wording to "implementation execution only",
-invent a waiver, or amend the specification. Any of those would be an
-implementing agent disposing of a control question reserved to the control
-owner.
+**The control owner has now exercised exactly that disposition.**
 
 ```text
-AC-18: BLOCKED - control-owner disposition required
+AC-18: PASS
+
+Provenance: explicit CTO / control-owner disposition
+            PR #797 comment 5251314845
+Determined: 2026-08-11
 ```
 
-**What the control owner must decide**, on the facts above:
+The control owner's stated basis, recorded here without reinterpretation or
+broadening: the review inspection was **instructed by the CTO/control owner**;
+the reviewer unexpectedly encountered secret material and stopped immediately;
+no credential was used; no deployment was performed or dispatched; no production
+configuration and no guard mode was changed; the protected source supplied
+neither OPS-02 acceptance fact; and the control owner classifies that incident as
+a control-review exception arising from their own instruction, **not** as the AI
+agent acting as a deployment actor, credential user, or production-configuration
+evidence source for `THOTH-GQL-OPS-02`.
 
-- whether AC-18's lifecycle semantics scope it to authorized implementation
-  execution — in which case AC-18 is `PASS` on the implementation-execution
-  statement above, and the review-time exception is separately recordable
-  without falsifying it; **or**
-- whether AC-18 reaches review-time conduct as written — in which case the
-  exception must be disposed of against the criterion explicitly, by amending
-  the approved specification through its own authorization, or by recording an
-  explicit accepted deviation.
+**This `PASS` is attributed to the control owner, not self-certified by the
+implementing agent.** The implementing agent did not narrow AC-18, did not amend
+the specification, and takes no independent position on the criterion's
+lifecycle semantics.
 
-This report takes neither position. The facts are stated so the decision is
-visible and made by the actor entitled to make it. Nothing here is smoothed
-over, and the exception is not presented as compliant.
+**Bounds of the disposition, stated because they bind successors:**
+
+```text
+AC-18 remains unchanged and fully binding.
+
+The disposition creates NO standing exception, waiver or authorization
+for any AI agent to access secret-bearing production configuration, in
+this task or any successor task.
+
+No further AI access to that source is authorized.
+
+The disposition does NOT authorize merge, deployment, OFF -> OBSERVE,
+OBSERVE -> ENFORCE, BE-02 runtime, or any other production or runtime
+transition.
+```
+
+The review-time exception is **not** erased by the disposition: it remains
+recorded above, it is still not valid Route A evidence, and the protected source
+is still recorded as having supplied no acceptance fact.
 
 ## 9. Tests and checks
 
@@ -773,14 +805,15 @@ asserted in this file.
 ### 11.1 Acceptance criteria — AC-1 to AC-18
 
 ```text
-PASS      17
-BLOCKED    1   -- AC-18, control-owner disposition required
+PASS      18
+BLOCKED    0
 ```
 
-AC-17 moved from `BLOCKED` to `PASS` on the Route B operator evidence of
-section 8.1. AC-18 moved from `PASS` to `BLOCKED` on the review-time control
-exception of section 8.2. The count is coincidentally unchanged; the criteria
-behind it are not.
+Two criteria reached `PASS` after the original implementation round, and neither
+by self-certification. AC-17 was satisfied by the authorized **Route B** operator
+evidence of section 8.1. AC-18 was satisfied by the explicit **CTO/control-owner
+disposition** of section 8.2.1, PR #797 comment `5251314845`. The review-time
+control exception behind AC-18 remains recorded rather than erased.
 
 | Criterion | Status | Evidence |
 |---|---|---|
@@ -801,7 +834,7 @@ behind it are not.
 | **AC-15** `THOTH-GQL-OPS-03`/`-04` branches do not exist and neither is implemented here | PASS | `git branch -a` and `git ls-remote` both empty for those names |
 | **AC-16** compatibility matrix stated accurately per deployment class, both intentional changes labelled intentional | PASS | section 7.1, now recording current Production and Test as `unset -> OFF` on Route B evidence |
 | **AC-17** execution-time re-confirmation that no environment supplies a newly failing value | **PASS** | section 8.1 — authorized **Route B** CTO/control-owner operator evidence supplied 2026-08-11 confirms `THOTH_GRAPHQL_MUTATION_GUARD_MODE` is absent from both current Production and Test GraphQL API deployments. Obtained through the section 6.6 boundary, not inherited from the specification, and not obtained by any widened read. Coverage of "no environment" checked against `environments.md` and the control record: exactly two current GraphQL API environments exist, and both are covered |
-| **AC-18** no AI agent of any role performed a deployment, workflow dispatch, credential use or secret-bearing read | **BLOCKED — control-owner disposition required** | section 8.2. Implementation execution satisfies every limb. The approved wording binds every AI agent "of any role, family or session" with no temporal qualifier, and a review-time reviewer read path exposed secret material. The implementing agent may neither self-certify `PASS` against that wording nor narrow it; the disposition belongs to the control owner |
+| **AC-18** no AI agent of any role performed a deployment, workflow dispatch, credential use or secret-bearing read | **PASS** — by explicit **CTO/control-owner disposition**, PR #797 comment [`5251314845`](https://github.com/thoth-pub/thoth/pull/797#issuecomment-5251314845), **not** self-certified | section 8.2 and 8.2.1. Implementation execution satisfies every limb, scoped explicitly to the implementing agent. The CTO-directed review-time exception remains recorded at minimum safe level; the control owner classified it as a control-review exception arising from their own instruction rather than the AI acting as deployment actor, credential user or production-configuration evidence source. AC-18 is unchanged and fully binding, and the disposition creates no standing waiver and no further AI access |
 
 ## 12. Rollout and rollback
 
@@ -835,12 +868,14 @@ Monitoring required: none added. Observability of the effective mode is
 
 ## 13. Known limitations and deferred work
 
-- **AC-18 requires a control-owner disposition (section 8.2.1).** Implementation
-  execution satisfies every limb, but the approved wording binds every AI agent
-  "of any role, family or session" with no temporal qualifier, and a review-time
-  reviewer read path exposed secret material. The implementing agent may neither
-  self-certify `PASS` against that wording nor narrow it. This is the one open
-  control question on this pull request.
+- **AC-18 was disposed of by the control owner, and the exception it arose from
+  remains on the record (section 8.2.1).** The `PASS` is the CTO/control owner's
+  determination in PR #797 comment `5251314845`, not the implementing agent's.
+  AC-18 itself is unchanged and fully binding: the disposition creates **no**
+  standing exception, waiver or authorization for AI access to secret-bearing
+  production configuration in this or any successor task, and no further AI
+  access to that source is authorized. Successor tasks must not cite it as
+  precedent.
 - **AC-17 and the section 2 container-command re-confirmation are now `PASS`**,
   on authorized Route B operator evidence supplied 2026-08-11 (section 8.1). The
   deployment-facing consequence in section 7.1 is therefore closed for both
@@ -875,15 +910,20 @@ Monitoring required: none added. Observability of the effective mode is
 
 ## 14. Unresolved issues
 
-1. **AC-18 disposition (section 8.2.1).** Owner: the CTO / control owner. Whether
-   AC-18's lifecycle semantics scope it to authorized implementation execution,
-   or whether it reaches the review-time control exception as written, is a
-   control decision. It is not closable by an implementing agent, and this report
-   deliberately takes no position on it.
-2. **The two external deployment facts of section 8.1 are resolved**, by
-   authorized Route B operator evidence supplied 2026-08-11. They are recorded as
-   point-in-time evidence for the current Production and Test deployment classes,
-   not as a standing guarantee.
+1. **NONE outstanding against this task's acceptance criteria.** AC-1 to AC-18
+   are `PASS`.
+2. **Resolved, and recorded rather than erased:** the AC-18 control question is
+   disposed of by the CTO/control owner (section 8.2.1, PR #797 comment
+   `5251314845`), and the review-time control exception it arose from remains
+   recorded at minimum safe level.
+3. **Resolved:** the two external deployment facts of section 8.1, by authorized
+   Route B operator evidence supplied 2026-08-11. They are point-in-time evidence
+   for the current Production and Test deployment classes, not a standing
+   guarantee; a later change to either deployment definition would need its own
+   re-confirmation.
+4. **Carried forward, outside this task:** the pre-existing `--help`
+   env-value disclosure recorded in section 13, which is not introduced or
+   worsened here and needs its own bounded task.
 
 ## 15. Agent self-assessment
 
@@ -894,15 +934,21 @@ own those decisions.
 
 Suggested review focus:
 
-1. **The AC-18 disposition (sections 8.2 and 8.2.1).** Decide whether the
-   approved AC-18 wording reaches review-time conduct or is scoped to authorized
-   implementation execution, and dispose of the review-time control exception
-   accordingly. This agent deliberately takes no position, has not narrowed the
-   wording, and has invented no waiver. This is the one control decision blocking
-   a clean acceptance-criteria sheet.
-2. **The Route B evidence (section 8.1).** Confirm the evidence is correctly
+1. **The AC-18 disposition record (sections 8.2 and 8.2.1).** Confirm the `PASS`
+   is attributed to the CTO/control owner's comment `5251314845` and is nowhere
+   presented as self-certified; that the review-time exception is still recorded
+   rather than erased; that the approved AC-18 wording is quoted unchanged and
+   was not narrowed; and that the disposition's stated bounds — no standing
+   waiver, no further AI access, no merge or activation authority — are carried
+   accurately.
+2. **The scoped `NONE` claims (section 8.2).** Confirm every actor line is scoped
+   to the implementing agent, and that no unqualified lifecycle-wide "no AI agent
+   read secret-bearing configuration" claim survives anywhere in the report, the
+   changelog or the pull-request body.
+3. **The Route B evidence (section 8.1).** Confirm the evidence is correctly
    attributed to an authorized human/operator rather than to Route A, that no AI
-   agent was treated as a Route B source, and that the coverage argument for
+   agent was treated as a Route B source, that the protected source is nowhere
+   credited with satisfying AC-17, and that the coverage argument for
    "no environment" — exactly two current GraphQL API environments, both covered
    — matches the reviewer's own reading of `environments.md` and the control
    record.
