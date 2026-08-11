@@ -55,7 +55,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.150"
 strum = { version = "0.27.1", features = ["derive"] }
 uuid = { version = "1.23.4", features = ["serde", "v4"] }
-zitadel = { version = "5.7.6", features = ["actix"], optional = true }
+zitadel = { version = "5.7.6", features = ["actix"] }
 aws-sdk-s3 = { version = "1.138.0", default-features = false, features = ["rt-tokio", "http-1x", "sigv4a", "default-https-client"], optional = true }
 aws-sdk-cloudfront = { version = "1.124.0", default-features = false, features = ["rt-tokio", "default-https-client"], optional = true }
 aws-config = { version = "1.9.0", default-features = false, features = ["rt-tokio", "credentials-process", "sso", "default-https-client"], optional = true }
@@ -64,7 +64,9 @@ base64 = { version = "0.22", optional = true }
 hex = { version = "0.4", optional = true }
 aws-smithy-runtime-api = { version = "1.13", optional = true }
 log = "0.4.33"
+dataloader = { version = "0.18", default-features = false, features = ["runtime-tokio"] }
+tokio = { version = "1.52.3", features = ["rt"] }
 
 [dev-dependencies]
 fs2 = "0.4.3"
-tokio = { version = "1.52.3", features = ["macros", "rt", "rt-multi-thread"] }
+tokio = { version = "1.52.3", features = ["macros", "rt", "rt-multi-thread", "time"] }
