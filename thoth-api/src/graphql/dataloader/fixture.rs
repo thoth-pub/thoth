@@ -236,13 +236,13 @@ pub(crate) fn source_from(entries: &[(i32, &[&str])]) -> MemSource {
 
 pub(crate) fn fixture_context(pool: Arc<PgPool>, loaders: FixtureLoaders) -> Context {
     let mut context = test_db::test_context_anonymous(pool);
-    context.loaders.fixture = Some(loaders);
+    context.batch_store.fixture = Some(loaders);
     context
 }
 
 fn loaders(context: &Context) -> FieldResult<&FixtureLoaders> {
     context
-        .loaders
+        .batch_store
         .fixture
         .as_ref()
         .ok_or_else(|| FieldError::new("test loaders not installed", graphql_value!(None)))
