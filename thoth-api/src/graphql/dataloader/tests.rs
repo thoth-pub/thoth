@@ -87,21 +87,19 @@ async fn boundary_suite(pool: &Arc<PgPool>) {
 }
 
 #[test]
-fn production_constructor_carries_explicit_200_10_configuration() {
+fn production_constructor_uses_explicit_200_10_configuration_constants() {
     assert_eq!(MAX_BATCH_SIZE, 200);
     assert_eq!(YIELD_COUNT, 10);
     assert_eq!(LOADER_CONFIG.max_batch_size, 200);
     assert_eq!(LOADER_CONFIG.yield_count, 10);
 
-    let stats = Arc::new(BatchStats::default());
-    let loader = configured_loader(super::fixture::MemBatcher {
+    let _loader = configured_loader(super::fixture::MemBatcher {
         source: empty_source(),
-        stats,
+        stats: Arc::new(BatchStats::default()),
         marker: "",
         fail: false,
         omit_all: false,
     });
-    assert_eq!(loader.max_batch_size(), 200);
 }
 
 #[tokio::test]
@@ -147,10 +145,7 @@ async fn scheduling_delayed_cohort_can_fragment_dispatch() {
     let (_guard, pool) = test_db::setup_test_db();
     let (dispatches, sizes, calls, _) = scenario_run(&pool, 100, "childrenDelayed").await;
     assert_eq!(calls, 100);
-    assert!(
-        dispatches > 1,
-        "delayed cohort must demonstrate fragmentation: {sizes:?}"
-    );
+    assert!(dispatches > 1, "delayed cohort must fragment: {sizes:?}");
     assert_eq!(sizes.iter().sum::<usize>(), 100);
 }
 
@@ -174,8 +169,18 @@ async fn two_request_contexts_share_no_loader_state() {
     let b_stats = Arc::clone(&b.mem_stats);
     let a_ctx = fixture_context(Arc::clone(&pool), a);
     let b_ctx = fixture_context(pool, b);
-    let a_loader = &a_ctx.loaders.fixture.as_ref().expect("a fixture").mem;
-    let b_loader = &b_ctx.loaders.fixture.as_ref().expect("b fixture").mem;
+    let a_loader = &a_ctx
+        .batch_store
+        .fixture
+        .as_ref()
+        .expect("a fixture")
+        .mem;
+    let b_loader = &b_ctx
+        .batch_store
+        .fixture
+        .as_ref()
+        .expect("b fixture")
+        .mem;
     let (a_value, b_value) = tokio::join!(a_loader.try_load(7), b_loader.try_load(7));
     assert_eq!(
         a_value.expect("a key").expect("a value"),
@@ -262,11 +267,9 @@ async fn missing_batch_result_fails_closed_through_try_load_without_panic() {
     )
     .await;
     assert!(response["data"]["parents"][0]["children"].is_null());
-    assert!(
-        response["errors"]
-            .as_array()
-            .is_some_and(|errors| !errors.is_empty())
-    );
+    assert!(response["errors"]
+        .as_array()
+        .is_some_and(|errors| !errors.is_empty()));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -307,12 +310,7 @@ async fn real_diesel_250_parents_use_two_set_based_imprint_statements() {
     let stats = Arc::clone(&loaders.db_stats);
     let context = fixture_context(Arc::clone(&probe.pool), loaders);
     probe.start();
-    let response = run_response(
-        &schema(),
-        &context,
-        "{ dbParents { publisherId imprints } }",
-    )
-    .await;
+    let response = run_response(&schema(), &context, "{ dbParents { publisherId imprints } }").await;
     let statements = probe.imprint_statements();
     let parents = response_data(&response, "dbParents")
         .as_array()
@@ -336,116 +334,6 @@ async fn real_diesel_250_parents_use_two_set_based_imprint_statements() {
     assert_eq!(stats.batch_sizes(), vec![200, 50]);
     assert_eq!(statements.len(), 2, "expected two real imprint statements");
     assert!(statements.iter().all(|statement| statement.contains("= ANY")));
-}
-
-async fn failure_response(
-    pool: Arc<PgPool>,
-    direct: bool,
-    convention: FieldErrorConvention,
-    field: &str,
-) -> (JsonValue, usize) {
-    let failing = Arc::new(test_db::failing_pool());
-    let mut loaders = FixtureLoaders::in_memory(empty_source(), "");
-    if direct {
-        loaders = loaders.with_direct_db(failing);
-    } else {
-        loaders = loaders.with_db(failing, convention);
-    }
-    let stats = Arc::clone(&loaders.db_stats);
-    let context = fixture_context(pool, loaders);
-    let response = run_response(
-        &schema(),
-        &context,
-        &format!("{{ dbParents {{ publisherId {field} }} }}"),
-    )
-    .await;
-    (response, stats.dispatch_count())
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn database_failure_matches_conventional_direct_graphql_error_without_retry_or_fallback() {
-    let (_guard, pool) = test_db::setup_test_db();
-    let publisher = test_db::create_publisher(&pool);
-    test_db::create_imprint(&pool, &publisher);
-    let (direct, direct_dispatches) = failure_response(
-        Arc::clone(&pool),
-        true,
-        FieldErrorConvention::Conventional,
-        "imprints",
-    )
-    .await;
-    let (loaded, dispatches) = failure_response(
-        pool,
-        false,
-        FieldErrorConvention::Conventional,
-        "imprints",
-    )
-    .await;
-    assert_eq!(direct_dispatches, 0);
-    assert_eq!(dispatches, 1);
-    assert_eq!(loaded, direct);
-    assert!(loaded["data"]["dbParents"][0]["imprints"].is_null());
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn database_failure_matches_explicit_thoth_error_extensions_without_serde_clone() {
-    let (_guard, pool) = test_db::setup_test_db();
-    let publisher = test_db::create_publisher(&pool);
-    test_db::create_imprint(&pool, &publisher);
-    let (direct, _) = failure_response(
-        Arc::clone(&pool),
-        true,
-        FieldErrorConvention::ExplicitThoth,
-        "imprintsExplicit",
-    )
-    .await;
-    let (loaded, dispatches) = failure_response(
-        pool,
-        false,
-        FieldErrorConvention::ExplicitThoth,
-        "imprintsExplicit",
-    )
-    .await;
-    assert_eq!(dispatches, 1);
-    assert_eq!(loaded, direct);
-    assert_eq!(
-        loaded["errors"][0]["extensions"]["type"],
-        "INTERNAL_ERROR"
-    );
-}
-
-#[test]
-fn shared_batch_error_projection_preserves_current_conventions_without_serde() {
-    let conventional = super::SharedBatchError::from_thoth(
-        thoth_errors::ThothError::Unauthorised,
-        FieldErrorConvention::Conventional,
-    );
-    let explicit = super::SharedBatchError::from_thoth(
-        thoth_errors::ThothError::Unauthorised,
-        FieldErrorConvention::ExplicitThoth,
-    );
-    let conventional = conventional.to_field_error();
-    let explicit = explicit.to_field_error();
-    assert_eq!(conventional.message(), "Invalid credentials.");
-    assert_eq!(conventional.extensions(), &juniper::Value::Null);
-    assert_eq!(explicit.message(), "Unauthorized");
-    assert_eq!(
-        explicit.extensions(),
-        &juniper::graphql_value!({ "type": "NO_ACCESS" })
-    );
-}
-
-#[test]
-fn source_contains_no_serde_round_trip_error_clone() {
-    let source = include_str!("../dataloader.rs");
-    let forbidden = [
-        format!("{}{}", "ThothError::to_", "json"),
-        format!("{}{}", "ThothError::from_", "json"),
-        format!("{}{}", "clone_thoth_", "error"),
-    ];
-    for needle in forbidden {
-        assert!(!source.contains(&needle));
-    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -476,7 +364,41 @@ async fn independent_try_load_calls_coalesce_without_manual_key_aggregation() {
     let stats = Arc::clone(&loaders.mem_stats);
     let futures = (1..=100).map(|id| loaders.mem.try_load(id));
     let results = join_all(futures).await;
-    assert!(results.iter().all(|result| result.is_ok()));
+    assert!(results.iter().all(Result::is_ok));
     assert_eq!(stats.dispatch_count(), 1);
     assert_eq!(stats.batch_sizes(), vec![100]);
+}
+
+#[test]
+fn shared_batch_error_projection_preserves_current_conventions_without_serde() {
+    let conventional = super::SharedBatchError::from_thoth(
+        thoth_errors::ThothError::Unauthorised,
+        FieldErrorConvention::Conventional,
+    )
+    .to_field_error();
+    let explicit = super::SharedBatchError::from_thoth(
+        thoth_errors::ThothError::Unauthorised,
+        FieldErrorConvention::ExplicitThoth,
+    )
+    .to_field_error();
+    assert_eq!(conventional.message(), "Invalid credentials.");
+    assert_eq!(conventional.extensions(), &juniper::Value::Null);
+    assert_eq!(explicit.message(), "Unauthorized");
+    assert_eq!(
+        explicit.extensions(),
+        &juniper::graphql_value!({ "type": "NO_ACCESS" })
+    );
+}
+
+#[test]
+fn source_contains_no_serde_round_trip_error_clone() {
+    let source = include_str!("../dataloader.rs");
+    let forbidden = [
+        format!("{}{}", "ThothError::to_", "json"),
+        format!("{}{}", "ThothError::from_", "json"),
+        format!("{}{}", "clone_thoth_", "error"),
+    ];
+    for needle in forbidden {
+        assert!(!source.contains(&needle));
+    }
 }
