@@ -43,7 +43,7 @@ PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/shared-architecture/graphql-guard-mode-fleet-verification`
 Head commit: see section 11 and the pull-request record
-Pull request: see section 11
+Pull request: [#799](https://github.com/thoth-pub/thoth/pull/799) — **DRAFT, UNMERGED**
 Expected branch deletion after merge: YES
 Final programme PR required: NO
 Implementing model: Claude Opus 5
