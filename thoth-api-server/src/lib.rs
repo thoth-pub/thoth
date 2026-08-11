@@ -17,7 +17,8 @@ use serde::Serialize;
 use thoth_api::{
     db::{init_pool, PgPool},
     graphql::{
-        create_schema, run_mutation_guard, Context, GraphQLRequest, MutationGuardMode, Schema,
+        create_schema, run_mutation_guard, Context, EffectiveModeObservation, GraphQLRequest,
+        MutationGuardMode, Schema,
     },
     storage::{create_cloudfront_client, create_s3_client, CloudFrontClient, S3Client},
 };
@@ -136,6 +137,22 @@ async fn graphql(
     }
 }
 
+/// Observe this process's effective mutation-guard mode
+/// (`THOTH-GQL-OPS-03`).
+///
+/// The argument is the **one** stored mode: the same `Data` value that is
+/// installed as `app_data` and that the `POST /graphql` handler extracts. The
+/// reported mode is read out of it here and used by the request path there, so
+/// the two are the same value by construction and cannot be set independently
+/// (`THOTH-GQL-OPS-03` section 5 invariant 6).
+///
+/// This is a read of an already-computed value. It performs no configuration
+/// parse, no environment read, no database access and no mutation, so it is
+/// safe to call concurrently and repeatedly.
+fn effective_mode_observation(guard_mode: &Data<MutationGuardMode>) -> EffectiveModeObservation {
+    EffectiveModeObservation::for_process(*guard_mode.get_ref())
+}
+
 #[allow(clippy::too_many_arguments)]
 #[actix_web::main]
 pub async fn start_server(
@@ -152,7 +169,22 @@ pub async fn start_server(
     aws_secret_access_key: String,
     aws_region: String,
 ) -> io::Result<()> {
+    // The ONE stored effective guard mode. It is built before anything else can
+    // fail, read once for the out-of-band observation record below, and then
+    // installed unchanged as the request path's `app_data`.
+    let guard_mode = Data::new(mutation_guard_mode);
+
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+
+    // `THOTH-GQL-OPS-03`: exactly one effective-mode record per process, on the
+    // process's own log stream, which the orchestration plane already collects
+    // per instance. It is emitted here — immediately after logging is
+    // initialised and before any startup step that can fail — so a serving
+    // instance's effective mode is establishable out of band without any public
+    // surface, and so that an instance failing later startup still reports the
+    // mode it computed. It carries the mode and the minimum correlation
+    // identity and nothing else, and it is never emitted again.
+    log::info!("{}", effective_mode_observation(&guard_mode).record());
 
     let decoded_private_key = general_purpose::STANDARD
         .decode(&private_key)
@@ -189,7 +221,8 @@ pub async fn start_server(
             .app_data(Data::new(s3_client.clone()))
             .app_data(Data::new(cloudfront_client.clone()))
             .app_data(Data::new(Arc::new(create_schema())))
-            .app_data(Data::new(mutation_guard_mode))
+            // The same value the effective-mode record above was read from.
+            .app_data(guard_mode.clone())
             .service(index)
             .service(graphql_index)
             .service(graphql)
@@ -396,5 +429,349 @@ mod tests {
             body.contains(r#""data""#),
             "a successful response carries a `data` key; got: {body}"
         );
+    }
+}
+
+#[cfg(test)]
+mod effective_mode_observation_tests {
+    //! `THOTH-GQL-OPS-03` — the effective-mode observation, against the real
+    //! application.
+    //!
+    //! The unit-level properties of the observation and of the fleet verifier
+    //! live in `thoth-api`. What can only be proved here is the property the
+    //! specification's invariant 6 turns on: the mode the mechanism reports is
+    //! the **same stored value** the `POST /graphql` request path uses. Every
+    //! test below therefore builds **one** `Data<MutationGuardMode>`, reads the
+    //! observation out of it with the same function `start_server` calls, and
+    //! registers that same value on the real routes.
+    //!
+    //! The second group is the section 3.2 negative suite: the public listener
+    //! must disclose no effective mode anywhere. It is asserted by byte
+    //! comparison across all three modes, which is stronger than searching for
+    //! tokens — a response that varied with the mode at all would fail it.
+
+    use super::*;
+    use actix_web::{
+        http::StatusCode,
+        test::{self, TestRequest},
+        App,
+    };
+    use thoth_api::graphql::EFFECTIVE_MODE_RECORD_TAG;
+
+    const ALL_MODES: [MutationGuardMode; 3] = [
+        MutationGuardMode::Off,
+        MutationGuardMode::Observe,
+        MutationGuardMode::Enforce,
+    ];
+
+    /// A baseline-valid mutation whose top-level response key `x` occurs twice.
+    /// The guard declines it in `ENFORCE` and in no other mode, so it is the
+    /// request-path behaviour that tells the three modes apart.
+    const DUPLICATE_MUTATION: &str = concat!(
+        "mutation { ",
+        r#"x: createPublisher(data: {publisherName: "OPS-03 Effective Mode"}) { publisherId } "#,
+        r#"x: createPublisher(data: {publisherName: "OPS-03 Effective Mode"}) { publisherId } "#,
+        "}"
+    );
+
+    /// A document whose result cannot depend on the guard mode: it is a query,
+    /// so the guard proceeds in every mode, and it touches no database.
+    const MODE_INDEPENDENT_QUERY: &str = "{ __typename }";
+
+    fn test_pool() -> PgPool {
+        let url = std::env::var("TEST_DATABASE_URL")
+            .expect("TEST_DATABASE_URL must be set for thoth-api-server handler tests");
+        init_pool(&url)
+    }
+
+    /// The **whole** public application, exactly as `start_server` assembles
+    /// it, carrying `guard_mode` as its one stored mode.
+    async fn public_app(
+        guard_mode: Data<MutationGuardMode>,
+    ) -> impl actix_web::dev::Service<
+        actix_http::Request,
+        Response = actix_web::dev::ServiceResponse,
+        Error = Error,
+    > {
+        let s3_client = create_s3_client("test-access-key", "test-secret-key", "us-east-1").await;
+        let cloudfront_client =
+            create_cloudfront_client("test-access-key", "test-secret-key", "us-east-1").await;
+
+        test::init_service(
+            App::new()
+                .app_data(Data::new(ApiConfig::new(
+                    "https://api.test.invalid".to_string(),
+                )))
+                .app_data(Data::new(test_pool()))
+                .app_data(Data::new(s3_client))
+                .app_data(Data::new(cloudfront_client))
+                .app_data(Data::new(Arc::new(create_schema())))
+                .app_data(guard_mode)
+                .service(index)
+                .service(graphql_index)
+                .service(graphql)
+                .service(graphiql_interface)
+                .service(graphql_schema),
+        )
+        .await
+    }
+
+    /// Status, headers and body of one response. `date` is dropped because it
+    /// is a clock reading, not a property of the mode.
+    type Captured = (StatusCode, Vec<(String, String)>, Vec<u8>);
+
+    async fn capture<S>(app: &S, request: TestRequest) -> Captured
+    where
+        S: actix_web::dev::Service<
+            actix_http::Request,
+            Response = actix_web::dev::ServiceResponse,
+            Error = Error,
+        >,
+    {
+        let response = test::call_service(app, request.to_request()).await;
+        let status = response.status();
+        let mut headers: Vec<(String, String)> = response
+            .headers()
+            .iter()
+            .filter(|(name, _)| name.as_str() != "date")
+            .map(|(name, value)| {
+                (
+                    name.as_str().to_string(),
+                    String::from_utf8_lossy(value.as_bytes()).into_owned(),
+                )
+            })
+            .collect();
+        headers.sort();
+        let body = test::read_body(response).await.to_vec();
+        (status, headers, body)
+    }
+
+    fn json_post(query: &str) -> TestRequest {
+        TestRequest::post()
+            .uri("/graphql")
+            .insert_header(("content-type", "application/json"))
+            .set_payload(format!(r#"{{"query":"{query}"}}"#))
+    }
+
+    /// Every public route of the listener, with a request whose result cannot
+    /// legitimately depend on the guard mode.
+    fn public_requests() -> Vec<(&'static str, TestRequest)> {
+        vec![
+            ("GET /", TestRequest::get().uri("/")),
+            ("GET /graphiql", TestRequest::get().uri("/graphiql")),
+            ("GET /graphql", TestRequest::get().uri("/graphql")),
+            (
+                "GET /schema.graphql",
+                TestRequest::get().uri("/schema.graphql"),
+            ),
+            ("POST /graphql", json_post(MODE_INDEPENDENT_QUERY)),
+        ]
+    }
+
+    // --- one source of truth, proved against the running application --------
+
+    #[actix_web::test]
+    async fn the_observed_mode_is_the_mode_the_request_path_actually_uses() {
+        for mode in ALL_MODES {
+            // ONE stored value, for both the observation and the request path.
+            let guard_mode = Data::new(mode);
+            let observed = effective_mode_observation(&guard_mode);
+            assert_eq!(
+                observed.mode(),
+                mode,
+                "the observation must report the stored effective mode"
+            );
+
+            let app = public_app(guard_mode).await;
+            let (_status, _headers, body) = capture(&app, json_post_raw(DUPLICATE_MUTATION)).await;
+            let body = String::from_utf8(body).expect("body must be UTF-8");
+
+            // The request path's own behaviour, driven by that same value:
+            // only `ENFORCE` declines the colliding mutation. The observation
+            // and the behaviour therefore agree, mode by mode.
+            let declined = body.contains("selected more than once");
+            assert_eq!(
+                declined,
+                observed.mode() == MutationGuardMode::Enforce,
+                "request-path behaviour must match the observed mode {mode:?}; body: {body}"
+            );
+            assert_eq!(
+                observed.mode().store_available(),
+                mode == MutationGuardMode::Enforce,
+                "store availability must follow from the observed mode alone"
+            );
+        }
+    }
+
+    /// `DUPLICATE_MUTATION` carries characters that need escaping, so it is
+    /// posted through the same raw-body construction the sibling test module
+    /// uses rather than the simple formatter above.
+    fn json_post_raw(query: &str) -> TestRequest {
+        let mut escaped = String::with_capacity(query.len() + 2);
+        for character in query.chars() {
+            match character {
+                '"' => escaped.push_str("\\\""),
+                '\\' => escaped.push_str("\\\\"),
+                '\n' => escaped.push_str("\\n"),
+                other => escaped.push(other),
+            }
+        }
+        TestRequest::post()
+            .uri("/graphql")
+            .insert_header(("content-type", "application/json"))
+            .set_payload(format!(r#"{{"query":"{escaped}"}}"#))
+    }
+
+    #[actix_web::test]
+    async fn the_record_reports_the_stored_mode_for_every_mode() {
+        for mode in ALL_MODES {
+            let guard_mode = Data::new(mode);
+            let record = effective_mode_observation(&guard_mode).record();
+            assert!(
+                record.starts_with(EFFECTIVE_MODE_RECORD_TAG),
+                "the record must be locatable by its tag; got: {record}"
+            );
+            let recovered = EffectiveModeObservation::parse_record(&record)
+                .expect("the emitted record must parse");
+            assert_eq!(recovered.mode(), mode);
+        }
+    }
+
+    #[actix_web::test]
+    async fn observing_is_read_only_stable_and_concurrency_safe() {
+        let guard_mode = Data::new(MutationGuardMode::Observe);
+        let first = effective_mode_observation(&guard_mode);
+
+        // Many concurrent observers of the one shared value.
+        let observed: Vec<EffectiveModeObservation> = std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..16)
+                .map(|_| {
+                    let guard_mode = guard_mode.clone();
+                    scope.spawn(move || effective_mode_observation(&guard_mode))
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|handle| handle.join().expect("observer thread"))
+                .collect()
+        });
+        assert!(
+            observed.iter().all(|observation| *observation == first),
+            "concurrent observation must return one stable answer"
+        );
+
+        // And the stored mode is unchanged by having been observed.
+        assert_eq!(*guard_mode.get_ref(), MutationGuardMode::Observe);
+        assert_eq!(effective_mode_observation(&guard_mode), first);
+    }
+
+    #[test]
+    fn observing_needs_no_database_and_no_configuration() {
+        // No pool is built in this test and no environment variable is read:
+        // the observation's only input is the already-stored mode. If the
+        // mechanism ever acquired a database or configuration dependency, this
+        // test could not compile or could not run.
+        let guard_mode = Data::new(MutationGuardMode::Enforce);
+        assert_eq!(
+            effective_mode_observation(&guard_mode).mode(),
+            MutationGuardMode::Enforce
+        );
+    }
+
+    // --- section 3.2: no public unauthenticated disclosure -------------------
+
+    #[actix_web::test]
+    async fn no_public_route_response_varies_with_the_effective_mode() {
+        let mut captured_per_mode = Vec::new();
+        for mode in ALL_MODES {
+            let app = public_app(Data::new(mode)).await;
+            let mut captured = Vec::new();
+            for (label, request) in public_requests() {
+                captured.push((label, capture(&app, request).await));
+            }
+            captured_per_mode.push(captured);
+        }
+
+        let baseline = &captured_per_mode[0];
+        for other in &captured_per_mode[1..] {
+            for ((label, expected), (_, actual)) in baseline.iter().zip(other.iter()) {
+                assert_eq!(
+                    expected.0, actual.0,
+                    "[{label}] status must not vary with the effective mode"
+                );
+                assert_eq!(
+                    expected.1, actual.1,
+                    "[{label}] headers must not vary with the effective mode"
+                );
+                assert_eq!(
+                    expected.2, actual.2,
+                    "[{label}] body must not vary with the effective mode"
+                );
+            }
+        }
+    }
+
+    #[actix_web::test]
+    async fn no_public_route_discloses_a_mode_token_or_the_observation_record() {
+        for mode in ALL_MODES {
+            let app = public_app(Data::new(mode)).await;
+            for (label, request) in public_requests() {
+                let (_status, headers, body) = capture(&app, request).await;
+                let body = String::from_utf8_lossy(&body).into_owned();
+                let headers = headers
+                    .iter()
+                    .map(|(name, value)| format!("{name}: {value}"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                for forbidden in [
+                    "OFF",
+                    "OBSERVE",
+                    "ENFORCE",
+                    EFFECTIVE_MODE_RECORD_TAG,
+                    "mutationGuardMode",
+                    "mutation_guard_mode",
+                    "THOTH_GRAPHQL_MUTATION_GUARD_MODE",
+                ] {
+                    assert!(
+                        !body.contains(forbidden),
+                        "[{label}] in {mode:?}: response body disclosed `{forbidden}`"
+                    );
+                    assert!(
+                        !headers.contains(forbidden),
+                        "[{label}] in {mode:?}: response headers disclosed `{forbidden}`"
+                    );
+                }
+            }
+        }
+    }
+
+    #[actix_web::test]
+    async fn the_public_listener_exposes_no_route_for_the_observation() {
+        // The mechanism adds no HTTP surface at all, so every plausible probe
+        // for one is an ordinary 404 from the existing router.
+        let app = public_app(Data::new(MutationGuardMode::Enforce)).await;
+        for path in [
+            "/guard-mode",
+            "/effective-mode",
+            "/mutation-guard-mode",
+            "/admin/guard-mode",
+            "/health",
+            "/status",
+            "/metrics",
+        ] {
+            let (status, _headers, body) = capture(&app, TestRequest::get().uri(path)).await;
+            assert_eq!(
+                status,
+                StatusCode::NOT_FOUND,
+                "`{path}` must not exist on the public listener"
+            );
+            let body = String::from_utf8_lossy(&body).into_owned();
+            for forbidden in ["OFF", "OBSERVE", "ENFORCE", EFFECTIVE_MODE_RECORD_TAG] {
+                assert!(
+                    !body.contains(forbidden),
+                    "`{path}` disclosed `{forbidden}`"
+                );
+            }
+        }
     }
 }

@@ -274,8 +274,61 @@ executing this runbook.
 
 ## 4. Fleet verification
 
-**The verifier does not yet exist.** This section states what verification must
-establish once it does; it cannot be performed before then.
+The verification **mechanism** is delivered by
+[`THOTH-GQL-OPS-03`](../ai-delivery/tasks/THOTH-GQL-OPS-03.md). The capability-gap-2
+text in section 0 records the diagnosis as it stood before that task and is
+historical from here on.
+
+**Delivering a verifier is not verifying a fleet.** No fleet has been verified,
+this section is still **not executable**, and section 0.2's two-part
+`PROVISIONAL` status is unchanged: `THOTH-GQL-OPS-04` resolves part 1 against the
+real runtime, and the downstream gates resolve part 2.
+
+### 4.0 The concrete mechanism
+
+```text
+PER-INSTANCE SIGNAL
+
+  Each serving process emits ONE structured record on its OWN log stream,
+  once, at startup:
+
+      THOTH_MUTATION_GUARD_EFFECTIVE_MODE mode=<OFF|OBSERVE|ENFORCE> instance=<id>
+
+  It is read out of the SAME stored value the request path uses, so the
+  reported mode and the effective mode cannot disagree. It carries the mode
+  and the minimum correlation identity and nothing else, and it crosses no
+  public listener: there is no HTTP route, no GraphQL field and no new
+  authorization decision.
+
+  `instance` is the process's OS-reported host name -- the orchestrator's own
+  instance name. A process that cannot identify itself omits the field, and
+  its observation is then UNATTRIBUTABLE rather than attributed to anything.
+
+COLLECTION
+
+  Out of band, through the orchestration/logging plane, per instance --
+  never by sampling traffic through the shared load balancer.
+
+VERIFIER
+
+  `thoth_api::graphql::verify_fleet(enumerated, observations)`, where
+  `enumerated` is the instance set read from live orchestrator state:
+
+      CONSISTENT(mode)   every enumerated member established that one mode
+      MIXED              every member established a mode, and they differ
+      NOT ESTABLISHED    any member UNKNOWN, any enumeration ambiguity, or
+                         any observation the enumeration cannot account for
+
+  UNKNOWN is a distinct result from OFF and is never resolved to a mode. A
+  pre-guard instance therefore reports UNKNOWN, never `MutationGuardMode::OFF`.
+  Partial coverage cannot pass.
+
+SILENT-ADOPTION CHECK
+
+  `divergences_from_declared_intent(declared)` compares the declared intent of
+  the change against what each process actually computed. Nothing re-reads
+  configuration, so the two can be compared rather than confused.
+```
 
 ### 4.1 What "verified" means
 
@@ -298,10 +351,12 @@ Never substitute the former for the latter.
 3. **Enumerate the actual running instance set from the orchestrator.** Do not
    sample traffic: instances sit behind a shared load balancer, so a sampled
    response proves only that *at least one* instance carries the observed mode.
-4. **Establish the effective mode of every enumerated instance** using the
-   verifier. Effective mode means the mode the process actually computed — not
-   the configured intent. Configured intent is insufficient evidence, because
-   capability gap 1 is precisely a case where the two diverge silently.
+4. **Establish the effective mode of every enumerated instance** by collecting
+   each instance's own effective-mode record (section 4.0) and passing the
+   enumeration and the observations to the verifier. Effective mode means the
+   mode the process actually computed — not the configured intent. Configured
+   intent is insufficient evidence, because capability gap 1 is precisely a case
+   where the two diverge silently.
 5. **Treat any instance started during the window as unknown-mode** until the
    verifier has attributed a mode to it. Both service-definition revisions are
    live during a rollout, so a task started mid-window may start under either.
