@@ -179,9 +179,16 @@ ADR-0006 independently reviewed, CTO-approved and repository-authoritative
         THOTH-GQL-OPS-04  fresh bounded verification and closure; the
                           earliest point at which this gate may be
                           satisfied, and only on evidence
-      THOTH-GQL-OPS-03 and -04 are specified, DRAFT and NOT AUTHORIZED, and
-      neither of their branches exists. Specifying a task is not delivering
-      it, and a specification for a verifier is not a verified fleet.
+      THOTH-GQL-OPS-03 and THOTH-GQL-OPS-04 are specified, DRAFT and
+      implementation NOT AUTHORIZED, and neither of their reserved
+      IMPLEMENTATION branches exists --
+        feature/shared-architecture/graphql-guard-mode-fleet-verification
+        feature/shared-architecture/graphql-runtime-ops-closure
+      A THOTH-GQL-OPS-03-SPEC documentation branch does exist while its
+      specification pull request is open; a specification branch is NOT an
+      implementation branch and constitutes no implementation authorization.
+      Specifying a task is not delivering it, and a specification for a
+      verifier is not a verified fleet.
       THOTH-GQL-OPS-02 merging closed one capability gap and closed no gate:
       CG-13 remains OPEN, the runtime-operations gate remains NOT SATISFIED,
       the mode-transition runbook remains PROVISIONAL, and both activations

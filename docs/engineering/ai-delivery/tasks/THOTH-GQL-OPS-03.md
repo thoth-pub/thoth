@@ -283,16 +283,30 @@ task nothing it requires.
 This decision fixes the **boundary**, not the **mechanism**. Within the boundary
 above, the implementing task selects the smallest transport or signal that
 satisfies section 3, and records that selection, the alternatives it rejected and
-its disclosure assessment (section 3 item 8, AC-11). At least one mechanism class
-within this boundary is available in-repository without infrastructure change, so
-the boundary is not vacuous; this specification deliberately does **not** name
-which, because naming one would pre-empt the smallest-mechanism analysis that
-belongs to the implementing task under section 3.1.
+its disclosure assessment (section 3 item 8, AC-11).
 
-If implementation-time evidence proves that **no** administrative or out-of-band
-mechanism can satisfy section 3, that is a **stop** (section 13). It is not a
-licence to fall back to a public surface: reopening the disclosure decision
-requires the CTO, not the implementing task.
+```text
+approved boundary   !=   preselected mechanism
+```
+
+**Feasibility is NOT ESTABLISHED at specification time, and this specification
+does not assert it.** No evidence gathered while preparing this specification
+establishes that a compliant mechanism exists inside the approved boundary.
+Satisfying section 3 requires **both** a process-effective-mode signal **and** a
+runtime identity correlatable to the orchestrator's enumerated instance;
+whether any mechanism can supply both within this boundary is a question this
+specification deliberately leaves to the implementing task, which must determine
+it from evidence at its own execution time. No claim that such a mechanism is
+already known to exist may be read into, or written into, this specification.
+
+If implementation-time repository evidence shows that **no** permitted
+administrative/orchestration-plane or out-of-band mechanism can satisfy section
+3, implementation **stops and returns `BLOCKED`** (section 13). That outcome is a
+legitimate result of the task, not a failure of it.
+
+A public unauthenticated surface is **not** an available fallback in that case,
+or in any other. Reopening the disclosure decision requires the CTO, not the
+implementing task.
 
 ## 4. Non-goals
 
@@ -720,12 +734,24 @@ to the activation gate, not to this task.
   *observable*; no mode is changed and no fleet is verified.
 
   ```text
-  deployed production release       = pre-guard (no guard mode exists)
+  deployed production release       = NOT RE-ESTABLISHED HERE.
+                                      The pre-guard finding is historical
+                                      THOTH-GQL-OPS-01 evidence owned by its
+                                      own record, is not re-certified by this
+                                      specification, and is not used for any
+                                      conclusion. The implementing task
+                                      re-establishes any external deployment
+                                      fact it needs through section 6.6.
   guard-enabled candidate default   = OFF, loader store unavailable
   environments transitioned         = none
   production request acceptance     = unchanged
   runtime-operations gate           = NOT SATISFIED
   ```
+
+  A pre-guard release, wherever one is running, has **no** guard mode at all and
+  must never be described as `MutationGuardMode::OFF` (section 5 invariant 12).
+  That rule binds regardless of which release any environment is currently
+  running, so nothing above depends on establishing the current deployed state.
 
 - **feature flag/configuration:** none introduced beyond what the selected
   mechanism strictly requires. Any configuration it does introduce must default

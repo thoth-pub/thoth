@@ -115,6 +115,12 @@ HIGH-risk task, and prepare it for fresh independent specification review.
 Out-of-scope changes made: NONE. No Rust file, workflow, Dockerfile, migration,
 schema, GraphQL document or infrastructure file appears in the diff.
 
+Independent review: **`CHANGES REQUIRED`** at head
+`e8e8fb3af0616a5745bfbd4bcf583d873ec2d955`, review `4905511366` — three bounded
+documentation/evidence defects, no redesign requested. All three are remediated
+on this same branch and pull request; no new branch and no new PR was created.
+See section 5.4.
+
 ## 3. Commits
 
 Recorded on the pull request. This report is not the authority for commit
@@ -192,16 +198,23 @@ forbids, and still cannot address an individual replica).
 
 **The decision fixes the boundary, not the mechanism.** The specification
 deliberately does not name a transport: selecting the smallest mechanism inside
-the approved boundary remains the implementing task's work under section 3.1. It
-records only that at least one mechanism class inside the boundary is available
-in-repository without infrastructure change, so the boundary is not vacuous. No
+the approved boundary remains the implementing task's work under section 3.1. No
 `ADR-0006` change and no `THOTH-GQL-OPS-01` amendment is required — `OPS-01`
 section 3.5 left the disclosure open and required an explicit decision, and this
 boundary is strictly narrower than what `OPS-01` would have permitted.
 
-If implementation-time evidence proves no administrative or out-of-band mechanism
-can satisfy section 3, the specification now makes that a **stop**, not a licence
-to fall back to a public surface.
+**Feasibility is NOT ESTABLISHED at specification time, and this task asserts
+none.** This specification task gathered no evidence that a compliant mechanism
+exists inside the approved boundary, and the specification says so explicitly
+(section 3.2.3). Satisfying section 3 requires both a process-effective-mode
+signal and a runtime identity correlatable to the orchestrator's enumerated
+instance; whether any mechanism supplies both within the boundary is left to the
+implementing task to determine from evidence at its own execution time.
+
+If implementation-time repository evidence shows no permitted administrative or
+out-of-band mechanism can satisfy section 3, the specification makes that a
+**stop returning `BLOCKED`** — a legitimate outcome, and never a licence to fall
+back to a public surface.
 
 ### 5.2 Stale post-`THOTH-GQL-OPS-02` statements corrected
 
@@ -246,6 +259,82 @@ at all; section 8 constrains emitted signals to the boundary; section 10 adds a
 public-listener negative test, a minimum-disclosure test, an incomplete-coverage
 test and an OPS-02 regression suite in both build profiles; section 13 adds two
 stop conditions; section 14 extends the required report contents.
+
+### 5.4 Independent review remediation
+
+```text
+Independent review:     CHANGES REQUIRED
+                        review 4905511366
+                        exact head reviewed
+                        e8e8fb3af0616a5745bfbd4bcf583d873ec2d955
+
+Finding 1:              unsupported mechanism-feasibility assertion REMOVED
+Finding 2:              current production deployment-state claim WITHDRAWN;
+                        no Route A/B evidence was gathered by this task
+Finding 3:              branch wording CORRECTED to distinguish the
+                        specification branch from the reserved
+                        implementation branches
+
+Architecture decision:  UNCHANGED
+Acceptance criteria:    UNCHANGED by this remediation
+Runtime/infrastructure
+  effect:               NONE
+```
+
+The reviewer accepted the specification direction and the section 3.2 boundary
+and requested no redesign. The three defects were documentation/evidence
+precision, and each is corrected in place rather than argued with.
+
+**Finding 1 — unsupported feasibility assertion.** The claim that "at least one
+mechanism class within this boundary is available in-repository without
+infrastructure change" appeared in specification section 3.2.3 and was repeated
+in section 5.1 of this report. This task gathered no evidence for it, and the
+reviewer correctly found none. **Both occurrences are removed**, and no
+replacement assertion that a compliant implementation definitely exists was
+substituted. Section 3.2.3 now classifies feasibility as **not established at
+specification time**, records why the question is non-trivial — section 3 needs
+both a process-effective-mode signal and an orchestrator-correlatable runtime
+identity — and assigns the determination to the implementing task, which returns
+`BLOCKED` if no permitted mechanism satisfies section 3. The distinction
+`approved boundary != preselected mechanism` is stated explicitly, and the
+existing stop rule, which already handled this correctly, is reinforced rather
+than replaced. A public unauthenticated surface remains unavailable as a
+fallback in every branch of that outcome.
+
+**Finding 2 — un-evidenced current production-state claim.** Section 12 of this
+report asserted `deployed production release = pre-guard (no guard mode exists)`
+while section 8 of the same report records that no Route A evidence, no Route B
+evidence and no protected-source read occurred. A current deployed-release
+statement is an external/runtime fact and cannot be asserted as current from
+repository evidence or inherited historical evidence. **The claim is withdrawn**
+and replaced with `NOT RE-ESTABLISHED BY THIS SPECIFICATION TASK`, with the
+`THOTH-GQL-OPS-01` pre-guard finding explicitly left as historical evidence owned
+by its own record, not re-certified here and not used for any conclusion. The
+same withdrawal is applied to the identical inherited line in specification
+section 11, because leaving the defect in the document actually being approved
+while fixing only its report would correct the smaller instance and keep the
+larger one. Production is **not** relabelled `OFF`: the invariant that a
+pre-guard release has no guard mode at all is restated, and it binds regardless
+of which release any environment runs — which is why no conclusion here depends
+on the withdrawn fact. **No new external evidence was sought or obtained, and no
+protected source was read**, consistent with the reviewer's note that no
+protected-source read is required to fix this.
+
+**Finding 3 — branch-status wording.** The decision register said
+`THOTH-GQL-OPS-03 and -04 ... neither of their branches exists`, which the active
+specification branch literally contradicts. Branch existence is a lifecycle
+control fact, so the wording now names the two **reserved implementation
+branches** explicitly, states that they do not exist, and records that a
+specification branch is not an implementation branch and constitutes no
+implementation authorization.
+
+Not changed by this remediation, deliberately: the section 3.2 boundary; every
+acceptance criterion, including AC-11, AC-11.1, AC-22 and AC-23; the complete
+enumeration, `UNKNOWN`-distinct-from-`OFF`, fail-closed, mixed-mode and
+same-runtime-value requirements; the generic statement of the silent-adoption
+class; and the historical treatment of the `init` defect closed by
+`THOTH-GQL-OPS-02`, which is not reintroduced as the silent-adoption test
+mechanism.
 
 ## 6. Database and migration effects
 
@@ -359,6 +448,41 @@ Documentation and control records:        5 files
                                           value of any environment variable
 ```
 
+Re-run after the review remediation, over the remediation diff specifically:
+
+```text
+ 9. git diff --check                      clean
+10. remediation diff path list            exactly three files:
+                                          THOTH-GQL-OPS-03.md,
+                                          THOTH-GQL-OPS-03-SPEC-implementation-
+                                          report.md, decision-register.md
+11. no statement anywhere says a
+    compliant mechanism is already
+    known to exist                        confirmed by grep and by reading
+                                          sections 3.2.3 and 5.1
+12. no current-production deployment
+    state asserted by this task           confirmed; both occurrences replaced
+                                          with NOT RE-ESTABLISHED
+13. OPS-01 historical deployment
+    statements not promoted to current
+    evidence                              confirmed; both replacements name
+                                          them as historical and use them for
+                                          no conclusion
+14. decision-register says
+    IMPLEMENTATION branches               confirmed, with both reserved names
+                                          written out
+15. section 3.2 unchanged in substance    confirmed; the boundary, the
+                                          rejected alternatives and the
+                                          minimum disclosure are byte-identical
+16. no acceptance criterion weakened      confirmed; section 9 is untouched by
+                                          the remediation diff
+17. no public surface becomes permitted   confirmed
+18. no runtime file changed               confirmed
+19. reserved implementation branch        ABSENT, re-checked locally and on
+                                          origin after the remediation
+20. links and internal anchors            all still resolve
+```
+
 ## 11. CI
 
 Exact-head CI and its per-job PASS / SKIPPED / FAIL classification are recorded
@@ -374,12 +498,28 @@ becomes reachable from `develop`; no capability, mode, environment or
 authorization changes.
 
 ```text
-deployed production release       = pre-guard (no guard mode exists)
-guard-enabled candidate default   = OFF, loader store unavailable
-environments transitioned         = none
-production request acceptance     = unchanged
-runtime-operations gate           = NOT SATISFIED
+Current deployed production release:
+    NOT RE-ESTABLISHED BY THIS SPECIFICATION TASK
+
+No current-production deployment-state conclusion is required for
+THOTH-GQL-OPS-03 specification approval, and none is asserted here.
+
+Where historical THOTH-GQL-OPS-01 records discuss a pre-guard deployment,
+those remain historical evidence owned by their original record and are
+not re-certified here.
+
+Established by this task, from repository evidence alone:
+    guard-enabled candidate default   = OFF, loader store unavailable
+    environments transitioned         = none, by this task
+    request acceptance                = unchanged, no code changed
+    runtime-operations gate           = NOT SATISFIED
 ```
+
+This task obtained **no** Route A and **no** Route B evidence and read no
+protected source (section 8), so it is not in a position to state a current
+deployed release and does not state one. Nothing above depends on that fact.
+Production is **not** relabelled `OFF`: a pre-guard release has no guard mode at
+all, and that rule holds whichever release any environment runs.
 
 Activation required: none by this task, and none granted. Rollback: revert the
 merge commit; it is a documentation revert with no runtime effect.
@@ -406,6 +546,12 @@ merge commit; it is a documentation revert with no runtime effect.
   decision this approval candidate proposes. Until independent review and
   explicit CTO specification approval, the specification remains `DRAFT` with
   implementation `NOT AUTHORIZED`.
+- **Mechanism feasibility inside the approved boundary is not established, by
+  design.** This task neither investigated nor selected a mechanism, and asserts
+  no conclusion about whether one exists. The implementing task determines it
+  from evidence and returns `BLOCKED` if no permitted mechanism satisfies section
+  3. That is a known and accepted open question at specification approval time,
+  not an omission — and it is the reason the stop condition exists.
 - **CL-1 remains open** (section 8) and is not closable by an agent.
 - **Capability gap 2 remains open.** Nothing here implements a verifier, and a
   specification for a verifier is neither a verifier nor a verified fleet.
@@ -413,7 +559,10 @@ merge commit; it is a documentation revert with no runtime effect.
 ## 14. Unresolved issues
 
 1. **Specification approval itself.** Not granted by this task, and not
-   grantable by its author.
+   grantable by its author. The remediated head requires a **fresh independent
+   specification review**; the `CHANGES REQUIRED` review `4905511366` is
+   discharged by the changes in section 5.4 but is not itself an approval, and
+   review of the previous head does not carry forward.
 2. **The pre-OPS-02 language in the two `THOTH-GQL-OPS-01` deliverables**
    (section 13). Owner: CTO / control owner, with `THOTH-GQL-OPS-04` as the
    already-specified natural home.
@@ -429,6 +578,14 @@ decisions.
 
 Suggested review focus:
 
+0. **The three remediated findings (section 5.4).** Confirm from the diff that
+   the feasibility assertion is gone from **both** the specification and this
+   report and was not replaced by an equivalent claim; that no current-production
+   deployment state is asserted anywhere by this task, in either the report or
+   specification section 11, and that the historical `THOTH-GQL-OPS-01` finding
+   is used for no conclusion; and that the decision register now speaks of
+   reserved **implementation** branches. Confirm also that the remediation
+   touched exactly three files and weakened nothing.
 1. **The section 3.2 decision.** Confirm the boundary is stated identically in
    scope, non-goals, invariants, required behaviour, acceptance criteria, tests,
    stop conditions and approval, and that no sentence anywhere leaves a public
