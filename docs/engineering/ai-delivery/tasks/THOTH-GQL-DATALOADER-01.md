@@ -1,6 +1,6 @@
 # THOTH-GQL-DATALOADER-01 - Request-scoped GraphQL DataLoader foundation and A2 retirement
 
-Status: DRAFT
+Status: APPROVED
 Implementation: NOT AUTHORIZED
 Programme: Shared Thoth GraphQL / Backend Architecture
 Dependent programmes: Publisher Services and Distribution Configuration (first
@@ -18,13 +18,19 @@ PR target: `develop`
 Programme integration branch: None
 Risk: HIGH
 Owner: Shared backend architecture
-Approved by: not yet approved
+Approved by: CTO — specification approval only, 2026-08-11, granted against the
+exact independently reviewed PR [#801](https://github.com/thoth-pub/thoth/pull/801)
+head `bb4f57e0d446270b4c404879ef61b5e229e90bbf` and limited to the exact
+specification content at that head. This approval is **not** implementation
+authorization, not implementation-branch authorization, and not PR #801 merge
+authorization
 Dependencies, all required before implementation may begin:
 [`ADR-0007`](../../decisions/ADR-0007-conventional-request-scoped-graphql-dataloader.md)
 `APPROVED` and repository-authoritative (satisfied 2026-08-11 through PR
 [#800](https://github.com/thoth-pub/thoth/pull/800)); this specification
-approved; a freshly verified exact `develop` base; explicit CTO implementation
-authorization
+approved (satisfied 2026-08-11 — CTO specification approval at exact PR #801
+head `bb4f57e0d446270b4c404879ef61b5e229e90bbf`); a freshly verified exact
+`develop` base; explicit CTO implementation authorization (**not yet granted**)
 Target branch name: `feature/shared-architecture/graphql-dataloader-foundation`
 (**must not exist** until implementation is authorized)
 
@@ -33,9 +39,12 @@ content is reachable from the repository's authoritative integration branch.
 Live review, authorization and merge evidence is the GitHub pull-request record.
 
 This specification does not authorize implementation. It defines what
-implementation must do once separately authorized. `THOTH-GQL-DATALOADER-01`
-implementation remains `NOT AUTHORIZED` until this specification is approved by
-the CTO after fresh independent exact-head review.
+implementation must do once separately authorized. The specification itself is
+CTO-approved (2026-08-11, at exact PR #801 head
+`bb4f57e0d446270b4c404879ef61b5e229e90bbf`), but `THOTH-GQL-DATALOADER-01`
+implementation remains `NOT AUTHORIZED`: implementation authorization is a
+distinct later CTO decision, available only after the approved specification is
+repository-authoritative on `develop`.
 
 Recommended implementation model: a high-reasoning implementing agent for the
 bounded implementation, and a separate high-reasoning independent reviewer of
