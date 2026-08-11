@@ -42,6 +42,24 @@ lazy_static! {
         );
 }
 
+/// Resolve the effective mutation-guard mode from parsed arguments.
+///
+/// This is the single accessor every command path uses, so a command that
+/// dispatches here must register [`arguments::mutation_guard_mode`]. Both
+/// `start graphql-api` and `init` do.
+///
+/// Defaults to `OFF`; `clap`'s `value_parser` has already restricted the string
+/// to the three accepted modes, so an invalid value fails during parsing rather
+/// than reaching this function.
+pub(crate) fn mutation_guard_mode(arguments: &ArgMatches) -> ThothResult<MutationGuardMode> {
+    arguments
+        .get_one::<String>("mutation-guard-mode")
+        .map(String::as_str)
+        .unwrap_or("OFF")
+        .parse::<MutationGuardMode>()
+        .map_err(ThothError::InternalError)
+}
+
 pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     let database_url = arguments.get_one::<String>("db").unwrap().to_owned();
     let host = arguments.get_one::<String>("host").unwrap().to_owned();
@@ -54,14 +72,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
         .get_one::<String>("zitadel-url")
         .unwrap()
         .to_owned();
-    // Defaults to `OFF`; `clap`'s `value_parser` has already restricted the
-    // string to the three accepted modes.
-    let mutation_guard_mode = arguments
-        .get_one::<String>("mutation-guard-mode")
-        .map(String::as_str)
-        .unwrap_or("OFF")
-        .parse::<MutationGuardMode>()
-        .map_err(ThothError::InternalError)?;
+    let mutation_guard_mode = mutation_guard_mode(arguments)?;
 
     api_server(
         database_url,
