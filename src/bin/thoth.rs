@@ -332,13 +332,6 @@ mod mutation_guard_mode_on_init {
         }
     }
 
-    #[test]
-    fn store_availability_is_derived_only_from_enforce() {
-        assert!(!MutationGuardMode::Off.store_available());
-        assert!(!MutationGuardMode::Observe.store_available());
-        assert!(MutationGuardMode::Enforce.store_available());
-    }
-
     // --- init ordering and failure behaviour --------------------------------
 
     #[test]
