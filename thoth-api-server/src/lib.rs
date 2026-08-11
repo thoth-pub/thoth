@@ -98,38 +98,24 @@ async fn graphql(
 ) -> Result<HttpResponse, Error> {
     let mode = *guard_mode.into_inner().as_ref();
 
-    // Both paths produce ONE `GraphQLResponse`, which then flows through the
-    // single existing status branch below. A guard rejection is an ordinary
-    // validation-style GraphQL response — `is_ok()` is `false` — so it needs no
-    // handler branch, no bespoke status and no one-off protocol of its own.
     let result = match run_mutation_guard(mode, &data, &st) {
-        // Central mutation request guard (`ADR-0006` section 4.12.6), evaluated
-        // at the GraphQL HTTP request boundary **before** ordinary Juniper
-        // execution, so a rejected operation runs zero resolvers and performs
-        // zero writes.
-        //
-        // In `OFF` — the default and the merged production state — the guard
-        // returns before any parsing, so it adds no request-path work of any
-        // kind. It never replaces `GraphQLRequest::execute`, and it makes no
-        // authorization decision.
+        // The mutation request guard remains independent of the DataLoader
+        // foundation. A rejection still executes zero resolvers and performs
+        // zero writes; `OFF` remains the merged production state.
         Some(rejection) => rejection,
         None => {
-            // The request context carries the same guard mode, so store
-            // availability is derived from it and can never disagree with the
-            // guard.
-            let ctx = Context::with_guard_mode(
+            // Loader ownership is derived only from the request-local Context.
+            // It is deliberately independent of mutation guard mode.
+            let ctx = Context::new(
                 pool.into_inner(),
                 user,
                 s3_client.into_inner(),
                 cloudfront_client.into_inner(),
-                mode,
             );
             data.execute(&st, &ctx).await
         }
     };
 
-    // The single, pre-existing response-status mapping, shared by ordinary
-    // Juniper execution and by guard rejection alike.
     match result.is_ok() {
         true => Ok(HttpResponse::Ok().json(result)),
         false => Ok(HttpResponse::BadRequest().json(result)),
@@ -207,41 +193,16 @@ pub async fn start_server(
 mod tests {
     //! Handler-level proof that a guard rejection carries **no** HTTP protocol
     //! of its own.
-    //!
-    //! THOTH-GQL-BATCH-01 requires a guard rejection to become a
-    //! validation-style `GraphQLResponse` that flows through the *existing*
-    //! `result.is_ok()` status mapping — "existing handler branch produces
-    //! HTTP 400; no new handler branch; no one-off HTTP protocol". These tests
-    //! drive the **real** `graphql` handler through `actix_web::test` and
-    //! compare a guard rejection against an ordinary Juniper validation failure
-    //! on the same route.
-    //!
-    //! No new dependency is used: `actix_web::test` and the storage-client
-    //! constructors are already available to this crate. This crate does not
-    //! depend on `serde_json`, so these assertions are made against the raw
-    //! serialized body rather than a parsed value; the precise structural
-    //! comparison of the two bodies (top-level key sets and per-error key sets)
-    //! lives in `thoth-api`, where `serde_json` is available.
 
     use super::*;
     use actix_web::{http::StatusCode, test, App};
 
-    /// A real pool, built the way the repository's other database-backed tests
-    /// build theirs.
-    ///
-    /// Neither case under test reaches the database — a guard rejection runs no
-    /// resolver at all, and Juniper rejects an invalid document during
-    /// validation, before any resolver executes — but `Data<PgPool>` is still
-    /// extracted, so a value must exist. `TEST_DATABASE_URL` is the same
-    /// variable the existing `thoth-api` database tests require, and it is set
-    /// in the CI workflow environment.
     fn test_pool() -> PgPool {
         let url = std::env::var("TEST_DATABASE_URL")
             .expect("TEST_DATABASE_URL must be set for thoth-api-server handler tests");
         init_pool(&url)
     }
 
-    /// Build the real application route under test, in the given guard mode.
     async fn service(
         mode: MutationGuardMode,
     ) -> impl actix_web::dev::Service<
@@ -265,10 +226,8 @@ mod tests {
         .await
     }
 
-    /// POST a GraphQL document to the real handler; return (status, raw body).
     async fn post(mode: MutationGuardMode, query: &str) -> (StatusCode, String) {
         let app = service(mode).await;
-        // Built as a raw JSON string so this crate needs no JSON dependency.
         let payload = format!(r#"{{"query":{}}}"#, escape_json_string(query));
         let request = test::TestRequest::post()
             .uri("/graphql")
@@ -282,7 +241,6 @@ mod tests {
         (status, body)
     }
 
-    /// Minimal JSON string escaping, sufficient for the fixed documents below.
     fn escape_json_string(value: &str) -> String {
         let mut out = String::with_capacity(value.len() + 2);
         out.push('"');
@@ -300,9 +258,6 @@ mod tests {
         out
     }
 
-    /// A baseline-valid mutation whose single top-level response key `x` occurs
-    /// twice with **identical** arguments — the compatible duplicate the pinned
-    /// executor would otherwise run as two writes.
     const DUPLICATE_MUTATION: &str = concat!(
         "mutation { ",
         r#"x: createPublisher(data: {publisherName: "Guard HTTP Convention"}) { publisherId } "#,
@@ -310,91 +265,42 @@ mod tests {
         "}"
     );
 
-    /// An ordinary Juniper document-validation failure: an unknown field.
     const INVALID_DOCUMENT: &str = "{ thisFieldDoesNotExist }";
 
-    /// Assert the repository's GraphQL request-validation failure convention.
     fn assert_validation_failure_convention(status: StatusCode, body: &str, label: &str) {
-        assert_eq!(
-            status,
-            StatusCode::BAD_REQUEST,
-            "[{label}] must return HTTP 400 through the common status branch; body: {body}"
-        );
-        assert!(
-            body.starts_with(r#"{"errors":["#),
-            "[{label}] body must be the ordinary errors-array shape; got: {body}"
-        );
-        assert!(
-            !body.contains(r#""data""#),
-            "[{label}] a validation-style failure carries no `data` key; got: {body}"
-        );
-        assert!(
-            body.contains(r#""message""#),
-            "[{label}] each error carries a message; got: {body}"
-        );
-        assert!(
-            body.contains(r#""locations""#),
-            "[{label}] each error carries locations; got: {body}"
-        );
+        assert_eq!(status, StatusCode::BAD_REQUEST, "[{label}] body: {body}");
+        assert!(body.starts_with(r#"{"errors":["#));
+        assert!(!body.contains(r#""data""#));
+        assert!(body.contains(r#""message""#));
+        assert!(body.contains(r#""locations""#));
     }
 
     #[actix_web::test]
     async fn guard_rejection_and_juniper_validation_failure_share_the_http_convention() {
-        // A guard rejection, in ENFORCE.
         let (guard_status, guard_body) = post(MutationGuardMode::Enforce, DUPLICATE_MUTATION).await;
         assert_validation_failure_convention(guard_status, &guard_body, "guard rejection");
-        assert!(
-            guard_body.contains("selected more than once"),
-            "expected the guard's own rejection message; got: {guard_body}"
-        );
+        assert!(guard_body.contains("selected more than once"));
 
-        // An ordinary Juniper validation failure, on the same route and handler.
         let (juniper_status, juniper_body) = post(MutationGuardMode::Off, INVALID_DOCUMENT).await;
         assert_validation_failure_convention(
             juniper_status,
             &juniper_body,
             "juniper validation failure",
         );
-
-        // Same status, reached through the same single branch.
-        assert_eq!(
-            guard_status, juniper_status,
-            "a guard rejection must not use a status of its own"
-        );
+        assert_eq!(guard_status, juniper_status);
     }
 
     #[actix_web::test]
     async fn the_merged_off_mode_never_produces_a_guard_rejection() {
-        // In `OFF` the guard evaluates nothing, so the same duplicate document
-        // is not rejected by the guard and proceeds to ordinary execution.
         let (_status, body) = post(MutationGuardMode::Off, DUPLICATE_MUTATION).await;
-        assert!(
-            !body.contains("selected more than once"),
-            "OFF must never produce a guard rejection; got: {body}"
-        );
-        // These requests carry no credentials, so `PublisherPolicy::can_create`
-        // declines before `Publisher::create` runs. Asserting that pins two
-        // things down: the request really did reach ordinary execution rather
-        // than being turned away by the guard, and this test performs **no
-        // write** to the shared test database. If a future change let it write,
-        // this assertion fails rather than silently mutating fixture data.
-        assert!(
-            body.contains("Invalid credentials."),
-            "expected the anonymous request to stop at the authorization check, \
-             so no row is written; got: {body}"
-        );
+        assert!(!body.contains("selected more than once"));
+        assert!(body.contains("Invalid credentials."));
     }
 
     #[actix_web::test]
     async fn a_successful_response_uses_the_ok_arm_of_the_same_branch() {
-        // `__typename` resolves without touching the database, so this exercises
-        // the `is_ok() == true` arm of the one shared status branch, proving the
-        // branch is genuinely common rather than failure-only.
         let (status, body) = post(MutationGuardMode::Enforce, "{ __typename }").await;
         assert_eq!(status, StatusCode::OK);
-        assert!(
-            body.contains(r#""data""#),
-            "a successful response carries a `data` key; got: {body}"
-        );
+        assert!(body.contains(r#""data""#));
     }
 }
