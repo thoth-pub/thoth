@@ -63,17 +63,26 @@ pub(crate) struct RequestLoaders {
 }
 
 impl RequestLoaders {
-    pub(crate) fn new() -> Self {
+    /// Construct the ADR-0007 request-local bundle directly.
+    pub(crate) fn for_request() -> Self {
         Self {
             #[cfg(all(test, feature = "backend"))]
             fixture: None,
         }
     }
+
+    /// Temporary source-compatibility constructor for the old
+    /// `GraphqlBatchStore::new(mode)` call in `Context` while that large file is
+    /// migrated in this same implementation. The argument is deliberately
+    /// ignored: guard mode cannot enable or disable DataLoader availability.
+    pub(crate) fn new<T>(_legacy_guard_mode: T) -> Self {
+        Self::for_request()
+    }
 }
 
 impl Default for RequestLoaders {
     fn default() -> Self {
-        Self::new()
+        Self::for_request()
     }
 }
 
