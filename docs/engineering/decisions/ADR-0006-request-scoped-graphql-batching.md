@@ -1,6 +1,6 @@
 # ADR-0006 - Request-scoped GraphQL batching and set-based child loading
 
-Status: APPROVED
+Status: SUPERSEDED
 Date: 2026-08-07
 Approved by: CTO
 Approval date: 2026-08-08
@@ -11,7 +11,15 @@ consumer); Thoth Metrics and any other programme resolving child fields through
 `thoth-api` GraphQL
 Repositories affected: `thoth-pub/thoth`
 Supersedes: None
-Superseded by: None
+Superseded by: [ADR-0007](ADR-0007-conventional-request-scoped-graphql-dataloader.md) - Conventional request-scoped GraphQL DataLoader and async resolver execution
+
+Supersession notice: `ADR-0007` (CTO-approved 2026-08-11) supersedes this ADR's
+batching architecture. Consult `ADR-0007` for the current shared GraphQL
+batching/DataLoader decision. The content below is preserved unchanged as the
+historical record of the decision as it was made and approved on 2026-08-08,
+including its A2 architecture, mutation-guard coupling and evidence reasoning.
+The pinned-Juniper duplicate-top-level-mutation-execution finding recorded in
+section 4.12.6 remains a live, separately controlled concern under `ADR-0007`.
 
 Decision: `ADR-0006` is approved by the CTO. The approval, given on 2026-08-08,
 covers the exact architectural content merged through PR
