@@ -4,24 +4,38 @@ Implementation of the approved
 [`THOTH-GQL-OPS-02`](../tasks/THOTH-GQL-OPS-02.md) specification: the
 mutation-guard **mode-control path**.
 
-**Delivered with one criterion `BLOCKED`.** The repository-local mechanism is
-complete and fully tested. Two *external* deployment facts the specification
-requires to be re-confirmed at this task's own execution time could not be
-obtained through either permitted evidence route, so they are recorded as missing
-work rather than assumed. See sections 8.1 and 11.1.
+**The repository-local mechanism is complete and fully tested.** The two
+*external* deployment facts the specification requires to be re-confirmed at this
+task's own execution time were initially unobtainable and recorded `BLOCKED`;
+authorized **Route B** operator evidence supplied on **2026-08-11** has since
+supplied both, and they are now `PASS`. See sections 8.1 and 11.1.
+
+**One criterion requires a control-owner disposition.** AC-18, as approved, binds
+every AI agent "of any role, family or session". During the independent review a
+reviewer-side read path unexpectedly exposed secret material. The implementing
+execution satisfies every limb of AC-18, but the criterion as written is broader
+than implementation execution, so this report does **not** self-certify it
+`PASS`. See sections 8.2 and 11.1.
 
 ```text
 capability gap 1 (mode-control path):  CLOSED in-repository
-AC-17 (external re-confirmation):      BLOCKED - no Route A or Route B evidence
-section 2 container-command re-check:  BLOCKED - same reason
+AC-17 (external re-confirmation):      PASS - Route B operator evidence,
+                                       supplied 2026-08-11
+section 2 container-command re-check:  PASS - same Route B evidence
+AC-18 (no-AI-agent boundary):          BLOCKED - control-owner disposition
+                                       required (section 8.2)
 
 CG-13:                                 OPEN
 Runtime-operations gate:               NOT SATISFIED
+Runbook:                               PROVISIONAL
 OBSERVE:                               NOT AUTHORIZED
 ENFORCE:                               NOT AUTHORIZED
 BE-02 runtime:                         NOT AUTHORIZED
 OPS-03 / OPS-04:                       NOT IMPLEMENTED, no branches
 ```
+
+The new evidence authorizes **no** runtime transition. Making the mode settable
+is still not setting it.
 
 ## 1. Repository state
 
@@ -288,16 +302,27 @@ Any `init` invocation supplying an invalid value:
     `start graphql-api` behaviour and removes a silent-misconfiguration
     class.
 
-Known current production and test deployments:
-    NOT RE-CONFIRMED AT THIS TASK'S EXECUTION TIME -- see section 8.1.
-    The specification's statement that the variable is absent everywhere is
-    deliberately NOT inherited, and AC-17 is recorded BLOCKED.
+Known current Production and Test deployments:
+    UNCHANGED.
+
+    THOTH_GRAPHQL_MUTATION_GUARD_MODE is absent in both current
+    deployment definitions, confirmed through authorized Route B
+    operator evidence at this task's review time (2026-08-11).
+
+    Both therefore take the unset -> OFF row after OPS-02.
 ```
+
+That conclusion is **not** inherited from the specification. It rests on
+authorized operator-supplied evidence obtained at review time and recorded in
+section 8.1.
 
 **The deployment-facing consequence is not glossed.** Because a previously
 ignored invalid value will begin to fail startup, an environment that happens to
-carry a malformed value would start failing to deploy after this change. Whether
-any such environment exists is exactly what could not be re-confirmed.
+carry a malformed value would start failing to deploy after this change. The
+Route B evidence establishes that neither current Production nor current Test
+carries such a value, so no currently identified environment is affected. The
+claim extends no further than the deployment classes the operator evidence
+actually covers.
 
 None of this activates anything: the default remains `OFF`, and making the mode
 settable is not setting it.
@@ -314,7 +339,7 @@ enumerated value restricted to `OFF`/`OBSERVE`/`ENFORCE`, and logs nothing. A
 test asserts that the invalid-value startup failure leaks no value bound to
 `DATABASE_URL`, `PRIVATE_KEY` or `AWS_SECRET_ACCESS_KEY`.
 
-### 8.1 External deployment facts — BLOCKED under the section 6.6 evidence boundary
+### 8.1 External deployment facts — satisfied by Route B operator evidence
 
 The specification requires two external facts to be **re-confirmed at this
 task's own execution time** and explicitly forbids inheriting them:
@@ -329,52 +354,90 @@ FACT 2  no environment currently supplies a mutation-guard value that would
         -> specification section 6.5 and AC-17
 ```
 
-Permitted routes, and what was available:
+#### 8.1.1 Evidence provenance
 
 ```text
-ROUTE A  a sanitized metadata-only source that structurally cannot expose a
-         production secret value
-         -> NONE was available to this task.
+ROUTE B   Authorized CTO / control-owner operator evidence
+          Sanitized, non-secret deployment facts
+          Supplied 2026-08-11, at this task's review time
 
-ROUTE B  evidence supplied by an explicitly authorized human/operator or
-         control owner, in sanitized non-secret form, attributed to a named
-         role -- or a sanitized artefact generated under that non-agent
-         human/operator's control. NO AI agent is a valid Route B source.
-         -> NONE was supplied. The CTO implementation authorization records
-            the approved base, branch, risk and boundary; it carries neither
-            fact.
-
-RESULT   FACT 1  BLOCKED
-         FACT 2  BLOCKED  -> AC-17 BLOCKED
+ROUTE A   NOT used. No sanitized metadata-only artefact was available to
+          this task, and no Route A success is claimed.
 ```
 
-**No widening occurred.** The private authoritative deployment source was **not**
-read, by any route, narrow or otherwise. No secret-bearing production
-configuration was opened. No secret material was encountered during this task,
-and therefore no exposure escalation arises from it.
+The evidence source is an **authorized human/operator**, which section 6.6
+Route B admits explicitly. No AI agent is a valid Route B source, and none was
+used as one.
 
-`BLOCKED` is the specification's required outcome here, not a workaround: "It is
-never satisfied by a direct implementing-agent read, and never by inheriting this
-specification's statement."
-
-**What this means for the change.** The in-repository mechanism is complete and
-proven. The residual, unquantified risk is exactly the one section 7.1 names: if
-some environment carries a malformed `THOTH_GRAPHQL_MUTATION_GUARD_MODE`, that
-environment would begin to fail startup after this change. Closing that risk
-needs an authorized non-agent operator to supply either fact through Route A or
-Route B; it is a control decision, not an implementation decision, and it is
-recorded here as missing work.
-
-### 8.2 Operational-actor statement
+#### 8.1.2 The sanitized facts supplied
 
 ```text
-Deployment performed by ANY AI agent or model:              NONE
-Deployment workflow / automation dispatched by any agent:   NONE
-Real-environment mode transition by any agent:              NONE
+PRODUCTION GraphQL API
+  - deployed with the standard Thoth service deployment template
+  - supplies NO container-command override
+  - therefore inherits the image default command `init`
+  - does NOT configure THOTH_GRAPHQL_MUTATION_GUARD_MODE
+
+TEST GraphQL API
+  - same deployment configuration as Production for the relevant facts
+  - NO container-command override
+  - THOTH_GRAPHQL_MUTATION_GUARD_MODE ABSENT
+
+CONTROL COMPARISON, sanitized
+  - another service deployed by the SAME mechanism, the Export API,
+    explicitly supplies its command as `start` / `export-api`
+  - command overrides are therefore EXPRESSIBLE by this mechanism, so
+    their ABSENCE on the GraphQL API is meaningful rather than merely
+    unobserved
+
+RESULT   FACT 1  PASS
+         FACT 2  PASS  -> AC-17 PASS
+```
+
+No secret value was supplied as Route B evidence, and none is recorded here. No
+infrastructure definition, resource identifier or configuration value from the
+private deployment source has been copied into this repository.
+
+**Coverage check, performed rather than assumed.** AC-17 speaks of "no
+environment". Repository evidence — `environments.md` section 1 and the
+runtime-operations control record — identifies exactly **two** current Thoth
+GraphQL API environments, production and test, and the operator evidence covers
+both. The preview/staging environment referenced elsewhere in the programme is a
+**downstream** gate that does not yet exist as a deployed GraphQL API
+environment; `THOTH-GQL-OPS-04` section 3.1 exists precisely because a
+guard-enabled non-production environment must still be created. There is
+therefore no current relevant environment left uncovered, and no coverage is
+claimed beyond the two classes the operator evidence names.
+
+**Implementing-agent conduct is unchanged by this reconciliation.** The
+implementing agent did not read the private authoritative deployment source, by
+any route, narrow or otherwise. It opened no secret-bearing production
+configuration and encountered no secret material. The facts above reached it as
+sanitized operator-supplied statements, and it did not attempt to verify them by
+opening protected configuration.
+
+**What this means for the change.** The residual risk section 7.1 names — an
+environment carrying a malformed `THOTH_GRAPHQL_MUTATION_GUARD_MODE` beginning to
+fail startup — is now closed for both current deployment classes on authorized
+evidence. It is not closed by assumption, and it is not extended to environments
+the evidence does not cover.
+
+### 8.2 Operational-actor statement, and the AC-18 reconciliation
+
+The two lifecycle stages are stated separately, because they differ and
+collapsing them would misreport the evidence.
+
+**IMPLEMENTATION EXECUTION — every limb satisfied:**
+
+```text
+Deployment performed by the implementing agent:             NONE
+Deployment workflow / automation dispatched:                NONE
+Real-environment mode transition:                           NONE
 Real fleet state created, manipulated or restored:          NONE
-Deployment credentials used or held by any agent:           NONE
-Secret-bearing production configuration read by any agent:  NONE
+Deployment credentials used or held:                        NONE
+Secret-bearing production configuration read:               NONE
 Private authoritative deployment source accessed:           NONE
+Production configuration changed:                           NONE
 Production action of any kind:                              NONE
 Security issue created or modified:                         NONE
 Mode set in any environment:                                NONE
@@ -382,6 +445,84 @@ Mode set in any environment:                                NONE
 
 Local, disposable and CI repository testing is ordinary work and is not
 restricted by that boundary; all testing in section 9 was local and disposable.
+
+**INDEPENDENT REVIEW — a control/process exception, recorded at the minimum safe
+level:**
+
+```text
+During the independent review preceding this evidence reconciliation, an AI
+reviewer attempted an external-evidence read against the private
+infrastructure source. That read path unexpectedly exposed secret material.
+
+The reviewer:
+  - stopped that source/read path immediately;
+  - did not continue into the target deployment files;
+  - did not use the exposed credential;
+  - did not reproduce the secret in review output;
+  - obtained NEITHER OPS-02 external deployment fact from that source;
+  - relied thereafter only on the sanitized human-supplied Route B
+    evidence of section 8.1.
+
+Classification: REVIEW-TIME CONTROL/PROCESS EXCEPTION.
+It is NOT valid Route A evidence, and no Route A success is claimed.
+```
+
+Deliberately not recorded, here or anywhere in this pull request: the secret
+value, its location, credential contents, resource identifiers, or any
+infrastructure detail derived from that read.
+
+#### 8.2.1 Why AC-18 is not self-certified `PASS`
+
+The approved AC-18 reads, in full:
+
+> **AC-18** **No AI agent or model of any role, family or session** — the
+> implementing agent or any other — performed a deployment in any environment,
+> production or not, dispatched a deployment workflow, used a deployment
+> credential, invoked deployment automation in place of an authorized
+> human/operator, **or read secret-bearing production configuration**. The report
+> states this explicitly. Local, disposable and CI repository testing is not
+> restricted by this criterion.
+
+Read literally, and this report declines to read it any other way:
+
+1. the actor clause is **unrestricted as to role and session** — "of any role,
+   family or session", "the implementing agent **or any other**". A reviewing
+   agent is squarely within that language;
+2. the actor clause carries **no temporal qualifier**. The drafter time-scoped
+   AC-17 explicitly ("at the task's own execution time") and did **not** do so
+   for AC-18. That asymmetry is deliberate on its face and cuts against reading
+   an implied "during implementation only" into AC-18;
+3. the prohibited act includes reading secret-bearing production configuration.
+   A review-time read path into the private infrastructure source exposed secret
+   material.
+
+On that wording the implementing agent cannot honestly certify AC-18 `PASS`,
+because the criterion reaches conduct outside its own execution that did occur.
+
+Equally, the implementing agent must **not** resolve the tension the other way:
+it may not narrow the approved wording to "implementation execution only",
+invent a waiver, or amend the specification. Any of those would be an
+implementing agent disposing of a control question reserved to the control
+owner.
+
+```text
+AC-18: BLOCKED - control-owner disposition required
+```
+
+**What the control owner must decide**, on the facts above:
+
+- whether AC-18's lifecycle semantics scope it to authorized implementation
+  execution — in which case AC-18 is `PASS` on the implementation-execution
+  statement above, and the review-time exception is separately recordable
+  without falsifying it; **or**
+- whether AC-18 reaches review-time conduct as written — in which case the
+  exception must be disposed of against the criterion explicitly, by amending
+  the approved specification through its own authorization, or by recording an
+  explicit accepted deviation.
+
+This report takes neither position. The facts are stated so the decision is
+visible and made by the actor entitled to make it. Nothing here is smoothed
+over, and the exception is not presented as compliant.
 
 ## 9. Tests and checks
 
@@ -633,8 +774,13 @@ asserted in this file.
 
 ```text
 PASS      17
-BLOCKED    1   -- AC-17
+BLOCKED    1   -- AC-18, control-owner disposition required
 ```
+
+AC-17 moved from `BLOCKED` to `PASS` on the Route B operator evidence of
+section 8.1. AC-18 moved from `PASS` to `BLOCKED` on the review-time control
+exception of section 8.2. The count is coincidentally unchanged; the criteria
+behind it are not.
 
 | Criterion | Status | Evidence |
 |---|---|---|
@@ -653,9 +799,9 @@ BLOCKED    1   -- AC-17
 | **AC-13** CG-13 open, runtime-operations gate `NOT SATISFIED` | PASS | neither document is touched; both still record those states |
 | **AC-14** `OBSERVE`, `ENFORCE`, `BE-02` remain `NOT AUTHORIZED`; PR #788 and issue #765 unchanged | PASS | untouched by this PR |
 | **AC-15** `THOTH-GQL-OPS-03`/`-04` branches do not exist and neither is implemented here | PASS | `git branch -a` and `git ls-remote` both empty for those names |
-| **AC-16** compatibility matrix stated accurately per deployment class, both intentional changes labelled intentional | PASS | section 7.1 |
-| **AC-17** execution-time re-confirmation that no environment supplies a newly failing value | **BLOCKED** | section 8.1 — neither Route A nor Route B evidence was available; not inherited, not obtained by widening access |
-| **AC-18** no AI agent performed a deployment, workflow dispatch, credential use or secret-bearing read | PASS | section 8.2 |
+| **AC-16** compatibility matrix stated accurately per deployment class, both intentional changes labelled intentional | PASS | section 7.1, now recording current Production and Test as `unset -> OFF` on Route B evidence |
+| **AC-17** execution-time re-confirmation that no environment supplies a newly failing value | **PASS** | section 8.1 — authorized **Route B** CTO/control-owner operator evidence supplied 2026-08-11 confirms `THOTH_GRAPHQL_MUTATION_GUARD_MODE` is absent from both current Production and Test GraphQL API deployments. Obtained through the section 6.6 boundary, not inherited from the specification, and not obtained by any widened read. Coverage of "no environment" checked against `environments.md` and the control record: exactly two current GraphQL API environments exist, and both are covered |
+| **AC-18** no AI agent of any role performed a deployment, workflow dispatch, credential use or secret-bearing read | **BLOCKED — control-owner disposition required** | section 8.2. Implementation execution satisfies every limb. The approved wording binds every AI agent "of any role, family or session" with no temporal qualifier, and a review-time reviewer read path exposed secret material. The implementing agent may neither self-certify `PASS` against that wording nor narrow it; the disposition belongs to the control owner |
 
 ## 12. Rollout and rollback
 
@@ -689,12 +835,19 @@ Monitoring required: none added. Observability of the effective mode is
 
 ## 13. Known limitations and deferred work
 
-- **AC-17 is `BLOCKED`, and so is the section 2 container-command
-  re-confirmation.** Both need an authorized non-agent operator to supply
-  sanitized evidence through Route A or Route B. Until then, the deployment-facing
-  consequence in section 7.1 — an environment carrying a malformed value would
-  begin to fail startup — is unquantified. This is missing work, not a
-  discharged risk.
+- **AC-18 requires a control-owner disposition (section 8.2.1).** Implementation
+  execution satisfies every limb, but the approved wording binds every AI agent
+  "of any role, family or session" with no temporal qualifier, and a review-time
+  reviewer read path exposed secret material. The implementing agent may neither
+  self-certify `PASS` against that wording nor narrow it. This is the one open
+  control question on this pull request.
+- **AC-17 and the section 2 container-command re-confirmation are now `PASS`**,
+  on authorized Route B operator evidence supplied 2026-08-11 (section 8.1). The
+  deployment-facing consequence in section 7.1 is therefore closed for both
+  current deployment classes — but only for those two. The claim is not extended
+  to any environment the operator evidence does not cover, and it is evidence at
+  a point in time: a later change to either deployment definition would need its
+  own re-confirmation.
 - **Capability gap 2 remains open.** No mechanism proves the effective mode of a
   serving instance. That is `THOTH-GQL-OPS-03`, unimplemented, with no branch.
 - **The runtime-operations gate remains `NOT SATISFIED` and CG-13 remains
@@ -722,9 +875,15 @@ Monitoring required: none added. Observability of the effective mode is
 
 ## 14. Unresolved issues
 
-1. **The two external deployment facts of section 8.1.** Owner: an authorized
-   non-agent operator or control owner. Not closable by an implementing agent,
-   and not closable by any AI agent acting as a Route B source.
+1. **AC-18 disposition (section 8.2.1).** Owner: the CTO / control owner. Whether
+   AC-18's lifecycle semantics scope it to authorized implementation execution,
+   or whether it reaches the review-time control exception as written, is a
+   control decision. It is not closable by an implementing agent, and this report
+   deliberately takes no position on it.
+2. **The two external deployment facts of section 8.1 are resolved**, by
+   authorized Route B operator evidence supplied 2026-08-11. They are recorded as
+   point-in-time evidence for the current Production and Test deployment classes,
+   not as a standing guarantee.
 
 ## 15. Agent self-assessment
 
@@ -735,10 +894,18 @@ own those decisions.
 
 Suggested review focus:
 
-1. **The `BLOCKED` criterion.** Confirm that AC-17 and the section 2
-   re-confirmation are genuinely unobtainable through Route A or Route B rather
-   than merely unattempted, and decide whether merge should wait on that evidence.
-   That is a control decision this agent must not take.
+1. **The AC-18 disposition (sections 8.2 and 8.2.1).** Decide whether the
+   approved AC-18 wording reaches review-time conduct or is scoped to authorized
+   implementation execution, and dispose of the review-time control exception
+   accordingly. This agent deliberately takes no position, has not narrowed the
+   wording, and has invented no waiver. This is the one control decision blocking
+   a clean acceptance-criteria sheet.
+2. **The Route B evidence (section 8.1).** Confirm the evidence is correctly
+   attributed to an authorized human/operator rather than to Route A, that no AI
+   agent was treated as a Route B source, and that the coverage argument for
+   "no environment" — exactly two current GraphQL API environments, both covered
+   — matches the reviewer's own reading of `environments.md` and the control
+   record.
 2. **The mechanism's minimality.** Confirm that registering the existing argument
    is the smallest fix, and that the two extractions (`mutation_guard_mode`,
    `run_init`) are behaviour-preserving rather than refactors of convenience.
