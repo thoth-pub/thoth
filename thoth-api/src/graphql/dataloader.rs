@@ -143,10 +143,9 @@ impl SharedBatchError {
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn to_field_error(&self) -> FieldError {
         match self.extension_type {
-            Some(kind) => FieldError::new(
-                self.message.to_string(),
-                graphql_value!({ "type": kind }),
-            ),
+            Some(kind) => {
+                FieldError::new(self.message.to_string(), graphql_value!({ "type": kind }))
+            }
             None => FieldError::new(self.message.to_string(), graphql_value!(None)),
         }
     }
@@ -154,5 +153,7 @@ impl SharedBatchError {
 
 #[cfg(all(test, feature = "backend"))]
 pub(crate) mod fixture;
+#[cfg(all(test, feature = "backend"))]
+mod failure_tests;
 #[cfg(all(test, feature = "backend"))]
 mod tests;
