@@ -107,13 +107,12 @@ fn bool_of<S: ScalarValue>(value: &InputValue<S>) -> Option<bool> {
     }
 }
 
-/// Guard mode, and the single value store availability is derived from.
+/// Mutation request-guard mode.
 ///
-/// This is deliberately the *only* switch. `ADR-0006` invariant 30 requires
-/// `OFF + store available` and `OBSERVE + store available` to be structurally
-/// unrepresentable, so there is no second "enable loaders" flag anywhere in the
-/// codebase — [`MutationGuardMode::store_available`] is the sole answer to the
-/// question, and it is derived from this enum.
+/// This enum controls only the independent mutation guard. ADR-0007 removes
+/// the superseded ADR-0006 coupling between guard mode and batching/store
+/// availability: request-local DataLoaders are available independently of
+/// `OFF`, `OBSERVE`, and `ENFORCE`.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum MutationGuardMode {
     /// Evaluate nothing, reject nothing, emit nothing. The default, and the
@@ -129,20 +128,6 @@ pub enum MutationGuardMode {
 }
 
 impl MutationGuardMode {
-    /// Whether the request-scoped loader store may be used.
-    ///
-    /// `ADR-0006` invariant 30:
-    ///
-    /// ```text
-    /// loader store available  =>  guard mode == ENFORCE
-    /// ```
-    ///
-    /// The store's mutation isolation guarantee depends on enforcement, so the
-    /// store is unavailable in every other mode.
-    pub fn store_available(self) -> bool {
-        matches!(self, Self::Enforce)
-    }
-
     /// Whether the guard evaluates at all. `OFF` short-circuits ahead of the
     /// eligibility gate, so it imposes no parse or validation cost on any
     /// request of any kind.
