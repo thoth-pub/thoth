@@ -1,7 +1,7 @@
 # Publisher Services Decision Summary
 
 Status: ACTIVE SUMMARY
-Last updated: 2026-08-12 (BE-02 closed as an inactive merged foundation)
+Last updated: 2026-08-12 (BE-02 closed as an inactive merged foundation; BE-03/BE-04/APP-01 phase boundary raised as a specification candidate under a durable authority condition, including the APP-01 reconciliation)
 Owner: CTO
 
 This file summarizes decisions. The approved technical design and approved ADRs remain authoritative.
@@ -23,7 +23,7 @@ Every publisher has exactly one package.
 
 OASIS is the non-null default.
 
-Publisher users may read their own package. Only superusers may change it. Package values are not anonymous public data.
+Publisher users may read their own package and its effective capability codes. Only superusers may change the package. Package and capability values are not anonymous public data.
 
 Package choice does not itself enable or disable distribution platforms.
 
@@ -241,6 +241,186 @@ authorized:
 - the Project MUSE scheduled-workflow key mismatch is historical/resolved,
   not a current defect; the ProQuest EPUB-only/PDF-ISBN ordering defect
   remains a current recorded defect.
+
+## 3a. Programme decision - BE-03 / BE-04 / APP-01 phase boundary
+
+Decision state: `PROPOSED IN THIS SPECIFICATION CANDIDATE`
+Raised by: `BE-03-SPEC`
+Decision owner: CTO
+
+**Authority condition.** This decision becomes approved and
+repository-authoritative when **both** of the following hold:
+
+1. the exact `BE-03-SPEC` content containing this decision receives explicit CTO
+   specification approval; **and**
+2. that exact approved content is reachable from `develop`.
+
+Before both conditions hold, this decision is **NOT AUTHORITATIVE FOR
+IMPLEMENTATION**. After both hold, it is an **APPROVED PROGRAMME DECISION** for
+BE-03 implementation purposes, **without requiring a separate lifecycle-status
+edit to this file**.
+
+This is the durable ADR-0005 form deliberately. A mutable literal `APPROVED`
+status word would have to be written by a further commit after approval, which
+would move the head the approval was bound to and produce exactly the
+approval-state-only churn ADR-0005 section 4.1 item 10 prohibits — and, until
+that commit landed, BE-03's stop condition would report a false block against
+its own approved specification. GitHub remains the terminal evidence for the
+exact-head approval and merge lifecycle; it is not transcribed here.
+
+[`BE-03.md`](../engineering/ai-delivery/tasks/BE-03.md) stop condition 5 states
+this same rule in the same terms, and the two must be read as one condition.
+
+### The tension
+
+The approved design's API section says that
+`replacePublisherServiceConfiguration` creates the required jobs, and that the
+staff report includes back-catalogue and job state. The approved task
+decomposition says something different: BE-03 owns protected service
+configuration, audit, authorization and concurrency, while BE-04 owns the job
+table, job target, job attempt, job-creation rules, the worker role, leases and
+the claim/complete/fail/retry/cancel lifecycle. The rollout additionally holds
+automatic job creation inactive initially.
+
+The same contradiction reaches APP-01. The approved design makes APP-01 depend on
+BE-03 **and** lets superusers inspect back-catalogue status. Once durable job
+state is correctly deferred to BE-04, those two statements cannot both hold of a
+BE-03-only dependency: there is no durable source for job, attempt, failure or
+pending-onboarding state until BE-04 exists.
+
+BE-03 cannot satisfy both readings, and guessing would either smuggle BE-04's
+schema into BE-03 or fabricate job state that has no durable source. The
+boundary is therefore surfaced explicitly for decision rather than resolved
+silently.
+
+### Proposed resolution
+
+```text
+BE-03 owns DESIRED CONFIGURATION only.
+
+BE-03 does NOT create distribution_job,
+distribution_job_target or distribution_job_attempt rows.
+
+BE-03 does NOT create placeholder/pseudo jobs.
+
+BE-03 does NOT expose fabricated job status.
+
+BE-04 owns durable job persistence and job-creation rules.
+
+BE-04 will later extend the same configuration-change transaction boundary so
+that assignment activations requiring onboarding can create durable jobs
+atomically with the desired-state change once the BE-04 schema exists.
+
+Until BE-04 is implemented and separately authorized:
+configuration changes create no upload/back-catalogue job and trigger no
+dissemination.
+```
+
+**One factual note on that shared transaction boundary**, so BE-04 is planned
+against the real transaction rather than a single-row model. `public.publisher`
+carries an existing `AFTER UPDATE` trigger,
+`set_work_updated_at_with_relations`, which refreshes
+`work.updated_at_with_relations` for every work of that publisher through its
+imprints. Because the canonical configuration version token is a `publisher`
+column under BE-01's approved package storage, a committed configuration change
+fires that trigger, and BE-04's extension of the same transaction inherits the
+resulting row-lock footprint, transaction duration and downstream freshness
+effect. This does not change the ownership boundary above and is not distribution
+activation — no job, upload or dissemination is created by it. It is specified,
+measured and evidenced under
+[`BE-03.md`](../engineering/ai-delivery/tasks/BE-03.md) sections 2.1 item 8, 6.4,
+7.8, 7.9, 18.4 and stop condition 19.
+
+### APP-01 reconciliation
+
+This decision candidate **refines and, in that narrow respect, supersedes** the
+earlier APP-01 wording that assigned superuser back-catalogue-status inspection
+to a BE-03-only dependency. Nothing else in the approved APP-01 record is
+changed: APP-01 remains a `thoth-app` task, remains MEDIUM risk, and remains
+blocked on BE-03 exposing the approved protected API, app readiness controls, the
+exact-SHA schema pinning control and its own approved bounded specification.
+
+Scope available from **BE-03 alone** — the BE-03-dependent part of APP-01:
+
+1. publisher users read their own package, effective capability codes and
+   enabled-platform configuration;
+2. superusers read **and edit** package and enabled-platform configuration, and
+   read any publisher's effective capability codes;
+3. capability-driven UI affordances, subject to ADR-0001 section 4.5 (hiding a
+   control is not authorization) and section 4.6 (a capability permits a feature
+   without configuring or activating it);
+4. linked-platform UI behaviour driven by backend metadata rather than duplicated
+   frontend rules;
+5. optimistic-concurrency handling, including a distinct stale-configuration
+   error the UI can render as "configuration changed; reload";
+6. server-normalized state replacing local state after a successful mutation.
+
+**Not** available from BE-03 alone, and therefore requiring **BE-04**:
+
+- durable back-catalogue job status;
+- attempt state;
+- failure state;
+- pending onboarding state.
+
+Any APP-01 element that renders those four is BE-04-dependent, not
+BE-03-dependent. `APP-02` remains dependent on **both** BE-03 and BE-04 and
+remains the full job-aware staff report and CSV surface. BE-04 work must not be
+pulled forward into BE-03 to preserve obsolete task wording, and BE-03 must not
+fabricate job state to fill the gap.
+
+If the CTO does not accept this refinement, BE-03 is blocked: APP-01's
+back-catalogue-status expectation would then require the BE-04 job schema to be
+specified, approved and authorized first.
+
+This reconciliation concerns **job state only**. It does not narrow the
+protected configuration surface itself: under ADR-0001 section 4.4 that surface
+comprises the current package, the effective capability codes and the enabled
+distribution platforms, and BE-03 provides all three. Capability exposure is
+therefore not part of this proposed decision and needs no decision — it is
+already-approved ADR-0001 architecture, which
+[`BE-03.md`](../engineering/ai-delivery/tasks/BE-03.md) section 10.1 follows.
+
+### Consequences
+
+1. The BE-03 staff report exposes publisher, package, enabled platform state,
+   configuration version and latest configuration-change metadata. It exposes
+   no job status, no back-catalogue job or attempt state and no
+   pending-onboarding state, and it invents no `NOT_STARTED` or `UNKNOWN`
+   placeholder to stand in for them.
+2. BE-04 adds those fields additively to the same report. BE-03 must not depend
+   on job tables that do not yet exist.
+3. `APP-01`'s **configuration** scope depends on BE-03 alone; its **job-aware**
+   elements depend on BE-04, per the APP-01 reconciliation above. `APP-02`
+   depends on **both** BE-03 and BE-04 for its final job-aware report.
+4. BE-03 must keep its configuration-change transaction boundary explicit and its
+   steps separable, so BE-04 can extend that same transaction rather than adding a
+   second one. BE-03 adds no hook, callback, event or placeholder for it. The
+   single service-configuration write coordinator BE-03 specifies is deliberately
+   the one place BE-04 will extend.
+5. This is consistent with operational invariants 3 and 7 below: backfill
+   creates no back-catalogue jobs, and automatic job creation is initially
+   inactive. The controlled MIG-01 backfill must nevertheless commit its
+   configuration changes through the same write coordinator, so backfilled
+   configuration is version-tracked and audited exactly like an API change, while
+   still creating no job and triggering no dissemination.
+
+### Boundary of this decision
+
+It settles a phase boundary between tasks in one programme and one repository,
+and refines one narrow clause of the earlier APP-01 wording. It changes no
+approved architecture, introduces no cross-programme abstraction and no shared
+component, and therefore does not require its own ADR. The single-coordinator
+rule is an implementation-level control internal to this programme's backend
+tasks, recorded in the BE-03 specification rather than as shared architecture.
+
+If the CTO instead decides that BE-03 must create durable jobs, BE-03 is blocked
+until the BE-04 job schema is separately specified, approved and authorized.
+
+This decision is settled by the authority condition stated at the head of this
+section: explicit CTO specification approval of the exact `BE-03-SPEC` content
+carrying it, and that exact content reaching `develop`. No agent may declare it
+approved, and no further repository edit is required to record approval once
+both conditions hold.
 
 ## 4. Operational invariants
 
