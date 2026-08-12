@@ -1,7 +1,7 @@
 # Publisher Services Decision Summary
 
 Status: ACTIVE SUMMARY
-Last updated: 2026-08-07 (ADR-01 implementation: ADR-0004 APPROVED)
+Last updated: 2026-08-12 (BE-02 closed as an inactive merged foundation)
 Owner: CTO
 
 This file summarizes decisions. The approved technical design and approved ADRs remain authoritative.
@@ -169,9 +169,12 @@ it was an evidence and architecture-decision task and is not runtime
 implemented and not production ready. Post-merge control reconciliation is
 delivered by
 [ADR-01-CLOSEOUT-01](../engineering/ai-delivery/tasks/ADR-01-CLOSEOUT-01.md).
-`BE-02`'s ADR-01 dependency is satisfied, but `BE-02` remains blocked and
-unauthorized until it has its own approved bounded specification and explicit
-implementation authorization.
+`BE-02` consumed that decision under its own approved bounded specification and
+separate explicit implementation authorization, and is `CLOSED`: the closed
+17-value `DistributionPlatform` enum and the code-owned descriptors were
+implemented exactly from this final inventory and merged through
+[PR #805](https://github.com/thoth-pub/thoth/pull/805) as an inactive additive
+foundation. No destination is activated and no distribution occurs.
 
 The decisions delegated to ADR-01, all now settled by ADR-0004, were:
 

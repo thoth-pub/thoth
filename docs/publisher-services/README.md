@@ -1,6 +1,6 @@
 # Publisher Services and Distribution Configuration
 
-Status: CONTROL FOUNDATION CLOSED; BE-01 CLOSED; ADR-01-SPEC-AMEND-01 MERGED (PR #781, MERGE COMMIT a511e01c); CORRECTED ADR-01 SPECIFICATION REPOSITORY-AUTHORITATIVE; ADR-01 MERGED - COMPLETE (PR #783, MERGE COMMIT 299b0eff); ADR-0004 AND FINAL PLATFORM INVENTORY APPROVED AND REPOSITORY-AUTHORITATIVE; CG-07 RESOLVED; BE-02 ADR-01 DEPENDENCY SATISFIED BUT STILL BLOCKED AND UNAUTHORIZED; ALL OTHER IMPLEMENTATION GATED
+Status: CONTROL FOUNDATION CLOSED; BE-01 CLOSED; ADR-01-SPEC-AMEND-01 MERGED (PR #781, MERGE COMMIT a511e01c); CORRECTED ADR-01 SPECIFICATION REPOSITORY-AUTHORITATIVE; ADR-01 MERGED - COMPLETE (PR #783, MERGE COMMIT 299b0eff); ADR-0004 AND FINAL PLATFORM INVENTORY APPROVED AND REPOSITORY-AUTHORITATIVE; CG-07 RESOLVED; BE-02 CLOSED - INACTIVE FOUNDATION MERGED THROUGH PR #805; DEPLOYMENT, MIGRATION EXECUTION, BACKFILL AND DISTRIBUTION ACTIVATION NOT AUTHORIZED; ALL OTHER IMPLEMENTATION GATED
 Programme owner: CTO
 Primary coordinating repository: `thoth-pub/thoth`
 Related repositories:
@@ -90,7 +90,11 @@ DistributionPlatform IMPLEMENTATION EXISTS
 ADR-0004 APPROVED AND REPOSITORY-AUTHORITATIVE
 FINAL DISTRIBUTION-PLATFORM INVENTORY APPROVED AND REPOSITORY-AUTHORITATIVE
 CG-07 RESOLVED
-BE-02 ADR-01 DEPENDENCY SATISFIED; BE-02 STILL BLOCKED AND UNAUTHORIZED
+BE-02 CLOSED (INACTIVE FOUNDATION MERGED THROUGH PR #805)
+BE-03 DEPENDENCIES ON BE-01 AND BE-02 SATISFIED; BE-03 IMPLEMENTATION NOT
+AUTHORIZED
+DEPLOYMENT, ENVIRONMENT AND PRODUCTION MIGRATION EXECUTION, ASSIGNMENT
+CREATION/BACKFILL AND DISTRIBUTION ACTIVATION NOT AUTHORIZED
 CG-11 UNCHANGED; CG-13 OPEN / UNCHANGED
 ALL OTHER IMPLEMENTATION REMAINS GATED
 ```
@@ -221,12 +225,15 @@ Specification approval and gated implementation:
 
 Reasons all other implementation remains gated:
 
-1. `BE-02`'s ADR-01 dependency is satisfied - the ADR-01 implementation is
-   merged and the final inventory is repository-authoritative - but `BE-02`
-   is HIGH risk and remains blocked and unauthorized. It requires its own
-   approved written bounded specification and fresh explicit implementation
-   authorization from the then-current exact `develop` head before any
-   branch or edit.
+1. `BE-02` is `CLOSED`: the bounded implementation merged through
+   [PR #805](https://github.com/thoth-pub/thoth/pull/805) as an inactive
+   additive foundation. Merge authorized repository integration only. It did
+   not authorize deployment, environment or production migration execution,
+   assignment creation or backfill, distribution activation,
+   `OBSERVE`/`ENFORCE` or production access, each of which remains separately
+   gated. `BE-03`'s `BE-01` and `BE-02` dependencies are therefore satisfied,
+   and `BE-03` implementation remains `NOT AUTHORIZED` pending its own
+   approved bounded specification and separate explicit authorization.
 2. Every task still requires its own approved bounded specification, its
    applicable dependencies, and separate explicit authorization before any
    implementation branch or edit.
@@ -241,8 +248,8 @@ Reasons all other implementation remains gated:
 Discovery, review, documentation, and read-only orientation may continue. An
 approved specification makes a task's requirements repository-authoritative; it
 does not create the implementation branch, authorize an implementation edit, or
-unlock `BE-02`, `BE-03`, `BE-04`, `APP-01`, OAI-PMH, release, deployment or
-production work.
+unlock `BE-03`, `BE-04`, `APP-01`, OAI-PMH, release, deployment or production
+work.
 
 ## 6. Files
 
