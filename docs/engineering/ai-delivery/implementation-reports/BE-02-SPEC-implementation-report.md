@@ -219,27 +219,54 @@ runtime configuration was accessed or recorded.
 
 ## 10. Validation for this specification task
 
-Required minimum docs/control validation:
+### 10.1 Locally executed checks
+
+Required minimum docs/control validation, run on the remediated working tree:
 
 ```text
+Command:
 git diff --check
+
+Result:
+PASS - no whitespace or conflict-marker errors reported.
 ```
 
-plus manual verification of:
+Manual verification (locally performed) confirmed:
 
-- all relative links and canonical names;
-- no unresolved obsolete N+1 options/gate;
+- all relative links and canonical names resolve;
+- no unresolved obsolete N+1 options/gate remains;
 - no stale claim that the repository lacks DataLoader/request-scoped Context
   state;
-- no runtime/Cargo/migration/workflow files in the final PR diff;
-- `CHANGELOG.md` updated under `Unreleased`;
-- only one BE-02 specification PR/branch is being used;
+- no contradictory OAPEN/DOAB linked-normalization language remains (see the
+  review-finding remediation in section 13);
+- no runtime/Cargo/schema/migration/workflow files in the final PR diff;
+- `CHANGELOG.md` present under `Unreleased`;
+- exactly one BE-02 specification PR/branch is being used;
 - no future implementation branch created;
-- current `develop` reconciled into the branch without discarding intervening
-  repository changes.
+- current `develop` remains reconciled into the branch without discarding
+  intervening repository changes.
 
-Heavy Rust/migration jobs are expected to be skipped by docs-only CI
-classification; protected workflow contexts must still conclude successfully.
+### 10.2 GitHub exact-head CI
+
+Under ADR-0005 the live pull-request CI is the authoritative record and run
+identifiers belong to GitHub rather than this committed file. At the remediated
+exact head the change is classified documentation-only, so the exact-head
+workflows report:
+
+- `check-changelog`: PASS (documentation changelog gate);
+- `classify`: PASS (docs-only classifier);
+- `build`: SKIPPED by docs-only classifier;
+- `test`: SKIPPED by docs-only classifier;
+- `run_migrations`: SKIPPED by docs-only classifier;
+- `format_check`: SKIPPED by docs-only classifier;
+- `lint`: SKIPPED by docs-only classifier;
+- `build_and_push_staging_docker_image`: SKIPPED by docs-only classifier.
+
+SKIPPED runtime jobs are **not** recorded as PASS. The overall CI concludes
+successfully because the classifier correctly skips runtime jobs for a
+documentation-only change; that success is not evidence that the Rust build,
+tests or migrations executed. No workflow was manually dispatched to manufacture
+evidence.
 
 ## 11. Rollout and rollback
 
@@ -274,8 +301,12 @@ Fresh independent exact-head specification review should focus on:
    N+1 control;
 5. whether 250 -> [200,50] -> 2 actual SQL statements is a sufficient and
    correctly scoped first-consumer acceptance reference;
-6. migration locks, lifecycle invariants, linked normalization, JISC fail-closed
-   behavior and deterministic pagination;
+6. migration locks, lifecycle invariants, and the clarified OAPEN/DOAB linked
+   normalization -- a linked enable no-ops only when the pair is already
+   *normalized fully enabled* (both rows present, enabled, same `activation_id`,
+   same `enabled_at`) and otherwise atomically repairs split-activation or
+   otherwise non-normalized enabled pairs -- JISC fail-closed behavior and
+   deterministic pagination;
 7. public-v-protected API boundary and exact additive SDL inventory;
 8. authorization boundaries: spec approval != implementation authorization !=
    merge authorization != production authorization.
