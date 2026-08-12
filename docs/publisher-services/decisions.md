@@ -1,7 +1,7 @@
 # Publisher Services Decision Summary
 
 Status: ACTIVE SUMMARY
-Last updated: 2026-08-12 (BE-02 closed as an inactive merged foundation)
+Last updated: 2026-08-12 (BE-02 closed as an inactive merged foundation; BE-03/BE-04 phase boundary proposed)
 Owner: CTO
 
 This file summarizes decisions. The approved technical design and approved ADRs remain authoritative.
@@ -241,6 +241,78 @@ authorized:
 - the Project MUSE scheduled-workflow key mismatch is historical/resolved,
   not a current defect; the ProQuest EPUB-only/PDF-ISBN ordering defect
   remains a current recorded defect.
+
+## 3a. Proposed programme decision - BE-03 / BE-04 phase boundary
+
+Status: `PROPOSED - AWAITING CTO DECISION`
+Raised by: `BE-03-SPEC`
+Bound to: approval of
+[`docs/engineering/ai-delivery/tasks/BE-03.md`](../engineering/ai-delivery/tasks/BE-03.md)
+
+### The tension
+
+The approved design's API section says that
+`replacePublisherServiceConfiguration` creates the required jobs, and that the
+staff report includes back-catalogue and job state. The approved task
+decomposition says something different: BE-03 owns protected service
+configuration, audit, authorization and concurrency, while BE-04 owns the job
+table, job target, job attempt, job-creation rules, the worker role, leases and
+the claim/complete/fail/retry/cancel lifecycle. The rollout additionally holds
+automatic job creation inactive initially.
+
+BE-03 cannot satisfy both readings, and guessing would either smuggle BE-04's
+schema into BE-03 or fabricate job state that has no durable source. The
+boundary is therefore surfaced explicitly for decision rather than resolved
+silently.
+
+### Proposed resolution
+
+```text
+BE-03 owns DESIRED CONFIGURATION only.
+
+BE-03 does NOT create distribution_job,
+distribution_job_target or distribution_job_attempt rows.
+
+BE-03 does NOT create placeholder/pseudo jobs.
+
+BE-03 does NOT expose fabricated job status.
+
+BE-04 owns durable job persistence and job-creation rules.
+
+BE-04 will later extend the same configuration-change transaction boundary so
+that assignment activations requiring onboarding can create durable jobs
+atomically with the desired-state change once the BE-04 schema exists.
+
+Until BE-04 is implemented and separately authorized:
+configuration changes create no upload/back-catalogue job and trigger no
+dissemination.
+```
+
+### Consequences
+
+1. The BE-03 staff report exposes publisher, package, enabled platform state,
+   configuration version and latest configuration-change metadata. It exposes
+   no job status, no back-catalogue job or attempt state and no
+   pending-onboarding state, and it invents no `NOT_STARTED` or `UNKNOWN`
+   placeholder to stand in for them.
+2. BE-04 adds those fields additively to the same report. BE-03 must not depend
+   on job tables that do not yet exist.
+3. `APP-01` depends on BE-03 alone. `APP-02` depends on **both** BE-03 and
+   BE-04 for its final job-aware report.
+4. BE-03 must keep its mutation's transaction boundary explicit and its steps
+   separable, so BE-04 can extend that same transaction rather than adding a
+   second one. BE-03 adds no hook, callback, event or placeholder for it.
+5. This is consistent with operational invariants 3 and 7 below: backfill
+   creates no back-catalogue jobs, and automatic job creation is initially
+   inactive.
+
+### Boundary of this decision
+
+It settles a phase boundary between two tasks in one programme and one
+repository. It changes no approved architecture, introduces no cross-programme
+abstraction, and therefore does not require its own ADR. If the CTO instead
+decides that BE-03 must create durable jobs, BE-03 is blocked until the BE-04
+job schema is separately specified, approved and authorized.
 
 ## 4. Operational invariants
 
