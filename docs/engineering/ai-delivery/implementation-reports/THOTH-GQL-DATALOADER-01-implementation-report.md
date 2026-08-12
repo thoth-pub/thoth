@@ -71,7 +71,16 @@ Takeover completion commits (this report's agent):
 - `12e08998` - test: migrate general GraphQL execution to the async bridge
 - `3f770f4d` - build: commit resolved dataloader lockfile
 - `fe2ca4e6` - docs: add PR #802 implementation changelog entry
-- plus this report's own documentation commit (the PR head at review time is authoritative)
+- `4b0f11f3` - docs: add THOTH-GQL-DATALOADER-01 implementation report
+- `dee36f1f` - test: make delayed-cohort fragmentation deterministic (the
+  inherited 1 ms-sleep scheduling fixture asserted fragmentation **must**
+  occur; a loaded CI runner coalesced it into one dispatch at head
+  `4b0f11f3` — every other check passed there — so the fixture now gates the
+  delayed cohort on the first dispatch having demonstrably happened, making
+  fragmentation deterministic; the full local gate was re-run green at this
+  commit)
+- plus the final documentation commit carrying this report update (the PR
+  head at review time is authoritative)
 
 ## 4. Files changed
 
@@ -311,9 +320,17 @@ Evidence link: CI runs on PR #802 at the final head (section 11).
 
 ## 11. CI
 
-CI status: recorded on PR #802 at the final exact head (see the PR checks tab); the local validation gate above is fully green
+CI status: PASSING at code head `dee36f1f` — build-test-and-check (run
+31583105994: classify, build, format_check, lint, test), check-changelog
+(run 31583105927), run-migrations (run 31583105950) and the staging image
+build (run 31583105932) all green. The final documentation commit carrying
+this report update re-triggers the same checks; its exact-head results are
+recorded on the PR.
 Checks: build-test-and-check (classify, build, format_check, lint, test), check-changelog, run_migrations, staging image build
-Failures or warnings: none expected at the final head; any failure blocks review readiness and must be fixed at the exact head
+Failures or warnings: one CI-only failure occurred at intermediate head
+`4b0f11f3` (`scheduling_delayed_cohort_can_fragment_dispatch`, a
+timing-dependent inherited fixture); root-caused and fixed deterministically
+in `dee36f1f`, after which the full check set passed
 
 ## 12. Rollout and rollback
 
