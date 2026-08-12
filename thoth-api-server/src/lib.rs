@@ -103,10 +103,9 @@ async fn graphql(
     // validation-style GraphQL response — `is_ok()` is `false` — so it needs no
     // handler branch, no bespoke status and no one-off protocol of its own.
     let result = match run_mutation_guard(mode, &data, &st) {
-        // Central mutation request guard (`ADR-0006` section 4.12.6), evaluated
-        // at the GraphQL HTTP request boundary **before** ordinary Juniper
-        // execution, so a rejected operation runs zero resolvers and performs
-        // zero writes.
+        // Central mutation request guard, evaluated at the GraphQL HTTP
+        // request boundary **before** ordinary Juniper execution, so a
+        // rejected operation runs zero resolvers and performs zero writes.
         //
         // In `OFF` — the default and the merged production state — the guard
         // returns before any parsing, so it adds no request-path work of any
@@ -114,15 +113,14 @@ async fn graphql(
         // authorization decision.
         Some(rejection) => rejection,
         None => {
-            // The request context carries the same guard mode, so store
-            // availability is derived from it and can never disagree with the
-            // guard.
-            let ctx = Context::with_guard_mode(
+            // The request context owns its request-local DataLoader bundle
+            // directly; loader availability is deliberately independent of
+            // mutation guard mode (`ADR-0007` invariant 13).
+            let ctx = Context::new(
                 pool.into_inner(),
                 user,
                 s3_client.into_inner(),
                 cloudfront_client.into_inner(),
-                mode,
             );
             data.execute(&st, &ctx).await
         }

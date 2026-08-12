@@ -149,24 +149,6 @@ END $$;
         Context::new(pool, Some(test_user(user_id)), s3_client, cloudfront_client)
     }
 
-    /// The same request context built with an explicit mutation-guard mode, so
-    /// batching tests can exercise store availability as it is *derived* from
-    /// the mode (`ADR-0006` invariant 30).
-    pub(crate) fn test_context_with_guard_mode(
-        pool: Arc<PgPool>,
-        user_id: &str,
-        mode: crate::graphql::MutationGuardMode,
-    ) -> Context {
-        let (s3_client, cloudfront_client) = test_clients();
-        Context::with_guard_mode(
-            pool,
-            Some(test_user(user_id)),
-            s3_client,
-            cloudfront_client,
-            mode,
-        )
-    }
-
     pub(crate) fn test_user_with_role(user_id: &str, role: Role, org_id: &str) -> IntrospectedUser {
         let mut scoped = HashMap::new();
         scoped.insert(org_id.to_string(), "role".to_string());

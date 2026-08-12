@@ -1473,6 +1473,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "dataloader"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43533eb41c886a84d11ed5c72c17315dcdff46a5eb08d3bbfac6a9ef8faa4085"
+dependencies = [
+ "tokio",
+]
+
+[[package]]
 name = "deadpool"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5032,6 +5041,7 @@ dependencies = [
  "aws-smithy-runtime-api",
  "base64 0.22.1",
  "chrono",
+ "dataloader",
  "deadpool-redis",
  "diesel",
  "diesel-derive-enum",

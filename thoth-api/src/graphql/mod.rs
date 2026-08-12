@@ -1,16 +1,12 @@
 pub mod model;
 pub mod types;
 
-mod batching;
-#[cfg(test)]
-mod batching_fixture;
-#[cfg(test)]
-mod batching_tests;
+mod dataloader;
 mod mutation;
 mod mutation_guard;
-mod prefetch;
+#[cfg(test)]
+mod mutation_guard_tests;
 mod query;
-mod scope;
 
 pub use juniper::http::GraphQLRequest;
 
@@ -27,24 +23,15 @@ pub fn create_schema() -> Schema {
     Schema::new(QueryRoot {}, MutationRoot {}, EmptySubscription::new())
 }
 
-/// Run the central mutation request guard for one GraphQL request
-/// (`ADR-0006` section 4.12.6).
+/// Run the central mutation request guard for one GraphQL request.
+///
+/// The guard is an independent request-acceptance concern. DataLoader
+/// availability is request-local and does not depend on `OFF`, `OBSERVE`, or
+/// `ENFORCE` (`ADR-0007` invariant 13).
 ///
 /// Call this at the GraphQL request boundary, **before** ordinary
 /// `GraphQLRequest::execute`. It does not replace `execute`, and it makes no
 /// authorization decision.
-///
-/// Returns:
-///
-/// - [`None`] — proceed with ordinary Juniper execution, unchanged. This is the
-///   result in `OFF` always, for every non-mutation, for every baseline-invalid
-///   request in any mode, for every mutation with no executable duplicate, and
-///   for **every** request in `OBSERVE` (which records but never rejects);
-/// - [`Some`] — `ENFORCE` only: a validation-style [`GraphQLResponse`] whose
-///   `is_ok()` is `false`, to be returned instead of executing. No resolver
-///   runs and no write occurs.
-///
-/// Any observation or rejection event is emitted here, exactly once.
 pub fn run_mutation_guard(
     mode: MutationGuardMode,
     request: &GraphQLRequest,
@@ -52,7 +39,6 @@ pub fn run_mutation_guard(
 ) -> Option<GraphQLResponse<juniper::DefaultScalarValue>> {
     let decision = mutation_guard::evaluate(mode, request, schema);
 
-    // Exactly one structured warning record per would-be or actual rejection.
     if let Some(event) = &decision.event {
         mutation_guard::emit_event(event);
     }
