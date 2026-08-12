@@ -41,6 +41,28 @@ use serde_json::Value as JsonValue;
 use std::str::FromStr;
 use uuid::Uuid;
 
+/// Drive Juniper's **async** execution path from a synchronous `#[test]`.
+///
+/// Async execution is the supported general GraphQL test execution shape
+/// (`ADR-0007` section 4.1); this bridge exists so the existing synchronous
+/// test callers migrate without individual rewrites. It must not be called
+/// from inside an already-running Tokio runtime: nesting `block_on` would
+/// panic deep inside Tokio or deadlock, so misuse fails explicitly here with
+/// an actionable message instead. Async tests should `.await`
+/// `juniper::execute` directly.
+fn block_on_graphql<F: std::future::Future>(future: F) -> F::Output {
+    assert!(
+        tokio::runtime::Handle::try_current().is_err(),
+        "block_on_graphql must not be called from inside a running Tokio runtime; \
+         await juniper::execute directly in async tests"
+    );
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("failed to build GraphQL test runtime")
+        .block_on(future)
+}
+
 fn execute_graphql(
     schema: &Schema,
     context: &Context,
@@ -48,12 +70,33 @@ fn execute_graphql(
     variables: Option<Variables>,
 ) -> JsonValue {
     let vars = variables.unwrap_or_default();
-    let (value, errors) = juniper::execute_sync(query, None, schema, &vars, context)
+    let (value, errors) = block_on_graphql(juniper::execute(query, None, schema, &vars, context))
         .expect("GraphQL execution failed");
     if !errors.is_empty() {
         panic!("GraphQL errors: {errors:?}");
     }
     serde_json::to_value(value).expect("Failed to serialize GraphQL response")
+}
+
+#[test]
+fn block_on_graphql_runs_juniper_async_execution_from_a_sync_test() {
+    let value = block_on_graphql(async { 41 + 1 });
+    assert_eq!(value, 42);
+}
+
+#[tokio::test]
+async fn block_on_graphql_fails_explicitly_inside_a_running_runtime() {
+    let outcome = std::panic::catch_unwind(|| block_on_graphql(async {}));
+    let panic = outcome.expect_err("nested-runtime misuse must fail explicitly");
+    let message = panic
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| panic.downcast_ref::<&str>().map(ToString::to_string))
+        .unwrap_or_default();
+    assert!(
+        message.contains("must not be called from inside a running Tokio runtime"),
+        "expected the explicit misuse message, got: {message}"
+    );
 }
 
 fn insert_var<T>(vars: &mut Variables, name: &str, value: T)
@@ -2839,9 +2882,14 @@ fn graphql_markup_mutations_accept_valid_jatsxml_but_reject_breaks_and_markup_li
         },
     );
     insert_var(&mut abstract_vars, "markup", MarkupFormat::PlainText);
-    let (_, abstract_errors) =
-        juniper::execute_sync(abstract_query, None, &schema, &abstract_vars, &context)
-            .expect("GraphQL execution should succeed with validation errors");
+    let (_, abstract_errors) = block_on_graphql(juniper::execute(
+        abstract_query,
+        None,
+        &schema,
+        &abstract_vars,
+        &context,
+    ))
+    .expect("GraphQL execution should succeed with validation errors");
     assert!(
         !abstract_errors.is_empty(),
         "Expected abstract validation error"
@@ -2868,9 +2916,14 @@ fn graphql_markup_mutations_accept_valid_jatsxml_but_reject_breaks_and_markup_li
         },
     );
     insert_var(&mut biography_vars, "markup", MarkupFormat::JatsXml);
-    let (_, biography_errors) =
-        juniper::execute_sync(biography_query, None, &schema, &biography_vars, &context)
-            .expect("GraphQL execution should succeed with validation errors");
+    let (_, biography_errors) = block_on_graphql(juniper::execute(
+        biography_query,
+        None,
+        &schema,
+        &biography_vars,
+        &context,
+    ))
+    .expect("GraphQL execution should succeed with validation errors");
     assert!(
         !biography_errors.is_empty(),
         "Expected biography validation error"
@@ -2909,7 +2962,7 @@ fn graphql_update_title_rejects_break_elements_for_jats_xml() {
     );
     insert_var(&mut vars, "markup", MarkupFormat::JatsXml);
 
-    let (_, errors) = juniper::execute_sync(query, None, &schema, &vars, &context)
+    let (_, errors) = block_on_graphql(juniper::execute(query, None, &schema, &vars, &context))
         .expect("GraphQL execution should succeed with validation errors");
     assert!(!errors.is_empty(), "Expected GraphQL validation error");
     assert!(!errors[0].error().message().is_empty());
@@ -3116,7 +3169,7 @@ fn graphql_create_publication_rejects_invalid_isbn_before_db_constraint() {
         },
     );
 
-    let (value, errors) = juniper::execute_sync(query, None, &schema, &vars, &context)
+    let (value, errors) = block_on_graphql(juniper::execute(query, None, &schema, &vars, &context))
         .expect("GraphQL execution should succeed with validation errors");
     assert!(!errors.is_empty(), "Expected GraphQL validation error");
     let message = errors[0].error().message();
@@ -3793,7 +3846,13 @@ fn publisher_queries_reject_package_selection_for_all_callers() {
 
     for context in [&anonymous, &authenticated, &superuser] {
         for query in queries {
-            let result = juniper::execute_sync(query, None, &schema, &Variables::new(), context);
+            let result = block_on_graphql(juniper::execute(
+                query,
+                None,
+                &schema,
+                &Variables::new(),
+                context,
+            ));
             assert!(
                 result.is_err(),
                 "Query unexpectedly passed validation: {query}"
@@ -3824,7 +3883,13 @@ fn ordinary_publisher_inputs_reject_subscription_package() {
     let superuser = test_db::test_context_with_user(pool.clone(), test_db::test_superuser("su-2"));
     for context in [&ordinary, &superuser] {
         for mutation in [create, patch] {
-            let result = juniper::execute_sync(mutation, None, &schema, &Variables::new(), context);
+            let result = block_on_graphql(juniper::execute(
+                mutation,
+                None,
+                &schema,
+                &Variables::new(),
+                context,
+            ));
             assert!(
                 result.is_err(),
                 "Mutation unexpectedly passed validation: {mutation}"

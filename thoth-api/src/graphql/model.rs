@@ -5,6 +5,7 @@ use juniper::{FieldError, FieldResult};
 use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
 
+use super::dataloader::RequestLoaders;
 use super::types::inputs::{
     ContributionOrderBy, Convert, Direction, FundingOrderBy, IssueOrderBy, LanguageOrderBy,
     LengthUnit, PriceOrderBy, SubjectOrderBy, TimeExpression, WeightUnit,
@@ -56,6 +57,18 @@ pub struct Context {
     pub user: Option<IntrospectedUser>,
     pub s3_client: Arc<S3Client>,
     pub cloudfront_client: Arc<CloudFrontClient>,
+    /// Request-local DataLoader bundle (`ADR-0007` sections 4.3 and 4.6).
+    ///
+    /// Constructed empty with every `Context` and dropped with it, so no
+    /// loader or completed loader result ever crosses GraphQL requests.
+    /// Availability is independent of mutation guard mode (`ADR-0007`
+    /// invariant 13).
+    ///
+    /// `THOTH-GQL-DATALOADER-01` adopts the foundation in **no production
+    /// field**, so in a non-test build nothing reads it yet — that is the
+    /// specified merged state, not an oversight.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) loaders: RequestLoaders,
 }
 
 impl Context {
@@ -70,6 +83,7 @@ impl Context {
             user,
             s3_client,
             cloudfront_client,
+            loaders: RequestLoaders::for_request(),
         }
     }
 
