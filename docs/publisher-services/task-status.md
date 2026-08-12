@@ -4,7 +4,7 @@ Status: ACTIVE TRACKER
 Programme owner: CTO
 Master issue: [#765](https://github.com/thoth-pub/thoth/issues/765)
 Approved design: [private Google Doc](https://docs.google.com/document/d/1kr2Ft0Y4pxgcXGyFAKs_wfFx4I0jlxEvaceswE5Dus8/edit), Drive revision `3`
-Last updated: 2026-08-12
+Last updated: 2026-08-12 (BE-02 implementation delivered as a draft PR)
 
 ## 1. Control rule
 
@@ -24,7 +24,7 @@ No task moves to `READY` without an approved specification, architecture depende
 | LIC-01 Expand `cc-license` | `cc-license` | MEDIUM | BLOCKED | `develop` / `develop` | P0-01; BR-LIC-01 or CTO exception; approved spec | #765 | TBD | NOT STARTED |
 | LIC-02 Enforce supported licences | `thoth` | HIGH | BLOCKED | `develop` / `develop` | LIC-01 release; production licence audit plan | #765 | TBD | NOT STARTED |
 | [BE-01 Publisher package model](../engineering/ai-delivery/tasks/BE-01.md) | `thoth` | HIGH | CLOSED | `develop` at `37b802776ae6853affe19d90156f3c1e0654ebe3` (PR #778 merge commit, verified before any edit) / `develop` | None remaining for BE-01 itself: the separately authorized bounded implementation was delivered on `feature/publisher-services/be-01` under ADR-0003 Architecture A and merged into `develop` through implementation PR [#779](https://github.com/thoth-pub/thoth/pull/779) after fresh independent exact-head review and explicit CTO merge authorization, as required for every HIGH-risk merge. Production migration/release execution remains separately gated by open CG-13, and the MIG-01 commercial backfill remains a separately approved CRITICAL task. | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#774](https://github.com/thoth-pub/thoth/pull/774); implementation [#779](https://github.com/thoth-pub/thoth/pull/779) | CLOSED - INACTIVE FOUNDATION - all publishers `OASIS`; no consumer, package API, mutation, UI, distribution, OAI or Metrics behaviour activated; retained-foundation operational rollback applies; evidence in the [BE-01 implementation report](../engineering/ai-delivery/implementation-reports/BE-01-implementation-report.md) and the immutable exact-head comments on PR #779 |
-| [BE-02 Distribution platform model](../engineering/ai-delivery/tasks/BE-02.md) | `thoth` | HIGH | BLOCKED - IMPLEMENTATION NOT AUTHORIZED | `develop` / `develop` | ADR-01/final inventory is satisfied through PR #783. ADR-0007 shared GraphQL architecture is satisfied through PR #800. The request-local non-cached DataLoader foundation required for `Publisher.distributionPlatforms` is merged through PR #802 (`8dcf031d`). Remaining gates: independent exact-head review and CTO approval of the reconciled BE-02 specification on PR #788; merge of the approved specification so it is repository-authoritative; then fresh exact-`develop` preflight and separate explicit CTO implementation authorization before `feature/publisher-services/be-02` may be created. | #765 | Specification [#788](https://github.com/thoth-pub/thoth/pull/788) | SPECIFICATION CANDIDATE - platform/migration/lifecycle/API design reconciled to ADR-0007 first-production-DataLoader adoption; runtime implementation not started or authorized |
+| [BE-02 Distribution platform model](../engineering/ai-delivery/tasks/BE-02.md) | `thoth` | HIGH | IMPLEMENTED - AWAITING INDEPENDENT REVIEW / MERGE AUTHORIZATION | `develop` at `1c752a522f7048963efde00b50565379d7c14b4d` (PR #788 merge commit, verified before any edit) / `develop` | ADR-01/final inventory is satisfied through PR #783. ADR-0007 shared GraphQL architecture is satisfied through PR #800. The request-local non-cached DataLoader foundation is merged through PR #802 (`8dcf031d`). The reconciled BE-02 specification was independently reviewed, CTO-approved and merged through PR #788, making it repository-authoritative at `1c752a52`; the CTO then separately authorized implementation against that exact `develop` SHA, and `feature/publisher-services/be-02` was created from it. Remaining gates: fresh independent exact-head implementation review by an agent/model that did not implement the task, and separate explicit CTO merge authorization bound to that exact implementation head. Deployment, environment migration execution, assignment backfill and distribution activation remain separately gated and unauthorized. | #765 | Specification [#788](https://github.com/thoth-pub/thoth/pull/788); implementation [#805](https://github.com/thoth-pub/thoth/pull/805) (DRAFT, unmerged) | IMPLEMENTED - INACTIVE FOUNDATION - 17-value `DistributionPlatform` enum, `publisher_distribution_platform` migration and repository-authoritative `schema.rs`, assignment lifecycle, linked OAPEN/DOAB normalization, four additive public GraphQL read surfaces and the first production ADR-0007 DataLoader adoption are implemented with recorded evidence in the [BE-02 implementation report](../engineering/ai-delivery/implementation-reports/BE-02-implementation-report.md); the migration creates zero assignment rows and no distribution behaviour is activated. NOT independently reviewed by the implementing agent and NOT merged |
 | BE-03 Protected service configuration | `thoth` | HIGH | BLOCKED | `develop` / `develop` | BE-01; BE-02; own approved bounded specification | #765 | TBD | NOT STARTED |
 | BE-04 Durable distribution jobs | `thoth` | HIGH | BLOCKED | `develop` / `develop` | BE-02; BE-03 | #765 | TBD | NOT STARTED |
 | MIG-01 Audit/production backfill | `thoth` + operations | CRITICAL | BLOCKED | dedicated task branch -> `develop`; separately approved production run | BE-01/02/03; licence audit; dry run | #765 | TBD | NOT STARTED |
@@ -118,18 +118,25 @@ Each branch starts from the repository's verified development branch and targets
    commercial backfill remains a separately approved CRITICAL task.
 7. Production migration execution and release for BE-01 remain separately
    gated by open CG-13; nothing in BE-01 authorizes production action.
-8. BE-02's ADR-01 dependency is satisfied: the ADR-01 implementation was
-   independently approved and merged (PR #783, merge commit `299b0eff`), and
-   the final inventory is approved and repository-authoritative rather than
-   provisional. ADR-0007 is repository-authoritative and the request-local
-   non-cached DataLoader foundation required for the first production child
-   adoption is merged through PR #802 (`8dcf031d`). Existing specification PR
-   [#788](https://github.com/thoth-pub/thoth/pull/788) is the single bounded
-   BE-02 specification candidate and is reconciled to that architecture. The
-   next gate is fresh independent exact-head specification review, followed by
-   explicit CTO specification approval and merge. Only after that exact
-   approved spec is repository-authoritative may the CTO separately authorize
-   BE-02 implementation against a freshly verified exact `develop` head.
+8. BE-02's dependencies are all satisfied: ADR-01/the final inventory merged
+   through PR #783 (`299b0eff`), ADR-0007 is repository-authoritative through
+   PR #800, and the request-local non-cached DataLoader foundation merged
+   through PR #802 (`8dcf031d`). The reconciled BE-02 specification on PR
+   [#788](https://github.com/thoth-pub/thoth/pull/788) was independently
+   reviewed, explicitly CTO-approved and merged into `develop` as
+   `1c752a522f7048963efde00b50565379d7c14b4d`, making it
+   repository-authoritative. The CTO then separately authorized BE-02
+   implementation against that exact `develop` SHA, and the bounded
+   implementation was delivered on `feature/publisher-services/be-02` as draft
+   implementation PR [#805](https://github.com/thoth-pub/thoth/pull/805),
+   following ADR-0003 Architecture A (direct `thoth-api/src/schema.rs` edit in
+   the same bounded PR as the migration, models, GraphQL contract and tests).
+   Evidence is recorded in the
+   [BE-02 implementation report](../engineering/ai-delivery/implementation-reports/BE-02-implementation-report.md).
+   The remaining gates are fresh independent exact-head implementation review
+   by an agent/model that did not implement the task, and separate explicit
+   CTO merge authorization bound to that exact implementation head. The
+   implementing agent has not approved its own work, and the PR is not merged.
 9. BE-03 remains blocked pending BE-01 and BE-02 and its own approved bounded
    specification.
 10. APP-01 remains blocked pending BE-03, app readiness controls (BR-APP-01 or
@@ -137,11 +144,14 @@ Each branch starts from the repository's verified development branch and targets
    the exact BE-03 SHA/schema-pinning contract control, and its own approved
    bounded specification.
 11. Beyond the delivered and merged documentation-only ADR-01 implementation,
-    ADR-01-CLOSEOUT-01 control reconciliation and shared DataLoader foundation,
-    no BE-02 runtime, BE-03, BE-04, APP-01, OAI-PMH, deployment, release,
-    production migration, assignment backfill, distribution activation,
-    `OBSERVE`/`ENFORCE` transition or PR #799 action is authorized; all licence,
-    migration, app, dissemination and operational tasks remain blocked under
-    their recorded dependencies. Repository authority and specification work
-    do not authorize runtime change, credential use, workflow dispatch or
-    production access.
+    ADR-01-CLOSEOUT-01 control reconciliation, the shared DataLoader
+    foundation and the unmerged BE-02 implementation draft PR, no BE-03,
+    BE-04, APP-01, OAI-PMH, deployment, release, production migration,
+    assignment backfill, distribution activation, `OBSERVE`/`ENFORCE`
+    transition or PR #799 action is authorized; all licence, migration, app,
+    dissemination and operational tasks remain blocked under their recorded
+    dependencies. The merged BE-02 foundation, once reviewed and merged, will
+    remain inactive: implementation merge authorization is not deployment,
+    environment migration, backfill or activation authorization. Repository
+    authority and specification work do not authorize runtime change,
+    credential use, workflow dispatch or production access.

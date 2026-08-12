@@ -5,7 +5,7 @@ use juniper::{FieldError, FieldResult};
 use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
 
-use super::dataloader::RequestLoaders;
+use super::dataloader::{unpack_assignments, RequestLoaders};
 use super::types::inputs::{
     ContributionOrderBy, Convert, Direction, FundingOrderBy, IssueOrderBy, LanguageOrderBy,
     LengthUnit, PriceOrderBy, SubjectOrderBy, TimeExpression, WeightUnit,
@@ -36,6 +36,10 @@ use crate::model::{
         PublicationType,
     },
     publisher::Publisher,
+    publisher_distribution_platform::{
+        BackCatalogueBehaviour, DistributionPlatform, DistributionPlatformGroup,
+        DistributionPlatformOption, PublisherDistributionPlatformAssignment,
+    },
     r#abstract::{Abstract, AbstractOrderBy, AbstractType},
     reference::{Reference, ReferenceOrderBy},
     series::{Series, SeriesType},
@@ -64,10 +68,8 @@ pub struct Context {
     /// Availability is independent of mutation guard mode (`ADR-0007`
     /// invariant 13).
     ///
-    /// `THOTH-GQL-DATALOADER-01` adopts the foundation in **no production
-    /// field**, so in a non-test build nothing reads it yet — that is the
-    /// specified merged state, not an oversight.
-    #[cfg_attr(not(test), allow(dead_code))]
+    /// `BE-02`'s `Publisher.distributionPlatforms` is the first production
+    /// field to read this bundle.
     pub(crate) loaders: RequestLoaders,
 }
 
@@ -79,11 +81,11 @@ impl Context {
         cloudfront_client: Arc<CloudFrontClient>,
     ) -> Self {
         Self {
+            loaders: RequestLoaders::for_request(Arc::clone(&pool)),
             db: pool,
             user,
             s3_client,
             cloudfront_client,
-            loaders: RequestLoaders::for_request(),
         }
     }
 
@@ -1300,6 +1302,82 @@ impl Publisher {
             None,
         )
         .map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Get the distribution platforms currently enabled for this publisher. Retained disabled assignments are excluded"
+    )]
+    pub async fn distribution_platforms(
+        &self,
+        context: &Context,
+    ) -> FieldResult<Vec<PublisherDistributionPlatformAssignment>> {
+        // Loader-first (`ADR-0007` section 4.5): the publisher ID is already
+        // available on `self`, so the DataLoader key is registered at resolver
+        // entry with no unrelated awaited work before it. That is what keeps a
+        // sibling cohort in one dispatch opportunity and the field's SQL
+        // chunked and set-based rather than `1 + N`.
+        unpack_assignments(
+            context
+                .loaders
+                .publisher_distribution_platforms
+                .try_load(self.publisher_id)
+                .await,
+        )
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "A distribution platform to which a publisher's works may be distributed, with its code-owned metadata."
+)]
+impl DistributionPlatformOption {
+    #[graphql(description = "Stable code identifying the distribution platform")]
+    pub fn platform(&self) -> DistributionPlatform {
+        self.platform
+    }
+
+    #[graphql(description = "Human-readable name of the distribution platform")]
+    pub fn display_label(&self) -> String {
+        self.display_label.to_string()
+    }
+
+    #[graphql(
+        description = "Group of platforms whose assignments are enabled and disabled together, if any"
+    )]
+    pub fn linked_group(&self) -> Option<DistributionPlatformGroup> {
+        self.linked_group
+    }
+
+    #[graphql(
+        description = "How this platform is expected to receive a publisher's existing back catalogue"
+    )]
+    pub fn back_catalogue_behaviour(&self) -> BackCatalogueBehaviour {
+        self.back_catalogue_behaviour
+    }
+
+    #[graphql(
+        description = "Whether an assignment for this platform may currently be enabled for a publisher"
+    )]
+    pub fn assignable(&self) -> bool {
+        self.assignable
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "An enabled assignment of a publisher to a distribution platform."
+)]
+impl PublisherDistributionPlatformAssignment {
+    #[graphql(description = "Distribution platform enabled for the publisher")]
+    pub fn platform(&self) -> DistributionPlatform {
+        self.platform
+    }
+
+    #[graphql(
+        description = "Date and time at which the platform's current activation for this publisher began"
+    )]
+    pub fn enabled_at(&self) -> Timestamp {
+        self.enabled_at
     }
 }
 

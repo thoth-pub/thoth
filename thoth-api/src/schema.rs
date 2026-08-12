@@ -90,6 +90,10 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "thoth_package"))]
     pub struct ThothPackage;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "distribution_platform"))]
+    pub struct DistributionPlatform;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -624,6 +628,22 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::DistributionPlatform;
+
+    publisher_distribution_platform (publisher_id, platform) {
+        publisher_id -> Uuid,
+        platform -> DistributionPlatform,
+        enabled -> Bool,
+        activation_id -> Uuid,
+        enabled_at -> Timestamptz,
+        disabled_at -> Nullable<Timestamptz>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
 
     publisher_history (publisher_history_id) {
         publisher_history_id -> Uuid,
@@ -983,6 +1003,7 @@ joinable!(price -> publication (publication_id));
 joinable!(price_history -> price (price_id));
 joinable!(publication -> work (work_id));
 joinable!(publication_history -> publication (publication_id));
+joinable!(publisher_distribution_platform -> publisher (publisher_id));
 joinable!(publisher_history -> publisher (publisher_id));
 joinable!(reference -> work (work_id));
 joinable!(reference_history -> reference (reference_id));
@@ -1039,6 +1060,7 @@ allow_tables_to_appear_in_same_query!(
     publication,
     publication_history,
     publisher,
+    publisher_distribution_platform,
     publisher_history,
     reference,
     reference_history,

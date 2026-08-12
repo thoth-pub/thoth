@@ -166,6 +166,8 @@ pub enum ThothError {
     CreateLocationChecksumError,
     #[error("Only superusers can update or delete an existing Location Checksum.")]
     UpdateLocationChecksumError,
+    #[error("{0} is not currently available for publisher distribution assignment.")]
+    DistributionPlatformNotAssignable(String),
 }
 
 impl ThothError {
