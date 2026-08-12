@@ -124,7 +124,9 @@ async fn genuine_async_child_resolver_executes_on_pinned_juniper() {
         "{ parents(count: 3) { parentId asyncProbe } }",
     )
     .await;
-    let parents = response_data(&response, "parents").as_array().expect("parents");
+    let parents = response_data(&response, "parents")
+        .as_array()
+        .expect("parents");
     assert_eq!(parents.len(), 3);
     assert_eq!(parents[0]["asyncProbe"], "async-1");
     assert_eq!(parents[2]["asyncProbe"], "async-3");
@@ -169,18 +171,8 @@ async fn two_request_contexts_share_no_loader_state() {
     let b_stats = Arc::clone(&b.mem_stats);
     let a_ctx = fixture_context(Arc::clone(&pool), a);
     let b_ctx = fixture_context(pool, b);
-    let a_loader = &a_ctx
-        .batch_store
-        .fixture
-        .as_ref()
-        .expect("a fixture")
-        .mem;
-    let b_loader = &b_ctx
-        .batch_store
-        .fixture
-        .as_ref()
-        .expect("b fixture")
-        .mem;
+    let a_loader = &a_ctx.loaders.fixture.as_ref().expect("a fixture").mem;
+    let b_loader = &b_ctx.loaders.fixture.as_ref().expect("b fixture").mem;
     let (a_value, b_value) = tokio::join!(a_loader.try_load(7), b_loader.try_load(7));
     assert_eq!(
         a_value.expect("a key").expect("a value"),
@@ -266,17 +258,45 @@ async fn missing_batch_result_fails_closed_through_try_load_without_panic() {
         "{ parents(count: 1) { parentId children } }",
     )
     .await;
-    assert!(response["data"]["parents"][0]["children"].is_null());
-    assert!(response["errors"]
-        .as_array()
-        .is_some_and(|errors| !errors.is_empty()));
+    // `children` is a non-null list (`[String!]!`), so the fail-closed field
+    // error propagates and nulls `data`; nothing fabricates an empty success.
+    assert!(
+        response["data"].is_null(),
+        "missing key must fail closed: {response}"
+    );
+    let errors = response["errors"].as_array().expect("errors");
+    assert!(!errors.is_empty());
+    assert!(errors[0]["message"]
+        .as_str()
+        .expect("message")
+        .contains("loader returned no entry"));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn batch_wide_in_memory_failure_is_error_for_every_key_not_empty_success() {
     let (_guard, pool) = test_db::setup_test_db();
+
+    // Loader level: a batch-wide failure must yield an error value for every
+    // requested key — never a fabricated successful empty result — from
+    // exactly one dispatch, with no per-key retry.
     let loaders = FixtureLoaders::in_memory_failing(empty_source());
     let stats = Arc::clone(&loaders.mem_stats);
+    let (a, b, c) = tokio::join!(
+        loaders.mem.try_load(1),
+        loaders.mem.try_load(2),
+        loaders.mem.try_load(3)
+    );
+    for outcome in [a, b, c] {
+        assert!(outcome.expect("key present in failed batch").is_err());
+    }
+    assert_eq!(stats.dispatch_count(), 1, "one failed dispatch, no retry");
+
+    // GraphQL level: `children` is a non-null list (`[String!]!`), so each
+    // per-key error propagates upward and nulls `data` rather than returning
+    // fabricated empty children. The failure surfaces as GraphQL errors from
+    // a single dispatch.
+    let loaders = FixtureLoaders::in_memory_failing(empty_source());
+    let gql_stats = Arc::clone(&loaders.mem_stats);
     let context = fixture_context(pool, loaders);
     let response = run_response(
         &schema(),
@@ -284,10 +304,20 @@ async fn batch_wide_in_memory_failure_is_error_for_every_key_not_empty_success()
         "{ parents(count: 3) { parentId children } }",
     )
     .await;
-    let parents = response["data"]["parents"].as_array().expect("parents");
-    assert!(parents.iter().all(|parent| parent["children"].is_null()));
-    assert_eq!(response["errors"].as_array().expect("errors").len(), 3);
-    assert_eq!(stats.dispatch_count(), 1);
+    assert!(
+        response["data"].is_null(),
+        "non-null propagation: {response}"
+    );
+    let errors = response["errors"].as_array().expect("errors");
+    assert!(!errors.is_empty());
+    assert!(errors
+        .iter()
+        .all(|error| error["message"] == "simulated backend failure"));
+    assert_eq!(
+        gql_stats.dispatch_count(),
+        1,
+        "no per-key fallback dispatch"
+    );
 }
 
 fn seed_publishers(pool: &PgPool, count: usize) -> HashMap<Uuid, Vec<String>> {
@@ -310,7 +340,12 @@ async fn real_diesel_250_parents_use_two_set_based_imprint_statements() {
     let stats = Arc::clone(&loaders.db_stats);
     let context = fixture_context(Arc::clone(&probe.pool), loaders);
     probe.start();
-    let response = run_response(&schema(), &context, "{ dbParents { publisherId imprints } }").await;
+    let response = run_response(
+        &schema(),
+        &context,
+        "{ dbParents { publisherId imprints } }",
+    )
+    .await;
     let statements = probe.imprint_statements();
     let parents = response_data(&response, "dbParents")
         .as_array()
@@ -333,7 +368,9 @@ async fn real_diesel_250_parents_use_two_set_based_imprint_statements() {
     assert_eq!(stats.dispatch_count(), 2);
     assert_eq!(stats.batch_sizes(), vec![200, 50]);
     assert_eq!(statements.len(), 2, "expected two real imprint statements");
-    assert!(statements.iter().all(|statement| statement.contains("= ANY")));
+    assert!(statements
+        .iter()
+        .all(|statement| statement.contains("= ANY")));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -356,9 +393,7 @@ async fn direct_try_load_batch_function_is_total_for_childless_parent() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn independent_try_load_calls_coalesce_without_manual_key_aggregation() {
     let source: MemSource = Arc::new(Mutex::new(
-        (1..=100)
-            .map(|id| (id, vec![format!("v-{id}")]))
-            .collect(),
+        (1..=100).map(|id| (id, vec![format!("v-{id}")])).collect(),
     ));
     let loaders = FixtureLoaders::in_memory(source, "");
     let stats = Arc::clone(&loaders.mem_stats);
