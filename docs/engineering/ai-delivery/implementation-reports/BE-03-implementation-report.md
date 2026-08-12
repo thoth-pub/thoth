@@ -1116,15 +1116,26 @@ unverified claim.
 
 ## 11. CI
 
-CI status: PENDING — normal `pull_request`-triggered CI on the draft PR. No
+CI status: **PASSING** — normal `pull_request`-triggered CI on the draft PR. No
 workflow file was changed and no workflow was manually dispatched.
 
-Checks expected: classifier, build, test, lint, format, migrations and the
-generated-contract/client checks the repository runs on pull requests.
+| Check | Result | Duration |
+|---|---|---|
+| `classify` (build/lint/test workflow) | pass | 8s |
+| `classify` (migrations workflow) | pass | 5s |
+| `classify` (staging image workflow) | pass | 9s |
+| `check-changelog` | pass | 5s |
+| `format_check` | pass | 6s |
+| `build` | pass | 2m26s |
+| `lint` | pass | 5m23s |
+| `test` | pass | 6m5s |
+| `run_migrations` | pass | 3m20s |
+| `build_and_push_staging_docker_image` | pass | 9m11s |
 
-Failures or warnings: to be inspected on the pull request. Fixes will remain
-within approved BE-03 scope; anything requiring architectural widening stops and
-escalates.
+Failures or warnings: none. `run_migrations` independently applies the new
+migration in CI's own PostgreSQL service, and `build` regenerates the SDL through
+`thoth-client/build.rs`, so the generated-contract path is exercised there as
+well.
 
 ## 12. Rollout and rollback
 
