@@ -29,7 +29,7 @@ pub(crate) struct BatchStats {
 }
 
 impl BatchStats {
-    fn record<K>(&self, keys: &[K]) {
+    pub(crate) fn record<K>(&self, keys: &[K]) {
         self.dispatches.fetch_add(1, Ordering::SeqCst);
         self.batches
             .lock()
@@ -504,6 +504,15 @@ impl SqlProbe {
             .into_iter()
             .filter(|sql| sql.contains("\"imprint\""))
             .collect()
+    }
+
+    /// Every statement captured since [`Self::start`], unfiltered.
+    ///
+    /// Adopting fields classify their own target statements: a field whose
+    /// root query also touches the child table cannot use a bare table-name
+    /// filter.
+    pub(crate) fn captured_statements(&self) -> Vec<String> {
+        self.stop()
     }
 }
 

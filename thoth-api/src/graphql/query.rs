@@ -29,6 +29,7 @@ use crate::model::{
     price::{CurrencyCode, Price},
     publication::{Publication, PublicationOrderBy, PublicationType},
     publisher::{Publisher, PublisherOrderBy},
+    publisher_distribution_platform::{DistributionPlatform, DistributionPlatformOption},
     r#abstract::{Abstract, AbstractOrderBy},
     reference::{Reference, ReferenceOrderBy},
     series::{Series, SeriesOrderBy, SeriesType},
@@ -587,6 +588,49 @@ impl QueryRoot {
             None,
         )
         .map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Query the full list of distribution platforms and their metadata. This list is code-owned and identical for every publisher"
+    )]
+    fn distribution_platform_options() -> Vec<DistributionPlatformOption> {
+        DistributionPlatformOption::all()
+    }
+
+    #[graphql(
+        description = "Query the list of publishers with an enabled assignment for a distribution platform"
+    )]
+    fn publishers_by_distribution_platform(
+        context: &Context,
+        #[graphql(description = "Distribution platform to search on")]
+        platform: DistributionPlatform,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = PublisherOrderBy::default(),
+            description = "The order in which to sort the results. Results are always additionally sorted by publisher ID ascending, so pagination is deterministic"
+        )]
+        order: Option<PublisherOrderBy>,
+    ) -> FieldResult<Vec<Publisher>> {
+        Publisher::all_by_distribution_platform(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            order.unwrap_or_default(),
+            platform,
+        )
+        .map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Get the total number of publishers with an enabled assignment for a distribution platform"
+    )]
+    fn publisher_count_by_distribution_platform(
+        context: &Context,
+        #[graphql(description = "Distribution platform to search on")]
+        platform: DistributionPlatform,
+    ) -> FieldResult<i32> {
+        Publisher::count_by_distribution_platform(&context.db, platform).map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of imprints")]
