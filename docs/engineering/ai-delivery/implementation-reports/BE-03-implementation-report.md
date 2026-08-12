@@ -1119,6 +1119,10 @@ unverified claim.
 CI status: **PASSING** — normal `pull_request`-triggered CI on the draft PR. No
 workflow file was changed and no workflow was manually dispatched.
 
+The durations below are from the run on the implementation commit. Every push to
+this branch re-runs the same ten checks, and each run has passed; the live
+per-head result is the pull request's own check record under ADR-0005.
+
 | Check | Result | Duration |
 |---|---|---|
 | `classify` (build/lint/test workflow) | pass | 8s |
