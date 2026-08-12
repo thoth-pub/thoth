@@ -1,7 +1,7 @@
 # Publisher Services Decision Summary
 
 Status: ACTIVE SUMMARY
-Last updated: 2026-08-12 (BE-02 closed as an inactive merged foundation; BE-03/BE-04/APP-01 phase boundary proposed, including the APP-01 reconciliation)
+Last updated: 2026-08-12 (BE-02 closed as an inactive merged foundation; BE-03/BE-04/APP-01 phase boundary raised as a specification candidate under a durable authority condition, including the APP-01 reconciliation)
 Owner: CTO
 
 This file summarizes decisions. The approved technical design and approved ADRs remain authoritative.
@@ -23,7 +23,7 @@ Every publisher has exactly one package.
 
 OASIS is the non-null default.
 
-Publisher users may read their own package. Only superusers may change it. Package values are not anonymous public data.
+Publisher users may read their own package and its effective capability codes. Only superusers may change the package. Package and capability values are not anonymous public data.
 
 Package choice does not itself enable or disable distribution platforms.
 
@@ -242,12 +242,34 @@ authorized:
   not a current defect; the ProQuest EPUB-only/PDF-ISBN ordering defect
   remains a current recorded defect.
 
-## 3a. Proposed programme decision - BE-03 / BE-04 / APP-01 phase boundary
+## 3a. Programme decision - BE-03 / BE-04 / APP-01 phase boundary
 
-Status: `PROPOSED - AWAITING CTO DECISION`
+Decision state: `PROPOSED IN THIS SPECIFICATION CANDIDATE`
 Raised by: `BE-03-SPEC`
-Bound to: approval of
-[`docs/engineering/ai-delivery/tasks/BE-03.md`](../engineering/ai-delivery/tasks/BE-03.md)
+Decision owner: CTO
+
+**Authority condition.** This decision becomes approved and
+repository-authoritative when **both** of the following hold:
+
+1. the exact `BE-03-SPEC` content containing this decision receives explicit CTO
+   specification approval; **and**
+2. that exact approved content is reachable from `develop`.
+
+Before both conditions hold, this decision is **NOT AUTHORITATIVE FOR
+IMPLEMENTATION**. After both hold, it is an **APPROVED PROGRAMME DECISION** for
+BE-03 implementation purposes, **without requiring a separate lifecycle-status
+edit to this file**.
+
+This is the durable ADR-0005 form deliberately. A mutable literal `APPROVED`
+status word would have to be written by a further commit after approval, which
+would move the head the approval was bound to and produce exactly the
+approval-state-only churn ADR-0005 section 4.1 item 10 prohibits — and, until
+that commit landed, BE-03's stop condition would report a false block against
+its own approved specification. GitHub remains the terminal evidence for the
+exact-head approval and merge lifecycle; it is not transcribed here.
+
+[`BE-03.md`](../engineering/ai-delivery/tasks/BE-03.md) stop condition 5 states
+this same rule in the same terms, and the two must be read as one condition.
 
 ### The tension
 
@@ -305,13 +327,18 @@ exact-SHA schema pinning control and its own approved bounded specification.
 
 Scope available from **BE-03 alone** — the BE-03-dependent part of APP-01:
 
-1. publisher users read their own package and enabled-platform configuration;
-2. superusers read **and edit** package and enabled-platform configuration;
-3. linked-platform UI behaviour driven by backend metadata rather than duplicated
+1. publisher users read their own package, effective capability codes and
+   enabled-platform configuration;
+2. superusers read **and edit** package and enabled-platform configuration, and
+   read any publisher's effective capability codes;
+3. capability-driven UI affordances, subject to ADR-0001 section 4.5 (hiding a
+   control is not authorization) and section 4.6 (a capability permits a feature
+   without configuring or activating it);
+4. linked-platform UI behaviour driven by backend metadata rather than duplicated
    frontend rules;
-4. optimistic-concurrency handling, including a distinct stale-configuration
+5. optimistic-concurrency handling, including a distinct stale-configuration
    error the UI can render as "configuration changed; reload";
-5. server-normalized state replacing local state after a successful mutation.
+6. server-normalized state replacing local state after a successful mutation.
 
 **Not** available from BE-03 alone, and therefore requiring **BE-04**:
 
@@ -329,6 +356,14 @@ fabricate job state to fill the gap.
 If the CTO does not accept this refinement, BE-03 is blocked: APP-01's
 back-catalogue-status expectation would then require the BE-04 job schema to be
 specified, approved and authorized first.
+
+This reconciliation concerns **job state only**. It does not narrow the
+protected configuration surface itself: under ADR-0001 section 4.4 that surface
+comprises the current package, the effective capability codes and the enabled
+distribution platforms, and BE-03 provides all three. Capability exposure is
+therefore not part of this proposed decision and needs no decision — it is
+already-approved ADR-0001 architecture, which
+[`BE-03.md`](../engineering/ai-delivery/tasks/BE-03.md) section 10.1 follows.
 
 ### Consequences
 
@@ -366,8 +401,11 @@ tasks, recorded in the BE-03 specification rather than as shared architecture.
 If the CTO instead decides that BE-03 must create durable jobs, BE-03 is blocked
 until the BE-04 job schema is separately specified, approved and authorized.
 
-This decision remains `PROPOSED` until the CTO approves it. Specification
-approval of `BE-03.md` settles it; no agent may mark it approved.
+This decision is settled by the authority condition stated at the head of this
+section: explicit CTO specification approval of the exact `BE-03-SPEC` content
+carrying it, and that exact content reaching `develop`. No agent may declare it
+approved, and no further repository edit is required to record approval once
+both conditions hold.
 
 ## 4. Operational invariants
 
