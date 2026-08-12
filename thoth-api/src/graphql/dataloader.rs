@@ -70,20 +70,6 @@ impl RequestLoaders {
             fixture: None,
         }
     }
-
-    /// Temporary source-compatibility constructor for the old
-    /// `GraphqlBatchStore::new(mode)` call in `Context` while that large file is
-    /// migrated in this same implementation. The argument is deliberately
-    /// ignored: guard mode cannot enable or disable DataLoader availability.
-    pub(crate) fn new<T>(_legacy_guard_mode: T) -> Self {
-        Self::for_request()
-    }
-}
-
-impl Default for RequestLoaders {
-    fn default() -> Self {
-        Self::for_request()
-    }
 }
 
 /// Which existing GraphQL error conversion convention a field family uses.
@@ -152,8 +138,8 @@ impl SharedBatchError {
 }
 
 #[cfg(all(test, feature = "backend"))]
-pub(crate) mod fixture;
-#[cfg(all(test, feature = "backend"))]
 mod failure_tests;
+#[cfg(all(test, feature = "backend"))]
+pub(crate) mod fixture;
 #[cfg(all(test, feature = "backend"))]
 mod tests;

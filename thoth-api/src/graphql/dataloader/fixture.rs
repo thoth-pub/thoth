@@ -10,8 +10,8 @@ use diesel::{
     ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl,
 };
 use juniper::{
-    graphql_object, graphql_value, DefaultScalarValue, EmptySubscription, FieldError,
-    FieldResult, IntoFieldError, RootNode,
+    graphql_object, graphql_value, DefaultScalarValue, EmptySubscription, FieldError, FieldResult,
+    IntoFieldError, RootNode,
 };
 use uuid::Uuid;
 
@@ -31,7 +31,10 @@ pub(crate) struct BatchStats {
 impl BatchStats {
     fn record<K>(&self, keys: &[K]) {
         self.dispatches.fetch_add(1, Ordering::SeqCst);
-        self.batches.lock().expect("batch stats lock").push(keys.len());
+        self.batches
+            .lock()
+            .expect("batch stats lock")
+            .push(keys.len());
     }
 
     pub(crate) fn dispatch_count(&self) -> usize {
@@ -100,8 +103,8 @@ impl BatchFn<Uuid, DbValue> for DbBatcher {
         self.stats.record(keys);
         let pool = Arc::clone(&self.pool);
         let key_vec = keys.to_vec();
-        let result = tokio::task::spawn_blocking(
-            move || -> Result<Vec<(Uuid, String)>, ThothError> {
+        let result =
+            tokio::task::spawn_blocking(move || -> Result<Vec<(Uuid, String)>, ThothError> {
                 let mut connection = pool.get().map_err(ThothError::from)?;
                 imprint::table
                     .filter(imprint::publisher_id.eq_any(&key_vec))
@@ -109,9 +112,8 @@ impl BatchFn<Uuid, DbValue> for DbBatcher {
                     .select((imprint::publisher_id, imprint::imprint_name))
                     .load::<(Uuid, String)>(&mut connection)
                     .map_err(ThothError::from)
-            },
-        )
-        .await;
+            })
+            .await;
 
         let mut output: HashMap<Uuid, DbValue> =
             keys.iter().map(|key| (*key, Ok(Vec::new()))).collect();
@@ -228,7 +230,10 @@ pub(crate) fn source_from(entries: &[(i32, &[&str])]) -> MemSource {
         entries
             .iter()
             .map(|(key, children)| {
-                (*key, children.iter().map(|child| child.to_string()).collect())
+                (
+                    *key,
+                    children.iter().map(|child| child.to_string()).collect(),
+                )
             })
             .collect(),
     ))
@@ -236,13 +241,13 @@ pub(crate) fn source_from(entries: &[(i32, &[&str])]) -> MemSource {
 
 pub(crate) fn fixture_context(pool: Arc<PgPool>, loaders: FixtureLoaders) -> Context {
     let mut context = test_db::test_context_anonymous(pool);
-    context.batch_store.fixture = Some(loaders);
+    context.loaders.fixture = Some(loaders);
     context
 }
 
 fn loaders(context: &Context) -> FieldResult<&FixtureLoaders> {
     context
-        .batch_store
+        .loaders
         .fixture
         .as_ref()
         .ok_or_else(|| FieldError::new("test loaders not installed", graphql_value!(None)))
@@ -270,7 +275,10 @@ fn unpack_db(outcome: Result<DbValue, std::io::Error>) -> FieldResult<Vec<String
     }
 }
 
-fn direct_imprint_names_thoth(pool: &PgPool, publisher_id: Uuid) -> Result<Vec<String>, ThothError> {
+fn direct_imprint_names_thoth(
+    pool: &PgPool,
+    publisher_id: Uuid,
+) -> Result<Vec<String>, ThothError> {
     let mut connection = pool.get().map_err(ThothError::from)?;
     imprint::table
         .filter(imprint::publisher_id.eq(publisher_id))
