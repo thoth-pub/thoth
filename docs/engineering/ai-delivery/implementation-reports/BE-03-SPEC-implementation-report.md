@@ -42,7 +42,7 @@ The branch history must not be squashed or rewritten.
 
 ### 1.1.1 Specification remediation passes
 
-Two bounded remediation passes were applied, each as one ordinary commit on top
+Three bounded remediation passes were applied, each as one ordinary commit on top
 of the then-current head, with no earlier commit amended, rebased, squashed or
 force-pushed:
 
@@ -51,9 +51,13 @@ force-pushed:
    resolved in section 5.1;
 2. a **fresh independent specification review** of head
    `5dc2b1dd651176540aa2e49cba54c586e1f58782` returned `CHANGES REQUIRED` with
-   one P1 and six P2 findings, resolved in section 5.2.
+   one P1 and six P2 findings, resolved in section 5.2;
+3. a **second fresh independent specification review** of head
+   `a1acd3f60b5b3631c2b61de2df175b4994a292ab` independently confirmed all seven
+   previous findings `RESOLVED` and re-confirmed the settled architecture, and
+   returned `CHANGES REQUIRED` with one P1 and one P2, resolved in section 5.3.
 
-Both remediations are documentation-only: no runtime code, migration,
+All three remediations are documentation-only: no runtime code, migration,
 `schema.rs`, generated SDL, client artifact, `Cargo` file or workflow is
 touched, no implementation branch is created, and no authorization is granted or
 implied.
@@ -107,9 +111,14 @@ Out-of-scope changes made: NONE
   remediate BE-03-SPEC pre-review findings (the four control-side pre-review
   findings, across `BE-03.md`, this report, `decisions.md`, `task-status.md` and
   the existing `CHANGELOG.md` entry)
-- one further ordinary commit remediates the one P1 and six P2 findings of the
-  fresh independent specification review, across the same five files. Its exact
-  SHA is the branch head recorded in the pull request.
+- `a1acd3f60b5b3631c2b61de2df175b4994a292ab` - docs(publisher-services):
+  remediate BE-03-SPEC independent review findings (the one P1 and six P2
+  findings of the first fresh independent specification review, across the same
+  five files)
+- one further ordinary commit remediates the one P1 and one P2 finding of the
+  **second** fresh independent specification review, across `BE-03.md`, this
+  report, `decisions.md` and the existing `CHANGELOG.md` entry. Its exact SHA is
+  the branch head recorded in the pull request.
 
 No earlier commit is amended, rebased, squashed or force-pushed at any point.
 
@@ -132,12 +141,15 @@ No earlier commit is amended, rebased, squashed or force-pushed at any point.
     (sections 7.7 and 18.6), the corrected list-argument nullability (sections
     12, 14.1, 14.3 and 18.1), the corrected bypass-search scope (sections 2.1
     item 7, 18.9 and 20) and the durable programme-decision authority condition
-    (stop condition 5).
+    (stop condition 5). The third remediation pass recorded the **second**
+    `public.publisher` `UPDATE` trigger and its work-freshness cascade (sections
+    2.1 item 8, 6.3, 6.4, 7.3 step 9, 7.8, 7.9, 17.1, 18.1, 18.4, 20 and new
+    stop condition 19, with the former condition 19 renumbered 20).
   - behavioural effect: none. It authorizes nothing.
 - `docs/engineering/ai-delivery/implementation-reports/BE-03-SPEC-implementation-report.md`
   (new)
   - reason: the required implementation report, including the remediation
-    records in sections 5.1 and 5.2.
+    records in sections 5.1, 5.2 and 5.3.
   - behavioural effect: none.
 - `docs/publisher-services/decisions.md`
   - reason: records the BE-03/BE-04/APP-01 phase-boundary programme-decision
@@ -148,7 +160,11 @@ No earlier commit is amended, rebased, squashed or force-pushed at any point.
     with the durable ADR-0005 authority condition, recorded that capability
     exposure is settled ADR-0001 architecture rather than part of this
     candidate, and extended the APP-01 configuration scope and the section 1
-    package statement to include effective capability codes.
+    package statement to include effective capability codes. The third added one
+    factual note to section 3a recording that BE-04's extension of the same
+    transaction inherits the publisher-triggered work freshness cascade; the
+    ownership boundary, the APP-01 reconciliation and the authority condition are
+    unchanged.
   - behavioural effect: none.
 - `docs/publisher-services/task-status.md`
   - reason: the BE-03 row and next-action 10 point at the written specification
@@ -165,8 +181,9 @@ No earlier commit is amended, rebased, squashed or force-pushed at any point.
     first the audit actor column, the least-privilege matrix, the write
     coordinator, the reachable linked-state repair and the APP-01
     reconciliation; then the effective-capability exposure, the
-    `publisher.updated_at` consequence and the decision's authority condition.
-    No second entry was created.
+    `publisher.updated_at` consequence and the decision's authority condition;
+    then the second publisher trigger, the work-freshness cascade and its
+    required measurement. No second entry was created.
   - behavioural effect: none. Under the existing `### Added` heading.
 
 ## 5. Implementation decisions
@@ -229,11 +246,19 @@ rather than from the design document alone:
    therefore requires
    `GREATEST(CURRENT_TIMESTAMP, previous + interval '1 microsecond')`, computed
    from the value already read under the lock.
-5. **Lock order is identical to BE-02 and cannot invert.**
+5. **Application-level lock order is identical to BE-02 and cannot invert — but
+   the transaction writes more than the rows BE-03 names.**
    `publisher_distribution_platform::crud::lock_publisher` is the **only**
    `FOR UPDATE` in `thoth-api/src`. BE-03 takes the same lock, on the same
-   single row, as the first statement of its transaction, and a mutation
-   touches exactly one publisher, so there is no multi-object ordering.
+   single row, as the first statement of its transaction, and the coordinator
+   manages one publisher's configuration, so BE-03 introduces no second explicit
+   lock target and its own statements cannot invert. That is a statement about
+   BE-03's **explicit** ordering only. The publisher row `UPDATE` that writes the
+   token fires the existing `AFTER UPDATE`
+   `set_work_updated_at_with_relations` trigger, whose one set-based statement
+   also writes every work of that publisher, so the committed transaction writes
+   one publisher row **plus** bounded configuration/audit rows **plus** N related
+   work rows. See decision 18.
 6. **A real composition hazard was found and resolved additively.** BE-02's
    `enable` and `disable` take `&PgPool`, call `db.get()?`, and open their own
    transaction on their own pooled connection. Calling either from inside the
@@ -344,16 +369,17 @@ rather than from the design document alone:
     fires on any real publisher row update, so every committed configuration
     change — including a platform-only change and a linked-state repair — also
     moves the public `Publisher.updatedAt`, while a stale request and a true
-    no-op move neither timestamp. Suppressing or special-casing the trigger, or
-    moving the token to a separate table, were both rejected: the first breaks a
-    repository-wide convention for one column, and the second is the separate
-    table already rejected in `BE-03.md` section 6.3 for independent reasons.
+    no-op move neither timestamp. Suppressing or special-casing the trigger was
+    rejected as breaking a repository-wide convention for one column;
     `Publisher.updatedAt` is explicitly **not** the concurrency token, and the
     public timestamp continues to disclose the fact of a change without
     disclosing any package, capability, platform or commercial value. The
     related `publisher_history.data` additional-key consequence is recorded, and
     the coordinator deliberately does not route the package write through
     `Crud::update`, so BE-03's mutation writes no `publisher_history` row.
+    Decision 18 records the **second** publisher trigger, which the earlier
+    passes did not account for, and restates the token-location trade-off in its
+    light.
 17. **Fail-closed non-assignability is a property of the primitive, not of
     caller discipline.** The extraction required by decision 6 could have left
     the connection-scoped `enable_on` dependent on the coordinator having
@@ -362,6 +388,57 @@ rather than from the design document alone:
     the pool-level wrapper's merged early check and the coordinator's whole-set
     pre-validation as well. Two checks of the same merged predicate returning
     the same merged error is defence in depth, not a second algorithm.
+18. **`public.publisher` has a second `UPDATE` trigger, so a committed
+    configuration change also refreshes the publisher's whole catalogue — and
+    that is accepted, made explicit and made measurable rather than engineered
+    around.** Verified in `thoth-api/migrations/20250000_v1.0.0/up.sql`:
+    alongside `set_updated_at` (`BEFORE UPDATE`, `diesel_set_updated_at()`),
+    `public.publisher` carries `set_work_updated_at_with_relations`
+    (`AFTER UPDATE`, `publisher_work_updated_at_with_relations()`), which on
+    `NEW IS DISTINCT FROM OLD` executes one set-based
+    `UPDATE work SET updated_at_with_relations = current_timestamp FROM imprint
+    WHERE work.imprint_id = imprint.imprint_id AND imprint.publisher_id =
+    NEW.publisher_id`. A committed BE-03 configuration change therefore has
+    three observable persisted consequences, not one, and
+    `work.updated_at_with_relations` is a **public downstream freshness signal**
+    — resolved as `Work.updatedAtWithRelations`, a filter argument on six
+    anonymous queries, an orderable field, and the value
+    `thoth-export-server`'s `MetadataRecord` compares against its Redis cache
+    timestamp through the generated `WorkLastUpdatedQuery` /
+    `WorksLastUpdatedQuery`.
+
+    Two consequences are specific to BE-03 and are stated rather than glossed:
+    a **platform-only** change and an **OAPEN/DOAB linked-state repair** will
+    **newly** trigger this cascade, because BE-03 bumps the canonical token on
+    the publisher row where merged BE-02 only takes the publisher lock and writes
+    `publisher_distribution_platform` (which has no work-freshness trigger); and
+    the transaction's write footprint is one publisher row plus bounded
+    configuration/audit rows plus N related work rows, so row-lock footprint and
+    transaction duration grow with catalogue size while the publisher
+    `FOR UPDATE` lock is held. BE-04 inherits all of it with the transaction
+    boundary.
+
+    **The token stays on `publisher`.** Moving it to a separate
+    service-configuration table would genuinely avoid the cascade for
+    platform-only and version-only persistence — that benefit is real and is now
+    stated honestly in `BE-03.md` section 6.3 rather than dismissed — but it
+    would **not** avoid it for canonical package changes, because BE-01 already
+    made `publisher.subscription_package` canonical and a package change must
+    `UPDATE publisher` wherever the token lives. Removing the cascade entirely
+    would require moving `subscription_package` off `publisher`, redefining the
+    shared publisher trigger, changing which publisher fields participate in work
+    freshness, or suppressing trigger behaviour — all wider changes to approved
+    BE-01 and shared publisher semantics that this review finding does not
+    justify. The bounded decision is therefore to **accept, document, test and
+    measure** the cascade: section 18.4 requires all six cases against a real
+    disposable PostgreSQL database with at least two imprints, at least two
+    target works and a control work of another publisher, plus a catalogue-scale
+    write-amplification and lock-footprint measurement, and section 20 puts that
+    evidence in front of the independent HIGH-risk implementation reviewer. This
+    is **not** a claim that the cost is acceptable at any scale: new stop
+    condition 19 requires the implementing agent to return `BLOCKED` and escalate
+    a separate architecture decision if the evidence is bad, and forbids it from
+    silently changing shared publisher trigger or storage semantics instead.
 
 Deviations from an approved source:
 
@@ -689,6 +766,153 @@ lifecycle. `decisions.md` and `BE-03.md` state one identical rule, `task-status.
 mirrors it, and the accompanying transient-state sweep found no other text that
 would create a second recursive approval-state update.
 
+### 5.3 Second independent specification review remediation
+
+The second fresh independent specification review, of head `a1acd3f6`,
+independently confirmed **all seven** findings of the first review as `RESOLVED`
+and independently re-confirmed that the protected effective capabilities, the
+`PUBLISHER_USER`/`SUPERUSER` authorization, the canonical write coordinator, the
+connection-scoped BE-02 lifecycle composition, the OAPEN/DOAB normalization and
+repair reachability, the true-no-op semantics, the optimistic concurrency, the
+audit/source model, the MIG-01 seam, the BE-03/BE-04 ownership boundary, the
+APP-01/APP-02 reconciliation, the migration shape, the GraphQL protected
+exposure, the DataLoader approach and the rollout/rollback remain sound. None of
+those areas is reopened here. It returned `CHANGES REQUIRED` with one P1 and one
+P2, both remediated in one ordinary commit; neither required a `BLOCKED` return.
+
+**P1 — a second existing `publisher` trigger was unaccounted for. RESOLVED by
+accepting, documenting, testing and measuring the cascade, not by moving it.**
+The reviewer found that `public.publisher` carries two material `UPDATE`
+triggers, not one. Re-verified directly in
+`thoth-api/migrations/20250000_v1.0.0/up.sql` before any edit:
+
+```sql
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.publisher
+    FOR EACH ROW EXECUTE FUNCTION public.diesel_set_updated_at();
+
+CREATE TRIGGER set_work_updated_at_with_relations AFTER UPDATE ON public.publisher
+    FOR EACH ROW EXECUTE FUNCTION public.publisher_work_updated_at_with_relations();
+```
+
+and `publisher_work_updated_at_with_relations()` is, on
+`NEW IS DISTINCT FROM OLD`, exactly one set-based statement:
+
+```sql
+UPDATE work
+SET updated_at_with_relations = current_timestamp
+FROM imprint
+WHERE work.imprint_id = imprint.imprint_id
+  AND imprint.publisher_id = NEW.publisher_id;
+```
+
+Corroborating repository facts verified for the observability claim:
+`Work.updatedAtWithRelations` is resolved on the public `Work` type
+(`graphql/model.rs`); `updated_at_with_relations: Option<TimeExpression>` is an
+argument on `works`, `work_count`, `books`, `book_count`, `chapters` and
+`chapter_count` in `graphql/query.rs`, rendered in
+`thoth-client/assets/schema.graphql`; `WorkField::UpdatedAtWithRelations` is
+orderable (`model/work/crud.rs`); `thoth-client/assets/queries.graphql` defines
+`WorkLastUpdatedQuery` and `WorksLastUpdatedQuery` selecting it; and
+`thoth-export-server/src/specification/handler.rs` passes those values into
+`MetadataRecord`, whose `load_or_generate` serves the Redis-cached record only
+while `cached_timestamp >= self.last_updated`. `publisher_distribution_platform`
+carries only `set_updated_at`, so merged BE-02 platform changes refresh no work
+rows today.
+
+Remediation, all in `BE-03.md` unless stated:
+
+- **section 2.1 item 8** now records **both** triggers with their exact
+  declarations and the trigger function's exact statement, plus the
+  public/downstream consumption of `work.updated_at_with_relations` and the
+  contrast with `publisher_distribution_platform`. Publisher is no longer
+  described as having one material `UPDATE` trigger;
+- **section 6.4** is rewritten from "`publisher.updated_at` also moves" to the
+  three-consequence form: the token moves, `publisher.updated_at` moves, and
+  `work.updated_at_with_relations` moves for every work of that publisher through
+  its imprints. It states explicitly that a **platform-only** change and an
+  **OAPEN/DOAB linked-state repair** will **newly** cause the cascade relative to
+  merged BE-02, that works of other publishers are never touched, that stale,
+  true-no-op and rolled-back cases fire neither trigger, and that the public
+  signal reveals that related catalogue state was refreshed while not directly
+  exposing package, capabilities, enabled platforms, actor, source or audit
+  content. It no longer says the effect occurs only "at the granularity it
+  already had", and it **does not overclaim confidentiality**: timing correlation
+  is expressly acknowledged as still possible. The downstream export-cache
+  invalidation effect is stated;
+- **section 18.4** extends the timestamp table to a **three-value, six-case**
+  table including target `work.updated_at_with_relations`, requires all six cases
+  against a **real disposable PostgreSQL database**, fixes the fixture (one
+  target publisher, at least two imprints, at least two works across them, at
+  least one control work of another publisher), requires the control work
+  asserted unchanged in every case, and adds a separate **catalogue-scale
+  measurement** — target work count, statements attributable to the operation,
+  work rows changed by the trigger, disposable-environment transaction duration,
+  unrelated-publisher works unchanged, and confirmation that no per-work
+  application loop exists — expressly as write-amplification and lock-footprint
+  evidence and **not** a production SLA or extrapolation;
+- **sections 7.3 step 9, 7.8 and this report's decision 5** are corrected. The
+  claims that the mutation "touches exactly one publisher", that "there is no
+  multi-object ordering" and that the work is "bounded by the closed 17-value
+  inventory" now apply only to BE-03's **explicit application-level** lock order
+  and statement count. Section 7.8 is retitled "Lock ordering and write
+  footprint" and states the real footprint as one publisher row + bounded
+  configuration/audit rows + N related work rows, that row-lock footprint and
+  transaction duration grow with catalogue size, that the publisher `FOR UPDATE`
+  lock is held while the trigger's work executes, and that the trigger issues a
+  **set-based** `UPDATE` rather than a per-work application loop. No production
+  duration and no safe catalogue-size threshold is invented;
+- **section 6.3** re-weighs the separate-table alternative honestly. Its genuine
+  benefit — avoiding both triggers for platform-only/version-only persistence —
+  is now stated, and the earlier "larger without being more robust" framing is
+  recorded as incomplete. It remains rejected because it would not remove the
+  same cascade for canonical package changes while `subscription_package` stays
+  on `publisher` under approved BE-01 architecture, because eliminating the
+  cascade fully would require wider changes to BE-01 storage or shared publisher
+  trigger semantics that this finding does not justify, because one publisher row
+  remains the natural serialization boundary, and because the consequence is
+  measurable and reviewable. The rejection is recorded as **evidence-conditional,
+  not permanent**;
+- **section 7.9** states that BE-04, extending the same coordinator transaction,
+  **inherits** the cascade, its row-lock footprint, its duration behaviour and its
+  downstream freshness effect unless a separately approved architecture change
+  alters that. BE-04 is not solved here. `decisions.md` section 3a carries the
+  same factual note without changing the ownership boundary;
+- **section 17.1** no longer permits a reading of "no observable downstream data
+  change". After separately authorized deployment and migration, a configuration
+  change still creates no distribution job, performs no upload and triggers no
+  dissemination worker — **but** the existing trigger may refresh
+  `work.updated_at_with_relations` across that publisher's catalogue. That
+  cascade is expressly **not** distribution activation;
+- **new stop condition 19** requires the implementing agent to return `BLOCKED`
+  with the measurements attached and escalate a separate architecture decision if
+  the evidence shows a material operational problem, and forbids resolving it by
+  dropping, disabling, rewriting or conditionalizing the publisher triggers, by
+  moving `subscription_package` off `publisher`, or by otherwise altering shared
+  publisher trigger or storage semantics. The former condition 19 is renumbered
+  20;
+- **sections 18.1 and 20** add the corresponding acceptance criteria and
+  implementation-report requirements, so the evidence reaches the independent
+  HIGH-risk implementation reviewer rather than staying in a test file.
+
+The canonical token design is deliberately **unchanged**: it remains
+`publisher.service_configuration_updated_at`, and no second
+service-configuration or version table is introduced by this remediation.
+
+**P2 — inaccurate write-bypass search count. RESOLVED with a reproducible
+command.** The reviewer confirmed the conclusion — **zero** production call sites
+of BE-02's pool-level enable/disable — but found the numeric claim "the only
+references are the 49 in ..." inaccurate. Re-run at this branch's head, the
+figures are 14 in `graphql/distribution_platform_tests.rs` and 44 in
+`model/publisher_distribution_platform/tests.rs`, i.e. 58 in total. Section 10 of
+this report now quotes the exact command, its exact per-file output and the total,
+records **zero** non-test production hits, states that all matches are confined to
+those two named test files, and records that both files are `#[cfg(test)]`-gated.
+The approximate count is removed rather than adjusted. Because this is
+specification-authoring evidence rather than future implementation evidence, it is
+stated so that a reviewer can reproduce it in one command. It is explicitly **not
+a waiver**: section 18.9 still requires the future implementation to rerun the
+complete search against its own implementation head.
+
 ## 6. Database and migration effects
 
 Migration added: NO
@@ -712,11 +936,14 @@ repository shape `[Uuid!] = []`, `[ThothPackage!] = []` and
 Generated schema/client updates: NONE. `thoth-client/assets/schema.graphql` is
 untouched.
 Backwards compatibility: unaffected by this diff. The specification additionally
-records, for the future implementation, that `Publisher.updatedAt` will move on
-every committed configuration change and that
-`service_configuration_updated_at` may appear as an additional key in future
-`publisher_history.data` snapshots — both additive, observable consequences
-documented rather than discovered later.
+records, for the future implementation, three observable consequences documented
+rather than discovered later: `Publisher.updatedAt` will move on every committed
+configuration change; `work.updated_at_with_relations` will move for every work
+of that publisher through its imprints, which is a public downstream freshness
+signal that invalidates that publisher's cached export records and changes what
+incremental consumers select; and `service_configuration_updated_at` may appear
+as an additional key in future `publisher_history.data` snapshots. None of them
+is a distribution job, upload or dissemination.
 Deprecations: NONE
 Cross-repository dependencies: the reserved BE-03/APP-01 exact-SHA schema
 pinning control is preserved and reinforced; the specification requires BE-03's
@@ -750,7 +977,13 @@ test. The audit actor is an identity **name** for an accountable control context
 never a means of authenticating one, and the specification requires no credential
 or operational secret for either source value.
 Security limitations: the pre-existing `ThothError::DatabaseError` rendering of
-driver text is recorded honestly as pre-existing, not claimed absent.
+driver text is recorded honestly as pre-existing, not claimed absent. The
+specification also declines to overclaim confidentiality for the
+publisher-triggered work freshness cascade: `work.updated_at_with_relations` does
+not directly expose package, capabilities, enabled platforms, actor, source or
+audit content, but an observer polling it — or watching export cache
+regeneration — can infer that something changed and when, so timing correlation
+remains possible and is stated rather than denied (`BE-03.md` section 6.4).
 
 ## 9. Tests and checks
 
@@ -806,9 +1039,9 @@ Only `docs/**` and `CHANGELOG.md` appear. No runtime path, no `thoth-api/`,
 migration path, no `Cargo.*` and no `.github/` path appears. No generated SDL or
 client artifact is touched.
 
-History integrity: the earlier commits `a3d4b1a7`, `20aa3a9a` and `5dc2b1dd`
-remain present, in order, with unchanged SHAs; each remediation is one ordinary
-commit on top of the then-current head. No rebase, merge, squash, amend or
+History integrity: the earlier commits `a3d4b1a7`, `20aa3a9a`, `5dc2b1dd` and
+`a1acd3f6` remain present, in order, with unchanged SHAs; each remediation is one
+ordinary commit on top of the then-current head. No rebase, merge, squash, amend or
 force-push was performed at any point, and the branch was deliberately **not**
 rebased even though `develop` contains the parent closeout merge commit
 `7aeb715f9815a41b6357d8b6a7037ac62ebb25bb`. No CI workflow was dispatched
@@ -854,7 +1087,19 @@ sections 1, 2.1 item 4, 3, 4, 5, 7.1, 10, 10.1, 11.1, 12.2, 14, 15, 18.1, 18.2,
 changelog entry; the list-argument shape across `BE-03.md` sections 12, 14.1,
 14.3 and 18.1; the assignability invariant across sections 7.3, 7.7, 18.1, 18.5,
 18.6 and 19; and the decision authority condition across `decisions.md` section
-3a, `BE-03.md` stop condition 5 and `task-status.md`.
+3a, `BE-03.md` stop condition 5 and `task-status.md`. The third remediation
+re-read the two-trigger consequence across `BE-03.md` sections 2.1 item 8, 6.3,
+6.4, 7.3 step 9, 7.8, 7.9, 17.1, 18.1, 18.4, 20 and stop conditions 19 and 20,
+this report's decisions 5, 16 and 18 and sections 7, 8, 13 and 15, and
+`decisions.md` section 3a, confirming that each states the same rule: three
+observable consequences on a committed change, none on a true no-op, stale
+request or rollback, no work of another publisher affected, a set-based trigger
+`UPDATE` rather than an application loop, the token retained on `publisher`, and
+escalation rather than trigger modification if the evidence is bad. The stop
+condition renumbering (former 19 to 20, new 19 inserted) was checked against
+every cross-reference to a stop condition number in all five files; the only
+numbered references are to conditions 5, 9, 15, 18 and the new 19, and all
+resolve correctly.
 
 Transient-state sweep (ADR-0005): all five changed files were swept for prose
 that ordinary lifecycle progression would falsify. Removed: "Pull request:
@@ -893,7 +1138,17 @@ list-filter argument convention), `thoth-client/assets/schema.graphql` (the
 rendered argument shapes and enum reachability), the root `Cargo.toml`
 workspace declaration, ADR-0001 sections 4.1 to 4.7 and 7, ADR-0005 sections 4.1
 and 6, `docs/publisher-services/README.md` and `BE-01.md` before changing any
-rule.
+rule. The third remediation pass re-read
+`thoth-api/migrations/20250000_v1.0.0/up.sql` (both `public.publisher` triggers
+and the `diesel_set_updated_at` and `publisher_work_updated_at_with_relations`
+function bodies), `thoth-api/migrations/20260812_v1.7.0/up.sql` (BE-02's
+`publisher_distribution_platform` trigger installation),
+`thoth-api/src/graphql/model.rs`, `thoth-api/src/graphql/query.rs`,
+`thoth-api/src/model/work/crud.rs`, `thoth-client/assets/schema.graphql`,
+`thoth-client/assets/queries.graphql`, `thoth-client/src/lib.rs`,
+`thoth-export-server/src/specification/handler.rs` and
+`thoth-export-server/src/record.rs`, and re-ran the write-bypass search, before
+changing any rule.
 
 Every observation below is an **authoring-time record** of what was verified in
 the merged code when this specification was written. It is retained as
@@ -939,19 +1194,37 @@ Observed results feeding the remediations:
   `is_normalized_fully_enabled`, which requires equal member count, all enabled,
   `disabled_at` none, one shared `activation_id` and one shared `enabled_at`;
   both `enable` and `disable` return `ThothResult<()>`;
-- a search for `::enable(`/`::disable(` across the crates this repository
-  actually contains — `thoth-api/src`, `thoth-api-server/src`,
-  `thoth-client/src`, `thoth-errors/src`, `thoth-export-server/src`, the root
-  binary crate's `src` and `thoth-api/migrations` — excluding `tests.rs` and
-  `*_tests.rs`, returned **no** hits: the only references are the 49 in
-  `graphql/distribution_platform_tests.rs` and the model's
-  `#[cfg(all(test, feature = "backend"))]` tests. Neither function is exposed
-  through GraphQL. The root `Cargo.toml` `[workspace] members` list is exactly
+- **zero non-test production call sites** of BE-02's pool-level
+  `PublisherDistributionPlatform::enable`/`::disable`. This is stated as a
+  reproducible command with its exact output rather than as an approximate
+  count. Command, run from the repository root at this branch's head:
+
+  ```bash
+  grep -rEn '::(enable|disable)\(' thoth-api/src thoth-api-server/src thoth-client/src thoth-errors/src thoth-export-server/src src thoth-api/migrations | awk -F: '{print $1}' | sort | uniq -c
+  ```
+
+  Output:
+
+  ```text
+       14 thoth-api/src/graphql/distribution_platform_tests.rs
+       44 thoth-api/src/model/publisher_distribution_platform/tests.rs
+  ```
+
+  All 58 matches are confined to those **two test files**, and no other file in
+  any searched path matches. Both files are test-only:
+  `thoth-api/src/graphql/mod.rs` declares `distribution_platform_tests` under
+  `#[cfg(test)]`, and `thoth-api/src/model/publisher_distribution_platform/mod.rs`
+  declares its `tests` module under `#[cfg(all(test, feature = "backend"))]`.
+  Non-test production hits: **zero**. Neither function is exposed through
+  GraphQL. The root `Cargo.toml` `[workspace] members` list is exactly
   `thoth-api`, `thoth-api-server`, `thoth-client`, `thoth-errors` and
   `thoth-export-server`, confirming no local production crate was omitted from
   that scope. **`thoth-app` is a separate repository and has no directory
   here**, so no `thoth-app/src` path was searched and none is claimed as
-  evidence;
+  evidence. This is **authoring-time specification evidence bound to this
+  branch's head, and it is not a waiver**: the future BE-03 implementation must
+  still rerun the complete section 18.9 search against its own implementation
+  head and record the result there;
 - `publisher_history` is `(publisher_history_id, publisher_id, user_id text NOT
   NULL, data jsonb NOT NULL, "timestamp" timestamp without time zone)` with only
   a primary key and a `publisher_id` foreign key. The `account` table and
@@ -1020,6 +1293,48 @@ Observed in the second remediation pass:
   section 6 requires durable rather than transient status prose, which is the
   basis for the authority-condition form adopted in `decisions.md` section 3a.
 
+Observed in the third remediation pass:
+
+- `public.publisher` carries **two** `UPDATE` triggers in
+  `20250000_v1.0.0/up.sql`: `set_updated_at` (`BEFORE UPDATE`,
+  `diesel_set_updated_at()`) and `set_work_updated_at_with_relations`
+  (`AFTER UPDATE`, `publisher_work_updated_at_with_relations()`). The earlier
+  passes recorded only the first;
+- `diesel_set_updated_at()` sets `NEW.updated_at := current_timestamp` when
+  `NEW IS DISTINCT FROM OLD AND NEW.updated_at IS NOT DISTINCT FROM
+  OLD.updated_at`, so an explicit `updated_at` write suppresses it;
+- `publisher_work_updated_at_with_relations()` is, on
+  `NEW IS DISTINCT FROM OLD`, exactly one set-based
+  `UPDATE work SET updated_at_with_relations = current_timestamp FROM imprint
+  WHERE work.imprint_id = imprint.imprint_id AND imprint.publisher_id =
+  NEW.publisher_id` and then `RETURN NULL`. It is a set-based statement, not a
+  per-row loop, and its predicate bounds it to the target publisher;
+- BE-02's `20260812_v1.7.0/up.sql` installs only
+  `diesel_manage_updated_at('public.publisher_distribution_platform')` — there is
+  **no** work-freshness trigger on the assignment table, so merged BE-02
+  lifecycle changes refresh no work rows;
+- `work.updated_at_with_relations` is publicly consumed: resolved on the `Work`
+  type in `graphql/model.rs`; a `TimeExpression` argument on `works`,
+  `work_count`, `books`, `book_count`, `chapters` and `chapter_count` in
+  `graphql/query.rs` and in the generated
+  `thoth-client/assets/schema.graphql`; orderable through
+  `WorkField::UpdatedAtWithRelations` in `model/work/crud.rs`; and selected by
+  `WorkLastUpdatedQuery`/`WorksLastUpdatedQuery` in
+  `thoth-client/assets/queries.graphql`, exposed as
+  `ThothClient::get_work_last_updated`/`get_works_last_updated`;
+- `thoth-export-server/src/specification/handler.rs` calls exactly those two
+  client methods in `by_work` and `by_publisher` and passes the value into
+  `MetadataRecord::new`; `record.rs`'s `load_or_generate` serves the cached
+  record only while `cached_timestamp >= self.last_updated` and otherwise
+  regenerates and calls `update_cache`. Moving a publisher's work freshness
+  therefore invalidates that publisher's cached export output;
+- the write-bypass search was re-run and its exact output recorded above: 14
+  matches in `graphql/distribution_platform_tests.rs`, 44 in
+  `model/publisher_distribution_platform/tests.rs`, 58 total, zero non-test
+  production hits. `graphql/mod.rs` declares `distribution_platform_tests` under
+  `#[cfg(test)]` and `model/publisher_distribution_platform/mod.rs` declares
+  `tests` under `#[cfg(all(test, feature = "backend"))]`.
+
 Evidence link: none required; this is a documentation task.
 
 ## 11. CI
@@ -1061,6 +1376,37 @@ Monitoring required: none.
   the dedicated token on `publisher` under the existing `set_updated_at`
   trigger. The public timestamp discloses only that the record changed, never
   any package, capability, platform or commercial value.
+- **A committed configuration change will also refresh
+  `work.updated_at_with_relations` for every work of that publisher through its
+  imprints**, because `public.publisher` also carries the existing `AFTER UPDATE`
+  `set_work_updated_at_with_relations` trigger. This is the most consequential
+  known limitation of the token-location decision and is deliberately not hidden:
+  - it is a **public downstream freshness signal**, so a configuration change
+    invalidates that publisher's cached export records and re-selects its works
+    for incremental consumers. It is **not** distribution activation: no job,
+    upload, feed or dissemination is created;
+  - a **platform-only** change and an **OAPEN/DOAB linked-state repair** cause it
+    **newly** relative to merged BE-02, which touches only
+    `publisher_distribution_platform` and refreshes no work rows;
+  - the committed transaction therefore writes one publisher row + bounded
+    configuration/audit rows + N related work rows, so **row-lock footprint and
+    transaction duration grow with catalogue size** while the publisher
+    `FOR UPDATE` lock is held. The work rows are changed by one set-based trigger
+    statement, not by any application loop, and BE-03 must not introduce one;
+  - **BE-04 inherits this** with the coordinator's transaction boundary;
+  - it is accepted at specification level because avoiding it fully would require
+    changing BE-01's canonical package storage or the shared publisher trigger —
+    wider changes this review finding does not justify — and because a separate
+    version table would still not avoid it for package changes;
+  - **acceptance is evidence-conditional, not unconditional.** `BE-03.md`
+    sections 18.4 and 20 require the six-case database evidence with target and
+    control works and a catalogue-scale write-amplification and lock-footprint
+    measurement, put in front of the independent HIGH-risk implementation
+    reviewer; stop condition 19 requires `BLOCKED` and a separate architecture
+    escalation if the evidence is bad, and forbids the implementing agent from
+    altering shared publisher trigger or storage semantics instead. No production
+    duration or safe catalogue size is asserted anywhere, and the disposable
+    measurement must not be presented as a production prediction.
 - `service_configuration_updated_at` may appear as an additional key in future
   `publisher_history.data` snapshots, because the shared `Crud::update` macro
   serializes the whole `Publisher` struct into that untyped `jsonb` column. No
@@ -1175,22 +1521,46 @@ Suggested review focus:
   incidental, that the single section 11.1 read decision genuinely covers the
   field, and that treating this as reconciliation with approved architecture —
   rather than as a new decision or a fresh deferral — is correct;
-- **the `Publisher.updatedAt` consequence (P2).** Confirm that the trigger
-  really does move it whenever the token is written, that section 6.4's
-  six-case movement table is exactly right, that a stale request and a true
-  no-op genuinely perform no publisher `UPDATE`, that the disclosure analysis is
-  honest, and that the `publisher_history.data` additional-key statement is
-  accurate and clearly separated from the configuration audit;
+- **the `Publisher.updatedAt` consequence (first review, P2).** Confirm that the
+  trigger really does move it whenever the token is written, that a stale request
+  and a true no-op genuinely perform no publisher `UPDATE`, that the disclosure
+  analysis is honest, and that the `publisher_history.data` additional-key
+  statement is accurate and clearly separated from the configuration audit;
+- **the work-freshness cascade (second review, P1) — the highest-value review
+  target in this pass.** Confirm against the migrations that `public.publisher`
+  really carries both `set_updated_at` and `set_work_updated_at_with_relations`;
+  that section 2.1 item 8 and section 6.4 describe the trigger function's
+  set-based statement and its `imprint.publisher_id = NEW.publisher_id` bound
+  correctly; that the three-value six-case table in section 18.4, its fixture and
+  its control work are sufficient to prove the behaviour rather than assume it;
+  that section 7.8's write-footprint statement (one publisher row + bounded
+  configuration/audit rows + N work rows) has fully replaced the earlier
+  "touches exactly one publisher" / "no multi-object ordering" / "bounded by the
+  17-value inventory" claims wherever they were load-bearing; that section 6.3's
+  re-weighing of the separate-table alternative states its real benefit honestly
+  instead of dismissing it; that retaining the token on `publisher` is the right
+  bounded decision given BE-01's canonical package storage; that section 7.9's
+  BE-04 inheritance statement is accurate; that section 17.1 no longer permits a
+  "no observable downstream data change" reading and does not describe the
+  cascade as distribution activation; and that stop condition 19 is the right
+  control — escalate, never silently change shared trigger or storage semantics —
+  and does not fire on the mere existence of the cascade;
 - **the connection-scoped assignability invariant (P2).** Confirm that requiring
   the primitive to check `is_assignable()` itself is defence in depth rather
   than a second algorithm, that the pool-level wrapper's merged behaviour is
   genuinely unchanged, and that the direct `enable_on(JISC_NBK)` regression in
   section 18.6 proves failure *before* any write rather than reliance on
   rollback;
-- **the corrected bypass-search scope (P2).** Confirm that the listed paths
-  cover every local production crate, that the workspace-declaration check is
-  the right completeness control, and that treating `thoth-app` as external is
-  correct;
+- **the corrected bypass-search scope (first review, P2) and its corrected
+  evidence statement (second review, P2).** Confirm that the listed paths cover
+  every local production crate, that the workspace-declaration check is the right
+  completeness control, that treating `thoth-app` as external is correct, and
+  that section 10's search statement is now exactly reproducible — one quoted
+  command, its exact per-file output, zero non-test production hits, all matches
+  confined to the two named `#[cfg(test)]`-gated files, and no approximate count
+  anywhere. Confirm also that it is framed as authoring-time evidence which does
+  **not** waive section 18.9's requirement that the future implementation rerun
+  the search at its own head;
 - **the decision authority condition (P2).** Confirm that the wording in
   `decisions.md` section 3a and stop condition 5 is one identical rule, that it
   is truthful before and after approval and before and after merge, that it

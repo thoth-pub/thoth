@@ -316,6 +316,21 @@ configuration changes create no upload/back-catalogue job and trigger no
 dissemination.
 ```
 
+**One factual note on that shared transaction boundary**, so BE-04 is planned
+against the real transaction rather than a single-row model. `public.publisher`
+carries an existing `AFTER UPDATE` trigger,
+`set_work_updated_at_with_relations`, which refreshes
+`work.updated_at_with_relations` for every work of that publisher through its
+imprints. Because the canonical configuration version token is a `publisher`
+column under BE-01's approved package storage, a committed configuration change
+fires that trigger, and BE-04's extension of the same transaction inherits the
+resulting row-lock footprint, transaction duration and downstream freshness
+effect. This does not change the ownership boundary above and is not distribution
+activation — no job, upload or dissemination is created by it. It is specified,
+measured and evidenced under
+[`BE-03.md`](../engineering/ai-delivery/tasks/BE-03.md) sections 2.1 item 8, 6.4,
+7.8, 7.9, 18.4 and stop condition 19.
+
 ### APP-01 reconciliation
 
 This decision candidate **refines and, in that narrow respect, supersedes** the
