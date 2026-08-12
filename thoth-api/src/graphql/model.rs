@@ -35,10 +35,14 @@ use crate::model::{
         AccessibilityException, AccessibilityStandard, Publication, PublicationOrderBy,
         PublicationType,
     },
-    publisher::Publisher,
+    publisher::{Publisher, PublisherCapability, ThothPackage},
     publisher_distribution_platform::{
         BackCatalogueBehaviour, DistributionPlatform, DistributionPlatformGroup,
         DistributionPlatformOption, PublisherDistributionPlatformAssignment,
+    },
+    publisher_service_configuration::{
+        PublisherServiceConfiguration, PublisherServiceConfigurationChange,
+        PublisherServiceConfigurationSource, PublisherServiceConfigurationSummary,
     },
     r#abstract::{Abstract, AbstractOrderBy, AbstractType},
     reference::{Reference, ReferenceOrderBy},
@@ -1378,6 +1382,107 @@ impl PublisherDistributionPlatformAssignment {
     )]
     pub fn enabled_at(&self) -> Timestamp {
         self.enabled_at
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The desired service configuration of one publisher."
+)]
+impl PublisherServiceConfiguration {
+    #[graphql(description = "The publisher this configuration belongs to")]
+    pub fn publisher(&self) -> &Publisher {
+        &self.publisher
+    }
+
+    #[graphql(description = "Subscription package currently assigned to the publisher")]
+    pub fn subscription_package(&self) -> ThothPackage {
+        self.publisher.subscription_package
+    }
+
+    #[graphql(
+        description = "Capabilities the current subscription package grants this publisher, in canonical capability order. Derived from the package; a capability permits a feature but does not configure or activate it"
+    )]
+    pub fn effective_capabilities(&self) -> Vec<PublisherCapability> {
+        // Exactly `BE-01`'s code-owned mapping for the package on the same row
+        // that `subscriptionPackage` reports, in that `&'static` slice's order.
+        // No sort, no dedup, no filter, no second mapping, no persistence.
+        self.publisher.subscription_package.capabilities().to_vec()
+    }
+
+    #[graphql(
+        description = "Distribution platforms currently enabled for the publisher, in canonical platform order"
+    )]
+    pub async fn enabled_distribution_platforms(
+        &self,
+        context: &Context,
+    ) -> FieldResult<Vec<PublisherDistributionPlatformAssignment>> {
+        // Loader-first (`ADR-0007` section 4.5), reusing `BE-02`'s existing
+        // request-local `publisher_distribution_platforms` loader rather than
+        // introducing a second assignment loader: the publisher ID is already
+        // available on `self`, so the key is registered at resolver entry with
+        // no unrelated awaited work before `try_load`.
+        unpack_assignments(
+            context
+                .loaders
+                .publisher_distribution_platforms
+                .try_load(self.publisher_id())
+                .await,
+        )
+    }
+
+    #[graphql(
+        description = "Version token of this configuration; supply it as expectedUpdatedAt to replace the configuration"
+    )]
+    // The GraphQL field is `updatedAt` on the configuration type and must
+    // resolve to the **configuration** token, not to `publisher.updated_at`.
+    // Those two values are deliberately different and are not interchangeable
+    // in either direction (specification section 6.4 item 3), so clippy's
+    // getter-name heuristic is wrong here.
+    #[allow(clippy::misnamed_getters)]
+    pub fn updated_at(&self) -> Timestamp {
+        self.publisher.service_configuration_updated_at
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "A publisher's service configuration together with its latest change metadata."
+)]
+impl PublisherServiceConfigurationSummary {
+    #[graphql(description = "The publisher's desired service configuration")]
+    pub fn configuration(&self) -> &PublisherServiceConfiguration {
+        &self.configuration
+    }
+
+    #[graphql(
+        description = "Metadata of the most recent recorded configuration change, or null if none has been recorded"
+    )]
+    pub fn last_change(&self) -> Option<&PublisherServiceConfigurationChange> {
+        self.last_change.as_ref()
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "Metadata of one recorded service-configuration change. The before and after states themselves are not exposed."
+)]
+impl PublisherServiceConfigurationChange {
+    #[graphql(description = "When the change was committed")]
+    pub fn changed_at(&self) -> Timestamp {
+        self.changed_at
+    }
+
+    #[graphql(
+        description = "Identity that made the change: the account identifier for SUPERUSER_API, or the authorized control identity for a controlled backfill"
+    )]
+    pub fn actor(&self) -> &String {
+        &self.actor
+    }
+
+    #[graphql(description = "How the change entered the system")]
+    pub fn source(&self) -> PublisherServiceConfigurationSource {
+        self.source
     }
 }
 

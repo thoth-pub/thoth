@@ -188,6 +188,10 @@ pub struct Publisher {
     pub subscription_package: ThothPackage,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+    // Snapshots and API payloads serialized before BE-03 lack this field;
+    // deserialization must not require it, so the documented default applies.
+    #[serde(default)]
+    pub service_configuration_updated_at: Timestamp,
 }
 
 #[cfg_attr(

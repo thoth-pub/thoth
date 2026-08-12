@@ -3801,32 +3801,108 @@ fn graphql_mutations_cover_all() {
 
 // BE-01: the publisher package foundation must expose no public GraphQL
 // surface. See docs/engineering/ai-delivery/tasks/BE-01.md section 6.6.
+//
+// BE-03 deliberately makes `ThothPackage` and `PublisherCapability`
+// SDL-reachable for the first time, and only through the protected
+// `PublisherServiceConfiguration` type (BE-03 section 14.2). A blanket
+// "these strings must not appear anywhere in the SDL" assertion is therefore
+// intentionally false from BE-03 onwards. The security intent it encoded — that
+// no package or capability value is readable on the public `Publisher` type or
+// by an anonymous caller — is preserved below, and strengthened from a
+// whole-document string search into per-type assertions plus a reachability
+// assertion, because type reachability in the SDL is not value exposure.
+
+/// The body of one SDL type or enum declaration.
+fn sdl_block<'a>(sdl: &'a str, declaration: &str) -> &'a str {
+    sdl.split_once(declaration)
+        .unwrap_or_else(|| panic!("SDL must declare `{declaration}`"))
+        .1
+        .split_once('}')
+        .expect("declaration body")
+        .0
+}
 
 #[test]
-fn generated_schema_exposes_no_package_or_capability_surface() {
+fn the_public_publisher_type_exposes_no_package_capability_or_configuration_field() {
     let schema = create_schema();
     let sdl = schema.as_sdl();
+    let publisher_type = sdl_block(&sdl, "type Publisher {");
+
     for forbidden in [
         "subscriptionPackage",
         "ThothPackage",
-        "PublisherCapability",
+        "effectiveCapabilities",
         "capabilities",
-        "OASIS",
-        "OBELISK",
-        "SPHINX",
-        "PYRAMID",
-        "OAI_PMH",
-        "METRICS_COLLECT",
-        "METRICS_IMPORT",
-        "METRICS_DASHBOARD",
-        "METRICS_WIDGET",
-        "METRICS_OPERAS_EXPORT",
+        "PublisherCapability",
+        // No configuration-version field of any spelling.
+        "serviceConfiguration",
+        "configurationVersion",
+        "expectedUpdatedAt",
     ] {
         assert!(
-            !sdl.contains(forbidden),
-            "Generated GraphQL SDL unexpectedly contains {forbidden}"
+            !publisher_type.contains(forbidden),
+            "the public Publisher type must not expose `{forbidden}`: {publisher_type}"
         );
     }
+
+    // The publisher input types stay package-free too.
+    for input in ["input NewPublisher {", "input PatchPublisher {"] {
+        let block = sdl_block(&sdl, input);
+        assert!(!block.contains("subscriptionPackage"));
+        assert!(!block.contains("apabilit"));
+    }
+}
+
+#[test]
+fn package_and_capability_enums_are_sdl_reachable_only_through_protected_configuration() {
+    let schema = create_schema();
+    let sdl = schema.as_sdl();
+
+    // Both enums are reachable, exactly as BE-03 section 14.2 requires.
+    assert_eq!(sdl.matches("enum ThothPackage {").count(), 1);
+    assert_eq!(sdl.matches("enum PublisherCapability {").count(), 1);
+
+    // `PublisherCapability` is returned by exactly one field in the whole
+    // schema, and that field is on the protected configuration type.
+    let capability_fields: Vec<&str> = sdl
+        .lines()
+        .filter(|line| {
+            line.contains("PublisherCapability!]!") || line.contains(": PublisherCapability")
+        })
+        .collect();
+    assert_eq!(
+        capability_fields.len(),
+        1,
+        "exactly one field may return PublisherCapability, got: {capability_fields:?}"
+    );
+    assert!(capability_fields[0].contains("effectiveCapabilities: [PublisherCapability!]!"));
+    assert!(sdl_block(&sdl, "type PublisherServiceConfiguration {")
+        .contains("effectiveCapabilities: [PublisherCapability!]!"));
+
+    // Every `ThothPackage` reference is on the protected configuration type, in
+    // the superuser-only mutation input, or in a superuser-only report
+    // argument. Nothing else in the schema mentions the package.
+    assert!(sdl_block(&sdl, "type PublisherServiceConfiguration {")
+        .contains("subscriptionPackage: ThothPackage!"));
+    assert!(
+        sdl_block(&sdl, "input ReplacePublisherServiceConfigurationInput {")
+            .contains("subscriptionPackage: ThothPackage!")
+    );
+    for line in sdl.lines().filter(|line| line.contains("ThothPackage")) {
+        let is_enum_declaration = line.contains("enum ThothPackage {");
+        let is_protected_field = line.trim() == "subscriptionPackage: ThothPackage!";
+        let is_protected_argument = line.contains("publisherServiceConfigurations(")
+            || line.contains("publisherServiceConfigurationCount(");
+        assert!(
+            is_enum_declaration || is_protected_field || is_protected_argument,
+            "unexpected ThothPackage reference in the SDL: {line}"
+        );
+    }
+    assert_eq!(
+        sdl.matches("subscriptionPackage: ThothPackage!").count(),
+        2,
+        "exactly the protected type field and the superuser input field"
+    );
 }
 
 #[test]

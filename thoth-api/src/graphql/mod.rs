@@ -9,6 +9,8 @@ mod mutation_guard;
 #[cfg(test)]
 mod mutation_guard_tests;
 mod query;
+#[cfg(test)]
+mod service_configuration_tests;
 
 pub use juniper::http::GraphQLRequest;
 

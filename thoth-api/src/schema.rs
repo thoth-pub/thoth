@@ -94,6 +94,10 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "distribution_platform"))]
     pub struct DistributionPlatform;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "publisher_service_configuration_source"))]
+    pub struct PublisherServiceConfigurationSource;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -623,6 +627,7 @@ table! {
         subscription_package -> ThothPackage,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+        service_configuration_updated_at -> Timestamptz,
     }
 }
 
@@ -639,6 +644,21 @@ table! {
         disabled_at -> Nullable<Timestamptz>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::PublisherServiceConfigurationSource;
+
+    publisher_service_configuration_history (publisher_service_configuration_history_id) {
+        publisher_service_configuration_history_id -> Uuid,
+        publisher_id -> Uuid,
+        actor -> Text,
+        source -> PublisherServiceConfigurationSource,
+        before_state -> Jsonb,
+        after_state -> Jsonb,
+        created_at -> Timestamptz,
     }
 }
 
@@ -1005,6 +1025,7 @@ joinable!(publication -> work (work_id));
 joinable!(publication_history -> publication (publication_id));
 joinable!(publisher_distribution_platform -> publisher (publisher_id));
 joinable!(publisher_history -> publisher (publisher_id));
+joinable!(publisher_service_configuration_history -> publisher (publisher_id));
 joinable!(reference -> work (work_id));
 joinable!(reference_history -> reference (reference_id));
 joinable!(series -> imprint (imprint_id));
@@ -1062,6 +1083,7 @@ allow_tables_to_appear_in_same_query!(
     publisher,
     publisher_distribution_platform,
     publisher_history,
+    publisher_service_configuration_history,
     reference,
     reference_history,
     series,

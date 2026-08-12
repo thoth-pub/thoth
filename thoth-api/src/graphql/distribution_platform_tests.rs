@@ -568,16 +568,67 @@ fn sdl_exposes_no_internal_or_protected_distribution_state() {
         );
     }
 
-    // BE-02 exposes no package/capability state and no protected BE-03 surface.
-    for forbidden in [
-        "subscriptionPackage",
-        "PublisherServiceConfiguration",
-        "replacePublisherServiceConfiguration",
+    // BE-02's own surfaces expose no package, capability or protected
+    // service-configuration state.
+    //
+    // BE-03 adds `PublisherServiceConfiguration`,
+    // `replacePublisherServiceConfiguration` and a protected
+    // `subscriptionPackage` field, so the previous whole-document string
+    // prohibition is intentionally false from BE-03 onwards. Its security
+    // intent — that none of that state is reachable from a BE-02 surface —
+    // is preserved here as per-type and per-field assertions, which are
+    // stricter than the string search they replace: they would still fail if a
+    // package, capability or configuration field were added to any BE-02 type
+    // or to the public `Publisher`.
+    for be02_type in [
+        "type DistributionPlatformOption {",
+        "type PublisherDistributionPlatformAssignment {",
+        "type Publisher {",
     ] {
-        assert!(
-            !sdl.contains(forbidden),
-            "SDL must not expose `{forbidden}`"
+        let block = sdl
+            .split_once(be02_type)
+            .unwrap_or_else(|| panic!("SDL must declare `{be02_type}`"))
+            .1
+            .split_once('}')
+            .expect("type body")
+            .0;
+        for forbidden in [
+            "subscriptionPackage",
+            "ThothPackage",
+            "apabilit",
+            "PublisherServiceConfiguration",
+            "serviceConfiguration",
+        ] {
+            assert!(
+                !block.contains(forbidden),
+                "`{be02_type}` must not expose `{forbidden}`"
+            );
+        }
+    }
+
+    // BE-02's four public read surfaces keep their exact merged signatures: the
+    // protected BE-03 additions change none of them.
+    for merged_surface in [
+        "distributionPlatformOptions: [DistributionPlatformOption!]!",
+        "publishersByDistributionPlatform(\"Distribution platform to search on\" platform: DistributionPlatform!, \"The number of items to return\" limit: Int = 100, \"The number of items to skip\" offset: Int = 0, \"The order in which to sort the results. Results are always additionally sorted by publisher ID ascending, so pagination is deterministic\" order: PublisherOrderBy = {direction: \"ASC\", field: \"PUBLISHER_NAME\"}): [Publisher!]!",
+        "publisherCountByDistributionPlatform(\"Distribution platform to search on\" platform: DistributionPlatform!): Int!",
+        "distributionPlatforms: [PublisherDistributionPlatformAssignment!]!",
+    ] {
+        assert_eq!(
+            sdl.matches(merged_surface).count(),
+            1,
+            "BE-02 surface changed: `{merged_surface}`"
         );
+    }
+
+    // The protected BE-03 configuration is reachable only through its own
+    // protected operations, never through a BE-02 read surface.
+    assert_eq!(sdl.matches("): PublisherServiceConfiguration!").count(), 2);
+    for protected_operation in [
+        "publisherServiceConfiguration(\"Thoth publisher ID to search on\" publisherId: Uuid!): PublisherServiceConfiguration!",
+        "replacePublisherServiceConfiguration(\"Complete desired service configuration to store\" data: ReplacePublisherServiceConfigurationInput!): PublisherServiceConfiguration!",
+    ] {
+        assert_eq!(sdl.matches(protected_operation).count(), 1);
     }
 }
 

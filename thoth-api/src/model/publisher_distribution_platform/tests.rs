@@ -2,13 +2,15 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use diesel::sql_query;
-use diesel::RunQueryDsl;
+use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use uuid::Uuid;
 
 use super::*;
 use crate::db::PgPool;
+use crate::model::publisher::Publisher;
 use crate::model::tests::db as test_db;
-use thoth_errors::ThothError;
+use crate::model::Crud;
+use thoth_errors::{ThothError, ThothResult};
 
 // --------------------------------------------------------------------------
 // Inventory and representation
@@ -1164,6 +1166,185 @@ fn enabling_jisc_nbk_fails_closed_before_any_write() {
             .expect("load")
             .is_empty()
     );
+}
+
+// --------------------------------------------------------------------------
+// Connection-scoped lifecycle primitives (`BE-03` specification section 7.7)
+// --------------------------------------------------------------------------
+
+/// Run `body` inside a caller-owned transaction, exactly as the `BE-03`
+/// coordinator composes these primitives.
+fn in_transaction<T>(
+    pool: &PgPool,
+    body: impl FnOnce(&mut diesel::pg::PgConnection) -> ThothResult<T>,
+) -> ThothResult<T> {
+    use diesel::Connection;
+    let mut connection = pool.get().expect("connection");
+    connection.transaction(|connection| body(connection))
+}
+
+#[test]
+fn the_connection_scoped_primitives_report_every_transition_outcome() {
+    use crate::model::publisher_distribution_platform::crud::AssignmentLifecycleOutcome::{
+        Changed, Unchanged,
+    };
+
+    let (_guard, pool) = test_db::setup_test_db();
+    let publisher = test_db::create_publisher(&pool);
+    let publisher_id = publisher.publisher_id;
+    let singleton = DistributionPlatform::Zenodo;
+
+    // Absent row enabled.
+    assert_eq!(
+        in_transaction(&pool, |connection| {
+            PublisherDistributionPlatform::enable_on(connection, publisher_id, singleton)
+        })
+        .expect("enable"),
+        Changed
+    );
+    // Already-enabled singleton.
+    assert_eq!(
+        in_transaction(&pool, |connection| {
+            PublisherDistributionPlatform::enable_on(connection, publisher_id, singleton)
+        })
+        .expect("enable"),
+        Unchanged
+    );
+    // Enabled group disabled.
+    assert_eq!(
+        in_transaction(&pool, |connection| {
+            PublisherDistributionPlatform::disable_on(connection, publisher_id, singleton)
+        })
+        .expect("disable"),
+        Changed
+    );
+    // Group with no enabled member disabled.
+    assert_eq!(
+        in_transaction(&pool, |connection| {
+            PublisherDistributionPlatform::disable_on(connection, publisher_id, singleton)
+        })
+        .expect("disable"),
+        Unchanged
+    );
+    // Disabled row re-enabled.
+    assert_eq!(
+        in_transaction(&pool, |connection| {
+            PublisherDistributionPlatform::enable_on(connection, publisher_id, singleton)
+        })
+        .expect("enable"),
+        Changed
+    );
+
+    // Already-normalized linked group.
+    assert_eq!(
+        in_transaction(&pool, |connection| {
+            PublisherDistributionPlatform::enable_on(
+                connection,
+                publisher_id,
+                DistributionPlatform::Oapen,
+            )
+        })
+        .expect("enable"),
+        Changed
+    );
+    assert_eq!(
+        in_transaction(&pool, |connection| {
+            PublisherDistributionPlatform::enable_on(
+                connection,
+                publisher_id,
+                DistributionPlatform::Doab,
+            )
+        })
+        .expect("enable"),
+        Unchanged
+    );
+
+    // Split pair: membership is unchanged, but the group is not normalized.
+    write_raw_assignment(
+        &pool,
+        publisher_id,
+        "DOAB",
+        Uuid::new_v4(),
+        "now() - interval '1 hour'",
+    );
+    assert_eq!(
+        in_transaction(&pool, |connection| {
+            PublisherDistributionPlatform::enable_on(
+                connection,
+                publisher_id,
+                DistributionPlatform::Oapen,
+            )
+        })
+        .expect("repair"),
+        Changed
+    );
+}
+
+#[test]
+fn the_connection_scoped_enable_rejects_jisc_nbk_itself_before_any_write() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let publisher = test_db::create_publisher(&pool);
+    let publisher_id = publisher.publisher_id;
+    PublisherDistributionPlatform::enable(&pool, publisher_id, DistributionPlatform::Zenodo)
+        .expect("seed enable");
+    let before =
+        PublisherDistributionPlatform::all_for_publisher(&pool, publisher_id).expect("load before");
+    let publisher_before = Publisher::from_id(&pool, &publisher_id).expect("publisher before");
+
+    // Called **directly** inside a caller-owned transaction, bypassing both the
+    // pool-level wrapper and the BE-03 coordinator, so nothing has pre-validated
+    // the platform.
+    for commit in [false, true] {
+        let mut connection = pool.get().expect("connection");
+        let observed: ThothResult<()> = {
+            use diesel::Connection;
+            connection.transaction(|connection| {
+                let error = PublisherDistributionPlatform::enable_on(
+                    connection,
+                    publisher_id,
+                    DistributionPlatform::JiscNbk,
+                )
+                .expect_err("JISC NBK is not assignable");
+                assert_eq!(
+                    error,
+                    ThothError::DistributionPlatformNotAssignable("JISC_NBK".to_string())
+                );
+                // The primitive failed before any write, so the caller's own
+                // transaction may be committed **or** rolled back with no hidden
+                // mutation either way.
+                if commit {
+                    Ok(())
+                } else {
+                    Err(ThothError::EntityNotFound)
+                }
+            })
+        };
+        assert_eq!(observed.is_ok(), commit);
+    }
+
+    let after =
+        PublisherDistributionPlatform::all_for_publisher(&pool, publisher_id).expect("load after");
+    assert_eq!(
+        after, before,
+        "no row may be created or changed by a rejected connection-scoped enable"
+    );
+    assert!(after
+        .iter()
+        .all(|row| row.platform != DistributionPlatform::JiscNbk));
+    assert_eq!(
+        Publisher::from_id(&pool, &publisher_id).expect("publisher after"),
+        publisher_before,
+        "this path never reaches the coordinator's committed-change phase"
+    );
+    let mut connection = pool.get().expect("connection");
+    let audit: i64 = crate::schema::publisher_service_configuration_history::table
+        .filter(
+            crate::schema::publisher_service_configuration_history::publisher_id.eq(publisher_id),
+        )
+        .count()
+        .get_result(&mut connection)
+        .expect("audit count");
+    assert_eq!(audit, 0);
 }
 
 // --------------------------------------------------------------------------
