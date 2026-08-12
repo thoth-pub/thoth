@@ -69,4 +69,4 @@ tokio = { version = "1.52.3", features = ["rt"] }
 
 [dev-dependencies]
 fs2 = "0.4.3"
-tokio = { version = "1.52.3", features = ["macros", "rt", "rt-multi-thread", "time"] }
+tokio = { version = "1.52.3", features = ["macros", "rt", "rt-multi-thread"] }

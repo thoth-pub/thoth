@@ -145,9 +145,18 @@ async fn scheduling_immediate_and_benign_yield_coalesce() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn scheduling_delayed_cohort_can_fragment_dispatch() {
     let (_guard, pool) = test_db::setup_test_db();
+    // Half the cohort performs unrelated awaited work until the first
+    // dispatch has demonstrably happened, so fragmentation is deterministic
+    // here. This characterizes why loader-first is a binding adoption rule:
+    // the library batches whatever is pending at a dispatch opportunity and
+    // guarantees nothing about arbitrarily late arrival cohorts.
     let (dispatches, sizes, calls, _) = scenario_run(&pool, 100, "childrenDelayed").await;
     assert_eq!(calls, 100);
     assert!(dispatches > 1, "delayed cohort must fragment: {sizes:?}");
+    assert!(
+        sizes.iter().all(|size| *size < 100),
+        "no single dispatch may contain the full cohort: {sizes:?}"
+    );
     assert_eq!(sizes.iter().sum::<usize>(), 100);
 }
 

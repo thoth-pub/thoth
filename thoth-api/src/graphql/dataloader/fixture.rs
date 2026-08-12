@@ -355,10 +355,19 @@ impl TestParent {
         unpack(bundle.mem.try_load(self.id).await)
     }
 
+    /// A resolver that deliberately violates loader-first for half its
+    /// cohort: odd-id resolvers perform unrelated awaited work until the
+    /// loader's **first dispatch has already happened**, then register their
+    /// keys. This makes dispatch fragmentation deterministic — the delayed
+    /// cohort can only land in a later batch — where a wall-clock sleep
+    /// proved scheduler/host dependent (a loaded CI runner coalesced a 1 ms
+    /// delayed cohort into a single dispatch).
     async fn children_delayed(&self, context: &Context) -> FieldResult<Vec<String>> {
         let bundle = loaders(context)?;
         if self.id % 2 == 1 {
-            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+            while bundle.mem_stats.dispatch_count() == 0 {
+                tokio::task::yield_now().await;
+            }
         }
         bundle.load_calls.fetch_add(1, Ordering::SeqCst);
         unpack(bundle.mem.try_load(self.id).await)
