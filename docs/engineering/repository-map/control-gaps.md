@@ -112,13 +112,15 @@ and recorded:
   [`ADR-01-CLOSEOUT-01`](../ai-delivery/tasks/ADR-01-CLOSEOUT-01.md).
 
 ADR-01 is `MERGED - COMPLETE`. It was an evidence and architecture-decision
-task: it is not runtime `IMPLEMENTED`, it is not `PRODUCTION READY`, and no
-runtime `DistributionPlatform` implementation exists. Resolving CG-07 makes
-no implementation task ready. `BE-02`'s ADR-01 dependency is satisfied, but
-`BE-02` remains blocked and unauthorized pending its own approved bounded
-specification and explicit implementation authorization from the
-then-current exact `develop` head. CG-11 and CG-13 are unchanged by the
-ADR-01 implementation and by this closeout.
+task: it is itself not runtime `IMPLEMENTED` and not `PRODUCTION READY`, and
+resolving CG-07 made no implementation task ready. The runtime
+`DistributionPlatform` implementation was delivered separately by `BE-02`. `BE-02`'s ADR-01 dependency was satisfied by
+that merge; `BE-02` was subsequently specified, authorized, implemented and
+merged as an inactive additive foundation through PR
+[#805](https://github.com/thoth-pub/thoth/pull/805), which authorized
+repository integration only and no deployment, migration execution, backfill
+or distribution activation. CG-11 and CG-13 are unchanged by the ADR-01
+implementation, by this closeout and by the BE-02 merge.
 
 ### CG-08 - Metrics readiness open
 

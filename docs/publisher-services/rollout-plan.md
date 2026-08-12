@@ -103,9 +103,23 @@ ADR-01 implementation state (2026-08-07):
   architecture-decision task that is not runtime implemented and not
   production ready. Post-merge control reconciliation is delivered by
   [ADR-01-CLOSEOUT-01](../engineering/ai-delivery/tasks/ADR-01-CLOSEOUT-01.md).
-  `BE-02`'s ADR-01 dependency is satisfied; `BE-02` remains blocked and
-  unauthorized pending its own approved bounded specification and explicit
-  implementation authorization.
+  `BE-02`'s ADR-01 dependency was satisfied by that merge.
+
+BE-02 implementation state (2026-08-12):
+
+- `BE-02` is `CLOSED`. The bounded implementation was delivered under its own
+  approved specification (PR [#788](https://github.com/thoth-pub/thoth/pull/788))
+  and separate explicit implementation authorization, and merged into `develop`
+  through implementation PR
+  [#805](https://github.com/thoth-pub/thoth/pull/805) as an inactive additive
+  foundation: the closed 17-value `DistributionPlatform` enum, the
+  `publisher_distribution_platform` relation, the assignment lifecycle, linked
+  OAPEN/DOAB normalization and four additive public GraphQL read surfaces. The
+  migration creates zero assignment rows. Merge authorized repository
+  integration only; deployment, environment and production migration execution,
+  assignment creation or backfill, distribution activation and
+  `OBSERVE`/`ENFORCE` remain separately gated and unauthorized. `BE-03`'s
+  `BE-02` dependency is satisfied; `BE-03` implementation is `NOT AUTHORIZED`.
 
 Outstanding evidence:
 

@@ -43,11 +43,13 @@ recorded but not implemented.
 The approval is a content approval bound to that exact head, and it became
 repository-authoritative when ADR-01 implementation PR
 [#783](https://github.com/thoth-pub/thoth/pull/783) merged into `develop` as
-`299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb` on 2026-08-07T10:02:34Z. No
-`DistributionPlatform` enum is implemented from this inventory: `BE-02`'s
-ADR-01 dependency is satisfied, but `BE-02` remains blocked and unauthorized
-pending its own approved bounded specification and explicit implementation
-authorization.
+`299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb` on 2026-08-07T10:02:34Z. The
+closed `DistributionPlatform` enum was subsequently implemented from exactly
+this inventory by `BE-02`, under its own approved bounded specification and
+separate explicit implementation authorization, and merged through
+[PR #805](https://github.com/thoth-pub/thoth/pull/805). This document remains
+the decision record; the implemented enum must continue to match it, and no
+destination is activated by its existence.
 
 ## 2. Behaviour vocabulary
 
@@ -151,8 +153,10 @@ value.
 
 ADR-0004 has been independently reviewed, explicitly CTO-approved and merged,
 so this inventory is final and repository-authoritative. It must still not be
-converted into production rows, jobs or an implemented enum outside a
-separately approved and authorized implementation task. `MIG-01` must use an
-approved mapping, dry run and no-job import mode. `BE-02`'s ADR-01 dependency
-is satisfied, and `BE-02` remains blocked and unauthorized pending its own
-approved bounded specification and explicit implementation authorization.
+converted into production rows or jobs outside a separately approved and
+authorized task. `MIG-01` must use an approved mapping, dry run and no-job
+import mode. The enum itself was implemented by the separately approved and
+authorized `BE-02` task and merged through
+[PR #805](https://github.com/thoth-pub/thoth/pull/805); that merge created zero
+assignment rows and authorized no deployment, migration execution, backfill or
+distribution activation.
