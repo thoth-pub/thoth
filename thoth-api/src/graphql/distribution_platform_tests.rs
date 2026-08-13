@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use super::dataloader::fixture::{BatchStats, SqlProbe};
 use super::dataloader::RequestLoaders;
+use super::sdl_support::sdl_block;
 use super::{create_schema, Context, GraphQLRequest, Schema};
 use crate::db::PgPool;
 use crate::model::publisher_distribution_platform::{
@@ -450,13 +451,7 @@ fn sdl_adds_exactly_the_approved_public_inventory() {
     }
 
     // Exactly 17 enum values, and the linked-group and behaviour vocabularies.
-    let platform_enum = sdl
-        .split_once("enum DistributionPlatform {")
-        .expect("DistributionPlatform enum")
-        .1
-        .split_once('}')
-        .expect("enum body")
-        .0;
+    let platform_enum = sdl_block(&sdl, "enum DistributionPlatform {");
     for code in [
         "INTERNET_ARCHIVE",
         "OAPEN",
@@ -481,22 +476,10 @@ fn sdl_adds_exactly_the_approved_public_inventory() {
     assert!(!platform_enum.contains("OTHER"));
     assert!(!platform_enum.contains("UNKNOWN"));
 
-    let group_enum = sdl
-        .split_once("enum DistributionPlatformGroup {")
-        .expect("group enum")
-        .1
-        .split_once('}')
-        .expect("enum body")
-        .0;
+    let group_enum = sdl_block(&sdl, "enum DistributionPlatformGroup {");
     assert!(group_enum.contains("OAPEN_DOAB"));
 
-    let behaviour_enum = sdl
-        .split_once("enum BackCatalogueBehaviour {")
-        .expect("behaviour enum")
-        .1
-        .split_once('}')
-        .expect("enum body")
-        .0;
+    let behaviour_enum = sdl_block(&sdl, "enum BackCatalogueBehaviour {");
     for value in ["AUTOMATIC_PUSH", "PULL_FEED", "MANUAL"] {
         assert!(behaviour_enum.contains(value));
     }
@@ -521,13 +504,7 @@ fn sdl_exposes_no_internal_or_protected_distribution_state() {
 
     // Activation identity, retained history, package/capability state and any
     // endpoint or credential identity stay out of the assignment type.
-    let assignment_type = sdl
-        .split_once("type PublisherDistributionPlatformAssignment {")
-        .expect("assignment type")
-        .1
-        .split_once('}')
-        .expect("type body")
-        .0;
+    let assignment_type = sdl_block(&sdl, "type PublisherDistributionPlatformAssignment {");
     for forbidden in [
         "activationId",
         "disabledAt",
@@ -545,13 +522,7 @@ fn sdl_exposes_no_internal_or_protected_distribution_state() {
     assert!(assignment_type.contains("platform: DistributionPlatform!"));
     assert!(assignment_type.contains("enabledAt: Timestamp!"));
 
-    let option_type = sdl
-        .split_once("type DistributionPlatformOption {")
-        .expect("option type")
-        .1
-        .split_once('}')
-        .expect("type body")
-        .0;
+    let option_type = sdl_block(&sdl, "type DistributionPlatformOption {");
     for forbidden in [
         "adapterProfile",
         "mechanismReadiness",
@@ -585,13 +556,7 @@ fn sdl_exposes_no_internal_or_protected_distribution_state() {
         "type PublisherDistributionPlatformAssignment {",
         "type Publisher {",
     ] {
-        let block = sdl
-            .split_once(be02_type)
-            .unwrap_or_else(|| panic!("SDL must declare `{be02_type}`"))
-            .1
-            .split_once('}')
-            .expect("type body")
-            .0;
+        let block = sdl_block(&sdl, be02_type);
         for forbidden in [
             "subscriptionPackage",
             "ThothPackage",
@@ -604,6 +569,19 @@ fn sdl_exposes_no_internal_or_protected_distribution_state() {
                 "`{be02_type}` must not expose `{forbidden}`"
             );
         }
+    }
+
+    // Coverage precondition for the public `Publisher` prohibitions above. Both
+    // fields are declared after `imprints`, whose nested object default ended
+    // the previous `split_once('}')` extraction, so this asserts the guard saw
+    // the whole declaration rather than a truncated prefix of it.
+    let publisher_type = sdl_block(&sdl, "type Publisher {");
+    for post_imprints_sentinel in ["contacts(", "distributionPlatforms:"] {
+        assert!(
+            publisher_type.contains(post_imprints_sentinel),
+            "guard coverage is incomplete: `{post_imprints_sentinel}` is declared after \
+             `imprints` but was not extracted: {publisher_type}"
+        );
     }
 
     // BE-02's four public read surfaces keep their exact merged signatures: the

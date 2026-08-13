@@ -20,7 +20,11 @@ Final programme PR required: NO
 Implementing model: Claude Opus 5 (`claude-opus-5`), implementation agent
 Reasoning level: Extra High / xhigh
 Independent reviewer/model: NOT PERFORMED BY THE IMPLEMENTATION AGENT - a
-different agent/model must review the exact head
+different agent/model must review the exact head. The previous exact head
+`1315057983d389d1ef6b85bc4e69b81eda53aa79` received an independent HIGH-risk
+implementation review whose decision was **BLOCKED** (section 16.1). That review
+applies **only** to that head. The remediation head produced by this cycle has
+**not** been independently reviewed and requires a fresh one.
 
 ### 1.1 Preflight record
 
@@ -68,11 +72,15 @@ changes or `workflow_dispatch`; any action on PR
 
 ## 3. Commits
 
-- `[sha]` - `feat(publisher-services): implement BE-03 protected service configuration`
+- `3facc3f9` - `feat(publisher-services): implement BE-03 protected service configuration`
+- `80eeb60c` - `docs(publisher-services): record BE-03 CI evidence`
+- `13150579` - `docs(publisher-services): clarify BE-03 CI evidence scope`
+  — the exact head that received the independent review recorded in section 16.1
+- `[remediation sha]` - `fix(publisher-services): remediate BE-03 independent review findings`
 
-The exact SHA is recorded on the pull request under ADR-0005; the branch carries
-one bounded implementation commit plus, if required, bounded remediation commits
-appended without rebase, amend or force-push.
+The exact head SHA is recorded on the pull request under ADR-0005. Remediation
+was appended as an ordinary commit on top of `13150579`: no rebase, no amend, no
+squash, no force-push, no new branch and no new pull request.
 
 ## 4. Files changed
 
@@ -81,8 +89,8 @@ appended without rebase, amend or force-push.
   - behavioural effect: adds `publisher.service_configuration_updated_at`, the
     `publisher_service_configuration_source` enum type and the
     `publisher_service_configuration_history` table with its primary key,
-    `ON DELETE CASCADE` foreign key, named non-blank actor check constraint and
-    composite index. Creates zero rows.
+    `ON DELETE CASCADE` foreign key, named non-whitespace actor check constraint
+    `CHECK (actor ~ '[^[:space:]]')` and composite index. Creates zero rows.
 - `thoth-api/migrations/20260813_v1.7.0/down.sql` (new)
   - reason: reversibility evidence.
   - behavioural effect: drops the table, the type and the column.
@@ -143,10 +151,22 @@ appended without rebase, amend or force-push.
 - `thoth-api/src/graphql/service_configuration_tests.rs` (new)
   - reason: authorization-matrix, capability, error-shape, query-count,
     loader-reuse and catalogue-scale evidence (23 tests).
+- `thoth-api/src/graphql/sdl_support.rs` (new, test-only)
+  - reason: the remediation of the P1 SDL guard coverage defect (section 16.3).
+  - behavioural effect: none in production. Gated
+    `#[cfg(all(test, feature = "backend"))]`, it provides the single
+    brace-balanced, string-aware `sdl_block` extractor both guards now use, plus
+    six tests of the extractor itself including the post-`imprints` tampered-field
+    regression.
 - `thoth-api/src/graphql/tests.rs`
-  - reason: **authorized SDL guard amendment** (section 12.3).
+  - reason: **authorized SDL guard amendment** (section 12.3), plus the section
+    16.3 coverage repair — it now uses the shared extractor and asserts the
+    post-`imprints` sentinels.
 - `thoth-api/src/graphql/distribution_platform_tests.rs`
-  - reason: **authorized SDL guard amendment** (section 12.3).
+  - reason: **authorized SDL guard amendment** (section 12.3), plus the section
+    16.3 coverage repair. Every `.split_once('}')` extraction in the file is
+    replaced by the shared extractor; BE-02's four verbatim read-surface
+    assertions are unchanged.
 - `thoth-errors/src/lib.rs`
   - reason: exactly one new variant and exactly one new `into_field_error` arm.
 - `CHANGELOG.md`, `docs/publisher-services/task-status.md`,
@@ -215,27 +235,33 @@ Decisions taken within the approved design:
 
 Deviations from the specification: NONE.
 
-Two specification statements could not be satisfied as literally written, both
-recorded here as reviewed conclusions rather than silent choices:
+Two specification statements could not be satisfied as literally written at the
+previous head. **Both are now resolved by the CTO-authorized bounded
+specification corrections of section 16**, and the specification text in this
+pull request has been amended accordingly:
 
-- **Section 14.3 item 3 — "commit the regenerated
+- **Section 14.3 item 3 previously said "commit the regenerated
   `thoth-client/assets/schema.graphql`".** That file is **generated and
   gitignored** in this repository (`thoth-client/.gitignore:1:assets/schema.graphql`),
-  written by `thoth-client/build.rs` on every build. Merged repository evidence
-  outranks the specification here (root `AGENTS.md` section 2 authority order),
-  so the artifact is not committed. It was instead regenerated at the
-  implementation head, diffed against the artifact regenerated from the
-  authorized base in a separate worktree, and the exact diff is reproduced in
-  section 7.2 with the artifact's SHA-256 for APP-01 pinning.
-- **Section 18.4 — "the non-blank actor check constraint rejects a blank or
-  whitespace-only actor".** The constraint's SQL is prescribed verbatim by
-  section 8.1 as `CHECK (btrim(actor) <> '')`, and PostgreSQL's one-argument
-  `btrim` trims **spaces only**. The constraint therefore rejects `''` and
-  space-only actors but not a tab-only or newline-only actor. The prescribed SQL
-  was implemented unchanged and the test asserts exactly what it guarantees; the
-  gap is recorded in section 13 as a known limitation rather than closed by
-  deviating from the approved DDL. No BE-03 write path can produce such a value:
-  the only production writer takes the actor from `PolicyContext::user_id()`.
+  written by `thoth-client/build.rs` on every build, so the instruction was
+  unsatisfiable and merged repository evidence outranked it (root `AGENTS.md`
+  section 2 authority order). The amended §14.3 item 3 now requires regeneration
+  through the normal build path, the exact SDL diff against the authorized base,
+  a reproducible artifact identity, workspace-path client verification and the
+  backend head for APP-01 pinning — which is what sections 7.2, 7.4, 7.5 and 9.4
+  record. Nothing is unsatisfiable and nothing is deviated from.
+- **Section 18.4 previously required rejecting "a blank or whitespace-only
+  actor" while section 8.1 prescribed `CHECK (btrim(actor) <> '')`**, which
+  trims spaces only and therefore accepts a tab-only or newline-only actor. That
+  contradiction was the P1 authority conflict. The CTO resolved it in favour of
+  the invariant — an audit actor must contain at least one non-whitespace
+  character — and both sections now express it, with the predicate
+  `CHECK (actor ~ '[^[:space:]]')`. Evidence in section 9.1.
+
+**The amended specification text is a candidate in this pull request. It is not
+yet reachable from `develop`**, which remains at
+`3b6b3a31f9358011f0c998015dfd0c2508380e83`, and nothing here should be read as
+claiming it is already merged.
 
 ## 6. Database and migration effects
 
@@ -319,6 +345,15 @@ and the two files compared.
 added lines:   72
 removed lines: 0
 ```
+
+**Re-run after the complete remediation**, as required, even though no GraphQL
+production shape was expected to change. Base artifact SHA-256
+`0ba96aa1aa15006e8bf8b9f4a711f9e493eec4ce51911eebc32fb99d1ba53a67`; head artifact
+SHA-256 `25329c1687d8b4222638c2f673bd2751a13adeda8c6f181d4ac83e869abac479`. The
+diff is unchanged at 72 added / 0 removed, and the head artifact is
+**byte-identical to the pre-remediation head** — independent confirmation that
+the SDL guard repair, the single-`UPDATE` correction and the documentation
+corrections changed no production GraphQL contract.
 
 The complete diff, in file order:
 
@@ -435,9 +470,14 @@ with a `[]` default**, matching the merged convention exactly. None renders as
 ### 7.4 Generated schema/client updates
 
 - `thoth-client/assets/schema.graphql` is **build-generated and gitignored** in
-  this repository, so it is not committed; see section 5. Its SHA-256 at the
-  implementation head is
+  this repository, so it is regenerated rather than committed, exactly as the
+  amended specification §14.3 item 3 requires; see sections 5 and 16.2. Its
+  SHA-256 at the remediation head is
   `25329c1687d8b4222638c2f673bd2751a13adeda8c6f181d4ac83e869abac479`.
+  `thoth-client/.gitignore` was not modified and the artifact was not
+  force-added: `git check-ignore -v thoth-client/assets/schema.graphql` reports
+  `thoth-client/.gitignore:1:assets/schema.graphql`, and
+  `git status --porcelain thoth-client/` is empty.
 - `thoth-client/assets/queries.graphql`: **unchanged**, as a reviewed
   conclusion, not an omission. BE-03 adds protected operations the internal
   export client does not consume, and it changes no field the client already
@@ -537,6 +577,48 @@ re-apply -> 20250000 20260417 20260429 20260504 20260805 20260812 20260813
 
 Catalog verification (same database):
 
+**Re-verified at the remediation head**, after the actor predicate correction,
+on a fresh disposable database `thoth_be03_mig` (PostgreSQL 17.10 Homebrew;
+CI uses `postgres:17`). Apply on empty → revert → re-apply, all clean through the
+embedded runner (`cargo run migrate`, `cargo run migrate --revert`). Post-revert
+the table, the enum type and the `publisher` column are all absent; post-re-apply
+the catalog reports:
+
+```text
+publisher_service_configuration_history_actor_check => CHECK ((actor ~ '[^[:space:]]'::text))
+enum labels: SUPERUSER_API,MIGRATION_BACKFILL
+index: publisher_service_configuration_history_pkey
+index: publisher_service_configuration_history_publisher_created_idx
+publisher column: service_configuration_updated_at timestamp with time zone nullable=NO
+```
+
+**Whitespace rejection matrix**, executed as real `INSERT`s against that live
+constraint (not simulated), each rejected specifically by
+`publisher_service_configuration_history_actor_check`:
+
+| Actor | Result |
+|---|---|
+| `''` (empty) | REJECTED |
+| `' '` | REJECTED |
+| `'   '` | REJECTED |
+| `'\t'` | REJECTED |
+| `'\n'` | REJECTED |
+| `'\r'` | REJECTED |
+| `'\v'` (`U+000B`) | REJECTED |
+| `'\f'` (`U+000C`) | REJECTED |
+| `' \t\n\r\v\f '` | REJECTED |
+| `'  real-actor-42  '` | ACCEPTED |
+| `'\t\nreal-actor-42\r\n'` | ACCEPTED |
+
+The POSIX class was verified against the actual server before the predicate was
+chosen: `SELECT ch ~ '[[:space:]]'` is true for all six required classes, and
+`SELECT ch ~ '[^[:space:]]'` is false for each of them, whereas
+`btrim(ch) <> ''` is **true** for tab, newline, carriage return, vertical tab and
+form feed — which is precisely the defect the correction closes.
+
+Catalog verification of the original apply (all values unchanged except the
+constraint predicate):
+
 ```text
 publisher_service_configuration_source: 1 SUPERUSER_API, 2 MIGRATION_BACKFILL
 publisher.service_configuration_updated_at | timestamp with time zone | NOT NULL | default CURRENT_TIMESTAMP
@@ -545,7 +627,7 @@ publisher_service_configuration_history columns: history_id uuid NOT NULL defaul
   before_state jsonb NOT NULL; after_state jsonb NOT NULL;
   created_at timestamptz NOT NULL default CURRENT_TIMESTAMP
 constraints:
-  publisher_service_configuration_history_actor_check       CHECK ((btrim(actor) <> ''::text))
+  publisher_service_configuration_history_actor_check       CHECK ((actor ~ '[^[:space:]]'::text))
   publisher_service_configuration_history_pkey              PRIMARY KEY (publisher_service_configuration_history_id)
   publisher_service_configuration_history_publisher_id_fkey FOREIGN KEY (publisher_id)
       REFERENCES publisher(publisher_id) ON DELETE CASCADE
@@ -639,7 +721,7 @@ cargo check --workspace
 ```
 
 ```text
-Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 43s
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 44s
 ```
 
 ```bash
@@ -660,7 +742,7 @@ cargo test -p thoth-api --features backend
 ```
 
 ```text
-lib:                1047 passed; 0 failed
+lib:                1055 passed; 0 failed
 graphql_permissions:  13 passed; 0 failed
 doc-tests:             0 passed; 8 ignored
 ```
@@ -672,21 +754,32 @@ cargo test --workspace
 ```text
 thoth (lib)            0 passed; 0 failed
 thoth (bin)           14 passed; 0 failed
-thoth_api (lib)     1047 passed; 0 failed
+thoth_api (lib)     1055 passed; 0 failed
 graphql_permissions   13 passed; 0 failed
 thoth_api_server       3 passed; 0 failed
 thoth_client           4 passed; 0 failed
 thoth_errors          11 passed; 0 failed
 thoth_export_server  144 passed; 0 failed
 doc-tests            8 passed; 8 ignored  (thoth_client 6, thoth_export_server 2)
-TOTAL               1244 passed; 0 failed
+TOTAL               1252 passed; 0 failed
 ```
 
-BE-03 adds **72** tests: 45 in
-`model::publisher_service_configuration::tests`, 23 in
-`graphql::service_configuration_tests`, 2 connection-scoped primitive
-regressions in `model::publisher_distribution_platform::tests`, and 2 replacing
-1 in the amended `graphql::tests` SDL guard.
+BE-03 adds **80** tests: 45 in
+`model::publisher_service_configuration::tests`, 25 in
+`graphql::service_configuration_tests`, 6 in the new test-only
+`graphql::sdl_support`, 2 connection-scoped primitive regressions in
+`model::publisher_distribution_platform::tests`, and 2 replacing 1 in the
+amended `graphql::tests` SDL guard.
+
+The remediation added **8** of those: the 6 `sdl_support` extractor tests
+(section 16.3), `every_committed_change_issues_exactly_one_publisher_update`
+(section 9.7) and
+`the_assignment_loader_chunks_a_page_larger_than_the_maximum_batch`
+(section 9.5). Two existing tests were strengthened rather than added — the
+actor-constraint test now asserts the full whitespace matrix, and
+`the_migrated_database_matches_the_schema_contract` now asserts the constraint's
+catalog definition rather than only its name. No test's expectation was
+weakened or removed.
 
 ```bash
 cargo test -p thoth-export-server
@@ -717,12 +810,30 @@ Measured with the existing observed-loader harness
 | 1 | 1 | 1 | 1 | `[1]` |
 | 25 | 1 | 1 | 1 | `[25]` |
 | 200 | 1 | 1 | 1 | `[200]` |
+| 201 | 1 | 1 | **2** | `[200, 1]` |
 
-The latest-change statement contains `DISTINCT ON` and `= ANY`; the assignment
-statement contains `= ANY`. The count does not grow with N and there is no
-per-publisher loop. The single-publisher protected query issues exactly one
-assignment statement, one loader dispatch of size 1, and **zero** history
-statements. No second assignment loader exists: asserted by
+**The accurate statement shape is bounded, not constant.** The merged ADR-0007
+assignment DataLoader is configured with
+`crate::graphql::dataloader::MAX_BATCH_SIZE = 200`, so it chunks larger key
+sets. For a report page containing N publishers the request issues:
+
+```text
+2 set-based report statements
++ ceil(N / MAX_BATCH_SIZE) set-based assignment-loader dispatches
+```
+
+with **no per-publisher SQL loop**. The earlier phrasing "the count does not
+grow with N" was wrong without that qualification: it holds only while
+N ≤ `MAX_BATCH_SIZE`, which is why 201 is asserted as a regression point
+(`the_assignment_loader_chunks_a_page_larger_than_the_maximum_batch`) alongside
+the required 1, 25 and 200 measurements. At 201 the observed chunks are
+`[200, 1]` and the observed assignment dispatch count is exactly 2, matching
+`ceil(201 / 200)`.
+
+The latest-change statement contains `DISTINCT ON` and `= ANY`; every assignment
+dispatch contains `= ANY`. The single-publisher protected query issues exactly
+one assignment statement, one loader dispatch of size 1, and **zero** history
+statements. No second assignment loader was introduced: asserted by
 `no_second_assignment_loader_was_introduced`, and the protected resolver is
 loader-first and `try_load`-only, asserted by source inspection.
 
@@ -768,50 +879,78 @@ mutation on a materially larger catalogue. **This is empirical evidence about
 the shape of the cost. It is not a production SLA, it is not extrapolated to
 production, and no "safe" catalogue size is derived from it.**
 
+Re-measured at the remediation head, after the single-publisher-`UPDATE`
+correction. The previous head's figures (24 statements, 86.35 ms) are superseded
+and are **not** reused:
+
 ```text
 target works:                                        2000
 control works (a different publisher):                250
-SQL statements issued by the configuration operation:  24
+SQL statements issued by the configuration operation:  23
+publisher UPDATE statements:                            1
 work rows changed by the publisher trigger:          2000
 unrelated publisher work rows changed:                  0
-request duration in this disposable environment:  86.35 ms
+request duration in this disposable environment:  39.55 ms
 ```
 
-Of the 24 captured statements: 2 are pooled-connection health checks
+This request changes the package **and** the platforms — the case that
+previously cost two publisher `UPDATE`s — and now issues exactly one, captured
+verbatim as statement 16:
+
+```sql
+UPDATE "publisher" SET "subscription_package" = $1,
+  "service_configuration_updated_at" =
+    GREATEST(CURRENT_TIMESTAMP,
+             service_configuration_updated_at + interval '1 microsecond')
+WHERE ("publisher"."publisher_id" = $2) RETURNING ...
+```
+
+Of the 23 captured statements: 2 are pooled-connection health checks
 (`SELECT 1`), `BEGIN`/`COMMIT` are 2, 3 are Diesel `pg_type` OID lookups, 1 is
 the post-commit DataLoader read serving the mutation's own response, and the
-remaining 16 are the coordinator's own reads and writes — the publisher lock
+remaining 15 are the coordinator's own reads and writes — the publisher lock
 (taken 3 times: once by the coordinator and once inside each connection-scoped
 primitive, harmless no-ops after the first), the publisher row read, the enabled
-assignment reads, the package `UPDATE`, the linked-group member reads and
-transaction timestamps, three assignment upserts, the token `UPDATE` and the
-audit `INSERT`. **The count is bounded by the closed 17-value platform inventory
-and does not grow with catalogue size.**
+assignment reads, the linked-group member reads and transaction timestamps,
+three assignment upserts, the **single** publisher `UPDATE` carrying both the
+package and the token, the after-state assignment read and the audit `INSERT`.
+**The count is bounded by the closed 17-value platform inventory and does not
+grow with catalogue size.**
 
 **No per-work application loop exists**: the request issues **no statement at
 all** against the `work` table, asserted by the test. The 2 000 work rows are
 changed by the existing `AFTER UPDATE` trigger's single set-based
-`UPDATE work ... FROM imprint WHERE imprint.publisher_id = NEW.publisher_id`.
-Because this request changed the package *and* the platforms, the publisher row
-is updated twice (specification section 7.3 steps 8 and 10), so that set-based
-statement runs **twice** over the same 2 000 rows; a platform-only change or a
-linked repair updates the publisher row once and runs it once.
+`UPDATE work ... FROM imprint WHERE imprint.publisher_id = NEW.publisher_id`,
+which now runs **once** for every committed change shape. Asserted per shape by
+`every_committed_change_issues_exactly_one_publisher_update`:
+
+| Committed change | Publisher `UPDATE`s | Work-freshness cascades |
+|---|---:|---:|
+| package-only | 1 | 1 |
+| platform-only | 1 | 1 |
+| linked repair | 1 | 1 |
+| combined package + platform | 1 | 1 |
+| true no-op | 0 | 0 |
+| stale | 0 | 0 |
 
 The transaction's real footprint is therefore `one publisher row + bounded
-configuration/audit rows + N related work rows`, the work-row locks are held for
+configuration/audit rows + N related work rows` for **every** committed change
+shape — no longer `2N` for a combined change. The work-row locks are held for
 the remainder of the transaction, and the publisher `FOR UPDATE` lock is held
 while the trigger's work executes, so concurrent configuration writers for the
 same publisher serialize behind all of it. BE-04 inherits this with the
 transaction boundary.
 
-**Stop-condition 19 assessment: NOT TRIGGERED.** At 2 000 works the whole
-request took 86 ms in this disposable environment, the statement count is
-bounded and independent of catalogue size, the cascade is one set-based
-statement per publisher `UPDATE` rather than a loop, and unrelated publishers
-are provably untouched. The implementing agent does **not** judge this a
-material operational problem at realistic catalogue sizes. The measurement is
-placed before the independent reviewer to assess independently. No trigger,
-package location or token architecture was altered.
+**Stop-condition 19 reassessment, from the new evidence: NOT TRIGGERED.** At
+2 000 works the whole request took 39.55 ms in this disposable environment —
+against 86.35 ms for the same fixture before the correction — the statement
+count is bounded at 23 and independent of catalogue size, the cascade is now
+exactly one set-based statement per committed change rather than up to two, and
+unrelated publishers are provably untouched. The implementing agent does **not**
+judge this a material operational problem at realistic catalogue sizes. The
+measurement is placed before the independent reviewer to assess independently.
+No trigger, package location or token architecture was altered; the correction
+removed a redundant `UPDATE` from BE-03's own coordinator only.
 
 ### 9.8 Concurrency evidence
 
@@ -859,8 +998,12 @@ All against a real database with two threads and separate pooled connections:
 - `actor` equals the caller's `PolicyContext::user_id()`;
 - `source` is `SUPERUSER_API` for **every** row BE-03 writes, and no BE-03 path
   writes `MIGRATION_BACKFILL` — asserted over a three-change sequence;
-- the non-blank actor check rejects `''`, `' '` and `'   '` (see the section 5
-  `btrim` limitation);
+- the actor check enforces the non-whitespace invariant: it rejects `''`, `' '`,
+  `'   '`, `'\t'`, `'\n'`, `'\r'`, `'\u{0b}'`, `'\u{0c}'` and a mixed
+  whitespace string, and accepts `'  real-actor-42  '` and
+  `'\t\nreal-actor-42\r\n'` — asserted by
+  `the_database_rejects_an_actor_with_no_non_whitespace_character` against the
+  real database constraint (section 9.1 carries the catalog evidence);
 - a committed configuration change writes **no** `publisher_history` row,
   confirming the coordinator does not route the package update through
   `Crud::update`;
@@ -1016,25 +1159,42 @@ grep -rn 'replace_publisher_service_configuration' <scope>
 grep -rnE 'PublisherDistributionPlatform::(enable|disable)\(' <scope>
 ```
 
-**66 hits, every one in a `tests.rs` file** — 14 in
-`graphql/distribution_platform_tests.rs`, 50 in
-`model/publisher_distribution_platform/tests.rs`, 2 in
-`model/publisher_service_configuration/tests.rs` (the direct-BE-02 concurrency
-test). **BE-02's pool-level lifecycle functions have zero production call
-sites**, exactly as specification section 2.1 item 7 recorded, so BE-03
-establishes the single production write path without displacing any existing
-production caller.
+**61 hits, every one in a `tests.rs` file**, file by file:
+
+| File | Hits | Classification |
+|---|---:|---|
+| `thoth-api/src/model/publisher_distribution_platform/tests.rs` | 45 | test |
+| `thoth-api/src/graphql/distribution_platform_tests.rs` | 14 | test |
+| `thoth-api/src/model/publisher_service_configuration/tests.rs` | 2 | test (the direct-BE-02 concurrency test) |
+| **Total** | **61** | **production: 0** |
+
+`grep -v 'tests\.rs:'` over the same result set returns nothing, so **BE-02's
+pool-level lifecycle functions have zero production call sites**, exactly as
+specification section 2.1 item 7 recorded. BE-03 therefore establishes the
+single production write path without displacing any existing production caller.
+
+> **Correction.** The previous head's report stated "66 hits … 50 in
+> `model/publisher_distribution_platform/tests.rs`". Both numbers were wrong and
+> not reproducible. The figures above were produced by re-running the search at
+> the remediation head with `/usr/bin/grep` and the seven explicit scope paths,
+> and the per-file counts were derived from the same result set with
+> `awk -F: '{c[$1]++}'` rather than counted by hand. The security-relevant
+> invariant — zero production callers — was and remains unchanged.
 
 ```bash
 grep -rnE '(enable_on|disable_on)\(' <scope>
 ```
 
+**15 hits**, file by file: `model/publisher_distribution_platform/crud.rs` 4,
+`model/publisher_distribution_platform/tests.rs` 9,
+`model/publisher_service_configuration/crud.rs` 2.
+
 | Location | Classification |
 |---|---|
 | `model/publisher_distribution_platform/crud.rs:103,175` | definitions |
 | `model/publisher_distribution_platform/crud.rs:80,162` | production — BE-02's own pool-level wrappers delegating to them |
-| `model/publisher_service_configuration/crud.rs:138,154` | **production — the coordinator, the only production configuration caller** |
-| `model/publisher_distribution_platform/tests.rs:1200-1302` (9 hits) | tests |
+| `model/publisher_service_configuration/crud.rs:135,151` | **production — the coordinator, the only production configuration caller** |
+| `model/publisher_distribution_platform/tests.rs` (9 hits) | tests |
 
 **Bypass search.**
 
@@ -1053,11 +1213,16 @@ Complete relevant production matches, with every write classified:
 
 | Write target | Production writer | Classification |
 |---|---|---|
-| `publisher.subscription_package` | `model/publisher_service_configuration/crud.rs:126` | the coordinator, step 8 — **the only writer** |
-| `publisher.service_configuration_updated_at` | `model/publisher_service_configuration/crud.rs:177-180` | the coordinator, step 10 — **the only writer** |
+| `publisher.subscription_package` | `model/publisher_service_configuration/crud.rs:187` | the coordinator, step 10 — **the only writer** |
+| `publisher.service_configuration_updated_at` | `model/publisher_service_configuration/crud.rs:187,195` | the coordinator, step 10 — **the only writer**; the two lines are the package-carrying and token-only branches of the **same single** `UPDATE` |
 | `publisher_distribution_platform` (INSERT) | `model/publisher_distribution_platform/crud.rs:122` | inside `enable_on` |
 | `publisher_distribution_platform` (UPDATE) | `model/publisher_distribution_platform/crud.rs:192` | inside `disable_on` |
-| `publisher_service_configuration_history` (INSERT) | `model/publisher_service_configuration/crud.rs:208` | the coordinator, step 11 — **the only writer** |
+| `publisher_service_configuration_history` (INSERT) | `model/publisher_service_configuration/crud.rs:223` | the coordinator, step 11 — **the only writer** |
+
+Exactly one of the two `crud.rs` publisher branches executes per committed
+change, so a committed change is one `UPDATE`. `publisher::table` is written
+inline in both branches rather than through a hoisted local, specifically so
+both remain visible to this search.
 
 Every other production match of those identifiers is a `schema.rs` column
 declaration, a struct field, a doc comment, a **read** (`crud.rs:436` package
@@ -1189,11 +1354,12 @@ activation, which remains separately gated and unauthorized.
 1. **The single-write-coordinator invariant is not type-enforced.** It is held by
    specification, review and the section 9.13 search evidence. The lower-level
    BE-02 primitives remain capable of writing assignments without the token.
-2. **`btrim(actor) <> ''` trims spaces only.** The approved DDL is implemented
-   verbatim, so a tab-only or newline-only actor would satisfy the constraint. No
-   BE-03 write path can produce one — the only production writer supplies
-   `PolicyContext::user_id()` — and strengthening the predicate would deviate
-   from the approved specification, so it is recorded here instead.
+2. ~~**`btrim(actor) <> ''` trims spaces only.**~~ **RESOLVED BY CTO-DIRECTED
+   SPECIFICATION CORRECTION.** See section 16.1. The authoritative invariant is
+   that an audit actor must contain at least one non-whitespace character; the
+   constraint is now `CHECK (actor ~ '[^[:space:]]')` under the same name, and
+   the whitespace matrix is proven rejected. This is no longer an accepted
+   limitation.
 3. **`EntityNotFound` and `DistributionPlatformNotAssignable` still surface as
    `INTERNAL_ERROR`.** Changing that would alter BE-02's merged contract and
    normalize unrelated error families; recorded rather than silently changed.
@@ -1204,16 +1370,23 @@ activation, which remains separately gated and unauthorized.
    polling `updatedAtWithRelations` or watching export-cache regeneration can
    infer that something changed for that publisher at that time. This is
    acknowledged, not denied.
-6. **A package change updates the publisher row twice** (steps 8 and 10), so the
-   work-freshness cascade runs twice over the same rows for such a change. This
-   follows the specified transaction sequence; it is measured in section 9.7
-   rather than optimized away by reordering approved steps.
+6. ~~**A package change updates the publisher row twice**~~ **RESOLVED BY
+   CTO-AUTHORIZED BOUNDED CORRECTION.** See section 16.1. Step 8 now compares
+   only and step 10 issues a single conditional `UPDATE`, so every committed
+   change shape costs exactly one publisher `UPDATE` and one work-freshness
+   cascade. Measured in section 9.7 and asserted per shape by
+   `every_committed_change_issues_exactly_one_publisher_update`.
 7. **`thoth-client` cannot be built or tested as a single package** in this
    repository. Pre-existing and reproduced at the authorized base; the workspace
-   forms are used instead.
-8. **`thoth-client/assets/schema.graphql` is gitignored**, so the pinned contract
-   is identified by commit SHA plus the artifact SHA-256 in section 7.5 rather
-   than by a committed file.
+   forms are used instead. This is a build-topology property of the repository,
+   not a BE-03 limitation.
+8. ~~**`thoth-client/assets/schema.graphql` is gitignored**, so the requirement to
+   commit it is unsatisfiable.~~ **RESOLVED BY CTO-AUTHORIZED SPECIFICATION
+   CORRECTION.** See section 16.1. The specification no longer requires
+   committing the generated artifact; it requires regeneration through the normal
+   build path plus the recorded diff, artifact hash, client verification and
+   backend head, which is what sections 7.2, 7.4 and 7.5 provide. Nothing here is
+   unsatisfiable.
 9. Deferred by design and unauthorized here: BE-04 durable jobs, MIG-01 backfill
    (`MIGRATION_BACKFILL` is defined and never written), APP-01, APP-02, and any
    deployment, environment or production migration, assignment creation,
@@ -1244,10 +1417,106 @@ Suggested review focus:
 4. **The section 9.7 catalogue-scale measurement**, and whether the reviewer
    agrees with the implementing agent's stop-condition 19 assessment that the
    cascade is not a material operational problem.
-5. **The `btrim` limitation** (section 13 item 2): whether implementing the
-   approved DDL verbatim, and recording the gap, was the right call versus
-   raising it as a specification correction.
-6. **The two specification statements that could not be satisfied literally**
-   (section 5): the gitignored generated schema, and the `btrim` semantics.
+5. **The remediation cycle of section 16**, in particular that the two
+   specification corrections stay within what the CTO authorized and widen
+   nothing else.
+6. **The corrected actor constraint**: the catalog definition, the whitespace
+   rejection matrix, and that no audit architecture, column, constraint name or
+   source semantics moved with it.
 7. **Migration reversibility and the populated-database evidence**, including
    the unchanged `relfilenode` and the byte-identical assignment digest.
+8. **The corrected numeric evidence** — the 61 pool-level hits, the
+   `ceil(N / MAX_BATCH_SIZE)` statement formula, and the re-measured
+   catalogue-scale figures — all of which should be reproduced independently at
+   the exact head rather than taken from this report.
+
+## 16. Remediation cycle
+
+### 16.1 Independent review and CTO decision
+
+The exact head `1315057983d389d1ef6b85bc4e69b81eda53aa79` received a fresh
+independent HIGH-risk implementation review whose decision was **BLOCKED**, on
+five findings:
+
+| # | Severity | Finding |
+|---|---|---|
+| 1 | P1 | SDL guard coverage defect |
+| 2 | P1 | actor-check specification contradiction |
+| 3 | P2 | double publisher `UPDATE` / doubled trigger cascade |
+| 4 | P2 | DataLoader statement-count overclaim |
+| 5 | P2 | lifecycle call-site count arithmetic |
+
+Finding 2 was an authority conflict — the approved specification's exact DDL
+(`CHECK (btrim(actor) <> '')`) contradicted its own acceptance-test wording
+(reject "a blank or whitespace-only actor") — and only the CTO could resolve it.
+The CTO resolved it and authorized bounded corrections to all five findings plus
+the generated-schema wording. This remediation implements exactly that
+authorization and nothing wider.
+
+### 16.2 Material CTO-directed corrections
+
+1. **Actor invariant resolved toward non-whitespace.** The authoritative
+   invariant is that an audit actor must contain at least one non-whitespace
+   character. The specification's DDL and its §9.2, §15, §18.4 and §18.7 wording
+   now express that one invariant, and the unmerged migration's predicate is
+   `CHECK (actor ~ '[^[:space:]]')`. The table, the `actor text NOT NULL` column,
+   the constraint name `publisher_service_configuration_history_actor_check` and
+   the whole audit architecture are unchanged; only the predicate is
+   strengthened, and no second constraint was added. `source` semantics,
+   `SUPERUSER_API`, `MIGRATION_BACKFILL`, actor provenance, the audit JSON and
+   the history-table structure are untouched.
+2. **Generated-schema contract aligned to established repository mechanics.**
+   `thoth-client/assets/schema.graphql` is build-generated and ignored under
+   existing repository authority (root `AGENTS.md` §12.2, `thoth-client/AGENTS.md`
+   §1). Specification §14.3 item 3 no longer requires committing it and instead
+   requires regeneration through the normal build path, the exact SDL diff
+   against the authorized base, a reproducible artifact identity, workspace-path
+   client verification and the backend head for APP-01 pinning.
+   `thoth-client/.gitignore` was not modified, the artifact was not force-added,
+   and `thoth-app` was not touched.
+3. **Doubled publisher `UPDATE` removed.** Specification §7.3 steps 8 and 10 and
+   the coordinator now defer the package write into a single conditional
+   publisher `UPDATE` issued after the lifecycle outcomes are known. Sections
+   9.7 and 9.5 carry the re-measured evidence.
+4. **SDL guard coverage repaired.** Both authorized guards now extract the whole
+   generated type body. Section 16.3.
+5. **Query-count wording corrected** to the bounded
+   `2 + ceil(N / MAX_BATCH_SIZE)` formula, with a 201-publisher regression.
+   Section 9.5.
+6. **Bypass evidence corrected**: the pool-level enable/disable count is 61 at
+   this head, with per-file counts derived mechanically. Section 9.13.
+
+### 16.3 SDL guard extraction
+
+The previous `sdl_block()` helper took `.split_once('}')`, which stops at the
+**first** closing brace after the declaration. In the real generated SDL the
+public `Publisher` type declares
+`order: ImprintOrderBy = {direction: "ASC", field: "IMPRINT_NAME"}` inside the
+`imprints` field, so extraction stopped there and every field after `imprints` —
+`contacts` and `distributionPlatforms` — was never inspected. A protected field
+added after `imprints` would have passed both guards silently.
+
+Extraction now lives in one place, `thoth-api/src/graphql/sdl_support.rs`, and is
+**brace-balanced and string-aware**. String awareness is required, not
+defensive: the real SDL contains braces inside descriptions (`\d{4,9}` in the
+`doi` description), escaped quotes (the `Timestamp` description) and `"""` block
+strings inside a type body (`Imprint.crossmarkDoi`).
+
+Measured on the real generated SDL, and on a tampered copy with
+`subscriptionPackage: ThothPackage!` inserted **after** `imprints`:
+
+| Extraction | `Publisher` block | contains `contacts(` | contains `distributionPlatforms:` | catches tampered field |
+|---|---:|---|---|---|
+| old `split_once('}')` | 1203 chars | no | no | **no** |
+| new brace-balanced | 1733 chars | yes | yes | **yes** |
+
+Both guards now additionally assert those two post-`imprints` sentinels as a
+coverage precondition, so a future truncation fails the guard rather than
+silently shrinking it. `sdl_support` carries six of its own tests, including the
+tampered-field regression and two `should_panic` cases. The real regenerated
+`Publisher` type contains none of `subscriptionPackage`, `effectiveCapabilities`,
+any capability field, `serviceConfiguration*` or `serviceConfigurationUpdatedAt`.
+BE-02's four approved public read surfaces are asserted verbatim and unchanged.
+The guards were strengthened, never weakened or deleted, and no production
+GraphQL contract changed — the regenerated SDL is byte-identical to the previous
+head (section 7.4).

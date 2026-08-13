@@ -438,18 +438,13 @@ fn the_mutation_writes_no_publisher_history_row() {
 }
 
 #[test]
-fn the_database_rejects_a_blank_or_space_only_actor() {
+fn the_database_rejects_an_actor_with_no_non_whitespace_character() {
     let (_guard, pool) = test_db::setup_test_db();
     let publisher = test_db::create_publisher(&pool);
     let mut connection = pool.get().expect("connection");
 
-    // The approved constraint is exactly `CHECK (btrim(actor) <> '')`.
-    // PostgreSQL's one-argument `btrim` trims spaces only, so an actor made
-    // solely of tabs or newlines is **not** rejected by it. That limitation is
-    // recorded in the implementation report rather than silently strengthened,
-    // because the constraint's SQL is prescribed by the approved specification.
-    for actor in ["", " ", "   "] {
-        let outcome = diesel::insert_into(publisher_service_configuration_history::table)
+    let insert = |connection: &mut diesel::PgConnection, actor: &str| {
+        diesel::insert_into(publisher_service_configuration_history::table)
             .values(&NewPublisherServiceConfigurationHistory {
                 publisher_id: publisher.publisher_id,
                 actor: actor.to_string(),
@@ -457,16 +452,50 @@ fn the_database_rejects_a_blank_or_space_only_actor() {
                 before_state: serde_json::json!({}),
                 after_state: serde_json::json!({}),
             })
-            .execute(&mut connection);
+            .execute(connection)
+    };
+
+    // The invariant is that an audit actor must contain at least one
+    // non-whitespace character, enforced by
+    // `CHECK (actor ~ '[^[:space:]]')`. The POSIX `[[:space:]]` class covers
+    // every case below, so each is rejected by the database itself. A narrower
+    // `btrim(actor) <> ''` predicate would accept everything from the tab case
+    // downwards, because one-argument `btrim` trims spaces only.
+    for (name, actor) in [
+        ("empty", ""),
+        ("single space", " "),
+        ("three spaces", "   "),
+        ("tab", "\t"),
+        ("newline", "\n"),
+        ("carriage return", "\r"),
+        ("vertical tab", "\u{0b}"),
+        ("form feed", "\u{0c}"),
+        ("mixed whitespace", " \t\n\r\u{0b}\u{0c} "),
+    ] {
+        let outcome = insert(&mut connection, actor);
         assert!(
             outcome.is_err(),
-            "the non-blank actor check must reject {actor:?}"
+            "the actor check must reject the {name} case {actor:?}"
         );
     }
 
-    // No BE-03 write path can produce such an actor in any case: the only
-    // production writer takes it from `PolicyContext::user_id()`.
-    assert!(audit_rows(&pool, publisher.publisher_id).is_empty());
+    // An actor carrying a real identifier is accepted even when it is
+    // surrounded by whitespace: the invariant is presence of a non-whitespace
+    // character, not absence of whitespace.
+    for (name, actor) in [
+        ("space padded", "  real-actor-42  "),
+        ("tab and newline padded", "\t\nreal-actor-42\r\n"),
+    ] {
+        assert!(
+            insert(&mut connection, actor).is_ok(),
+            "the actor check must accept the {name} case {actor:?}"
+        );
+    }
+
+    // Only the two accepted rows exist, and no BE-03 write path can produce a
+    // whitespace-only actor in any case: the only production writer takes it
+    // from `PolicyContext::user_id()`.
+    assert_eq!(audit_rows(&pool, publisher.publisher_id).len(), 2);
 }
 
 #[test]
@@ -2023,6 +2052,19 @@ fn the_migrated_database_matches_the_schema_contract() {
             "publisher_service_configuration_history_pkey",
             "publisher_service_configuration_history_publisher_id_fkey",
         ]
+    );
+
+    // The actor constraint's catalog *definition*, not merely its name: the
+    // invariant is that an actor contains at least one non-whitespace
+    // character, so a narrower `btrim` predicate under the same name must fail
+    // this assertion.
+    assert_eq!(
+        catalog_values(
+            &pool,
+            "SELECT pg_get_constraintdef(oid) AS value FROM pg_constraint \
+             WHERE conname = 'publisher_service_configuration_history_actor_check'"
+        ),
+        vec!["CHECK ((actor ~ '[^[:space:]]'::text))"]
     );
 
     assert_eq!(

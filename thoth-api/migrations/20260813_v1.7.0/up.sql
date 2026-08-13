@@ -22,7 +22,7 @@ CREATE TABLE public.publisher_service_configuration_history (
         FOREIGN KEY (publisher_id)
         REFERENCES public.publisher(publisher_id) ON DELETE CASCADE,
     CONSTRAINT publisher_service_configuration_history_actor_check
-        CHECK (btrim(actor) <> '')
+        CHECK (actor ~ '[^[:space:]]')
 );
 
 CREATE INDEX publisher_service_configuration_history_publisher_created_idx

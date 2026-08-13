@@ -3812,21 +3812,30 @@ fn graphql_mutations_cover_all() {
 // whole-document string search into per-type assertions plus a reachability
 // assertion, because type reachability in the SDL is not value exposure.
 
-/// The body of one SDL type or enum declaration.
-fn sdl_block<'a>(sdl: &'a str, declaration: &str) -> &'a str {
-    sdl.split_once(declaration)
-        .unwrap_or_else(|| panic!("SDL must declare `{declaration}`"))
-        .1
-        .split_once('}')
-        .expect("declaration body")
-        .0
-}
+// The extraction these guards depend on is brace-balanced and string-aware, so
+// each guard inspects the **whole** declaration. See
+// `crate::graphql::sdl_support::sdl_block` for why a `split_once('}')`
+// extraction silently truncated the public `Publisher` type at `imprints`.
+use crate::graphql::sdl_support::sdl_block;
 
 #[test]
 fn the_public_publisher_type_exposes_no_package_capability_or_configuration_field() {
     let schema = create_schema();
     let sdl = schema.as_sdl();
     let publisher_type = sdl_block(&sdl, "type Publisher {");
+
+    // Coverage precondition. `imprints` carries a nested object default, which
+    // the previous extraction treated as the end of the type; these two fields
+    // are declared after it. Asserting them here means the prohibitions below
+    // are known to have been applied to the whole declaration rather than to a
+    // truncated prefix of it.
+    for post_imprints_sentinel in ["contacts(", "distributionPlatforms:"] {
+        assert!(
+            publisher_type.contains(post_imprints_sentinel),
+            "guard coverage is incomplete: `{post_imprints_sentinel}` is declared after \
+             `imprints` but was not extracted: {publisher_type}"
+        );
+    }
 
     for forbidden in [
         "subscriptionPackage",
@@ -3838,6 +3847,7 @@ fn the_public_publisher_type_exposes_no_package_capability_or_configuration_fiel
         "serviceConfiguration",
         "configurationVersion",
         "expectedUpdatedAt",
+        "serviceConfigurationUpdatedAt",
     ] {
         assert!(
             !publisher_type.contains(forbidden),

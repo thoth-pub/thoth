@@ -116,16 +116,13 @@ fn replace_in_transaction(
         }
     }
 
-    // Step 8. The package column is written directly inside this transaction,
-    // deliberately **not** through the shared `Crud::update` macro, so this
-    // mutation writes no `publisher_history` row and the configuration audit
-    // remains the only history BE-03 writes.
+    // Step 8. Compare only: the package write is deferred to the single
+    // publisher UPDATE of step 10. Writing it here as well would update the
+    // publisher row twice for a combined package-and-platform change, and the
+    // publisher row carries the shared AFTER UPDATE work-freshness trigger, so
+    // the second write would re-run that trigger's set-based cascade over the
+    // same N work rows for no additional effect.
     let package_changed = current.subscription_package != data.subscription_package;
-    if package_changed {
-        diesel::update(publisher::table.filter(publisher::publisher_id.eq(data.publisher_id)))
-            .set(publisher::subscription_package.eq(data.subscription_package))
-            .execute(connection)?;
-    }
 
     // Step 9. Desired state is applied only through BE-02's connection-scoped
     // primitives, one canonical representative per linked group.
@@ -166,22 +163,40 @@ fn replace_in_transaction(
         return Ok(PublisherServiceConfiguration::new(current));
     }
 
-    // Step 10. `GREATEST` makes the token strictly increasing per publisher.
+    // Step 10. **Exactly one** publisher UPDATE for the whole committed change.
+    // It carries the package only when the package changed, and always carries
+    // the token. Because the publisher row carries the shared AFTER UPDATE
+    // work-freshness trigger, this single statement means the cascade runs once
+    // per committed change — the same cost for a combined package-and-platform
+    // change as for a platform-only change or a linked repair.
+    //
+    // `GREATEST` makes the token strictly increasing per publisher.
     // `CURRENT_TIMESTAMP` is `transaction_timestamp()`, so a transaction that
     // started earlier but blocked on the row lock would otherwise be able to
     // store a value equal to a token some client still holds.
-    let updated: Publisher = diesel::update(
-        publisher::table.filter(publisher::publisher_id.eq(data.publisher_id)),
-    )
-    .set(
-        publisher::service_configuration_updated_at.eq(diesel::dsl::sql::<
-            diesel::sql_types::Timestamptz,
-        >(
+    // The two branches differ only in whether the package travels with the
+    // token. `publisher::table` is repeated rather than hoisted into a local so
+    // that both writes remain visible to the specification's write-path
+    // containment search for `diesel::update` against `publisher::table`.
+    let next_token = || {
+        diesel::dsl::sql::<diesel::sql_types::Timestamptz>(
             "GREATEST(CURRENT_TIMESTAMP, service_configuration_updated_at + interval '1 microsecond')",
-        )),
-    )
-    .returning(publisher::all_columns)
-    .get_result(connection)?;
+        )
+    };
+    let updated: Publisher = if package_changed {
+        diesel::update(publisher::table.filter(publisher::publisher_id.eq(data.publisher_id)))
+            .set((
+                publisher::subscription_package.eq(data.subscription_package),
+                publisher::service_configuration_updated_at.eq(next_token()),
+            ))
+            .returning(publisher::all_columns)
+            .get_result(connection)?
+    } else {
+        diesel::update(publisher::table.filter(publisher::publisher_id.eq(data.publisher_id)))
+            .set(publisher::service_configuration_updated_at.eq(next_token()))
+            .returning(publisher::all_columns)
+            .get_result(connection)?
+    };
 
     // Step 11. Exactly one audit row for the whole committed change, with the
     // caller-supplied source and actor. The after state is read back from the

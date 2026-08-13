@@ -782,6 +782,21 @@ fn publisher_page_statements(captured: &[String]) -> Vec<String> {
         .collect()
 }
 
+/// The application-issued `UPDATE` statements against the `publisher` table.
+///
+/// The publisher row carries the shared `AFTER UPDATE` work-freshness trigger,
+/// so this count **is** the number of times that trigger's set-based cascade
+/// runs over the publisher's whole catalogue. The trigger's own
+/// `UPDATE work ... FROM imprint` is server-side and never appears here, which
+/// is why the application-level count is the thing worth asserting.
+fn publisher_update_statements(captured: &[String]) -> Vec<String> {
+    captured
+        .iter()
+        .filter(|sql| sql.contains("UPDATE \"publisher\""))
+        .cloned()
+        .collect()
+}
+
 fn seed_publishers_with_assignment(pool: &PgPool, count: usize) {
     let mut connection = pool.get().expect("connection");
     sql_query(format!(
@@ -850,11 +865,17 @@ async fn measure_report(page_size: usize) -> (Vec<usize>, Vec<String>) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn the_report_statement_count_is_bounded_and_does_not_grow_with_the_page() {
-    // 1, 25 and 200 publishers: the report issues one publisher-page statement
-    // and one latest-change statement whatever the page size, and the existing
-    // BE-02 assignment loader issues one set-based statement per configured
-    // dispatch chunk. Nothing is per-publisher.
+    // The report always issues two set-based statements — one publisher page,
+    // one latest-change — whatever the page size. The existing BE-02 assignment
+    // loader adds `ceil(N / MAX_BATCH_SIZE)` set-based dispatches, because it is
+    // configured with a maximum batch size and chunks larger key sets. Nothing
+    // is per-publisher in either part.
+    //
+    // At 1, 25 and 200 the page fits one loader chunk, so the whole request is
+    // three statements. 201 is the first page size that does not, and is
+    // asserted separately below.
     for page_size in [1, 25, 200] {
+        assert!(page_size <= crate::graphql::dataloader::MAX_BATCH_SIZE);
         let (chunks, captured) = measure_report(page_size).await;
 
         assert_eq!(
@@ -879,6 +900,38 @@ async fn the_report_statement_count_is_bounded_and_does_not_grow_with_the_page()
         );
         assert!(assignment_sql[0].contains("= ANY"));
         assert_eq!(chunks, vec![page_size], "one dispatch chunk");
+    }
+}
+
+/// The first page size that exceeds one loader batch.
+///
+/// The accurate statement shape is **two** report statements plus
+/// `ceil(page publisher count / MAX_BATCH_SIZE)` assignment-loader dispatches —
+/// not a count that is flatly independent of N. At 201 that is `[200, 1]` and
+/// therefore two assignment statements, still with no per-publisher SQL loop.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_assignment_loader_chunks_a_page_larger_than_the_maximum_batch() {
+    let max = crate::graphql::dataloader::MAX_BATCH_SIZE;
+    let page_size = max + 1;
+    let (chunks, captured) = measure_report(page_size).await;
+
+    // The report's own two statements do not change.
+    assert_eq!(publisher_page_statements(&captured).len(), 1);
+    assert_eq!(history_statements(&captured).len(), 1);
+
+    assert_eq!(chunks, vec![max, 1], "expected loader chunks [{max}, 1]");
+
+    let assignment_sql = assignment_statements(&captured);
+    let expected_dispatches = page_size.div_ceil(max);
+    assert_eq!(expected_dispatches, 2);
+    assert_eq!(
+        assignment_sql.len(),
+        expected_dispatches,
+        "expected ceil({page_size} / {max}) = {expected_dispatches} assignment statements: \
+         {assignment_sql:?}"
+    );
+    for sql in &assignment_sql {
+        assert!(sql.contains("= ANY"), "each dispatch is set-based: {sql}");
     }
 }
 
@@ -912,6 +965,106 @@ async fn the_single_publisher_query_issues_one_assignment_statement() {
     assert_eq!(stats.batch_sizes(), vec![1]);
     // The protected read consults no configuration-history statement.
     assert!(history_statements(&captured).is_empty());
+}
+
+/// Every committed configuration change costs **exactly one** publisher
+/// `UPDATE`, and every uncommitted one costs zero (specification section 7.3
+/// steps 8 and 10).
+///
+/// This is a cascade-amplification regression, not a style assertion. The
+/// publisher row carries the shared `AFTER UPDATE` work-freshness trigger, so
+/// each extra publisher `UPDATE` re-runs a set-based cascade across that
+/// publisher's entire catalogue. A combined package-and-platform change must
+/// therefore cost the same single cascade as a platform-only change.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn every_committed_change_issues_exactly_one_publisher_update() {
+    // (case, package, platforms, expected publisher UPDATEs)
+    let cases: [(&str, &str, &str, usize); 6] = [
+        ("package-only", "SPHINX", "OAPEN, DOAB", 1),
+        ("platform-only", "OASIS", "OAPEN, DOAB, ZENODO", 1),
+        ("linked repair", "OASIS", "OAPEN, DOAB", 1),
+        ("combined package and platform", "PYRAMID", "ZENODO", 1),
+        ("true no-op", "OASIS", "OAPEN, DOAB", 0),
+        ("stale", "SPHINX", "ZENODO", 0),
+    ];
+
+    for (case, package, platforms, expected_updates) in cases {
+        let (_guard, ordinary_pool) = test_db::setup_test_db();
+        let publisher = test_db::create_publisher(&ordinary_pool);
+        // Captured before the fixture commits, so it is a token this publisher
+        // genuinely once had and has since superseded.
+        let superseded = token(&ordinary_pool, publisher.publisher_id);
+        seed_configuration(
+            &ordinary_pool,
+            publisher.publisher_id,
+            ThothPackage::Oasis,
+            &[DistributionPlatform::Oapen],
+        );
+
+        // The linked-repair case splits the OAPEN/DOAB group behind the
+        // coordinator's back, so the request is a membership no-op that the
+        // BE-02 primitive still repairs.
+        if case == "linked repair" {
+            let mut connection = ordinary_pool.get().expect("connection");
+            sql_query(format!(
+                "UPDATE publisher_distribution_platform SET enabled = false, \
+                 disabled_at = now() WHERE publisher_id = '{}' AND platform = 'DOAB'",
+                publisher.publisher_id
+            ))
+            .execute(&mut connection)
+            .expect("split the linked group");
+        }
+
+        let probe = SqlProbe::install(&test_db::test_db_url());
+        let context = test_db::test_context_with_user(
+            Arc::clone(&probe.pool),
+            test_db::test_superuser("su-update-count"),
+        );
+        let schema = create_schema();
+
+        let supplied = if case == "stale" {
+            superseded
+        } else {
+            token(&probe.pool, publisher.publisher_id)
+        };
+
+        probe.start();
+        let response = run(
+            &schema,
+            &context,
+            &mutation(publisher.publisher_id, package, platforms, &supplied),
+        )
+        .await;
+        let captured = probe.captured_statements();
+
+        if case == "stale" {
+            let (_, kind) = only_error(&response);
+            assert_eq!(kind, "STALE_SERVICE_CONFIGURATION", "{case}");
+        } else {
+            assert!(
+                !data(&response, "replacePublisherServiceConfiguration").is_null(),
+                "{case}"
+            );
+        }
+
+        let updates = publisher_update_statements(&captured);
+        assert_eq!(
+            updates.len(),
+            expected_updates,
+            "{case}: expected {expected_updates} publisher UPDATE(s), got {}: {updates:?}",
+            updates.len()
+        );
+
+        // No per-work application loop in any case.
+        let work_statements: Vec<&String> = captured
+            .iter()
+            .filter(|sql| sql.contains("FROM \"work\"") || sql.contains("UPDATE \"work\""))
+            .collect();
+        assert!(
+            work_statements.is_empty(),
+            "{case}: no application-level work statement may exist: {work_statements:?}"
+        );
+    }
 }
 
 /// Disposable-environment write-amplification and lock-footprint measurement
@@ -1037,9 +1190,17 @@ async fn catalogue_scale_write_amplification_is_measured_in_a_disposable_environ
     let control_moved = moved_since(control_publisher.publisher_id, control_before);
 
     // The publisher trigger issues one set-based `UPDATE work ... FROM imprint`
-    // per publisher row `UPDATE`. This request writes the package (step 8) and
-    // the token (step 10), so the cascade runs twice over the same rows. Every
-    // target work is refreshed; no unrelated work is.
+    // per publisher row `UPDATE`. This request changes both the package and the
+    // platforms, and step 10 commits both in a **single** publisher `UPDATE`, so
+    // the cascade runs exactly once over the target's catalogue. Every target
+    // work is refreshed; no unrelated work is.
+    let publisher_updates = publisher_update_statements(&captured);
+    assert_eq!(
+        publisher_updates.len(),
+        1,
+        "a combined package-and-platform change must issue exactly one publisher \
+         UPDATE, so the work-freshness cascade runs once: {publisher_updates:?}"
+    );
     assert_eq!(target_moved, target_work_count);
     assert_eq!(control_moved, 0);
     assert_eq!(
