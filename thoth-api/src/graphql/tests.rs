@@ -4034,3 +4034,140 @@ fn ordinary_publisher_mutations_leave_package_unchanged() {
     assert!(updated.publisher_name.ends_with("Updated"));
     assert_eq!(updated.subscription_package, ThothPackage::Obelisk);
 }
+
+// THOTH-CHAPTER-01 / #803 Phase B — the single-parent rule surfaces a deterministic,
+// safe client error through the GraphQL mutation boundary, and it is an integrity
+// rule independent of authorization.
+#[test]
+fn create_work_relation_rejects_second_book_chapter_parent_through_graphql() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-803-graphql");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+
+    let publisher_org = format!("org-{}", Uuid::new_v4());
+    let publisher = create_with_data(
+        &schema,
+        &context,
+        "createPublisher",
+        "NewPublisher",
+        "publisherId",
+        make_new_publisher(&publisher_org),
+    );
+    let publisher_id = json_uuid(&publisher["publisherId"]);
+    let imprint = create_with_data(
+        &schema,
+        &context,
+        "createImprint",
+        "NewImprint",
+        "imprintId",
+        make_new_imprint(publisher_id),
+    );
+    let imprint_id = json_uuid(&imprint["imprintId"]);
+
+    let book_a = create_with_data(
+        &schema,
+        &context,
+        "createWork",
+        "NewWork",
+        "workId",
+        make_new_book_work(imprint_id, Doi::from_str("10.1234/803-book-a").unwrap()),
+    );
+    let book_a_id = json_uuid(&book_a["workId"]);
+    let book_b = create_with_data(
+        &schema,
+        &context,
+        "createWork",
+        "NewWork",
+        "workId",
+        make_new_book_work(imprint_id, Doi::from_str("10.1234/803-book-b").unwrap()),
+    );
+    let book_b_id = json_uuid(&book_b["workId"]);
+    let chapter = create_with_data(
+        &schema,
+        &context,
+        "createWork",
+        "NewWork",
+        "workId",
+        make_new_work(
+            imprint_id,
+            WorkType::BookChapter,
+            Doi::from_str("10.1234/803-chapter").unwrap(),
+        ),
+    );
+    let chapter_id = json_uuid(&chapter["workId"]);
+
+    let has_child = |relator: Uuid, related: Uuid| NewWorkRelation {
+        relator_work_id: relator,
+        related_work_id: related,
+        relation_type: RelationType::HasChild,
+        relation_ordinal: 1,
+    };
+    let mutation =
+        "mutation($data: NewWorkRelation!) { createWorkRelation(data: $data) { workRelationId } }";
+
+    // First parent, authorized caller: succeeds through the mutation.
+    let first = create_with_data(
+        &schema,
+        &context,
+        "createWorkRelation",
+        "NewWorkRelation",
+        "workRelationId",
+        has_child(book_a_id, chapter_id),
+    );
+    assert!(
+        first.get("workRelationId").is_some(),
+        "first parent should succeed"
+    );
+
+    // Second distinct parent, STILL an authorized caller: rejected by the integrity
+    // rule, surfaced as a deterministic, safe client message.
+    let mut vars = Variables::new();
+    insert_var(&mut vars, "data", has_child(book_b_id, chapter_id));
+    let (_value, errors) =
+        block_on_graphql(juniper::execute(mutation, None, &schema, &vars, &context))
+            .expect("GraphQL execution should succeed with a field error");
+    assert!(
+        !errors.is_empty(),
+        "a second distinct parent must return an error"
+    );
+    assert!(
+        errors[0]
+            .error()
+            .message()
+            .contains("A book chapter may belong to only one parent work"),
+        "unexpected client error message: {}",
+        errors[0].error().message()
+    );
+
+    // Unauthorized caller: rejected by authorization, NOT by the integrity rule, and
+    // gains no ability from the new rule.
+    let anon = test_db::test_context_anonymous(pool.clone());
+    let chapter_two = create_with_data(
+        &schema,
+        &context,
+        "createWork",
+        "NewWork",
+        "workId",
+        make_new_work(
+            imprint_id,
+            WorkType::BookChapter,
+            Doi::from_str("10.1234/803-chapter-two").unwrap(),
+        ),
+    );
+    let chapter_two_id = json_uuid(&chapter_two["workId"]);
+    let mut anon_vars = Variables::new();
+    insert_var(&mut anon_vars, "data", has_child(book_a_id, chapter_two_id));
+    let (_anon_value, anon_errors) =
+        block_on_graphql(juniper::execute(mutation, None, &schema, &anon_vars, &anon))
+            .expect("GraphQL execution should succeed with a field error");
+    assert!(
+        !anon_errors.is_empty(),
+        "an unauthorized caller must be rejected"
+    );
+    let anon_message = anon_errors[0].error().message().to_string();
+    assert!(
+        !anon_message.contains("A book chapter may belong to only one parent work"),
+        "unauthorized rejection must come from authorization, not the integrity rule; got: {anon_message}"
+    );
+}
