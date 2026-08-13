@@ -201,18 +201,24 @@ Decisions taken within the approved design:
 3. **`after_state` is read back from the database** after the lifecycle calls
    rather than assumed from the request. It equals the normalized desired set,
    and recording observed state is strictly more faithful for an audit row.
-4. **Returned configuration.** The token `UPDATE` uses `RETURNING
+4. **Returned configuration.** The step 10 `UPDATE` uses `RETURNING
    publisher::all_columns`, so the returned configuration carries the actual
    committed row — including the trigger-updated `publisher.updated_at` — with no
    extra statement. A true no-op returns the row read under the lock.
-5. **Two publisher `UPDATE` statements on a package change.** Step 8 writes the
-   package and step 10 writes the token, exactly in the specified order, because
-   step 10 is conditional on step 9's outcome. The consequence is measured and
-   reported rather than optimized away by reordering the specified sequence: on a
-   change that includes a package change the publisher row is updated twice, so
-   the existing `AFTER UPDATE` work-freshness trigger's single set-based
-   statement runs twice over the same rows (section 9.6). A platform-only change
-   or a linked repair updates the publisher row once.
+5. **Exactly one publisher `UPDATE` per committed change.** Under the corrected
+   section 7.3 (see section 16.2 item 3), step 8 only compares the requested
+   package with the locked current package and records `package_changed`; the
+   write is deferred to step 10, which issues a single `UPDATE` carrying the
+   package when it changed and always carrying the token. The two Rust branches
+   differ only in whether the package travels with the token, and exactly one
+   executes. `publisher::table` is written inline in both rather than through a
+   hoisted local, so both remain visible to the section 9.13 containment search.
+   This matters because the publisher row carries the shared `AFTER UPDATE`
+   work-freshness trigger: a second `UPDATE` in the same transaction would re-run
+   that trigger's set-based cascade over the same N work rows for no additional
+   effect. A combined package-and-platform change therefore now costs the same
+   single cascade as a platform-only change or a linked repair, and a true no-op
+   or stale request issues zero publisher `UPDATE`s.
 6. **Accessor placement.** `subscriptionPackage`, `effectiveCapabilities` and
    `updatedAt` are defined **only** as GraphQL resolvers reading the one
    `publisher` row held by `PublisherServiceConfiguration`. They are deliberately
