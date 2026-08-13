@@ -2181,6 +2181,7 @@ ORDER BY distinct_parent_count DESC, work_id";
         let (mig_locked_tx, mig_locked_rx) = mpsc::channel::<()>();
         let (mig_go_tx, mig_go_rx) = mpsc::channel::<()>();
         let (w_pid_tx, w_pid_rx) = mpsc::channel::<i32>();
+        let (w_go_tx, w_go_rx) = mpsc::channel::<()>();
         let (w_issue_tx, w_issue_rx) = mpsc::channel::<()>();
 
         let mig_url = db.url();
@@ -2204,6 +2205,9 @@ ORDER BY distinct_parent_count DESC, work_id";
         let t_writer = thread::spawn(move || {
             let mut c = PgConnection::establish(&writer_url).expect("writer conn");
             w_pid_tx.send(backend_pid(&mut c)).unwrap();
+            // Only attempt the write once the migration is known to hold the lock,
+            // so the write deterministically collides with the guard->install window.
+            w_go_rx.recv().unwrap();
             c.batch_execute("BEGIN").unwrap();
             w_issue_tx.send(()).unwrap();
             // Blocks on the migration's SHARE ROW EXCLUSIVE table lock, then (after
@@ -2216,6 +2220,8 @@ ORDER BY distinct_parent_count DESC, work_id";
         let mut poll = db.conn();
         let w_pid = w_pid_rx.recv().unwrap();
         mig_locked_rx.recv().unwrap();
+        // The migration now holds the table locks; release the writer to collide.
+        w_go_tx.send(()).unwrap();
         w_issue_rx.recv().unwrap();
         let blocked = wait_until_blocked(&mut poll, w_pid);
         mig_go_tx.send(()).unwrap();
