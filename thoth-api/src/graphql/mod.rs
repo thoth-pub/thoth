@@ -9,6 +9,10 @@ mod mutation_guard;
 #[cfg(test)]
 mod mutation_guard_tests;
 mod query;
+#[cfg(all(test, feature = "backend"))]
+pub(crate) mod sdl_support;
+#[cfg(test)]
+mod service_configuration_tests;
 
 pub use juniper::http::GraphQLRequest;
 

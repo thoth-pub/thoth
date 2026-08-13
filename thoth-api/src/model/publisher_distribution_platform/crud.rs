@@ -19,6 +19,33 @@ use crate::schema::{publisher, publisher_distribution_platform};
 /// The columns of the public assignment projection, in canonical order.
 type AssignmentRow = (Uuid, DistributionPlatform, Timestamp);
 
+/// Whether one connection-scoped lifecycle call wrote persisted assignment
+/// state.
+///
+/// `BE-02`'s pool-level `enable`/`disable` return `ThothResult<()>`, so a caller
+/// cannot distinguish an idempotent no-op from a linked-state repair. The
+/// connection-scoped primitives report this instead, which is what lets the
+/// `BE-03` service-configuration write coordinator decide whether a request was
+/// a true no-op (specification section 7.7 item 3).
+///
+/// It is deliberately the minimum `BE-03` needs — whether persisted state
+/// changed — and is not a job-oriented change description.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[must_use]
+pub(crate) enum AssignmentLifecycleOutcome {
+    /// Nothing was written and no timestamp moved.
+    Unchanged,
+    /// Persisted assignment state was written: an insert, a re-enable, a
+    /// disable, or a linked-state repair.
+    Changed,
+}
+
+impl AssignmentLifecycleOutcome {
+    pub(crate) fn changed(self) -> bool {
+        self == AssignmentLifecycleOutcome::Changed
+    }
+}
+
 impl PublisherDistributionPlatform {
     /// Enable `platform` for `publisher_id`, normalizing its linked group.
     ///
@@ -41,46 +68,80 @@ impl PublisherDistributionPlatform {
         publisher_id: Uuid,
         platform: DistributionPlatform,
     ) -> ThothResult<()> {
+        // Kept exactly as merged: the non-assignable check runs **before** a
+        // connection is acquired or a transaction opened.
+        if !platform.is_assignable() {
+            return Err(ThothError::DistributionPlatformNotAssignable(
+                platform.to_string(),
+            ));
+        }
+        let mut connection = db.get()?;
+        connection.transaction(|connection| {
+            let _outcome = Self::enable_on(connection, publisher_id, platform)?;
+            Ok(())
+        })
+    }
+
+    /// The connection-scoped enable primitive, assuming a caller-owned
+    /// transaction.
+    ///
+    /// This is the single implementation of [`Self::enable`]'s lifecycle: the
+    /// pool-level function is a wrapper that acquires a connection, opens a
+    /// transaction, delegates here and discards the outcome. There is exactly
+    /// one linked-platform algorithm in the repository and it is this one.
+    ///
+    /// The non-assignable check is performed **here as well**, independently of
+    /// anything the caller did and before any write, so `BE-02`'s fail-closed
+    /// semantics hold for every internal caller that composes this primitive
+    /// into its own transaction (specification section 7.7 item 2). It calls the
+    /// same [`DistributionPlatform::is_assignable`] predicate and returns the
+    /// same [`ThothError::DistributionPlatformNotAssignable`] as the wrapper, so
+    /// this is one rule called from two places, not a second rule.
+    ///
+    /// Re-taking the publisher row lock is a harmless no-op when the caller's
+    /// transaction already holds it, so the lock statement is unconditional.
+    pub(crate) fn enable_on(
+        connection: &mut PgConnection,
+        publisher_id: Uuid,
+        platform: DistributionPlatform,
+    ) -> ThothResult<AssignmentLifecycleOutcome> {
         if !platform.is_assignable() {
             return Err(ThothError::DistributionPlatformNotAssignable(
                 platform.to_string(),
             ));
         }
         let members = platform.linked_members();
-        let mut connection = db.get()?;
-        connection.transaction(|connection| {
-            lock_publisher(connection, publisher_id)?;
-            let existing = member_rows(connection, publisher_id, &members)?;
-            if is_normalized_fully_enabled(&existing, &members) {
-                return Ok(());
-            }
-            let activation_id = Uuid::new_v4();
-            let transition_at = transaction_timestamp(connection)?;
-            for member in &members {
-                diesel::insert_into(publisher_distribution_platform::table)
-                    .values((
-                        publisher_distribution_platform::publisher_id.eq(publisher_id),
-                        publisher_distribution_platform::platform.eq(*member),
-                        publisher_distribution_platform::enabled.eq(true),
-                        publisher_distribution_platform::activation_id.eq(activation_id),
-                        publisher_distribution_platform::enabled_at.eq(transition_at),
-                        publisher_distribution_platform::disabled_at.eq(None::<Timestamp>),
-                    ))
-                    .on_conflict((
-                        publisher_distribution_platform::publisher_id,
-                        publisher_distribution_platform::platform,
-                    ))
-                    .do_update()
-                    .set((
-                        publisher_distribution_platform::enabled.eq(true),
-                        publisher_distribution_platform::activation_id.eq(activation_id),
-                        publisher_distribution_platform::enabled_at.eq(transition_at),
-                        publisher_distribution_platform::disabled_at.eq(None::<Timestamp>),
-                    ))
-                    .execute(connection)?;
-            }
-            Ok(())
-        })
+        lock_publisher(connection, publisher_id)?;
+        let existing = member_rows(connection, publisher_id, &members)?;
+        if is_normalized_fully_enabled(&existing, &members) {
+            return Ok(AssignmentLifecycleOutcome::Unchanged);
+        }
+        let activation_id = Uuid::new_v4();
+        let transition_at = transaction_timestamp(connection)?;
+        for member in &members {
+            diesel::insert_into(publisher_distribution_platform::table)
+                .values((
+                    publisher_distribution_platform::publisher_id.eq(publisher_id),
+                    publisher_distribution_platform::platform.eq(*member),
+                    publisher_distribution_platform::enabled.eq(true),
+                    publisher_distribution_platform::activation_id.eq(activation_id),
+                    publisher_distribution_platform::enabled_at.eq(transition_at),
+                    publisher_distribution_platform::disabled_at.eq(None::<Timestamp>),
+                ))
+                .on_conflict((
+                    publisher_distribution_platform::publisher_id,
+                    publisher_distribution_platform::platform,
+                ))
+                .do_update()
+                .set((
+                    publisher_distribution_platform::enabled.eq(true),
+                    publisher_distribution_platform::activation_id.eq(activation_id),
+                    publisher_distribution_platform::enabled_at.eq(transition_at),
+                    publisher_distribution_platform::disabled_at.eq(None::<Timestamp>),
+                ))
+                .execute(connection)?;
+        }
+        Ok(AssignmentLifecycleOutcome::Changed)
     }
 
     /// Disable `platform` for `publisher_id`, and every member of its linked
@@ -96,32 +157,49 @@ impl PublisherDistributionPlatform {
         publisher_id: Uuid,
         platform: DistributionPlatform,
     ) -> ThothResult<()> {
-        let members = platform.linked_members();
         let mut connection = db.get()?;
         connection.transaction(|connection| {
-            lock_publisher(connection, publisher_id)?;
-            let existing = member_rows(connection, publisher_id, &members)?;
-            if !existing.iter().any(|row| row.enabled) {
-                return Ok(());
-            }
-            let transition_at = transaction_timestamp(connection)?;
-            let enabled_members: Vec<DistributionPlatform> = existing
-                .iter()
-                .filter(|row| row.enabled)
-                .map(|row| row.platform)
-                .collect();
-            diesel::update(
-                publisher_distribution_platform::table
-                    .filter(publisher_distribution_platform::publisher_id.eq(publisher_id))
-                    .filter(publisher_distribution_platform::platform.eq_any(&enabled_members)),
-            )
-            .set((
-                publisher_distribution_platform::enabled.eq(false),
-                publisher_distribution_platform::disabled_at.eq(Some(transition_at)),
-            ))
-            .execute(connection)?;
+            let _outcome = Self::disable_on(connection, publisher_id, platform)?;
             Ok(())
         })
+    }
+
+    /// The connection-scoped disable primitive, assuming a caller-owned
+    /// transaction.
+    ///
+    /// This is the single implementation of [`Self::disable`]'s lifecycle, and
+    /// reports whether it wrote a disable transition. When no member of the
+    /// linked group is currently enabled — including when no row exists at all —
+    /// it writes nothing and returns
+    /// [`AssignmentLifecycleOutcome::Unchanged`].
+    pub(crate) fn disable_on(
+        connection: &mut PgConnection,
+        publisher_id: Uuid,
+        platform: DistributionPlatform,
+    ) -> ThothResult<AssignmentLifecycleOutcome> {
+        let members = platform.linked_members();
+        lock_publisher(connection, publisher_id)?;
+        let existing = member_rows(connection, publisher_id, &members)?;
+        if !existing.iter().any(|row| row.enabled) {
+            return Ok(AssignmentLifecycleOutcome::Unchanged);
+        }
+        let transition_at = transaction_timestamp(connection)?;
+        let enabled_members: Vec<DistributionPlatform> = existing
+            .iter()
+            .filter(|row| row.enabled)
+            .map(|row| row.platform)
+            .collect();
+        diesel::update(
+            publisher_distribution_platform::table
+                .filter(publisher_distribution_platform::publisher_id.eq(publisher_id))
+                .filter(publisher_distribution_platform::platform.eq_any(&enabled_members)),
+        )
+        .set((
+            publisher_distribution_platform::enabled.eq(false),
+            publisher_distribution_platform::disabled_at.eq(Some(transition_at)),
+        ))
+        .execute(connection)?;
+        Ok(AssignmentLifecycleOutcome::Changed)
     }
 
     /// Every persisted assignment row for one publisher, in canonical
@@ -201,7 +279,12 @@ pub(crate) fn enabled_assignment_rows(
 /// Reads used to decide a transition run after this lock and inside the same
 /// transaction, so concurrent transitions serialize rather than racing.
 /// Different publishers never contend on the same lock.
-fn lock_publisher(connection: &mut PgConnection, publisher_id: Uuid) -> ThothResult<()> {
+///
+/// `BE-03`'s service-configuration write coordinator takes the **same** lock, on
+/// the same row, as the first statement of its own transaction, so the
+/// application-level lock order is `publisher` row first, everything else after
+/// (specification section 7.8).
+pub(crate) fn lock_publisher(connection: &mut PgConnection, publisher_id: Uuid) -> ThothResult<()> {
     publisher::table
         .filter(publisher::publisher_id.eq(publisher_id))
         .select(publisher::publisher_id)

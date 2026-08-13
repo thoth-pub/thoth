@@ -900,6 +900,7 @@ pub mod price;
 pub mod publication;
 pub mod publisher;
 pub mod publisher_distribution_platform;
+pub mod publisher_service_configuration;
 pub mod reference;
 pub mod series;
 pub mod subject;
