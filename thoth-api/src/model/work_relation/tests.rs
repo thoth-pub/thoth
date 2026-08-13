@@ -839,74 +839,63 @@ mod crud {
     }
 }
 
-/// THOTH-CHAPTER-01 / #803 Phase A — read-only existing-data audit + enforcement
-/// design validation.
+/// THOTH-CHAPTER-01 / #803 Phase B — production enforcement of the single-parent
+/// rule for BookChapter works, plus the read-only audit it depends on.
 ///
-/// The approved #803 invariant is scoped to **chapter Works**: a Work with
-/// `work_type = 'book-chapter'` may have at most one parent Work. These tests
-/// validate the exact read-only SQL the operator will run, and (as design
-/// validation only) prove that the recommended Phase B enforcement — a
-/// BookChapter-scoped trigger that serialises on the chapter's `work` row — is
-/// representable, closes the concurrent work_type-transition race, and behaves
-/// as designed.
+/// The migration `20260813_v1.6.3` installs two cooperating triggers that share
+/// one per-Work serialization point (a `FOR NO KEY UPDATE` locking read of the
+/// relator/target `work` row, taken BEFORE reading the mutable `work_type`). The
+/// relation trigger `work_relation_single_book_chapter_parent` (BEFORE INSERT OR
+/// UPDATE on work_relation) rejects a second DISTINCT `is-child-of` parent for a
+/// book-chapter relator; the transition trigger
+/// `work_single_book_chapter_parent_on_type` (BEFORE UPDATE OF work_type on work,
+/// only for a transition INTO book-chapter) refuses the transition when the work
+/// already has more than one DISTINCT `is-child-of` parent. Both raise a
+/// `unique_violation` with constraint name `work_relation_single_book_chapter_parent`,
+/// mapped to a deterministic client message by `DATABASE_CONSTRAINT_ERRORS`.
 ///
-/// Qualifying semantics established from `master`:
-/// - A chapter Work is `work.work_type = 'book-chapter'` (mutable; stored in the
-///   `work` table, a different table from `work_relation`).
-/// - A chapter's membership of a parent book is a `work_relation` row with
-///   `relation_type = 'is-child-of'`, where `relator_work_id` is the chapter and
-///   `related_work_id` is the parent book. The relation is stored bidirectionally:
-///   the inverse row has `relation_type = 'has-child'` (relator = parent book).
-/// - "More than one parent" means a **book-chapter** Work is the `relator_work_id`
-///   of `is-child-of` rows pointing at more than one DISTINCT `related_work_id`.
-///   Because `work_relation_relator_related_uniq (relator_work_id, related_work_id)`
-///   already forbids two rows for the same (relator, related) pair, an exact
-///   duplicate parent is impossible, so ">1 rows" and ">1 DISTINCT parents"
-///   coincide for `is-child-of`.
-///
-/// A non-BookChapter Work carrying `is-child-of` relations is captured by a
-/// SEPARATE semantic-consistency diagnostic and is NOT #803 blocking evidence.
-///
-/// Nothing here changes production write behaviour, adds a migration, or ships a
-/// constraint. Trigger design-validation either runs inside a rolled-back
-/// transaction or installs the triggers, exercises them, and drops them again
-/// (guarded so cleanup runs even on panic).
+/// Because the enforcement migration is embedded, these triggers are active in
+/// the shared test database. Tests that need to observe corrupt (>1-parent)
+/// state — the audit-detection and migration-invalid tests — construct it either
+/// with `session_replication_role = replica` inside a rolled-back transaction, or
+/// on a throwaway database while enforcement is reverted.
 #[cfg(feature = "backend")]
 mod audit {
     use super::*;
     use std::collections::HashSet;
     use std::sync::mpsc;
-    use std::sync::Arc;
     use std::thread;
     use std::time::{Duration, Instant};
 
     use diesel::connection::SimpleConnection;
     use diesel::result::{DatabaseErrorKind, Error as DieselError};
     use diesel::sql_types::{BigInt, Integer, Text, Uuid as SqlUuid};
-    use diesel::{insert_into, sql_query, Connection, QueryableByName, RunQueryDsl};
-    use thoth_errors::ThothError;
+    use diesel::{insert_into, sql_query, Connection, PgConnection, QueryableByName, RunQueryDsl};
+    use diesel_migrations::MigrationHarness;
+    use thoth_errors::{ThothError, ThothResult};
 
-    use crate::db::PgPool;
-    use crate::model::tests::db::{create_imprint, create_publisher, create_work, setup_test_db};
+    use crate::db::{PgPool, MIGRATIONS};
+    use crate::model::tests::db::{
+        create_imprint, create_publisher, create_work, setup_test_db, test_db_url,
+    };
     use crate::model::work::{NewWork, Work, WorkStatus, WorkType};
     use crate::model::Crud;
     use crate::schema::work_relation;
 
-    // ---------------------------------------------------------------------
-    // #803 AUTHORITATIVE audit SQL (chapter Works = work_type 'book-chapter')
-    // ---------------------------------------------------------------------
+    const ENFORCEMENT_CONSTRAINT_NAME: &str = "work_relation_single_book_chapter_parent";
 
-    /// (C) BookChapter distribution: how many book-chapter Works have 0 / 1 / >1
-    /// DISTINCT parent books.
+    /// The exact `up.sql` of the enforcement migration, used by the activation-race
+    /// test to run the guard + install inside a transaction we control.
+    const MIGRATION_UP_SQL: &str = include_str!("../../../migrations/20260813_v1.6.3/up.sql");
+
+    // -- read-only audit SQL (unchanged from the approved Phase A design) -------
+
     const AUDIT_SUMMARY_SQL: &str = "
 WITH chapter_parent_counts AS (
-    SELECT
-        w.work_id,
-        COUNT(DISTINCT wr.related_work_id) AS distinct_parents
+    SELECT w.work_id, COUNT(DISTINCT wr.related_work_id) AS distinct_parents
     FROM work w
     LEFT JOIN work_relation wr
-        ON wr.relator_work_id = w.work_id
-       AND wr.relation_type = 'is-child-of'
+        ON wr.relator_work_id = w.work_id AND wr.relation_type = 'is-child-of'
     WHERE w.work_type = 'book-chapter'
     GROUP BY w.work_id
 )
@@ -916,141 +905,22 @@ SELECT
     COUNT(*) FILTER (WHERE distinct_parents > 1) AS chapters_with_multiple_parents
 FROM chapter_parent_counts";
 
-    /// (A) BLOCKING: book-chapter Works with >1 DISTINCT parent. Must be empty
-    /// before Phase B activation. Scoped to `work_type = 'book-chapter'`.
     const AUDIT_BLOCKING_SQL: &str = "
-SELECT
-    wr.relator_work_id AS child_work_id,
-    w.work_type::text  AS child_work_type,
-    COUNT(DISTINCT wr.related_work_id) AS distinct_parent_count
+SELECT wr.relator_work_id AS child_work_id, COUNT(DISTINCT wr.related_work_id) AS distinct_parent_count
 FROM work_relation wr
 JOIN work w ON w.work_id = wr.relator_work_id
-WHERE wr.relation_type = 'is-child-of'
-  AND w.work_type = 'book-chapter'
-GROUP BY wr.relator_work_id, w.work_type
+WHERE wr.relation_type = 'is-child-of' AND w.work_type = 'book-chapter'
+GROUP BY wr.relator_work_id
 HAVING COUNT(DISTINCT wr.related_work_id) > 1
 ORDER BY distinct_parent_count DESC, child_work_id";
 
-    /// (B) DETAIL for each >1 book-chapter case (one row per (chapter, parent)).
-    const AUDIT_BLOCKING_DETAIL_SQL: &str = "
-SELECT
-    wr.relator_work_id AS child_work_id,
-    w.work_type::text  AS child_work_type,
-    wr.related_work_id AS parent_work_id,
-    wr.work_relation_id AS work_relation_id,
-    wr.relation_ordinal AS relation_ordinal
-FROM work_relation wr
-JOIN work w ON w.work_id = wr.relator_work_id
-WHERE wr.relation_type = 'is-child-of'
-  AND w.work_type = 'book-chapter'
-  AND wr.relator_work_id IN (
-      SELECT wr2.relator_work_id
-      FROM work_relation wr2
-      JOIN work w2 ON w2.work_id = wr2.relator_work_id
-      WHERE wr2.relation_type = 'is-child-of'
-        AND w2.work_type = 'book-chapter'
-      GROUP BY wr2.relator_work_id
-      HAVING COUNT(DISTINCT wr2.related_work_id) > 1
-  )
-ORDER BY wr.relator_work_id, wr.relation_ordinal";
-
-    /// (D) SEMANTIC-CONSISTENCY DIAGNOSTIC — NOT #803 blocking evidence.
-    /// Non-BookChapter Works that carry `is-child-of` relations (those with >1
-    /// first). Informational unless a later CTO decision broadens the invariant.
     const DIAGNOSTIC_NON_CHAPTER_IS_CHILD_OF_SQL: &str = "
-SELECT
-    wr.relator_work_id AS work_id,
-    w.work_type::text  AS work_type,
-    COUNT(DISTINCT wr.related_work_id) AS distinct_parent_count
+SELECT wr.relator_work_id AS work_id, w.work_type::text AS work_type, COUNT(DISTINCT wr.related_work_id) AS distinct_parent_count
 FROM work_relation wr
 JOIN work w ON w.work_id = wr.relator_work_id
-WHERE wr.relation_type = 'is-child-of'
-  AND w.work_type <> 'book-chapter'
+WHERE wr.relation_type = 'is-child-of' AND w.work_type <> 'book-chapter'
 GROUP BY wr.relator_work_id, w.work_type
 ORDER BY distinct_parent_count DESC, work_id";
-
-    // ---------------------------------------------------------------------
-    // Candidate Phase B enforcement (Option A: BookChapter-scoped triggers).
-    // Design validation only — ships NO trigger and NO migration.
-    //
-    // CORRECTNESS: both the relation trigger and the work_type-transition trigger
-    // acquire the SAME per-Work serialization lock (`FOR NO KEY UPDATE` on the
-    // chapter's `work` row) BEFORE reading the mutable `work_type` / counting
-    // parents. This closes the race where a relation mutation reads `work_type`
-    // (Monograph) and skips locking while a concurrent transition flips the Work
-    // to book-chapter. A non-BookChapter is-child-of mutation therefore takes the
-    // lock too (an operational synchronization effect, not a semantic expansion).
-    // `RAISE ... USING CONSTRAINT` sets the error's constraint name so the
-    // existing `DATABASE_CONSTRAINT_ERRORS` mapping can surface a deterministic
-    // client message in Phase B.
-    // ---------------------------------------------------------------------
-    const CANDIDATE_TRIGGER_DDL: &str = "
-CREATE OR REPLACE FUNCTION thoth_test_enforce_single_chapter_parent() RETURNS trigger
-LANGUAGE plpgsql AS $fn$
-DECLARE
-    relator_type text;
-BEGIN
-    IF NEW.relation_type = 'is-child-of' THEN
-        -- Lock the relator's work row AND read its type in one locking read,
-        -- BEFORE deciding whether the invariant applies.
-        SELECT work_type::text INTO relator_type
-        FROM work WHERE work_id = NEW.relator_work_id
-        FOR NO KEY UPDATE;
-
-        IF relator_type = 'book-chapter' THEN
-            IF EXISTS (
-                SELECT 1 FROM work_relation
-                WHERE relator_work_id = NEW.relator_work_id
-                  AND relation_type = 'is-child-of'
-                  AND related_work_id <> NEW.related_work_id
-                  AND work_relation_id <> NEW.work_relation_id
-            ) THEN
-                RAISE EXCEPTION 'A book chapter may belong to only one parent work'
-                    USING ERRCODE = 'unique_violation',
-                          CONSTRAINT = 'work_relation_single_book_chapter_parent';
-            END IF;
-        END IF;
-    END IF;
-    RETURN NEW;
-END;
-$fn$;
-
-CREATE TRIGGER thoth_test_single_chapter_parent
-    BEFORE INSERT OR UPDATE ON work_relation
-    FOR EACH ROW EXECUTE FUNCTION thoth_test_enforce_single_chapter_parent();
-
-CREATE OR REPLACE FUNCTION thoth_test_enforce_chapter_parent_on_type() RETURNS trigger
-LANGUAGE plpgsql AS $fn$
-BEGIN
-    -- Same serialization point: lock the work row before counting parents, so a
-    -- concurrent in-flight parent insertion is either seen (committed) or blocks.
-    PERFORM 1 FROM work WHERE work_id = NEW.work_id FOR NO KEY UPDATE;
-    IF (SELECT COUNT(DISTINCT related_work_id) FROM work_relation
-        WHERE relator_work_id = NEW.work_id
-          AND relation_type = 'is-child-of') > 1 THEN
-        RAISE EXCEPTION 'Work has multiple parents and cannot become a book chapter'
-            USING ERRCODE = 'unique_violation',
-                  CONSTRAINT = 'work_relation_single_book_chapter_parent';
-    END IF;
-    RETURN NEW;
-END;
-$fn$;
-
-CREATE TRIGGER thoth_test_single_chapter_parent_on_type
-    BEFORE UPDATE OF work_type ON work
-    FOR EACH ROW
-    WHEN (OLD.work_type IS DISTINCT FROM NEW.work_type AND NEW.work_type = 'book-chapter')
-    EXECUTE FUNCTION thoth_test_enforce_chapter_parent_on_type();";
-
-    const DROP_TRIGGER_DDL: &str = "
-DROP TRIGGER IF EXISTS thoth_test_single_chapter_parent ON work_relation;
-DROP TRIGGER IF EXISTS thoth_test_single_chapter_parent_on_type ON work;
-DROP FUNCTION IF EXISTS thoth_test_enforce_single_chapter_parent();
-DROP FUNCTION IF EXISTS thoth_test_enforce_chapter_parent_on_type();";
-
-    const ENFORCEMENT_CONSTRAINT_NAME: &str = "work_relation_single_book_chapter_parent";
-
-    // --- QueryableByName rows -------------------------------------------------
 
     #[derive(QueryableByName)]
     struct ChapterParentSummary {
@@ -1066,28 +936,12 @@ DROP FUNCTION IF EXISTS thoth_test_enforce_chapter_parent_on_type();";
     struct BlockingChapter {
         #[diesel(sql_type = SqlUuid)]
         child_work_id: Uuid,
-        #[diesel(sql_type = Text)]
-        child_work_type: String,
         #[diesel(sql_type = BigInt)]
         distinct_parent_count: i64,
     }
 
     #[derive(QueryableByName)]
-    struct BlockingDetail {
-        #[diesel(sql_type = SqlUuid)]
-        child_work_id: Uuid,
-        #[diesel(sql_type = Text)]
-        child_work_type: String,
-        #[diesel(sql_type = SqlUuid)]
-        parent_work_id: Uuid,
-        #[diesel(sql_type = SqlUuid)]
-        work_relation_id: Uuid,
-        #[diesel(sql_type = Integer)]
-        relation_ordinal: i32,
-    }
-
-    #[derive(QueryableByName)]
-    struct NonChapterIsChildOf {
+    struct NonChapterRow {
         #[diesel(sql_type = SqlUuid)]
         work_id: Uuid,
         #[diesel(sql_type = Text)]
@@ -1114,15 +968,19 @@ DROP FUNCTION IF EXISTS thoth_test_enforce_chapter_parent_on_type();";
         val: String,
     }
 
-    // --- helpers --------------------------------------------------------------
+    // -- helpers ---------------------------------------------------------------
 
-    fn make_chapter(pool: &PgPool, imprint_id: Uuid) -> Work {
+    fn make_work_of_type(pool: &PgPool, imprint_id: Uuid, work_type: WorkType) -> Work {
+        let edition = if work_type == WorkType::BookChapter {
+            None
+        } else {
+            Some(1)
+        };
         let new_work = NewWork {
-            work_type: WorkType::BookChapter,
+            work_type,
             work_status: WorkStatus::Forthcoming,
             reference: None,
-            // Chapters must not have an edition (DB check `work_chapter_no_edition`).
-            edition: None,
+            edition,
             imprint_id,
             doi: None,
             publication_date: None,
@@ -1149,11 +1007,28 @@ DROP FUNCTION IF EXISTS thoth_test_enforce_chapter_parent_on_type();";
             last_page: None,
             page_interval: None,
         };
-        Work::create(pool, &new_work).expect("Failed to create chapter work in DB")
+        Work::create(pool, &new_work).expect("Failed to create work in DB")
     }
 
-    /// Create a relation through the real production write path (`WorkRelation::create`),
-    /// which also creates the paired inverse row in the same transaction.
+    fn make_chapter(pool: &PgPool, imprint_id: Uuid) -> Work {
+        make_work_of_type(pool, imprint_id, WorkType::BookChapter)
+    }
+
+    fn new_relation(
+        relator: Uuid,
+        related: Uuid,
+        relation_type: RelationType,
+        ordinal: i32,
+    ) -> NewWorkRelation {
+        NewWorkRelation {
+            relator_work_id: relator,
+            related_work_id: related,
+            relation_type,
+            relation_ordinal: ordinal,
+        }
+    }
+
+    /// Create a relation via the real production path, expecting success.
     fn relate(
         pool: &PgPool,
         relator: Uuid,
@@ -1163,39 +1038,41 @@ DROP FUNCTION IF EXISTS thoth_test_enforce_chapter_parent_on_type();";
     ) -> WorkRelation {
         WorkRelation::create(
             pool,
-            &NewWorkRelation {
-                relator_work_id: relator,
-                related_work_id: related,
-                relation_type,
-                relation_ordinal: ordinal,
-            },
+            &new_relation(relator, related, relation_type, ordinal),
         )
         .expect("Failed to create work relation in DB")
     }
 
-    /// Insert a single raw `work_relation` row (no inverse).
+    /// Create a relation via the real production path, returning the result.
+    fn try_relate(
+        pool: &PgPool,
+        relator: Uuid,
+        related: Uuid,
+        relation_type: RelationType,
+        ordinal: i32,
+    ) -> ThothResult<WorkRelation> {
+        WorkRelation::create(
+            pool,
+            &new_relation(relator, related, relation_type, ordinal),
+        )
+    }
+
     fn insert_direct(
-        conn: &mut diesel::PgConnection,
+        conn: &mut PgConnection,
         relator: Uuid,
         related: Uuid,
         relation_type: RelationType,
         ordinal: i32,
     ) -> Result<usize, DieselError> {
         insert_into(work_relation::table)
-            .values(&NewWorkRelation {
-                relator_work_id: relator,
-                related_work_id: related,
-                relation_type,
-                relation_ordinal: ordinal,
-            })
+            .values(&new_relation(relator, related, relation_type, ordinal))
             .execute(conn)
     }
 
-    /// Insert BOTH sides of a chapter->parent membership so the deferred pairing
-    /// FK (`work_relation_active_passive_pair`) is satisfied at COMMIT. Returns the
-    /// result of the `is-child-of` insert (the row the enforcement trigger guards).
+    /// Insert both sides of a chapter->parent membership (is-child-of first, so the
+    /// enforcement trigger fires on it), satisfying the deferred pairing FK.
     fn insert_child_pair(
-        conn: &mut diesel::PgConnection,
+        conn: &mut PgConnection,
         chapter: Uuid,
         parent: Uuid,
         chapter_ordinal: i32,
@@ -1220,45 +1097,22 @@ DROP FUNCTION IF EXISTS thoth_test_enforce_chapter_parent_on_type();";
         child
     }
 
-    fn install_triggers_committed(pool: &PgPool) {
-        let mut conn = pool.get().expect("Failed to get DB connection");
-        // Defensive: remove any triggers a previous crashed run may have leaked.
-        conn.batch_execute(DROP_TRIGGER_DDL)
-            .expect("Failed to drop pre-existing candidate triggers");
-        conn.batch_execute(CANDIDATE_TRIGGER_DDL)
-            .expect("Failed to install candidate triggers");
-    }
-
-    /// Drops the candidate triggers on Drop so they never leak into other tests,
-    /// even if the test panics.
-    struct TriggerGuard(Arc<PgPool>);
-    impl Drop for TriggerGuard {
-        fn drop(&mut self) {
-            if let Ok(mut conn) = self.0.get() {
-                let _ = conn.batch_execute(DROP_TRIGGER_DDL);
-            }
-        }
-    }
-
-    fn backend_pid(conn: &mut diesel::PgConnection) -> i32 {
+    fn backend_pid(conn: &mut PgConnection) -> i32 {
         sql_query("SELECT pg_backend_pid() AS pid")
             .get_result::<Pid>(conn)
-            .expect("Failed to read backend pid")
+            .expect("pid")
             .pid
     }
 
-    /// Poll until the given backend is waiting on a heavyweight lock, or a bounded
-    /// timeout elapses. Deterministic gate (not a fixed correctness sleep).
-    fn wait_until_blocked(conn: &mut diesel::PgConnection, pid: i32) -> bool {
+    fn wait_until_blocked(conn: &mut PgConnection, pid: i32) -> bool {
         let deadline = Instant::now() + Duration::from_secs(10);
         while Instant::now() < deadline {
             let blocked = sql_query(
-                "SELECT COUNT(*) AS n FROM pg_stat_activity \
-                 WHERE pid = $1 AND wait_event_type = 'Lock'",
+                "SELECT COUNT(*) AS n FROM pg_stat_activity WHERE pid = $1 AND wait_event_type = 'Lock'",
             )
             .bind::<Integer, _>(pid)
             .get_result::<CountRow>(conn)
-            .expect("Failed to poll pg_stat_activity")
+            .expect("poll pg_stat_activity")
             .n;
             if blocked > 0 {
                 return true;
@@ -1268,202 +1122,231 @@ DROP FUNCTION IF EXISTS thoth_test_enforce_chapter_parent_on_type();";
         false
     }
 
-    fn work_type_of(conn: &mut diesel::PgConnection, work_id: Uuid) -> String {
+    fn work_type_of(conn: &mut PgConnection, work_id: Uuid) -> String {
         sql_query("SELECT work_type::text AS val FROM work WHERE work_id = $1")
             .bind::<SqlUuid, _>(work_id)
             .get_result::<TextRow>(conn)
-            .expect("Failed to read work_type")
+            .expect("work_type")
             .val
     }
 
-    fn is_child_of_parent_count(conn: &mut diesel::PgConnection, work_id: Uuid) -> i64 {
+    fn parent_count(conn: &mut PgConnection, work_id: Uuid) -> i64 {
         sql_query(
             "SELECT COUNT(DISTINCT related_work_id) AS n FROM work_relation \
              WHERE relator_work_id = $1 AND relation_type = 'is-child-of'",
         )
         .bind::<SqlUuid, _>(work_id)
         .get_result::<CountRow>(conn)
-        .expect("Failed to count parents")
+        .expect("parent count")
         .n
     }
 
-    // --- audit tests (accepted; scope unchanged) ------------------------------
+    fn has_child_row_count(conn: &mut PgConnection, relator: Uuid, related: Uuid) -> i64 {
+        sql_query(
+            "SELECT COUNT(*) AS n FROM work_relation \
+             WHERE relator_work_id = $1 AND related_work_id = $2 AND relation_type = 'has-child'",
+        )
+        .bind::<SqlUuid, _>(relator)
+        .bind::<SqlUuid, _>(related)
+        .get_result::<CountRow>(conn)
+        .expect("has-child count")
+        .n
+    }
+
+    fn is_enforcement_violation(err: &ThothError) -> bool {
+        matches!(err, ThothError::DatabaseConstraintError(msg) if msg.contains("only one parent work"))
+    }
+
+    // ======================================================================
+    // 1. READ-ONLY AUDIT (pre-activation gate + migration guard predicate)
+    // ======================================================================
 
     #[test]
-    fn audit_blocking_is_scoped_to_book_chapter_works() {
+    fn audit_detects_multi_parent_book_chapter() {
+        // Enforcement prevents creating a >1-parent chapter, so the corrupt state
+        // is injected with triggers disabled for the session, inside a rolled-back
+        // transaction. The audit SELECTs run in the same transaction.
         let (_guard, pool) = setup_test_db();
         let publisher = create_publisher(pool.as_ref());
         let imprint = create_imprint(pool.as_ref(), &publisher);
 
-        // Parent books / sets (Monographs — parent-side type is irrelevant here).
-        let b_one = create_work(pool.as_ref(), &imprint);
-        let b_a = create_work(pool.as_ref(), &imprint);
-        let b_b = create_work(pool.as_ref(), &imprint);
-        let b_c = create_work(pool.as_ref(), &imprint);
-        let b_d = create_work(pool.as_ref(), &imprint);
-        let b_e = create_work(pool.as_ref(), &imprint);
-        let b_f = create_work(pool.as_ref(), &imprint);
-        let b_g = create_work(pool.as_ref(), &imprint);
-        let set_p = create_work(pool.as_ref(), &imprint);
-        let set_q = create_work(pool.as_ref(), &imprint);
+        let ch_zero = make_chapter(pool.as_ref(), imprint.imprint_id);
+        let ch_one = make_chapter(pool.as_ref(), imprint.imprint_id);
+        let ch_multi = make_chapter(pool.as_ref(), imprint.imprint_id);
+        let mono_multi = create_work(pool.as_ref(), &imprint); // Monograph
+        let p_a = create_work(pool.as_ref(), &imprint);
+        let p_b = create_work(pool.as_ref(), &imprint);
+        let p_c = create_work(pool.as_ref(), &imprint);
+        let p_d = create_work(pool.as_ref(), &imprint);
+        let p_e = create_work(pool.as_ref(), &imprint);
 
-        // Chapter Works (book-chapter).
-        let ch_zero = make_chapter(pool.as_ref(), imprint.imprint_id); // 0 parents
-        let ch_one = make_chapter(pool.as_ref(), imprint.imprint_id); // 1 parent
-        let ch_multi = make_chapter(pool.as_ref(), imprint.imprint_id); // 2 parents (book side)
-        let ch_multi2 = make_chapter(pool.as_ref(), imprint.imprint_id); // 2 parents (chapter side)
-        let ch_unrelated = make_chapter(pool.as_ref(), imprint.imprint_id); // only an unrelated relation
+        let mut zero = -1i64;
+        let mut one = -1i64;
+        let mut many = -1i64;
+        let mut blocked_ids: HashSet<Uuid> = HashSet::new();
+        let mut diag: Vec<(Uuid, String, i64)> = Vec::new();
 
-        // Non-chapter Works acting analogously (must NOT be #803 blocking).
-        let mono_multi = create_work(pool.as_ref(), &imprint); // Monograph is-child-of 2 parents
-        let part_shared = create_work(pool.as_ref(), &imprint); // Monograph is-part-of 2 sets
+        let mut conn = pool.get().expect("conn");
+        let _ = conn.transaction::<(), DieselError, _>(|c| {
+            c.batch_execute("SET session_replication_role = 'replica'")?;
+            // ch_one: 1 parent; ch_multi: 2 parents; mono_multi: 2 parents.
+            insert_direct(c, ch_one.work_id, p_e.work_id, RelationType::IsChildOf, 1)?;
+            insert_direct(c, ch_multi.work_id, p_a.work_id, RelationType::IsChildOf, 1)?;
+            insert_direct(c, ch_multi.work_id, p_b.work_id, RelationType::IsChildOf, 2)?;
+            insert_direct(
+                c,
+                mono_multi.work_id,
+                p_c.work_id,
+                RelationType::IsChildOf,
+                1,
+            )?;
+            insert_direct(
+                c,
+                mono_multi.work_id,
+                p_d.work_id,
+                RelationType::IsChildOf,
+                2,
+            )?;
+            c.batch_execute("SET session_replication_role = 'origin'")?;
 
-        relate(
-            pool.as_ref(),
-            b_one.work_id,
-            ch_one.work_id,
-            RelationType::HasChild,
-            1,
-        );
-        relate(
-            pool.as_ref(),
-            b_a.work_id,
-            ch_multi.work_id,
-            RelationType::HasChild,
-            1,
-        );
-        relate(
-            pool.as_ref(),
-            b_b.work_id,
-            ch_multi.work_id,
-            RelationType::HasChild,
-            1,
-        );
-        relate(
-            pool.as_ref(),
-            ch_multi2.work_id,
-            b_c.work_id,
-            RelationType::IsChildOf,
-            1,
-        );
-        relate(
-            pool.as_ref(),
-            ch_multi2.work_id,
-            b_d.work_id,
-            RelationType::IsChildOf,
-            2,
-        );
-        relate(
-            pool.as_ref(),
-            b_e.work_id,
-            mono_multi.work_id,
-            RelationType::HasChild,
-            1,
-        );
-        relate(
-            pool.as_ref(),
-            b_f.work_id,
-            mono_multi.work_id,
-            RelationType::HasChild,
-            1,
-        );
-        relate(
-            pool.as_ref(),
-            ch_unrelated.work_id,
-            b_g.work_id,
-            RelationType::Replaces,
-            1,
-        );
-        relate(
-            pool.as_ref(),
-            set_p.work_id,
-            part_shared.work_id,
-            RelationType::HasPart,
-            1,
-        );
-        relate(
-            pool.as_ref(),
-            set_q.work_id,
-            part_shared.work_id,
-            RelationType::HasPart,
-            1,
-        );
+            let summary: ChapterParentSummary =
+                sql_query(AUDIT_SUMMARY_SQL).get_result(c).expect("summary");
+            zero = summary.chapters_with_zero_parents;
+            one = summary.chapters_with_one_parent;
+            many = summary.chapters_with_multiple_parents;
 
-        let mut conn = pool.get().expect("Failed to get DB connection");
+            let blocking: Vec<BlockingChapter> =
+                sql_query(AUDIT_BLOCKING_SQL).load(c).expect("blocking");
+            blocked_ids = blocking.iter().map(|r| r.child_work_id).collect();
+            assert!(blocking.iter().all(|r| r.distinct_parent_count == 2));
 
-        let summary: ChapterParentSummary = sql_query(AUDIT_SUMMARY_SQL)
-            .get_result(&mut conn)
-            .expect("audit summary query failed");
-        assert_eq!(summary.chapters_with_zero_parents, 2);
-        assert_eq!(summary.chapters_with_one_parent, 1);
-        assert_eq!(summary.chapters_with_multiple_parents, 2);
+            let non_chapter: Vec<NonChapterRow> = sql_query(DIAGNOSTIC_NON_CHAPTER_IS_CHILD_OF_SQL)
+                .load(c)
+                .expect("diag");
+            diag = non_chapter
+                .iter()
+                .map(|r| (r.work_id, r.work_type.clone(), r.distinct_parent_count))
+                .collect();
 
-        let flagged: Vec<BlockingChapter> = sql_query(AUDIT_BLOCKING_SQL)
-            .load(&mut conn)
-            .expect("audit blocking query failed");
-        let flagged_ids: HashSet<Uuid> = flagged.iter().map(|r| r.child_work_id).collect();
+            Err(DieselError::RollbackTransaction)
+        });
+
         assert_eq!(
-            flagged.len(),
-            2,
-            "only the two >1-parent book-chapters must block"
+            (zero, one, many),
+            (1, 1, 1),
+            "book-chapter 0/1/>1 distribution"
         );
-        for row in &flagged {
-            assert_eq!(row.distinct_parent_count, 2);
-            assert_eq!(row.child_work_type, "book-chapter");
-        }
-        assert!(flagged_ids.contains(&ch_multi.work_id));
-        assert!(flagged_ids.contains(&ch_multi2.work_id));
-        assert!(!flagged_ids.contains(&mono_multi.work_id));
-        assert!(!flagged_ids.contains(&ch_one.work_id));
-        assert!(!flagged_ids.contains(&ch_zero.work_id));
-        assert!(!flagged_ids.contains(&ch_unrelated.work_id));
-        assert!(!flagged_ids.contains(&part_shared.work_id));
-        assert!(!flagged_ids.contains(&b_a.work_id));
+        assert_eq!(blocked_ids.len(), 1);
+        assert!(
+            blocked_ids.contains(&ch_multi.work_id),
+            "the >1-parent chapter must block"
+        );
+        assert!(
+            !blocked_ids.contains(&mono_multi.work_id),
+            "monograph is not #803 blocking"
+        );
+        assert!(!blocked_ids.contains(&ch_one.work_id));
+        assert!(!blocked_ids.contains(&ch_zero.work_id));
+        assert!(
+            diag.iter()
+                .any(|(id, wt, c)| *id == mono_multi.work_id && wt == "monograph" && *c == 2),
+            "the monograph with two is-child-of parents must be in the non-chapter diagnostic"
+        );
+        assert!(
+            !diag.iter().any(|(id, _, _)| *id == ch_multi.work_id),
+            "book-chapters must not appear in the non-chapter diagnostic"
+        );
+    }
 
-        let detail: Vec<BlockingDetail> = sql_query(AUDIT_BLOCKING_DETAIL_SQL)
-            .load(&mut conn)
-            .expect("audit detail query failed");
-        assert!(detail.iter().all(|d| d.child_work_type == "book-chapter"));
-        assert!(!detail.iter().any(|d| d.child_work_id == mono_multi.work_id));
-        let ch_multi_parents: HashSet<Uuid> = detail
-            .iter()
-            .filter(|d| d.child_work_id == ch_multi.work_id)
-            .map(|d| d.parent_work_id)
-            .collect();
-        assert_eq!(ch_multi_parents, HashSet::from([b_a.work_id, b_b.work_id]));
-        for d in detail
-            .iter()
-            .filter(|d| d.child_work_id == ch_multi.work_id)
-        {
-            assert!(d.relation_ordinal >= 1);
-            assert_ne!(d.work_relation_id, Uuid::nil());
-        }
+    // ======================================================================
+    // 2. ENFORCEMENT via the production WorkRelation::create path
+    // ======================================================================
 
-        let diagnostic: Vec<NonChapterIsChildOf> =
-            sql_query(DIAGNOSTIC_NON_CHAPTER_IS_CHILD_OF_SQL)
-                .load(&mut conn)
-                .expect("diagnostic query failed");
-        let diag_ids: HashSet<Uuid> = diagnostic.iter().map(|r| r.work_id).collect();
-        assert!(diag_ids.contains(&mono_multi.work_id));
-        let mono_row = diagnostic
-            .iter()
-            .find(|r| r.work_id == mono_multi.work_id)
-            .expect("mono_multi must be in the diagnostic");
-        assert_eq!(mono_row.distinct_parent_count, 2);
-        assert_eq!(mono_row.work_type, "monograph");
-        assert!(!diag_ids.contains(&ch_multi.work_id));
-        assert!(!diag_ids.contains(&ch_multi2.work_id));
-        assert!(!diag_ids.contains(&part_shared.work_id));
+    #[test]
+    fn first_parent_allowed_then_second_rejected_has_child_orientation() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let chapter = make_chapter(pool.as_ref(), imprint.imprint_id);
+        let parent_a = create_work(pool.as_ref(), &imprint);
+        let parent_b = create_work(pool.as_ref(), &imprint);
+
+        // First parent (Parent -> HasChild -> Chapter): allowed.
+        relate(
+            pool.as_ref(),
+            parent_a.work_id,
+            chapter.work_id,
+            RelationType::HasChild,
+            1,
+        );
+
+        // Second distinct parent, same orientation: rejected, inverse rolled back.
+        let second = try_relate(
+            pool.as_ref(),
+            parent_b.work_id,
+            chapter.work_id,
+            RelationType::HasChild,
+            1,
+        );
+        assert!(matches!(&second, Err(e) if is_enforcement_violation(e)));
+
+        let mut conn = pool.get().expect("conn");
+        assert_eq!(
+            parent_count(&mut conn, chapter.work_id),
+            1,
+            "chapter keeps one parent"
+        );
+        assert_eq!(
+            has_child_row_count(&mut conn, parent_b.work_id, chapter.work_id),
+            0,
+            "the paired inverse row must have rolled back"
+        );
     }
 
     #[test]
-    fn exact_duplicate_parent_is_already_rejected() {
+    fn second_parent_rejected_is_child_of_orientation() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let chapter = make_chapter(pool.as_ref(), imprint.imprint_id);
+        let parent_a = create_work(pool.as_ref(), &imprint);
+        let parent_b = create_work(pool.as_ref(), &imprint);
+
+        // First parent submitted as Chapter -> IsChildOf -> Parent.
+        relate(
+            pool.as_ref(),
+            chapter.work_id,
+            parent_a.work_id,
+            RelationType::IsChildOf,
+            1,
+        );
+
+        // Second distinct parent, same orientation: rejected; the paired inverse
+        // (Parent B -> HasChild -> Chapter), inserted first inside create(), rolls back.
+        let second = try_relate(
+            pool.as_ref(),
+            chapter.work_id,
+            parent_b.work_id,
+            RelationType::IsChildOf,
+            2,
+        );
+        assert!(matches!(&second, Err(e) if is_enforcement_violation(e)));
+
+        let mut conn = pool.get().expect("conn");
+        assert_eq!(parent_count(&mut conn, chapter.work_id), 1);
+        assert_eq!(
+            has_child_row_count(&mut conn, parent_b.work_id, chapter.work_id),
+            0
+        );
+    }
+
+    #[test]
+    fn exact_duplicate_parent_still_rejected_by_existing_constraint() {
         let (_guard, pool) = setup_test_db();
         let publisher = create_publisher(pool.as_ref());
         let imprint = create_imprint(pool.as_ref(), &publisher);
         let book = create_work(pool.as_ref(), &imprint);
         let chapter = make_chapter(pool.as_ref(), imprint.imprint_id);
-
         relate(
             pool.as_ref(),
             book.work_id,
@@ -1471,173 +1354,44 @@ DROP FUNCTION IF EXISTS thoth_test_enforce_chapter_parent_on_type();";
             RelationType::HasChild,
             1,
         );
-
-        let duplicate = WorkRelation::create(
+        let dup = try_relate(
             pool.as_ref(),
-            &NewWorkRelation {
-                relator_work_id: book.work_id,
-                related_work_id: chapter.work_id,
-                relation_type: RelationType::HasChild,
-                relation_ordinal: 2,
-            },
+            book.work_id,
+            chapter.work_id,
+            RelationType::HasChild,
+            2,
         );
         assert!(matches!(
-            &duplicate,
+            &dup,
             Err(ThothError::DatabaseConstraintError(msg))
                 if msg.contains("A relation between these two works already exists")
         ));
     }
 
-    // --- trigger design validation (single-connection, rolled back) -----------
+    // ======================================================================
+    // 3. RELATION-UPDATE SEMANTICS (trigger-level, rolled back)
+    // ======================================================================
 
     #[test]
-    fn enforcement_trigger_enforces_single_parent_for_book_chapter_only() {
-        let (_guard, pool) = setup_test_db();
-        let publisher = create_publisher(pool.as_ref());
-        let imprint = create_imprint(pool.as_ref(), &publisher);
-
-        let chapter = make_chapter(pool.as_ref(), imprint.imprint_id);
-        let other_chapter = make_chapter(pool.as_ref(), imprint.imprint_id);
-        let parent_a = create_work(pool.as_ref(), &imprint);
-        let parent_b = create_work(pool.as_ref(), &imprint);
-        let mono = create_work(pool.as_ref(), &imprint);
-        let parent_c = create_work(pool.as_ref(), &imprint);
-        let parent_d = create_work(pool.as_ref(), &imprint);
-        let part = create_work(pool.as_ref(), &imprint);
-        let set_one = create_work(pool.as_ref(), &imprint);
-        let set_two = create_work(pool.as_ref(), &imprint);
-        let big_book = create_work(pool.as_ref(), &imprint);
-        let child_one = make_chapter(pool.as_ref(), imprint.imprint_id);
-        let child_two = make_chapter(pool.as_ref(), imprint.imprint_id);
-
-        let mut triggers_installed = false;
-        let mut first_parent_ok = false;
-        let mut second_parent_rejected = false;
-        let mut other_chapter_ok = false;
-        let mut non_chapter_multi_ok = false;
-        let mut is_part_of_multi_ok = false;
-        let mut has_child_multi_ok = false;
-
-        let mut conn = pool.get().expect("Failed to get DB connection");
-        let _ = conn.transaction::<(), DieselError, _>(|c| {
-            triggers_installed = c.batch_execute(CANDIDATE_TRIGGER_DDL).is_ok();
-            first_parent_ok = insert_direct(
-                c,
-                chapter.work_id,
-                parent_a.work_id,
-                RelationType::IsChildOf,
-                1,
-            )
-            .is_ok();
-            let second = c.transaction::<(), DieselError, _>(|c2| {
-                insert_direct(
-                    c2,
-                    chapter.work_id,
-                    parent_b.work_id,
-                    RelationType::IsChildOf,
-                    2,
-                )
-                .map(|_| ())
-            });
-            second_parent_rejected = matches!(
-                &second,
-                Err(DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, info))
-                    if info.constraint_name() == Some(ENFORCEMENT_CONSTRAINT_NAME)
-            );
-            other_chapter_ok = insert_direct(
-                c,
-                other_chapter.work_id,
-                parent_a.work_id,
-                RelationType::IsChildOf,
-                1,
-            )
-            .is_ok();
-            let _ = insert_direct(
-                c,
-                mono.work_id,
-                parent_c.work_id,
-                RelationType::IsChildOf,
-                1,
-            );
-            non_chapter_multi_ok = insert_direct(
-                c,
-                mono.work_id,
-                parent_d.work_id,
-                RelationType::IsChildOf,
-                2,
-            )
-            .is_ok();
-            let _ = insert_direct(c, part.work_id, set_one.work_id, RelationType::IsPartOf, 1);
-            is_part_of_multi_ok =
-                insert_direct(c, part.work_id, set_two.work_id, RelationType::IsPartOf, 2).is_ok();
-            let _ = insert_direct(
-                c,
-                big_book.work_id,
-                child_one.work_id,
-                RelationType::HasChild,
-                1,
-            );
-            has_child_multi_ok = insert_direct(
-                c,
-                big_book.work_id,
-                child_two.work_id,
-                RelationType::HasChild,
-                2,
-            )
-            .is_ok();
-            Err(DieselError::RollbackTransaction)
-        });
-
-        assert!(triggers_installed);
-        assert!(first_parent_ok, "assigning a first parent must succeed");
-        assert!(
-            second_parent_rejected,
-            "a second DISTINCT book-chapter parent must be rejected"
-        );
-        assert!(
-            other_chapter_ok,
-            "a different chapter may take its own single parent"
-        );
-        assert!(
-            non_chapter_multi_ok,
-            "a non-BookChapter Work must not be constrained"
-        );
-        assert!(
-            is_part_of_multi_ok,
-            "IS_PART_OF relations must remain unaffected"
-        );
-        assert!(
-            has_child_multi_ok,
-            "a book may still have multiple children"
-        );
-    }
-
-    #[test]
-    fn enforcement_trigger_allows_replacing_the_single_parent() {
-        // Replacing Parent A with Parent B on the SAME is-child-of row (chapter
-        // still has one relation) must be allowed: the trigger excludes the row
-        // being updated.
+    fn replacing_the_single_parent_is_allowed() {
         let (_guard, pool) = setup_test_db();
         let publisher = create_publisher(pool.as_ref());
         let imprint = create_imprint(pool.as_ref(), &publisher);
         let chapter = make_chapter(pool.as_ref(), imprint.imprint_id);
         let parent_a = create_work(pool.as_ref(), &imprint);
         let parent_b = create_work(pool.as_ref(), &imprint);
+        relate(
+            pool.as_ref(),
+            chapter.work_id,
+            parent_a.work_id,
+            RelationType::IsChildOf,
+            1,
+        );
 
-        let mut replaced_ok = false;
-        let mut conn = pool.get().expect("Failed to get DB connection");
+        let mut allowed = false;
+        let mut conn = pool.get().expect("conn");
         let _ = conn.transaction::<(), DieselError, _>(|c| {
-            c.batch_execute(CANDIDATE_TRIGGER_DDL).unwrap();
-            insert_direct(
-                c,
-                chapter.work_id,
-                parent_a.work_id,
-                RelationType::IsChildOf,
-                1,
-            )
-            .unwrap();
-            // Re-point the chapter's single parent from A to B.
-            replaced_ok = sql_query(
+            allowed = sql_query(
                 "UPDATE work_relation SET related_work_id = $1 \
                  WHERE relator_work_id = $2 AND relation_type = 'is-child-of'",
             )
@@ -1647,95 +1401,310 @@ DROP FUNCTION IF EXISTS thoth_test_enforce_chapter_parent_on_type();";
             .is_ok();
             Err(DieselError::RollbackTransaction)
         });
-        assert!(replaced_ok, "replacing the single parent must be allowed");
+        assert!(
+            allowed,
+            "re-pointing the chapter's only parent must be allowed"
+        );
     }
 
     #[test]
-    fn enforcement_trigger_protects_work_type_transition_to_book_chapter() {
+    fn changing_a_relation_into_a_second_is_child_of_parent_is_rejected() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let chapter = make_chapter(pool.as_ref(), imprint.imprint_id);
+        let parent_a = create_work(pool.as_ref(), &imprint);
+        let other = create_work(pool.as_ref(), &imprint);
+        relate(
+            pool.as_ref(),
+            chapter.work_id,
+            parent_a.work_id,
+            RelationType::IsChildOf,
+            1,
+        );
+        // A separate relation from the chapter to `other`, not yet a parent.
+        relate(
+            pool.as_ref(),
+            chapter.work_id,
+            other.work_id,
+            RelationType::IsPartOf,
+            2,
+        );
+
+        let mut rejected = false;
+        let mut conn = pool.get().expect("conn");
+        let _ = conn.transaction::<(), DieselError, _>(|c| {
+            let r = c.transaction::<(), DieselError, _>(|c2| {
+                sql_query(
+                    "UPDATE work_relation SET relation_type = 'is-child-of' \
+                     WHERE relator_work_id = $1 AND related_work_id = $2",
+                )
+                .bind::<SqlUuid, _>(chapter.work_id)
+                .bind::<SqlUuid, _>(other.work_id)
+                .execute(c2)
+                .map(|_| ())
+            });
+            rejected = matches!(
+                &r,
+                Err(DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, info))
+                    if info.constraint_name() == Some(ENFORCEMENT_CONSTRAINT_NAME)
+            );
+            Err(DieselError::RollbackTransaction)
+        });
+        assert!(
+            rejected,
+            "turning another relation into a second is-child-of parent must reject"
+        );
+    }
+
+    #[test]
+    fn moving_a_relation_onto_a_book_chapter_with_a_parent_is_rejected() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let chapter = make_chapter(pool.as_ref(), imprint.imprint_id);
+        let parent_a = create_work(pool.as_ref(), &imprint);
+        let mono = create_work(pool.as_ref(), &imprint);
+        let z = create_work(pool.as_ref(), &imprint);
+        relate(
+            pool.as_ref(),
+            chapter.work_id,
+            parent_a.work_id,
+            RelationType::IsChildOf,
+            1,
+        );
+        // An is-child-of relation owned by a Monograph, that we try to move onto the chapter.
+        relate(
+            pool.as_ref(),
+            mono.work_id,
+            z.work_id,
+            RelationType::IsChildOf,
+            1,
+        );
+
+        let mut rejected = false;
+        let mut conn = pool.get().expect("conn");
+        let _ = conn.transaction::<(), DieselError, _>(|c| {
+            let r = c.transaction::<(), DieselError, _>(|c2| {
+                sql_query(
+                    "UPDATE work_relation SET relator_work_id = $1 \
+                     WHERE relator_work_id = $2 AND related_work_id = $3 AND relation_type = 'is-child-of'",
+                )
+                .bind::<SqlUuid, _>(chapter.work_id)
+                .bind::<SqlUuid, _>(mono.work_id)
+                .bind::<SqlUuid, _>(z.work_id)
+                .execute(c2)
+                .map(|_| ())
+            });
+            rejected = matches!(
+                &r,
+                Err(DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, info))
+                    if info.constraint_name() == Some(ENFORCEMENT_CONSTRAINT_NAME)
+            );
+            Err(DieselError::RollbackTransaction)
+        });
+        assert!(
+            rejected,
+            "moving a relation onto a chapter that already has a parent must reject"
+        );
+    }
+
+    #[test]
+    fn changing_a_relation_away_from_is_child_of_is_allowed() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let chapter = make_chapter(pool.as_ref(), imprint.imprint_id);
+        let parent_a = create_work(pool.as_ref(), &imprint);
+        relate(
+            pool.as_ref(),
+            chapter.work_id,
+            parent_a.work_id,
+            RelationType::IsChildOf,
+            1,
+        );
+
+        let mut allowed = false;
+        let mut conn = pool.get().expect("conn");
+        let _ = conn.transaction::<(), DieselError, _>(|c| {
+            allowed = sql_query(
+                "UPDATE work_relation SET relation_type = 'is-part-of' \
+                 WHERE relator_work_id = $1 AND relation_type = 'is-child-of'",
+            )
+            .bind::<SqlUuid, _>(chapter.work_id)
+            .execute(c)
+            .is_ok();
+            Err(DieselError::RollbackTransaction)
+        });
+        assert!(
+            allowed,
+            "moving a row away from is-child-of must be allowed by #803"
+        );
+    }
+
+    // ======================================================================
+    // 4. WORKTYPE TRANSITION
+    // ======================================================================
+
+    #[test]
+    fn transition_to_book_chapter_rejected_when_multiple_parents() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let mono = create_work(pool.as_ref(), &imprint); // Monograph
+        let p_c = create_work(pool.as_ref(), &imprint);
+        let p_d = create_work(pool.as_ref(), &imprint);
+        // A Monograph may legitimately hold two is-child-of parents.
+        relate(
+            pool.as_ref(),
+            p_c.work_id,
+            mono.work_id,
+            RelationType::HasChild,
+            1,
+        );
+        relate(
+            pool.as_ref(),
+            p_d.work_id,
+            mono.work_id,
+            RelationType::HasChild,
+            1,
+        );
+
+        let mut conn = pool.get().expect("conn");
+        let res = sql_query(
+            "UPDATE work SET work_type = 'book-chapter', edition = NULL WHERE work_id = $1",
+        )
+        .bind::<SqlUuid, _>(mono.work_id)
+        .execute(&mut conn);
+        assert!(matches!(
+            &res,
+            Err(DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, info))
+                if info.constraint_name() == Some(ENFORCEMENT_CONSTRAINT_NAME)
+        ));
+        assert_eq!(
+            work_type_of(&mut conn, mono.work_id),
+            "monograph",
+            "type unchanged"
+        );
+    }
+
+    #[test]
+    fn transition_to_book_chapter_allowed_when_single_parent() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let mono = create_work(pool.as_ref(), &imprint);
+        let p_c = create_work(pool.as_ref(), &imprint);
+        relate(
+            pool.as_ref(),
+            p_c.work_id,
+            mono.work_id,
+            RelationType::HasChild,
+            1,
+        );
+
+        let mut conn = pool.get().expect("conn");
+        let res = sql_query(
+            "UPDATE work SET work_type = 'book-chapter', edition = NULL WHERE work_id = $1",
+        )
+        .bind::<SqlUuid, _>(mono.work_id)
+        .execute(&mut conn);
+        assert!(
+            res.is_ok(),
+            "a single-parent work may become a book-chapter"
+        );
+        assert_eq!(work_type_of(&mut conn, mono.work_id), "book-chapter");
+    }
+
+    // ======================================================================
+    // 5. NON-BOOKCHAPTER REGRESSIONS
+    // ======================================================================
+
+    #[test]
+    fn non_book_chapter_works_are_not_constrained() {
         let (_guard, pool) = setup_test_db();
         let publisher = create_publisher(pool.as_ref());
         let imprint = create_imprint(pool.as_ref(), &publisher);
 
+        // Monograph with two is-child-of parents: allowed.
         let mono = create_work(pool.as_ref(), &imprint);
-        let parent_c = create_work(pool.as_ref(), &imprint);
-        let parent_d = create_work(pool.as_ref(), &imprint);
-        let mono_single = create_work(pool.as_ref(), &imprint);
-        let parent_e = create_work(pool.as_ref(), &imprint);
-
-        let mut triggers_installed = false;
-        let mut two_parents_ok = false;
-        let mut multi_transition_rejected = false;
-        let mut single_transition_ok = false;
-
-        let mut conn = pool.get().expect("Failed to get DB connection");
-        let _ = conn.transaction::<(), DieselError, _>(|c| {
-            triggers_installed = c.batch_execute(CANDIDATE_TRIGGER_DDL).is_ok();
-            let a = insert_direct(
-                c,
-                mono.work_id,
-                parent_c.work_id,
-                RelationType::IsChildOf,
-                1,
-            );
-            let b = insert_direct(
-                c,
-                mono.work_id,
-                parent_d.work_id,
-                RelationType::IsChildOf,
-                2,
-            );
-            two_parents_ok = a.is_ok() && b.is_ok();
-            let flip_multi = c.transaction::<(), DieselError, _>(|c2| {
-                sql_query(
-                    "UPDATE work SET work_type = 'book-chapter', edition = NULL WHERE work_id = $1",
-                )
-                .bind::<SqlUuid, _>(mono.work_id)
-                .execute(c2)
-                .map(|_| ())
-            });
-            multi_transition_rejected = matches!(
-                &flip_multi,
-                Err(DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, info))
-                    if info.constraint_name() == Some(ENFORCEMENT_CONSTRAINT_NAME)
-            );
-            let _ = insert_direct(
-                c,
-                mono_single.work_id,
-                parent_e.work_id,
-                RelationType::IsChildOf,
-                1,
-            );
-            let flip_single = sql_query(
-                "UPDATE work SET work_type = 'book-chapter', edition = NULL WHERE work_id = $1",
-            )
-            .bind::<SqlUuid, _>(mono_single.work_id)
-            .execute(c);
-            single_transition_ok = flip_single.is_ok();
-            Err(DieselError::RollbackTransaction)
-        });
-
-        assert!(triggers_installed);
-        assert!(
-            two_parents_ok,
-            "a Monograph may hold two is-child-of parents pre-enforcement"
+        relate(
+            pool.as_ref(),
+            create_work(pool.as_ref(), &imprint).work_id,
+            mono.work_id,
+            RelationType::HasChild,
+            1,
         );
-        assert!(
-            multi_transition_rejected,
-            "flipping a multi-parent Work to book-chapter must reject"
+        relate(
+            pool.as_ref(),
+            create_work(pool.as_ref(), &imprint).work_id,
+            mono.work_id,
+            RelationType::HasChild,
+            1,
         );
-        assert!(
-            single_transition_ok,
-            "a single-parent Work may become a book-chapter"
+
+        // EditedBook with two is-child-of parents: not constrained by #803.
+        let edited = make_work_of_type(pool.as_ref(), imprint.imprint_id, WorkType::EditedBook);
+        relate(
+            pool.as_ref(),
+            create_work(pool.as_ref(), &imprint).work_id,
+            edited.work_id,
+            RelationType::HasChild,
+            1,
         );
+        relate(
+            pool.as_ref(),
+            create_work(pool.as_ref(), &imprint).work_id,
+            edited.work_id,
+            RelationType::HasChild,
+            1,
+        );
+
+        // A book may have many children (has-child on the parent side).
+        let big_book = create_work(pool.as_ref(), &imprint);
+        relate(
+            pool.as_ref(),
+            big_book.work_id,
+            make_chapter(pool.as_ref(), imprint.imprint_id).work_id,
+            RelationType::HasChild,
+            1,
+        );
+        relate(
+            pool.as_ref(),
+            big_book.work_id,
+            make_chapter(pool.as_ref(), imprint.imprint_id).work_id,
+            RelationType::HasChild,
+            2,
+        );
+
+        // is-part-of to multiple sets is unaffected.
+        let part = create_work(pool.as_ref(), &imprint);
+        relate(
+            pool.as_ref(),
+            create_work(pool.as_ref(), &imprint).work_id,
+            part.work_id,
+            RelationType::HasPart,
+            1,
+        );
+        relate(
+            pool.as_ref(),
+            create_work(pool.as_ref(), &imprint).work_id,
+            part.work_id,
+            RelationType::HasPart,
+            1,
+        );
+
+        let mut conn = pool.get().expect("conn");
+        assert_eq!(parent_count(&mut conn, mono.work_id), 2);
+        assert_eq!(parent_count(&mut conn, edited.work_id), 2);
     }
 
-    // --- production write-path validation (committed triggers) ----------------
+    // ======================================================================
+    // 6. DETERMINISTIC TWO-CONNECTION CONCURRENCY (real triggers)
+    // ======================================================================
 
     #[test]
-    fn enforcement_trigger_rejects_second_parent_via_production_create_path() {
-        // Exercises the REAL WorkRelation::create path (submitted row + paired
-        // inverse, transactional, ordinal advisory lock). A rejected second parent
-        // must roll back BOTH rows.
+    fn concurrent_two_parents_at_most_one_commits() {
         let (_guard, pool) = setup_test_db();
         let publisher = create_publisher(pool.as_ref());
         let imprint = create_imprint(pool.as_ref(), &publisher);
@@ -1743,70 +1712,65 @@ DROP FUNCTION IF EXISTS thoth_test_enforce_chapter_parent_on_type();";
         let parent_a = create_work(pool.as_ref(), &imprint);
         let parent_b = create_work(pool.as_ref(), &imprint);
 
-        // First parent via production path (before triggers exist): succeeds.
-        relate(
-            pool.as_ref(),
-            parent_a.work_id,
-            chapter.work_id,
-            RelationType::HasChild,
-            1,
-        );
+        let (a_held_tx, a_held_rx) = mpsc::channel::<()>();
+        let (a_go_tx, a_go_rx) = mpsc::channel::<()>();
+        let (b_pid_tx, b_pid_rx) = mpsc::channel::<i32>();
+        let (b_go_tx, b_go_rx) = mpsc::channel::<()>();
+        let (b_issue_tx, b_issue_rx) = mpsc::channel::<()>();
 
-        install_triggers_committed(pool.as_ref());
-        let _cleanup = TriggerGuard(pool.clone());
+        let a_pool = pool.clone();
+        let (ch, pa) = (chapter.work_id, parent_a.work_id);
+        let t_a = thread::spawn(move || {
+            let mut c = a_pool.get().expect("a conn");
+            c.batch_execute("BEGIN").unwrap();
+            let ins = insert_child_pair(&mut c, ch, pa, 1, 1); // locks the chapter work row
+            a_held_tx.send(()).unwrap();
+            a_go_rx.recv().unwrap();
+            let ok = ins.is_ok() && c.batch_execute("COMMIT").is_ok();
+            if !ok {
+                let _ = c.batch_execute("ROLLBACK");
+            }
+            ok
+        });
 
-        // Second DISTINCT parent via the production path must be rejected.
-        let second = WorkRelation::create(
-            pool.as_ref(),
-            &NewWorkRelation {
-                relator_work_id: parent_b.work_id,
-                related_work_id: chapter.work_id,
-                relation_type: RelationType::HasChild,
-                relation_ordinal: 1,
-            },
-        );
+        let b_pool = pool.clone();
+        let (ch2, pb) = (chapter.work_id, parent_b.work_id);
+        let t_b = thread::spawn(move || {
+            let mut c = b_pool.get().expect("b conn");
+            b_pid_tx.send(backend_pid(&mut c)).unwrap();
+            b_go_rx.recv().unwrap();
+            c.batch_execute("BEGIN").unwrap();
+            b_issue_tx.send(()).unwrap();
+            let ins = insert_child_pair(&mut c, ch2, pb, 2, 1); // blocks then rejects
+            let _ = c.batch_execute("ROLLBACK");
+            ins.is_err()
+        });
+
+        let mut poll = pool.get().expect("poll");
+        let b_pid = b_pid_rx.recv().unwrap();
+        a_held_rx.recv().unwrap();
+        b_go_tx.send(()).unwrap();
+        b_issue_rx.recv().unwrap();
+        let blocked = wait_until_blocked(&mut poll, b_pid);
+        a_go_tx.send(()).unwrap();
+        let a_ok = t_a.join().unwrap();
+        let b_rejected = t_b.join().unwrap();
+
         assert!(
-            second.is_err(),
-            "second distinct parent via create() must be rejected"
+            blocked,
+            "the second inserter must block on the chapter work-row lock"
         );
-        if let Err(err) = &second {
-            let msg = format!("{err}");
-            assert!(
-                msg.to_lowercase().contains("parent"),
-                "error should describe the single-parent rule, got: {msg}"
-            );
-        }
-
-        // The paired inverse (parent_b -> has-child -> chapter) must have rolled back.
-        let mut conn = pool.get().expect("conn");
+        assert!(a_ok, "exactly one parent assignment commits");
+        assert!(b_rejected, "the other is rejected");
         assert_eq!(
-            is_child_of_parent_count(&mut conn, chapter.work_id),
+            parent_count(&mut poll, chapter.work_id),
             1,
-            "the chapter must still have exactly one parent"
-        );
-        let orphan_has_child = sql_query(
-            "SELECT COUNT(*) AS n FROM work_relation \
-             WHERE relator_work_id = $1 AND related_work_id = $2 AND relation_type = 'has-child'",
-        )
-        .bind::<SqlUuid, _>(parent_b.work_id)
-        .bind::<SqlUuid, _>(chapter.work_id)
-        .get_result::<CountRow>(&mut conn)
-        .expect("count")
-        .n;
-        assert_eq!(
-            orphan_has_child, 0,
-            "the paired inverse row must not persist"
+            "chapter ends with one parent"
         );
     }
 
-    // --- deterministic two-connection concurrency evidence --------------------
-
     #[test]
-    fn concurrent_relation_holds_lock_then_transition_is_rejected() {
-        // Ordering B: the relation mutation acquires the serialization lock first
-        // (W is a Monograph, so no rejection); a concurrent work_type transition to
-        // book-chapter then blocks and, after the relation commits a second parent,
-        // is rejected. Permitted outcome: W stays Monograph with two parents.
+    fn concurrent_relation_first_then_transition_rejected() {
         let (_guard, pool) = setup_test_db();
         let publisher = create_publisher(pool.as_ref());
         let imprint = create_imprint(pool.as_ref(), &publisher);
@@ -1821,38 +1785,35 @@ DROP FUNCTION IF EXISTS thoth_test_enforce_chapter_parent_on_type();";
             1,
         );
 
-        install_triggers_committed(pool.as_ref());
-        let _cleanup = TriggerGuard(pool.clone());
-
-        let (relheld_tx, relheld_rx) = mpsc::channel::<()>();
-        let (relgo_tx, relgo_rx) = mpsc::channel::<()>();
-        let (typepid_tx, typepid_rx) = mpsc::channel::<i32>();
-        let (typego_tx, typego_rx) = mpsc::channel::<()>();
-        let (typeissue_tx, typeissue_rx) = mpsc::channel::<()>();
+        let (rel_held_tx, rel_held_rx) = mpsc::channel::<()>();
+        let (rel_go_tx, rel_go_rx) = mpsc::channel::<()>();
+        let (type_pid_tx, type_pid_rx) = mpsc::channel::<i32>();
+        let (type_go_tx, type_go_rx) = mpsc::channel::<()>();
+        let (type_issue_tx, type_issue_rx) = mpsc::channel::<()>();
 
         let rel_pool = pool.clone();
-        let (w_id, pb_id) = (w.work_id, parent_b.work_id);
-        let rel = thread::spawn(move || {
+        let (w_id, pb) = (w.work_id, parent_b.work_id);
+        let t_rel = thread::spawn(move || {
             let mut c = rel_pool.get().expect("rel conn");
             c.batch_execute("BEGIN").unwrap();
-            let ins = insert_child_pair(&mut c, w_id, pb_id, 2, 1); // acquires the work-row lock
-            relheld_tx.send(()).unwrap();
-            relgo_rx.recv().unwrap();
-            let committed = ins.is_ok() && c.batch_execute("COMMIT").is_ok();
-            if !committed {
+            let ins = insert_child_pair(&mut c, w_id, pb, 2, 1);
+            rel_held_tx.send(()).unwrap();
+            rel_go_rx.recv().unwrap();
+            let ok = ins.is_ok() && c.batch_execute("COMMIT").is_ok();
+            if !ok {
                 let _ = c.batch_execute("ROLLBACK");
             }
-            committed
+            ok
         });
 
         let type_pool = pool.clone();
         let w_id2 = w.work_id;
-        let typ = thread::spawn(move || {
+        let t_type = thread::spawn(move || {
             let mut c = type_pool.get().expect("type conn");
-            typepid_tx.send(backend_pid(&mut c)).unwrap();
-            typego_rx.recv().unwrap();
+            type_pid_tx.send(backend_pid(&mut c)).unwrap();
+            type_go_rx.recv().unwrap();
             c.batch_execute("BEGIN").unwrap();
-            typeissue_tx.send(()).unwrap();
+            type_issue_tx.send(()).unwrap();
             let res = sql_query(
                 "UPDATE work SET work_type = 'book-chapter', edition = NULL WHERE work_id = $1",
             )
@@ -1862,44 +1823,25 @@ DROP FUNCTION IF EXISTS thoth_test_enforce_chapter_parent_on_type();";
             res.is_err()
         });
 
-        let mut poll = pool.get().expect("poll conn");
-        let type_pid = typepid_rx.recv().unwrap();
-        relheld_rx.recv().unwrap();
-        typego_tx.send(()).unwrap();
-        typeissue_rx.recv().unwrap();
+        let mut poll = pool.get().expect("poll");
+        let type_pid = type_pid_rx.recv().unwrap();
+        rel_held_rx.recv().unwrap();
+        type_go_tx.send(()).unwrap();
+        type_issue_rx.recv().unwrap();
         let blocked = wait_until_blocked(&mut poll, type_pid);
-        relgo_tx.send(()).unwrap();
-        let rel_committed = rel.join().unwrap();
-        let type_rejected = typ.join().unwrap();
+        rel_go_tx.send(()).unwrap();
+        let rel_ok = t_rel.join().unwrap();
+        let type_rejected = t_type.join().unwrap();
 
-        assert!(
-            blocked,
-            "the transition must actually block on the relation's lock"
-        );
-        assert!(
-            rel_committed,
-            "the Monograph second-parent transaction must commit"
-        );
-        assert!(
-            type_rejected,
-            "the book-chapter transition must be rejected"
-        );
-        let wt = work_type_of(&mut poll, w.work_id);
-        let pc = is_child_of_parent_count(&mut poll, w.work_id);
-        assert!(
-            !(wt == "book-chapter" && pc > 1),
-            "FORBIDDEN: book-chapter with >1 parent"
-        );
-        assert_eq!(wt, "monograph");
-        assert_eq!(pc, 2);
+        assert!(blocked, "the transition must block on the relation's lock");
+        assert!(rel_ok, "the monograph second-parent commits");
+        assert!(type_rejected, "the transition is rejected");
+        assert_eq!(work_type_of(&mut poll, w.work_id), "monograph");
+        assert_eq!(parent_count(&mut poll, w.work_id), 2);
     }
 
     #[test]
-    fn concurrent_transition_holds_lock_then_second_parent_is_rejected() {
-        // Ordering A: the work_type transition acquires the serialization lock
-        // first (W has one parent, so it is allowed); a concurrent second-parent
-        // insertion then blocks and, after the transition commits, is rejected.
-        // Permitted outcome: W becomes book-chapter with exactly one parent.
+    fn concurrent_transition_first_then_relation_rejected() {
         let (_guard, pool) = setup_test_db();
         let publisher = create_publisher(pool.as_ref());
         let imprint = create_imprint(pool.as_ref(), &publisher);
@@ -1914,74 +1856,385 @@ DROP FUNCTION IF EXISTS thoth_test_enforce_chapter_parent_on_type();";
             1,
         );
 
-        install_triggers_committed(pool.as_ref());
-        let _cleanup = TriggerGuard(pool.clone());
-
-        let (typeheld_tx, typeheld_rx) = mpsc::channel::<()>();
-        let (typego_tx, typego_rx) = mpsc::channel::<()>();
-        let (relpid_tx, relpid_rx) = mpsc::channel::<i32>();
-        let (relgo_tx, relgo_rx) = mpsc::channel::<()>();
-        let (relissue_tx, relissue_rx) = mpsc::channel::<()>();
+        let (type_held_tx, type_held_rx) = mpsc::channel::<()>();
+        let (type_go_tx, type_go_rx) = mpsc::channel::<()>();
+        let (rel_pid_tx, rel_pid_rx) = mpsc::channel::<i32>();
+        let (rel_go_tx, rel_go_rx) = mpsc::channel::<()>();
+        let (rel_issue_tx, rel_issue_rx) = mpsc::channel::<()>();
 
         let type_pool = pool.clone();
         let w_id = w.work_id;
-        let typ = thread::spawn(move || {
+        let t_type = thread::spawn(move || {
             let mut c = type_pool.get().expect("type conn");
             c.batch_execute("BEGIN").unwrap();
-            // Transition to book-chapter: allowed (one parent); holds the lock.
             let res = sql_query(
                 "UPDATE work SET work_type = 'book-chapter', edition = NULL WHERE work_id = $1",
             )
             .bind::<SqlUuid, _>(w_id)
             .execute(&mut c);
-            typeheld_tx.send(()).unwrap();
-            typego_rx.recv().unwrap();
-            let committed = res.is_ok() && c.batch_execute("COMMIT").is_ok();
+            type_held_tx.send(()).unwrap();
+            type_go_rx.recv().unwrap();
+            let ok = res.is_ok() && c.batch_execute("COMMIT").is_ok();
+            if !ok {
+                let _ = c.batch_execute("ROLLBACK");
+            }
+            ok
+        });
+
+        let rel_pool = pool.clone();
+        let (w_id2, pb) = (w.work_id, parent_b.work_id);
+        let t_rel = thread::spawn(move || {
+            let mut c = rel_pool.get().expect("rel conn");
+            rel_pid_tx.send(backend_pid(&mut c)).unwrap();
+            rel_go_rx.recv().unwrap();
+            c.batch_execute("BEGIN").unwrap();
+            rel_issue_tx.send(()).unwrap();
+            let ins = insert_child_pair(&mut c, w_id2, pb, 2, 1);
+            let _ = c.batch_execute("ROLLBACK");
+            ins.is_err()
+        });
+
+        let mut poll = pool.get().expect("poll");
+        let rel_pid = rel_pid_rx.recv().unwrap();
+        type_held_rx.recv().unwrap();
+        rel_go_tx.send(()).unwrap();
+        rel_issue_rx.recv().unwrap();
+        let blocked = wait_until_blocked(&mut poll, rel_pid);
+        type_go_tx.send(()).unwrap();
+        let type_ok = t_type.join().unwrap();
+        let rel_rejected = t_rel.join().unwrap();
+
+        assert!(
+            blocked,
+            "the second-parent insert must block on the transition's lock"
+        );
+        assert!(
+            type_ok,
+            "the transition to book-chapter commits with one parent"
+        );
+        assert!(rel_rejected, "the second parent is rejected");
+        assert_eq!(work_type_of(&mut poll, w.work_id), "book-chapter");
+        assert_eq!(parent_count(&mut poll, w.work_id), 1);
+    }
+
+    // ======================================================================
+    // 7. MIGRATION TESTS (isolated throwaway databases)
+    // ======================================================================
+
+    struct TempMigrationDb {
+        admin_url: String,
+        name: String,
+    }
+
+    impl TempMigrationDb {
+        fn new() -> Self {
+            let admin_url = test_db_url();
+            let name = format!("thoth_mig_{}", Uuid::new_v4().simple());
+            let mut admin = PgConnection::establish(&admin_url).expect("admin conn");
+            admin
+                .batch_execute(&format!("CREATE DATABASE \"{name}\""))
+                .expect("create temp db");
+            TempMigrationDb { admin_url, name }
+        }
+
+        fn url(&self) -> String {
+            let (prefix, _) = self.admin_url.rsplit_once('/').expect("db url has a path");
+            format!("{prefix}/{}", self.name)
+        }
+
+        fn conn(&self) -> PgConnection {
+            PgConnection::establish(&self.url()).expect("temp db conn")
+        }
+
+        fn pool(&self) -> PgPool {
+            // Small pool so parallel migration tests do not exhaust `max_connections`.
+            diesel::r2d2::Pool::builder()
+                .max_size(4)
+                .build(diesel::r2d2::ConnectionManager::<PgConnection>::new(
+                    self.url(),
+                ))
+                .expect("temp pool")
+        }
+    }
+
+    impl Drop for TempMigrationDb {
+        fn drop(&mut self) {
+            if let Ok(mut admin) = PgConnection::establish(&self.admin_url) {
+                let _ = admin.batch_execute(&format!(
+                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity \
+                     WHERE datname = '{}' AND pid <> pg_backend_pid()",
+                    self.name
+                ));
+                let _ = admin.batch_execute(&format!("DROP DATABASE IF EXISTS \"{}\"", self.name));
+            }
+        }
+    }
+
+    fn enforcement_triggers_present(conn: &mut PgConnection) -> bool {
+        sql_query(
+            "SELECT COUNT(*) AS n FROM pg_trigger \
+             WHERE tgname IN ('work_relation_single_book_chapter_parent', 'work_single_book_chapter_parent_on_type')",
+        )
+        .get_result::<CountRow>(conn)
+        .expect("trigger count")
+        .n
+            == 2
+    }
+
+    #[test]
+    fn migration_up_on_empty_database_succeeds() {
+        let db = TempMigrationDb::new();
+        let mut conn = db.conn();
+        conn.run_pending_migrations(MIGRATIONS)
+            .expect("migrations should apply on an empty database");
+        assert!(
+            enforcement_triggers_present(&mut conn),
+            "triggers installed"
+        );
+    }
+
+    #[test]
+    fn migration_up_on_valid_populated_database_succeeds() {
+        let db = TempMigrationDb::new();
+        let mut conn = db.conn();
+        conn.run_pending_migrations(MIGRATIONS)
+            .expect("initial migrations");
+        // Revert enforcement so we can build representative valid data first.
+        conn.revert_last_migration(MIGRATIONS)
+            .expect("revert enforcement");
+
+        let pool = db.pool();
+        let publisher = create_publisher(&pool);
+        let imprint = create_imprint(&pool, &publisher);
+        let _zero_parent = make_chapter(&pool, imprint.imprint_id);
+        let one_parent = make_chapter(&pool, imprint.imprint_id);
+        let parent = create_work(&pool, &imprint);
+        relate(
+            &pool,
+            parent.work_id,
+            one_parent.work_id,
+            RelationType::HasChild,
+            1,
+        );
+        // A legitimate non-chapter relation.
+        let set = create_work(&pool, &imprint);
+        let part = create_work(&pool, &imprint);
+        relate(&pool, set.work_id, part.work_id, RelationType::HasPart, 1);
+
+        let relations_before = sql_query("SELECT COUNT(*) AS n FROM work_relation")
+            .get_result::<CountRow>(&mut conn)
+            .unwrap()
+            .n;
+
+        conn.run_pending_migrations(MIGRATIONS)
+            .expect("re-applying enforcement over valid data must succeed");
+        assert!(enforcement_triggers_present(&mut conn));
+
+        let relations_after = sql_query("SELECT COUNT(*) AS n FROM work_relation")
+            .get_result::<CountRow>(&mut conn)
+            .unwrap()
+            .n;
+        assert_eq!(
+            relations_before, relations_after,
+            "existing relations unchanged"
+        );
+        assert_eq!(parent_count(&mut conn, one_parent.work_id), 1);
+    }
+
+    #[test]
+    fn migration_up_aborts_on_invalid_data() {
+        let db = TempMigrationDb::new();
+        let mut conn = db.conn();
+        conn.run_pending_migrations(MIGRATIONS)
+            .expect("initial migrations");
+        conn.revert_last_migration(MIGRATIONS)
+            .expect("revert enforcement");
+
+        let pool = db.pool();
+        let publisher = create_publisher(&pool);
+        let imprint = create_imprint(&pool, &publisher);
+        let chapter = make_chapter(&pool, imprint.imprint_id);
+        let p_a = create_work(&pool, &imprint);
+        let p_b = create_work(&pool, &imprint);
+        // Enforcement is reverted, so a corrupt two-parent chapter can be created.
+        relate(
+            &pool,
+            p_a.work_id,
+            chapter.work_id,
+            RelationType::HasChild,
+            1,
+        );
+        relate(
+            &pool,
+            p_b.work_id,
+            chapter.work_id,
+            RelationType::HasChild,
+            1,
+        );
+
+        let relations_before = sql_query("SELECT COUNT(*) AS n FROM work_relation")
+            .get_result::<CountRow>(&mut conn)
+            .unwrap()
+            .n;
+
+        let result = conn.run_pending_migrations(MIGRATIONS);
+        assert!(
+            result.is_err(),
+            "the guard must abort the migration over invalid data"
+        );
+        assert!(
+            !enforcement_triggers_present(&mut conn),
+            "no triggers may be partially installed"
+        );
+
+        let relations_after = sql_query("SELECT COUNT(*) AS n FROM work_relation")
+            .get_result::<CountRow>(&mut conn)
+            .unwrap()
+            .n;
+        assert_eq!(
+            relations_before, relations_after,
+            "no relation deleted or reparented"
+        );
+        assert_eq!(
+            parent_count(&mut conn, chapter.work_id),
+            2,
+            "corrupt data left intact"
+        );
+    }
+
+    #[test]
+    fn migration_down_removes_enforcement_without_data_loss() {
+        let db = TempMigrationDb::new();
+        let mut conn = db.conn();
+        conn.run_pending_migrations(MIGRATIONS).expect("migrations");
+
+        let pool = db.pool();
+        let publisher = create_publisher(&pool);
+        let imprint = create_imprint(&pool, &publisher);
+        let chapter = make_chapter(&pool, imprint.imprint_id);
+        let parent = create_work(&pool, &imprint);
+        relate(
+            &pool,
+            parent.work_id,
+            chapter.work_id,
+            RelationType::HasChild,
+            1,
+        );
+
+        let before = sql_query("SELECT COUNT(*) AS n FROM work_relation")
+            .get_result::<CountRow>(&mut conn)
+            .unwrap()
+            .n;
+
+        conn.revert_last_migration(MIGRATIONS)
+            .expect("down migration");
+        assert!(!enforcement_triggers_present(&mut conn), "triggers removed");
+
+        let after = sql_query("SELECT COUNT(*) AS n FROM work_relation")
+            .get_result::<CountRow>(&mut conn)
+            .unwrap()
+            .n;
+        assert_eq!(before, after, "down migration must not touch data");
+        assert_eq!(parent_count(&mut conn, chapter.work_id), 1);
+    }
+
+    #[test]
+    fn migration_up_down_up_roundtrip_succeeds() {
+        let db = TempMigrationDb::new();
+        let mut conn = db.conn();
+        conn.run_pending_migrations(MIGRATIONS).expect("up");
+        conn.revert_last_migration(MIGRATIONS).expect("down");
+        conn.run_pending_migrations(MIGRATIONS).expect("up again");
+        assert!(enforcement_triggers_present(&mut conn));
+    }
+
+    #[test]
+    fn migration_activation_race_blocks_concurrent_violation() {
+        // On a throwaway DB with enforcement pending, one connection runs the exact
+        // migration up.sql (LOCK + guard + install) inside a transaction and holds
+        // it; a concurrent writer attempts a violating second parent and must block
+        // on the table lock for the entire guard->install window, then be rejected
+        // once enforcement is committed.
+        let db = TempMigrationDb::new();
+        let mut setup = db.conn();
+        setup
+            .run_pending_migrations(MIGRATIONS)
+            .expect("migrations");
+        setup
+            .revert_last_migration(MIGRATIONS)
+            .expect("revert enforcement");
+
+        let pool = db.pool();
+        let publisher = create_publisher(&pool);
+        let imprint = create_imprint(&pool, &publisher);
+        let chapter = make_chapter(&pool, imprint.imprint_id);
+        let parent_a = create_work(&pool, &imprint);
+        let parent_b = create_work(&pool, &imprint);
+        relate(
+            &pool,
+            parent_a.work_id,
+            chapter.work_id,
+            RelationType::HasChild,
+            1,
+        );
+
+        let (mig_locked_tx, mig_locked_rx) = mpsc::channel::<()>();
+        let (mig_go_tx, mig_go_rx) = mpsc::channel::<()>();
+        let (w_pid_tx, w_pid_rx) = mpsc::channel::<i32>();
+        let (w_issue_tx, w_issue_rx) = mpsc::channel::<()>();
+
+        let mig_url = db.url();
+        let t_mig = thread::spawn(move || {
+            let mut c = PgConnection::establish(&mig_url).expect("mig conn");
+            c.batch_execute("BEGIN").unwrap();
+            // Runs LOCK TABLE ... SHARE ROW EXCLUSIVE; guard (passes, 1 parent);
+            // CREATE FUNCTION/TRIGGER x2 — all while holding the table locks.
+            let installed = c.batch_execute(MIGRATION_UP_SQL).is_ok();
+            mig_locked_tx.send(()).unwrap();
+            mig_go_rx.recv().unwrap();
+            let committed = installed && c.batch_execute("COMMIT").is_ok();
             if !committed {
                 let _ = c.batch_execute("ROLLBACK");
             }
             committed
         });
 
-        let rel_pool = pool.clone();
-        let (w_id2, pb_id) = (w.work_id, parent_b.work_id);
-        let rel = thread::spawn(move || {
-            let mut c = rel_pool.get().expect("rel conn");
-            relpid_tx.send(backend_pid(&mut c)).unwrap();
-            relgo_rx.recv().unwrap();
+        let writer_url = db.url();
+        let (ch, pb) = (chapter.work_id, parent_b.work_id);
+        let t_writer = thread::spawn(move || {
+            let mut c = PgConnection::establish(&writer_url).expect("writer conn");
+            w_pid_tx.send(backend_pid(&mut c)).unwrap();
             c.batch_execute("BEGIN").unwrap();
-            relissue_tx.send(()).unwrap();
-            let ins = insert_child_pair(&mut c, w_id2, pb_id, 2, 1); // blocks, then rejected
+            w_issue_tx.send(()).unwrap();
+            // Blocks on the migration's SHARE ROW EXCLUSIVE table lock, then (after
+            // the migration commits) is rejected by the now-active trigger.
+            let ins = insert_child_pair(&mut c, ch, pb, 2, 1);
             let _ = c.batch_execute("ROLLBACK");
             ins.is_err()
         });
 
-        let mut poll = pool.get().expect("poll conn");
-        let rel_pid = relpid_rx.recv().unwrap();
-        typeheld_rx.recv().unwrap();
-        relgo_tx.send(()).unwrap();
-        relissue_rx.recv().unwrap();
-        let blocked = wait_until_blocked(&mut poll, rel_pid);
-        typego_tx.send(()).unwrap();
-        let type_committed = typ.join().unwrap();
-        let rel_rejected = rel.join().unwrap();
+        let mut poll = db.conn();
+        let w_pid = w_pid_rx.recv().unwrap();
+        mig_locked_rx.recv().unwrap();
+        w_issue_rx.recv().unwrap();
+        let blocked = wait_until_blocked(&mut poll, w_pid);
+        mig_go_tx.send(()).unwrap();
+        let mig_ok = t_mig.join().unwrap();
+        let writer_rejected = t_writer.join().unwrap();
 
         assert!(
             blocked,
-            "the second-parent insertion must actually block on the transition's lock"
+            "the concurrent writer must block on the migration's table lock"
         );
+        assert!(mig_ok, "the migration activation commits");
         assert!(
-            type_committed,
-            "the single-parent book-chapter transition must commit"
+            writer_rejected,
+            "the violating writer cannot slip through the guard->install window"
         );
-        assert!(rel_rejected, "the second distinct parent must be rejected");
-        let wt = work_type_of(&mut poll, w.work_id);
-        let pc = is_child_of_parent_count(&mut poll, w.work_id);
-        assert!(
-            !(wt == "book-chapter" && pc > 1),
-            "FORBIDDEN: book-chapter with >1 parent"
+        assert_eq!(
+            parent_count(&mut poll, chapter.work_id),
+            1,
+            "no invalid second parent persisted"
         );
-        assert_eq!(wt, "book-chapter");
-        assert_eq!(pc, 1);
     }
 }
