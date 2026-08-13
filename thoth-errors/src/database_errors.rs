@@ -180,6 +180,7 @@ static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "work_relation_ordinal_type_uniq" => "A relation with this ordinal number and type already exists.",
     "work_relation_relation_ordinal_check" => "A work relation ordinal number must be greater than 0.",
     "work_relation_relator_related_uniq" => "A relation between these two works already exists.",
+    "work_relation_single_book_chapter_parent" => "A book chapter may belong to only one parent work.",
     "work_short_abstract_check" => "Short absract must not be an empty string.",
     "work_table_count_check" => "A table count must be greater than 0.",
     "work_toc_check" => "Table of content must not be an empty string.",
