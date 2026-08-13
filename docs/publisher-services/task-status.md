@@ -4,7 +4,7 @@ Status: ACTIVE TRACKER
 Programme owner: CTO
 Master issue: [#765](https://github.com/thoth-pub/thoth/issues/765)
 Approved design: [private Google Doc](https://docs.google.com/document/d/1kr2Ft0Y4pxgcXGyFAKs_wfFx4I0jlxEvaceswE5Dus8/edit), Drive revision `3`
-Last updated: 2026-08-12 (BE-02 implementation merged; BE-02 closed as an inactive foundation)
+Last updated: 2026-08-13 (BE-03 specification repository-authoritative on `develop`; BE-03 implementation delivered as a draft pull request, independently reviewed at its previous exact head with a BLOCKED decision, CTO-authorized bounded remediation delivered, and the new exact head awaiting a fresh independent review)
 
 ## 1. Control rule
 
@@ -25,7 +25,7 @@ No task moves to `READY` without an approved specification, architecture depende
 | LIC-02 Enforce supported licences | `thoth` | HIGH | BLOCKED | `develop` / `develop` | LIC-01 release; production licence audit plan | #765 | TBD | NOT STARTED |
 | [BE-01 Publisher package model](../engineering/ai-delivery/tasks/BE-01.md) | `thoth` | HIGH | CLOSED | `develop` at `37b802776ae6853affe19d90156f3c1e0654ebe3` (PR #778 merge commit, verified before any edit) / `develop` | None remaining for BE-01 itself: the separately authorized bounded implementation was delivered on `feature/publisher-services/be-01` under ADR-0003 Architecture A and merged into `develop` through implementation PR [#779](https://github.com/thoth-pub/thoth/pull/779) after fresh independent exact-head review and explicit CTO merge authorization, as required for every HIGH-risk merge. Production migration/release execution remains separately gated by open CG-13, and the MIG-01 commercial backfill remains a separately approved CRITICAL task. | [#765](https://github.com/thoth-pub/thoth/issues/765) | Specification [#774](https://github.com/thoth-pub/thoth/pull/774); implementation [#779](https://github.com/thoth-pub/thoth/pull/779) | CLOSED - INACTIVE FOUNDATION - all publishers `OASIS`; no consumer, package API, mutation, UI, distribution, OAI or Metrics behaviour activated; retained-foundation operational rollback applies; evidence in the [BE-01 implementation report](../engineering/ai-delivery/implementation-reports/BE-01-implementation-report.md) and the immutable exact-head comments on PR #779 |
 | [BE-02 Distribution platform model](../engineering/ai-delivery/tasks/BE-02.md) | `thoth` | HIGH | CLOSED | `develop` at `1c752a522f7048963efde00b50565379d7c14b4d` (PR #788 merge commit, verified before any edit) / `develop` | None remaining for BE-02 itself: ADR-01/the final inventory is satisfied through PR #783, ADR-0007 through PR #800, and the request-local non-cached DataLoader foundation through PR #802 (`8dcf031d`). The reconciled BE-02 specification was independently reviewed, CTO-approved and merged through PR #788, making it repository-authoritative at `1c752a52`; the CTO then separately authorized implementation against that exact `develop` SHA, and the bounded implementation was delivered on `feature/publisher-services/be-02` and merged into `develop` through implementation PR [#805](https://github.com/thoth-pub/thoth/pull/805) after fresh independent exact-head review and explicit CTO merge authorization, as required for every HIGH-risk merge. Deployment, environment migration execution, production migration, assignment creation/backfill and distribution activation remain separately gated and unauthorized. | #765 | Specification [#788](https://github.com/thoth-pub/thoth/pull/788); implementation [#805](https://github.com/thoth-pub/thoth/pull/805) | CLOSED - INACTIVE FOUNDATION - the 17-value `DistributionPlatform` enum, the `publisher_distribution_platform` migration and repository-authoritative `schema.rs`, the assignment lifecycle, linked OAPEN/DOAB normalization, four additive public GraphQL read surfaces and the first production ADR-0007 DataLoader adoption are merged, with evidence in the [BE-02 implementation report](../engineering/ai-delivery/implementation-reports/BE-02-implementation-report.md) and the immutable exact-head comments on PR #805. The migration creates zero assignment rows, no distribution behaviour is activated, and merge is not deployment, migration execution, backfill or activation authorization |
-| [BE-03 Protected service configuration](../engineering/ai-delivery/tasks/BE-03.md) | `thoth` | HIGH | IMPLEMENTATION NOT AUTHORIZED | `develop` / `develop` | BE-01 (CLOSED, satisfied); BE-02 (CLOSED, satisfied). Remaining: the written implementation specification at [`tasks/BE-03.md`](../engineering/ai-delivery/tasks/BE-03.md) becomes repository-authoritative when its exact CTO-approved content is reachable from `develop`; the [BE-03/BE-04/APP-01 phase-boundary programme decision](decisions.md) is a specification candidate whose authority condition is that same event — explicit CTO specification approval of the exact content carrying it, plus that content reaching `develop` — and needs no separate lifecycle-status edit once both hold; and implementation additionally requires separate fresh-base explicit CTO authorization. The reserved implementation branch `feature/publisher-services/be-03` must not exist until then. | #765 | Specification [#808](https://github.com/thoth-pub/thoth/pull/808); implementation PR not applicable until implementation is authorized | NOT STARTED - no runtime, migration, schema or GraphQL change exists |
+| [BE-03 Protected service configuration](../engineering/ai-delivery/tasks/BE-03.md) | `thoth` | HIGH | IMPLEMENTATION IN REVIEW | `develop` at `3b6b3a31f9358011f0c998015dfd0c2508380e83` (specification PR #808 merge commit, verified before any edit) / `develop` | BE-01 (CLOSED, satisfied); BE-02 (CLOSED, satisfied). The specification at [`tasks/BE-03.md`](../engineering/ai-delivery/tasks/BE-03.md) is repository-authoritative: its exact CTO-approved content merged into `develop` through PR [#808](https://github.com/thoth-pub/thoth/pull/808) as `3b6b3a31`, which also satisfies the authority condition of the [BE-03/BE-04/APP-01 phase-boundary programme decision](decisions.md) with no separate lifecycle-status edit required. The CTO then separately authorized implementation against that exact `develop` SHA, and the bounded implementation was delivered on `feature/publisher-services/be-03`. An independent HIGH-risk implementation review of the previous exact head `1315057983d389d1ef6b85bc4e69b81eda53aa79` returned BLOCKED on five findings; the CTO resolved the single blocking authority conflict (the actor check-constraint contradiction) and authorized bounded corrections, now delivered on the same branch. Remaining for BE-03 itself: a fresh independent implementation review of the **new** exact head, and explicit CTO merge authorization, as required for every HIGH-risk merge. Deployment, environment migration execution, production migration, assignment creation/backfill and distribution activation remain separately gated and unauthorized. | #765 | Specification [#808](https://github.com/thoth-pub/thoth/pull/808); implementation [#809](https://github.com/thoth-pub/thoth/pull/809) (draft) | IMPLEMENTATION DELIVERED, NOT MERGED - the additive migration (configuration token, closed audit-source type, append-only audit table), repository-authoritative `schema.rs`, the single service-configuration write coordinator, the protected owner-and-superuser read, the superuser-only staff report and replace mutation, derived effective capabilities and the connection-scoped `BE-02` lifecycle refactor are implemented with evidence in the [BE-03 implementation report](../engineering/ai-delivery/implementation-reports/BE-03-implementation-report.md). The migration creates zero audit rows and changes no package or assignment; no distribution job, dissemination or activation exists; and no environment or production migration has been executed |
 | BE-04 Durable distribution jobs | `thoth` | HIGH | BLOCKED | `develop` / `develop` | BE-02 (CLOSED, satisfied); BE-03 | #765 | TBD | NOT STARTED |
 | MIG-01 Audit/production backfill | `thoth` + operations | CRITICAL | BLOCKED | dedicated task branch -> `develop`; separately approved production run | BE-01 and BE-02 (CLOSED, satisfied); BE-03; licence audit; dry run | #765 | TBD | NOT STARTED |
 | APP-01 Service configuration UI | `thoth-app` | MEDIUM | BLOCKED | current `dev` / `dev` pending BR-APP-01 or exception | BE-03 exposing the approved protected API; app readiness controls (BR-APP-01 or explicit CTO exception; the separately specified CG-11 CI closure task); generated API contract pinned to the exact BE-03 commit SHA per the reserved contract control; own approved bounded specification. Scope boundary: under the candidate [BE-03/BE-04/APP-01 phase boundary](decisions.md), BE-03 alone supports only APP-01's configuration scope — own-publisher reads of package, effective capability codes and enabled platforms; superuser read/edit; capability-driven UI affordances; backend-driven linked-platform behaviour; optimistic-concurrency handling; and server-normalized state. APP-01 elements rendering durable back-catalogue job status, attempt state, failure state or pending-onboarding state additionally depend on BE-04 and must not be planned against BE-03 alone | #765 | TBD | NOT STARTED |
@@ -147,30 +147,48 @@ Each branch starts from the repository's verified development branch and targets
    integration only; deployment, environment migration execution, production
    migration, assignment creation or backfill and distribution activation
    remain separately gated and unauthorized.
-10. BE-03's BE-01 and BE-02 dependencies are satisfied. The written
-   implementation specification is
-   [`tasks/BE-03.md`](../engineering/ai-delivery/tasks/BE-03.md), which becomes
-   repository-authoritative when its exact CTO-approved content is reachable from
-   `develop`. It carries one programme-decision candidate — the
+10. BE-03's BE-01 and BE-02 dependencies are satisfied and its specification is
+   **repository-authoritative**: the exact CTO-approved content of
+   [`tasks/BE-03.md`](../engineering/ai-delivery/tasks/BE-03.md) merged into
+   `develop` through PR
+   [#808](https://github.com/thoth-pub/thoth/pull/808) as
+   `3b6b3a31f9358011f0c998015dfd0c2508380e83`. Both halves of the authority
+   condition therefore hold, so the BE-03/BE-04/APP-01 phase boundary is an
+   approved programme decision with no further status edit required. The CTO
+   separately authorized implementation against that exact freshly verified
+   `develop` head, and the bounded implementation was delivered on
+   `feature/publisher-services/be-03` as a **draft** pull request following
+   ADR-0003 Architecture A (direct `thoth-api/src/schema.rs` edit in the same
+   bounded PR as the migration, models, GraphQL contract and tests). Evidence is
+   recorded in the
+   [BE-03 implementation report](../engineering/ai-delivery/implementation-reports/BE-03-implementation-report.md);
+   live review, authorization and merge evidence lives only in that pull
+   request's record under ADR-0005 and is not restated here. An independent
+   HIGH-risk implementation review of the previous exact head returned
+   **BLOCKED** on five findings, one of which was an authority conflict between
+   the approved specification's exact actor DDL and its own acceptance-test
+   wording; the CTO resolved that conflict and authorized bounded corrections,
+   which have been delivered on the same branch without rebase or history
+   rewrite. BE-03 is **not merged**: the resulting new exact head requires a
+   **fresh** independent review — the earlier review applies only to the head it
+   examined — and explicit CTO merge authorization remains outstanding. Merge
+   would authorize repository integration only — deployment, environment
+   migration execution, production migration, assignment creation or backfill
+   and distribution activation remain separately gated and unauthorized. The
+   specification carried one programme-decision candidate — the
    [BE-03/BE-04/APP-01 phase boundary](decisions.md), under which BE-03 owns
    desired configuration only and creates no durable job, no placeholder job and
    no fabricated job status, and under which APP-01's job-aware elements depend
-   on BE-04 rather than on BE-03 alone. That candidate's authority condition is
-   explicit CTO specification approval of the exact content carrying it plus that
-   content reaching `develop`; once both hold it is an approved programme
-   decision with no further status edit required. The protected configuration
-   surface follows ADR-0001 section 4.4 and exposes the current package, the
-   effective capability codes derived from BE-01's code-owned
+   on BE-04 rather than on BE-03 alone. The protected configuration surface
+   follows ADR-0001 section 4.4 and exposes the current package, the effective
+   capability codes derived from BE-01's code-owned
    `ThothPackage::capabilities()` and stored nowhere, and the enabled
-   distribution platforms. The specification additionally fixes one authoritative
+   distribution platforms. The implementation fixes one authoritative
    service-configuration write coordinator, so the canonical configuration
    version token and the configuration audit history cannot be bypassed by a
-   production writer, and it states the protected-read authorization as a
+   production writer, and it implements the protected-read authorization as a
    least-privilege per-publisher `PUBLISHER_USER` (or superuser) check with no
-   role inheritance, covering package and capability codes alike. BE-03
-   implementation is `NOT AUTHORIZED` and additionally requires separate explicit
-   authorization from a freshly verified `develop` head; the reserved branch
-   `feature/publisher-services/be-03` must not exist until then.
+   role inheritance, covering package and capability codes alike.
 11. APP-01 remains blocked pending BE-03, app readiness controls (BR-APP-01 or
    an explicit CTO exception, and the separately specified CG-11 CI closure),
    the exact BE-03 SHA/schema-pinning contract control, and its own approved
@@ -180,11 +198,13 @@ Each branch starts from the repository's verified development branch and targets
    state and pending-onboarding state require BE-04.
 12. Beyond the delivered and merged documentation-only ADR-01 implementation,
     ADR-01-CLOSEOUT-01 control reconciliation, the shared DataLoader
-    foundation and the merged inactive BE-02 foundation, no BE-03, BE-04,
-    APP-01, OAI-PMH, deployment, release, production migration, assignment
-    creation or backfill, distribution activation, `OBSERVE`/`ENFORCE`
-    transition or PR #799 action is authorized; all licence, migration, app,
-    dissemination and operational tasks remain blocked under their recorded
-    dependencies. Repository authority and specification work do not
-    authorize runtime change, credential use, workflow dispatch or production
-    access.
+    foundation, the merged inactive BE-02 foundation and the separately
+    authorized, delivered-but-unmerged BE-03 implementation, no BE-04,
+    MIG-01, APP-01, APP-02, OAI-PMH, deployment, release, environment or
+    production migration, assignment creation or backfill, distribution
+    activation, `OBSERVE`/`ENFORCE` transition or PR #799 action is
+    authorized; all licence, migration, app, dissemination and operational
+    tasks remain blocked under their recorded dependencies. Repository
+    authority, specification work and BE-03 implementation authorization do
+    not authorize runtime change, credential use, workflow dispatch or
+    production access.

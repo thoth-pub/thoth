@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use super::dataloader::fixture::{BatchStats, SqlProbe};
 use super::dataloader::RequestLoaders;
+use super::sdl_support::sdl_block;
 use super::{create_schema, Context, GraphQLRequest, Schema};
 use crate::db::PgPool;
 use crate::model::publisher_distribution_platform::{
@@ -450,13 +451,7 @@ fn sdl_adds_exactly_the_approved_public_inventory() {
     }
 
     // Exactly 17 enum values, and the linked-group and behaviour vocabularies.
-    let platform_enum = sdl
-        .split_once("enum DistributionPlatform {")
-        .expect("DistributionPlatform enum")
-        .1
-        .split_once('}')
-        .expect("enum body")
-        .0;
+    let platform_enum = sdl_block(&sdl, "enum DistributionPlatform {");
     for code in [
         "INTERNET_ARCHIVE",
         "OAPEN",
@@ -481,22 +476,10 @@ fn sdl_adds_exactly_the_approved_public_inventory() {
     assert!(!platform_enum.contains("OTHER"));
     assert!(!platform_enum.contains("UNKNOWN"));
 
-    let group_enum = sdl
-        .split_once("enum DistributionPlatformGroup {")
-        .expect("group enum")
-        .1
-        .split_once('}')
-        .expect("enum body")
-        .0;
+    let group_enum = sdl_block(&sdl, "enum DistributionPlatformGroup {");
     assert!(group_enum.contains("OAPEN_DOAB"));
 
-    let behaviour_enum = sdl
-        .split_once("enum BackCatalogueBehaviour {")
-        .expect("behaviour enum")
-        .1
-        .split_once('}')
-        .expect("enum body")
-        .0;
+    let behaviour_enum = sdl_block(&sdl, "enum BackCatalogueBehaviour {");
     for value in ["AUTOMATIC_PUSH", "PULL_FEED", "MANUAL"] {
         assert!(behaviour_enum.contains(value));
     }
@@ -521,13 +504,7 @@ fn sdl_exposes_no_internal_or_protected_distribution_state() {
 
     // Activation identity, retained history, package/capability state and any
     // endpoint or credential identity stay out of the assignment type.
-    let assignment_type = sdl
-        .split_once("type PublisherDistributionPlatformAssignment {")
-        .expect("assignment type")
-        .1
-        .split_once('}')
-        .expect("type body")
-        .0;
+    let assignment_type = sdl_block(&sdl, "type PublisherDistributionPlatformAssignment {");
     for forbidden in [
         "activationId",
         "disabledAt",
@@ -545,13 +522,7 @@ fn sdl_exposes_no_internal_or_protected_distribution_state() {
     assert!(assignment_type.contains("platform: DistributionPlatform!"));
     assert!(assignment_type.contains("enabledAt: Timestamp!"));
 
-    let option_type = sdl
-        .split_once("type DistributionPlatformOption {")
-        .expect("option type")
-        .1
-        .split_once('}')
-        .expect("type body")
-        .0;
+    let option_type = sdl_block(&sdl, "type DistributionPlatformOption {");
     for forbidden in [
         "adapterProfile",
         "mechanismReadiness",
@@ -568,16 +539,74 @@ fn sdl_exposes_no_internal_or_protected_distribution_state() {
         );
     }
 
-    // BE-02 exposes no package/capability state and no protected BE-03 surface.
-    for forbidden in [
-        "subscriptionPackage",
-        "PublisherServiceConfiguration",
-        "replacePublisherServiceConfiguration",
+    // BE-02's own surfaces expose no package, capability or protected
+    // service-configuration state.
+    //
+    // BE-03 adds `PublisherServiceConfiguration`,
+    // `replacePublisherServiceConfiguration` and a protected
+    // `subscriptionPackage` field, so the previous whole-document string
+    // prohibition is intentionally false from BE-03 onwards. Its security
+    // intent — that none of that state is reachable from a BE-02 surface —
+    // is preserved here as per-type and per-field assertions, which are
+    // stricter than the string search they replace: they would still fail if a
+    // package, capability or configuration field were added to any BE-02 type
+    // or to the public `Publisher`.
+    for be02_type in [
+        "type DistributionPlatformOption {",
+        "type PublisherDistributionPlatformAssignment {",
+        "type Publisher {",
     ] {
+        let block = sdl_block(&sdl, be02_type);
+        for forbidden in [
+            "subscriptionPackage",
+            "ThothPackage",
+            "apabilit",
+            "PublisherServiceConfiguration",
+            "serviceConfiguration",
+        ] {
+            assert!(
+                !block.contains(forbidden),
+                "`{be02_type}` must not expose `{forbidden}`"
+            );
+        }
+    }
+
+    // Coverage precondition for the public `Publisher` prohibitions above. Both
+    // fields are declared after `imprints`, whose nested object default ended
+    // the previous `split_once('}')` extraction, so this asserts the guard saw
+    // the whole declaration rather than a truncated prefix of it.
+    let publisher_type = sdl_block(&sdl, "type Publisher {");
+    for post_imprints_sentinel in ["contacts(", "distributionPlatforms:"] {
         assert!(
-            !sdl.contains(forbidden),
-            "SDL must not expose `{forbidden}`"
+            publisher_type.contains(post_imprints_sentinel),
+            "guard coverage is incomplete: `{post_imprints_sentinel}` is declared after \
+             `imprints` but was not extracted: {publisher_type}"
         );
+    }
+
+    // BE-02's four public read surfaces keep their exact merged signatures: the
+    // protected BE-03 additions change none of them.
+    for merged_surface in [
+        "distributionPlatformOptions: [DistributionPlatformOption!]!",
+        "publishersByDistributionPlatform(\"Distribution platform to search on\" platform: DistributionPlatform!, \"The number of items to return\" limit: Int = 100, \"The number of items to skip\" offset: Int = 0, \"The order in which to sort the results. Results are always additionally sorted by publisher ID ascending, so pagination is deterministic\" order: PublisherOrderBy = {direction: \"ASC\", field: \"PUBLISHER_NAME\"}): [Publisher!]!",
+        "publisherCountByDistributionPlatform(\"Distribution platform to search on\" platform: DistributionPlatform!): Int!",
+        "distributionPlatforms: [PublisherDistributionPlatformAssignment!]!",
+    ] {
+        assert_eq!(
+            sdl.matches(merged_surface).count(),
+            1,
+            "BE-02 surface changed: `{merged_surface}`"
+        );
+    }
+
+    // The protected BE-03 configuration is reachable only through its own
+    // protected operations, never through a BE-02 read surface.
+    assert_eq!(sdl.matches("): PublisherServiceConfiguration!").count(), 2);
+    for protected_operation in [
+        "publisherServiceConfiguration(\"Thoth publisher ID to search on\" publisherId: Uuid!): PublisherServiceConfiguration!",
+        "replacePublisherServiceConfiguration(\"Complete desired service configuration to store\" data: ReplacePublisherServiceConfigurationInput!): PublisherServiceConfiguration!",
+    ] {
+        assert_eq!(sdl.matches(protected_operation).count(), 1);
     }
 }
 

@@ -168,6 +168,17 @@ pub enum ThothError {
     UpdateLocationChecksumError,
     #[error("{0} is not currently available for publisher distribution assignment.")]
     DistributionPlatformNotAssignable(String),
+    /// The caller's `expectedUpdatedAt` did not match the stored publisher
+    /// service-configuration version.
+    ///
+    /// The message deliberately carries no SQL, table name, column name, driver
+    /// text or the current stored token: disclosing the current version to a
+    /// caller that has just failed a version check would let it blind-write over
+    /// a change it never read. The caller re-reads the configuration instead.
+    #[error(
+        "The publisher service configuration changed since it was read. Reload it and try again."
+    )]
+    StalePublisherServiceConfiguration,
 }
 
 impl ThothError {
@@ -196,6 +207,12 @@ impl juniper::IntoFieldError for ThothError {
                 "Unauthorized",
                 graphql_value!({
                     "type": "NO_ACCESS"
+                }),
+            ),
+            ThothError::StalePublisherServiceConfiguration => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "STALE_SERVICE_CONFIGURATION"
                 }),
             ),
             _ => juniper::FieldError::new(

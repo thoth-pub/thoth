@@ -32,6 +32,11 @@ use crate::model::{
         NewPublication, PatchPublication, Publication, PublicationPolicy, PublicationProperties,
     },
     publisher::{NewPublisher, PatchPublisher, Publisher, PublisherPolicy},
+    publisher_service_configuration::{
+        crud::replace_publisher_service_configuration, PublisherServiceConfiguration,
+        PublisherServiceConfigurationSource, ReplacePublisherServiceConfigurationInput,
+        ServiceConfigurationWriteContext,
+    },
     r#abstract::{Abstract, AbstractPolicy, NewAbstract, PatchAbstract},
     reference::{NewReference, PatchReference, Reference, ReferencePolicy},
     series::{NewSeries, PatchSeries, Series, SeriesPolicy},
@@ -53,9 +58,32 @@ use crate::storage::{
     run_cleanup_plan_sync, temp_key, work_cleanup_plan, work_featured_video_cleanup_plan,
     StorageConfig,
 };
-use thoth_errors::ThothError;
+use juniper::IntoFieldError;
+use thoth_errors::{ThothError, ThothResult};
 
 pub struct MutationRoot;
+
+/// Authorize a service-configuration replacement, build its write context and
+/// delegate to the canonical coordinator.
+///
+/// The resolver's responsibilities are exactly these: authorize, build the write
+/// context, call the coordinator and map the result. Every read, validation,
+/// lock, write, version bump and audit insert belongs to the coordinator's
+/// single transaction.
+fn replace_service_configuration(
+    context: &Context,
+    data: &ReplacePublisherServiceConfigurationInput,
+) -> ThothResult<PublisherServiceConfiguration> {
+    // Superuser only, denied before the database is touched. There is no
+    // self-service configuration path in BE-03: every non-superuser is denied
+    // whatever publisher-scoped roles it holds for the target publisher.
+    context.require_superuser()?;
+    let write_context = ServiceConfigurationWriteContext {
+        source: PublisherServiceConfigurationSource::SuperuserApi,
+        actor: context.user_id()?,
+    };
+    replace_publisher_service_configuration(&context.db, &write_context, data)
+}
 
 #[juniper::graphql_object(Context = Context)]
 impl MutationRoot {
@@ -75,6 +103,17 @@ impl MutationRoot {
     ) -> FieldResult<Publisher> {
         PublisherPolicy::can_create(context, &data, ())?;
         Publisher::create(&context.db, &data).map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Replace a publisher's complete desired service configuration under optimistic concurrency control. Superuser only. This stores desired configuration: it creates no distribution job and triggers no dissemination"
+    )]
+    fn replace_publisher_service_configuration(
+        context: &Context,
+        #[graphql(description = "Complete desired service configuration to store")]
+        data: ReplacePublisherServiceConfigurationInput,
+    ) -> FieldResult<PublisherServiceConfiguration> {
+        replace_service_configuration(context, &data).map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(description = "Create a new imprint with the specified values")]
