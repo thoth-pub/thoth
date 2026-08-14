@@ -1,0 +1,602 @@
+# ADR-0008 - Machine roles and durable job primitives
+
+Status: APPROVED
+Date: 2026-08-14
+Approved by: Javi, CTO
+Approval date: 2026-08-14
+Decision owner: CTO
+Programmes affected: Shared Engineering Control / Shared Backend Architecture (owning programme); Publisher Services and Distribution Configuration; Thoth Metrics; future `thoth-api` programmes requiring machine/service identities or durable-job primitives
+Repositories affected: `thoth-pub/thoth`
+Supersedes: None
+Superseded by: None
+
+Decision: machine and service authorization in `thoth` uses dedicated,
+least-privilege, **domain-specific** project roles, and no generic catch-all
+machine role is established; `DISSEMINATION_WORKER` is approved as a
+**Publisher-Services-specific** machine role for the BE-04/DIS-02 durable
+distribution workflow, whose operation-level authorization matrix remains owned
+by the BE-04 specification; the durable-job and concurrency primitives listed in
+section 3.3 are approved shared engineering **conventions**, not a shared job
+framework; BE-04's durable distribution-job storage, domain types, GraphQL
+operations, state machine and lifecycle API remain **programme-local**; and any
+future reusable cross-programme job, queue, lease or service-worker abstraction
+requires its own explicit cross-programme ADR before implementation.
+
+Authority condition: this record is repository-authoritative when this exact
+approved content is reachable from the repository's authoritative integration
+branch (`develop`). A branch carrying `APPROVED` is **not** repository-authoritative
+before it merges, and no implementation task may rely on this decision until the
+exact approved content has received independent exact-head review and has been
+merged into `develop`. Live independent-review, merge-authorization, CI and merge
+evidence is the GitHub pull-request record.
+
+Approved architecture is not implementation authorization. Nothing in this ADR
+authorizes runtime, role-provisioning, identity-provider, migration, GraphQL,
+worker-deployment, job-creation, deployment or production action.
+
+Verification base: `develop` at `fac86e38383e2059e8795698e1585932c35b5b6d`, the
+merge commit of PR [#813](https://github.com/thoth-pub/thoth/pull/813). This ADR
+was drafted against that exact commit.
+
+Provenance: CTO-approved control ruling supplied for this bounded task on
+2026-08-14.
+
+---
+
+## 1. Context
+
+### 1.1 The repository has no machine-role convention
+
+At the verification base, [`thoth-api/src/policy.rs`](../../../thoth-api/src/policy.rs)
+defines five roles. `SUPERUSER` is an **unscoped** project role checked by
+`is_superuser()`; `PUBLISHER_ADMIN`, `PUBLISHER_USER`, `WORK_LIFECYCLE` and
+`CDN_WRITE` are **publisher-scoped** roles checked per ZITADEL organisation
+through `has_role_for_org(...)`.
+
+Every one of those roles models a **human** actor operating through the
+authenticated API. The repository has no machine or service role at all, and
+therefore no convention describing how one should be named, scoped, guarded,
+provisioned or bounded.
+
+[`thoth-api/AGENTS.md`](../../../thoth-api/AGENTS.md) section 7 already requires
+that "service roles must be least-privilege and distinct where read, ingest and
+synchronization have different powers", and requires an explicit machine-role
+authorization test alongside the anonymous, wrong-role, wrong-scope,
+correct-scope and superuser cases. That control states the required property. It
+does not answer the architectural question of whether the repository should have
+one machine role or several, nor who owns that answer.
+
+### 1.2 Two programmes reached the same question independently
+
+**Publisher Services.** The BE-04 durable distribution-job specification
+candidate needs a non-human caller: a back-catalogue worker that claims jobs,
+reports attempt outcomes and cannot be a publisher user. It proposes
+`DISSEMINATION_WORKER` — which would be the repository's first non-`SUPERUSER`
+unscoped project role — and explicitly escalated the adjacency rather than
+deciding it, recording that the judgement is reserved to the CTO.
+
+**Thoth Metrics.** [`docs/metrics/task-status.md`](../../metrics/task-status.md)
+records work package **WP5 - Service auth and entitlements** (`thoth` + clients,
+`CRITICAL`, `BLOCKED`) whose first listed blocking dependency is a **"role
+decision"**. WP5 concerns the same crate, the same `policy.rs`, the same `Role`
+enum and the same ZITADEL project.
+
+The two programmes do not depend on each other, but they would both write into
+the same authorization surface. Whichever landed first would silently set a
+precedent for the other. Precedent established by delivery order is the weakest
+possible form of shared architecture, and the repository's decision process
+exists precisely so that a cross-programme question is answered by the CTO rather
+than inherited from whoever shipped first.
+
+### 1.3 The same applies to durable-job machinery
+
+The root [`AGENTS.md`](../../../AGENTS.md) section 10 already makes PostgreSQL the
+canonical durable owner of jobs, leases, checkpoints, canonical records,
+reconciliation outcomes and audit history, and prohibits a local file, a GitHub
+Actions workflow, an S3 object, browser state or an external service from being
+the sole durable owner. [`thoth-api/AGENTS.md`](../../../thoth-api/AGENTS.md)
+section 5 already names the concurrency primitives available for that purpose,
+including unique constraints, row locks, advisory locks, leases with expiry,
+claim tokens, `FOR UPDATE SKIP LOCKED` and deterministic idempotency keys.
+
+Those controls are correct and are not in question. What they do not say is
+whether a task that applies them is thereby building **shared infrastructure**
+for other programmes. BE-04's proposed `distribution_job`,
+`distribution_job_target` and `distribution_job_attempt` tables would be the
+repository's first substantial durable-job implementation, and the same
+precedence risk applies: a later programme could reuse them by analogy, turning a
+bounded programme-local design into an unowned de-facto framework without any
+decision having been taken.
+
+### 1.4 Why the decision was escalated
+
+The CTO was asked to settle, once and for both programmes:
+
+1. whether machine authorization uses one generic role or domain-specific roles;
+2. whether `DISSEMINATION_WORKER` is acceptable, and how far its approval reaches;
+3. whether the durable-job primitives are conventions or a framework;
+4. whether BE-04's job machinery is shared or programme-local;
+5. what would be required before any genuinely shared abstraction could be built.
+
+This ADR records the CTO's answers. It reconsiders, weakens, broadens and
+replaces nothing in the approved ruling, and it settles no bounded detail that
+an owning specification still holds.
+
+---
+
+## 2. Decision drivers
+
+1. Least privilege for non-human callers, which cannot be supervised, prompted or
+   interrupted the way a human operator can.
+2. A clear, testable authorization boundary for every machine caller, expressible
+   in `policy.rs` and provable by negative tests.
+3. Separation of human administrative authority from machine execution authority:
+   they have different threat models, different blast radii and different
+   credential lifecycles.
+4. Correct scoping: a publisher-scoped role and a genuinely cross-publisher
+   workload are not interchangeable in either direction.
+5. Avoid premature shared abstraction. The repository has zero machine roles and
+   zero durable-job tables at the verification base; one implementation is not
+   enough evidence to design a framework from.
+6. Avoid cross-programme coupling that no programme owns, and that no programme
+   can change safely.
+7. Keep every reusable engineering primitive available without making any of them
+   mandatory.
+8. Keep bounded specification detail with its owning specification, so that this
+   ADR does not silently pre-approve an operation-level authorization matrix it
+   has not reviewed.
+9. Keep architecture decisions separable from implementation authorization, in
+   line with the existing ADR authority rule.
+10. Make the shared convention durable and legible enough that a later programme
+    can apply it without re-litigating it.
+
+---
+
+## 3. Decision
+
+### 3.1 Domain-specific machine-role convention
+
+Machine and service authorization in `thoth` uses **dedicated, least-privilege,
+domain-specific project roles**.
+
+The repository does **not** establish a generic universal role such as:
+
+```text
+SERVICE
+MACHINE
+WORKER
+SERVICE_ACCOUNT
+```
+
+or any equivalent catch-all. No role may be introduced whose meaning is "this
+caller is a machine".
+
+An **unscoped** machine role is permitted only when the owning machine workload
+genuinely operates globally rather than for one publisher or organisation. A
+workload that acts for a single publisher or organisation uses a scoped role;
+lack of a convenient scoping mechanism is not a reason to make a role global.
+
+Every machine role requires all of the following, established by its own approved
+specification:
+
+1. an explicit policy predicate or guard in the authorization layer;
+2. an explicit authorization matrix;
+3. an explicit list of permitted operations;
+4. an explicit list of forbidden operations;
+5. least privilege — the narrowest set of operations that makes the workload
+   function;
+6. separate provisioning and credential controls, distinct from human role
+   provisioning.
+
+Human `SUPERUSER` authority does **not** automatically imply machine-role
+authority. A superuser does not acquire a machine role's permitted operations by
+virtue of being a superuser, and a machine role does not acquire administrative
+authority by virtue of being unscoped.
+
+Roles compose only when each role is **explicitly granted**. No role implies,
+inherits or subsumes another.
+
+### 3.2 `DISSEMINATION_WORKER` boundary
+
+`DISSEMINATION_WORKER` is **approved as a Publisher-Services-specific machine
+role** for the BE-04/DIS-02 durable distribution workflow.
+
+It may later be implemented with **exactly** the permissions approved by the
+BE-04 specification, after that specification has been independently reviewed and
+approved in its own right.
+
+This ADR does **not** fix BE-04's operation-level authorization matrix. That
+bounded detail remains owned by the BE-04 specification, and approving this ADR
+approves neither that specification nor any particular set of operations within
+it.
+
+What this role does:
+
+- it establishes the shared enforcement convention of section 3.1 — a named,
+  domain-specific, least-privilege role with an explicit guard, matrix, permitted
+  and forbidden operations, and separate provisioning.
+
+What this role does **not** do:
+
+- it does **not** authorize any Thoth Metrics operation;
+- it does **not** determine the eventual Metrics machine-role name;
+- it does **not** determine Metrics permissions or entitlement semantics;
+- it does **not** make Metrics WP5 ready for implementation.
+
+Thoth Metrics must apply the shared convention of section 3.1 under its **own**
+approved bounded specification, choosing its own role name, scope, guard,
+permitted and forbidden operations, entitlement model and credential model on its
+own evidence.
+
+### 3.3 Durable-job and concurrency conventions
+
+The following are approved **shared engineering conventions** for `thoth-api`
+durable work, where applicable to the workload:
+
+- PostgreSQL is the durable owner;
+- explicit state machines;
+- database uniqueness for logical idempotency;
+- deterministic idempotency and deduplication keys;
+- explicit claim tokens;
+- bounded leases with expiry;
+- stale-token rejection;
+- deterministic ordering;
+- database-enforced concurrency;
+- `FOR UPDATE SKIP LOCKED` where justified by the workload and the evidence.
+
+These are conventions and primitives. They are **not** a shared generic job
+framework, and this ADR creates no such framework.
+
+The distinction is binding:
+
+```text
+approved primitive/convention != mandatory mechanism in every task
+```
+
+An adopting task must still justify each mechanism it uses against its own
+workload and evidence. `FOR UPDATE SKIP LOCKED` in particular must be justified
+by the adopting task rather than copied mechanically: it is an approved primitive
+and available without a further architecture decision, and it is not an automatic
+design choice. A task whose workload does not need non-blocking exclusive batch
+claiming should not adopt it, and a task that does adopt it owes the concurrency
+evidence its own specification requires.
+
+The same applies to every other item in the list. "Approved" means "available
+without a fresh architecture decision", not "required".
+
+### 3.4 Programme-local BE-04 ownership
+
+BE-04's future
+
+```text
+distribution_job
+distribution_job_target
+distribution_job_attempt
+```
+
+tables, Rust domain types, GraphQL operations, state machine and lifecycle API
+remain **Publisher-Services-specific**.
+
+They are **not**:
+
+- a Metrics job model;
+- a universal queue;
+- a general `Job`/`Queue`/`Lease` API;
+- a reusable cross-programme Rust abstraction;
+- a universal service-worker protocol.
+
+Thoth Metrics, or any other programme, must **not** reuse BE-04's tables, types
+or API merely by analogy. Similarity of shape is not authority to share
+machinery. A programme that needs durable jobs applies the conventions of
+section 3.3 within its own approved design, and owns the result.
+
+### 3.5 Future shared-abstraction rule
+
+A future proposal for a reusable **generic** job, queue, lease or service-worker
+abstraction requires its **own explicit cross-programme ADR** before
+implementation.
+
+That ADR must be raised, reviewed and approved through the ordinary decision
+process in [`README.md`](README.md) and recorded in
+[`decision-register.md`](decision-register.md). It may not be introduced inside a
+programme implementation pull request, and it may not be inferred from two
+programmes having independently applied the same primitives.
+
+This ADR takes no position on whether such an abstraction will eventually be
+justified. It fixes only the gate.
+
+---
+
+## 4. Authorization consequences
+
+1. The repository's machine-role convention is domain-specific, least-privilege
+   and explicit. Every future machine role is introduced by an approved
+   specification satisfying section 3.1's six requirements.
+2. No generic `SERVICE`, `MACHINE`, `WORKER` or `SERVICE_ACCOUNT` role exists or
+   may be introduced by analogy.
+3. An unscoped machine role must be justified by a genuinely global workload;
+   otherwise the role is scoped.
+4. `SUPERUSER` remains a human administrative role. It confers no machine-role
+   authority, and no machine role may be provisioned merely by reusing superuser
+   credentials.
+5. A machine role confers no publisher scope unless its own approved
+   specification defines one explicitly.
+6. Role composition is explicit-grant only.
+7. The existing [`thoth-api/AGENTS.md`](../../../thoth-api/AGENTS.md) section 7
+   test obligations are unchanged and continue to apply to every machine role:
+   anonymous, wrong role, wrong publisher scope, correct publisher scope,
+   superuser, and the approved machine role, all failing closed.
+8. Provisioning and credential controls for a machine role are separate from the
+   role's authorization design, and are separately authorized. This ADR performs
+   and authorizes no role creation, no grant and no identity-provider change.
+
+---
+
+## 5. Programme consequences
+
+### 5.1 Publisher Services
+
+1. `DISSEMINATION_WORKER` is an approved Publisher-Services-specific machine
+   role, under the boundary in section 3.2.
+2. BE-04's operation-level authorization matrix is **not** settled by this ADR
+   and remains owned by the BE-04 specification.
+3. The BE-04 specification candidate is not approved by this ADR. It requires its
+   own independent review and approval.
+4. BE-04 implementation is **NOT AUTHORIZED** by this ADR. It requires its own
+   approved bounded specification and separate explicit implementation
+   authorization from the then-current exact `develop` head.
+5. This ADR must be repository-authoritative before BE-04 implementation may be
+   authorized (section 8).
+6. BE-04's durable job storage, types and API are programme-local under
+   section 3.4.
+7. No `distribution_job`, `distribution_job_target` or `distribution_job_attempt`
+   relation exists at the verification base, no automatic job creation exists,
+   and none is created or activated by this ADR.
+8. DIS-02's back-catalogue worker remains `CRITICAL` and blocked under its
+   recorded dependencies. No worker deployment is authorized.
+
+### 5.2 Thoth Metrics
+
+1. This ADR resolves the **shared machine-role convention** that WP5's "role
+   decision" dependency refers to, once the exact approved content is
+   repository-authoritative on `develop`.
+2. WP5 remains `CRITICAL` and `BLOCKED`.
+3. WP5 still depends on WP4 and on its own approved bounded slice
+   specifications.
+4. This ADR does **not** select the Metrics machine-role name, entitlement model,
+   credential model or operation matrix. Metrics chooses those under its own
+   approved bounded specification, applying section 3.1.
+5. Metrics does not use `DISSEMINATION_WORKER`, and does not inherit its
+   permissions, scope or semantics.
+6. Metrics may not reuse BE-04's job tables, types or API by analogy
+   (section 3.4).
+7. No Metrics implementation is authorized by this ADR.
+8. `MET-CTRL-01` and every other recorded Metrics control debt is untouched by
+   this decision.
+
+---
+
+## 6. Rejected alternatives
+
+### A. One universal generic `MACHINE`/`SERVICE` role
+
+Description: introduce a single catch-all role meaning "this caller is a
+machine", and let every machine workload use it.
+
+Rejected because of **over-broad privilege and premature shared auth
+architecture**. One role cannot be least-privilege for two workloads with
+different powers; the union of every machine workload's permissions becomes the
+privilege of each. It would also fix a shared authorization architecture on the
+evidence of zero implemented machine workloads.
+
+### B. Reuse `SUPERUSER` for workers
+
+Description: grant workers the existing unscoped `SUPERUSER` role rather than
+adding a machine role.
+
+Rejected because **human administrative authority and machine execution authority
+have different threat and least-privilege boundaries**. A worker that can do
+everything an administrator can do fails closed nowhere, and its credential
+compromise is indistinguishable from an administrative compromise.
+
+### C. Reuse a publisher-scoped role for global workers
+
+Description: express a cross-publisher worker through the existing
+publisher-scoped role mechanism.
+
+Rejected because it is the **incorrect scope for genuinely cross-publisher
+workloads**. It would require granting the role for every publisher
+organisation — an unbounded, silently growing grant that is neither least
+privilege nor auditable as a single decision.
+
+### D. Make BE-04's `distribution_job` tables a repository-wide generic job system
+
+Description: treat BE-04's durable job storage, types and API as the shared job
+substrate for every programme.
+
+Rejected because of **premature abstraction and cross-programme coupling**. The
+design would be generalized from exactly one workload, and would leave two
+programmes coupled through machinery neither owns and neither can change safely.
+
+### E. Require every durable task to use `SKIP LOCKED`
+
+Description: make `FOR UPDATE SKIP LOCKED` mandatory wherever a task performs
+durable work.
+
+Rejected because an **approved primitive is not an automatic design choice**;
+workload-specific evidence still governs. Mandating a claiming mechanism for
+workloads that do not claim would add concurrency machinery without a concurrency
+problem, and would substitute a rule for the evidence each task owes.
+
+---
+
+## 7. Implementation boundaries
+
+This ADR is documentation and control only. It authorizes no implementation.
+
+Specifically, this decision does not authorize and does not perform:
+
+- any Rust or runtime implementation;
+- any edit to [`thoth-api/src/policy.rs`](../../../thoth-api/src/policy.rs);
+- machine-role creation in code;
+- any ZITADEL or identity-provider change;
+- role provisioning or any grant;
+- any database migration;
+- any change to `thoth-api/src/schema.rs`;
+- any GraphQL contract change;
+- worker deployment;
+- distribution job creation;
+- BE-04 implementation;
+- any Thoth Metrics implementation;
+- deployment;
+- production access;
+- workflow dispatch;
+- activation of automatic job creation.
+
+Two distinctions are binding throughout this ADR:
+
+```text
+shared convention != shared implementation abstraction
+approved architecture != implementation authorization
+```
+
+A convention constrains how each programme builds its own machinery. It does not
+create machinery that programmes share. An approved architecture states what a
+future implementation must satisfy. It does not authorize that implementation to
+be built.
+
+Every implementation that later applies this ADR requires its own approved
+bounded specification, its own independent exact-head review, and its own
+explicit authorization, exactly as it would have without this ADR.
+
+---
+
+## 8. Rollout and authority
+
+### 8.1 Authority condition
+
+This ADR is repository-authoritative when its **exact approved content** is
+reachable from `develop`. Concretely, that requires all of:
+
+1. the exact approved decision content recorded here;
+2. independent exact-head review of that content;
+3. merge into `develop`.
+
+The CTO approved the decision content itself in the control conversation on
+2026-08-14, which is why the status above is `APPROVED`. Approval of the decision
+and repository authority of this record are **different things**: `APPROVED`
+content on an unmerged branch is not yet repository-authoritative and may not be
+relied upon for implementation until it has been independently reviewed and
+merged to `develop`.
+
+Live independent-review, merge-authorization, CI and merge evidence is the GitHub
+pull-request record, per [`ADR-0005`](ADR-0005-terminal-merge-evidence.md).
+
+### 8.2 BE-04 gate
+
+This ADR must be repository-authoritative **before** BE-04 implementation may be
+authorized.
+
+Being repository-authoritative is a necessary condition for that authorization,
+not a sufficient one. When this ADR reaches `develop`, BE-04 implementation
+remains unauthorized until its own specification is independently reviewed and
+approved and the CTO separately authorizes implementation from a freshly verified
+`develop` head.
+
+This ADR is not BE-04 specification approval, and it is not BE-04 implementation
+authorization.
+
+### 8.3 Metrics gate
+
+WP5's "role decision" dependency is resolved by this ADR — as the shared
+convention only — once this exact approved content is repository-authoritative on
+`develop`. Every other WP5 dependency is unchanged, and no Metrics implementation
+is authorized.
+
+### 8.4 Migration, rollback and production effect
+
+Database migration: none. GraphQL contract change: none. Runtime change: none.
+Production effect: none.
+
+Rollback is the ordinary revert of a documentation change. Because this ADR
+creates no code, no schema and no role, reverting it removes a decision record
+and nothing else.
+
+---
+
+## 9. Consequences
+
+### Positive
+
+- machine authorization has one settled, testable convention before the
+  repository's first machine role exists, rather than after;
+- least privilege is the default rather than the exception;
+- the human/machine authority boundary is explicit;
+- two programmes can proceed independently without either inheriting the other's
+  authorization design by delivery order;
+- durable-job primitives stay available to every programme without becoming
+  mandatory;
+- BE-04 keeps a bounded, owned design instead of an unowned de-facto framework;
+- a genuinely shared abstraction, if ever justified, arrives through a decision
+  rather than through drift.
+
+### Costs and risks
+
+- **Role proliferation.** Domain-specific roles mean more roles over time.
+  Mitigated by section 3.1's requirement that each be justified, bounded and
+  separately provisioned, and by the fact that a role nobody can name a workload
+  for is a role that should not exist.
+- **Duplicated job machinery.** Two programmes implementing durable jobs under
+  the same conventions will write similar code. This is an accepted, explicit
+  trade against premature coupling; section 3.5 is the route out if the
+  duplication ever becomes the larger cost.
+- **Convention drift.** Conventions applied independently can diverge. Mitigated
+  by this ADR being the single referenced source, and by each adopting
+  specification having to state its guard, matrix and permitted/forbidden
+  operations explicitly rather than by reference to another programme.
+- **Misreading approval as authorization.** The most likely misuse of this
+  record. Mitigated by the authority condition, section 7 and section 8.
+
+---
+
+## 10. Review checklist
+
+A reviewer of this ADR should confirm each of the following.
+
+- [ ] All five approved decisions are recorded: domain-specific machine roles
+      (3.1), `DISSEMINATION_WORKER` boundary (3.2), durable-job conventions
+      (3.3), programme-local BE-04 ownership (3.4), future shared-abstraction
+      rule (3.5), together with the authority/BE-04 gate (section 8).
+- [ ] No generic `SERVICE`, `MACHINE`, `WORKER` or `SERVICE_ACCOUNT` role is
+      created or permitted.
+- [ ] `SUPERUSER` is not treated as implying machine-role authority.
+- [ ] Each machine role's six requirements — guard, matrix, permitted
+      operations, forbidden operations, least privilege, separate provisioning —
+      are stated.
+- [ ] BE-04's operation-level authorization matrix is left to the BE-04
+      specification and is not fixed here.
+- [ ] Thoth Metrics is not described as using `DISSEMINATION_WORKER`, and no
+      Metrics role name, entitlement model, credential model or operation matrix
+      is selected.
+- [ ] WP5 is not described as ready; it remains `CRITICAL` and `BLOCKED` with its
+      other dependencies intact.
+- [ ] The durable-job list is recorded as conventions/primitives, with no generic
+      job framework created.
+- [ ] `FOR UPDATE SKIP LOCKED` is not mandated universally and requires
+      workload-specific justification.
+- [ ] BE-04's tables, types, state machine and API are programme-local, and reuse
+      by analogy is prohibited.
+- [ ] A future generic cross-programme job/queue/service abstraction requires its
+      own ADR.
+- [ ] Status is `APPROVED`, approval date is 2026-08-14, approver is Javi, CTO,
+      decision owner is CTO.
+- [ ] The authority condition requires independent exact-head review and merge to
+      `develop`, and states that `APPROVED` on an unmerged branch is not
+      repository-authoritative.
+- [ ] No BE-04 implementation authorization, no Metrics implementation
+      authorization, and no approval of any specification candidate is asserted
+      anywhere in this record.
+- [ ] `shared convention != shared implementation abstraction` and
+      `approved architecture != implementation authorization` are both explicit.
+- [ ] The change is documentation-only: no runtime, policy, schema, migration,
+      GraphQL, workflow, identity-provider or production effect.
