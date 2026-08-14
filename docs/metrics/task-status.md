@@ -59,8 +59,11 @@ generic `SERVICE`/`MACHINE`/`WORKER`/`SERVICE_ACCOUNT` catch-all role, an
 unscoped machine role is permitted only for a genuinely global workload, every
 machine role requires an explicit policy guard, authorization matrix, permitted
 operations, forbidden operations, least privilege and separate
-provisioning/credential controls, human `SUPERUSER` authority does not imply
-machine-role authority, and roles compose only by explicit grant.
+provisioning/credential controls, `SUPERUSER` authority does not automatically
+imply machine-role authority, and machine roles compose only by explicit grant.
+The provisioning/credential requirement is a boundary rather than a provisioning
+architecture: provisioning and credential handling remain separately controlled
+by the owning implementation/deployment task and are not decided by `ADR-0008`.
 
 **Authority condition.** `ADR-0008` resolves that shared convention for Metrics
 when its exact approved content is repository-authoritative on `develop` — that

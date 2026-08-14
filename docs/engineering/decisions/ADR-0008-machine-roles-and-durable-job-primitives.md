@@ -53,10 +53,16 @@ defines five roles. `SUPERUSER` is an **unscoped** project role checked by
 `CDN_WRITE` are **publisher-scoped** roles checked per ZITADEL organisation
 through `has_role_for_org(...)`.
 
-Every one of those roles models a **human** actor operating through the
-authenticated API. The repository has no machine or service role at all, and
-therefore no convention describing how one should be named, scoped, guarded,
-provisioned or bounded.
+**No existing role is defined by repository policy as a dedicated
+machine/service role.** The current policy distinguishes roles by permission and
+scope; it does not encode a dedicated machine-principal role category. Nothing in
+`policy.rs` states or tests what kind of principal holds a role, and this ADR
+makes no claim about which principals currently hold any role, nor about current
+identity-provider assignments.
+
+The consequence is architectural, not empirical: the repository has no role that
+was designed as a machine role, and therefore no convention describing how one
+should be named, scoped, guarded, bounded or introduced.
 
 [`thoth-api/AGENTS.md`](../../../thoth-api/AGENTS.md) section 7 already requires
 that "service roles must be least-privilege and distinct where read, ingest and
@@ -135,9 +141,10 @@ an owning specification still holds.
    credential lifecycles.
 4. Correct scoping: a publisher-scoped role and a genuinely cross-publisher
    workload are not interchangeable in either direction.
-5. Avoid premature shared abstraction. The repository has zero machine roles and
-   zero durable-job tables at the verification base; one implementation is not
-   enough evidence to design a framework from.
+5. Avoid premature shared abstraction. At the verification base, repository
+   policy defines no dedicated machine/service role and the repository has zero
+   durable-job tables; one implementation is not enough evidence to design a
+   framework from.
 6. Avoid cross-programme coupling that no programme owns, and that no programme
    can change safely.
 7. Keep every reusable engineering primitive available without making any of them
@@ -153,6 +160,17 @@ an owning specification still holds.
 ---
 
 ## 3. Decision
+
+The CTO approved five decisions. They map onto this record as follows, and the
+subsection numbering is **not** itself the decision numbering:
+
+| Approved decision | Recorded in |
+|---|---|
+| 1 — domain-specific machine roles | section 3.1 |
+| 2 — `DISSEMINATION_WORKER` Publisher-Services boundary | section 3.2 |
+| 3 — shared durable-job/concurrency conventions, not a framework | section 3.3 |
+| 4 — BE-04 programme-local ownership, including the requirement for a future explicit ADR before any generic shared abstraction | sections 3.4 **and** 3.5 |
+| 5 — repository-authority condition and the BE-04 implementation gate | the `Authority condition` in the header **and** section 8 |
 
 ### 3.1 Domain-specific machine-role convention
 
@@ -185,16 +203,20 @@ specification:
 4. an explicit list of forbidden operations;
 5. least privilege — the narrowest set of operations that makes the workload
    function;
-6. separate provisioning and credential controls, distinct from human role
-   provisioning.
+6. separate provisioning and credential controls.
 
-Human `SUPERUSER` authority does **not** automatically imply machine-role
-authority. A superuser does not acquire a machine role's permitted operations by
-virtue of being a superuser, and a machine role does not acquire administrative
-authority by virtue of being unscoped.
+Requirement 6 is a boundary, not a provisioning architecture. Provisioning and
+credential handling remain separately controlled by the owning
+implementation/deployment task and are **not decided by this ADR**, which
+describes no provisioning mechanism, credential store, rotation policy or
+identity-provider arrangement.
 
-Roles compose only when each role is **explicitly granted**. No role implies,
-inherits or subsumes another.
+`SUPERUSER` authority does **not** automatically imply machine-role authority.
+Holding `SUPERUSER` does not by itself confer a machine role's permitted
+operations, and a machine role does not by itself confer administrative
+authority.
+
+Machine roles compose only when each role is **explicitly granted**.
 
 ### 3.2 `DISSEMINATION_WORKER` boundary
 
@@ -214,7 +236,7 @@ What this role does:
 
 - it establishes the shared enforcement convention of section 3.1 — a named,
   domain-specific, least-privilege role with an explicit guard, matrix, permitted
-  and forbidden operations, and separate provisioning.
+  and forbidden operations, and separately controlled provisioning.
 
 What this role does **not** do:
 
@@ -292,6 +314,9 @@ section 3.3 within its own approved design, and owns the result.
 
 ### 3.5 Future shared-abstraction rule
 
+This subsection expresses the future-abstraction portion of approved Decision 4;
+it is not a separate approved decision.
+
 A future proposal for a reusable **generic** job, queue, lease or service-worker
 abstraction requires its **own explicit cross-programme ADR** before
 implementation.
@@ -316,19 +341,31 @@ justified. It fixes only the gate.
    may be introduced by analogy.
 3. An unscoped machine role must be justified by a genuinely global workload;
    otherwise the role is scoped.
-4. `SUPERUSER` remains a human administrative role. It confers no machine-role
-   authority, and no machine role may be provisioned merely by reusing superuser
-   credentials.
+4. `SUPERUSER` remains an administrative role. Holding it does not by itself
+   confer machine-role authority.
 5. A machine role confers no publisher scope unless its own approved
    specification defines one explicitly.
-6. Role composition is explicit-grant only.
-7. The existing [`thoth-api/AGENTS.md`](../../../thoth-api/AGENTS.md) section 7
-   test obligations are unchanged and continue to apply to every machine role:
-   anonymous, wrong role, wrong publisher scope, correct publisher scope,
-   superuser, and the approved machine role, all failing closed.
+6. Machine-role composition is explicit-grant only.
+7. The existing authorization-test obligations are unchanged and continue to
+   apply to every protected operation a machine role can reach. Root
+   [`AGENTS.md`](../../../AGENTS.md) section 9 and
+   [`thoth-api/AGENTS.md`](../../../thoth-api/AGENTS.md) section 7 require the
+   caller matrix — anonymous caller; authenticated caller without the role;
+   caller scoped to another publisher; correctly scoped publisher role;
+   superuser; machine/service role — to be tested as applicable, and require
+   authorization failures to fail closed. This ADR therefore requires that:
+   - **negative** authorization cases fail closed;
+   - **positive** authorization cases succeed only where the owning approved
+     specification's authorization matrix permits them;
+   - this ADR does **not** pre-decide which callers are positive cases for any
+     future machine operation. In particular, it does not decide whether
+     `SUPERUSER` or any publisher-scoped role is a permitted caller of a machine
+     operation; that belongs to the operation's own approved authorization
+     matrix, subject to the least-privilege requirement in section 3.1.
 8. Provisioning and credential controls for a machine role are separate from the
-   role's authorization design, and are separately authorized. This ADR performs
-   and authorizes no role creation, no grant and no identity-provider change.
+   role's authorization design and are separately authorized. This ADR performs
+   and authorizes no role creation, no grant and no identity-provider change, and
+   it decides no provisioning or credential mechanism.
 
 ---
 
@@ -529,9 +566,10 @@ and nothing else.
 ### Positive
 
 - machine authorization has one settled, testable convention before the
-  repository's first machine role exists, rather than after;
+  repository defines its first dedicated machine role, rather than after;
 - least privilege is the default rather than the exception;
-- the human/machine authority boundary is explicit;
+- the boundary between administrative authority and machine-role authority is
+  explicit;
 - two programmes can proceed independently without either inheriting the other's
   authorization design by delivery order;
 - durable-job primitives stay available to every programme without becoming
@@ -543,9 +581,10 @@ and nothing else.
 ### Costs and risks
 
 - **Role proliferation.** Domain-specific roles mean more roles over time.
-  Mitigated by section 3.1's requirement that each be justified, bounded and
-  separately provisioned, and by the fact that a role nobody can name a workload
-  for is a role that should not exist.
+  Mitigated by section 3.1's requirement that each be justified and bounded under
+  its own approved specification, with separately controlled provisioning, and by
+  the fact that a role nobody can name a workload for is a role that should not
+  exist.
 - **Duplicated job machinery.** Two programmes implementing durable jobs under
   the same conventions will write similar code. This is an accepted, explicit
   trade against premature coupling; section 3.5 is the route out if the
@@ -563,16 +602,32 @@ and nothing else.
 
 A reviewer of this ADR should confirm each of the following.
 
-- [ ] All five approved decisions are recorded: domain-specific machine roles
-      (3.1), `DISSEMINATION_WORKER` boundary (3.2), durable-job conventions
-      (3.3), programme-local BE-04 ownership (3.4), future shared-abstraction
-      rule (3.5), together with the authority/BE-04 gate (section 8).
+- [ ] All five approved decisions are recorded, and mapped as in the table at the
+      head of section 3: Decision 1 -> 3.1; Decision 2 -> 3.2; Decision 3 -> 3.3;
+      Decision 4 -> 3.4 **and** 3.5; Decision 5 -> the header authority condition
+      **and** section 8. The subsection numbering is not the decision numbering,
+      and 3.5 is part of Decision 4 rather than a fifth decision.
 - [ ] No generic `SERVICE`, `MACHINE`, `WORKER` or `SERVICE_ACCOUNT` role is
       created or permitted.
-- [ ] `SUPERUSER` is not treated as implying machine-role authority.
+- [ ] `SUPERUSER` is not treated as implying machine-role authority, and is not
+      characterized as anything beyond an administrative role.
 - [ ] Each machine role's six requirements — guard, matrix, permitted
-      operations, forbidden operations, least privilege, separate provisioning —
-      are stated.
+      operations, forbidden operations, least privilege, separate provisioning
+      and credential controls — are stated, and requirement 6 is recorded as a
+      boundary rather than as a provisioning architecture: no provisioning
+      mechanism, credential store, rotation policy or identity-provider
+      arrangement is decided here.
+- [ ] Explicit-grant composition is stated for machine roles and is not
+      generalized into a repository-wide role-inheritance rule.
+- [ ] No claim is made about which principals hold existing roles. The stated
+      fact is that no existing role is defined by repository policy as a
+      dedicated machine/service role, and that policy distinguishes roles by
+      permission and scope without encoding a machine-principal category.
+- [ ] Authorization-test semantics are correct: **negative** cases fail closed,
+      **positive** cases succeed only where the owning approved specification's
+      authorization matrix permits, and this ADR pre-decides no caller — neither
+      `SUPERUSER` nor any publisher-scoped role — as a positive case for a future
+      machine operation.
 - [ ] BE-04's operation-level authorization matrix is left to the BE-04
       specification and is not fixed here.
 - [ ] Thoth Metrics is not described as using `DISSEMINATION_WORKER`, and no

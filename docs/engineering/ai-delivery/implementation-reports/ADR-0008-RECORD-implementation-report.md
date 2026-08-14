@@ -193,6 +193,15 @@ branch was fetched read-only for context.
   added, so it listed the pre-change line numbers. It is replaced with the actual
   post-change result. It touches this report only, and changes no decision, no
   classification, no scope and no other file.
+- `docs(engineering): align ADR-0008 with approved control ruling` — the
+  remediation commit answering the independent review's five `CHANGES REQUIRED`
+  findings at reviewed head `594bdf9a592f3836d5ff6d1c980e0cee6f9e47be`. It
+  corrects authorization-test semantics, removes architectural broadening beyond
+  approved Decision 1, replaces the unsupported "existing roles are human" claim
+  with a repository-grounded one, corrects the `ADR-0005`/PR-reference handling
+  and adds the required PR #815 changelog reference, and fixes the five-decision
+  mapping. It changes none of the five CTO-approved decisions and touches only
+  files already in this pull request. See section 5.4.
 
 No commit was amended, rebased, squashed or force-pushed. The branch head is
 recorded in the pull request; the head SHA, review state, merge authorization and
@@ -271,11 +280,20 @@ Decisions taken within the approved ruling:
    not exist on `develop`, so a relative link to it would be broken in the merged
    state. It is referred to by name as "the BE-04 specification", which stays
    truthful before and after that specification exists.
-4. **No PR, review, approval or merge identifiers in any changed file.** Under
-   `ADR-0005` and `docs/engineering/AGENTS.md` section 1.1, lifecycle state is
-   GitHub's. The changed files carry durable decisions and authority conditions
-   only, so merging this pull request falsifies none of their prose and requires
-   no follow-up status commit.
+4. **No terminal lifecycle metadata in any changed file.** No changed file
+   copies review, approval, merge-authorization or terminal merge metadata merely
+   to restate lifecycle state. Stable PR references and exact base/preflight
+   evidence are permitted where required by repository controls, and are used:
+   the ADR references PR [#813](https://github.com/thoth-pub/thoth/pull/813) as
+   its verification base, and the changelog entry references PR
+   [#815](https://github.com/thoth-pub/thoth/pull/815) as root `AGENTS.md`
+   section 13 requires. `ADR-0005` section 5 explicitly permits repository
+   documents to reference a pull request; what it prohibits is duplicating a
+   GitHub lifecycle event into a commit so a Markdown file can repeat it. No
+   review ID, approval ID, merge-authorization ID, merge SHA, merge timestamp,
+   draft/ready status or future merge state appears in any changed file, so
+   merging this pull request falsifies none of their prose and requires no
+   follow-up status commit.
 5. **Metrics reconciliation is authority-conditioned, not merge-dated.** The
    Metrics tracker says `ADR-0008` resolves the shared machine-role convention
    *when its exact approved content is repository-authoritative on `develop`*.
@@ -294,15 +312,20 @@ Deviations from the approved ruling: NONE.
 
 ### 5.1 Semantic correspondence of the five approved decisions
 
-Each approved decision is recorded semantically exactly. The correspondence is:
+Each approved decision is recorded semantically exactly. The ADR's subsection
+numbering is **not** the decision numbering: approved Decision 4 covers both
+`ADR-0008` section 3.4 and section 3.5, and approved Decision 5 is the
+repository-authority condition and the BE-04 implementation gate, recorded in the
+ADR header and section 8 rather than in any `3.x` subsection. The same mapping is
+stated at the head of `ADR-0008` section 3. The correspondence is:
 
 | Approved decision | Recorded in | Correspondence |
 |---|---|---|
-| **1 — Domain-specific machine roles** | `ADR-0008` section 3.1; consequences in section 4 | Machine/service authorization uses dedicated, least-privilege, domain-specific project roles. No generic `SERVICE`, `MACHINE`, `WORKER`, `SERVICE_ACCOUNT` or equivalent catch-all is established, and none may be introduced. An unscoped machine role is permitted **only** when the owning workload genuinely operates globally rather than for one publisher/organisation. Every machine role requires an explicit policy predicate/guard, an explicit authorization matrix, explicit permitted operations, explicit forbidden operations, least privilege and separate provisioning/credential controls. Human `SUPERUSER` authority does **not** automatically imply machine-role authority. Roles compose only when each role is explicitly granted. |
+| **1 — Domain-specific machine roles** | `ADR-0008` section 3.1; consequences in section 4 | Machine/service authorization uses dedicated, least-privilege, domain-specific project roles. No generic `SERVICE`, `MACHINE`, `WORKER`, `SERVICE_ACCOUNT` or equivalent catch-all is established, and none may be introduced. An unscoped machine role is permitted **only** when the owning workload genuinely operates globally rather than for one publisher/organisation. Every machine role requires an explicit policy predicate/guard, an explicit authorization matrix, explicit permitted operations, explicit forbidden operations, least privilege and separate provisioning/credential controls — the last of these recorded as a boundary, not a provisioning architecture: provisioning and credential handling remain separately controlled by the owning implementation/deployment task and are not decided by this ADR. `SUPERUSER` authority does **not** automatically imply machine-role authority. Machine roles compose only when each role is explicitly granted; this is not generalized into a repository-wide role-inheritance rule. |
 | **2 — `DISSEMINATION_WORKER`** | `ADR-0008` section 3.2; programme effect in 5.1 and 5.2 | Approved as a **Publisher-Services-specific** machine role for the BE-04/DIS-02 durable distribution workflow. It may later be implemented with exactly the permissions approved by the BE-04 specification, after that specification is independently reviewed and approved. This ADR does **not** fix BE-04's operation-level authorization matrix; that bounded detail remains owned by the BE-04 specification. The role establishes the shared enforcement convention of Decision 1; it authorizes no Metrics operation, determines no eventual Metrics machine-role name, determines no Metrics permissions or entitlement semantics, and does **not** make WP5 ready for implementation. Metrics must apply the shared convention under its own approved bounded specification. |
 | **3 — Shared durable-job conventions, not a framework** | `ADR-0008` section 3.3 | All ten primitives are recorded verbatim in list form: PostgreSQL as durable owner; explicit state machines; database uniqueness for logical idempotency; deterministic idempotency/deduplication keys; explicit claim tokens; bounded leases with expiry; stale-token rejection; deterministic ordering; database-enforced concurrency; `FOR UPDATE SKIP LOCKED` where justified by the workload and evidence. They are recorded as conventions/primitives and **not** a shared generic job framework. The ADR states explicitly, in a fenced block, `approved primitive/convention != mandatory mechanism in every task`, and states that `FOR UPDATE SKIP LOCKED` must be justified by the adopting task rather than copied mechanically. |
-| **4 — BE-04 remains programme-local** | `ADR-0008` section 3.4; programme effect in 5.1 and 5.2 | BE-04's future `distribution_job`, `distribution_job_target` and `distribution_job_attempt` tables, Rust domain types, GraphQL operations, state machine and lifecycle API remain Publisher-Services-specific. They are **not** a Metrics job model, a universal queue, a general `Job`/`Queue`/`Lease` API, a reusable cross-programme Rust abstraction or a universal service-worker protocol. Metrics or another programme must not reuse BE-04's tables/types/API merely by analogy. A future proposal for a reusable generic job/queue/service abstraction requires its own explicit cross-programme ADR before implementation (section 3.5). |
-| **5 — Authority / BE-04 gate** | `ADR-0008` header, authority condition and section 8 | Status `APPROVED`, approved by Javi, CTO, approval date 2026-08-14, decision owner CTO. Repository-authoritative is defined as exact approved ADR content **plus** independent exact-head review **plus** merge into `develop`. The authority condition states that `APPROVED` content on an unmerged branch is not yet repository-authoritative and may not be relied upon for implementation until independently reviewed and merged to `develop`. Section 8.2 states that this ADR must be repository-authoritative before BE-04 implementation may be authorized, and that this is a necessary and not a sufficient condition. The record states in three places that it is neither BE-04 specification approval nor BE-04 implementation authorization. |
+| **4 — BE-04 remains programme-local, including the future-ADR requirement** | `ADR-0008` sections 3.4 **and** 3.5; programme effect in 5.1 and 5.2 | BE-04's future `distribution_job`, `distribution_job_target` and `distribution_job_attempt` tables, Rust domain types, GraphQL operations, state machine and lifecycle API remain Publisher-Services-specific. They are **not** a Metrics job model, a universal queue, a general `Job`/`Queue`/`Lease` API, a reusable cross-programme Rust abstraction or a universal service-worker protocol. Metrics or another programme must not reuse BE-04's tables/types/API merely by analogy. A future proposal for a reusable generic job/queue/service abstraction requires its own explicit cross-programme ADR before implementation (section 3.5). |
+| **5 — Repository authority / BE-04 implementation gate** | `ADR-0008` header `Authority condition` and section 8 — **not** any `3.x` subsection | Status `APPROVED`, approved by Javi, CTO, approval date 2026-08-14, decision owner CTO. Repository-authoritative is defined as exact approved ADR content **plus** independent exact-head review **plus** merge into `develop`. The authority condition states that `APPROVED` content on an unmerged branch is not yet repository-authoritative and may not be relied upon for implementation until independently reviewed and merged to `develop`. Section 8.2 states that this ADR must be repository-authoritative before BE-04 implementation may be authorized, and that this is a necessary and not a sufficient condition. The record states in three places that it is neither BE-04 specification approval nor BE-04 implementation authorization. |
 
 ### 5.2 Why this is a cross-programme decision
 
@@ -313,10 +336,10 @@ Three independent facts make it cross-programme rather than programme-local:
    crate, the same `thoth-api/src/policy.rs`, the same `Role` enum and the same
    ZITADEL project. There is no way for one programme to answer the question
    only for itself.
-2. **Precedence would otherwise decide it.** At the authorized base the
-   repository has no machine role at all. The first machine role merged would
-   become the de-facto convention for the second, and delivery order is not a
-   decision process. The BE-04 specification candidate identified exactly this
+2. **Precedence would otherwise decide it.** At the authorized base, repository
+   policy defines no role as a dedicated machine/service role. The first machine
+   role merged would become the de-facto convention for the second, and delivery
+   order is not a decision process. The BE-04 specification candidate identified exactly this
    and escalated it rather than deciding it.
 3. **The same risk applies to durable-job machinery.** BE-04's job tables would
    be the repository's first substantial durable-job implementation. Without an
@@ -352,6 +375,89 @@ predicate was added, no migration was written, no GraphQL contract changed, no
 identity-provider or provisioning action occurred, no workflow was dispatched and
 no deployment or production access took place.
 
+### 5.4 Independent-review remediation
+
+Independent review of head `594bdf9a592f3836d5ff6d1c980e0cee6f9e47be` returned
+`CHANGES REQUIRED` with five findings. All five are fidelity and control-record
+defects; none reopened the architecture, and **the five CTO-approved decisions
+themselves are unchanged**. The corrections were applied by one ordinary additive
+commit on the same branch, with no amend, rebase, squash or force push.
+
+**Finding 1 — authorization test semantics.** `ADR-0008` section 4 item 7 had
+described the whole caller matrix as "all failing closed". That is wrong: root
+`AGENTS.md` section 9 lists the caller matrix to be tested and *separately*
+requires that authorization **failures** fail closed. Item 7 now states the
+matrix as the two standing controls state it, and adds explicitly that negative
+cases fail closed, that positive cases succeed only where the owning approved
+specification's authorization matrix permits, and that this ADR pre-decides no
+caller — neither `SUPERUSER` nor any publisher-scoped role — as a positive case
+for a future machine operation. Section 8 of this report carried the same
+incorrect gloss and is corrected identically. Least privilege is unchanged, and
+no repository `AGENTS.md` file was modified.
+
+**Finding 2 — unapproved architectural broadening.** Four normative statements
+went beyond approved Decision 1 and are removed or demoted:
+
+- "provisioning and credential controls, **distinct from human role
+  provisioning**" -> requirement 6 is retained as "separate provisioning and
+  credential controls" and is now explicitly a boundary rather than a
+  provisioning architecture: provisioning and credential handling remain
+  separately controlled by the owning implementation/deployment task and are not
+  decided by this ADR, which describes no provisioning mechanism, credential
+  store, rotation policy or identity-provider arrangement;
+- "**Roles** compose only when each role is explicitly granted" -> scoped to
+  "**Machine roles** compose only when each role is explicitly granted";
+- "No role implies, inherits or subsumes another" -> **removed**; no
+  repository-wide role-inheritance rule is asserted;
+- "`SUPERUSER` remains a **human** administrative role" -> "`SUPERUSER` remains
+  an administrative role. Holding it does not by itself confer machine-role
+  authority."
+
+The approved sentence "`SUPERUSER` authority does not automatically imply
+machine-role authority" is preserved. The equivalent wording was corrected in the
+decision register, the Metrics tracker, the changelog entry and the correspondence
+table in section 5.1 of this report.
+
+**Finding 3 — existing-role fact claim.** `ADR-0008` section 1.1 had asserted
+that every existing role "models a human actor". Merged `policy.rs` does not
+encode principal type; it distinguishes roles by permission and scope. The
+assertion is replaced with the repository-grounded statement that **no existing
+role is defined by repository policy as a dedicated machine/service role**, with
+the factual five-role inventory and its scope description preserved, and with an
+explicit note that this ADR makes no claim about which principals hold any role
+or about current identity-provider assignments. Two derived statements — decision
+driver 5 in the ADR and the cross-programme narrative in the decision register —
+were corrected the same way, as was step 3 of section 10 and section 5.2 item 2
+of this report.
+
+**Finding 4 — ADR-0005 / PR-reference handling.** This report had claimed "No PR,
+review, approval or merge identifiers in any changed file", which was both false
+and overbroad: `ADR-0005` section 5 permits repository documents to reference a
+pull request, and the ADR legitimately references PR
+[#813](https://github.com/thoth-pub/thoth/pull/813) as its verification base. The
+claim is replaced with the purpose-qualified rule — no changed file copies review,
+approval, merge-authorization or terminal merge metadata merely to restate
+lifecycle state, while stable PR references and exact base/preflight evidence are
+permitted where repository controls require them. The PR #813 verification-base
+reference is retained. Root `AGENTS.md` section 13 requires referencing the PR
+number when available, so the changelog entry now carries a stable
+[#815](https://github.com/thoth-pub/thoth/pull/815) reference in the repository's
+existing changelog convention of a bracketed PR number linking to the pull
+request, followed by the entry text. No review ID, approval
+ID, merge-authorization ID, merge SHA, merge timestamp, draft/ready status or
+future merge state was added to any committed file.
+
+**Finding 5 — five-decision mapping.** The record had implied that `ADR-0008`
+sections 3.1-3.5 are themselves the five approved decisions, which mis-maps
+Decision 5. The correct mapping — Decision 1 -> 3.1; Decision 2 -> 3.2;
+Decision 3 -> 3.3; Decision 4 -> 3.4 **and** 3.5; Decision 5 -> the header
+`Authority condition` **and** section 8 — is now stated in a table at the head of
+`ADR-0008` section 3, in the ADR review checklist, in section 5.1 of this report,
+in the required-content verification block in section 9 and in the review-focus
+list in section 15. `ADR-0008` section 3.5 is retained and now states that it
+expresses the future-abstraction portion of Decision 4 rather than a separate
+decision.
+
 ## 6. Database and migration effects
 
 Migration added: NO.
@@ -382,10 +488,20 @@ granted, provisioned or checked by this change, and no ZITADEL project role
 exists as a result of it.
 
 Negative authorization tests: not applicable — no authorization code path was
-added or altered. The existing `thoth-api/AGENTS.md` section 7 obligations
-(anonymous, wrong role, wrong publisher scope, correct publisher scope,
-superuser, approved machine role, failing closed) are restated as binding for
-every future machine role in `ADR-0008` section 4 item 7.
+added or altered.
+
+`ADR-0008` section 4 item 7 restates the existing obligations without changing
+them. Root `AGENTS.md` section 9 and `thoth-api/AGENTS.md` section 7 require the
+caller matrix — anonymous caller; authenticated caller without the role; caller
+scoped to another publisher; correctly scoped publisher role; superuser;
+machine/service role — to be tested as applicable, and separately require
+authorization **failures** to fail closed. The matrix is therefore not uniformly
+negative: **negative** cases must fail closed, while **positive** cases succeed
+only where the owning approved specification's authorization matrix permits them.
+`ADR-0008` pre-decides no caller as a positive case for any future machine
+operation — in particular it decides neither `SUPERUSER` nor any
+publisher-scoped role to be a permitted caller of a machine operation — subject
+to the least-privilege requirement in its section 3.1.
 
 Secret or personal-data handling: none. No credential, token, secret or personal
 datum appears in any changed file.
@@ -530,7 +646,7 @@ PY
 Result:
 
 ```text
-relative links checked: 77; broken: 0
+relative links checked: 78; broken: 0
 ```
 
 ### Contradictory-wording search
@@ -611,8 +727,24 @@ Confirmed by reading the merged content of
 `ADR-0008-machine-roles-and-durable-job-primitives.md`:
 
 ```text
-all five approved decisions present            YES  (sections 3.1-3.5, 8)
+all five approved decisions present            YES
+  Decision 1                                   3.1
+  Decision 2                                   3.2
+  Decision 3                                   3.3
+  Decision 4                                   3.4 AND 3.5
+  Decision 5                                   header authority condition AND 8
+  (mapping table at the head of section 3;
+   subsection numbering is not decision
+   numbering, and 3.5 is part of Decision 4)
 creates no generic SERVICE/MACHINE role        YES  (3.1, prohibition)
+no unsupported "existing roles are human"
+  claim; states only that policy defines no
+  dedicated machine/service role               YES  (1.1)
+negative authorization cases fail closed;
+  positive cases follow the owning approved
+  matrix; no caller pre-decided as positive    YES  (4 item 7)
+no unapproved shared provisioning or
+  role-inheritance architecture                YES  (3.1, 4 items 6 and 8)
 does not claim Metrics uses DISSEMINATION_WORKER
                                                YES  (3.2, 5.2 item 5)
 does not make WP5 ready                        YES  (3.2, 5.2 items 2-3)
@@ -675,8 +807,14 @@ Steps and observed results:
 2. Read the authoritative material in the source hierarchy of section 1.5 before
    any edit.
 3. Confirmed the current role inventory in `thoth-api/src/policy.rs` so that
-   `ADR-0008` section 1.1 states the factual base accurately: five roles,
-   `SUPERUSER` unscoped, the other four publisher-scoped, and no machine role.
+   `ADR-0008` section 1.1 states the factual base accurately: five `Role`
+   variants; `SUPERUSER` checked as an unscoped project-role key through
+   `is_superuser()`; the other four checked with publisher-organisation scope
+   through `has_role_for_org(...)`. `policy.rs` distinguishes roles by permission
+   and scope and encodes no machine-principal role category, so the grounded
+   claim is that **no existing role is defined by repository policy as a
+   dedicated machine/service role** — not that any role is necessarily held by a
+   human, which `policy.rs` neither states nor tests.
 4. Drafted `ADR-0008` against the ruling clause by clause, then re-checked each
    clause against the ADR text; the correspondence is in section 5.1.
 5. Reconciled the decision register, the Metrics tracker and the Publisher
@@ -782,10 +920,14 @@ reviewer and the CTO.
 Suggested review focus:
 
 1. **Semantic fidelity to the ruling.** Read section 5.1's correspondence table
-   against `ADR-0008` sections 3.1-3.5 and 8, and confirm nothing was weakened,
-   broadened, reconsidered or replaced — in particular that the ADR does not
-   settle BE-04's operation-level authorization matrix, which the ruling reserves
-   to the BE-04 specification.
+   against the mapping table at the head of `ADR-0008` section 3 — Decision 1 ->
+   3.1, Decision 2 -> 3.2, Decision 3 -> 3.3, Decision 4 -> 3.4 and 3.5,
+   Decision 5 -> the header authority condition and section 8 — and confirm
+   nothing was weakened, broadened, reconsidered or replaced. In particular
+   confirm that the ADR does not settle BE-04's operation-level authorization
+   matrix, which the ruling reserves to the BE-04 specification, and that no
+   reasonable-sounding addition has been promoted into approved architecture
+   beyond the five decisions.
 2. **Absence of over-claiming.** Confirm that no changed file asserts BE-04
    implementation authorization, BE-04 specification approval, WP5 readiness, a
    Metrics role selection, or any generic machine role or job framework.
