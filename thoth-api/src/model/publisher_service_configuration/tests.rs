@@ -1848,6 +1848,8 @@ fn summaries(
         publishers,
         packages,
         enabled_platforms,
+        vec![],
+        None,
     )
     .expect("report")
 }
@@ -1913,14 +1915,17 @@ fn the_report_filters_by_publisher_package_and_enabled_platforms() {
             &pool,
             vec![],
             vec![],
-            vec![DistributionPlatform::Zenodo, DistributionPlatform::Oapen]
+            vec![DistributionPlatform::Zenodo, DistributionPlatform::Oapen],
+            vec![],
+            None,
         )
         .expect("count"),
         1,
         "the count query applies the same predicates as the list query"
     );
     assert_eq!(
-        PublisherServiceConfiguration::count(&pool, vec![], vec![], vec![]).expect("count"),
+        PublisherServiceConfiguration::count(&pool, vec![], vec![], vec![], vec![], None)
+            .expect("count"),
         3
     );
 }
@@ -2005,6 +2010,8 @@ fn the_report_orders_deterministically_with_a_publisher_id_tie_breaker() {
             vec![],
             vec![],
             vec![],
+            vec![],
+            None,
         )
         .expect("page");
         paged.extend(

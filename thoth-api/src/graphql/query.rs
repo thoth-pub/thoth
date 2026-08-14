@@ -29,6 +29,7 @@ use crate::model::{
     price::{CurrencyCode, Price},
     publication::{Publication, PublicationOrderBy, PublicationType},
     publisher::{Publisher, PublisherOrderBy, ThothPackage},
+    distribution_job::DistributionJobStatus,
     publisher_distribution_platform::{DistributionPlatform, DistributionPlatformOption},
     publisher_service_configuration::{
         PublisherServiceConfiguration, PublisherServiceConfigurationSummary,
@@ -688,6 +689,15 @@ impl QueryRoot {
             description = "If set, only shows results for publishers that have every one of these distribution platforms enabled. Multiple values narrow the results rather than widening them"
         )]
         enabled_platforms: Option<Vec<DistributionPlatform>>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results whose latest publisher back-catalogue job has one of these statuses. Multiple values widen the results"
+        )]
+        job_statuses: Option<Vec<DistributionJobStatus>>,
+        #[graphql(
+            description = "If set to true, only shows publishers with no publisher back-catalogue job at all; if false, only publishers that have at least one"
+        )]
+        without_back_catalogue_job: Option<bool>,
         #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
         #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
@@ -707,6 +717,8 @@ impl QueryRoot {
                     publishers.unwrap_or_default(),
                     packages.unwrap_or_default(),
                     enabled_platforms.unwrap_or_default(),
+                    job_statuses.unwrap_or_default(),
+                    without_back_catalogue_job,
                 )
             })
             .map_err(IntoFieldError::into_field_error)
@@ -732,6 +744,15 @@ impl QueryRoot {
             description = "If set, only counts publishers that have every one of these distribution platforms enabled. Multiple values narrow the results rather than widening them"
         )]
         enabled_platforms: Option<Vec<DistributionPlatform>>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only counts publishers whose latest publisher back-catalogue job has one of these statuses. Multiple values widen the results"
+        )]
+        job_statuses: Option<Vec<DistributionJobStatus>>,
+        #[graphql(
+            description = "If set to true, only counts publishers with no publisher back-catalogue job at all; if false, only publishers that have at least one"
+        )]
+        without_back_catalogue_job: Option<bool>,
     ) -> FieldResult<i32> {
         context
             .require_superuser()
@@ -741,6 +762,8 @@ impl QueryRoot {
                     publishers.unwrap_or_default(),
                     packages.unwrap_or_default(),
                     enabled_platforms.unwrap_or_default(),
+                    job_statuses.unwrap_or_default(),
+                    without_back_catalogue_job,
                 )
             })
             .map_err(IntoFieldError::into_field_error)

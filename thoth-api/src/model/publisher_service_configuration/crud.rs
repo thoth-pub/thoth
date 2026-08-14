@@ -11,7 +11,7 @@
 use std::collections::{HashMap, HashSet};
 
 use diesel::pg::PgConnection;
-use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{Connection, ExpressionMethods, NullableExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
@@ -25,6 +25,7 @@ use crate::db::PgPool;
 use crate::model::distribution_job::crud::{
     cancel_pending_jobs_for_disabled_group_on, create_back_catalogue_job_on,
 };
+use crate::model::distribution_job::{DistributionJobKind, DistributionJobStatus};
 use crate::model::publisher::{Publisher, PublisherField, PublisherOrderBy, ThothPackage};
 use crate::model::publisher_distribution_platform::crud::{
     enabled_assignment_rows, lock_publisher, AssignmentLifecycleOutcome,
@@ -34,7 +35,8 @@ use crate::model::publisher_distribution_platform::{
 };
 use crate::model::Timestamp;
 use crate::schema::{
-    publisher, publisher_distribution_platform, publisher_service_configuration_history,
+    distribution_job, publisher, publisher_distribution_platform,
+    publisher_service_configuration_history,
 };
 
 /// The latest-change columns the staff report needs, in canonical order.
@@ -397,9 +399,17 @@ impl PublisherServiceConfiguration {
         publishers: Vec<Uuid>,
         packages: Vec<ThothPackage>,
         enabled_platforms: Vec<DistributionPlatform>,
+        job_statuses: Vec<DistributionJobStatus>,
+        without_back_catalogue_job: Option<bool>,
     ) -> ThothResult<Vec<PublisherServiceConfigurationSummary>> {
         let mut connection = db.get()?;
-        let query = filtered_publishers(publishers, packages, enabled_platforms);
+        let query = filtered_publishers(
+            publishers,
+            packages,
+            enabled_platforms,
+            job_statuses,
+            without_back_catalogue_job,
+        );
         // The requested order plus a mandatory `publisher_id ASC` tie-breaker,
         // exactly as `publishersByDistributionPlatform` does, so offset
         // pagination is deterministic.
@@ -513,10 +523,18 @@ impl PublisherServiceConfiguration {
         publishers: Vec<Uuid>,
         packages: Vec<ThothPackage>,
         enabled_platforms: Vec<DistributionPlatform>,
+        job_statuses: Vec<DistributionJobStatus>,
+        without_back_catalogue_job: Option<bool>,
     ) -> ThothResult<i32> {
         let mut connection = db.get()?;
         // See the `Crud::count` note on the i64 -> i32 conversion.
-        filtered_publishers(publishers, packages, enabled_platforms)
+        filtered_publishers(
+            publishers,
+            packages,
+            enabled_platforms,
+            job_statuses,
+            without_back_catalogue_job,
+        )
             .count()
             .get_result::<i64>(&mut connection)
             .map(|total| total.to_string().parse::<i32>().unwrap())
@@ -536,6 +554,8 @@ fn filtered_publishers<'a>(
     publishers: Vec<Uuid>,
     packages: Vec<ThothPackage>,
     enabled_platforms: Vec<DistributionPlatform>,
+    job_statuses: Vec<DistributionJobStatus>,
+    without_back_catalogue_job: Option<bool>,
 ) -> publisher::BoxedQuery<'a, diesel::pg::Pg> {
     let mut query = publisher::table.into_boxed();
     if !publishers.is_empty() {
@@ -543,6 +563,40 @@ fn filtered_publishers<'a>(
     }
     if !packages.is_empty() {
         query = query.filter(publisher::subscription_package.eq_any(packages));
+    }
+    // `BE-04`: the latest back-catalogue job's status, with **OR** semantics
+    // within the list. That is deliberately the opposite of `enabled_platforms`
+    // just below, and it is not an inconsistency: a status is single-valued per
+    // job, so AND over two statuses would match nothing.
+    //
+    // "Latest" is the same total order the report's field and its loader use —
+    // `created_at DESC`, then the job id `DESC` — so the selected row is
+    // deterministic even for two jobs sharing a `created_at`.
+    if !job_statuses.is_empty() {
+        let latest_status = distribution_job::table
+            .filter(distribution_job::publisher_id.eq(publisher::publisher_id))
+            .filter(distribution_job::kind.eq(DistributionJobKind::PublisherBackCatalogue))
+            .order((
+                distribution_job::created_at.desc(),
+                distribution_job::distribution_job_id.desc(),
+            ))
+            .select(distribution_job::status.nullable())
+            .single_value();
+        query = query.filter(latest_status.eq_any(job_statuses));
+    }
+    // `BE-04`: presence or absence of any back-catalogue job at all. Combining
+    // `true` here with a non-empty `job_statuses` is a documented contradiction
+    // that matches zero publishers; it is deterministic, and it is not an error.
+    if let Some(without) = without_back_catalogue_job {
+        let has_any_job = distribution_job::table
+            .filter(distribution_job::publisher_id.eq(publisher::publisher_id))
+            .filter(distribution_job::kind.eq(DistributionJobKind::PublisherBackCatalogue))
+            .select(distribution_job::distribution_job_id);
+        query = if without {
+            query.filter(diesel::dsl::not(diesel::dsl::exists(has_any_job)))
+        } else {
+            query.filter(diesel::dsl::exists(has_any_job))
+        };
     }
     let required: Vec<DistributionPlatform> = deduplicate_platforms(&enabled_platforms);
     if !required.is_empty() {

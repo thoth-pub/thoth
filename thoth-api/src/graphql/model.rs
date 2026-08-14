@@ -5,7 +5,7 @@ use juniper::{FieldError, FieldResult};
 use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
 
-use super::dataloader::{unpack_assignments, RequestLoaders};
+use super::dataloader::{unpack_assignments, unpack_loaded, RequestLoaders};
 use super::types::inputs::{
     ContributionOrderBy, Convert, Direction, FundingOrderBy, IssueOrderBy, LanguageOrderBy,
     LengthUnit, PriceOrderBy, SubjectOrderBy, TimeExpression, WeightUnit,
@@ -21,7 +21,11 @@ use crate::model::{
     contact::{Contact, ContactOrderBy, ContactType},
     contribution::{Contribution, ContributionType},
     contributor::Contributor,
-    distribution_job::DistributionJobCreation,
+    distribution_job::{
+        ClaimedDistributionJob, DistributionJobAttempt, DistributionJobAttemptResult,
+        DistributionJobCancellationReason, DistributionJobCreation, DistributionJobKind,
+        DistributionJobPayload, DistributionJobStatus, DistributionJobTarget,
+    },
     endorsement::{Endorsement, EndorsementOrderBy},
     file::{ChecksumAlgorithm, File, FileType},
     funding::Funding,
@@ -1474,6 +1478,33 @@ impl PublisherServiceConfigurationSummary {
     pub fn last_change(&self) -> Option<&PublisherServiceConfigurationChange> {
         self.last_change.as_ref()
     }
+
+    #[graphql(
+        description = "Most recent publisher back-catalogue distribution job, or null if none exists"
+    )]
+    // `null` means "Thoth holds no durable back-catalogue job for this
+    // publisher", and nothing else. It is **not** evidence that delivery
+    // happened, that delivery did not happen, that an adapter ran, or that a
+    // back catalogue is or is not present at a destination. Nothing here
+    // fabricates a placeholder job, a synthetic status or a zero count, and no
+    // job state is inferred from assignment state, package or descriptor
+    // behaviour.
+    pub async fn latest_back_catalogue_job(
+        &self,
+        context: &Context,
+    ) -> FieldResult<Option<DistributionJobPayload>> {
+        // Loader-first (`ADR-0007` section 4.5): the publisher id is already
+        // available on `self`, so the key is registered at resolver entry with
+        // no unrelated awaited work before `try_load`.
+        let job = unpack_loaded(
+            context
+                .loaders
+                .latest_back_catalogue_jobs
+                .try_load(self.configuration.publisher_id())
+                .await,
+        )?;
+        Ok(job.map(DistributionJobPayload::lazy))
+    }
 }
 
 #[juniper::graphql_object(
@@ -1496,6 +1527,215 @@ impl PublisherServiceConfigurationChange {
     #[graphql(description = "How the change entered the system")]
     pub fn source(&self) -> PublisherServiceConfigurationSource {
         self.source
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    name = "DistributionJob",
+    description = "A durable unit of distribution work."
+)]
+impl DistributionJobPayload {
+    #[graphql(description = "Thoth ID of the distribution job")]
+    pub fn distribution_job_id(&self) -> Uuid {
+        self.job.distribution_job_id
+    }
+
+    #[graphql(description = "Kind of durable distribution work this job represents")]
+    pub fn kind(&self) -> DistributionJobKind {
+        self.job.kind
+    }
+
+    #[graphql(description = "Thoth ID of the publisher this job belongs to")]
+    pub fn publisher_id(&self) -> Uuid {
+        self.job.publisher_id
+    }
+
+    #[graphql(
+        description = "Reserved for future work-level jobs; always null for PUBLISHER_BACK_CATALOGUE"
+    )]
+    pub fn work_id(&self) -> Option<Uuid> {
+        self.job.work_id
+    }
+
+    #[graphql(description = "Current lifecycle state of the job")]
+    pub fn status(&self) -> DistributionJobStatus {
+        self.job.status
+    }
+
+    #[graphql(description = "Number of execution attempts started so far")]
+    pub fn attempt_count(&self) -> i32 {
+        self.job.attempt_count
+    }
+
+    #[graphql(description = "Earliest time at which this job may be claimed")]
+    pub fn available_at(&self) -> Timestamp {
+        self.job.available_at
+    }
+
+    #[graphql(
+        description = "Destinations this job delivers to, in canonical platform order. Always at least one"
+    )]
+    pub async fn targets(&self, context: &Context) -> FieldResult<Vec<DistributionJobTarget>> {
+        // The worker claim path resolves these itself, set-based, because it
+        // must stay a constant number of statements for a claim of any size and
+        // deliberately does not use `RequestLoaders`.
+        if let Some(targets) = &self.preloaded_targets {
+            return Ok(targets.clone());
+        }
+        // Loader-first (`ADR-0007` section 4.5): the job id is already available
+        // on `self`, so the key is registered at resolver entry with no
+        // unrelated awaited work before `try_load`.
+        unpack_loaded(
+            context
+                .loaders
+                .distribution_job_targets
+                .try_load(self.job.distribution_job_id)
+                .await,
+        )
+    }
+
+    #[graphql(
+        description = "Recorded execution attempts, most recent first. Bounded by the attempt budget"
+    )]
+    pub async fn attempts(&self, context: &Context) -> FieldResult<Vec<DistributionJobAttempt>> {
+        if let Some(attempts) = &self.preloaded_attempts {
+            return Ok(attempts.clone());
+        }
+        unpack_loaded(
+            context
+                .loaders
+                .distribution_job_attempts
+                .try_load(self.job.distribution_job_id)
+                .await,
+        )
+    }
+
+    #[graphql(description = "When the current claim was granted, if the job is running")]
+    pub fn claimed_at(&self) -> Option<Timestamp> {
+        self.job.claimed_at
+    }
+
+    #[graphql(description = "When the current claim's lease expires, if the job is running")]
+    pub fn lease_expires_at(&self) -> Option<Timestamp> {
+        self.job.lease_expires_at
+    }
+
+    #[graphql(description = "When the job reached a terminal state, if it has")]
+    pub fn completed_at(&self) -> Option<Timestamp> {
+        self.job.completed_at
+    }
+
+    #[graphql(description = "Why the job was cancelled, if it was")]
+    pub fn cancellation_reason(&self) -> Option<DistributionJobCancellationReason> {
+        self.job.cancellation_reason
+    }
+
+    #[graphql(
+        description = "Stable classification of the most recent worker-reported failure. Null if no worker has reported a failure. Not necessarily the newest attempt's outcome: read attempts for how the job ended"
+    )]
+    pub fn last_error_code(&self) -> Option<&String> {
+        self.job.last_error_code.as_ref()
+    }
+
+    #[graphql(
+        description = "Bounded sanitized diagnostic for the most recent worker-reported failure. Null if no worker has reported a failure"
+    )]
+    pub fn last_error_detail(&self) -> Option<&String> {
+        self.job.last_error_detail.as_ref()
+    }
+
+    #[graphql(description = "Date and time at which the job was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.job.created_at
+    }
+
+    #[graphql(description = "Date and time at which the job was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.job.updated_at
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "One destination of a distribution job."
+)]
+impl DistributionJobTarget {
+    #[graphql(description = "Distribution platform this job delivers to")]
+    pub fn platform(&self) -> DistributionPlatform {
+        self.platform
+    }
+
+    #[graphql(description = "Date and time at which the target was recorded")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "One recorded execution attempt of a distribution job."
+)]
+impl DistributionJobAttempt {
+    #[graphql(description = "Ordinal of this attempt within its job, starting at 1")]
+    pub fn attempt_number(&self) -> i32 {
+        self.attempt_number
+    }
+
+    #[graphql(description = "Identity that held the claim for this attempt")]
+    pub fn claimed_by(&self) -> &String {
+        &self.claimed_by
+    }
+
+    #[graphql(description = "When the attempt started")]
+    pub fn started_at(&self) -> Timestamp {
+        self.started_at
+    }
+
+    #[graphql(description = "When the attempt was closed, if it has been")]
+    pub fn finished_at(&self) -> Option<Timestamp> {
+        self.finished_at
+    }
+
+    #[graphql(description = "Null while the attempt is open")]
+    pub fn result(&self) -> Option<DistributionJobAttemptResult> {
+        self.result
+    }
+
+    #[graphql(description = "Worker-reported classification, present only on a failed attempt")]
+    pub fn error_code(&self) -> Option<&String> {
+        self.error_code.as_ref()
+    }
+
+    #[graphql(description = "Bounded sanitized diagnostic, present only on a failed attempt")]
+    pub fn error_detail(&self) -> Option<&String> {
+        self.error_detail.as_ref()
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "A distribution job together with the claim it was just granted."
+)]
+impl ClaimedDistributionJob {
+    #[graphql(description = "The claimed job")]
+    pub fn job(&self) -> &DistributionJobPayload {
+        &self.job
+    }
+
+    #[graphql(description = "Present this token to complete or fail the job. It is returned only here")]
+    pub fn claim_token(&self) -> Uuid {
+        self.claim_token
+    }
+
+    #[graphql(description = "When this claim's lease expires")]
+    pub fn lease_expires_at(&self) -> Timestamp {
+        self.lease_expires_at
+    }
+
+    #[graphql(description = "Ordinal of the attempt this claim started")]
+    pub fn attempt_number(&self) -> i32 {
+        self.attempt_number
     }
 }
 

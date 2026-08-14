@@ -394,15 +394,167 @@ pub struct DistributionJobAttempt {
     pub error_detail: Option<String>,
 }
 
+/// One durable job as the GraphQL `DistributionJob` type exposes it.
+///
+/// The nested `targets` and `attempts` collections are resolved by **two
+/// different bounded mechanisms**, and which one applies is a property of the
+/// producing path rather than of the field:
+///
+/// - the **worker claim path** pre-resolves both with its own set-based
+///   statements, because that path must stay a constant four statements for a
+///   claim of any size and deliberately does not use `RequestLoaders`;
+/// - every other path leaves them absent, and the field resolvers batch through
+///   the request-local `ADR-0007` loaders, which is what keeps the staff
+///   report's statement count constant in the page size.
+///
+/// The claim token is **not** part of this type. It is returned only on
+/// [`ClaimedDistributionJob`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DistributionJobPayload {
+    pub job: DistributionJob,
+    pub preloaded_targets: Option<Vec<DistributionJobTarget>>,
+    pub preloaded_attempts: Option<Vec<DistributionJobAttempt>>,
+}
+
+impl DistributionJobPayload {
+    /// A payload whose children resolve through the request-local loaders.
+    pub(crate) fn lazy(job: DistributionJob) -> Self {
+        Self {
+            job,
+            preloaded_targets: None,
+            preloaded_attempts: None,
+        }
+    }
+
+    /// A payload whose children were already resolved set-based by the producing
+    /// path.
+    pub(crate) fn preloaded(
+        job: DistributionJob,
+        targets: Vec<DistributionJobTarget>,
+        attempts: Vec<DistributionJobAttempt>,
+    ) -> Self {
+        Self {
+            job,
+            preloaded_targets: Some(targets),
+            preloaded_attempts: Some(attempts),
+        }
+    }
+}
+
 /// A distribution job together with the claim it was just granted.
 ///
 /// The claim token is returned **only** here.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClaimedDistributionJob {
-    pub job: DistributionJob,
+    pub job: DistributionJobPayload,
     pub claim_token: Uuid,
     pub lease_expires_at: Timestamp,
     pub attempt_number: i32,
+}
+
+// ---------------------------------------------------------------------------
+// Worker and operator inputs
+// ---------------------------------------------------------------------------
+
+/// How many jobs to claim, for how long, and of which kinds.
+///
+/// `limit` and `leaseSeconds` are **clamped rather than rejected**, and the
+/// field descriptions say so: a long-running automated worker that asks for
+/// slightly too much should still make bounded progress, because erroring would
+/// put it into a retry loop that delivers nothing. Fail-closed applies to
+/// authorization and to state transitions, not to a sizing argument.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "How many distribution jobs to claim, for how long, and of which kinds")
+)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClaimDistributionJobsInput {
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            default = 10,
+            description = "Maximum jobs to claim. Values above 50 are clamped to 50; values at or below 0 claim nothing"
+        )
+    )]
+    pub limit: Option<i32>,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            default = 900,
+            description = "Requested lease duration in seconds, clamped to the range 60 to 3600"
+        )
+    )]
+    pub lease_seconds: Option<i32>,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            default = vec![],
+            description = "If set, only claims jobs of these kinds. An empty list claims any kind"
+        )
+    )]
+    pub kinds: Option<Vec<DistributionJobKind>>,
+}
+
+/// Which claimed job succeeded, and under which claim.
+///
+/// This deliberately carries **no** error fields. A success reports no error, so
+/// this operation is structurally incapable of presenting a malformed
+/// classification code, and no `errorCode` field is added to it for symmetry.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Which claimed distribution job succeeded, and under which claim")
+)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompleteDistributionJobInput {
+    pub distribution_job_id: Uuid,
+    pub claim_token: Uuid,
+}
+
+/// Which claimed job failed, how, and whether it may be retried.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Which claimed distribution job failed, how, and whether to retry it")
+)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FailDistributionJobInput {
+    pub distribution_job_id: Uuid,
+    pub claim_token: Uuid,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "Stable machine-readable classification, matching ^[A-Z][A-Z0-9_]*$, at most 64 characters. A value outside that shape is rejected with INVALID_DISTRIBUTION_JOB_ERROR_CODE and changes no job or attempt state"
+        )
+    )]
+    pub error_code: String,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "Bounded human-readable diagnostic, truncated to 2048 characters. Must contain no credential, token, signed URL, response body or personal data"
+        )
+    )]
+    pub error_detail: Option<String>,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            default = true,
+            description = "Whether the failure may be retried. A retryable failure returns the job to PENDING until the attempt budget is exhausted"
+        )
+    )]
+    pub retryable: bool,
+}
+
+/// Which job to withdraw administratively.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Which distribution job to cancel")
+)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CancelDistributionJobInput {
+    pub distribution_job_id: Uuid,
 }
 
 #[cfg(feature = "backend")]

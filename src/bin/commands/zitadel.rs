@@ -62,10 +62,23 @@ pub fn setup(arguments: &ArgMatches) -> ThothResult<()> {
         println!("\n✅ Created Zitadel project: {}", project_name);
 
         // Create project user roles
+        // Declaring a role here makes a newly bootstrapped project carry it. It
+        // grants nothing: creating the role in a real identity provider,
+        // granting it to any account and issuing or rotating its credentials are
+        // separately authorized operational actions, outside this repository.
+        //
+        // `WORK_LIFECYCLE` and `CDN_WRITE` are absent from this list, which is a
+        // pre-existing gap recorded for a separate task rather than repaired
+        // here.
         let roles = [
             ("SUPERUSER", "Superuser", "Superusers"),
             ("PUBLISHER_ADMIN", "Publisher Admin", "Publisher admins"),
             ("PUBLISHER_USER", "Publisher User", "Publisher users"),
+            (
+                "DISSEMINATION_WORKER",
+                "Dissemination Worker",
+                "Dissemination workers",
+            ),
         ];
         for (role_key, display_name, group) in roles {
             management_client

@@ -26,7 +26,7 @@ use uuid::Uuid;
 
 use super::{
     ClaimedDistributionJob, DistributionJob, DistributionJobAttempt, DistributionJobKind,
-    DistributionJobStatus, DistributionJobTarget,
+    DistributionJobPayload, DistributionJobStatus, DistributionJobTarget,
     DISTRIBUTION_JOB_CLAIM_MAX_BATCH, DISTRIBUTION_JOB_ERROR_CODE_MAX_CHARS,
     DISTRIBUTION_JOB_ERROR_DETAIL_MAX_CHARS, DISTRIBUTION_JOB_LEASE_MAX_SECONDS,
     DISTRIBUTION_JOB_LEASE_MIN_SECONDS, DISTRIBUTION_JOB_LEASE_RECOVERY_BATCH,
@@ -303,6 +303,24 @@ pub(crate) fn claim_distribution_jobs(
             .bind::<Integer, _>(lease)
             .load(connection)?;
 
+        if rows.is_empty() {
+            // Zero claims is not an error and not a null row: it is an empty
+            // result, and it issues no payload statements at all.
+            return Ok(Vec::new());
+        }
+
+        // Statements 3 and 4. Two set-based reads over the whole claimed
+        // identity set, bounded by `DISTRIBUTION_JOB_CLAIM_MAX_BATCH`. There is
+        // deliberately no per-job, per-target or per-attempt loop, and the
+        // request-local `RequestLoaders` are not used on this path.
+        let job_ids: Vec<Uuid> = rows.iter().map(|row| row.job.distribution_job_id).collect();
+        let mut targets = partition_by_job(targets_for_jobs(connection, &job_ids)?, |target| {
+            target.distribution_job_id
+        });
+        let mut attempts = partition_by_job(attempts_for_jobs(connection, &job_ids)?, |attempt| {
+            attempt.distribution_job_id
+        });
+
         rows.into_iter()
             .map(|row| {
                 // Both are non-null on a RUNNING row by
@@ -315,8 +333,13 @@ pub(crate) fn claim_distribution_jobs(
                 let lease_expires_at = row.job.lease_expires_at.ok_or(ThothError::InternalError(
                     "claimed distribution job has no lease".to_string(),
                 ))?;
+                let job_id = row.job.distribution_job_id;
                 Ok(ClaimedDistributionJob {
-                    job: row.job,
+                    job: DistributionJobPayload::preloaded(
+                        row.job,
+                        targets.remove(&job_id).unwrap_or_default(),
+                        attempts.remove(&job_id).unwrap_or_default(),
+                    ),
                     claim_token,
                     lease_expires_at,
                     attempt_number: row.attempt_number,
