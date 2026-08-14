@@ -123,24 +123,32 @@ Deliberately **not** done, each an explicit instruction boundary:
 - `1cf5675c4c2f065feab8ccfb3cde06c368588aa6` - ordinary merge of
   repository-authoritative `develop` (`8703dd5c`, `ADR-0008` through PR #815)
   into this branch, after `ADR-0008` became repository-authoritative;
-- one further ordinary commit carries the specification remediation of section
-  5.4 — the four independent-review findings and the `ADR-0008` reconciliation.
+- `03b604c49fcc5eba2f70f5a2711c33f314d595df` -
+  `docs(publisher-services): remediate BE-04 specification review findings` —
+  the first review round's four findings (section 5.4.1) and the `ADR-0008`
+  reconciliation;
+- one further ordinary commit carries the second round's five findings (section
+  5.4.2): the migration referenced-table locking model, the `lastError`
+  semantics, the report statement-count arithmetic, the narrowed
+  role-composition wording and the invalid-`errorCode` API contract.
 
 Ordinary commits only. No amend, no rebase, no squash, no force-push at any
 point, and none is required.
 
 ## 4. Files changed
 
-- `docs/engineering/ai-delivery/tasks/BE-04.md` **(NEW, subsequently REMEDIATED)**
-  - reason: the BE-04 specification candidate required by this task, then
-    corrected for the four independent-review findings of section 5.4 and
-    reconciled with the now-repository-authoritative `ADR-0008` (section 6.3).
+- `docs/engineering/ai-delivery/tasks/BE-04.md` **(NEW, subsequently REMEDIATED TWICE)**
+  - reason: the BE-04 specification candidate required by this task; then
+    corrected for the first review round's four findings (section 5.4.1) and
+    reconciled with the now-repository-authoritative `ADR-0008` (section 6.3);
+    then corrected for the fresh review round's five findings (section 5.4.2).
   - behavioural effect: none. It states requirements; it changes no runtime
     behaviour, no schema, no contract and no authorization, and it authorizes no
     implementation.
-- `docs/engineering/ai-delivery/implementation-reports/BE-04-SPEC-implementation-report.md` **(NEW, subsequently REMEDIATED)**
+- `docs/engineering/ai-delivery/implementation-reports/BE-04-SPEC-implementation-report.md` **(NEW, subsequently REMEDIATED TWICE)**
   - reason: the bounded evidence record for this specification task, extended
-    with the review-finding remediation and `ADR-0008` reconciliation records.
+    with both review rounds' remediation records and the `ADR-0008`
+    reconciliation.
   - behavioural effect: none.
 - `docs/publisher-services/task-status.md` **(MODIFIED)**
   - reason: record the BE-04 specification candidate durably, and keep BE-04's
@@ -346,6 +354,12 @@ implementation.
 
 ### 5.4 Review-finding remediation
 
+The specification candidate has been through **two** independent review rounds on
+this branch. Both rounds' findings are corrected here, and the specification
+remains **not approved** after both.
+
+#### 5.4.1 First round — four findings
+
 Independent review of the specification candidate identified four findings. All
 four are corrected in this branch; the specification remains **not approved**.
 
@@ -400,6 +414,121 @@ four are corrected in this branch; the specification remains **not approved**.
 
 The ADR-0008 reconciliation performed alongside those four is recorded in
 section 6.
+
+#### 5.4.2 Second round — five further findings
+
+A **fresh independent full review** of the remediated specification identified
+five further findings. All five are corrected in this branch. The four findings
+above are preserved as corrected and were re-checked for regression; the
+corrections below touch their wording only where consistency required it. The
+specification is still **not approved**.
+
+1. **The migration locking model was wrong.** Section 19.3 claimed the migration
+   "takes **no lock on any existing table**" because every object it creates is
+   new. That is false. `distribution_job` declares foreign keys to the existing
+   `public.publisher` and `public.work`, and under PostgreSQL 17 establishing a
+   foreign-key constraint takes a `SHARE ROW EXCLUSIVE` lock on the **referenced**
+   table for the duration of the transaction. Section 19.3 now states plainly
+   that the migration **does** acquire table-level locks on `publisher` and
+   `work`, names the mode, and states what it blocks (concurrent writes, not
+   reads) and what it can wait behind. The genuinely true parts are preserved and
+   kept distinct: the `distribution_job*` relations are new and empty, no
+   existing application table is rewritten, there is no backfill or validation
+   scan, and the migration creates zero job rows. The foreign keys are **not**
+   weakened, deferred, made `NOT VALID` or dropped to make the finding go away —
+   that is stated as explicitly unauthorized. No production duration is claimed.
+   Section 25.3 now requires observed `pg_locks` entries captured from a second
+   session (naming `publisher` and `work` with their modes), the migration
+   duration, a deterministic lock-contention fixture showing what happens when
+   another session already holds a conflicting writer lock, the `relfilenode`
+   proof that no rewrite occurred despite the locks, and the down migration on a
+   populated database; section 26 item 2 and section 25.1 carry the matching
+   evidence obligations. Sections 19.3 and 22 now state that production migration
+   authorization must account for that lock window, with disposable-environment
+   measurements as inputs to the decision rather than a production prediction.
+2. **`lastError` semantics were self-contradictory.** Section 7.2 said
+   `last_error_code`/`last_error_detail` "mirror the most recent attempt's
+   values", but T5a and T5b both close the newest attempt as `ABANDONED` and
+   leave `last_error_*` untouched, so the fields demonstrably did not mirror the
+   newest attempt. One coherent semantic is now fixed: **the most recent
+   worker-reported failure of the job** — set by T3 and T4, cleared by T2, and
+   untouched by T5a, T5b, T6, T7 and T8. Its consequences are stated rather than
+   left to be discovered: a T5b-terminalized job may legitimately have a null
+   `lastError` and that null must not be patched with a synthetic code; a
+   T5b-terminalized job with an earlier worker failure retains that earlier
+   failure, which is explicitly **not** the reason the final attempt was
+   abandoned and **not** the terminalization cause; attempt history remains the
+   authoritative record that the final attempt was `ABANDONED` on lease expiry;
+   and cancellation neither sets nor clears the fields. The mirror alternative
+   was rejected on its own terms — `distribution_job_attempt_error_result_check`
+   forbids error fields on a non-`FAILED` attempt, so mirroring an `ABANDONED`
+   attempt could only be done by inventing an error no worker reported.
+   Reconciled across sections 7.2, 11.2, 14.1, 16.2, 17.1, 18.2, 25.1, 25.10 and
+   26 item 8, including six new required tests (T5a and T5b each with and without
+   a previous `FAILED` attempt, success clearing, and cancellation).
+3. **The staff-report statement count did not add up.** Section 17.4 claimed a
+   five-statement bound while its own table described a publisher page, a
+   configuration-change statement, the assignment loader, the latest-job loader,
+   the target loader and the attempt loader. The target and attempt loaders are
+   separate ADR-0007 DataLoaders and each issues its own set-based statement, so
+   the full-field bound is **six**. The minimum correction was taken: the bound
+   is now six, target and attempt are separate numbered rows, all six remain
+   set-based and constant in N, and the three new loaders are preserved. The
+   loaders are explicitly **not** combined to restore the number five. The bound
+   is also now stated as per dispatch chunk, with the exact arithmetic required
+   if any allowed page size ever produces more than one chunk, rather than
+   assuming a single chunk. Sections 25.1, 25.12 and 26 item 16 now require the
+   measurement at page sizes 1, 25 and 200 to use the **full job-aware selection
+   set** and to equal the stated bound.
+4. **The role-composition wording overreached ADR-0008.** Section 15.3 item 5
+   said "roles compose additively in the merged model", which asserts a general
+   rule ADR-0008 deliberately declines to make. It is replaced with the narrow,
+   BE-04-owned statement: the BE-04 authorization matrix explicitly permits a
+   principal holding both `SUPERUSER` and `DISSEMINATION_WORKER` to exercise the
+   independently authorized operations of both roles, and **this is a
+   BE-04-specific matrix decision that establishes no general role-composition,
+   aggregation or inheritance rule**. `SUPERUSER` alone still receives no worker
+   operations, `DISSEMINATION_WORKER` alone still receives no administrative
+   ones, no Metrics consequence follows, and no generic machine-role rule beyond
+   ADR-0008 is created. A sweep of the specification, this report and the PR body
+   found no other equivalent general claim; section 25.11's existing "no
+   composition rule introduced" assertion already agreed with the narrowed
+   wording.
+5. **The invalid-`errorCode` contract was unspecified.** Sections 18.1 and 25.10
+   required a malformed or over-length worker `error_code` to be rejected with a
+   "stable error", while section 16.3 fixed exactly three new `ThothError`
+   variants and named none of them for this case — leaving the implementing agent
+   to invent the contract or fall through to `INTERNAL_ERROR`. The merged
+   `thoth-errors` model was inspected. Reuse was rejected on the evidence:
+   `InvalidSubjectCode` is subject-code specific **and echoes the caller's input
+   back**; `InvalidUuid`, `InvalidTimestamp`, `InvalidFileExtension` and
+   `InvalidMetadataSpecification` name different subjects; and every other
+   candidate falls through `into_field_error`'s catch-all arm to
+   `INTERNAL_ERROR`, which is not acceptable for a deliberately specified
+   validation contract (it would make a client contract violation
+   indistinguishable from a database outage and invite an automated worker to
+   retry it for ever). One bounded variant is therefore added:
+   `ThothError::InvalidDistributionJobErrorCode` →
+   `INVALID_DISTRIBUTION_JOB_ERROR_CODE`, with a fixed sanitized public message
+   that echoes no part of the rejected value, raised at resolver entry so **no
+   job or attempt state changes** and the claim token stays valid. Section 16.3's
+   count moves from three to four variants and arms, and scope item 10, section
+   25.1, section 25.10 and section 26 item 14 move with it. One factual
+   correction was made while specifying it: `CompleteDistributionJobInput`
+   carries no `errorCode`, so `failDistributionJob` is the only operation that
+   can raise this error, and **no `errorCode` field is added to the complete
+   input** to manufacture symmetry.
+
+**Provisioning wording (consistency sweep only).** Section 15.5's existing
+statement — that BE-04 implementation *may* add `DISSEMINATION_WORKER` to the
+`zitadel.rs` `setup` role list but must not run the command, grant the role or
+change any identity-provider configuration — was retained rather than rewritten.
+One clarifying sentence separates the two halves explicitly: editing the list is
+an ordinary repository source change inside BE-04's implementation scope, while
+executing `zitadel setup`, creating the role, granting it and issuing or rotating
+credentials are separately authorized operational actions outside this
+specification's authority. No provisioning architecture is invented, and no scope
+is widened.
 
 ## 6. Cross-programme check and `ADR-0008` reconciliation
 
@@ -554,6 +683,11 @@ this task. No production configuration or secret-bearing source was read.
 Security limitations recorded rather than claimed absent: the specification does
 not claim to scrub secrets from worker-supplied error text (section 5.2 item 2),
 and it inherits BE-03's recorded `EntityNotFound` → `INTERNAL_ERROR` mapping.
+That inherited limitation is **not** extended to the new validated worker input
+contract: a malformed or over-length `errorCode` is specified to return
+`INVALID_DISTRIBUTION_JOB_ERROR_CODE` rather than `INTERNAL_ERROR`, with a fixed
+message that reflects no part of the caller's value and with no job or attempt
+state change (section 5.4.2 finding 5).
 
 ## 9. Tests and checks
 
@@ -774,7 +908,12 @@ Monitoring required: none.
 8. **No production duration figure or safe catalogue-size threshold is stated**,
    because none is derivable from the repository. The specification requires
    measurement in a disposable environment and a stop condition if the result is
-   bad.
+   bad. This now explicitly includes the migration's lock window: BE-04's future
+   migration **will** take `SHARE ROW EXCLUSIVE` locks on the existing
+   `public.publisher` and `public.work` tables while its two foreign keys are
+   established (section 5.4.2 finding 1), and how long that window is acceptable
+   in production is a separate release-authorization decision informed by, never
+   replaced by, disposable-environment measurement.
 9. **`docs/publisher-services/decisions.md` is unedited**, because no genuinely
    unresolved programme-local decision was discovered.
 10. **`OFF` mode is a refusal, and that is a real operational cost.** While
@@ -790,64 +929,96 @@ Monitoring required: none.
 
 - **NONE that block specification review.** The one cross-programme matter this
   task surfaced has been decided by the CTO in `ADR-0008` and is recorded as a
-  durable boundary in `BE-04.md` section 6.3; the four independent-review
-  findings are remediated in section 5.4. The specification is **not approved**,
-  and fresh exact-head independent review plus explicit CTO specification
-  approval remain required.
+  durable boundary in `BE-04.md` section 6.3; the first round's four
+  independent-review findings are remediated in section 5.4.1 and the second
+  round's five in section 5.4.2. The specification is **not approved**, and fresh
+  exact-head independent review plus explicit CTO specification approval remain
+  required.
 
 ## 15. Agent self-assessment
 
 The agent may identify risks but may not approve the task. **No approval decision
 is issued here.**
 
-Suggested review focus, ordered by where an error would cost most:
+Suggested review focus, ordered by where an error would cost most. The five most
+recently corrected areas come first, because they are the least-reviewed text in
+the document and because the first of them was a factually wrong claim that
+survived a full review round:
 
-1. **The `OFF`-mode fail-closed rule of `BE-04.md` section 9.4** — whether
+1. **The migration locking model of section 19.3** — whether `SHARE ROW
+   EXCLUSIVE` on the referenced table is the correct PostgreSQL 17 behaviour as
+   stated, whether the stated blocking consequences (writes blocked, reads not)
+   and wait behaviour are right, whether keeping both foreign keys is the correct
+   trade against a shorter lock window, and whether section 25.3's required
+   evidence — second-session `pg_locks` capture, duration, contention fixture,
+   `relfilenode` proof — is actually sufficient to falsify the claim if it is
+   still wrong.
+2. **The `lastError` semantic of section 11.2** — whether "most recent
+   worker-reported failure" is the right choice against the alternatives, whether
+   it is now represented consistently by the state machine, the field
+   descriptions, the report and the tests, and in particular whether a `FAILED`
+   job with a null `lastError` (T5b with no prior reported failure) is acceptable
+   to the operators and future APP-02 surfaces that will read it.
+3. **The report statement-count bound of section 17.4** — whether six is now the
+   correct arithmetic for the full job-aware selection set, whether keeping the
+   target and attempt loaders separate is right, and whether the per-dispatch-chunk
+   qualification covers every supported page size.
+4. **The invalid-`errorCode` contract of section 16.3** — whether adding a fourth
+   `ThothError` variant is the right call against reuse, whether
+   `InvalidDistributionJobErrorCode`/`INVALID_DISTRIBUTION_JOB_ERROR_CODE` follows
+   repository naming conventions, whether the fixed message and no-state-change
+   guarantee are complete, and whether leaving `completeDistributionJob` without
+   an `errorCode` input is correct.
+5. **The narrowed role-composition wording of section 15.3 item 5** — whether it
+   is now genuinely a BE-04-local matrix statement and creates no general
+   composition, aggregation or inheritance rule, and whether any equivalent claim
+   survives elsewhere.
+6. **The `OFF`-mode fail-closed rule of `BE-04.md` section 9.4** — whether
    returning `DistributionJobCreationDisabled` at step 9a′ genuinely rolls back
    every lifecycle write step 9 made, whether the enumerated zero-committed-change
    result is complete, and whether the permitted set (`PullFeed`, `Manual`,
    package-only, repair, disable, `MIGRATION_BACKFILL`) is the right boundary.
-2. **The attempt-budget split of section 11.2 (T5a/T5b) and its three guards** —
+7. **The attempt-budget split of section 11.2 (T5a/T5b) and its three guards** —
    whether the recovery statement's `CASE` correctly satisfies
    `distribution_job_completed_at_check` in both branches, whether the eligibility
    clause and the `attempt_count <= 5` check are together sufficient to make a
    sixth attempt unreachable, and whether terminalizing an expired fifth attempt
    is the right operational choice.
-3. **The claim statement of section 12.3** — whether the
+8. **The claim statement of section 12.3** — whether the
    `claimed`/`inserted_attempts` CTE shape returns exactly the claimed rows under
    the repository's pinned Diesel and PostgreSQL, whether one attempt per claimed
    job is guaranteed by construction, and whether the target/attempt resolution
    plan genuinely avoids an N+1 path.
-4. **The activation classification of `BE-04.md` section 9.1** — whether
+9. **The activation classification of `BE-04.md` section 9.1** — whether
    `Activated` versus `Repaired` is correctly decidable from the rows `enable_on`
    already reads, and whether "any member already enabled means repair" is sound
    for every linked-group state. Also whether the specification is now free of
    every claim that a repair implies delivery.
-5. **The deduplication formula and its check constraint** — whether
-   `distribution_job_deduplication_key_formula_check` is accepted by the target
-   PostgreSQL version and whether every expression in it is genuinely immutable.
-6. **The claim eligibility predicate of section 12.4** — specifically the
-   `activation_id` match, which is what prevents a disable/re-enable cycle from
-   producing two live jobs, whether requiring **all** targets to qualify has
-   an unintended consequence, and whether the attempt-budget clause interacts
-   correctly with T5b.
-7. **The interaction between assignment disable and running jobs** (section
-   14.3) — whether cancelling `PENDING` while leaving `RUNNING` is the right
-   split, and whether the post-expiry unclaimable state is acceptable or should
-   instead terminalize.
-8. **The worker authorization matrix** (section 15.2), especially the deliberate
-   `SUPERUSER` denial of the three worker operations — now stated as BE-04's own
-   least-privilege choice rather than an `ADR-0008` requirement — and the
-   `publisher_org_ids()` change.
-9. **The `ADR-0008` consumption** (sections 6.3 and 6.4) — whether the
-   specification consumes the decision exactly, without broadening the seven
-   approved conventions, without presenting BE-04-specific mechanisms as approved
-   cross-programme architecture, and without claiming any approval or
-   authorization the ADR does not give.
-10. **The transaction step placement** (section 10.1) — whether inserting job
+10. **The deduplication formula and its check constraint** — whether
+    `distribution_job_deduplication_key_formula_check` is accepted by the target
+    PostgreSQL version and whether every expression in it is genuinely immutable.
+11. **The claim eligibility predicate of section 12.4** — specifically the
+    `activation_id` match, which is what prevents a disable/re-enable cycle from
+    producing two live jobs, whether requiring **all** targets to qualify has
+    an unintended consequence, and whether the attempt-budget clause interacts
+    correctly with T5b.
+12. **The interaction between assignment disable and running jobs** (section
+    14.3) — whether cancelling `PENDING` while leaving `RUNNING` is the right
+    split, and whether the post-expiry unclaimable state is acceptable or should
+    instead terminalize.
+13. **The worker authorization matrix** (section 15.2), especially the deliberate
+    `SUPERUSER` denial of the three worker operations — now stated as BE-04's own
+    least-privilege choice rather than an `ADR-0008` requirement — and the
+    `publisher_org_ids()` change.
+14. **The `ADR-0008` consumption** (sections 6.3 and 6.4) — whether the
+    specification consumes the decision exactly, without broadening the seven
+    approved conventions, without presenting BE-04-specific mechanisms as approved
+    cross-programme architecture, and without claiming any approval or
+    authorization the ADR does not give.
+15. **The transaction step placement** (section 10.1) — whether inserting job
     writes at 9a–9c, before the publisher `UPDATE`, is correct, whether step 9a′
     is placed correctly, and whether any ordering consequence was missed.
-11. **The claimed non-goals** — whether the specification anywhere smuggles in a
+16. **The claimed non-goals** — whether the specification anywhere smuggles in a
     generic framework, a second configuration transaction, an observed-delivery
     concept, a fabricated job status, or scope belonging to MIG-01, APP-01,
     APP-02, DIS-01 or DIS-02.
