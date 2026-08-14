@@ -57,31 +57,35 @@ machine-role convention**. That question is decided by
 dedicated, least-privilege, **domain-specific** project roles: there is no
 generic `SERVICE`/`MACHINE`/`WORKER`/`SERVICE_ACCOUNT` catch-all role, an
 unscoped machine role is permitted only for a genuinely global workload, every
-machine role requires an explicit policy guard, authorization matrix, permitted
-operations, forbidden operations, least privilege and separate
-provisioning/credential controls, and `SUPERUSER` authority does not
-automatically imply machine-role authority. That `SUPERUSER`/machine-role
-boundary is the whole of what `ADR-0008` decides about how roles relate: it
-states no general role-composition, role-aggregation or role-inheritance rule.
-The provisioning/credential requirement is likewise a boundary rather than a
-provisioning architecture: provisioning and credential handling remain separately
-controlled by the owning implementation/deployment task and are not decided by
-`ADR-0008`.
+machine role requires an explicit policy guard, an explicit authorization matrix
+and least privilege, and `SUPERUSER` authority does not automatically imply
+machine-role authority. That `SUPERUSER`/machine-role boundary is the whole of
+what `ADR-0008` decides about how roles relate: it states no general
+role-composition, role-aggregation or role-inheritance rule.
 
-**Authority condition.** `ADR-0008` resolves that shared convention for Metrics
-when its exact approved content is repository-authoritative on `develop` — that
-is, independently reviewed at its exact head and merged. `APPROVED` content on an
-unmerged branch does not resolve the dependency.
+Those requirements are the whole of the approved cross-programme machine-role
+rule. Enumerated permitted-operation lists, enumerated forbidden-operation lists
+and separate provisioning/credential controls are **not** approved `ADR-0008`
+architecture; they bind Metrics only where existing repository, deployment or
+identity-provider controls, or WP5's own approved bounded specification,
+independently require them. `ADR-0008` decides no provisioning mechanism,
+credential store, rotation policy or identity-provider arrangement.
+
+**Authority condition.** Under the repository's existing process controls — not
+as approved decision content — `ADR-0008` resolves that shared convention for
+Metrics when its exact approved content is repository-authoritative on `develop`,
+that is, independently reviewed at its exact head and merged. `APPROVED` content
+on an unmerged branch does not resolve the dependency.
 
 **What `ADR-0008` does not decide for Metrics.** It selects no Metrics
 machine-role name, entitlement model, credential model or operation matrix.
 Metrics chooses those under its own approved bounded specification while applying
 the shared convention. `DISSEMINATION_WORKER` is a Publisher-Services-specific
 role for the BE-04/DIS-02 durable distribution workflow; it is not a Metrics
-role, confers no Metrics operation and determines no Metrics semantics. Metrics
-must not reuse `BE-04`'s durable job tables, Rust types or API by analogy, and a
-reusable generic cross-programme job/queue/service abstraction would require its
-own explicit cross-programme ADR.
+role, confers no Metrics operation and determines no Metrics role name or
+permissions. Metrics must not reuse `BE-04`'s durable job tables, Rust domain
+types or lifecycle APIs by analogy, and a reusable generic cross-programme job or
+queue abstraction would require its own explicit cross-programme ADR.
 
 **WP5 status is unchanged.** WP5 remains `CRITICAL` and `BLOCKED`. It still
 depends on WP4 and on its own approved bounded slice specifications, and no

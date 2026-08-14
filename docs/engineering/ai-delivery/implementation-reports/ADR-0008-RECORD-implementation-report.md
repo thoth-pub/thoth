@@ -202,6 +202,20 @@ branch was fetched read-only for context.
   and adds the required PR #815 changelog reference, and fixes the five-decision
   mapping. It changes none of the five CTO-approved decisions and touches only
   files already in this pull request. See section 5.4.
+- `docs(engineering): finish ADR-0008 fidelity corrections` — the remediation
+  commit answering the independent review's two findings at reviewed head
+  `e8301d11499042c2c9aef1cdc1fdca8f68d9dfbd`: it removes the unapproved
+  machine-role composition rule and finishes the five-decision mapping
+  reconciliation. See section 5.5.
+- `docs(engineering): narrow ADR-0008 to CTO-approved scope` — the
+  approval-fidelity remediation commit answering the independent review at
+  reviewed head `e1744374274b916df540fcbebe4acea1e7e867df`. It narrows the
+  repository record back to the exact five decisions the CTO approved on
+  2026-08-14, removing post-approval expansion from Decisions 1, 3 and 4,
+  narrowing Decision 2, and separating approved Decision 5 from the existing
+  repository-process controls that determine repository authority. It makes no
+  new decision, asks for no re-approval, reinterprets no approval, and touches
+  only files already in this pull request. See section 5.6.
 
 No commit was amended, rebased, squashed or force-pushed. The branch head is
 recorded in the pull request; the head SHA, review state, merge authorization and
@@ -324,11 +338,11 @@ stated at the head of `ADR-0008` section 3. The correspondence is:
 
 | Approved decision | Recorded in | Correspondence |
 |---|---|---|
-| **1 — Domain-specific machine roles** | `ADR-0008` section 3.1; consequences in section 4 | Machine/service authorization uses dedicated, least-privilege, domain-specific project roles. No generic `SERVICE`, `MACHINE`, `WORKER`, `SERVICE_ACCOUNT` or equivalent catch-all is established, and none may be introduced. An unscoped machine role is permitted **only** when the owning workload genuinely operates globally rather than for one publisher/organisation. Every machine role requires an explicit policy predicate/guard, an explicit authorization matrix, explicit permitted operations, explicit forbidden operations, least privilege and separate provisioning/credential controls — the last of these recorded as a boundary, not a provisioning architecture: provisioning and credential handling remain separately controlled by the owning implementation/deployment task and are not decided by this ADR. `SUPERUSER` authority does **not** automatically imply machine-role authority — the whole of what the ADR decides about how roles relate. It states no general role-composition, role-aggregation or role-inheritance rule; whether one machine role may imply or compose with another is left to the owning approved authorization matrix or to a later explicit architecture decision. |
-| **2 — `DISSEMINATION_WORKER`** | `ADR-0008` section 3.2; programme effect in 5.1 and 5.2 | Approved as a **Publisher-Services-specific** machine role for the BE-04/DIS-02 durable distribution workflow. It may later be implemented with exactly the permissions approved by the BE-04 specification, after that specification is independently reviewed and approved. This ADR does **not** fix BE-04's operation-level authorization matrix; that bounded detail remains owned by the BE-04 specification. The role establishes the shared enforcement convention of Decision 1; it authorizes no Metrics operation, determines no eventual Metrics machine-role name, determines no Metrics permissions or entitlement semantics, and does **not** make WP5 ready for implementation. Metrics must apply the shared convention under its own approved bounded specification. |
-| **3 — Shared durable-job conventions, not a framework** | `ADR-0008` section 3.3 | All ten primitives are recorded verbatim in list form: PostgreSQL as durable owner; explicit state machines; database uniqueness for logical idempotency; deterministic idempotency/deduplication keys; explicit claim tokens; bounded leases with expiry; stale-token rejection; deterministic ordering; database-enforced concurrency; `FOR UPDATE SKIP LOCKED` where justified by the workload and evidence. They are recorded as conventions/primitives and **not** a shared generic job framework. The ADR states explicitly, in a fenced block, `approved primitive/convention != mandatory mechanism in every task`, and states that `FOR UPDATE SKIP LOCKED` must be justified by the adopting task rather than copied mechanically. |
-| **4 — BE-04 remains programme-local, including the future-ADR requirement** | `ADR-0008` sections 3.4 **and** 3.5; programme effect in 5.1 and 5.2 | BE-04's future `distribution_job`, `distribution_job_target` and `distribution_job_attempt` tables, Rust domain types, GraphQL operations, state machine and lifecycle API remain Publisher-Services-specific. They are **not** a Metrics job model, a universal queue, a general `Job`/`Queue`/`Lease` API, a reusable cross-programme Rust abstraction or a universal service-worker protocol. Metrics or another programme must not reuse BE-04's tables/types/API merely by analogy. A future proposal for a reusable generic job/queue/service abstraction requires its own explicit cross-programme ADR before implementation (section 3.5). |
-| **5 — Repository authority / BE-04 implementation gate** | `ADR-0008` header `Authority condition` and section 8 — **not** any `3.x` subsection | Status `APPROVED`, approved by Javi, CTO, approval date 2026-08-14, decision owner CTO. Repository-authoritative is defined as exact approved ADR content **plus** independent exact-head review **plus** merge into `develop`. The authority condition states that `APPROVED` content on an unmerged branch is not yet repository-authoritative and may not be relied upon for implementation until independently reviewed and merged to `develop`. Section 8.2 states that this ADR must be repository-authoritative before BE-04 implementation may be authorized, and that this is a necessary and not a sufficient condition. The record states in three places that it is neither BE-04 specification approval nor BE-04 implementation authorization. |
+| **1 — Domain-specific machine roles** | `ADR-0008` section 3.1; consequences in section 4 | Machine/service authorization uses dedicated, least-privilege, domain-specific project roles, not a generic `SERVICE`, `MACHINE` or equivalent universal role, and none may be introduced. A role may be unscoped **only** where the owning machine workload genuinely operates globally. Each role requires its own explicit policy guard and authorization matrix, under least privilege. `SUPERUSER` authority does **not** automatically imply machine-role authority — the whole of what the ADR decides about how roles relate. It states no general role-composition, role-aggregation or role-inheritance rule; whether one machine role may imply or compose with another is left to the owning approved authorization matrix or to a later explicit architecture decision. Enumerated permitted-operation lists, enumerated forbidden-operation lists and separate provisioning/credential controls are recorded as existing-control or adopting-specification requirements, **not** as approved `ADR-0008` architecture. |
+| **2 — `DISSEMINATION_WORKER`** | `ADR-0008` section 3.2; programme effect in 5.1 and 5.2 | Approved as a **Publisher-Services-specific** machine role. It establishes the shared enforcement convention of Decision 1. It authorizes no Metrics operation, and determines no eventual Metrics role name or permissions. The record additionally explains — as the owning specification's business, not as approved Decision 2 content — that the role may later be implemented with exactly the permissions its independently reviewed and approved BE-04 specification defines, and that this ADR does not fix BE-04's operation-level authorization matrix. No Metrics entitlement or credential architecture is presented as part of Decision 2. |
+| **3 — Shared durable-job conventions, not a framework** | `ADR-0008` section 3.3 | Exactly the seven approved conventions are recorded in list form: PostgreSQL durability; explicit state machines; database uniqueness; leases; claim tokens; deterministic idempotency; `FOR UPDATE SKIP LOCKED` where justified. They are recorded as conventions, and they create **neither** a shared generic job framework **nor** a reusable cross-programme job API. The ADR states explicitly, in a fenced block, `approved primitive/convention != mandatory mechanism in every task`, states that `FOR UPDATE SKIP LOCKED` must be justified by the adopting task rather than copied mechanically, and states that other concurrency or retry mechanisms remain governed by existing repository controls and the adopting task's own approved specification rather than approved here. |
+| **4 — BE-04 remains programme-local, including the future-ADR requirement** | `ADR-0008` sections 3.4 **and** 3.5; programme effect in 5.1 and 5.2 | BE-04's future `distribution_job`, `distribution_job_target` and `distribution_job_attempt` tables, Rust domain types and lifecycle APIs remain Publisher-Services-specific. They are **not** a Metrics job model, a universal queue, a general `Job`/`Queue` API or a reusable cross-programme Rust abstraction. Metrics or another programme must not reuse them merely by analogy. A reusable generic job or queue abstraction requires a later explicit cross-programme ADR (section 3.5). GraphQL operations, the state machine and any worker protocol are recorded as implementation details of the programme-local lifecycle API rather than as separately approved cross-programme categories. |
+| **5 — Recorded in a shared repository ADR before BE-04 implementation** | `ADR-0008` header and section 8.1 — **not** any `3.x` subsection | The approved clause is that this ruling must be recorded in a shared repository ADR before BE-04 implementation is authorized. Status `APPROVED`, approved by Javi, CTO, approval date 2026-08-14, decision owner CTO. The existing repository-process controls that determine when the record becomes repository-authoritative — exact approved content **plus** independent exact-head review **plus** merge into `develop`, with `APPROVED` on an unmerged branch not yet authoritative — are recorded and explicitly identified as `ADR-0005`/engineering-control consequences rather than as additional approved Decision-5 content. Section 8.2 keeps the durable meaning: this ADR must be repository-authoritative before BE-04 implementation may be authorized, and that is necessary but not sufficient. The record states in three places that it is neither BE-04 specification approval nor BE-04 implementation authorization. |
 
 ### 5.2 Why this is a cross-programme decision
 
@@ -547,6 +561,114 @@ approval date 2026-08-14, approver Javi, CTO, BE-04 `NOT AUTHORIZED`, WP5
 `CRITICAL`/`BLOCKED`, no generic job framework, and no implementation or
 production action.
 
+### 5.6 Approval-fidelity remediation
+
+Independent review of head `e1744374274b916df540fcbebe4acea1e7e867df` returned
+`CHANGES REQUIRED` on approval scope.
+
+**The original ADR-recording prompt expanded the CTO-approved ruling after
+approval. Independent review identified that governance error. This remediation
+narrows the repository record to the exact five approved decisions; no new CTO
+decision was made.**
+
+The CTO was not asked to re-approve the expanded wording, and the approval was
+not reinterpreted. The implementing agent recorded what the prior recording
+instructions specified; the defect is in those instructions, not in the agent's
+adherence to them. Applied by one ordinary additive commit; no amend, rebase,
+squash or force push.
+
+#### Removed from Decision 1's approved scope
+
+| Removed from approved ADR-0008 scope | Where it now stands |
+|---|---|
+| mandatory explicit permitted-operation list | Not approved `ADR-0008` architecture. May be required by BE-04's own specification, Metrics WP5's own specification, or repository/deployment security controls. `ADR-0008` section 3.1 names it as an adopting-specification or existing-control requirement only. |
+| mandatory explicit forbidden-operation list | Same disposition. |
+| mandatory separate provisioning/credential controls | Same disposition, with the identity-provider boundary noted: provisioning and credential handling remain separately controlled outside this repository. `ADR-0008` section 4 item 7 now records this as an existing-control boundary rather than an approved requirement. |
+
+The approved Decision-1 content is preserved exactly: dedicated least-privilege
+domain-specific role; no generic catch-all machine role; unscoped only for a
+genuinely global workload; explicit policy guard; explicit authorization matrix;
+`SUPERUSER` does not automatically imply machine-role authority. The already-correct
+rule that `ADR-0008` decides no general role-composition/inheritance model is
+preserved unchanged.
+
+#### Narrowed in Decision 2
+
+The Decision-2 record keeps exactly the approved content —
+`DISSEMINATION_WORKER` is Publisher-Services-specific, it applies Decision 1, it
+authorizes no Metrics operation, and it selects no Metrics role name or
+permissions. The permitted explanation that BE-04's own approved specification
+will later define its operation-level authorization matrix is retained. The
+enumeration of Metrics entitlement and credential architecture that had appeared
+alongside it is removed from the approved-decision definition: what Metrics needs
+beyond the shared convention is decided by its own specification and the existing
+controls.
+
+#### Removed from Decision 3's approved convention list
+
+| Removed from the approved list | Where it now stands |
+|---|---|
+| deterministic deduplication keys as a separate convention | Folded back into approved "deterministic idempotency". `thoth-api/AGENTS.md` section 5 independently lists deterministic idempotency keys. Not weakened for BE-04. |
+| bounded lease semantics as extra approved architecture | Narrowed to approved "leases". `thoth-api/AGENTS.md` section 5 independently lists leases with expiry. |
+| stale-token rejection | Not approved cross-programme architecture. `thoth-api/AGENTS.md` section 5 independently requires tests covering stale claims. |
+| deterministic ordering | Not approved cross-programme architecture. Remains a Publisher Services requirement in `docs/publisher-services/acceptance-matrix.md` and in BE-04's own specification. |
+| database-enforced concurrency | Not approved cross-programme architecture. `thoth-api/AGENTS.md` section 5 independently requires database-enforced correctness for concurrent operations. |
+
+The approved seven are recorded exactly: PostgreSQL durability; explicit state
+machines; database uniqueness; leases; claim tokens; deterministic idempotency;
+`FOR UPDATE SKIP LOCKED` where justified. The `approved convention != mandatory
+mechanism in every task` distinction is kept for those seven, and the ADR now
+states that other concurrency or retry mechanisms remain governed by existing
+repository controls and the adopting task's own approved specification.
+
+**PR #814 was not touched, and none of these requirements was deleted or weakened
+from BE-04's specification.** The correction is about `ADR-0008`'s approval scope
+only. Every removed property may still be required by root and `thoth-api`
+`AGENTS.md` controls, by BE-04's own specification, or by another programme's own
+bounded specification.
+
+#### Narrowed in Decision 4
+
+The programme-local boundary is recorded around exactly the approved categories:
+`distribution_job*` tables, Rust domain types and lifecycle APIs. GraphQL
+operations, the state machine and the service-worker protocol are no longer
+separately enumerated as approved cross-programme categories; `ADR-0008` section
+3.4 now records them as natural implementation details of BE-04's programme-local
+lifecycle API, owned by BE-04's specification. The prohibition on reuse by
+analogy is preserved, and the future-abstraction gate is narrowed to the approved
+"reusable generic job/queue abstraction requires a later explicit ADR", dropping
+the unapproved "lease" and "service-worker" categories.
+
+#### Decision 5 and authority wording
+
+Approved Decision 5 is recorded as exactly "this ruling must be recorded in a
+shared repository ADR before BE-04 implementation is authorized". The ADR's
+existing authority condition is kept, because repository process independently
+requires exact-head review and merge before the record is
+repository-authoritative — but section 8.1 is retitled and rewritten so that the
+approved clause and the `ADR-0005`/engineering-control consequences are visibly
+separate. The record no longer presents the exact-head-review mechanics as
+additional clauses approved on 2026-08-14. The durable meaning is unchanged:
+`ADR-0008` must be repository-authoritative before BE-04 implementation may be
+authorized, and that remains necessary but not sufficient.
+
+#### Consistency surfaces
+
+The same correction was applied to `ADR-0008`, `decision-register.md`,
+`docs/metrics/task-status.md`, `docs/publisher-services/task-status.md` (which
+carried the expanded Decision-4 wording), `CHANGELOG.md`, this report and the PR
+#815 body. No other repository file was touched.
+
+#### Preserved, not regressed
+
+No unsupported claim that existing role holders are human; no general
+role-composition/inheritance rule; negative authorization cases fail closed and
+positive cases follow the owning approved matrix; the stable PR #815 changelog
+reference; the purpose-qualified `ADR-0005` lifecycle-evidence wording; status
+`APPROVED`; approved by Javi, CTO; approval date 2026-08-14; BE-04 implementation
+`NOT AUTHORIZED`; WP5 `CRITICAL`/`BLOCKED`; no implementation or production
+action; automatic job creation nonexistent and inactive; PR #814 untouched.
+
 ## 6. Database and migration effects
 
 Migration added: NO.
@@ -735,8 +857,80 @@ PY
 Result:
 
 ```text
-relative links checked: 78; broken: 0
+relative links checked: 81; broken: 0
 ```
+
+### Approval-fidelity search
+
+Applied after the section 5.6 remediation, over the five substantive changed
+files, with whitespace normalized and matching case-insensitively. This report is
+excluded because section 5.6 necessarily quotes the removed phrases as historical
+remediation evidence.
+
+Command:
+
+```bash
+python3 - <<'PY'
+import re
+files = [
+ "CHANGELOG.md",
+ "docs/engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md",
+ "docs/engineering/decisions/decision-register.md",
+ "docs/metrics/task-status.md",
+ "docs/publisher-services/task-status.md",
+]
+pats = ["permitted operation", "forbidden operation", "provisioning",
+        "stale-token", "stale token", "deterministic ordering",
+        "database-enforced concurrency", "deduplication", "bounded lease",
+        "service-worker", "GraphQL operations", "state machine"]
+for p in pats:
+    print(f"### {p}")
+    hits = 0
+    for f in files:
+        t = re.sub(r'\s+', ' ', open(f, encoding='utf-8').read())
+        for m in re.finditer(re.escape(p), t, re.IGNORECASE):
+            hits += 1
+            print(f"  [{f}] ...{t[max(0,m.start()-170):m.end()+170]}...")
+    if not hits:
+        print("  (no match)")
+PY
+```
+
+Result:
+
+```text
+stale token / service-worker            no match
+
+permitted operation / forbidden operation / provisioning
+    every hit is either an explicit exclusion — "are **not** approved here as
+    ADR-0008 cross-programme architecture", "decides nothing about provisioning
+    or credential handling", "decides no provisioning mechanism, credential
+    store, rotation policy or identity-provider arrangement" — or an
+    implementation-boundary prohibition in ADR section 7, or the preserved
+    approved gloss "holding SUPERUSER does not by itself confer a machine role's
+    permitted operations"
+
+stale-token / deterministic ordering / database-enforced concurrency /
+deduplication / bounded lease
+    inside ADR-0008 only in the section 10 review-checklist item that requires
+    these NOT to be promoted into the approved list; "deduplication" also
+    matches an unrelated pre-existing ADR-0007 changelog entry at the
+    authorized base
+
+GraphQL operations / state machine
+    "explicit state machines" is one of the seven approved conventions;
+    the remaining hits are the ADR 3.4 statement that GraphQL operations, the
+    state machine and any worker protocol are BE-04 implementation details
+    rather than separately approved categories, the matching checklist item,
+    and unrelated pre-existing ADR-0006/ADR-0007 changelog entries
+```
+
+No active `ADR-0008` normative statement presents an explicit permitted-operation
+list, an explicit forbidden-operation list, separate provisioning/credential
+controls, stale-token rejection, deterministic ordering, database-enforced
+concurrency, or GraphQL operations, a state machine or a service-worker protocol
+as separately approved cross-programme Decision-1, Decision-3 or Decision-4
+content.
 
 ### Contradictory-wording search
 
@@ -821,11 +1015,16 @@ all five approved decisions present            YES
   Decision 2                                   3.2
   Decision 3                                   3.3
   Decision 4                                   3.4 AND 3.5
-  Decision 5                                   header authority condition AND 8
+  Decision 5                                   header AND 8.1
   (mapping table at the head of section 3;
    subsection numbering is not decision
    numbering, and 3.5 is part of Decision 4)
 creates no generic SERVICE/MACHINE role        YES  (3.1, prohibition)
+Decision 1 approved requirements are exactly
+  guard + matrix + least privilege, with no
+  permitted-op list, forbidden-op list or
+  provisioning/credential control presented
+  as approved ADR-0008 architecture            YES  (3.1, 4 item 7)
 no unsupported "existing roles are human"
   claim; states only that policy defines no
   dedicated machine/service role               YES  (1.1)
@@ -836,18 +1035,34 @@ no unapproved shared provisioning or
   role-inheritance architecture                YES  (3.1, 4 items 4, 7 and 8)
 does not claim Metrics uses DISSEMINATION_WORKER
                                                YES  (3.2, 5.2 item 5)
+no Metrics entitlement/credential architecture
+  presented as approved Decision 2             YES  (3.2)
 does not make WP5 ready                        YES  (3.2, 5.2 items 2-3)
 does not authorize BE-04 implementation        YES  (5.1 item 4, 7, 8.2)
 does not approve PR #814 / any BE-04 spec      YES  (5.1 item 3, 8.2)
-creates no generic job framework               YES  (3.3)
+creates no generic job framework and no
+  reusable cross-programme job API             YES  (3.3)
+approved convention list is exactly the seven
+  approved items, with no stale-token
+  rejection, deterministic ordering or
+  database-enforced concurrency promoted
+  into it                                      YES  (3.3)
 does not mandate SKIP LOCKED universally       YES  (3.3)
-requires a future ADR for a shared generic
-  job abstraction                              YES  (3.5)
+Decision 4 boundary is exactly tables +
+  Rust domain types + lifecycle APIs, with
+  GraphQL operations, state machine and
+  worker protocol not separately elevated      YES  (3.4)
+requires a future ADR for a reusable generic
+  job or queue abstraction                     YES  (3.5)
 status                                         APPROVED
 approval date                                  2026-08-14
 approver / decision owner                      Javi, CTO / CTO
+approved Decision 5 recorded exactly, and
+  distinguished from the ADR-0005 /
+  engineering-control process consequences     YES  (header, 8.1)
 authority condition requires independent
-  review + merge to develop                    YES  (header, 8.1)
+  review + merge to develop, as an existing
+  repository-process control                   YES  (header, 8.1)
 ```
 
 ### Changelog
@@ -978,11 +1193,13 @@ Monitoring required: none.
    operation matrix are deliberately not selected. They belong to a future
    approved bounded Metrics specification.
 4. Machine-role provisioning and credential controls live in the identity
-   provider, outside this repository. `ADR-0008` requires that they be separate;
-   it does not describe them, and no such control was created or changed.
-5. Whether a reusable generic cross-programme job/queue/service abstraction is
-   ever justified is left open. `ADR-0008` fixes only the gate: a separate
-   explicit cross-programme ADR before implementation.
+   provider, outside this repository. `ADR-0008` does not decide them, does not
+   require them as approved architecture and does not describe them; they remain
+   governed by the existing repository, deployment and identity-provider controls
+   and by each owning specification. No such control was created or changed.
+5. Whether a reusable generic cross-programme job or queue abstraction is ever
+   justified is left open. `ADR-0008` fixes only the gate: a separate explicit
+   cross-programme ADR before implementation.
 6. `MET-CTRL-01` remains `CHANGES REQUIRED` and was deliberately not remediated.
 7. `docs/publisher-services/acceptance-matrix.md` and
    `docs/publisher-services/rollout-plan.md` were read and left unchanged: their
@@ -1011,21 +1228,30 @@ Suggested review focus:
 1. **Semantic fidelity to the ruling.** Read section 5.1's correspondence table
    against the mapping table at the head of `ADR-0008` section 3 — Decision 1 ->
    3.1, Decision 2 -> 3.2, Decision 3 -> 3.3, Decision 4 -> 3.4 and 3.5,
-   Decision 5 -> the header authority condition and section 8 — and confirm
-   nothing was weakened, broadened, reconsidered or replaced. In particular
-   confirm that the ADR does not settle BE-04's operation-level authorization
-   matrix, which the ruling reserves to the BE-04 specification, and that no
-   reasonable-sounding addition has been promoted into approved architecture
-   beyond the five decisions.
-2. **Absence of over-claiming.** Confirm that no changed file asserts BE-04
+   Decision 5 -> the header and section 8.1 — and confirm nothing was weakened,
+   broadened, reconsidered or replaced. In particular confirm that the ADR does
+   not settle BE-04's operation-level authorization matrix, which the ruling
+   reserves to the BE-04 specification, and that no reasonable-sounding addition
+   has been promoted into approved architecture beyond the five decisions.
+2. **Approval scope.** This is the specific defect section 5.6 remediates.
+   Confirm that no active normative `ADR-0008` statement presents as CTO-approved
+   cross-programme architecture: an explicit permitted-operation list, an explicit
+   forbidden-operation list, separate provisioning/credential controls,
+   stale-token rejection, deterministic ordering, database-enforced concurrency,
+   or GraphQL operations, a state machine or a service-worker protocol as
+   separately approved Decision-4 categories. Those phrases legitimately survive
+   in section 5.6's historical evidence, as clearly identified existing controls,
+   and inside BE-04 material this task did not modify.
+3. **Absence of over-claiming.** Confirm that no changed file asserts BE-04
    implementation authorization, BE-04 specification approval, WP5 readiness, a
    Metrics role selection, or any generic machine role or job framework.
-3. **Durability of the tracker wording.** Confirm that the Metrics and Publisher
+4. **Durability of the tracker wording.** Confirm that the Metrics and Publisher
    Services edits use an authority-condition construction that stays true before
    review, after review, before merge and after merge, so the later ADR merge
    creates no stale state and needs no follow-up status commit.
-4. **Boundedness.** Confirm the diff is confined to `CHANGELOG.md` and `docs/**`,
-   that the prohibited files are untouched, and that no Metrics or Publisher
-   Services debt was remediated opportunistically.
-5. **Register consistency.** Confirm the `ADR-0008` register entry matches the
+5. **Boundedness.** Confirm the diff is confined to `CHANGELOG.md` and `docs/**`,
+   that the prohibited files are untouched, that PR #814 and BE-04's own
+   specification are untouched, and that no Metrics or Publisher Services debt was
+   remediated opportunistically.
+6. **Register consistency.** Confirm the `ADR-0008` register entry matches the
    ADR and that no unrelated ADR entry was rewritten.
