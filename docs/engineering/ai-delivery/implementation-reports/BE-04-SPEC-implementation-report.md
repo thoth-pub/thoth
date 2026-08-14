@@ -542,7 +542,8 @@ task-status.md: all targets resolve, including the new BE-04.md link
 Command:
 
 ```text
-grep -niE '\bTBD\b|\bTODO\b|FIXME|XXX|\?\?\?|to be decided|to be determined' BE-04.md
+grep -nEi '\bTBD\b|\bTODO\b|FIXME|\bXXX\b|\?\?\?|to be decided|to be determined|placeholder value' \
+  docs/engineering/ai-delivery/tasks/BE-04.md
 ```
 
 Result:
