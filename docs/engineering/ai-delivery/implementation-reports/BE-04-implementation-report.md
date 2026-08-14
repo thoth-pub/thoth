@@ -1033,6 +1033,17 @@ production behaviour changed.
 
 ---
 
+## 12.2 CI
+
+Repository CI runs on the pull request carrying this implementation and covers
+the classification, changelog, format, lint, build, test and migration jobs.
+Its result at the exact reviewed head is **terminal GitHub evidence** under
+`ADR-0005` and is deliberately not transcribed into this file, which would be
+falsified by any later run. No workflow file was changed and no workflow was
+manually dispatched.
+
+---
+
 ## 13. ADR-0008 compliance
 
 The seven approved shared conventions are enumerated as exactly seven and are
