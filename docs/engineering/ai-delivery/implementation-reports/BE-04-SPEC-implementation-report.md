@@ -707,19 +707,27 @@ clean - no whitespace errors, no output
 
 ### Documentation-only change verification
 
+**The baseline for this check is `origin/develop`, not the original authoring
+base.** Once the base-reconciliation merge (`1cf5675c`) brought
+repository-authoritative `develop` into this branch, a diff from the authoring
+base `fac86e38` to `HEAD` also contains the `ADR-0008` files that arrived through
+PR #815 — they are `develop`'s content, not this PR's contribution. The
+three-dot diff against `origin/develop` is what states what this pull request
+actually changes.
+
 Command:
 
 ```text
-git diff --stat fac86e38383e2059e8795698e1585932c35b5b6d..HEAD
+git diff --name-status origin/develop...HEAD
 ```
 
 Result:
 
 ```text
-CHANGELOG.md
-docs/engineering/ai-delivery/tasks/BE-04.md
-docs/engineering/ai-delivery/implementation-reports/BE-04-SPEC-implementation-report.md
-docs/publisher-services/task-status.md
+M	CHANGELOG.md
+A	docs/engineering/ai-delivery/implementation-reports/BE-04-SPEC-implementation-report.md
+A	docs/engineering/ai-delivery/tasks/BE-04.md
+M	docs/publisher-services/task-status.md
 
 path containment: CHANGELOG.md and docs/** only
 ```
@@ -729,8 +737,9 @@ path containment: CHANGELOG.md and docs/** only
 Command:
 
 ```text
-git diff --name-only fac86e38..HEAD -- thoth-api/ thoth-api-server/ thoth-client/ \
-    thoth-errors/ thoth-export-server/ .github/ Cargo.toml Cargo.lock src/ Makefile
+git diff --name-only origin/develop...HEAD -- thoth-api/ thoth-api-server/ \
+    thoth-client/ thoth-errors/ thoth-export-server/ .github/ Cargo.toml \
+    Cargo.lock src/ Makefile
 ```
 
 Result:
@@ -744,8 +753,8 @@ Result:
 Command:
 
 ```text
-git diff --name-only fac86e38..HEAD -- thoth-api/src/schema.rs thoth-api/src/policy.rs \
-    thoth-api/migrations/
+git diff --name-only origin/develop...HEAD -- thoth-api/src/schema.rs \
+    thoth-api/src/policy.rs thoth-api/migrations/
 git status --porcelain thoth-api/migrations/
 ```
 
