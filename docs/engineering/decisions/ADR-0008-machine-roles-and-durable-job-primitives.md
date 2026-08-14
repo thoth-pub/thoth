@@ -131,8 +131,8 @@ The CTO was asked to settle, once and for both programmes:
 3. whether the durable-job primitives are conventions or a framework;
 4. whether BE-04's job machinery is programme-local, and what gate applies before
    any future generic shared abstraction;
-5. what authority condition must be satisfied before BE-04 implementation may be
-   authorized.
+5. whether this ruling must be recorded in a shared repository ADR before BE-04
+   implementation may be authorized.
 
 Those five questions are the five decisions recorded here, and they map onto this
 record as set out at the head of section 3.
@@ -654,9 +654,11 @@ A reviewer of this ADR should confirm each of the following.
 
 - [ ] All five approved decisions are recorded, and mapped as in the table at the
       head of section 3: Decision 1 -> 3.1; Decision 2 -> 3.2; Decision 3 -> 3.3;
-      Decision 4 -> 3.4 **and** 3.5; Decision 5 -> the header authority condition
-      **and** section 8. The subsection numbering is not the decision numbering,
-      and 3.5 is part of Decision 4 rather than a fifth decision.
+      Decision 4 -> 3.4 **and** 3.5; Decision 5 -> the header Decision-5 statement
+      **and** section 8.1, where the approved shared-ADR-before-BE-04 clause is
+      distinguished from the existing ADR-0005/engineering-control authority
+      mechanics. The subsection numbering is not the decision numbering, and 3.5
+      is part of Decision 4 rather than a fifth decision.
 - [ ] No generic `SERVICE`, `MACHINE`, `WORKER` or `SERVICE_ACCOUNT` role is
       created or permitted.
 - [ ] `SUPERUSER` is not treated as implying machine-role authority, and is not

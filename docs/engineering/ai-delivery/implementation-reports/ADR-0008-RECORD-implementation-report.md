@@ -290,9 +290,11 @@ Decisions taken within the approved ruling:
 2. **The required ten-section outline is used exactly**, with the approved
    decisions mapped explicitly in `ADR-0008` section 3: Decisions 1-3 to
    sections 3.1-3.3, Decision 4 to sections 3.4-3.5, and Decision 5 to the header
-   authority condition and section 8. The subsection numbering is not the
-   decision numbering. A `Review checklist` (section 10) makes the approved
-   constraints directly checkable by an independent reviewer.
+   Decision-5 statement and section 8.1, which separately distinguishes the
+   approved clause from the existing repository-authority mechanics. The
+   subsection numbering is not the decision numbering. A `Review checklist`
+   (section 10) makes the approved constraints directly checkable by an
+   independent reviewer.
 3. **No link to BE-04's specification.** The BE-04 specification candidate does
    not exist on `develop`, so a relative link to it would be broken in the merged
    state. It is referred to by name as "the BE-04 specification", which stays
@@ -332,9 +334,11 @@ Deviations from the approved ruling: NONE.
 Each approved decision is recorded semantically exactly. The ADR's subsection
 numbering is **not** the decision numbering: approved Decision 4 covers both
 `ADR-0008` section 3.4 and section 3.5, and approved Decision 5 is the
-repository-authority condition and the BE-04 implementation gate, recorded in the
-ADR header and section 8 rather than in any `3.x` subsection. The same mapping is
-stated at the head of `ADR-0008` section 3. The correspondence is:
+requirement that this ruling be recorded in a shared repository ADR before BE-04
+implementation is authorized; the repository-authority mechanics recorded
+alongside it are existing process controls rather than Decision-5 content. The
+same mapping is stated at the head of `ADR-0008` section 3. The correspondence
+is:
 
 | Approved decision | Recorded in | Correspondence |
 |---|---|---|
