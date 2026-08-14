@@ -46,15 +46,6 @@ fn superuser_context() -> ServiceConfigurationWriteContext<'static> {
     }
 }
 
-/// The same provenance with automatic job creation `OFF`, which is the merged
-/// default.
-fn superuser_context_creation_off() -> ServiceConfigurationWriteContext<'static> {
-    ServiceConfigurationWriteContext {
-        job_creation: DistributionJobCreation::Off,
-        ..superuser_context()
-    }
-}
-
 fn input(
     publisher_id: Uuid,
     package: ThothPackage,

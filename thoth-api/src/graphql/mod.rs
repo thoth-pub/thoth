@@ -3,6 +3,8 @@ pub mod types;
 
 mod dataloader;
 #[cfg(test)]
+mod distribution_job_tests;
+#[cfg(test)]
 mod distribution_platform_tests;
 mod mutation;
 mod mutation_guard;
