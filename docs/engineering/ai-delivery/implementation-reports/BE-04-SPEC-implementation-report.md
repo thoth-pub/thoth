@@ -5,7 +5,12 @@
 Repository: `thoth-pub/thoth`
 Workflow: STANDARD
 Base branch: `develop`
-Base commit: `fac86e38383e2059e8795698e1585932c35b5b6d`
+Base commit: `fac86e38383e2059e8795698e1585932c35b5b6d` (original
+specification-authoring base; preserved as historical authoring evidence)
+Repository-authoritative control state at remediation:
+`8703dd5ca2080bb97debc9d14cca33db9956f7b4` (merge commit of `ADR-0008` PR
+[#815](https://github.com/thoth-pub/thoth/pull/815)), merged into this branch by
+the ordinary merge commit `1cf5675c4c2f065feab8ccfb3cde06c368588aa6`
 PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/publisher-services/be-04-spec`
@@ -114,27 +119,35 @@ Deliberately **not** done, each an explicit instruction boundary:
   `docs(publisher-services): specify BE-04 durable distribution jobs`
 - `8686656855f8f8217fcb5176a19213d5586188ca` -
   `docs(publisher-services): record BE-04 specification candidate in programme controls`
-- one further ordinary commit adds this report.
+- one further ordinary commit adds this report;
+- `1cf5675c4c2f065feab8ccfb3cde06c368588aa6` - ordinary merge of
+  repository-authoritative `develop` (`8703dd5c`, `ADR-0008` through PR #815)
+  into this branch, after `ADR-0008` became repository-authoritative;
+- one further ordinary commit carries the specification remediation of section
+  5.4 — the four independent-review findings and the `ADR-0008` reconciliation.
 
 Ordinary commits only. No amend, no rebase, no squash, no force-push at any
 point, and none is required.
 
 ## 4. Files changed
 
-- `docs/engineering/ai-delivery/tasks/BE-04.md` **(NEW)**
-  - reason: the BE-04 specification candidate required by this task.
+- `docs/engineering/ai-delivery/tasks/BE-04.md` **(NEW, subsequently REMEDIATED)**
+  - reason: the BE-04 specification candidate required by this task, then
+    corrected for the four independent-review findings of section 5.4 and
+    reconciled with the now-repository-authoritative `ADR-0008` (section 6.3).
   - behavioural effect: none. It states requirements; it changes no runtime
     behaviour, no schema, no contract and no authorization, and it authorizes no
     implementation.
-- `docs/engineering/ai-delivery/implementation-reports/BE-04-SPEC-implementation-report.md` **(NEW)**
-  - reason: the bounded evidence record for this specification task.
+- `docs/engineering/ai-delivery/implementation-reports/BE-04-SPEC-implementation-report.md` **(NEW, subsequently REMEDIATED)**
+  - reason: the bounded evidence record for this specification task, extended
+    with the review-finding remediation and `ADR-0008` reconciliation records.
   - behavioural effect: none.
 - `docs/publisher-services/task-status.md` **(MODIFIED)**
   - reason: record the BE-04 specification candidate durably, and keep BE-04's
     dependency and authorization state truthful.
   - behavioural effect: none. BE-04 remains `BLOCKED` and `NOT STARTED`; the
-    BE-02 and BE-03 dependencies are recorded as satisfied without BE-04 becoming
-    ready; implementation is recorded as `NOT AUTHORIZED`.
+    BE-02, BE-03 and `ADR-0008` dependencies are recorded as satisfied without
+    BE-04 becoming ready; implementation is recorded as `NOT AUTHORIZED`.
 - `CHANGELOG.md` **(MODIFIED)**
   - reason: the repository requires every PR to update `## [Unreleased]`.
   - behavioural effect: none. One entry added under the existing `### Added`
@@ -179,13 +192,19 @@ in `BE-04.md` with its evidence, and is **not** left as `TBD`.
    The check uses only immutable expressions (enum inequality against a literal,
    `uuid::text`, `||`), so it is a genuine database guarantee and the text column
    cannot drift from the typed columns.
-5. **A repair must not create a job, and the test is "was any member already
-   enabled".** Members of a linked group share one adapter profile by
-   construction — `OAPEN` and `DOAB` both resolve to `Profile::OapenDoabSword` —
-   so any already-enabled member means the shared adapter was already active and
-   the back catalogue already onboarded. `AssignmentLifecycleOutcome` is
-   therefore widened to `Unchanged | Activated | Repaired | Disabled`, decidable
-   from the `member_rows` `enable_on` already reads. BE-03 section 7.9 explicitly
+5. **A repair must not create an automatic onboarding job, and the test is "was
+   any member already enabled".** `Activated` and `Repaired` name **desired-state
+   events**: `Activated` is a group moving from zero enabled members to a newly
+   enabled desired-state group; `Repaired` is normalization of a group in which
+   at least one member was already enabled. Automatic creation is tied to a
+   **new** `Activated` event, so a repair creates no job because it is not a new
+   zero-enabled-to-enabled activation — and for no other reason. This makes **no
+   inference about observed delivery**: a linked group's shared adapter profile
+   (`OAPEN` and `DOAB` both resolve to `Profile::OapenDoabSword`) is why one
+   activation is one unit of work, not evidence that the profile was ever
+   executed. `AssignmentLifecycleOutcome` is therefore widened to
+   `Unchanged | Activated | Repaired | Disabled`, decidable from the
+   `member_rows` `enable_on` already reads. BE-03 section 7.9 explicitly
    anticipated and permitted this widening.
 6. **`AutomaticPush`/`PullFeed`/`Manual` is read from code-owned descriptors**,
    never inferred from names, and the qualifying-target rule filters group
@@ -215,10 +234,13 @@ in `BE-04.md` with its evidence, and is **not** left as `TBD`.
 11. **Worker identity is derived, not supplied.** `claimed_by` is
     `PolicyContext::user_id()`, exactly as BE-03 derives its audit `actor`.
     Accepting a worker-supplied identity would make the audit field spoofable.
-12. **Lease-expiry recovery is performed by the claim call**, not by a scheduler.
-    PostgreSQL runs no timer, and adding a background task would add process,
-    permission and deployment surface for a recovery that is only useful when a
-    worker is asking for work.
+12. **Lease-expiry recovery is performed by the claim call**, not by a scheduler,
+    and is **split by the attempt budget**. PostgreSQL runs no timer, and adding
+    a background task would add process, permission and deployment surface for a
+    recovery that is only useful when a worker is asking for work. Recovery
+    within budget returns the job to `PENDING` (T5a); recovery at or beyond the
+    budget transitions it directly to `FAILED` (T5b), so an expired fifth attempt
+    cannot become a sixth.
 13. **No heartbeat/lease-extension operation.** A worker sizes its own lease
     within a clamped range, and an outlived lease is recovered and retried —
     which is safe precisely because the programme's acceptance matrix already
@@ -293,6 +315,15 @@ in `BE-04.md` with its evidence, and is **not** left as `TBD`.
 7. **The `zitadel setup` role list already omits `WORK_LIFECYCLE` and
    `CDN_WRITE`.** Recorded as an observed gap and deliberately **not** repaired,
    per the instruction's prohibition on unrelated debt.
+8. **`OFF` is a fail-closed refusal, not a silent skip.** Recorded plainly,
+   including the operational consequence that a superuser attempting an
+   `AutomaticPush` activation while automatic creation is disabled sees a
+   refusal, and including the deliberate asymmetry with `MIGRATION_BACKFILL`,
+   which stays job-free *by design* and therefore commits normally.
+9. **"No job" carries no delivery meaning.** The specification states that a
+   `null` `latestBackCatalogueJob` — for a repaired group, a pre-feature
+   assignment or any other reason — means only that BE-04 holds no durable job,
+   and that BE-04 neither stores nor infers observed delivery state.
 
 ### 5.3 Unresolved decisions
 
@@ -303,19 +334,82 @@ derivable from merged repository evidence, so
 `PROPOSED IN THIS SPECIFICATION CANDIDATE` entry was added. Adding one with
 nothing genuinely unresolved would be noise in an active control document.
 
-**One CTO judgement is surfaced rather than taken** — the cross-programme
-adjacency finding of section 6, recorded in `BE-04.md` section 6.3 and as stop
-condition 13. It does not block authoring, and on the evidence it does not block
-implementation either; but whether it *should* is the CTO's call, not the
-implementing agent's.
+**The one cross-programme matter this task surfaced rather than took is now
+settled.** It was escalated to the CTO, decided in
+[`ADR-0008`](../../decisions/ADR-0008-machine-roles-and-durable-job-primitives.md)
+on 2026-08-14, and became repository-authoritative through PR
+[#815](https://github.com/thoth-pub/thoth/pull/815). `BE-04.md` section 6.3 now
+records that resolution as a durable boundary rather than an open question, and
+former stop condition 13 has been replaced by an ADR-0008 compliance condition.
+Satisfying ADR-0008 approves no part of this specification and authorizes no
+implementation.
 
-## 6. Cross-programme check
+### 5.4 Review-finding remediation
+
+Independent review of the specification candidate identified four findings. All
+four are corrected in this branch; the specification remains **not approved**.
+
+1. **`OFF` mode could lose an onboarding.** The former section 9.4 permitted a
+   `SUPERUSER_API` `AutomaticPush` activation to commit with no job while
+   automatic creation was `OFF`, after which no sweep, retry or later replacement
+   would ever create one — a permanently un-onboarded publisher whose
+   configuration read as correct. Section 9.4 is rewritten: such a transaction
+   now **fails and rolls back in full**, with an enumerated zero-committed-change
+   result (assignments, `activation_id`, configuration token, publisher row,
+   audit row, job and target rows). `PullFeed`, `Manual`, package-only, repair,
+   disable and `MIGRATION_BACKFILL` writes remain permitted, the last of these
+   as an explicit migration boundary rather than a missed onboarding. No global
+   sweep is introduced and turning the switch `ON` still enqueues nothing
+   retroactively. One bounded new error,
+   `ThothError::DistributionJobCreationDisabled` →
+   `DISTRIBUTION_JOB_CREATION_DISABLED`, carries the public contract; the
+   repository had no existing feature-disabled error, and reusing
+   `StalePublisherServiceConfiguration` or `DistributionPlatformNotAssignable`
+   would have distorted a merged contract. Section 16.3's count moves from two
+   new errors to three, and scope item 10 with it.
+2. **Five attempts could become six.** Lease-expiry recovery unconditionally
+   returned an expired `RUNNING` job to `PENDING` without consulting the attempt
+   budget, so an expired fifth attempt was claimable and T1 incremented to six.
+   T5 is split into **T5a** (`attempt_count < MAX` ⇒ `PENDING`, `available_at`
+   now, count unchanged) and **T5b** (`attempt_count >= MAX` ⇒ `FAILED`,
+   `completed_at` set, never claimable again), decided inside the recovery
+   statement from the row's own count. Claim eligibility independently requires
+   `attempt_count < DISTRIBUTION_JOB_MAX_ATTEMPTS`, and
+   `distribution_job_attempt_count_check` becomes
+   `attempt_count >= 0 AND attempt_count <= 5`, making the previously overstated
+   "hard-bounded" claim a database property. A test ties the Rust constant to the
+   migration literal.
+3. **Repair was treated as evidence of delivery.** The creation matrix justified
+   `Repaired ⇒ no job` with "the adapter was already active", which desired-state
+   rows cannot establish. The rule is unchanged — a repair creates no automatic
+   job — but its stated reason is now the correct one: a repair is not a new
+   zero-enabled-to-enabled activation. Sections 9.1, 9.2 and 17.3 now state
+   explicitly that no inference about adapter execution, external upload or
+   back-catalogue delivery is made, that `latestBackCatalogueJob: null` means
+   only "no durable job", and that any future policy for onboarding historical or
+   unknown-delivery state is separate and unauthorized here.
+4. **The claim SQL returned no rows.** The normative section 12.3 statement ended
+   in `INSERT ... SELECT FROM claimed`, which produces no result set, so
+   `claimDistributionJobs` had nothing to return without a second, non-atomic
+   query. The statement now carries an `inserted_attempts` CTE and a final
+   `SELECT ... FROM claimed JOIN inserted_attempts` with the deterministic
+   `ORDER BY`, returning exactly the jobs this invocation claimed — zero rows
+   when nothing was claimed — in one atomic statement, with `SKIP LOCKED` and its
+   justification retained. Target and payload resolution is specified as a
+   bounded set of `= ANY($ids)` statements with no N+1 path.
+
+The ADR-0008 reconciliation performed alongside those four is recorded in
+section 6.
+
+## 6. Cross-programme check and `ADR-0008` reconciliation
 
 ### 6.1 Conclusion
 
 BE-04 as specified defines **programme-local durable distribution-job machinery
 owned by `thoth-api`**, and establishes none of the prohibited shared
-abstractions.
+abstractions. That position is now not only this specification's own claim: it is
+what [`ADR-0008`](../../decisions/ADR-0008-machine-roles-and-durable-job-primitives.md)
+section 3.4 decides.
 
 `thoth-api/AGENTS.md` section 1 already assigns "durable jobs, leases and audit
 records implemented in Thoth" to this crate, and section 5 already names the
@@ -359,37 +453,60 @@ as an extension point for another programme.
   exists, applied to exactly one role, and `DISSEMINATION_WORKER` applies the
   same mechanism to a second role rather than inventing one.
 
-### 6.3 The adjacency finding, surfaced for the CTO
+### 6.3 The cross-programme question, escalated and now resolved
 
-`docs/metrics/task-status.md` records Thoth Metrics work package **WP5 - Service
-auth and entitlements**, repositories `thoth` + clients, risk `CRITICAL`, status
-`BLOCKED`, whose first listed blocking dependency is a **"role decision"**. That
-concerns the same crate, the same `policy.rs`, the same `Role` enum and the same
-ZITADEL project as BE-04's worker role.
+The cross-programme machine-role and durable-job question was **escalated rather
+than decided by this specification**, and the CTO has since decided it in
+`ADR-0008`, approved on 2026-08-14 and repository-authoritative through PR
+[#815](https://github.com/thoth-pub/thoth/pull/815). `BE-04.md` section 6.3 now
+records the resulting boundary durably; it is no longer an open finding, a
+precedence observation or a pending judgement.
 
-Assessment, stated plainly:
+What the specification consumes, exactly and without broadening it:
 
-1. **BE-04 does not require WP5's decision.** `DISSEMINATION_WORKER` reuses the
-   existing unscoped-role pattern, adds one role, one predicate and one
-   `require_*` helper, permits exactly three operations, and confers no publisher
-   scope and no entitlement. Nothing in BE-04 answers "how do metrics clients
-   authenticate and how are entitlements enforced", and nothing in BE-04
-   forecloses any answer WP5 may choose.
-2. **BE-04 is not blocked by WP5.** WP5 is blocked on its own dependencies (WP4,
-   bounded slice specifications) independently of this task.
-3. **What remains is precedence, not convention.** `DISSEMINATION_WORKER` would
-   be the repository's first non-`SUPERUSER` unscoped project role, and WP5 will
-   reasonably look at it. The specification deliberately does not convert
-   precedence into a shared convention — see its section 6.2 boundary and
-   non-goal 8.
-4. **The judgement is the CTO's.** If the CTO decides the machine-identity
-   question must be settled once for both programmes before either uses it, then
-   BE-04's section 15 design is superseded and implementation is `BLOCKED` under
-   `BE-04.md` stop condition 13 until that separate CTO-controlled decision
-   exists.
+1. **Domain-specific, least-privilege machine roles**, with no generic
+   `SERVICE`/`MACHINE`/`WORKER`/`SERVICE_ACCOUNT` catch-all; an unscoped role only
+   for a genuinely global workload; and an explicit guard, an explicit
+   authorization matrix and least privilege for each. `SUPERUSER` authority does
+   not automatically imply machine-role authority.
+2. **`DISSEMINATION_WORKER` is approved as Publisher-Services-specific.**
+   `ADR-0008` does not fix its operation-level matrix; `BE-04.md` section 15.2
+   still owns it, and the specification now states that denying `SUPERUSER` the
+   three worker operations is BE-04's own least-privilege choice rather than
+   something `ADR-0008` requires either way.
+3. **Thoth Metrics WP5 does not use the role** and inherits none of its
+   permissions, scope or semantics; its eventual role name and permissions are
+   its own work under its own approved specification. WP5 remains `CRITICAL` and
+   `BLOCKED`.
+4. **BE-04's `distribution_job*` tables, Rust domain types and lifecycle APIs
+   remain programme-local**, not reusable cross-programme by analogy.
+5. **There is no generic shared job framework.** `ADR-0008` section 3.3 approves
+   **exactly seven** conventions — PostgreSQL durability, explicit state
+   machines, database uniqueness, leases, claim tokens, deterministic
+   idempotency, and `FOR UPDATE SKIP LOCKED` where justified — and that list is
+   exhaustive. A new `BE-04.md` section 6.4 enumerates those seven and then
+   separately attributes BE-04's own requirements — stale-token rejection,
+   deterministic ordering, database-enforced concurrency, bounded lease
+   semantics, the deduplication formula, the GraphQL worker operations and
+   protocol, the permitted/forbidden operation lists, and credential
+   provisioning — to BE-04's HIGH-risk requirements, to `thoth-api/AGENTS.md`, or
+   to outside the task, rather than presenting any of them as additional
+   `ADR-0008`-approved cross-programme architecture.
+6. **The ADR prerequisite for BE-04 implementation is satisfied**, and is
+   **necessary but not sufficient**. `ADR-0008` approves no part of this
+   specification candidate and authorizes no implementation, no role creation, no
+   provisioning, no identity-provider change, no migration and no deployment.
 
-No cross-programme ADR was created in this pull request, as instructed. If the
-CTO takes reading 4, that ADR becomes its own bounded CTO-controlled task.
+Former stop condition 13 — which contemplated the CTO later deciding that machine
+identity must be settled first — is removed as spent and replaced by an
+**ADR-0008 compliance** condition: implementation returns `BLOCKED` if it would
+require violating `ADR-0008`, introducing a generic machine role, reusing BE-04's
+job machinery cross-programme, creating a generic reusable job/queue abstraction
+without a later ADR, or broadening the seven approved conventions.
+
+No cross-programme ADR was created in this pull request. `ADR-0008` was authored,
+reviewed and merged as its own separate bounded task, and neither it nor PR #815
+is modified here.
 
 ## 7. API and compatibility effects
 
@@ -417,9 +534,12 @@ to the base. No role was added to the code, no ZITADEL project role was created
 or granted, and no identity-provider configuration was read, changed or
 approached.
 
-Roles/scopes involved: the specification *describes* a proposed
-`DISSEMINATION_WORKER` role and a complete least-privilege matrix. Describing a
-role in a specification grants nothing and provisions nothing.
+Roles/scopes involved: the specification *describes* a `DISSEMINATION_WORKER`
+role and a complete least-privilege matrix. `ADR-0008` approves that role as
+Publisher-Services-specific and leaves its operation-level matrix to this
+specification; approving an architecture and describing a role in a specification
+both grant nothing and provision nothing. No role was created in code, none was
+granted, and no identity-provider configuration was read, changed or approached.
 
 Negative authorization tests: not applicable to a documentation change. The
 specification **requires** the full negative matrix — anonymous, authenticated
@@ -527,15 +647,19 @@ Command:
 Result:
 
 ```text
-BE-04.md: 22 distinct relative targets, all resolve
+BE-04.md: 23 distinct relative targets, all resolve
   AGENTS.md, thoth-api/AGENTS.md, task-specification-template.md,
   implementation-report-template.md, operating-model.md, design-references.md,
-  control-gaps.md, ADR-0001/0002/0003/0004/0005/0007, BE-01.md, BE-02.md,
+  control-gaps.md, ADR-0001/0002/0003/0004/0005/0007/0008, BE-01.md, BE-02.md,
   BE-03.md, BE-03-CLOSEOUT-01.md, acceptance-matrix.md, decisions.md,
   platform-inventory.md, rollout-plan.md, task-status.md
-task-status.md: all targets resolve, including the new BE-04.md link
+task-status.md: all targets resolve, including the BE-04.md and ADR-0008 links
+this report: all targets resolve, including the ADR-0008 link
 0 broken links
 ```
+
+The ADR-0008 target is the one added by the remediation; the other 22 are the
+authoring-time set and are unchanged.
 
 ### Unresolved-marker search
 
@@ -550,22 +674,24 @@ Result:
 
 ```text
 2 matches, both prose about the absence of unresolved work, neither an
-unresolved decision:
-  line 79   "...no mandatory design decision is left as `TBD`..."
-  line 3285 "...must not [...] return a synthetic [...] placeholder value"
+unresolved decision (line numbers at the remediated head):
+  line 100  "...no mandatory design decision is left as `TBD`..."
+  line 4079 "...must not [...] return a synthetic [...] placeholder value"
 0 unresolved implementation-critical decisions for job, lease, state, claim,
 retry, cancellation, authorization, migration or API contract.
 ```
 
 Every implementation-critical decision the instruction enumerates is fixed with a
 concrete value in the specification: SQL types, nullability, foreign keys, unique
-constraints, check constraints, indexes, the deduplication formula, the creation
-matrix, the transaction step order, the complete transition graph, the claim
-mechanism and its ordering/bounds/eligibility, the lease source and range, the
-retry budget and backoff curve, cancellation semantics, the role code and matrix,
-the API shape, the error variants, the error bounds and the migration procedure.
-The **only** deliberately surfaced CTO matter is the cross-programme adjacency
-finding of section 6.3, which is a judgement to raise, not a gap in the design.
+constraints, check constraints (including the `attempt_count` upper bound),
+indexes, the deduplication formula, the creation matrix, the `OFF`-mode
+fail-closed rule and its rollback result, the transaction step order, the
+complete transition graph including the T5a/T5b budget split, the claim mechanism
+and its ordering/bounds/eligibility, the claim statement's return contract, the
+lease source and range, the retry budget and backoff curve, cancellation
+semantics, the role code and matrix, the API shape, the three error variants, the
+error bounds and the migration procedure. No CTO matter is left surfaced: the
+cross-programme question is decided by `ADR-0008` (section 6.3).
 
 ### Rust workspace gate
 
@@ -626,10 +752,13 @@ Monitoring required: none.
 
 1. **This is a specification, not an implementation.** Every behaviour it
    describes is unimplemented. `BE-04.md` remains `DRAFT` and its implementation
-   authorization is `SEPARATE AND ABSENT`.
-2. **The cross-programme adjacency finding is surfaced, not resolved** (section
-   6.3). It is a CTO judgement, and it may supersede the specification's
-   authorization design under stop condition 13.
+   authorization is `SEPARATE AND ABSENT`. The specification is **not approved**:
+   independent review identified remediation requirements, which this change
+   addresses; fresh exact-head independent review and explicit CTO specification
+   approval both remain required.
+2. **The cross-programme question is resolved by `ADR-0008`, not by this
+   specification** (section 6.3). Satisfying it is necessary and not sufficient:
+   it approves nothing here and authorizes no implementation.
 3. **No heartbeat or lease-extension operation is specified.** Deferred to DIS-02
    with its reason recorded, if measurement shows it necessary.
 4. **A terminal `FAILED` job cannot be reopened.** Recovery is a genuine
@@ -648,13 +777,23 @@ Monitoring required: none.
    bad.
 9. **`docs/publisher-services/decisions.md` is unedited**, because no genuinely
    unresolved programme-local decision was discovered.
+10. **`OFF` mode is a refusal, and that is a real operational cost.** While
+    automatic creation is disabled, an `AutomaticPush` activation cannot be
+    recorded at all. That is the deliberate trade against silently losing an
+    onboarding, and it is recorded in the rollout and observability sections so a
+    runbook can carry it rather than an operator discovering it.
+11. **A future policy for manually onboarding historical or unknown-delivery
+    repaired state is not specified here.** BE-04 neither provides nor forecloses
+    it; it would require its own specification and its own authorization.
 
 ## 14. Unresolved issues
 
-- **NONE that block specification review.** One CTO judgement is surfaced for
-  decision — the cross-programme adjacency finding of section 6.3 — and is
-  recorded in `BE-04.md` section 6.3 and stop condition 13 rather than resolved
-  by this task.
+- **NONE that block specification review.** The one cross-programme matter this
+  task surfaced has been decided by the CTO in `ADR-0008` and is recorded as a
+  durable boundary in `BE-04.md` section 6.3; the four independent-review
+  findings are remediated in section 5.4. The specification is **not approved**,
+  and fresh exact-head independent review plus explicit CTO specification
+  approval remain required.
 
 ## 15. Agent self-assessment
 
@@ -663,32 +802,52 @@ is issued here.**
 
 Suggested review focus, ordered by where an error would cost most:
 
-1. **The activation classification of `BE-04.md` section 9.1** — whether
+1. **The `OFF`-mode fail-closed rule of `BE-04.md` section 9.4** — whether
+   returning `DistributionJobCreationDisabled` at step 9a′ genuinely rolls back
+   every lifecycle write step 9 made, whether the enumerated zero-committed-change
+   result is complete, and whether the permitted set (`PullFeed`, `Manual`,
+   package-only, repair, disable, `MIGRATION_BACKFILL`) is the right boundary.
+2. **The attempt-budget split of section 11.2 (T5a/T5b) and its three guards** —
+   whether the recovery statement's `CASE` correctly satisfies
+   `distribution_job_completed_at_check` in both branches, whether the eligibility
+   clause and the `attempt_count <= 5` check are together sufficient to make a
+   sixth attempt unreachable, and whether terminalizing an expired fifth attempt
+   is the right operational choice.
+3. **The claim statement of section 12.3** — whether the
+   `claimed`/`inserted_attempts` CTE shape returns exactly the claimed rows under
+   the repository's pinned Diesel and PostgreSQL, whether one attempt per claimed
+   job is guaranteed by construction, and whether the target/attempt resolution
+   plan genuinely avoids an N+1 path.
+4. **The activation classification of `BE-04.md` section 9.1** — whether
    `Activated` versus `Repaired` is correctly decidable from the rows `enable_on`
    already reads, and whether "any member already enabled means repair" is sound
-   for every linked-group state. A wrong classification either re-pushes a back
-   catalogue on a cosmetic repair, or fails to onboard a genuine re-activation.
-2. **The deduplication formula and its check constraint** — whether
+   for every linked-group state. Also whether the specification is now free of
+   every claim that a repair implies delivery.
+5. **The deduplication formula and its check constraint** — whether
    `distribution_job_deduplication_key_formula_check` is accepted by the target
    PostgreSQL version and whether every expression in it is genuinely immutable.
-3. **The claim eligibility predicate of section 12.4** — specifically the
+6. **The claim eligibility predicate of section 12.4** — specifically the
    `activation_id` match, which is what prevents a disable/re-enable cycle from
-   producing two live jobs, and whether requiring **all** targets to qualify has
-   an unintended consequence.
-4. **The interaction between assignment disable and running jobs** (section
+   producing two live jobs, whether requiring **all** targets to qualify has
+   an unintended consequence, and whether the attempt-budget clause interacts
+   correctly with T5b.
+7. **The interaction between assignment disable and running jobs** (section
    14.3) — whether cancelling `PENDING` while leaving `RUNNING` is the right
    split, and whether the post-expiry unclaimable state is acceptable or should
    instead terminalize.
-5. **The worker authorization matrix** (section 15.2), especially the deliberate
-   `SUPERUSER` denial of the three worker operations, and the
+8. **The worker authorization matrix** (section 15.2), especially the deliberate
+   `SUPERUSER` denial of the three worker operations — now stated as BE-04's own
+   least-privilege choice rather than an `ADR-0008` requirement — and the
    `publisher_org_ids()` change.
-6. **The cross-programme adjacency finding** (section 6.3) — whether the
-   reviewer agrees the worker role is genuinely programme-local, or considers it
-   a shared service-role convention that must be settled first.
-7. **The transaction step placement** (section 10.1) — whether inserting job
-   writes at 9a–9c, before the publisher `UPDATE`, is correct and whether any
-   ordering consequence was missed.
-8. **The claimed non-goals** — whether the specification anywhere smuggles in a
-   generic framework, a second configuration transaction, an observed-delivery
-   concept, a fabricated job status, or scope belonging to MIG-01, APP-01,
-   APP-02, DIS-01 or DIS-02.
+9. **The `ADR-0008` consumption** (sections 6.3 and 6.4) — whether the
+   specification consumes the decision exactly, without broadening the seven
+   approved conventions, without presenting BE-04-specific mechanisms as approved
+   cross-programme architecture, and without claiming any approval or
+   authorization the ADR does not give.
+10. **The transaction step placement** (section 10.1) — whether inserting job
+    writes at 9a–9c, before the publisher `UPDATE`, is correct, whether step 9a′
+    is placed correctly, and whether any ordering consequence was missed.
+11. **The claimed non-goals** — whether the specification anywhere smuggles in a
+    generic framework, a second configuration transaction, an observed-delivery
+    concept, a fabricated job status, or scope belonging to MIG-01, APP-01,
+    APP-02, DIS-01 or DIS-02.
