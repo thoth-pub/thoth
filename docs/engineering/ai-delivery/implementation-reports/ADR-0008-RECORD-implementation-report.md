@@ -183,10 +183,16 @@ branch was fetched read-only for context.
 
 ## 3. Commits
 
-- `docs(engineering): record ADR-0008 machine-role conventions` — the single
-  bounded commit carrying this record: the new ADR, the decision-register entry,
-  the Thoth Metrics and Publisher Services tracker reconciliations, the changelog
+- `docs(engineering): record ADR-0008 machine-role conventions` — the bounded
+  commit carrying this record: the new ADR, the decision-register entry, the
+  Thoth Metrics and Publisher Services tracker reconciliations, the changelog
   entry and this report.
+- `docs(engineering): correct changelog heading evidence in the ADR-0008 report`
+  — additive evidence-accuracy commit. The `grep -n '^## \|^### ' CHANGELOG.md`
+  result recorded in section 9 had been captured before the changelog entry was
+  added, so it listed the pre-change line numbers. It is replaced with the actual
+  post-change result. It touches this report only, and changes no decision, no
+  classification, no scope and no other file.
 
 No commit was amended, rebased, squashed or force-pushed. The branch head is
 recorded in the pull request; the head SHA, review state, merge authorization and
@@ -637,13 +643,18 @@ Result:
 ```text
 7:## [Unreleased]
 8:### Added
-43:### Changed
-60:### Removed
-63:### Fixed
-66:## [[1.6.3]](...) - 2026-08-13
+44:### Changed
+61:### Removed
+64:### Fixed
+67:## [[1.6.3]](https://github.com/thoth-pub/thoth/releases/tag/v1.6.3) - 2026-08-13
+68:### Changed
+71:## [[1.6.2]](https://github.com/thoth-pub/thoth/releases/tag/v1.6.2) - 2026-08-10
 ```
 
-The `## [Unreleased]` section retains exactly one `### Added` heading.
+The `## [Unreleased]` section retains exactly one `### Added` heading. The
+`### Changed`, `### Removed` and `### Fixed` line numbers each moved down by one
+relative to the authorized base, which is the single added entry line and nothing
+else.
 
 ### Rust checks
 
