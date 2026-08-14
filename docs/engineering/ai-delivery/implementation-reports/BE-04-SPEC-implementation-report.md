@@ -130,24 +130,29 @@ Deliberately **not** done, each an explicit instruction boundary:
 - one further ordinary commit carries the second round's five findings (section
   5.4.2): the migration referenced-table locking model, the `lastError`
   semantics, the report statement-count arithmetic, the narrowed
-  role-composition wording and the invalid-`errorCode` API contract.
+  role-composition wording and the invalid-`errorCode` API contract;
+- one further ordinary commit carries the third round's two residual consistency
+  findings (section 5.4.3): the stale section 9.4.3 error-inventory wording and
+  the statement-count selection that could not reach its own six-statement bound.
 
 Ordinary commits only. No amend, no rebase, no squash, no force-push at any
 point, and none is required.
 
 ## 4. Files changed
 
-- `docs/engineering/ai-delivery/tasks/BE-04.md` **(NEW, subsequently REMEDIATED TWICE)**
+- `docs/engineering/ai-delivery/tasks/BE-04.md` **(NEW, subsequently REMEDIATED THREE TIMES)**
   - reason: the BE-04 specification candidate required by this task; then
     corrected for the first review round's four findings (section 5.4.1) and
     reconciled with the now-repository-authoritative `ADR-0008` (section 6.3);
-    then corrected for the fresh review round's five findings (section 5.4.2).
+    then corrected for the second review round's five findings (section 5.4.2);
+    then corrected for the third review round's two residual consistency findings
+    (section 5.4.3).
   - behavioural effect: none. It states requirements; it changes no runtime
     behaviour, no schema, no contract and no authorization, and it authorizes no
     implementation.
-- `docs/engineering/ai-delivery/implementation-reports/BE-04-SPEC-implementation-report.md` **(NEW, subsequently REMEDIATED TWICE)**
+- `docs/engineering/ai-delivery/implementation-reports/BE-04-SPEC-implementation-report.md` **(NEW, subsequently REMEDIATED THREE TIMES)**
   - reason: the bounded evidence record for this specification task, extended
-    with both review rounds' remediation records and the `ADR-0008`
+    with all three review rounds' remediation records and the `ADR-0008`
     reconciliation.
   - behavioural effect: none.
 - `docs/publisher-services/task-status.md` **(MODIFIED)**
@@ -354,9 +359,9 @@ implementation.
 
 ### 5.4 Review-finding remediation
 
-The specification candidate has been through **two** independent review rounds on
-this branch. Both rounds' findings are corrected here, and the specification
-remains **not approved** after both.
+The specification candidate has been through **three** independent review rounds
+on this branch. All three rounds' findings are corrected here, and the
+specification remains **not approved** after all three.
 
 #### 5.4.1 First round — four findings
 
@@ -496,9 +501,10 @@ specification is still **not approved**.
    wording.
 5. **The invalid-`errorCode` contract was unspecified.** Sections 18.1 and 25.10
    required a malformed or over-length worker `error_code` to be rejected with a
-   "stable error", while section 16.3 fixed exactly three new `ThothError`
-   variants and named none of them for this case — leaving the implementing agent
-   to invent the contract or fall through to `INTERNAL_ERROR`. The merged
+   "stable error", while section 16.3 as it then stood fixed exactly three new
+   `ThothError` variants and named none of them for this case — leaving the
+   implementing agent to invent the contract or fall through to
+   `INTERNAL_ERROR`. The merged
    `thoth-errors` model was inspected. Reuse was rejected on the evidence:
    `InvalidSubjectCode` is subject-code specific **and echoes the caller's input
    back**; `InvalidUuid`, `InvalidTimestamp`, `InvalidFileExtension` and
@@ -519,8 +525,8 @@ specification is still **not approved**.
    can raise this error, and **no `errorCode` field is added to the complete
    input** to manufacture symmetry.
 
-**Provisioning wording (consistency sweep only).** Section 15.5's existing
-statement — that BE-04 implementation *may* add `DISSEMINATION_WORKER` to the
+**Provisioning wording (consistency sweep only, second round).** Section 15.5's
+existing statement — that BE-04 implementation *may* add `DISSEMINATION_WORKER` to the
 `zitadel.rs` `setup` role list but must not run the command, grant the role or
 change any identity-provider configuration — was retained rather than rewritten.
 One clarifying sentence separates the two halves explicitly: editing the list is
@@ -529,6 +535,77 @@ executing `zitadel setup`, creating the role, granting it and issuing or rotatin
 credentials are separately authorized operational actions outside this
 specification's authority. No provisioning architecture is invented, and no scope
 is widened.
+
+#### 5.4.3 Third round — two residual consistency findings
+
+A **fresh independent review** of the twice-remediated specification found no new
+architectural defect and two residual consistency defects, both created by the
+second round's own corrections. Both are corrected in this branch. Every earlier
+correction is preserved and was re-checked for regression. The specification is
+still **not approved**.
+
+1. **The error-inventory wording in section 9.4.3 was stale.** After the second
+   round added `InvalidDistributionJobErrorCode`, section 16.3 fixed **four** new
+   `ThothError` variants, but section 9.4.3's live text still said that section
+   16.3 "raises the total new error count from two to three accordingly" — a
+   sentence that was true only of the pre-remediation document and that a reader
+   arriving at the fail-closed rule would take as the current inventory. It now
+   states the two facts that are actually true: `DistributionJobCreationDisabled`
+   is **exactly one** bounded new error for the creation-disabled condition and
+   the only new error the configuration path raises; and it is one of the **four**
+   variants section 16.3 fixes as BE-04's complete error inventory, the other
+   three (`StaleDistributionJobClaim`, `DistributionJobAlreadyTerminal`,
+   `InvalidDistributionJobErrorCode`) belonging to the worker operations and to
+   section 18.1's `errorCode` validation contract. The history is **not**
+   rewritten to suggest `InvalidDistributionJobErrorCode` was ever an OFF-mode
+   error: it was added for worker input validation and is recorded that way in
+   sections 16.3 and 18.1 and in finding 5 of section 5.4.2 above. A sweep of the
+   live normative specification found no other two-to-three or three-error total;
+   the only surviving three-variant sentence is the explicitly past-tense
+   chronology in section 5.4.2 of this report, which describes the document as it
+   then stood and is not presented as current normative state.
+
+2. **The six-statement bound was asserted against a selection that cannot reach
+   it.** Section 17.4's table correctly enumerated six statements including
+   BE-02's assignment loader, but the acceptance text defined the measured
+   selection as "the full job-aware selection set" — `latestBackCatalogueJob`
+   with its `targets` and `attempts`. That selection never invokes statement 3:
+   merged BE-03 resolves `enabledDistributionPlatforms` through BE-02's
+   request-local loader from that field's own resolver, so a query that does not
+   select the field does not issue the statement. The specified test would have
+   measured five and been asserted against six. Two selections are now named and
+   both are measured:
+
+   - **full job-only selection** — `latestBackCatalogueJob { … targets { … }
+     attempts { … } }` with no `enabledDistributionPlatforms`; expected bound at
+     page sizes up to and including 200: **five** statements (publisher page,
+     latest configuration change, latest-job loader, target loader, attempt
+     loader);
+   - **full report selection** — the same job selection **plus**
+     `configuration { … enabledDistributionPlatforms }`; expected bound at the
+     same page sizes: **six** statements, the five above plus the existing BE-02
+     assignment-loader statement.
+
+   The mandatory page-size evidence at 1, 25 and 200 now explicitly uses the full
+   report selection when asserting six, and additionally asserts five for the
+   job-only selection, so the test pins GraphQL selection-dependent execution
+   rather than merely counting queries: it fails if a job field silently acquires
+   the assignment loader, if an unselected loader dispatches anyway, or if any
+   loader stops batching. The arithmetic is stated mechanically in section 17.4 —
+   job-only = 2 root + 3 job loaders = 5; full report = 2 root + 1 assignment
+   loader + 3 job loaders = 6. Sections 17.4, 25.1, 25.12 and 26 item 16 were
+   updated together.
+
+   **Nothing was combined to reach a number.** The three new ADR-0007 loaders
+   remain three separate loaders, each built through `configured_loader` with the
+   approved explicit `200`/`10`; every statement remains set-based with no N+1
+   path; the per-dispatch-chunk qualification is retained and now covers both
+   bounds; and the full-page bound remains a single dispatch at page sizes up to
+   and including 200.
+
+Both corrections are wording and test-obligation corrections inside the existing
+architecture. No architectural decision was reopened, no bound was weakened, no
+loader was merged, no error was removed and no scope was widened.
 
 ## 6. Cross-programme check and `ADR-0008` reconciliation
 
@@ -939,8 +1016,9 @@ Monitoring required: none.
 - **NONE that block specification review.** The one cross-programme matter this
   task surfaced has been decided by the CTO in `ADR-0008` and is recorded as a
   durable boundary in `BE-04.md` section 6.3; the first round's four
-  independent-review findings are remediated in section 5.4.1 and the second
-  round's five in section 5.4.2. The specification is **not approved**, and fresh
+  independent-review findings are remediated in section 5.4.1, the second
+  round's five in section 5.4.2 and the third round's two residual consistency
+  findings in section 5.4.3. The specification is **not approved**, and fresh
   exact-head independent review plus explicit CTO specification approval remain
   required.
 
@@ -949,10 +1027,25 @@ Monitoring required: none.
 The agent may identify risks but may not approve the task. **No approval decision
 is issued here.**
 
-Suggested review focus, ordered by where an error would cost most. The five most
-recently corrected areas come first, because they are the least-reviewed text in
-the document and because the first of them was a factually wrong claim that
-survived a full review round:
+Suggested review focus, ordered by where an error would cost most. The two areas
+corrected in the third round come first, because they are the least-reviewed text
+in the document, followed by the five corrected in the second round — one of
+which was a factually wrong claim that survived a full review round:
+
+Third round, first:
+
+- **The section 9.4.3 error-inventory wording** — whether it now states the
+  OFF-mode condition's single error and the four-variant total without
+  misattributing `InvalidDistributionJobErrorCode` to that condition, and whether
+  any other stale error total survives in live normative text.
+- **The two named report selections of section 17.4** — whether the job-only
+  selection genuinely issues five statements and the full report selection six
+  under merged BE-03's field-resolver behaviour, whether asserting both is the
+  right way to pin selection-dependent execution, and whether the acceptance
+  text, section 25.12 and section 26 item 16 now agree on which selection each
+  number belongs to.
+
+Then the second round's five, and the remainder:
 
 1. **The migration locking model of section 19.3** — whether `SHARE ROW
    EXCLUSIVE` on the referenced table is the correct PostgreSQL 17 behaviour as
@@ -968,10 +1061,11 @@ survived a full review round:
    descriptions, the report and the tests, and in particular whether a `FAILED`
    job with a null `lastError` (T5b with no prior reported failure) is acceptable
    to the operators and future APP-02 surfaces that will read it.
-3. **The report statement-count bound of section 17.4** — whether six is now the
-   correct arithmetic for the full job-aware selection set, whether keeping the
-   target and attempt loaders separate is right, and whether the per-dispatch-chunk
-   qualification covers every supported page size.
+3. **The report statement-count bounds of section 17.4** — whether six is the
+   correct arithmetic for the full report selection and five for the job-only
+   selection, whether keeping the target and attempt loaders separate is right,
+   and whether the per-dispatch-chunk qualification covers every supported page
+   size for both bounds.
 4. **The invalid-`errorCode` contract of section 16.3** — whether adding a fourth
    `ThothError` variant is the right call against reuse, whether
    `InvalidDistributionJobErrorCode`/`INVALID_DISTRIBUTION_JOB_ERROR_CODE` follows
