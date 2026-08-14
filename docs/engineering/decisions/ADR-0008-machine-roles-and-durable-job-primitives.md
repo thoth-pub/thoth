@@ -121,8 +121,13 @@ The CTO was asked to settle, once and for both programmes:
 1. whether machine authorization uses one generic role or domain-specific roles;
 2. whether `DISSEMINATION_WORKER` is acceptable, and how far its approval reaches;
 3. whether the durable-job primitives are conventions or a framework;
-4. whether BE-04's job machinery is shared or programme-local;
-5. what would be required before any genuinely shared abstraction could be built.
+4. whether BE-04's job machinery is programme-local, and what gate applies before
+   any future generic shared abstraction;
+5. what authority condition must be satisfied before BE-04 implementation may be
+   authorized.
+
+Those five questions are the five decisions recorded here, and they map onto this
+record as set out at the head of section 3.
 
 This ADR records the CTO's answers. It reconsiders, weakens, broadens and
 replaces nothing in the approved ruling, and it settles no bounded detail that
@@ -213,10 +218,14 @@ identity-provider arrangement.
 
 `SUPERUSER` authority does **not** automatically imply machine-role authority.
 Holding `SUPERUSER` does not by itself confer a machine role's permitted
-operations, and a machine role does not by itself confer administrative
+operations, and holding a machine role does not by itself confer administrative
 authority.
 
-Machine roles compose only when each role is **explicitly granted**.
+That boundary is the whole of what this ADR decides about how roles relate.
+Whether any future machine role may imply, aggregate or compose with another role
+is **not decided here**: it belongs to the owning approved authorization matrix,
+or to a later explicit architecture decision if a shared rule ever becomes
+necessary.
 
 ### 3.2 `DISSEMINATION_WORKER` boundary
 
@@ -345,8 +354,7 @@ justified. It fixes only the gate.
    confer machine-role authority.
 5. A machine role confers no publisher scope unless its own approved
    specification defines one explicitly.
-6. Machine-role composition is explicit-grant only.
-7. The existing authorization-test obligations are unchanged and continue to
+6. The existing authorization-test obligations are unchanged and continue to
    apply to every protected operation a machine role can reach. Root
    [`AGENTS.md`](../../../AGENTS.md) section 9 and
    [`thoth-api/AGENTS.md`](../../../thoth-api/AGENTS.md) section 7 require the
@@ -362,10 +370,15 @@ justified. It fixes only the gate.
      `SUPERUSER` or any publisher-scoped role is a permitted caller of a machine
      operation; that belongs to the operation's own approved authorization
      matrix, subject to the least-privilege requirement in section 3.1.
-8. Provisioning and credential controls for a machine role are separate from the
+7. Provisioning and credential controls for a machine role are separate from the
    role's authorization design and are separately authorized. This ADR performs
    and authorizes no role creation, no grant and no identity-provider change, and
    it decides no provisioning or credential mechanism.
+8. No general role-composition, role-aggregation or role-inheritance rule is
+   decided by this ADR, beyond the `SUPERUSER`/machine-role boundary in item 4.
+   Whether one machine role may imply or compose with another belongs to the
+   owning approved authorization matrix, or to a later explicit architecture
+   decision.
 
 ---
 
@@ -617,8 +630,10 @@ A reviewer of this ADR should confirm each of the following.
       boundary rather than as a provisioning architecture: no provisioning
       mechanism, credential store, rotation policy or identity-provider
       arrangement is decided here.
-- [ ] Explicit-grant composition is stated for machine roles and is not
-      generalized into a repository-wide role-inheritance rule.
+- [ ] No general role-composition, role-aggregation or role-inheritance rule is
+      stated anywhere in this record. The only thing decided about how roles
+      relate is that `SUPERUSER` authority does not automatically imply
+      machine-role authority.
 - [ ] No claim is made about which principals hold existing roles. The stated
       fact is that no existing role is defined by repository policy as a
       dedicated machine/service role, and that policy distinguishes roles by

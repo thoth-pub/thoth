@@ -273,9 +273,12 @@ Decisions taken within the approved ruling:
    `Decision:` statement, the durable `Authority condition:` paragraph and the
    `Verification base:` line follow the most recent approved ADR, so the record
    is legible against its peers.
-2. **The required ten-section outline is used exactly**, with the five decisions
-   in sections 3.1 to 3.5 as specified. A `Review checklist` (section 10) makes
-   the approved constraints directly checkable by an independent reviewer.
+2. **The required ten-section outline is used exactly**, with the approved
+   decisions mapped explicitly in `ADR-0008` section 3: Decisions 1-3 to
+   sections 3.1-3.3, Decision 4 to sections 3.4-3.5, and Decision 5 to the header
+   authority condition and section 8. The subsection numbering is not the
+   decision numbering. A `Review checklist` (section 10) makes the approved
+   constraints directly checkable by an independent reviewer.
 3. **No link to BE-04's specification.** The BE-04 specification candidate does
    not exist on `develop`, so a relative link to it would be broken in the merged
    state. It is referred to by name as "the BE-04 specification", which stays
@@ -321,7 +324,7 @@ stated at the head of `ADR-0008` section 3. The correspondence is:
 
 | Approved decision | Recorded in | Correspondence |
 |---|---|---|
-| **1 — Domain-specific machine roles** | `ADR-0008` section 3.1; consequences in section 4 | Machine/service authorization uses dedicated, least-privilege, domain-specific project roles. No generic `SERVICE`, `MACHINE`, `WORKER`, `SERVICE_ACCOUNT` or equivalent catch-all is established, and none may be introduced. An unscoped machine role is permitted **only** when the owning workload genuinely operates globally rather than for one publisher/organisation. Every machine role requires an explicit policy predicate/guard, an explicit authorization matrix, explicit permitted operations, explicit forbidden operations, least privilege and separate provisioning/credential controls — the last of these recorded as a boundary, not a provisioning architecture: provisioning and credential handling remain separately controlled by the owning implementation/deployment task and are not decided by this ADR. `SUPERUSER` authority does **not** automatically imply machine-role authority. Machine roles compose only when each role is explicitly granted; this is not generalized into a repository-wide role-inheritance rule. |
+| **1 — Domain-specific machine roles** | `ADR-0008` section 3.1; consequences in section 4 | Machine/service authorization uses dedicated, least-privilege, domain-specific project roles. No generic `SERVICE`, `MACHINE`, `WORKER`, `SERVICE_ACCOUNT` or equivalent catch-all is established, and none may be introduced. An unscoped machine role is permitted **only** when the owning workload genuinely operates globally rather than for one publisher/organisation. Every machine role requires an explicit policy predicate/guard, an explicit authorization matrix, explicit permitted operations, explicit forbidden operations, least privilege and separate provisioning/credential controls — the last of these recorded as a boundary, not a provisioning architecture: provisioning and credential handling remain separately controlled by the owning implementation/deployment task and are not decided by this ADR. `SUPERUSER` authority does **not** automatically imply machine-role authority — the whole of what the ADR decides about how roles relate. It states no general role-composition, role-aggregation or role-inheritance rule; whether one machine role may imply or compose with another is left to the owning approved authorization matrix or to a later explicit architecture decision. |
 | **2 — `DISSEMINATION_WORKER`** | `ADR-0008` section 3.2; programme effect in 5.1 and 5.2 | Approved as a **Publisher-Services-specific** machine role for the BE-04/DIS-02 durable distribution workflow. It may later be implemented with exactly the permissions approved by the BE-04 specification, after that specification is independently reviewed and approved. This ADR does **not** fix BE-04's operation-level authorization matrix; that bounded detail remains owned by the BE-04 specification. The role establishes the shared enforcement convention of Decision 1; it authorizes no Metrics operation, determines no eventual Metrics machine-role name, determines no Metrics permissions or entitlement semantics, and does **not** make WP5 ready for implementation. Metrics must apply the shared convention under its own approved bounded specification. |
 | **3 — Shared durable-job conventions, not a framework** | `ADR-0008` section 3.3 | All ten primitives are recorded verbatim in list form: PostgreSQL as durable owner; explicit state machines; database uniqueness for logical idempotency; deterministic idempotency/deduplication keys; explicit claim tokens; bounded leases with expiry; stale-token rejection; deterministic ordering; database-enforced concurrency; `FOR UPDATE SKIP LOCKED` where justified by the workload and evidence. They are recorded as conventions/primitives and **not** a shared generic job framework. The ADR states explicitly, in a fenced block, `approved primitive/convention != mandatory mechanism in every task`, and states that `FOR UPDATE SKIP LOCKED` must be justified by the adopting task rather than copied mechanically. |
 | **4 — BE-04 remains programme-local, including the future-ADR requirement** | `ADR-0008` sections 3.4 **and** 3.5; programme effect in 5.1 and 5.2 | BE-04's future `distribution_job`, `distribution_job_target` and `distribution_job_attempt` tables, Rust domain types, GraphQL operations, state machine and lifecycle API remain Publisher-Services-specific. They are **not** a Metrics job model, a universal queue, a general `Job`/`Queue`/`Lease` API, a reusable cross-programme Rust abstraction or a universal service-worker protocol. Metrics or another programme must not reuse BE-04's tables/types/API merely by analogy. A future proposal for a reusable generic job/queue/service abstraction requires its own explicit cross-programme ADR before implementation (section 3.5). |
@@ -383,7 +386,9 @@ defects; none reopened the architecture, and **the five CTO-approved decisions
 themselves are unchanged**. The corrections were applied by one ordinary additive
 commit on the same branch, with no amend, rebase, squash or force push.
 
-**Finding 1 — authorization test semantics.** `ADR-0008` section 4 item 7 had
+**Finding 1 — authorization test semantics.** The `ADR-0008` authorization-test
+consequence — then section 4 item 7, renumbered to item 6 by the section 5.5
+finding-A removal — had
 described the whole caller matrix as "all failing closed". That is wrong: root
 `AGENTS.md` section 9 lists the caller matrix to be tested and *separately*
 requires that authorization **failures** fail closed. Item 7 now states the
@@ -405,8 +410,10 @@ went beyond approved Decision 1 and are removed or demoted:
   separately controlled by the owning implementation/deployment task and are not
   decided by this ADR, which describes no provisioning mechanism, credential
   store, rotation policy or identity-provider arrangement;
-- "**Roles** compose only when each role is explicitly granted" -> scoped to
-  "**Machine roles** compose only when each role is explicitly granted";
+- "Roles compose only when each role is explicitly granted" -> first scoped to
+  machine roles by this remediation, then **removed entirely** by the later
+  remediation in section 5.5 finding A; no explicit-grant composition rule
+  survives as current ADR content;
 - "No role implies, inherits or subsumes another" -> **removed**; no
   repository-wide role-inheritance rule is asserted;
 - "`SUPERUSER` remains a **human** administrative role" -> "`SUPERUSER` remains
@@ -458,6 +465,88 @@ list in section 15. `ADR-0008` section 3.5 is retained and now states that it
 expresses the future-abstraction portion of Decision 4 rather than a separate
 decision.
 
+### 5.5 Final fidelity remediation
+
+Independent review of head `e8301d11499042c2c9aef1cdc1fdca8f68d9dfbd` returned
+`CHANGES REQUIRED` with two narrow findings. Both are documentation/control
+fidelity defects. **No already-corrected decision or architecture was reopened,
+and the five CTO-approved decisions themselves are unchanged.** Applied by one
+ordinary additive commit; no amend, rebase, squash or force push.
+
+**Finding A — unapproved machine-role composition rule removed.** The record
+still carried, as current normative content, "Machine roles compose only when
+each role is **explicitly granted**" (`ADR-0008` section 3.1) and "Machine-role
+composition is explicit-grant only" (section 4 item 6), with equivalent wording
+in the decision register, the Metrics tracker, the changelog entry, the
+correspondence table in section 5.1 and the ADR review checklist. That is not one
+of the five approved decisions. The approved boundary is narrower —
+`SUPERUSER` authority does not automatically imply machine-role authority — and
+neither root `AGENTS.md` nor `thoth-api/AGENTS.md` establishes a general
+role-inheritance or role-composition architecture; they establish authorization
+matrices, least privilege, positive and negative authorization tests and
+fail-closed authorization failures.
+
+Every active occurrence is removed:
+
+| Location | Removed wording | Now |
+|---|---|---|
+| ADR section 3.1 | "Machine roles compose only when each role is **explicitly granted**." | Sentence deleted. The preserved rule and its materially equivalent gloss remain, followed by an explicit statement that the `SUPERUSER`/machine-role boundary is the whole of what the ADR decides about how roles relate, and that whether a future machine role may imply, aggregate or compose with another is not decided here. |
+| ADR section 4 item 6 | "Machine-role composition is explicit-grant only." | Item deleted; items 7 and 8 renumbered to 6 and 7. A new item 8 states that **no** general role-composition, role-aggregation or role-inheritance rule is decided, beyond the item 4 `SUPERUSER`/machine-role boundary. |
+| ADR review checklist | "Explicit-grant composition is stated for machine roles and is not generalized into a repository-wide role-inheritance rule." | Replaced with a check that no general composition/aggregation/inheritance rule is stated anywhere in the record. |
+| `decision-register.md` | "and machine roles compose only by explicit grant" | Removed; replaced with the `SUPERUSER`/machine-role boundary and an explicit statement that no general rule is stated. |
+| `docs/metrics/task-status.md` | "and machine roles compose only by explicit grant" | Same correction. |
+| `CHANGELOG.md` | "and machine-role composition by explicit grant only" | Same correction. |
+| This report, section 5.1 | "Machine roles compose only when each role is explicitly granted; this is not generalized into a repository-wide role-inheritance rule." | Same correction. |
+| PR #815 body | "and machine roles compose only by explicit grant" | Same correction. |
+
+The approved rule is preserved exactly — "`SUPERUSER` authority does **not**
+automatically imply machine-role authority" — together with the permitted
+explanatory gloss that holding `SUPERUSER` does not by itself confer a machine
+role's permitted operations and that holding a machine role does not by itself
+confer administrative authority. **No replacement general inheritance rule was
+introduced.** Whether one future machine role may imply, aggregate or compose
+with another is expressly left to the owning approved authorization matrix or to
+a later explicit architecture decision.
+
+`docs/publisher-services/task-status.md` required no change: it never carried the
+composition rule, and its pre-existing "no role inheritance" phrase belongs to the
+merged `BE-03` narrative at the authorized base, outside this task's scope.
+
+**Finding B — five-decision mapping reconciliation finished.** Two stale
+representations survived the previous remediation:
+
+- `ADR-0008` section 1.4 still gave the fifth escalated question as the
+  future-shared-abstraction question, which is now part of Decision 4. The
+  five-item list is rewritten to correspond to the approved mapping: (1) generic
+  versus domain-specific machine roles; (2) whether `DISSEMINATION_WORKER` is
+  acceptable and how far its approval reaches; (3) conventions versus framework
+  for the durable-job primitives; (4) whether BE-04's machinery is
+  programme-local and what gate applies before any future generic shared
+  abstraction; (5) what authority condition must be satisfied before BE-04
+  implementation may be authorized. A closing sentence ties the list to the
+  mapping table at the head of section 3. No approved decision changed.
+- Section 5 item 2 of this report still said the outline was used "with the five
+  decisions in sections 3.1 to 3.5 as specified". That is false. It now reads:
+  the approved decisions are mapped explicitly in `ADR-0008` section 3 —
+  Decisions 1-3 to sections 3.1-3.3, Decision 4 to sections 3.4-3.5, and
+  Decision 5 to the header authority condition and section 8 — and the subsection
+  numbering is not the decision numbering.
+
+A sweep of the complete report found no other materially equivalent stale
+assertion; the surviving quotations of superseded wording are inside sections 5.4
+and 5.5 and are explicitly identified as the wording that was corrected.
+
+Everything else from the previous reviewed remediation is intact and untouched:
+authorization failure versus positive-case semantics, the absence of any claim
+about which principals hold current roles, provisioning and credential language
+as a separately controlled boundary rather than an identity-provider
+architecture, the purpose-qualified `ADR-0005` lifecycle-evidence rule, the
+stable PR #815 changelog reference, Decision 4 covering sections 3.4 and 3.5,
+Decision 5 covering the authority condition and section 8, status `APPROVED`,
+approval date 2026-08-14, approver Javi, CTO, BE-04 `NOT AUTHORIZED`, WP5
+`CRITICAL`/`BLOCKED`, no generic job framework, and no implementation or
+production action.
+
 ## 6. Database and migration effects
 
 Migration added: NO.
@@ -490,7 +579,7 @@ exists as a result of it.
 Negative authorization tests: not applicable — no authorization code path was
 added or altered.
 
-`ADR-0008` section 4 item 7 restates the existing obligations without changing
+`ADR-0008` section 4 item 6 restates the existing obligations without changing
 them. Root `AGENTS.md` section 9 and `thoth-api/AGENTS.md` section 7 require the
 caller matrix — anonymous caller; authenticated caller without the role; caller
 scoped to another publisher; correctly scoped publisher role; superuser;
@@ -742,9 +831,9 @@ no unsupported "existing roles are human"
   dedicated machine/service role               YES  (1.1)
 negative authorization cases fail closed;
   positive cases follow the owning approved
-  matrix; no caller pre-decided as positive    YES  (4 item 7)
+  matrix; no caller pre-decided as positive    YES  (4 item 6)
 no unapproved shared provisioning or
-  role-inheritance architecture                YES  (3.1, 4 items 6 and 8)
+  role-inheritance architecture                YES  (3.1, 4 items 4, 7 and 8)
 does not claim Metrics uses DISSEMINATION_WORKER
                                                YES  (3.2, 5.2 item 5)
 does not make WP5 ready                        YES  (3.2, 5.2 items 2-3)
