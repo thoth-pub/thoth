@@ -38,6 +38,20 @@ fn superuser_context() -> ServiceConfigurationWriteContext<'static> {
     ServiceConfigurationWriteContext {
         source: PublisherServiceConfigurationSource::SuperuserApi,
         actor: ACTOR,
+        // `BE-03`'s own evidence is taken with automatic job creation `ON`, so
+        // these tests keep exercising the coordinator's committed behaviour for
+        // every activation they perform. `BE-04`'s switch evidence, which needs
+        // both positions, uses its own contexts.
+        job_creation: DistributionJobCreation::On,
+    }
+}
+
+/// The same provenance with automatic job creation `OFF`, which is the merged
+/// default.
+fn superuser_context_creation_off() -> ServiceConfigurationWriteContext<'static> {
+    ServiceConfigurationWriteContext {
+        job_creation: DistributionJobCreation::Off,
+        ..superuser_context()
     }
 }
 
@@ -2088,13 +2102,31 @@ fn the_migrated_database_matches_the_schema_contract() {
         vec!["service_configuration_updated_at"]
     );
 
-    // No capability state and no job table is created anywhere by BE-03.
+    // No capability state is created anywhere: capabilities are derived on read
+    // from the package and are persisted nowhere.
     assert!(catalog_values(
         &pool,
         "SELECT table_name AS value FROM information_schema.tables \
-         WHERE table_schema = 'public' AND (table_name ILIKE '%capabilit%' OR table_name LIKE '%job%')"
+         WHERE table_schema = 'public' AND table_name ILIKE '%capabilit%'"
     )
     .is_empty());
+    // The only job relations that exist are `BE-04`'s three, and `BE-03` still
+    // creates none of them: this assertion was "no job table at all" until
+    // `BE-04` legitimately added them, and it is narrowed to the exact
+    // inventory rather than deleted.
+    assert_eq!(
+        catalog_values(
+            &pool,
+            "SELECT table_name AS value FROM information_schema.tables \
+             WHERE table_schema = 'public' AND table_name LIKE '%job%' \
+             ORDER BY table_name"
+        ),
+        vec![
+            "distribution_job",
+            "distribution_job_attempt",
+            "distribution_job_target",
+        ]
+    );
     assert!(catalog_values(
         &pool,
         "SELECT column_name AS value FROM information_schema.columns \

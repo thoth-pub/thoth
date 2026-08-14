@@ -1185,30 +1185,31 @@ fn in_transaction<T>(
 
 #[test]
 fn the_connection_scoped_primitives_report_every_transition_outcome() {
-    use crate::model::publisher_distribution_platform::crud::AssignmentLifecycleOutcome::{
-        Changed, Unchanged,
-    };
+    use crate::model::publisher_distribution_platform::crud::AssignmentLifecycleOutcome;
 
     let (_guard, pool) = test_db::setup_test_db();
     let publisher = test_db::create_publisher(&pool);
     let publisher_id = publisher.publisher_id;
     let singleton = DistributionPlatform::Zenodo;
 
-    // Absent row enabled.
-    assert_eq!(
-        in_transaction(&pool, |connection| {
-            PublisherDistributionPlatform::enable_on(connection, publisher_id, singleton)
-        })
-        .expect("enable"),
-        Changed
-    );
+    // Absent row enabled: a group with no enabled member, so an activation.
+    let first = in_transaction(&pool, |connection| {
+        PublisherDistributionPlatform::enable_on(connection, publisher_id, singleton)
+    })
+    .expect("enable");
+    let first_activation = match first {
+        AssignmentLifecycleOutcome::Activated { activation_id } => activation_id,
+        other => panic!("expected Activated, got {other:?}"),
+    };
+    assert!(first.changed());
+
     // Already-enabled singleton.
     assert_eq!(
         in_transaction(&pool, |connection| {
             PublisherDistributionPlatform::enable_on(connection, publisher_id, singleton)
         })
         .expect("enable"),
-        Unchanged
+        AssignmentLifecycleOutcome::Unchanged
     );
     // Enabled group disabled.
     assert_eq!(
@@ -1216,7 +1217,7 @@ fn the_connection_scoped_primitives_report_every_transition_outcome() {
             PublisherDistributionPlatform::disable_on(connection, publisher_id, singleton)
         })
         .expect("disable"),
-        Changed
+        AssignmentLifecycleOutcome::Disabled
     );
     // Group with no enabled member disabled.
     assert_eq!(
@@ -1224,29 +1225,35 @@ fn the_connection_scoped_primitives_report_every_transition_outcome() {
             PublisherDistributionPlatform::disable_on(connection, publisher_id, singleton)
         })
         .expect("disable"),
-        Unchanged
+        AssignmentLifecycleOutcome::Unchanged
     );
-    // Disabled row re-enabled.
-    assert_eq!(
-        in_transaction(&pool, |connection| {
-            PublisherDistributionPlatform::enable_on(connection, publisher_id, singleton)
-        })
-        .expect("enable"),
-        Changed
-    );
+    // Disabled row re-enabled: still zero enabled members, so still an
+    // activation — and with a **new** identity, which is what makes a
+    // re-enable a legitimately new onboarding rather than a duplicate.
+    let reenabled = in_transaction(&pool, |connection| {
+        PublisherDistributionPlatform::enable_on(connection, publisher_id, singleton)
+    })
+    .expect("enable");
+    match reenabled {
+        AssignmentLifecycleOutcome::Activated { activation_id } => {
+            assert_ne!(activation_id, first_activation);
+        }
+        other => panic!("expected Activated, got {other:?}"),
+    }
 
     // Already-normalized linked group.
-    assert_eq!(
-        in_transaction(&pool, |connection| {
-            PublisherDistributionPlatform::enable_on(
-                connection,
-                publisher_id,
-                DistributionPlatform::Oapen,
-            )
-        })
-        .expect("enable"),
-        Changed
-    );
+    let linked = in_transaction(&pool, |connection| {
+        PublisherDistributionPlatform::enable_on(
+            connection,
+            publisher_id,
+            DistributionPlatform::Oapen,
+        )
+    })
+    .expect("enable");
+    assert!(matches!(
+        linked,
+        AssignmentLifecycleOutcome::Activated { .. }
+    ));
     assert_eq!(
         in_transaction(&pool, |connection| {
             PublisherDistributionPlatform::enable_on(
@@ -1256,10 +1263,13 @@ fn the_connection_scoped_primitives_report_every_transition_outcome() {
             )
         })
         .expect("enable"),
-        Unchanged
+        AssignmentLifecycleOutcome::Unchanged
     );
 
     // Split pair: membership is unchanged, but the group is not normalized.
+    // One member is still enabled, so this is a **repair** rather than a new
+    // activation — which implies nothing whatever about whether any delivery
+    // ever occurred.
     write_raw_assignment(
         &pool,
         publisher_id,
@@ -1267,17 +1277,19 @@ fn the_connection_scoped_primitives_report_every_transition_outcome() {
         Uuid::new_v4(),
         "now() - interval '1 hour'",
     );
-    assert_eq!(
-        in_transaction(&pool, |connection| {
-            PublisherDistributionPlatform::enable_on(
-                connection,
-                publisher_id,
-                DistributionPlatform::Oapen,
-            )
-        })
-        .expect("repair"),
-        Changed
-    );
+    let repaired = in_transaction(&pool, |connection| {
+        PublisherDistributionPlatform::enable_on(
+            connection,
+            publisher_id,
+            DistributionPlatform::Oapen,
+        )
+    })
+    .expect("repair");
+    assert!(matches!(
+        repaired,
+        AssignmentLifecycleOutcome::Repaired { .. }
+    ));
+    assert!(repaired.changed());
 }
 
 #[test]

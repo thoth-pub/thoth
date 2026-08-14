@@ -47,6 +47,29 @@ fn test_cli() {
     THOTH.clone().debug_assert();
 }
 
+/// One process-wide lock for every test that mutates the environment.
+///
+/// Two control-argument test modules drive environment variables that the
+/// **whole** `THOTH` command tree observes when it is parsed, so a per-module
+/// lock is not enough: one module's temporary invalid value would otherwise make
+/// the other module's parse of the same tree fail. Sharing one lock is what
+/// keeps both deterministic.
+#[cfg(test)]
+mod test_env_lock {
+    use std::sync::{Mutex, MutexGuard};
+
+    pub(super) static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    /// Hold the shared lock without changing anything.
+    ///
+    /// A test that only *parses* the command tree still has to hold it: another
+    /// test's temporary invalid value for any environment-bound argument would
+    /// otherwise make this parse fail on an argument it never mentioned.
+    pub(super) fn hold() -> MutexGuard<'static, ()> {
+        ENV_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}
+
 /// `THOTH-GQL-OPS-02` — the mutation-guard mode-control path.
 ///
 /// Every row of the specification's compatibility matrix is pinned by its own
@@ -87,8 +110,10 @@ mod mutation_guard_mode_on_init {
 
     const MODE_ENV: &str = "THOTH_GRAPHQL_MUTATION_GUARD_MODE";
 
-    /// The environment is process-global. Serialise every test that mutates it.
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    /// The environment is process-global, and more than one control-argument
+    /// module drives it. Serialise every test that mutates it, through the one
+    /// shared lock.
+    use super::test_env_lock::ENV_LOCK;
 
     /// Sets `THOTH_GRAPHQL_MUTATION_GUARD_MODE` for the life of the guard and
     /// restores the previous value — or its absence — on drop.
@@ -256,6 +281,7 @@ mod mutation_guard_mode_on_init {
 
     #[test]
     fn resolving_the_mode_on_init_does_not_panic_in_this_profile() {
+        let _lock = super::test_env_lock::hold();
         // In a debug build an unregistered argument makes `get_one` panic; in a
         // release build it silently yields the fallback. Running this in both
         // profiles pins both halves of the old divergence.
@@ -269,6 +295,7 @@ mod mutation_guard_mode_on_init {
 
     #[test]
     fn start_graphql_api_behaviour_is_unchanged() {
+        let _lock = super::test_env_lock::hold();
         let matches = THOTH
             .clone()
             .try_get_matches_from([
@@ -411,5 +438,315 @@ mod mutation_guard_mode_on_init {
             rendered.contains("SOMETHING_ELSE"),
             "the error should name the rejected mode"
         );
+    }
+}
+
+/// `BE-04` — the automatic distribution-job creation control path.
+///
+/// This is the same matrix `THOTH-GQL-OPS-02` established for the guard mode,
+/// applied to `THOTH_DISTRIBUTION_JOB_CREATION`, and for the same reason: the
+/// argument is read by the `graphql-api` handler, and **both** production
+/// command paths dispatch into that handler. Registering it on only one is the
+/// exact defect that task had to fix, and in pinned `clap_builder` the symptom
+/// is profile-dependent — a debug build panics on an unregistered argument while
+/// a release build silently resolves the fallback. The whole module therefore
+/// runs in both profiles: `cargo test` exercises debug and
+/// `cargo test --release` exercises release.
+///
+/// `OFF` is the merged default and is asserted as a declared property of the
+/// argument, not only as a resolved value.
+#[cfg(test)]
+mod distribution_job_creation_control {
+    use super::*;
+    use clap::{ArgMatches, Command};
+    use std::env::{remove_var, set_var, var_os};
+    use std::ffi::OsString;
+    use std::sync::{Mutex, MutexGuard};
+    use thoth::api::model::distribution_job::DistributionJobCreation;
+
+    const CREATION_ENV: &str = "THOTH_DISTRIBUTION_JOB_CREATION";
+
+    /// Shared with the guard-mode module: both parse the same command tree, so
+    /// one module's temporary invalid value must never be visible to the other.
+    use super::test_env_lock::ENV_LOCK;
+
+    struct CreationEnv {
+        _lock: MutexGuard<'static, ()>,
+        previous: Option<OsString>,
+    }
+
+    impl CreationEnv {
+        fn set(value: Option<&str>) -> Self {
+            let lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            let previous = var_os(CREATION_ENV);
+            match value {
+                Some(value) => set_var(CREATION_ENV, value),
+                None => remove_var(CREATION_ENV),
+            }
+            Self {
+                _lock: lock,
+                previous,
+            }
+        }
+    }
+
+    impl Drop for CreationEnv {
+        fn drop(&mut self) {
+            match self.previous.take() {
+                Some(previous) => set_var(CREATION_ENV, previous),
+                None => remove_var(CREATION_ENV),
+            }
+        }
+    }
+
+    // --- surface 1: the real `init` command, driven by argv -----------------
+
+    fn parse_init(extra: &[&str]) -> Result<ArgMatches, clap::Error> {
+        let mut argv = vec!["thoth", "init"];
+        argv.extend_from_slice(extra);
+        let matches = THOTH.clone().try_get_matches_from(argv)?;
+        Ok(matches
+            .subcommand_matches("init")
+            .expect("`init` sub-matches")
+            .clone())
+    }
+
+    fn creation_on_init(extra: &[&str]) -> DistributionJobCreation {
+        commands::start::distribution_job_creation(
+            &parse_init(extra).expect("`init` should parse"),
+        )
+        .expect("setting should resolve")
+    }
+
+    // --- surface 2: the real `start graphql-api` command --------------------
+
+    fn parse_start(extra: &[&str]) -> Result<ArgMatches, clap::Error> {
+        let mut argv = vec!["thoth", "start", "graphql-api"];
+        argv.extend_from_slice(extra);
+        let matches = THOTH.clone().try_get_matches_from(argv)?;
+        Ok(matches
+            .subcommand_matches("start")
+            .and_then(|start| start.subcommand_matches("graphql-api"))
+            .expect("graphql-api sub-matches")
+            .clone())
+    }
+
+    fn creation_on_start(extra: &[&str]) -> DistributionJobCreation {
+        commands::start::distribution_job_creation(
+            &parse_start(extra).expect("`start graphql-api` should parse"),
+        )
+        .expect("setting should resolve")
+    }
+
+    // --- surface 3: a fresh command, driven by the environment variable -----
+
+    fn parse_fresh() -> Result<ArgMatches, clap::Error> {
+        Command::new("init")
+            .no_binary_name(true)
+            .arg(arguments::distribution_job_creation())
+            .try_get_matches_from::<_, &str>([])
+    }
+
+    fn creation_from_env() -> DistributionJobCreation {
+        commands::start::distribution_job_creation(&parse_fresh().expect("should parse"))
+            .expect("setting should resolve")
+    }
+
+    // --- compatibility matrix ----------------------------------------------
+
+    #[test]
+    fn unset_yields_off() {
+        let _env = CreationEnv::set(None);
+        assert_eq!(creation_from_env(), DistributionJobCreation::Off);
+    }
+
+    #[test]
+    fn off_yields_off_on_both_production_paths() {
+        let _env = CreationEnv::set(Some("OFF"));
+        assert_eq!(creation_from_env(), DistributionJobCreation::Off);
+        assert_eq!(
+            creation_on_init(&["--distribution-job-creation", "OFF"]),
+            DistributionJobCreation::Off
+        );
+        assert_eq!(
+            creation_on_start(&["--distribution-job-creation", "OFF"]),
+            DistributionJobCreation::Off
+        );
+    }
+
+    #[test]
+    fn on_yields_on_and_is_never_silently_off() {
+        let _env = CreationEnv::set(Some("ON"));
+        for resolved in [
+            creation_from_env(),
+            creation_on_init(&["--distribution-job-creation", "ON"]),
+            creation_on_start(&["--distribution-job-creation", "ON"]),
+        ] {
+            assert_eq!(resolved, DistributionJobCreation::On);
+            assert_ne!(
+                resolved,
+                DistributionJobCreation::Off,
+                "ON must never be silently ignored on a production command path"
+            );
+        }
+    }
+
+    #[test]
+    fn an_invalid_value_fails_startup_and_is_never_coerced_to_off() {
+        let _env = CreationEnv::set(Some("MAYBE"));
+
+        let from_env = parse_fresh().expect_err("an invalid environment value must fail parsing");
+        assert_eq!(from_env.kind(), clap::error::ErrorKind::InvalidValue);
+
+        for command_line in [
+            parse_init(&["--distribution-job-creation", "MAYBE"]),
+            parse_start(&["--distribution-job-creation", "MAYBE"]),
+        ] {
+            let error = command_line.expect_err("an invalid command-line value must fail parsing");
+            assert_eq!(error.kind(), clap::error::ErrorKind::InvalidValue);
+        }
+
+        // Parsing fails, so no value is produced at all — least of all a
+        // silently coerced `Off` that would look like a deliberate decision.
+        assert!(parse_fresh().is_err());
+    }
+
+    #[test]
+    fn the_typed_parser_accepts_exactly_off_and_on() {
+        assert_eq!(
+            "OFF".parse::<DistributionJobCreation>(),
+            Ok(DistributionJobCreation::Off)
+        );
+        assert_eq!(
+            "ON".parse::<DistributionJobCreation>(),
+            Ok(DistributionJobCreation::On)
+        );
+        for invalid in ["", "off", "on", "true", "1", "ENABLED", "OFF "] {
+            assert!(
+                invalid.parse::<DistributionJobCreation>().is_err(),
+                "`{invalid}` must not parse"
+            );
+        }
+    }
+
+    // --- direct regression tests for the registration defect ----------------
+
+    #[test]
+    fn both_production_command_paths_register_the_argument() {
+        assert!(
+            commands::INIT
+                .get_arguments()
+                .any(|arg| arg.get_id() == "distribution-job-creation"),
+            "init must register distribution-job-creation: it dispatches into the \
+             graphql-api handler, which reads it"
+        );
+
+        let graphql_api = commands::start::COMMAND
+            .get_subcommands()
+            .find(|command| command.get_name() == "graphql-api")
+            .expect("start must declare graphql-api");
+        assert!(
+            graphql_api
+                .get_arguments()
+                .any(|arg| arg.get_id() == "distribution-job-creation"),
+            "start graphql-api must register distribution-job-creation"
+        );
+    }
+
+    #[test]
+    fn both_paths_bind_the_documented_variable_and_the_off_default() {
+        let graphql_api = commands::start::COMMAND
+            .get_subcommands()
+            .find(|command| command.get_name() == "graphql-api")
+            .expect("start must declare graphql-api");
+        let arguments = [
+            commands::INIT
+                .get_arguments()
+                .find(|arg| arg.get_id() == "distribution-job-creation")
+                .expect("distribution-job-creation on init"),
+            graphql_api
+                .get_arguments()
+                .find(|arg| arg.get_id() == "distribution-job-creation")
+                .expect("distribution-job-creation on start graphql-api"),
+        ];
+        for argument in arguments {
+            assert_eq!(
+                argument.get_env().and_then(|env| env.to_str()),
+                Some(CREATION_ENV)
+            );
+            assert_eq!(
+                argument.get_default_values(),
+                ["OFF"],
+                "the declared default must remain OFF, so the merged state is inactive"
+            );
+        }
+    }
+
+    #[test]
+    fn resolving_the_setting_does_not_panic_in_this_profile() {
+        let _lock = super::test_env_lock::hold();
+        // In a debug build an unregistered argument makes `get_one` panic; in a
+        // release build it silently yields the fallback. Running this in both
+        // profiles pins both halves.
+        assert_eq!(
+            creation_on_init(&["--distribution-job-creation", "ON"]),
+            DistributionJobCreation::On
+        );
+        assert_eq!(
+            creation_on_start(&["--distribution-job-creation", "ON"]),
+            DistributionJobCreation::On
+        );
+    }
+
+    #[test]
+    fn an_invalid_value_error_leaks_no_secret_bearing_value() {
+        let secrets = [
+            ("DATABASE_URL", "postgres://sentinel-db-value"),
+            ("PRIVATE_KEY", "sentinel-private-key-value"),
+            ("AWS_SECRET_ACCESS_KEY", "sentinel-aws-secret-value"),
+        ];
+        let _env = CreationEnv::set(Some("MAYBE"));
+        let restore: Vec<_> = secrets
+            .iter()
+            .map(|(name, value)| {
+                let previous = var_os(name);
+                set_var(name, value);
+                (*name, previous)
+            })
+            .collect();
+
+        let rendered = parse_init(&["--distribution-job-creation", "MAYBE"])
+            .expect_err("an invalid value must fail parsing")
+            .to_string();
+
+        for (name, previous) in restore {
+            match previous {
+                Some(previous) => set_var(name, previous),
+                None => remove_var(name),
+            }
+        }
+
+        for (name, value) in secrets {
+            assert!(
+                !rendered.contains(value),
+                "the invalid-value error leaked the value bound to `{name}`"
+            );
+        }
+    }
+
+    #[test]
+    fn the_mutation_guard_mode_control_is_untouched() {
+        // `BE-04` adds a second, independent control on the same commands. It
+        // must not disturb the first one, and it deliberately shares no
+        // machinery with it.
+        let arg = commands::INIT
+            .get_arguments()
+            .find(|arg| arg.get_id() == "mutation-guard-mode")
+            .expect("mutation-guard-mode on init");
+        assert_eq!(
+            arg.get_env().and_then(|env| env.to_str()),
+            Some("THOTH_GRAPHQL_MUTATION_GUARD_MODE")
+        );
+        assert_eq!(arg.get_default_values(), ["OFF"]);
     }
 }

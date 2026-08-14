@@ -81,6 +81,10 @@ fn replace_service_configuration(
     let write_context = ServiceConfigurationWriteContext {
         source: PublisherServiceConfigurationSource::SuperuserApi,
         actor: context.user_id()?,
+        // `BE-04`: the switch travels with the audit provenance as an explicit
+        // parameter, so the coordinator never reads ambient state and every test
+        // can drive it directly.
+        job_creation: context.job_creation,
     };
     replace_publisher_service_configuration(&context.db, &write_context, data)
 }

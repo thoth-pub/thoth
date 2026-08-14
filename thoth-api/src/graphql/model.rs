@@ -21,6 +21,7 @@ use crate::model::{
     contact::{Contact, ContactOrderBy, ContactType},
     contribution::{Contribution, ContributionType},
     contributor::Contributor,
+    distribution_job::DistributionJobCreation,
     endorsement::{Endorsement, EndorsementOrderBy},
     file::{ChecksumAlgorithm, File, FileType},
     funding::Funding,
@@ -75,6 +76,16 @@ pub struct Context {
     /// `BE-02`'s `Publisher.distributionPlatforms` is the first production
     /// field to read this bundle.
     pub(crate) loaders: RequestLoaders,
+    /// Whether automatic durable distribution-job creation is active
+    /// (`BE-04` specification section 9.3).
+    ///
+    /// Unlike `MutationGuardMode`, which is consumed at the request boundary
+    /// before execution, this value must reach the resolver: the configuration
+    /// resolver places it in the write context, and the coordinator takes it as
+    /// an explicit parameter rather than looking it up from ambient state.
+    ///
+    /// It is read once at process start and there is no reload path.
+    pub(crate) job_creation: DistributionJobCreation,
 }
 
 impl Context {
@@ -83,6 +94,7 @@ impl Context {
         user: Option<IntrospectedUser>,
         s3_client: Arc<S3Client>,
         cloudfront_client: Arc<CloudFrontClient>,
+        job_creation: DistributionJobCreation,
     ) -> Self {
         Self {
             loaders: RequestLoaders::for_request(Arc::clone(&pool)),
@@ -90,6 +102,7 @@ impl Context {
             user,
             s3_client,
             cloudfront_client,
+            job_creation,
         }
     }
 

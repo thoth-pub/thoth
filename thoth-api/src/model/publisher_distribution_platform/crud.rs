@@ -19,30 +19,51 @@ use crate::schema::{publisher, publisher_distribution_platform};
 /// The columns of the public assignment projection, in canonical order.
 type AssignmentRow = (Uuid, DistributionPlatform, Timestamp);
 
-/// Whether one connection-scoped lifecycle call wrote persisted assignment
-/// state.
+/// What one connection-scoped lifecycle call did to persisted assignment state.
 ///
 /// `BE-02`'s pool-level `enable`/`disable` return `ThothResult<()>`, so a caller
 /// cannot distinguish an idempotent no-op from a linked-state repair. The
 /// connection-scoped primitives report this instead, which is what lets the
 /// `BE-03` service-configuration write coordinator decide whether a request was
-/// a true no-op (specification section 7.7 item 3).
+/// a true no-op (`BE-03` specification section 7.7 item 3).
 ///
-/// It is deliberately the minimum `BE-03` needs — whether persisted state
-/// changed — and is not a job-oriented change description.
+/// `BE-03` recorded that this enum was deliberately the minimum `BE-03` needed
+/// and that `BE-04` would extend it under its own specification. `BE-04` does
+/// exactly that, and the widening is internal: the enum is `pub(crate)` and
+/// `BE-02`'s public behaviour is unchanged.
+///
+/// The two new activating variants name **desired-state events and nothing
+/// else**. `Activated` is the transition of a group from zero enabled members to
+/// a newly enabled desired-state group; `Repaired` is the normalization of a
+/// group in which at least one member was already enabled. Neither says anything
+/// whatever about observed delivery: no adapter execution, no upload, no
+/// deposit, no feed generation and no back-catalogue presence is implied or
+/// inferable from either.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[must_use]
 pub(crate) enum AssignmentLifecycleOutcome {
     /// Nothing was written and no timestamp moved.
     Unchanged,
-    /// Persisted assignment state was written: an insert, a re-enable, a
-    /// disable, or a linked-state repair.
-    Changed,
+    /// A group with no enabled member became enabled under a new activation.
+    ///
+    /// This covers an absent group, a wholly disabled group, and a group whose
+    /// rows exist but are all disabled.
+    Activated { activation_id: Uuid },
+    /// An already partly-enabled group was normalized to a new shared
+    /// activation.
+    ///
+    /// This covers the one-sided, split-activation and split-timestamp cases. A
+    /// repair mints a new activation exactly as before, but it is **not** a new
+    /// zero-enabled-to-enabled activation, which is the whole reason it creates
+    /// no automatic onboarding job.
+    Repaired { activation_id: Uuid },
+    /// A group with at least one enabled member was disabled.
+    Disabled,
 }
 
 impl AssignmentLifecycleOutcome {
     pub(crate) fn changed(self) -> bool {
-        self == AssignmentLifecycleOutcome::Changed
+        !matches!(self, AssignmentLifecycleOutcome::Unchanged)
     }
 }
 
@@ -116,6 +137,13 @@ impl PublisherDistributionPlatform {
         if is_normalized_fully_enabled(&existing, &members) {
             return Ok(AssignmentLifecycleOutcome::Unchanged);
         }
+        // The activation/repair distinction is decided here, from the rows this
+        // function has **already** read, before it writes anything: a group with
+        // no currently enabled member is being activated, and any other
+        // not-fully-normalized state is being repaired. No second read, no
+        // second linked-platform algorithm and no inference from the group's
+        // name.
+        let already_enabled = existing.iter().any(|row| row.enabled);
         let activation_id = Uuid::new_v4();
         let transition_at = transaction_timestamp(connection)?;
         for member in &members {
@@ -141,7 +169,11 @@ impl PublisherDistributionPlatform {
                 ))
                 .execute(connection)?;
         }
-        Ok(AssignmentLifecycleOutcome::Changed)
+        Ok(if already_enabled {
+            AssignmentLifecycleOutcome::Repaired { activation_id }
+        } else {
+            AssignmentLifecycleOutcome::Activated { activation_id }
+        })
     }
 
     /// Disable `platform` for `publisher_id`, and every member of its linked
@@ -199,7 +231,7 @@ impl PublisherDistributionPlatform {
             publisher_distribution_platform::disabled_at.eq(Some(transition_at)),
         ))
         .execute(connection)?;
-        Ok(AssignmentLifecycleOutcome::Changed)
+        Ok(AssignmentLifecycleOutcome::Disabled)
     }
 
     /// Every persisted assignment row for one publisher, in canonical
