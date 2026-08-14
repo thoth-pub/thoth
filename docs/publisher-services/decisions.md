@@ -1,7 +1,7 @@
 # Publisher Services Decision Summary
 
 Status: ACTIVE SUMMARY
-Last updated: 2026-08-12 (BE-02 closed as an inactive merged foundation; BE-03/BE-04/APP-01 phase boundary raised as a specification candidate under a durable authority condition, including the APP-01 reconciliation)
+Last updated: 2026-08-14 (BE-02 and BE-03 closed as inactive merged foundations; the BE-03/BE-04/APP-01 phase boundary's authority condition is satisfied and the decision is approved under its own self-resolving construction, including the APP-01 reconciliation)
 Owner: CTO
 
 This file summarizes decisions. The approved technical design and approved ADRs remain authoritative.
@@ -336,9 +336,12 @@ measured and evidenced under
 This decision candidate **refines and, in that narrow respect, supersedes** the
 earlier APP-01 wording that assigned superuser back-catalogue-status inspection
 to a BE-03-only dependency. Nothing else in the approved APP-01 record is
-changed: APP-01 remains a `thoth-app` task, remains MEDIUM risk, and remains
-blocked on BE-03 exposing the approved protected API, app readiness controls, the
-exact-SHA schema pinning control and its own approved bounded specification.
+changed: APP-01 remains a `thoth-app` task and remains MEDIUM risk. Its
+dependency on BE-03 exposing the approved protected API is **satisfied** for the
+configuration-only surface enumerated below, BE-03 having merged that surface;
+APP-01 itself remains **blocked** on app readiness controls, the exact-SHA
+schema pinning control and its own approved bounded specification, and its
+job-aware elements remain dependent on BE-04 as set out below.
 
 Scope available from **BE-03 alone** — the BE-03-dependent part of APP-01:
 
