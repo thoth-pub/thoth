@@ -1,6 +1,6 @@
 # Publisher Services and Distribution Configuration
 
-Status: CONTROL FOUNDATION CLOSED; BE-01 CLOSED; ADR-01-SPEC-AMEND-01 MERGED (PR #781, MERGE COMMIT a511e01c); CORRECTED ADR-01 SPECIFICATION REPOSITORY-AUTHORITATIVE; ADR-01 MERGED - COMPLETE (PR #783, MERGE COMMIT 299b0eff); ADR-0004 AND FINAL PLATFORM INVENTORY APPROVED AND REPOSITORY-AUTHORITATIVE; CG-07 RESOLVED; BE-02 CLOSED - INACTIVE FOUNDATION MERGED THROUGH PR #805; DEPLOYMENT, MIGRATION EXECUTION, BACKFILL AND DISTRIBUTION ACTIVATION NOT AUTHORIZED; ALL OTHER IMPLEMENTATION GATED
+Status: CONTROL FOUNDATION CLOSED; BE-01 CLOSED; ADR-01-SPEC-AMEND-01 MERGED (PR #781, MERGE COMMIT a511e01c); CORRECTED ADR-01 SPECIFICATION REPOSITORY-AUTHORITATIVE; ADR-01 MERGED - COMPLETE (PR #783, MERGE COMMIT 299b0eff); ADR-0004 AND FINAL PLATFORM INVENTORY APPROVED AND REPOSITORY-AUTHORITATIVE; CG-07 RESOLVED; BE-02 CLOSED - INACTIVE FOUNDATION MERGED THROUGH PR #805; BE-03 CLOSED - INACTIVE FOUNDATION MERGED THROUGH PR #809; DEPLOYMENT, MIGRATION EXECUTION, BACKFILL, DURABLE JOB CREATION, DISSEMINATION AND DISTRIBUTION ACTIVATION NOT AUTHORIZED; ALL OTHER IMPLEMENTATION GATED
 Programme owner: CTO
 Primary coordinating repository: `thoth-pub/thoth`
 Related repositories:
@@ -91,10 +91,17 @@ ADR-0004 APPROVED AND REPOSITORY-AUTHORITATIVE
 FINAL DISTRIBUTION-PLATFORM INVENTORY APPROVED AND REPOSITORY-AUTHORITATIVE
 CG-07 RESOLVED
 BE-02 CLOSED (INACTIVE FOUNDATION MERGED THROUGH PR #805)
-BE-03 DEPENDENCIES ON BE-01 AND BE-02 SATISFIED; BE-03 IMPLEMENTATION NOT
-AUTHORIZED
-DEPLOYMENT, ENVIRONMENT AND PRODUCTION MIGRATION EXECUTION, ASSIGNMENT
-CREATION/BACKFILL AND DISTRIBUTION ACTIVATION NOT AUTHORIZED
+BE-03 CLOSED (INACTIVE FOUNDATION MERGED THROUGH PR #809)
+BE-04 BE-03 DEPENDENCY SATISFIED; BE-04 STILL BLOCKED AND NOT STARTED
+MIG-01 BE-03 DEPENDENCY SATISFIED; MIG-01 STILL CRITICAL AND BLOCKED
+APP-01 BE-03 BACKEND CONTRACT SATISFIED FOR ITS CONFIGURATION-ONLY SCOPE;
+APP-01 STILL BLOCKED BY ITS OTHER CONTROLS; ITS JOB-AWARE ELEMENTS STILL
+REQUIRE BE-04
+APP-02 BE-03 DEPENDENCY SATISFIED ONLY; APP-02 STILL BLOCKED ON BE-04 AND
+APP-01
+DEPLOYMENT, ENVIRONMENT AND PRODUCTION MIGRATION EXECUTION, PACKAGE
+COMMERCIAL BACKFILL, ASSIGNMENT CREATION/BACKFILL, DURABLE JOB CREATION,
+DISSEMINATION AND DISTRIBUTION ACTIVATION NOT AUTHORIZED
 CG-11 UNCHANGED; CG-13 OPEN / UNCHANGED
 ALL OTHER IMPLEMENTATION REMAINS GATED
 ```
@@ -231,9 +238,15 @@ Reasons all other implementation remains gated:
    not authorize deployment, environment or production migration execution,
    assignment creation or backfill, distribution activation,
    `OBSERVE`/`ENFORCE` or production access, each of which remains separately
-   gated. `BE-03`'s `BE-01` and `BE-02` dependencies are therefore satisfied,
-   and `BE-03` implementation remains `NOT AUTHORIZED` pending its own
-   approved bounded specification and separate explicit authorization.
+   gated. `BE-03` is `CLOSED` on the same terms: its bounded implementation
+   merged through [PR #809](https://github.com/thoth-pub/thoth/pull/809) as an
+   inactive additive foundation under its own approved bounded specification
+   and separate explicit implementation authorization. That merge satisfies the
+   `BE-03` dependency of `BE-04`, `MIG-01`, `APP-01` and `APP-02` without
+   making any of them ready, and authorizes no deployment, environment or
+   production migration execution, package commercial backfill, assignment
+   creation or backfill, durable job creation, dissemination or distribution
+   activation.
 2. Every task still requires its own approved bounded specification, its
    applicable dependencies, and separate explicit authorization before any
    implementation branch or edit.
@@ -248,8 +261,7 @@ Reasons all other implementation remains gated:
 Discovery, review, documentation, and read-only orientation may continue. An
 approved specification makes a task's requirements repository-authoritative; it
 does not create the implementation branch, authorize an implementation edit, or
-unlock `BE-03`, `BE-04`, `APP-01`, OAI-PMH, release, deployment or production
-work.
+unlock `BE-04`, `APP-01`, OAI-PMH, release, deployment or production work.
 
 ## 6. Files
 

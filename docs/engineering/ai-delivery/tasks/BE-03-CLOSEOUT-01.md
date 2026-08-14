@@ -1,6 +1,6 @@
 # BE-03-CLOSEOUT-01 - Post-merge control correction for BE-03
 
-Status: DRAFT
+Status: APPROVED
 Programme: Publisher Services and Distribution Configuration
 Repository: `thoth-pub/thoth`
 Workflow: STANDARD
@@ -588,9 +588,16 @@ correction of materially stale active BE-03 programme state.
 
 ## 18. Approval
 
-Approved for implementation by:
-Date:
-Notes:
+Approved for implementation by: Javi, CTO
+Date: 2026-08-14
+Notes: implementation was explicitly authorized against exact `develop` base
+`b51bcc0905ac17fc0c142b2002b11fec711331a3`, the merge commit of this
+specification's own pull request
+[#812](https://github.com/thoth-pub/thoth/pull/812). Authorization is limited to
+the documentation and control correction specified here — correcting materially
+stale active BE-03 programme state. It authorizes no runtime, schema, migration,
+GraphQL, generated contract, workflow, deployment, environment or production
+action, and it starts, specifies or authorizes no other task.
 
 Record only the durable implementation authorization here. Independent review
 decisions, CTO merge authorization and the merge itself are terminal GitHub

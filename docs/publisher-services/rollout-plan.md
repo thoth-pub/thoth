@@ -119,7 +119,28 @@ BE-02 implementation state (2026-08-12):
   integration only; deployment, environment and production migration execution,
   assignment creation or backfill, distribution activation and
   `OBSERVE`/`ENFORCE` remain separately gated and unauthorized. `BE-03`'s
-  `BE-02` dependency is satisfied; `BE-03` implementation is `NOT AUTHORIZED`.
+  `BE-02` dependency is satisfied.
+
+BE-03 implementation state:
+
+- `BE-03` is `CLOSED`. The bounded implementation was delivered under its own
+  approved specification (PR [#808](https://github.com/thoth-pub/thoth/pull/808))
+  and separate explicit implementation authorization, and merged into `develop`
+  through implementation PR
+  [#809](https://github.com/thoth-pub/thoth/pull/809) as an inactive additive
+  foundation: the canonical optimistic-concurrency configuration token, the
+  closed two-value configuration-source type, the append-only configuration
+  audit table, the single canonical service-configuration write coordinator,
+  the protected owner-and-superuser read, the superuser-only staff report and
+  replace mutation, and effective package capability exposure derived from
+  BE-01's code-owned capability mapping. The migration creates zero audit rows
+  and changes no package and no assignment. Merge authorized repository
+  integration only; deployment, environment and production migration execution,
+  package commercial backfill, assignment creation or backfill, durable job
+  creation, dissemination, distribution activation and `OBSERVE`/`ENFORCE`
+  remain separately gated and unauthorized. The `BE-03` dependency of `BE-04`,
+  `MIG-01`, `APP-01` and `APP-02` is satisfied; none of those tasks becomes
+  ready, and each retains its remaining blockers.
 
 Outstanding evidence:
 
@@ -191,10 +212,13 @@ Controls:
 
 ### 2.2 Reserved BE-03/APP-01 GraphQL contract control
 
-Reserved and documented, not implemented. It binds the later `BE-03` and
-`APP-01` tasks.
+Reserved and documented, not implemented. `BE-03` has merged, so this control
+now binds the later `APP-01` task.
 
-1. `BE-03` produces an exact generated GraphQL SDL at its reviewed head.
+1. `BE-03` produced an exact generated GraphQL SDL at its reviewed
+   implementation head, merged through PR
+   [#809](https://github.com/thoth-pub/thoth/pull/809). This control binds
+   against that head, not against any later documentation change.
 2. `APP-01` records the exact `BE-03` commit SHA.
 3. `APP-01` code generation consumes a schema artifact pinned to that SHA, or a
    preview API proven to expose that exact schema.
