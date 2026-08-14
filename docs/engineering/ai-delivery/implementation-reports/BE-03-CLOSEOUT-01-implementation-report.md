@@ -99,8 +99,19 @@ required.
   section 9 in place of a prose description; and clarifies section 5.1. It
   changes no classification, no other file and no scope. The earlier commit was
   not amended, rebased or force-pushed.
+- `docs(publisher-services): clarify closeout acceptance evidence` - additive
+  control-clarification commit. It applies the explicit CTO clarification of one
+  overbroad acceptance criterion in this task's own approved specification
+  (`BE-03-CLOSEOUT-01.md` section 9) and records that clarification here. It
+  touches those two files only. It changes no architecture, no runtime scope, no
+  BE-03/BE-04/APP-01 boundary, no ADR-0005 text, no migration policy, no
+  classification and no other file, and it neither implements nor authorizes any
+  further work. See section 5.3. The two earlier commits were not amended,
+  rebased or force-pushed.
 
-The current branch head is recorded in the pull request.
+The current branch head is recorded in the pull request. This report records the
+commit sequence; the head SHA, review state and merge state are terminal GitHub
+evidence under ADR-0005 and are not transcribed here.
 
 ## 4. Files changed
 
@@ -165,6 +176,14 @@ The current branch head is recorded in the pull request.
     durable implementation authorization and the exact authorized base. The
     header rule "Implementation authorization: **separate.**" is retained
     unchanged as a durable rule.
+  - reason (second, later edit): one section 9 acceptance criterion was
+    overbroad and, read literally, forbade the exact-base and preflight/ancestry
+    evidence the same specification and root `AGENTS.md` require. The CTO
+    explicitly clarified it. See section 5.3.
+  - behavioural effect: none. One checklist item in section 9 is replaced by the
+    CTO-approved purpose-qualified wording. Section 18's authorized-base
+    evidence, the historical background, Annex A, the authority condition,
+    scope, non-goals and architecture are all unchanged.
 
 - `docs/engineering/ai-delivery/implementation-reports/BE-03-CLOSEOUT-01-implementation-report.md`
   - reason: required by the specification section 14 and root `AGENTS.md`
@@ -232,7 +251,13 @@ Decisions made within the approved design:
    inaccurate as a direct consequence of this change; refreshing them follows
    the BE-02-CLOSEOUT-01 precedent.
 
-Deviations from the specification: NONE.
+Deviations from the specification: NONE. There is no implementation deviation
+from the CTO-approved specification as clarified. One acceptance criterion's
+wording was itself corrected under explicit CTO control before final approval,
+because as originally written it was overbroad; the implementation was not
+changed to match it and did not need to be. That correction is a
+task-specification clarification, not an implementation deviation and not an
+architecture amendment. See section 5.3.
 
 Scope deviations on touched paths: NONE. The changed set is exactly the
 specification's expected set. `platform-inventory.md`, `acceptance-matrix.md`,
@@ -248,8 +273,10 @@ authorization itself explicitly requires updating the closeout task record's own
 `Status` line and its section 18 approval block after specification approval and
 implementation authorization. Those task-record updates are directly mandated by
 the authorization and are reported in section 4; they are not stale-state
-findings and are not classified as such. The two items below are the additional
-BE-03 source-state assertions found by the search.
+findings and are not classified as such. Neither is the later CTO clarification
+of one section 9 acceptance criterion, which is an approved specification
+correction recorded in section 5.3. The two items below are the additional BE-03
+source-state assertions found by the search.
 
 Both fall inside an already-expected touched path and inside the approved
 scope; neither required a new path.
@@ -317,6 +344,88 @@ dependency on both BE-03 and BE-04, and the consequences list are all unchanged
 and continue to say exactly what they said. The stop condition "if applying this
 ruling would require changing the BE-03/BE-04/APP-01 architecture, STOP BLOCKED"
 therefore did not fire.
+
+### 5.3 Section 9 acceptance criterion - CTO control clarification
+
+The third commit in section 3 applies an explicit CTO clarification to this
+task's own approved specification. It is a control clarification only.
+
+**The defect.** Section 9 of
+[`BE-03-CLOSEOUT-01`](../tasks/BE-03-CLOSEOUT-01.md) carried the acceptance
+criterion:
+
+```text
+- [ ] no review, approval or merge identifier, merge SHA or merge timestamp is
+      newly transcribed into a repository file;
+```
+
+Read literally, that criterion is overbroad. It forbids any newly recorded
+review, approval or merge identifier, merge SHA or merge timestamp regardless of
+why it is recorded, and so forbids evidence the same repository controls
+require. It conflicted with:
+
+1. this task's own non-goal 2, which is purpose-qualified: it prohibits copying
+   review, approval and merge-authorization identifiers, PR #809's merge commit
+   SHA, the merged timestamp or the bare statement "the PR is now merged" into
+   repository files *merely to transcribe them*;
+2. [ADR-0005](../../decisions/ADR-0005-terminal-merge-evidence.md), which
+   prohibits lifecycle-transcription churn by purpose rather than by textual
+   shape, and whose section 8 distinguishes a required post-merge correction
+   from a commit existing merely to record that a pull request merged;
+3. the repository requirement to record the exact implementation base and the
+   preflight and ancestry evidence proving the change was authorized against it
+   — root [`AGENTS.md`](../../../../AGENTS.md) section 14 requires the exact
+   base commit in this report, carried in sections 1.1 and 1.2;
+4. section 18 of this same specification — already authorized and merged — which
+   records `b51bcc0905ac17fc0c142b2002b11fec711331a3` as the exact authorized
+   implementation base.
+
+Taken literally, the criterion made the document carrying it fail its own test.
+
+**The ruling.** The CTO explicitly clarified the criterion. The clarified,
+CTO-approved wording now in section 9 is:
+
+```text
+- [ ] no active control correction copies a review, approval or
+      merge-authorization identifier, merge SHA, merge timestamp, draft/ready
+      state or equivalent GitHub lifecycle metadata merely to restate terminal
+      review, authorization or merge state; exact SHAs recorded as the
+      authorized implementation base or as required preflight/ancestry evidence
+      are permitted execution evidence under repository controls;
+```
+
+The wording is the CTO's verbatim, including its line breaks. Only the terminal
+punctuation is rendered as `;` rather than `.`, so the item matches the
+surrounding checklist, whose items are semicolon-separated. No other acceptance
+criterion, and no other part of the task record, was touched.
+
+**What the clarification does not do.** It changes no architecture, no runtime
+scope, no BE-03/BE-04/APP-01 boundary and no implementation scope. It does not
+alter ADR-0005, migration policy, any other task's recorded status, any
+authorization path or any migration. It authorizes no downstream task, no
+deployment and no production activity. It is not an architecture amendment.
+
+**Effect on the implementation.** None. The implementation already drew exactly
+the distinction the clarified criterion states — see section 5 item 2 and the
+section 15 confirmations, both written before this clarification. The corrected
+criterion now matches ADR-0005 and the implementation's already-correct evidence
+distinction rather than contradicting both. No control correction in any of the
+three commits was changed in order to satisfy the clarification.
+
+**Three distinct things, kept separate.** This report does not conflate:
+
+- **approved task-specification clarification** — the CTO-approved correction to
+  the wording of this task's own acceptance criteria, recorded in this section.
+  It changes what the task's acceptance test says, not what the implementation
+  did;
+- **implementation remediation** — the additive corrections to repository files
+  carried by the second and third commits in section 3, made under review and
+  control feedback without amending, rebasing, squashing or force-pushing
+  earlier history;
+- **GitHub terminal lifecycle evidence** — independent review decisions, CTO
+  merge authorization, draft/ready state, the merge itself, its SHA and its
+  timestamp. Under ADR-0005 these live in the GitHub pull-request record and are
+  deliberately absent from every repository file in this diff.
 
 ## 6. Database and migration effects
 
@@ -456,7 +565,7 @@ PY
 Result:
 
 ```text
-files: 8  relative links checked: 97  broken: 0
+files: 8  relative links checked: 100  broken: 0
 ```
 
 Run after every repository-file edit in this task, including the remediation
@@ -592,7 +701,11 @@ context, and the search was re-run after the edits.
   state it exists to correct, including every quotation of the stale wording.
   These are the approved specification's own content and its acceptance
   criteria; rewriting them would rewrite the approved specification and
-  invalidate its own tests. Only `Status` and section 18 were changed.
+  invalidate its own tests. Preserved. The only changes to this file are
+  `Status`, section 18, and the single section 9 acceptance criterion the CTO
+  explicitly clarified — the last being an approved specification clarification
+  recorded in section 5.3, not a stale-state reclassification of anything in
+  this list.
 
 #### `CURRENT AND CORRECT - PRESERVE`
 
@@ -810,6 +923,14 @@ Monitoring required: none.
   v1.7.0 publisher-services migrations at `20260811_v1.7.0` and
   `20260812_v1.7.0`. That is PR #811's business, is out of scope here, and does
   not affect the BE-02-then-BE-03 apply order. Recorded for the CTO only.
+- **Identical overbroad acceptance wording elsewhere, deliberately not edited.**
+  `docs/engineering/ai-delivery/tasks/BE-02-CLOSEOUT-01.md` carries the same
+  acceptance criterion that section 5.3 records the CTO as having clarified for
+  this task. BE-02-CLOSEOUT-01 is a completed task record outside this task's
+  authorized file set, and the clarification authorization is bounded to the two
+  files listed against the third commit in section 3. It was therefore not
+  edited. Recorded so the observation is not lost. Recommended owner: CTO, if
+  the same clarification is to be applied there.
 - **`BE-02.md` header.** The BE-02 specification header still reads
   "Implementation authorization: separate and absent" although BE-02 has merged.
   It is a BE-02 record, outside this task's scope, and is noted only so the
@@ -866,3 +987,10 @@ Suggested review focus:
 5. **`BE-03.md` blast radius.** Confirm only the three authorized
    lifecycle-boundary sites changed and that no requirement, invariant,
    acceptance criterion, test obligation or BE-04 transaction seam moved.
+6. **The section 9 acceptance clarification** (section 5.3). Confirm that the
+   CTO-approved wording replaced exactly one checklist item, that the
+   surrounding acceptance criteria, section 18's authorized-base evidence,
+   Annex A, the authority condition, scope, non-goals and architecture are
+   unchanged, and that no repository file in this diff now carries a lifecycle
+   identifier, merge SHA, merge timestamp or draft/ready state recorded merely
+   to restate terminal review, authorization or merge state.

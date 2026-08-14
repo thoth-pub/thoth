@@ -383,8 +383,12 @@ touches no environment or production configuration.
       dependency;
 - [ ] `docs/publisher-services/decisions.md` section 3a retains its
       authority-condition construction unchanged;
-- [ ] no review, approval or merge identifier, merge SHA or merge timestamp is
-      newly transcribed into a repository file;
+- [ ] no active control correction copies a review, approval or
+      merge-authorization identifier, merge SHA, merge timestamp, draft/ready
+      state or equivalent GitHub lifecycle metadata merely to restate terminal
+      review, authorization or merge state; exact SHAs recorded as the
+      authorized implementation base or as required preflight/ancestry evidence
+      are permitted execution evidence under repository controls;
 - [ ] no migration-path reference in any implementation report is rewritten, and
       any new prose naming the current BE-03 migration uses
       `thoth-api/migrations/20260812_v1.7.0/`;
