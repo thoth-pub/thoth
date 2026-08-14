@@ -88,6 +88,10 @@ async fn graphql_schema(st: Data<Arc<Schema>>) -> HttpResponse {
 }
 
 #[post("/graphql")]
+// Every parameter is an Actix extractor the handler genuinely needs: the schema,
+// the pool, the two storage clients, the two request-scoped control values and
+// the request body. Grouping them would only hide the extraction.
+#[allow(clippy::too_many_arguments)]
 async fn graphql(
     st: Data<Arc<Schema>>,
     pool: Data<PgPool>,
@@ -267,6 +271,10 @@ mod tests {
                 .app_data(Data::new(cloudfront_client))
                 .app_data(Data::new(Arc::new(create_schema())))
                 .app_data(Data::new(mode))
+                // `BE-04`: the handler extracts this alongside the guard mode,
+                // and registers the merged default here so these tests keep
+                // exercising the production-default configuration.
+                .app_data(Data::new(DistributionJobCreation::default()))
                 .service(graphql),
         )
         .await

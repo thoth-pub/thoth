@@ -74,14 +74,20 @@ fn only_error(response: &JsonValue) -> (String, String) {
 
 fn assert_unauthorized(response: &JsonValue) {
     let (message, kind) = only_error(response);
-    assert_eq!(kind, "NO_ACCESS", "expected a fail-closed denial: {response}");
+    assert_eq!(
+        kind, "NO_ACCESS",
+        "expected a fail-closed denial: {response}"
+    );
     assert_eq!(message, "Unauthorized");
 }
 
 fn user_with(user_id: &str, roles: &[Role]) -> IntrospectedUser {
     user_with_scopes(
         user_id,
-        &roles.iter().map(|role| (*role, "org-1")).collect::<Vec<_>>(),
+        &roles
+            .iter()
+            .map(|role| (*role, "org-1"))
+            .collect::<Vec<_>>(),
     )
 }
 
@@ -109,11 +115,7 @@ fn user_with_scopes(user_id: &str, roles: &[(Role, &str)]) -> IntrospectedUser {
 }
 
 fn context_for(pool: &Arc<PgPool>, user: Option<IntrospectedUser>) -> Context {
-    test_db::test_context_with_job_creation(
-        Arc::clone(pool),
-        user,
-        DistributionJobCreation::On,
-    )
+    test_db::test_context_with_job_creation(Arc::clone(pool), user, DistributionJobCreation::On)
 }
 
 fn token(pool: &PgPool, publisher_id: Uuid) -> Timestamp {
@@ -154,7 +156,11 @@ fn only_job(pool: &PgPool, publisher_id: Uuid) -> DistributionJob {
 /// A publisher with one `PENDING` `ZENODO` job.
 fn seeded_job(pool: &PgPool) -> (Publisher, DistributionJob) {
     let publisher = test_db::create_publisher(pool);
-    activate(pool, publisher.publisher_id, &[DistributionPlatform::Zenodo]);
+    activate(
+        pool,
+        publisher.publisher_id,
+        &[DistributionPlatform::Zenodo],
+    );
     let job = only_job(pool, publisher.publisher_id);
     (publisher, job)
 }
@@ -302,7 +308,11 @@ async fn every_row_of_the_authorization_matrix_holds_for_claim() {
         // Re-scope the publisher-scoped rows onto this publisher's real org, so
         // "for the target publisher" is genuinely that.
         let user = user.map(|user| rescope(user, &org));
-        activate(&pool, publisher.publisher_id, &[DistributionPlatform::Zenodo]);
+        activate(
+            &pool,
+            publisher.publisher_id,
+            &[DistributionPlatform::Zenodo],
+        );
 
         let context = context_for(&pool, user);
         let response = run(&schema, &context, CLAIM).await;
@@ -362,14 +372,23 @@ async fn every_row_of_the_authorization_matrix_holds_for_complete_and_fail() {
             let publisher = test_db::create_publisher(&pool);
             let org = publisher.zitadel_id.clone().expect("org");
             let user = user.map(|user| rescope(user, &org));
-            activate(&pool, publisher.publisher_id, &[DistributionPlatform::Zenodo]);
+            activate(
+                &pool,
+                publisher.publisher_id,
+                &[DistributionPlatform::Zenodo],
+            );
             let job = only_job(&pool, publisher.publisher_id);
             let claim = claim_directly(&pool);
 
             let query = if operation == "complete" {
                 complete(job.distribution_job_id, claim.claim_token)
             } else {
-                fail(job.distribution_job_id, claim.claim_token, "TRANSIENT", true)
+                fail(
+                    job.distribution_job_id,
+                    claim.claim_token,
+                    "TRANSIENT",
+                    true,
+                )
             };
             let context = context_for(&pool, user);
             let response = run(&schema, &context, &query).await;
@@ -403,7 +422,11 @@ async fn every_row_of_the_authorization_matrix_holds_for_cancel() {
         let publisher = test_db::create_publisher(&pool);
         let org = publisher.zitadel_id.clone().expect("org");
         let user = user.map(|user| rescope(user, &org));
-        activate(&pool, publisher.publisher_id, &[DistributionPlatform::Zenodo]);
+        activate(
+            &pool,
+            publisher.publisher_id,
+            &[DistributionPlatform::Zenodo],
+        );
         let job = only_job(&pool, publisher.publisher_id);
 
         let context = context_for(&pool, user);
@@ -431,7 +454,11 @@ async fn every_row_of_the_authorization_matrix_holds_for_the_job_bearing_report(
     let (_guard, pool) = test_db::setup_test_db();
     let publisher = test_db::create_publisher(&pool);
     let org = publisher.zitadel_id.clone().expect("org");
-    activate(&pool, publisher.publisher_id, &[DistributionPlatform::Zenodo]);
+    activate(
+        &pool,
+        publisher.publisher_id,
+        &[DistributionPlatform::Zenodo],
+    );
     let schema = create_schema();
 
     for (label, user, _, _, may_report) in matrix(&org) {
@@ -456,7 +483,11 @@ async fn every_row_of_the_authorization_matrix_holds_for_the_job_bearing_report(
         let context = context_for(&pool, user);
         let response = run(&schema, &context, count).await;
         if may_report {
-            assert_eq!(data(&response, "publisherServiceConfigurationCount"), 1, "{label}");
+            assert_eq!(
+                data(&response, "publisherServiceConfigurationCount"),
+                1,
+                "{label}"
+            );
         } else {
             assert_unauthorized(&response);
         }
@@ -468,7 +499,11 @@ async fn the_worker_role_confers_no_publisher_scope_and_no_configuration_access(
     let (_guard, pool) = test_db::setup_test_db();
     let publisher = test_db::create_publisher(&pool);
     let org = publisher.zitadel_id.clone().expect("org");
-    activate(&pool, publisher.publisher_id, &[DistributionPlatform::Zenodo]);
+    activate(
+        &pool,
+        publisher.publisher_id,
+        &[DistributionPlatform::Zenodo],
+    );
     let schema = create_schema();
 
     // A worker-only account, including one that carries an organisation key
@@ -670,7 +705,10 @@ async fn the_four_new_errors_map_to_exactly_their_specified_graphql_types() {
             message,
             "The supplied distribution job error code is not a valid classification code."
         );
-        assert!(!message.contains(invalid), "the rejected value is never reflected");
+        assert!(
+            !message.contains(invalid),
+            "the rejected value is never reflected"
+        );
         assert!(!message.contains(&invalid.chars().count().to_string()));
         assert!(!message.contains("A-Z"));
     }
@@ -678,7 +716,12 @@ async fn the_four_new_errors_map_to_exactly_their_specified_graphql_types() {
     let response = run(
         &schema,
         &context,
-        &fail(job.distribution_job_id, claim.claim_token, "TRANSPORT_FAILURE", true),
+        &fail(
+            job.distribution_job_id,
+            claim.claim_token,
+            "TRANSPORT_FAILURE",
+            true,
+        ),
     )
     .await;
     assert_eq!(
@@ -710,8 +753,15 @@ async fn the_four_new_errors_map_to_exactly_their_specified_graphql_types() {
          activation cannot be saved."
     );
     for forbidden in [
-        "SELECT", "INSERT", "UPDATE", "distribution_job", "publisher_distribution_platform",
-        "THOTH_DISTRIBUTION_JOB_CREATION", "OFF", "diesel", "postgres",
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "distribution_job",
+        "publisher_distribution_platform",
+        "THOTH_DISTRIBUTION_JOB_CREATION",
+        "OFF",
+        "diesel",
+        "postgres",
     ] {
         assert!(
             !message.contains(forbidden),
@@ -726,7 +776,10 @@ fn exactly_four_new_error_variants_and_four_new_arms_exist() {
     let source = include_str!("../../../thoth-errors/src/lib.rs");
     for (variant, extension) in [
         ("StaleDistributionJobClaim", "STALE_DISTRIBUTION_JOB_CLAIM"),
-        ("DistributionJobAlreadyTerminal", "DISTRIBUTION_JOB_TERMINAL"),
+        (
+            "DistributionJobAlreadyTerminal",
+            "DISTRIBUTION_JOB_TERMINAL",
+        ),
         (
             "DistributionJobCreationDisabled",
             "DISTRIBUTION_JOB_CREATION_DISABLED",
@@ -745,16 +798,17 @@ fn exactly_four_new_error_variants_and_four_new_arms_exist() {
     }
     // No fifth variant: every `DistributionJob`-named variant is one of the
     // four above.
-    let job_variants = source
-        .matches("DistributionJob")
-        .count();
+    let job_variants = source.matches("DistributionJob").count();
     assert!(job_variants > 0);
     for unexpected in [
         "DistributionJobNotClaimable",
         "DistributionJobRetryFailed",
         "DistributionJobLeaseExpired",
     ] {
-        assert!(!source.contains(unexpected), "no fifth variant: `{unexpected}`");
+        assert!(
+            !source.contains(unexpected),
+            "no fifth variant: `{unexpected}`"
+        );
     }
 
     // No existing mapping changed.
@@ -769,7 +823,12 @@ fn the_generated_sdl_never_exposes_a_claim_token_or_an_operational_identity() {
     let sdl = create_schema().as_sdl();
 
     let job = sdl_block(&sdl, "type DistributionJob {");
-    for forbidden in ["claimToken", "claimedBy", "deduplicationKey", "activationId"] {
+    for forbidden in [
+        "claimToken",
+        "claimedBy",
+        "deduplicationKey",
+        "activationId",
+    ] {
         assert!(
             !job.contains(forbidden),
             "`DistributionJob` must not expose `{forbidden}`: exposing the claim \
@@ -804,10 +863,25 @@ fn the_generated_sdl_never_exposes_a_claim_token_or_an_operational_identity() {
     ] {
         let body = sdl_block(&sdl, block);
         for forbidden in [
-            "adapter", "Adapter", "endpoint", "Endpoint", "bucket", "Bucket", "host", "Host",
-            "credential", "Credential", "secret", "Secret", "profile", "Profile",
+            "adapter",
+            "Adapter",
+            "endpoint",
+            "Endpoint",
+            "bucket",
+            "Bucket",
+            "host",
+            "Host",
+            "credential",
+            "Credential",
+            "secret",
+            "Secret",
+            "profile",
+            "Profile",
         ] {
-            assert!(!body.contains(forbidden), "{block} must not expose `{forbidden}`");
+            assert!(
+                !body.contains(forbidden),
+                "{block} must not expose `{forbidden}`"
+            );
         }
     }
 }
@@ -860,7 +934,10 @@ fn the_additive_sdl_inventory_is_exactly_section_20_1() {
         "input FailDistributionJobInput {",
         "input CancelDistributionJobInput {",
     ] {
-        assert!(sdl.contains(declaration), "SDL must declare `{declaration}`");
+        assert!(
+            sdl.contains(declaration),
+            "SDL must declare `{declaration}`"
+        );
     }
 
     let mutation = sdl_block(&sdl, "type MutationRoot {");
@@ -870,14 +947,24 @@ fn the_additive_sdl_inventory_is_exactly_section_20_1() {
         "failDistributionJob(",
         "cancelDistributionJob(",
     ] {
-        assert!(mutation.contains(operation), "MutationRoot must expose `{operation}`");
+        assert!(
+            mutation.contains(operation),
+            "MutationRoot must expose `{operation}`"
+        );
     }
 
     // No new top-level query: durable job state is reachable only through the
     // staff report and through the mutations' own payloads.
     let query = sdl_block(&sdl, "type QueryRoot {");
-    for absent in ["distributionJob(", "distributionJobs(", "claimableDistributionJobs("] {
-        assert!(!query.contains(absent), "no top-level job query may be added: `{absent}`");
+    for absent in [
+        "distributionJob(",
+        "distributionJobs(",
+        "claimableDistributionJobs(",
+    ] {
+        assert!(
+            !query.contains(absent),
+            "no top-level job query may be added: `{absent}`"
+        );
     }
 
     // One new field on one existing type, and BE-03's configuration type gains
@@ -1113,8 +1200,11 @@ async fn the_report_statement_count_is_selection_dependent_and_set_based_at_ever
                 "{label} at {page_size}: one filtered, ordered, paginated page query"
             );
             assert_eq!(
-                statements_matching(&captured, "FROM \"publisher_service_configuration_history\"")
-                    .len(),
+                statements_matching(
+                    &captured,
+                    "FROM \"publisher_service_configuration_history\""
+                )
+                .len(),
                 1,
                 "{label} at {page_size}: one latest-change query"
             );
@@ -1258,7 +1348,11 @@ async fn a_repaired_group_with_no_job_stays_no_job_and_implies_no_delivery() {
     drop(connection);
 
     // Repair it through the real coordinator.
-    activate(&pool, publisher.publisher_id, &[DistributionPlatform::Oapen]);
+    activate(
+        &pool,
+        publisher.publisher_id,
+        &[DistributionPlatform::Oapen],
+    );
 
     let context = superuser_context(&pool);
     let response = run(&schema, &context, &job_only_selection(10)).await;
@@ -1282,7 +1376,11 @@ async fn the_report_filters_by_job_status_and_by_job_presence() {
     activate(&pool, pending.publisher_id, &[DistributionPlatform::Zenodo]);
 
     let succeeded = test_db::create_publisher(&pool);
-    activate(&pool, succeeded.publisher_id, &[DistributionPlatform::Zenodo]);
+    activate(
+        &pool,
+        succeeded.publisher_id,
+        &[DistributionPlatform::Zenodo],
+    );
     let succeeded_job = only_job(&pool, succeeded.publisher_id);
     let mut connection = pool.get().expect("connection");
     sql_query(format!(
@@ -1324,7 +1422,12 @@ async fn the_report_filters_by_job_status_and_by_job_presence() {
     assert_eq!(ids(&response), vec![succeeded.publisher_id.to_string()]);
 
     // Several statuses widen: OR within the list.
-    let response = run(&schema, &context, &query("jobStatuses: [PENDING, SUCCEEDED]")).await;
+    let response = run(
+        &schema,
+        &context,
+        &query("jobStatuses: [PENDING, SUCCEEDED]"),
+    )
+    .await;
     assert_eq!(ids(&response).len(), 2);
 
     // Empty means no filter.
@@ -1428,7 +1531,10 @@ async fn a_batch_wide_loader_failure_fails_closed_for_every_key() {
 
     let response = run(&schema, &context, &job_only_selection(10)).await;
     let errors = response["errors"].as_array().expect("errors array");
-    assert!(!errors.is_empty(), "a failed batch must not become successful empty data");
+    assert!(
+        !errors.is_empty(),
+        "a failed batch must not become successful empty data"
+    );
     for error in errors {
         assert!(
             error["path"]
@@ -1519,13 +1625,21 @@ async fn a_job_creating_change_keeps_the_specified_statement_order_and_one_publi
     )
     .await;
     let captured = probe.captured_statements();
-    assert_eq!(data(&response, "replacePublisherServiceConfiguration")["subscriptionPackage"], "SPHINX");
+    assert_eq!(
+        data(&response, "replacePublisherServiceConfiguration")["subscriptionPackage"],
+        "SPHINX"
+    );
 
     let position = |needle: &str| {
         captured
             .iter()
             .position(|sql| sql.contains(needle))
-            .unwrap_or_else(|| panic!("expected a statement containing `{needle}`:\n{}", captured.join("\n")))
+            .unwrap_or_else(|| {
+                panic!(
+                    "expected a statement containing `{needle}`:\n{}",
+                    captured.join("\n")
+                )
+            })
     };
 
     let lock = position("FOR UPDATE");
@@ -1535,8 +1649,14 @@ async fn a_job_creating_change_keeps_the_specified_statement_order_and_one_publi
     let publisher_update = position("UPDATE \"publisher\"");
     let audit = position("INSERT INTO \"publisher_service_configuration_history\"");
 
-    assert!(lock < lifecycle, "the publisher row lock is the first statement");
-    assert!(lifecycle < job_insert, "lifecycle writes precede job writes");
+    assert!(
+        lock < lifecycle,
+        "the publisher row lock is the first statement"
+    );
+    assert!(
+        lifecycle < job_insert,
+        "lifecycle writes precede job writes"
+    );
     assert!(job_insert < target_insert, "the job precedes its targets");
     assert!(
         target_insert < publisher_update,
@@ -1565,7 +1685,11 @@ async fn a_job_creating_change_keeps_the_specified_statement_order_and_one_publi
 async fn a_job_creating_change_writes_one_audit_row_with_the_unwidened_key_set() {
     let (_guard, pool) = test_db::setup_test_db();
     let publisher = test_db::create_publisher(&pool);
-    activate(&pool, publisher.publisher_id, &[DistributionPlatform::Oapen]);
+    activate(
+        &pool,
+        publisher.publisher_id,
+        &[DistributionPlatform::Oapen],
+    );
 
     let mut connection = pool.get().expect("connection");
     #[derive(diesel::QueryableByName)]
@@ -1583,7 +1707,11 @@ async fn a_job_creating_change_writes_one_audit_row_with_the_unwidened_key_set()
     .load::<AuditRow>(&mut connection)
     .expect("audit rows");
 
-    assert_eq!(rows.len(), 1, "exactly one audit row for the whole committed change");
+    assert_eq!(
+        rows.len(),
+        1,
+        "exactly one audit row for the whole committed change"
+    );
     for state in [&rows[0].before_state, &rows[0].after_state] {
         let mut keys: Vec<&String> = state.as_object().expect("object").keys().collect();
         keys.sort();
@@ -1638,13 +1766,19 @@ async fn the_claim_payload_costs_a_constant_number_of_statements_at_every_batch_
             .clone();
         assert_eq!(claimed.len(), batch);
         assert_eq!(
-            claimed[0]["job"]["targets"].as_array().expect("targets").len(),
+            claimed[0]["job"]["targets"]
+                .as_array()
+                .expect("targets")
+                .len(),
             2,
             "the payload really carries its targets, so the count is not low \
              merely because nothing was resolved"
         );
         assert_eq!(
-            claimed[0]["job"]["attempts"].as_array().expect("attempts").len(),
+            claimed[0]["job"]["attempts"]
+                .as_array()
+                .expect("attempts")
+                .len(),
             1
         );
 
@@ -1718,7 +1852,11 @@ async fn a_zero_claim_returns_an_empty_list_and_issues_no_payload_statements() {
 async fn the_worker_claim_path_does_not_use_the_request_local_loaders() {
     let (_guard, pool) = test_db::setup_test_db();
     let publisher = test_db::create_publisher(&pool);
-    activate(&pool, publisher.publisher_id, &[DistributionPlatform::Oapen]);
+    activate(
+        &pool,
+        publisher.publisher_id,
+        &[DistributionPlatform::Oapen],
+    );
 
     let stats = ObservedLoaderStats::default();
     let observed = (
@@ -1743,7 +1881,11 @@ async fn the_worker_claim_path_does_not_use_the_request_local_loaders() {
     );
 
     let (targets, attempts, latest) = observed;
-    assert_eq!(targets.dispatch_count(), 0, "the claim path resolves its own targets");
+    assert_eq!(
+        targets.dispatch_count(),
+        0,
+        "the claim path resolves its own targets"
+    );
     assert_eq!(attempts.dispatch_count(), 0, "and its own attempts");
     assert_eq!(latest.dispatch_count(), 0);
 }
@@ -1827,8 +1969,15 @@ fn no_generic_framework_universal_queue_or_shared_worker_convention_is_introduce
 
     for (name, source) in &sources {
         for forbidden in [
-            "trait Job", "trait Queue", "trait Lease", "trait Worker", "trait ServiceRole",
-            "struct GenericJob", "struct JobQueue", "enum JobKind ", "MetricsJob",
+            "trait Job",
+            "trait Queue",
+            "trait Lease",
+            "trait Worker",
+            "trait ServiceRole",
+            "struct GenericJob",
+            "struct JobQueue",
+            "enum JobKind ",
+            "MetricsJob",
             "SERVICE_ACCOUNT",
         ] {
             assert!(

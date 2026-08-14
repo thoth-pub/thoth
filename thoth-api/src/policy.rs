@@ -136,10 +136,7 @@ impl UserAccess for IntrospectedUser {
         // it is not a publisher the account may act for. Without this a
         // worker-only account would appear to hold publisher organisations in
         // the frontend switcher list, which it must not.
-        let unscoped_keys = [
-            Role::Superuser.as_ref(),
-            Role::DisseminationWorker.as_ref(),
-        ];
+        let unscoped_keys = [Role::Superuser.as_ref(), Role::DisseminationWorker.as_ref()];
         for (role_key, scoped) in project_roles {
             if unscoped_keys.contains(&role_key.as_str()) {
                 continue;

@@ -21,8 +21,8 @@ pub(crate) mod db {
     use crate::db::{init_pool, run_migrations, PgPool};
     use crate::graphql::Context;
     use crate::model::contribution::{Contribution, ContributionType, NewContribution};
-    use crate::model::distribution_job::DistributionJobCreation;
     use crate::model::contributor::{Contributor, NewContributor};
+    use crate::model::distribution_job::DistributionJobCreation;
     use crate::model::imprint::{Imprint, NewImprint};
     use crate::model::institution::{Institution, NewInstitution};
     use crate::model::publication::{NewPublication, Publication, PublicationType};

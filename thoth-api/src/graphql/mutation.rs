@@ -15,6 +15,15 @@ use crate::model::{
     contact::{Contact, ContactPolicy, NewContact, PatchContact},
     contribution::{Contribution, ContributionPolicy, NewContribution, PatchContribution},
     contributor::{Contributor, ContributorPolicy, NewContributor, PatchContributor},
+    distribution_job::{
+        crud::{
+            cancel_distribution_job, claim_distribution_jobs, complete_distribution_job,
+            fail_distribution_job, validate_error_code,
+        },
+        CancelDistributionJobInput, ClaimDistributionJobsInput, ClaimedDistributionJob,
+        CompleteDistributionJobInput, DistributionJobPayload, FailDistributionJobInput,
+        DISTRIBUTION_JOB_CLAIM_DEFAULT_BATCH, DISTRIBUTION_JOB_LEASE_DEFAULT_SECONDS,
+    },
     endorsement::{Endorsement, EndorsementPolicy, NewEndorsement, PatchEndorsement},
     file::{
         CompleteFileUpload, File, FilePolicy, FileUpload, FileUploadResponse,
@@ -30,15 +39,6 @@ use crate::model::{
     price::{NewPrice, PatchPrice, Price, PricePolicy},
     publication::{
         NewPublication, PatchPublication, Publication, PublicationPolicy, PublicationProperties,
-    },
-    distribution_job::{
-        crud::{
-            cancel_distribution_job, claim_distribution_jobs, complete_distribution_job,
-            fail_distribution_job, validate_error_code,
-        },
-        CancelDistributionJobInput, ClaimDistributionJobsInput, ClaimedDistributionJob,
-        CompleteDistributionJobInput, DistributionJobPayload, FailDistributionJobInput,
-        DISTRIBUTION_JOB_CLAIM_DEFAULT_BATCH, DISTRIBUTION_JOB_LEASE_DEFAULT_SECONDS,
     },
     publisher::{NewPublisher, PatchPublisher, Publisher, PublisherPolicy},
     publisher_service_configuration::{
@@ -158,8 +158,7 @@ fn cancel_job(
     data: &CancelDistributionJobInput,
 ) -> ThothResult<DistributionJobPayload> {
     context.require_superuser()?;
-    cancel_distribution_job(&context.db, data.distribution_job_id)
-        .map(DistributionJobPayload::lazy)
+    cancel_distribution_job(&context.db, data.distribution_job_id).map(DistributionJobPayload::lazy)
 }
 
 #[juniper::graphql_object(Context = Context)]

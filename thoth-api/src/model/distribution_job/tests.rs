@@ -24,9 +24,9 @@ use diesel::{
 use diesel_migrations::MigrationHarness;
 
 use super::crud::{
-    attempts_for_jobs, cancel_distribution_job, claim_distribution_jobs,
-    complete_distribution_job, fail_distribution_job, latest_back_catalogue_jobs,
-    sanitize_error_detail, targets_for_jobs, validate_error_code,
+    attempts_for_jobs, cancel_distribution_job, claim_distribution_jobs, complete_distribution_job,
+    fail_distribution_job, latest_back_catalogue_jobs, sanitize_error_detail, targets_for_jobs,
+    validate_error_code,
 };
 use super::*;
 use crate::db::{PgPool, MIGRATIONS};
@@ -80,7 +80,9 @@ fn scalar_count(pool: &PgPool, query: &str) -> i64 {
         .count
 }
 
-fn write_context(job_creation: DistributionJobCreation) -> ServiceConfigurationWriteContext<'static> {
+fn write_context(
+    job_creation: DistributionJobCreation,
+) -> ServiceConfigurationWriteContext<'static> {
     ServiceConfigurationWriteContext {
         source: PublisherServiceConfigurationSource::SuperuserApi,
         actor: ACTOR,
@@ -230,7 +232,10 @@ fn recover_without_reclaim(pool: &PgPool, publisher_id: Uuid) {
     drop(connection);
 
     let claimed = claim_distribution_jobs(pool, WORKER, 10, 900, &[]).expect("recovery");
-    assert!(claimed.is_empty(), "selection must find nothing while suspended");
+    assert!(
+        claimed.is_empty(),
+        "selection must find nothing while suspended"
+    );
 
     let mut connection = pool.get().expect("connection");
     sql_query(format!(
@@ -244,7 +249,11 @@ fn recover_without_reclaim(pool: &PgPool, publisher_id: Uuid) {
 /// A publisher with one activated `ZENODO` job, ready to claim.
 fn publisher_with_pending_job(pool: &PgPool) -> (Uuid, Uuid) {
     let publisher = test_db::create_publisher(pool);
-    activate(pool, publisher.publisher_id, &[DistributionPlatform::Zenodo]);
+    activate(
+        pool,
+        publisher.publisher_id,
+        &[DistributionPlatform::Zenodo],
+    );
     let job = only_job(pool, publisher.publisher_id);
     (publisher.publisher_id, job.distribution_job_id)
 }
@@ -310,15 +319,13 @@ fn every_rust_enum_round_trips_through_the_database() {
 
     let (_guard, pool) = test_db::setup_test_db();
 
-    for (literal, expected) in [(
+    // `distribution_job_kind` carries exactly one value today.
+    assert_db_enum_roundtrip::<DistributionJobKind, sql_types::DistributionJobKind>(
+        &pool,
         "'PUBLISHER_BACK_CATALOGUE'::distribution_job_kind",
         DistributionJobKind::PublisherBackCatalogue,
-    )] {
-        assert_db_enum_roundtrip::<DistributionJobKind, sql_types::DistributionJobKind>(
-            &pool, literal, expected,
-        );
-        assert_graphql_enum_roundtrip(expected);
-    }
+    );
+    assert_graphql_enum_roundtrip(DistributionJobKind::PublisherBackCatalogue);
 
     for (literal, expected) in [
         (
@@ -697,7 +704,11 @@ fn the_attempt_budget_constant_and_the_migration_agree() {
 
 /// Insert a job row directly, bypassing the domain function, so the database's
 /// own refusal is what is being observed.
-fn raw_insert_job(pool: &PgPool, columns: &str, values: &str) -> Result<usize, diesel::result::Error> {
+fn raw_insert_job(
+    pool: &PgPool,
+    columns: &str,
+    values: &str,
+) -> Result<usize, diesel::result::Error> {
     let mut connection = pool.get().expect("connection");
     sql_query(format!(
         "INSERT INTO distribution_job ({columns}) VALUES ({values})"
@@ -726,7 +737,11 @@ fn the_foreign_keys_refuse_orphans_and_cascade_on_publisher_deletion() {
     )
     .is_err());
 
-    activate(&pool, publisher.publisher_id, &[DistributionPlatform::Zenodo]);
+    activate(
+        &pool,
+        publisher.publisher_id,
+        &[DistributionPlatform::Zenodo],
+    );
     let job = only_job(&pool, publisher.publisher_id);
     let claimed = claim_one(&pool);
     assert_eq!(claimed.job.job.distribution_job_id, job.distribution_job_id);
@@ -749,8 +764,20 @@ fn the_foreign_keys_refuse_orphans_and_cascade_on_publisher_deletion() {
     .is_err());
 
     // Deleting the publisher cascades to jobs, targets and attempts.
-    assert_eq!(scalar_count(&pool, "SELECT count(*) AS count FROM distribution_job_target"), 1);
-    assert_eq!(scalar_count(&pool, "SELECT count(*) AS count FROM distribution_job_attempt"), 1);
+    assert_eq!(
+        scalar_count(
+            &pool,
+            "SELECT count(*) AS count FROM distribution_job_target"
+        ),
+        1
+    );
+    assert_eq!(
+        scalar_count(
+            &pool,
+            "SELECT count(*) AS count FROM distribution_job_attempt"
+        ),
+        1
+    );
     publisher.delete(&pool).expect("delete publisher");
     for table in [
         "distribution_job",
@@ -769,7 +796,11 @@ fn the_foreign_keys_refuse_orphans_and_cascade_on_publisher_deletion() {
 fn every_uniqueness_rule_is_refused_by_the_database() {
     let (_guard, pool) = test_db::setup_test_db();
     let publisher = test_db::create_publisher(&pool);
-    activate(&pool, publisher.publisher_id, &[DistributionPlatform::Zenodo]);
+    activate(
+        &pool,
+        publisher.publisher_id,
+        &[DistributionPlatform::Zenodo],
+    );
     let job = only_job(&pool, publisher.publisher_id);
     let claimed = claim_one(&pool);
     let mut connection = pool.get().expect("connection");
@@ -919,7 +950,10 @@ fn every_invalid_job_state_is_refused_by_the_database() {
     assert!(fresh(", last_error_code", ", '9LEADING_DIGIT'").is_err());
     assert!(fresh(
         ", last_error_code",
-        &format!(", '{}'", "A".repeat(DISTRIBUTION_JOB_ERROR_CODE_MAX_CHARS + 1))
+        &format!(
+            ", '{}'",
+            "A".repeat(DISTRIBUTION_JOB_ERROR_CODE_MAX_CHARS + 1)
+        )
     )
     .is_err());
     assert!(fresh(
@@ -1067,7 +1101,11 @@ fn rand_attempt_number() -> i32 {
 fn a_job_with_several_targets_is_readable_in_canonical_order() {
     let (_guard, pool) = test_db::setup_test_db();
     let publisher = test_db::create_publisher(&pool);
-    activate(&pool, publisher.publisher_id, &[DistributionPlatform::Oapen]);
+    activate(
+        &pool,
+        publisher.publisher_id,
+        &[DistributionPlatform::Oapen],
+    );
     let job = only_job(&pool, publisher.publisher_id);
 
     assert_eq!(
@@ -1153,7 +1191,11 @@ fn one_linked_oapen_doab_activation_produces_one_job_and_two_targets() {
 fn a_repeated_observation_of_one_activation_creates_no_second_job() {
     let (_guard, pool) = test_db::setup_test_db();
     let publisher = test_db::create_publisher(&pool);
-    activate(&pool, publisher.publisher_id, &[DistributionPlatform::Oapen]);
+    activate(
+        &pool,
+        publisher.publisher_id,
+        &[DistributionPlatform::Oapen],
+    );
     let first = only_job(&pool, publisher.publisher_id);
 
     // A second replacement naming the same linked group over already-normalized
@@ -1170,7 +1212,11 @@ fn a_repeated_observation_of_one_activation_creates_no_second_job() {
 fn an_independent_activation_creates_its_own_job_with_its_own_single_target() {
     let (_guard, pool) = test_db::setup_test_db();
     let publisher = test_db::create_publisher(&pool);
-    activate(&pool, publisher.publisher_id, &[DistributionPlatform::Zenodo]);
+    activate(
+        &pool,
+        publisher.publisher_id,
+        &[DistributionPlatform::Zenodo],
+    );
 
     let job = only_job(&pool, publisher.publisher_id);
     assert_eq!(
@@ -1212,7 +1258,10 @@ fn activating_a_linked_group_and_an_independent_destination_creates_exactly_two_
     expected.sort();
     assert_eq!(all_targets, expected);
     // Distinct activations therefore distinct keys.
-    let keys: HashSet<&str> = jobs.iter().map(|job| job.deduplication_key.as_str()).collect();
+    let keys: HashSet<&str> = jobs
+        .iter()
+        .map(|job| job.deduplication_key.as_str())
+        .collect();
     assert_eq!(keys.len(), 2);
     assert_no_zero_target_job(&pool);
 }
@@ -1222,7 +1271,10 @@ fn pull_feed_and_manual_activations_create_no_uploader_job() {
     for platforms in [
         vec![DistributionPlatform::OclcKb],
         vec![DistributionPlatform::ExLibrisKb],
-        vec![DistributionPlatform::OclcKb, DistributionPlatform::ExLibrisKb],
+        vec![
+            DistributionPlatform::OclcKb,
+            DistributionPlatform::ExLibrisKb,
+        ],
         vec![DistributionPlatform::ScienceOpen],
     ] {
         let (_guard, pool) = test_db::setup_test_db();
@@ -1234,12 +1286,11 @@ fn pull_feed_and_manual_activations_create_no_uploader_job() {
             "{platforms:?} never creates an uploader job"
         );
         // The activation itself still committed.
-        assert!(!PublisherDistributionPlatform::enabled_assignments(
-            &pool,
-            publisher.publisher_id
-        )
-        .expect("assignments")
-        .is_empty());
+        assert!(
+            !PublisherDistributionPlatform::enabled_assignments(&pool, publisher.publisher_id)
+                .expect("assignments")
+                .is_empty()
+        );
     }
 }
 
@@ -1342,7 +1393,10 @@ fn a_linked_state_repair_creates_no_job_and_infers_no_delivery() {
         );
         if creation == DistributionJobCreation::On {
             outcome.expect("a repair must commit");
-            assert!(token(&pool, publisher_id) > before, "a repair moves the token");
+            assert!(
+                token(&pool, publisher_id) > before,
+                "a repair moves the token"
+            );
         } else {
             // By now the group is already normalized, so this second call is a
             // no-op — which also commits under OFF.
@@ -1491,7 +1545,10 @@ fn two_real_connections_creating_one_activation_produce_exactly_one_job() {
         "exactly one observation created the job"
     );
     assert_eq!(jobs_of(&pool, publisher_id).len(), 1);
-    assert_eq!(targets_of(&pool, jobs_of(&pool, publisher_id)[0].distribution_job_id).len(), 1);
+    assert_eq!(
+        targets_of(&pool, jobs_of(&pool, publisher_id)[0].distribution_job_id).len(),
+        1
+    );
     assert_no_zero_target_job(&pool);
 }
 
@@ -1540,7 +1597,10 @@ fn snapshot(pool: &PgPool, publisher_id: Uuid) -> CommittedSnapshot {
             ),
         ),
         jobs: scalar_count(pool, "SELECT count(*) AS count FROM distribution_job"),
-        targets: scalar_count(pool, "SELECT count(*) AS count FROM distribution_job_target"),
+        targets: scalar_count(
+            pool,
+            "SELECT count(*) AS count FROM distribution_job_target",
+        ),
         work_freshness: catalog_values(
             pool,
             &format!(
@@ -1661,8 +1721,14 @@ fn creation_off_permits_every_non_qualifying_change() {
 
     // PullFeed only.
     let pull = test_db::create_publisher(&pool);
-    replace(&pool, &off, pull.publisher_id, ThothPackage::Sphinx, &[DistributionPlatform::OclcKb])
-        .expect("PullFeed activation commits under OFF");
+    replace(
+        &pool,
+        &off,
+        pull.publisher_id,
+        ThothPackage::Sphinx,
+        &[DistributionPlatform::OclcKb],
+    )
+    .expect("PullFeed activation commits under OFF");
     // Manual only.
     let manual = test_db::create_publisher(&pool);
     replace(
@@ -1675,11 +1741,23 @@ fn creation_off_permits_every_non_qualifying_change() {
     .expect("Manual activation commits under OFF");
     // Package-only.
     let package = test_db::create_publisher(&pool);
-    replace(&pool, &off, package.publisher_id, ThothPackage::Obelisk, &[])
-        .expect("package-only change commits under OFF");
+    replace(
+        &pool,
+        &off,
+        package.publisher_id,
+        ThothPackage::Obelisk,
+        &[],
+    )
+    .expect("package-only change commits under OFF");
     // True no-op.
-    replace(&pool, &off, package.publisher_id, ThothPackage::Obelisk, &[])
-        .expect("no-op commits under OFF");
+    replace(
+        &pool,
+        &off,
+        package.publisher_id,
+        ThothPackage::Obelisk,
+        &[],
+    )
+    .expect("no-op commits under OFF");
     // Disable.
     replace(&pool, &off, pull.publisher_id, ThothPackage::Sphinx, &[])
         .expect("disable commits under OFF");
@@ -1737,15 +1815,24 @@ fn enabling_the_switch_performs_no_retroactive_sweep() {
         .collect();
     drop(connection);
 
-    assert_eq!(scalar_count(&pool, "SELECT count(*) AS count FROM distribution_job"), 0);
+    assert_eq!(
+        scalar_count(&pool, "SELECT count(*) AS count FROM distribution_job"),
+        0
+    );
 
     // Turning the switch on executes no code over existing rows: there is no
     // sweep, backfill, startup scan, reconciliation pass or lazy creation.
     let on = write_context(DistributionJobCreation::On);
     for publisher_id in &publishers {
         // An unrelated no-op replacement still creates nothing.
-        replace(&pool, &on, *publisher_id, ThothPackage::Sphinx, &[DistributionPlatform::Zenodo])
-            .expect("no-op");
+        replace(
+            &pool,
+            &on,
+            *publisher_id,
+            ThothPackage::Sphinx,
+            &[DistributionPlatform::Zenodo],
+        )
+        .expect("no-op");
     }
     assert_eq!(
         scalar_count(&pool, "SELECT count(*) AS count FROM distribution_job"),
@@ -1754,10 +1841,15 @@ fn enabling_the_switch_performs_no_retroactive_sweep() {
     );
 
     // Only a genuinely fresh activation creates one.
-    replace(&pool, &on, publishers[0], ThothPackage::Sphinx, &[])
-        .expect("disable");
-    replace(&pool, &on, publishers[0], ThothPackage::Sphinx, &[DistributionPlatform::Zenodo])
-        .expect("re-enable");
+    replace(&pool, &on, publishers[0], ThothPackage::Sphinx, &[]).expect("disable");
+    replace(
+        &pool,
+        &on,
+        publishers[0],
+        ThothPackage::Sphinx,
+        &[DistributionPlatform::Zenodo],
+    )
+    .expect("re-enable");
     assert_eq!(jobs_of(&pool, publishers[0]).len(), 1);
     assert!(jobs_of(&pool, publishers[1]).is_empty());
     assert!(jobs_of(&pool, publishers[2]).is_empty());
@@ -1789,8 +1881,17 @@ fn a_claim_returns_exactly_the_jobs_it_claimed_at_zero_one_and_many() {
 
     // Zero: no due job at all.
     let none = claim_distribution_jobs(&pool, WORKER, 10, 900, &[]).expect("claim");
-    assert!(none.is_empty(), "zero claims returns zero rows, not an error");
-    assert_eq!(scalar_count(&pool, "SELECT count(*) AS count FROM distribution_job_attempt"), 0);
+    assert!(
+        none.is_empty(),
+        "zero claims returns zero rows, not an error"
+    );
+    assert_eq!(
+        scalar_count(
+            &pool,
+            "SELECT count(*) AS count FROM distribution_job_attempt"
+        ),
+        0
+    );
 
     // One.
     let (_publisher_id, job_id) = publisher_with_pending_job(&pool);
@@ -1822,9 +1923,16 @@ fn a_claim_returns_exactly_the_jobs_it_claimed_at_zero_one_and_many() {
     let claimed = claim_distribution_jobs(&pool, WORKER, 7, 900, &[]).expect("claim");
     assert_eq!(claimed.len(), 7);
     let tokens: HashSet<Uuid> = claimed.iter().map(|claim| claim.claim_token).collect();
-    assert_eq!(tokens.len(), 7, "each claimed job receives its own distinct token");
     assert_eq!(
-        scalar_count(&pool, "SELECT count(*) AS count FROM distribution_job_attempt"),
+        tokens.len(),
+        7,
+        "each claimed job receives its own distinct token"
+    );
+    assert_eq!(
+        scalar_count(
+            &pool,
+            "SELECT count(*) AS count FROM distribution_job_attempt"
+        ),
         7,
         "exactly one attempt row per claimed job"
     );
@@ -1945,7 +2053,13 @@ fn claim_bounds_are_clamped_rather_than_rejected() {
             .expect("claim")
             .is_empty());
     }
-    assert_eq!(scalar_count(&pool, "SELECT count(*) AS count FROM distribution_job_attempt"), 0);
+    assert_eq!(
+        scalar_count(
+            &pool,
+            "SELECT count(*) AS count FROM distribution_job_attempt"
+        ),
+        0
+    );
 
     // Above the maximum clamps to the maximum.
     let claimed = claim_distribution_jobs(&pool, WORKER, 5_000, 900, &[]).expect("claim");
@@ -1965,7 +2079,10 @@ fn claim_bounds_are_clamped_rather_than_rejected() {
             DISTRIBUTION_JOB_LEASE_MIN_SECONDS + 5
         ),
     );
-    assert_eq!(lower_bound, 1, "a too-short lease clamps up to the minimum ({granted})");
+    assert_eq!(
+        lower_bound, 1,
+        "a too-short lease clamps up to the minimum ({granted})"
+    );
 
     test_db::reset_db(&pool).expect("reset the disposable database");
     publisher_with_pending_job(&pool);
@@ -1979,7 +2096,10 @@ fn claim_bounds_are_clamped_rather_than_rejected() {
             DISTRIBUTION_JOB_LEASE_MAX_SECONDS - 5
         ),
     );
-    assert_eq!(upper_bound, 1, "a too-long lease clamps down to the maximum");
+    assert_eq!(
+        upper_bound, 1,
+        "a too-long lease clamps down to the maximum"
+    );
 }
 
 #[test]
@@ -1988,7 +2108,9 @@ fn the_kinds_filter_selects_correctly() {
     publisher_with_pending_job(&pool);
 
     assert_eq!(
-        claim_distribution_jobs(&pool, WORKER, 10, 900, &[]).expect("claim").len(),
+        claim_distribution_jobs(&pool, WORKER, 10, 900, &[])
+            .expect("claim")
+            .len(),
         1,
         "an empty kinds list claims any kind"
     );
@@ -2028,12 +2150,17 @@ fn eligibility_refuses_a_disabled_target_a_different_activation_and_an_exhausted
     .expect("disable directly");
     drop(connection);
     assert!(
-        claim_distribution_jobs(&pool, WORKER, 10, 900, &[]).expect("claim").is_empty(),
+        claim_distribution_jobs(&pool, WORKER, 10, 900, &[])
+            .expect("claim")
+            .is_empty(),
         "a job whose target is no longer enabled is never claimed"
     );
     // It is neither deleted nor mutated: it stays visible for explicit
     // cancellation.
-    assert_eq!(reload(&pool, job.distribution_job_id).status, DistributionJobStatus::Pending);
+    assert_eq!(
+        reload(&pool, job.distribution_job_id).status,
+        DistributionJobStatus::Pending
+    );
 
     // A target enabled again under a *different* activation.
     test_db::reset_db(&pool).expect("reset the disposable database");
@@ -2055,7 +2182,11 @@ fn eligibility_refuses_a_disabled_target_a_different_activation_and_an_exhausted
     .expect("restore the old job to PENDING");
     drop(connection);
     let claimed = claim_distribution_jobs(&pool, WORKER, 10, 900, &[]).expect("claim");
-    assert_eq!(claimed.len(), 1, "only the current activation's job is claimable");
+    assert_eq!(
+        claimed.len(),
+        1,
+        "only the current activation's job is claimable"
+    );
     assert_ne!(
         claimed[0].job.job.distribution_job_id, first.distribution_job_id,
         "an old job must not become claimable alongside its successor: the same \
@@ -2075,10 +2206,15 @@ fn eligibility_refuses_a_disabled_target_a_different_activation_and_an_exhausted
     .expect("write an exhausted PENDING row directly");
     drop(connection);
     assert!(
-        claim_distribution_jobs(&pool, WORKER, 10, 900, &[]).expect("claim").is_empty(),
+        claim_distribution_jobs(&pool, WORKER, 10, 900, &[])
+            .expect("claim")
+            .is_empty(),
         "an exhausted PENDING row is never claimed, whatever produced it"
     );
-    assert_eq!(reload(&pool, job_id).attempt_count, DISTRIBUTION_JOB_MAX_ATTEMPTS);
+    assert_eq!(
+        reload(&pool, job_id).attempt_count,
+        DISTRIBUTION_JOB_MAX_ATTEMPTS
+    );
 }
 
 #[test]
@@ -2100,7 +2236,9 @@ fn every_target_of_a_linked_job_must_qualify_not_merely_one() {
     drop(connection);
 
     assert!(
-        claim_distribution_jobs(&pool, WORKER, 10, 900, &[]).expect("claim").is_empty(),
+        claim_distribution_jobs(&pool, WORKER, 10, 900, &[])
+            .expect("claim")
+            .is_empty(),
         "partial delivery to a subset of a linked group is not a state BE-04 authorizes"
     );
 }
@@ -2136,15 +2274,24 @@ fn a_current_token_completes_the_job_and_clears_the_last_error() {
     assert!(completed.claimed_by.is_none());
     assert!(completed.claimed_at.is_none());
     assert!(completed.lease_expires_at.is_none());
-    assert!(completed.last_error_code.is_none(), "T2 clears last_error_*");
+    assert!(
+        completed.last_error_code.is_none(),
+        "T2 clears last_error_*"
+    );
     assert!(completed.last_error_detail.is_none());
 
     let attempts = attempts_of(&pool, job_id);
     assert_eq!(attempts.len(), 2);
     assert_eq!(attempts[0].attempt_number, 2);
-    assert_eq!(attempts[0].result, Some(DistributionJobAttemptResult::Succeeded));
+    assert_eq!(
+        attempts[0].result,
+        Some(DistributionJobAttemptResult::Succeeded)
+    );
     assert!(attempts[0].error_code.is_none());
-    assert_eq!(attempts[1].result, Some(DistributionJobAttemptResult::Failed));
+    assert_eq!(
+        attempts[1].result,
+        Some(DistributionJobAttemptResult::Failed)
+    );
     assert_eq!(attempts[1].error_code.as_deref(), Some("TRANSPORT_FAILURE"));
 }
 
@@ -2166,7 +2313,11 @@ fn a_retryable_failure_returns_the_job_to_pending_with_the_computed_backoff() {
         )
         .expect("retryable failure");
 
-        assert_eq!(job.status, DistributionJobStatus::Pending, "T3 at attempt {attempt}");
+        assert_eq!(
+            job.status,
+            DistributionJobStatus::Pending,
+            "T3 at attempt {attempt}"
+        );
         assert!(job.completed_at.is_none());
         assert!(job.claim_token.is_none());
         assert_eq!(job.attempt_count, attempt);
@@ -2214,8 +2365,13 @@ fn a_retryable_failure_returns_the_job_to_pending_with_the_computed_backoff() {
     );
     assert!(job.completed_at.is_some());
     assert_eq!(job.attempt_count, DISTRIBUTION_JOB_MAX_ATTEMPTS);
-    assert_eq!(attempts_of(&pool, job_id).len() as i32, DISTRIBUTION_JOB_MAX_ATTEMPTS);
-    assert!(claim_distribution_jobs(&pool, WORKER, 10, 900, &[]).expect("claim").is_empty());
+    assert_eq!(
+        attempts_of(&pool, job_id).len() as i32,
+        DISTRIBUTION_JOB_MAX_ATTEMPTS
+    );
+    assert!(claim_distribution_jobs(&pool, WORKER, 10, 900, &[])
+        .expect("claim")
+        .is_empty());
 }
 
 #[test]
@@ -2239,7 +2395,10 @@ fn a_non_retryable_failure_terminalizes_immediately() {
     assert_eq!(job.attempt_count, 1);
     assert_eq!(job.last_error_code.as_deref(), Some("PERMANENT_REJECTION"));
     let attempts = attempts_of(&pool, job_id);
-    assert_eq!(attempts[0].result, Some(DistributionJobAttemptResult::Failed));
+    assert_eq!(
+        attempts[0].result,
+        Some(DistributionJobAttemptResult::Failed)
+    );
     assert_eq!(
         attempts[0].error_detail.as_deref(),
         Some("destination rejected the deposit as malformed"),
@@ -2269,7 +2428,11 @@ fn lease_expiry_within_budget_recovers_to_pending_without_moving_the_attempt_cou
         recover_without_reclaim(&pool, publisher_id);
 
         let job = reload(&pool, job_id);
-        assert_eq!(job.status, DistributionJobStatus::Pending, "T5a at attempt {attempt_to_reach}");
+        assert_eq!(
+            job.status,
+            DistributionJobStatus::Pending,
+            "T5a at attempt {attempt_to_reach}"
+        );
         assert_eq!(
             job.attempt_count, attempt_to_reach,
             "T5a neither decrements nor increments the attempt count"
@@ -2291,7 +2454,10 @@ fn lease_expiry_within_budget_recovers_to_pending_without_moving_the_attempt_cou
             "the expired attempt is closed ABANDONED"
         );
         assert!(abandoned.finished_at.is_some());
-        assert!(abandoned.error_code.is_none(), "abandonment reports no worker error");
+        assert!(
+            abandoned.error_code.is_none(),
+            "abandonment reports no worker error"
+        );
 
         // And it is immediately available again: no backoff is applied to work
         // that was orphaned rather than reported failed.
@@ -2318,7 +2484,10 @@ fn lease_expiry_at_the_budget_terminalizes_and_is_never_claimable_again() {
     expire_lease(&pool, job_id);
 
     let claimed = claim_distribution_jobs(&pool, WORKER, 10, 900, &[]).expect("claim");
-    assert!(claimed.is_empty(), "T5b terminalizes rather than returning the job to PENDING");
+    assert!(
+        claimed.is_empty(),
+        "T5b terminalizes rather than returning the job to PENDING"
+    );
 
     let job = reload(&pool, job_id);
     assert_eq!(job.status, DistributionJobStatus::Failed);
@@ -2326,15 +2495,23 @@ fn lease_expiry_at_the_budget_terminalizes_and_is_never_claimable_again() {
     assert!(job.claim_token.is_none());
     assert!(job.claimed_by.is_none());
     assert!(job.lease_expires_at.is_none());
-    assert_eq!(job.attempt_count, DISTRIBUTION_JOB_MAX_ATTEMPTS, "the count is unchanged");
+    assert_eq!(
+        job.attempt_count, DISTRIBUTION_JOB_MAX_ATTEMPTS,
+        "the count is unchanged"
+    );
 
     let attempts = attempts_of(&pool, job_id);
-    assert_eq!(attempts[0].result, Some(DistributionJobAttemptResult::Abandoned));
+    assert_eq!(
+        attempts[0].result,
+        Some(DistributionJobAttemptResult::Abandoned)
+    );
     assert!(attempts.iter().all(|attempt| attempt.finished_at.is_some()));
 
     // Never PENDING, never claimable, on any later call.
     for _ in 0..3 {
-        assert!(claim_distribution_jobs(&pool, WORKER, 10, 900, &[]).expect("claim").is_empty());
+        assert!(claim_distribution_jobs(&pool, WORKER, 10, 900, &[])
+            .expect("claim")
+            .is_empty());
         assert_eq!(reload(&pool, job_id).status, DistributionJobStatus::Failed);
     }
 }
@@ -2380,7 +2557,10 @@ fn no_sixth_attempt_exists_on_any_path_including_mixed_failure_and_expiry() {
         assert!(after.is_empty(), "T5b never returns the job to PENDING");
 
         let job = reload(&pool, job_id);
-        assert_eq!(job.attempt_count, DISTRIBUTION_JOB_MAX_ATTEMPTS, "pattern {pattern:?}");
+        assert_eq!(
+            job.attempt_count, DISTRIBUTION_JOB_MAX_ATTEMPTS,
+            "pattern {pattern:?}"
+        );
         assert_eq!(job.status, DistributionJobStatus::Failed);
 
         let max_attempt = scalar_count(
@@ -2448,7 +2628,10 @@ fn two_workers_racing_recovery_preserve_exactly_one_transition() {
             .count(),
         1
     );
-    let numbers: HashSet<i32> = attempts.iter().map(|attempt| attempt.attempt_number).collect();
+    let numbers: HashSet<i32> = attempts
+        .iter()
+        .map(|attempt| attempt.attempt_number)
+        .collect();
     assert_eq!(numbers.len(), attempts.len(), "attempt ordinals are unique");
 }
 
@@ -2662,13 +2845,22 @@ fn last_error_holds_the_most_recent_worker_reported_failure_and_nothing_else() {
     claim_distribution_jobs(&pool, WORKER, 10, 900, &[]).expect("recovery + claim");
     let job = reload(&pool, job_id);
     assert_eq!(job.last_error_code.as_deref(), Some("TRANSPORT_FAILURE"));
-    assert_eq!(job.last_error_detail.as_deref(), Some("earlier reported failure"));
+    assert_eq!(
+        job.last_error_detail.as_deref(),
+        Some("earlier reported failure")
+    );
     let abandoned = attempts_of(&pool, job_id)
         .into_iter()
         .find(|attempt| attempt.attempt_number == 2)
         .expect("attempt 2");
-    assert_eq!(abandoned.result, Some(DistributionJobAttemptResult::Abandoned));
-    assert!(abandoned.error_code.is_none(), "an abandoned attempt has no error of its own");
+    assert_eq!(
+        abandoned.result,
+        Some(DistributionJobAttemptResult::Abandoned)
+    );
+    assert!(
+        abandoned.error_code.is_none(),
+        "an abandoned attempt has no error of its own"
+    );
 
     // 2. T5a with no previous reported failure: still null.
     test_db::reset_db(&pool).expect("reset the disposable database");
@@ -2757,19 +2949,37 @@ fn cancellation_from_every_state_of_the_section_14_2_table() {
         cancelled.cancellation_reason,
         Some(DistributionJobCancellationReason::Administrative)
     );
-    assert!(attempts_of(&pool, job_id).is_empty(), "no open attempt existed to close");
-    assert_eq!(targets_of(&pool, job_id).len(), 1, "target rows are immutable");
+    assert!(
+        attempts_of(&pool, job_id).is_empty(),
+        "no open attempt existed to close"
+    );
+    assert_eq!(
+        targets_of(&pool, job_id).len(),
+        1,
+        "target rows are immutable"
+    );
 
     // PENDING after a retry (T6): earlier closed attempts are untouched.
     test_db::reset_db(&pool).expect("reset the disposable database");
     let (_p, job_id) = publisher_with_pending_job(&pool);
     let claim = claim_one(&pool);
-    fail_distribution_job(&pool, job_id, claim.claim_token, "TRANSIENT", Some("earlier"), true)
-        .expect("retryable failure");
+    fail_distribution_job(
+        &pool,
+        job_id,
+        claim.claim_token,
+        "TRANSIENT",
+        Some("earlier"),
+        true,
+    )
+    .expect("retryable failure");
     let before = attempts_of(&pool, job_id);
     let cancelled = cancel_distribution_job(&pool, job_id).expect("cancel after a retry");
     assert_eq!(cancelled.status, DistributionJobStatus::Cancelled);
-    assert_eq!(before, attempts_of(&pool, job_id), "earlier attempts untouched");
+    assert_eq!(
+        before,
+        attempts_of(&pool, job_id),
+        "earlier attempts untouched"
+    );
     assert_eq!(
         cancelled.last_error_code.as_deref(),
         Some("TRANSIENT"),
@@ -2783,10 +2993,16 @@ fn cancellation_from_every_state_of_the_section_14_2_table() {
     let claim = claim_one(&pool);
     let cancelled = cancel_distribution_job(&pool, job_id).expect("cancel a running job");
     assert_eq!(cancelled.status, DistributionJobStatus::Cancelled);
-    assert!(cancelled.claim_token.is_none(), "the holder's token is invalidated");
+    assert!(
+        cancelled.claim_token.is_none(),
+        "the holder's token is invalidated"
+    );
     assert!(cancelled.claimed_by.is_none());
     assert!(cancelled.lease_expires_at.is_none());
-    assert!(cancelled.last_error_code.is_none(), "a job that never failed keeps nulls");
+    assert!(
+        cancelled.last_error_code.is_none(),
+        "a job that never failed keeps nulls"
+    );
     let attempts = attempts_of(&pool, job_id);
     assert_eq!(attempts.len(), 1);
     assert_eq!(
@@ -2865,7 +3081,9 @@ fn a_cancelled_job_cannot_be_reopened_retried_or_re_claimed_and_loses_no_history
 
     make_due(&pool, job_id);
     assert!(
-        claim_distribution_jobs(&pool, WORKER, 10, 900, &[]).expect("claim").is_empty(),
+        claim_distribution_jobs(&pool, WORKER, 10, 900, &[])
+            .expect("claim")
+            .is_empty(),
         "a cancelled job is never claimed again"
     );
     assert!(matches!(
@@ -2873,7 +3091,11 @@ fn a_cancelled_job_cannot_be_reopened_retried_or_re_claimed_and_loses_no_history
         Err(ThothError::DistributionJobAlreadyTerminal(_))
     ));
 
-    assert_eq!(attempts_of(&pool, job_id).len(), 2, "attempt history survives");
+    assert_eq!(
+        attempts_of(&pool, job_id).len(),
+        2,
+        "attempt history survives"
+    );
     assert_eq!(targets_of(&pool, job_id).len(), 1, "target rows survive");
     assert_eq!(
         scalar_count(&pool, "SELECT count(*) AS count FROM distribution_job"),
@@ -2900,7 +3122,9 @@ fn disabling_an_assignment_cancels_its_pending_jobs_and_leaves_others_alone() {
     assert_eq!(jobs.len(), 2);
     let linked = jobs
         .iter()
-        .find(|job| targets_of(&pool, job.distribution_job_id).contains(&DistributionPlatform::Oapen))
+        .find(|job| {
+            targets_of(&pool, job.distribution_job_id).contains(&DistributionPlatform::Oapen)
+        })
         .expect("the linked job")
         .clone();
     let independent = jobs
@@ -2921,7 +3145,10 @@ fn disabling_an_assignment_cancels_its_pending_jobs_and_leaves_others_alone() {
         "ASSIGNMENT_DISABLED distinguishes this from an operator's decision"
     );
     assert!(linked_after.completed_at.is_some());
-    assert!(linked_after.last_error_code.is_none(), "T8 leaves last_error_* alone");
+    assert!(
+        linked_after.last_error_code.is_none(),
+        "T8 leaves last_error_* alone"
+    );
 
     assert_eq!(
         reload(&pool, independent.distribution_job_id).status,
@@ -2963,7 +3190,9 @@ fn disabling_an_assignment_leaves_a_running_job_alone_but_unclaimable_after_expi
     // Back in PENDING, eligibility makes it unclaimable — it waits visibly for
     // an operator rather than silently resuming.
     make_due(&pool, job_id);
-    assert!(claim_distribution_jobs(&pool, WORKER, 10, 900, &[]).expect("claim").is_empty());
+    assert!(claim_distribution_jobs(&pool, WORKER, 10, 900, &[])
+        .expect("claim")
+        .is_empty());
     assert_eq!(reload(&pool, job_id).status, DistributionJobStatus::Pending);
 
     // And a superuser can still cancel it explicitly.
@@ -3056,7 +3285,10 @@ fn error_codes_are_validated_rather_than_truncated() {
         "PERMANENT_REJECTION_2",
         &"A".repeat(DISTRIBUTION_JOB_ERROR_CODE_MAX_CHARS),
     ] {
-        assert!(validate_error_code(valid).is_ok(), "`{valid}` must be accepted");
+        assert!(
+            validate_error_code(valid).is_ok(),
+            "`{valid}` must be accepted"
+        );
     }
     for invalid in [
         "",
@@ -3089,7 +3321,10 @@ fn a_rejected_error_code_changes_no_state_and_leaves_the_claim_token_valid() {
     let before = reload(&pool, job_id);
     let before_attempts = attempts_of(&pool, job_id);
 
-    for invalid in ["not a code", &"A".repeat(DISTRIBUTION_JOB_ERROR_CODE_MAX_CHARS + 1)] {
+    for invalid in [
+        "not a code",
+        &"A".repeat(DISTRIBUTION_JOB_ERROR_CODE_MAX_CHARS + 1),
+    ] {
         let outcome = fail_distribution_job(
             &pool,
             job_id,
@@ -3113,8 +3348,15 @@ fn a_rejected_error_code_changes_no_state_and_leaves_the_claim_token_valid() {
         assert!(!message.contains("A-Z"));
 
         assert_eq!(before, reload(&pool, job_id), "no job state changed");
-        assert_eq!(before_attempts, attempts_of(&pool, job_id), "no attempt state changed");
-        assert!(attempts_of(&pool, job_id)[0].finished_at.is_none(), "the attempt stays open");
+        assert_eq!(
+            before_attempts,
+            attempts_of(&pool, job_id),
+            "no attempt state changed"
+        );
+        assert!(
+            attempts_of(&pool, job_id)[0].finished_at.is_none(),
+            "the attempt stays open"
+        );
     }
 
     // The claim token is still valid: a conforming resubmission succeeds under
@@ -3137,7 +3379,10 @@ fn a_worker_reported_detail_is_sanitized_before_storage() {
     let (_p, job_id) = publisher_with_pending_job(&pool);
     let claim = claim_one(&pool);
 
-    let raw = format!("  \u{0}SFTP handshake rejected\u{7}\n{}  ", "é".repeat(4_000));
+    let raw = format!(
+        "  \u{0}SFTP handshake rejected\u{7}\n{}  ",
+        "é".repeat(4_000)
+    );
     let job = fail_distribution_job(
         &pool,
         job_id,
@@ -3149,7 +3394,10 @@ fn a_worker_reported_detail_is_sanitized_before_storage() {
     .expect("failure");
 
     let stored = job.last_error_detail.expect("detail");
-    assert_eq!(stored.chars().count(), DISTRIBUTION_JOB_ERROR_DETAIL_MAX_CHARS);
+    assert_eq!(
+        stored.chars().count(),
+        DISTRIBUTION_JOB_ERROR_DETAIL_MAX_CHARS
+    );
     assert!(!stored.contains('\u{0}'));
     assert!(stored.starts_with("SFTP handshake rejected\n"));
     // The database check still holds for the stored value.
@@ -3476,7 +3724,10 @@ fn the_migration_changes_no_existing_row_and_rewrites_no_existing_table() {
         "BE-04 migration forward duration on a representative populated \
          disposable database: {elapsed:?} (disposable-environment measurement only)"
     );
-    assert!(elapsed < Duration::from_secs(60), "observed duration {elapsed:?}");
+    assert!(
+        elapsed < Duration::from_secs(60),
+        "observed duration {elapsed:?}"
+    );
 }
 
 #[test]
@@ -3485,7 +3736,9 @@ fn the_migration_takes_share_row_exclusive_locks_on_publisher_and_work() {
 
     let db = TempMigrationDb::new();
     let mut setup = db.conn();
-    setup.run_pending_migrations(MIGRATIONS).expect("migrations");
+    setup
+        .run_pending_migrations(MIGRATIONS)
+        .expect("migrations");
     let pool = db.pool();
     seed_representative_state(&pool);
     revert_through_be04(&mut setup);
@@ -3534,12 +3787,16 @@ fn the_migration_takes_share_row_exclusive_locks_on_publisher_and_work() {
 
     println!("BE-04 migration observed pg_locks on referenced tables: {observed:?}");
     assert!(
-        observed.iter().any(|entry| entry == "publisher ShareRowExclusiveLock"),
+        observed
+            .iter()
+            .any(|entry| entry == "publisher ShareRowExclusiveLock"),
         "establishing distribution_job_publisher_id_fkey must be observed taking \
          SHARE ROW EXCLUSIVE on public.publisher. Observed: {observed:?}"
     );
     assert!(
-        observed.iter().any(|entry| entry == "work ShareRowExclusiveLock"),
+        observed
+            .iter()
+            .any(|entry| entry == "work ShareRowExclusiveLock"),
         "establishing distribution_job_work_id_fkey must be observed taking \
          SHARE ROW EXCLUSIVE on public.work. Observed: {observed:?}"
     );
@@ -3564,7 +3821,9 @@ fn the_migration_waits_behind_a_conflicting_writer_and_fails_cleanly_under_a_loc
 
     let db = TempMigrationDb::new();
     let mut setup = db.conn();
-    setup.run_pending_migrations(MIGRATIONS).expect("migrations");
+    setup
+        .run_pending_migrations(MIGRATIONS)
+        .expect("migrations");
     let pool = db.pool();
     seed_representative_state(&pool);
     revert_through_be04(&mut setup);
@@ -3609,7 +3868,10 @@ fn the_migration_waits_behind_a_conflicting_writer_and_fails_cleanly_under_a_loc
         "BE-04 migration under contention with lock_timeout = 750ms: waited {waited:?} \
          then failed cleanly (disposable-environment measurement only)"
     );
-    assert!(waited >= Duration::from_millis(500), "it genuinely waited: {waited:?}");
+    assert!(
+        waited >= Duration::from_millis(500),
+        "it genuinely waited: {waited:?}"
+    );
 
     // With no timeout it waits, and completes once the writer commits.
     let url = db.url();
@@ -3623,7 +3885,9 @@ fn the_migration_waits_behind_a_conflicting_writer_and_fails_cleanly_under_a_loc
     });
     // It must still be waiting while the writer holds its lock.
     assert!(
-        migrated_rx.recv_timeout(Duration::from_millis(750)).is_err(),
+        migrated_rx
+            .recv_timeout(Duration::from_millis(750))
+            .is_err(),
         "the migration must wait for a conflicting writer rather than skipping it"
     );
     release_tx.send(()).expect("release the writer");
@@ -3648,21 +3912,51 @@ fn the_migration_waits_behind_a_conflicting_writer_and_fails_cleanly_under_a_loc
 fn the_down_migration_is_exercised_on_a_populated_database() {
     let db = TempMigrationDb::new();
     let mut connection = db.conn();
-    connection.run_pending_migrations(MIGRATIONS).expect("migrations");
+    connection
+        .run_pending_migrations(MIGRATIONS)
+        .expect("migrations");
     let pool = db.pool();
     seed_representative_state(&pool);
 
     // Populate the job relations themselves, so the down migration is exercised
     // against real job, target and attempt rows rather than empty tables.
     let publisher = test_db::create_publisher(&pool);
-    activate(&pool, publisher.publisher_id, &[DistributionPlatform::Oapen]);
+    activate(
+        &pool,
+        publisher.publisher_id,
+        &[DistributionPlatform::Oapen],
+    );
     let job_id = only_job(&pool, publisher.publisher_id).distribution_job_id;
-    let claim = claim_distribution_jobs(&pool, WORKER, 1, 900, &[]).expect("claim").remove(0);
-    fail_distribution_job(&pool, job_id, claim.claim_token, "TRANSIENT", Some("detail"), true)
-        .expect("failure");
-    assert_eq!(scalar_count(&pool, "SELECT count(*) AS count FROM distribution_job"), 1);
-    assert_eq!(scalar_count(&pool, "SELECT count(*) AS count FROM distribution_job_target"), 2);
-    assert_eq!(scalar_count(&pool, "SELECT count(*) AS count FROM distribution_job_attempt"), 1);
+    let claim = claim_distribution_jobs(&pool, WORKER, 1, 900, &[])
+        .expect("claim")
+        .remove(0);
+    fail_distribution_job(
+        &pool,
+        job_id,
+        claim.claim_token,
+        "TRANSIENT",
+        Some("detail"),
+        true,
+    )
+    .expect("failure");
+    assert_eq!(
+        scalar_count(&pool, "SELECT count(*) AS count FROM distribution_job"),
+        1
+    );
+    assert_eq!(
+        scalar_count(
+            &pool,
+            "SELECT count(*) AS count FROM distribution_job_target"
+        ),
+        2
+    );
+    assert_eq!(
+        scalar_count(
+            &pool,
+            "SELECT count(*) AS count FROM distribution_job_attempt"
+        ),
+        1
+    );
 
     let assignments_before = catalog_values(
         &pool,
@@ -3752,7 +4046,10 @@ fn distribution_job_creation_parses_exactly_off_and_on() {
     }
     for value in [DistributionJobCreation::Off, DistributionJobCreation::On] {
         assert_eq!(
-            value.to_string().parse::<DistributionJobCreation>().unwrap(),
+            value
+                .to_string()
+                .parse::<DistributionJobCreation>()
+                .unwrap(),
             value
         );
     }

@@ -330,9 +330,9 @@ pub(crate) fn claim_distribution_jobs(
                 let claim_token = row.job.claim_token.ok_or(ThothError::InternalError(
                     "claimed distribution job has no claim token".to_string(),
                 ))?;
-                let lease_expires_at = row.job.lease_expires_at.ok_or(ThothError::InternalError(
-                    "claimed distribution job has no lease".to_string(),
-                ))?;
+                let lease_expires_at = row.job.lease_expires_at.ok_or(
+                    ThothError::InternalError("claimed distribution job has no lease".to_string()),
+                )?;
                 let job_id = row.job.distribution_job_id;
                 Ok(ClaimedDistributionJob {
                     job: DistributionJobPayload::preloaded(
@@ -444,7 +444,10 @@ pub(crate) fn complete_distribution_job(
             .optional()?;
 
         let Some(job) = updated else {
-            return Err(classify_worker_write_failure(connection, distribution_job_id));
+            return Err(classify_worker_write_failure(
+                connection,
+                distribution_job_id,
+            ));
         };
 
         close_open_attempt(connection, claim_token, "SUCCEEDED", None, None)?;
@@ -525,16 +528,13 @@ pub(crate) fn fail_distribution_job(
             .optional()?;
 
         let Some(job) = updated else {
-            return Err(classify_worker_write_failure(connection, distribution_job_id));
+            return Err(classify_worker_write_failure(
+                connection,
+                distribution_job_id,
+            ));
         };
 
-        close_open_attempt(
-            connection,
-            claim_token,
-            "FAILED",
-            Some(error_code),
-            detail,
-        )?;
+        close_open_attempt(connection, claim_token, "FAILED", Some(error_code), detail)?;
         Ok(job)
     })
 }
@@ -694,9 +694,7 @@ pub(crate) fn validate_error_code(error_code: &str) -> ThothResult<()> {
 pub(crate) fn sanitize_error_detail(error_detail: &str) -> Option<String> {
     let stripped: String = error_detail
         .chars()
-        .filter(|character| {
-            !character.is_control() || *character == '\n' || *character == '\t'
-        })
+        .filter(|character| !character.is_control() || *character == '\n' || *character == '\t')
         .collect();
     let trimmed = stripped.trim();
     let truncated: String = trimmed
@@ -799,4 +797,3 @@ where
 fn current_timestamp() -> diesel::expression::SqlLiteral<diesel::sql_types::Timestamptz> {
     diesel::dsl::sql::<diesel::sql_types::Timestamptz>("CURRENT_TIMESTAMP")
 }
-

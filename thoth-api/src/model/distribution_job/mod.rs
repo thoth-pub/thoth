@@ -346,7 +346,10 @@ impl DistributionJob {
     /// `distribution_job_deduplication_key_formula_check` proves the stored
     /// value equals it, so a code defect that computed the wrong key fails the
     /// insert rather than silently creating a second job.
-    pub(crate) fn back_catalogue_deduplication_key(publisher_id: Uuid, activation_id: Uuid) -> String {
+    pub(crate) fn back_catalogue_deduplication_key(
+        publisher_id: Uuid,
+        activation_id: Uuid,
+    ) -> String {
         let kind = DistributionJobKind::PublisherBackCatalogue;
         format!("{kind}:{publisher_id}:{activation_id}")
     }

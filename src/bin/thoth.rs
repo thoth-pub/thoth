@@ -66,7 +66,25 @@ mod test_env_lock {
     /// test's temporary invalid value for any environment-bound argument would
     /// otherwise make this parse fail on an argument it never mentioned.
     pub(super) fn hold() -> MutexGuard<'static, ()> {
-        ENV_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        let guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        initialise_command_tree();
+        guard
+    }
+
+    /// Force the shared `lazy_static` command tree to build while the
+    /// environment is still ambient.
+    ///
+    /// `clap`'s `Arg::env` captures a variable's value when the `Arg` is
+    /// **constructed**, and `THOTH` is constructed once per process. A command
+    /// tree first built while some test held a deliberately invalid value would
+    /// keep that value for the life of the process, and every later parse would
+    /// then fail on an argument it never mentioned. Building it here, under the
+    /// lock and before any test mutates the environment, removes the ordering
+    /// dependency entirely.
+    pub(super) fn initialise_command_tree() {
+        let _ = super::THOTH.get_name();
     }
 }
 
@@ -105,7 +123,7 @@ mod mutation_guard_mode_on_init {
     use std::cell::{Cell, RefCell};
     use std::env::{remove_var, set_var, var_os};
     use std::ffi::OsString;
-    use std::sync::{Mutex, MutexGuard};
+    use std::sync::MutexGuard;
     use thoth::api::graphql::MutationGuardMode;
 
     const MODE_ENV: &str = "THOTH_GRAPHQL_MUTATION_GUARD_MODE";
@@ -125,6 +143,7 @@ mod mutation_guard_mode_on_init {
     impl ModeEnv {
         fn set(value: Option<&str>) -> Self {
             let lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            super::test_env_lock::initialise_command_tree();
             let previous = var_os(MODE_ENV);
             match value {
                 Some(value) => set_var(MODE_ENV, value),
@@ -461,7 +480,7 @@ mod distribution_job_creation_control {
     use clap::{ArgMatches, Command};
     use std::env::{remove_var, set_var, var_os};
     use std::ffi::OsString;
-    use std::sync::{Mutex, MutexGuard};
+    use std::sync::MutexGuard;
     use thoth::api::model::distribution_job::DistributionJobCreation;
 
     const CREATION_ENV: &str = "THOTH_DISTRIBUTION_JOB_CREATION";
@@ -478,6 +497,7 @@ mod distribution_job_creation_control {
     impl CreationEnv {
         fn set(value: Option<&str>) -> Self {
             let lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            super::test_env_lock::initialise_command_tree();
             let previous = var_os(CREATION_ENV);
             match value {
                 Some(value) => set_var(CREATION_ENV, value),
@@ -512,10 +532,8 @@ mod distribution_job_creation_control {
     }
 
     fn creation_on_init(extra: &[&str]) -> DistributionJobCreation {
-        commands::start::distribution_job_creation(
-            &parse_init(extra).expect("`init` should parse"),
-        )
-        .expect("setting should resolve")
+        commands::start::distribution_job_creation(&parse_init(extra).expect("`init` should parse"))
+            .expect("setting should resolve")
     }
 
     // --- surface 2: the real `start graphql-api` command --------------------

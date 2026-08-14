@@ -1723,7 +1723,9 @@ impl ClaimedDistributionJob {
         &self.job
     }
 
-    #[graphql(description = "Present this token to complete or fail the job. It is returned only here")]
+    #[graphql(
+        description = "Present this token to complete or fail the job. It is returned only here"
+    )]
     pub fn claim_token(&self) -> Uuid {
         self.claim_token
     }

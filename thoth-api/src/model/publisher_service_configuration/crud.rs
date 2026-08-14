@@ -391,6 +391,7 @@ impl PublisherServiceConfiguration {
     /// per publisher in that page — and no per-publisher loop. The protected
     /// `enabledDistributionPlatforms` field resolves separately through `BE-02`'s
     /// existing request-local assignment DataLoader.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn all_summaries(
         db: &PgPool,
         limit: i32,
@@ -535,10 +536,10 @@ impl PublisherServiceConfiguration {
             job_statuses,
             without_back_catalogue_job,
         )
-            .count()
-            .get_result::<i64>(&mut connection)
-            .map(|total| total.to_string().parse::<i32>().unwrap())
-            .map_err(Into::into)
+        .count()
+        .get_result::<i64>(&mut connection)
+        .map(|total| total.to_string().parse::<i32>().unwrap())
+        .map_err(Into::into)
     }
 }
 

@@ -1289,16 +1289,41 @@ fn the_protected_assignment_resolver_is_loader_first_and_uses_try_load_only() {
 #[test]
 fn no_second_assignment_loader_was_introduced() {
     let source = include_str!("dataloader.rs");
+    // The batcher inventory is named rather than counted, so an authorized
+    // addition is visible as an addition and an unauthorized one still fails.
+    // `BE-04` adds exactly three, each with a different key, value and
+    // statement; `BE-03` still adds none.
+    for batcher in [
+        "pub(crate) struct PublisherDistributionPlatformBatcher",
+        "pub(crate) struct LatestBackCatalogueJobBatcher",
+        "pub(crate) struct DistributionJobTargetBatcher",
+        "pub(crate) struct DistributionJobAttemptBatcher",
+    ] {
+        assert_eq!(
+            source.matches(batcher).count(),
+            1,
+            "`{batcher}` exists once"
+        );
+    }
+    let declared: Vec<&str> = source
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with("pub(crate) struct ") && line.ends_with("Batcher {"))
+        .collect();
     assert_eq!(
-        source.matches("pub(crate) struct").count()
-            - source.matches("pub(crate) struct SharedBatchError").count()
-            - source.matches("pub(crate) struct LoaderConfig").count()
-            - source.matches("pub(crate) struct RequestLoaders").count(),
-        1,
-        "exactly one batcher struct exists"
+        declared.len(),
+        4,
+        "exactly four batcher structs exist, and no fifth was introduced: {declared:?}"
     );
+    let bundle = source
+        .split_once("pub(crate) struct RequestLoaders {")
+        .expect("the request bundle")
+        .1
+        .split_once("\n}\n")
+        .expect("bundle body")
+        .0;
     assert_eq!(
-        source
+        bundle
             .matches("pub(crate) publisher_distribution_platforms:")
             .count(),
         1,

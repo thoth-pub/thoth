@@ -17,6 +17,7 @@ use crate::model::{
     contact::{Contact, ContactOrderBy, ContactType},
     contribution::{Contribution, ContributionType},
     contributor::{Contributor, ContributorOrderBy},
+    distribution_job::DistributionJobStatus,
     endorsement::{Endorsement, EndorsementOrderBy},
     file::File,
     funding::Funding,
@@ -29,7 +30,6 @@ use crate::model::{
     price::{CurrencyCode, Price},
     publication::{Publication, PublicationOrderBy, PublicationType},
     publisher::{Publisher, PublisherOrderBy, ThothPackage},
-    distribution_job::DistributionJobStatus,
     publisher_distribution_platform::{DistributionPlatform, DistributionPlatformOption},
     publisher_service_configuration::{
         PublisherServiceConfiguration, PublisherServiceConfigurationSummary,
@@ -672,6 +672,11 @@ impl QueryRoot {
     #[graphql(
         description = "Query the protected desired service configuration of every publisher, with the metadata of its latest recorded change. Superuser only"
     )]
+    // The report's filter set is fixed by the specification: publishers,
+    // packages, enabled platforms, job statuses, job presence, plus pagination
+    // and ordering. Each is an independent, named GraphQL argument, so
+    // collapsing them into a struct would change the public contract.
+    #[allow(clippy::too_many_arguments)]
     fn publisher_service_configurations(
         context: &Context,
         #[graphql(

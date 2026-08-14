@@ -25,7 +25,9 @@ use crate::db::PgPool;
 use crate::model::distribution_job::crud::{
     attempts_for_jobs, latest_back_catalogue_jobs, targets_for_jobs,
 };
-use crate::model::distribution_job::{DistributionJob, DistributionJobAttempt, DistributionJobTarget};
+use crate::model::distribution_job::{
+    DistributionJob, DistributionJobAttempt, DistributionJobTarget,
+};
 use crate::model::publisher_distribution_platform::crud::enabled_assignment_rows;
 use crate::model::publisher_distribution_platform::PublisherDistributionPlatformAssignment;
 
@@ -131,10 +133,7 @@ impl RequestLoaders {
     /// it must show not only how many statements ran, but which loaders
     /// dispatched and in how many chunks.
     #[cfg(all(test, feature = "backend"))]
-    pub(crate) fn for_request_observed_all(
-        pool: Arc<PgPool>,
-        stats: ObservedLoaderStats,
-    ) -> Self {
+    pub(crate) fn for_request_observed_all(pool: Arc<PgPool>, stats: ObservedLoaderStats) -> Self {
         Self::build(pool, Some(stats))
     }
 
@@ -327,8 +326,7 @@ impl BatchFn<Uuid, LatestBackCatalogueJobValue> for LatestBackCatalogueJobBatche
 }
 
 /// The loaded value of one `DistributionJob.targets` key.
-pub(crate) type DistributionJobTargetValue =
-    Result<Vec<DistributionJobTarget>, SharedBatchError>;
+pub(crate) type DistributionJobTargetValue = Result<Vec<DistributionJobTarget>, SharedBatchError>;
 
 pub(crate) type DistributionJobTargetLoader =
     Loader<Uuid, DistributionJobTargetValue, DistributionJobTargetBatcher>;
@@ -378,8 +376,7 @@ impl BatchFn<Uuid, DistributionJobTargetValue> for DistributionJobTargetBatcher 
 }
 
 /// The loaded value of one `DistributionJob.attempts` key.
-pub(crate) type DistributionJobAttemptValue =
-    Result<Vec<DistributionJobAttempt>, SharedBatchError>;
+pub(crate) type DistributionJobAttemptValue = Result<Vec<DistributionJobAttempt>, SharedBatchError>;
 
 pub(crate) type DistributionJobAttemptLoader =
     Loader<Uuid, DistributionJobAttemptValue, DistributionJobAttemptBatcher>;
@@ -438,8 +435,11 @@ impl BatchFn<Uuid, DistributionJobAttemptValue> for DistributionJobAttemptBatche
 /// A batch-wide backend failure fails closed for **every** requested key. It
 /// never becomes successful empty data, and no per-key fallback query runs
 /// afterwards to recover individual results (`ADR-0007` invariant 9).
-fn fail_batch<V, E>(output: &mut HashMap<Uuid, Result<V, SharedBatchError>>, keys: &[Uuid], error: E)
-where
+fn fail_batch<V, E>(
+    output: &mut HashMap<Uuid, Result<V, SharedBatchError>>,
+    keys: &[Uuid],
+    error: E,
+) where
     E: Into<ThothError>,
 {
     let error = SharedBatchError::from_thoth(error.into(), JOB_ERROR_CONVENTION);
