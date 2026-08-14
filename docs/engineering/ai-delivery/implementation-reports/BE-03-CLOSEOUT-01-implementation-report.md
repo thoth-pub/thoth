@@ -88,9 +88,19 @@ required.
 
 ## 3. Commits
 
-- `docs(publisher-services): reconcile BE-03 post-merge state` - the single
-  bounded commit carrying this closeout. Its SHA is the branch head recorded in
-  the pull request.
+- `docs(publisher-services): reconcile BE-03 post-merge state` - the bounded
+  commit carrying this closeout.
+- `docs(publisher-services): clarify closeout evidence record` - additive
+  review-remediation commit. It corrects the overly absolute ADR-0005 evidence
+  wording in the CHANGELOG entry and in sections 5 and 15 of this report so that
+  prohibited lifecycle transcription is distinguished from the exact-base and
+  ancestry SHAs the controls require as execution evidence; records the exact
+  reproducible relative-link verification command and its fresh result in
+  section 9 in place of a prose description; and clarifies section 5.1. It
+  changes no classification, no other file and no scope. The earlier commit was
+  not amended, rebased or force-pushed.
+
+The current branch head is recorded in the pull request.
 
 ## 4. Files changed
 
@@ -177,14 +187,31 @@ Decisions made within the approved design:
    says "awaiting review", "pending merge", "draft PR" or "merge authorization
    outstanding" as current programme state. This closeout therefore does not
    create the need for another closeout when it merges.
-2. **No lifecycle metadata transcribed.** No independent review identifier, CTO
-   approval identifier, merge-authorization identifier, PR #809 merge commit
-   SHA or merge timestamp is written into any repository file. Where the
-   previous prose narrated the BE-03 review history (the earlier BLOCKED
-   exact-head review and the authorized bounded remediation), that narrative
-   was removed from the active tracker rather than updated, because ADR-0005
-   section 5 makes the GitHub pull-request record the authority for it. Pointers
-   to PR #808 and PR #809 are retained; they are references, not transcriptions.
+2. **No lifecycle metadata transcribed into active control state.** No active
+   control correction in this change exists to copy an independent review
+   identifier, a CTO approval identifier, a merge-authorization identifier, a
+   merge commit SHA, a merge timestamp, a draft/ready state or equivalent
+   GitHub lifecycle metadata merely to restate terminal review, authorization
+   or merge state — the transcription ADR-0005 section 4.1 items 6 and 10
+   prohibit. Where the previous prose narrated the BE-03 review history (the
+   earlier BLOCKED exact-head review and the authorized bounded remediation),
+   that narrative was removed from the active tracker rather than updated,
+   because ADR-0005 section 5 makes the GitHub pull-request record the
+   authority for it. Pointers to PR #808 and PR #809 are retained; they are
+   references, not transcriptions.
+
+   This is distinct from the exact SHAs this change legitimately records.
+   `BE-03-CLOSEOUT-01.md` section 18 records
+   `b51bcc0905ac17fc0c142b2002b11fec711331a3` as the exact CTO-authorized
+   implementation base, and section 1.2 above records that SHA, its identity as
+   the merge commit of specification PR #812, and PR #809's merge commit
+   `3ba4452c316399d80cd8d85e7d5e1bd05e252664` as ancestry evidence. Those are
+   execution evidence required by root `AGENTS.md` to prove implementation
+   authorization, preflight and repository ancestry — not post-merge lifecycle
+   transcription — and ADR-0005 does not forbid them. The distinction is
+   purpose, not SHA-shaped text: recording the base a change was authorized
+   against proves the change is in scope; copying a merge SHA to announce that
+   something merged is what the ADR prohibits.
 3. **`BE-03.md` corrections confined to the three authorized sites.** The
    `Status` line uses the house form established by `ADR-01.md`
    (`APPROVED AND REPOSITORY-AUTHORITATIVE - ...`) rather than a bare
@@ -212,7 +239,17 @@ specification's expected set. `platform-inventory.md`, `acceptance-matrix.md`,
 `master-issue.md` and `control-gaps.md` were searched and left untouched, as
 expected.
 
-### 5.1 Two fresh findings not present in the authoring-time Annex A
+### 5.1 Two additional BE-03 source-state hits found by the fresh search
+
+These are the two **stale-state findings** the fresh classified search from the
+authorized base discovered that the authoring-time Annex A does not record.
+They are not the only edits Annex A does not enumerate: the implementation
+authorization itself explicitly requires updating the closeout task record's own
+`Status` line and its section 18 approval block after specification approval and
+implementation authorization. Those task-record updates are directly mandated by
+the authorization and are reported in section 4; they are not stale-state
+findings and are not classified as such. The two items below are the additional
+BE-03 source-state assertions found by the search.
 
 Both fall inside an already-expected touched path and inside the approved
 scope; neither required a new path.
@@ -389,19 +426,41 @@ Not applicable to the changed paths.
 
 ### Documentation link verification
 
-Command:
+Every relative markdown link target in the changed files is resolved against the
+filesystem. Absolute (`http:`, `https:`, `mailto:`) targets and same-document
+anchors are not filesystem-resolvable and are excluded from the count.
 
-```text
-resolve every relative markdown link target in the changed files against the
-filesystem
+Command, run from the repository root:
+
+```bash
+python3 - <<'PY'
+import re, subprocess, os
+base = "b51bcc0905ac17fc0c142b2002b11fec711331a3"
+files = subprocess.run(["git", "diff", "--name-only", base + "..HEAD"],
+                       capture_output=True, text=True, check=True).stdout.split()
+link = re.compile(r'\[[^\]]*\]\(([^)\s]+)\)')
+checked = broken = 0
+for f in files:
+    for t in link.findall(open(f, encoding="utf-8").read()):
+        if re.match(r'^(https?:|mailto:|#)', t):
+            continue
+        checked += 1
+        tgt = os.path.normpath(os.path.join(os.path.dirname(f), t.split('#')[0]))
+        if not os.path.exists(tgt):
+            broken += 1
+            print("BROKEN", f, "->", t)
+print("files:", len(files), " relative links checked:", checked, " broken:", broken)
+PY
 ```
 
 Result:
 
 ```text
-relative links checked: 92
-broken: 0
+files: 8  relative links checked: 97  broken: 0
 ```
+
+Run after every repository-file edit in this task, including the remediation
+edits recorded in section 3.
 
 ## 10. Manual verification
 
@@ -785,8 +844,13 @@ Confirmations:
   execution, no backfill, no assignment or job creation, no dissemination, no
   activation, no `OBSERVE`/`ENFORCE` transition, no workflow dispatch and no
   production access or credential use;
-- no review, approval or merge-authorization identifier, merge commit SHA or
-  merge timestamp was newly transcribed into any repository file.
+- no active control correction in this change copies a review, approval or
+  merge-authorization identifier, a merge commit SHA, a merge timestamp or a
+  draft/ready state merely to restate terminal review, authorization or merge
+  state. The exact SHAs recorded here and in `BE-03-CLOSEOUT-01.md` section 18
+  — the authorized implementation base and the preflight/ancestry evidence in
+  section 1.2 — are execution evidence required by repository controls, not
+  post-merge lifecycle transcription (section 5 item 2).
 
 Suggested review focus:
 
