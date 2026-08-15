@@ -1308,8 +1308,8 @@ corrections; they are not carried over from the original episode.
 | `cargo check --workspace` | pass |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | pass — no warnings |
 | `cargo test -p thoth-api --features backend` | pass — 1176 lib + 13 integration passed, 0 failed, 8 doc-tests ignored |
-| `cargo test --workspace` | pass — 1385 passed, 0 failed, 8 ignored |
-| `cargo test --workspace --release` | pass — the same 1385 passed, 0 failed, 8 ignored |
+| `cargo test --workspace` | pass — 1383 passed, 0 failed, 8 ignored |
+| `cargo test --workspace --release` | pass — the same 1383 passed, 0 failed, 8 ignored |
 | `cargo run migrate` | pass against a disposable database |
 | `cargo run migrate --revert` | pass against a disposable database |
 
@@ -1317,8 +1317,10 @@ Per-target breakdown, identical in both profiles: `thoth` lib 0, `thoth` bin 24,
 `thoth-api` lib 1176, `thoth-api` integration 13, `thoth-api-server` 3,
 `thoth-client` 4, `thoth-errors` 11, `thoth-export-server` 144; doc-tests
 `thoth-api` 8 ignored, `thoth-client` 6 passed, `thoth-export-server` 2 passed.
-The count rose from 1381 to 1385 through the four tests the reconciliation added
-or split, net of the one it replaced.
+The count rose from 1381 to 1383: the reconciliation added three tests — the
+attempt-error truth table, the derived-arithmetic matrix and the
+unselected-composite-loader case — and removed the one that recorded the
+withdrawn divergence, a net of two in `thoth-api`'s library suite.
 
 **`thoth-client` test execution, as section 25.13 requires.** In `cargo test
 --workspace`, `thoth-client`'s test target executed and passed **4** unit tests
