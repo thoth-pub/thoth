@@ -23,9 +23,28 @@ The private Metrics design contains an obsolete repository/component spelling. T
 
 ## Blocking before programme implementation
 
-### CG-03 - `thoth-sphinx` is placeholder-only
+### CG-03 - `thoth-sphinx` is bootstrap-only
 
-`main` and `develop` exist and contain only a placeholder README. The repository has no workspace, implementation, CI, protections or runtime. Complete BR-SPHINX-01 and SPHINX-BOOT-01 before WP6 or driver work.
+CG-03 is **OPEN**.
+
+Re-verified live 2026-08-15. `main` and `develop` both exist and have
+diverged: `main` remains the placeholder commit containing only the
+placeholder `README.md`, while `develop` carries the repository-local root
+`AGENTS.md` plus that same, unchanged placeholder `README.md`. The root
+`AGENTS.md` is the only content difference between the branches; see
+[`repositories/thoth-sphinx.md`](./repositories/thoth-sphinx.md) for the exact
+verified SHAs and comparison.
+
+That divergence is completed repository-control and reconciliation work, not
+branch normalization and not implementation. The repository still has no Cargo
+workspace, no implementation, no CI or GitHub Actions workflow, no branch
+protections and no provisioned runtime. Its `develop` now carrying
+repository-local agent instructions does not make it implementation-ready and
+does not satisfy this gap's closure criteria.
+
+Complete BR-SPHINX-01 (branch normalization) and SPHINX-BOOT-01 (implementation
+bootstrap) before WP6 or driver work. Both remain separate, separately
+authorized and unimplemented tasks.
 
 ### CG-04 - Branch topology differs
 
@@ -33,7 +52,13 @@ Use verified actual branches until normalization or explicit exceptions complete
 
 ### CG-05 - Related repositories lack complete instructions
 
-App, Sphinx, dashboard, widget and cc-license remain outstanding. Dissemination has incomplete controls.
+App, dashboard, widget and cc-license remain outstanding. Dissemination has
+incomplete controls.
+
+Sphinx is no longer outstanding for this gap: repository-local root
+`AGENTS.md` instructions have been merged onto its `develop` branch (see
+CG-03). That closes the instruction item only. It does not close CG-03, and it
+does not make the repository implementation-ready.
 
 ### CG-06 - Shared ADR approvals (RESOLVED 2026-07-29)
 
