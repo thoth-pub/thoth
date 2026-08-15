@@ -59,9 +59,12 @@ read: it is **MERGED**, its merge commit is
 — and it carries the CTO's explicit BE-04 implementation authorization against
 that base, naming `docs/engineering/ai-delivery/tasks/BE-04.md` as merged through
 that PR as the repository-authoritative specification. That evidence is the basis
-for the approved-baseline / not-yet-approved-addendum distinction used throughout
-this report. Per ADR-0005 sections 5 and 6, the pull request is referenced rather
-than its comment identifiers transcribed.
+for the approved-baseline / corrected-addendum authority distinction used
+throughout this report: the baseline is CTO-approved and repository-authoritative
+through PR #814, addendum 01 is the corrected specification content, the CTO is
+the approval authority for it, and its live review, approval and merge state is
+GitHub-owned. Per ADR-0005 sections 5 and 6, the pull request is referenced
+rather than its comment identifiers transcribed.
 
 PR #816's code, migration, loaders and implementation report were inspected as
 **evidence only**. Neither that branch nor its pull request was modified,
@@ -465,16 +468,16 @@ Consistency search, over the terms the addendum task fixed:
 | "equally" / "same deviation" | the BE-02 inference is **withdrawn** in both the spec and this report; the only other occurrence is a pre-existing, unrelated tracker sentence |
 | `BE-02` | no occurrence asserts a BE-02 loader defect; the withdrawal sentences are the only new ones |
 | `cargo test -p thoth-client` | every occurrence states it is **not** a gate and does not pass |
-| "specification remains unapproved" / "no specification is approved" | **0 occurrences** — replaced by the baseline/addendum distinction |
+| the earlier blanket claims that no BE-04 specification was approved | no live occurrence; replaced by the baseline/addendum authority distinction |
 | "approved specification" / "PR #814" | every occurrence attributes approval and the implementation authorization to the **baseline** merged through PR #814 |
 | "specification candidate" | used only of addendum 01, or explicitly labelled as pre-merge history |
 | the prohibited "implementation delivered" phrasing | absent |
 | "READY" | no occurrence describes BE-04 as ready |
 | "BLOCKED" | durable: BE-04 and its candidate are `BLOCKED` because the candidate was built against the baseline contract and does not satisfy the corrected one — a reason that survives review, approval and merge of this addendum |
 | `5296197259` | **0 occurrences** — the authorization is referenced through PR #814, not by comment identifier (ADR-0005 section 5) |
-| "NOT YET APPROVED" / "not yet approved" | **0 occurrences** in committed files — replaced by approval-authority and authority-condition wording |
-| "required and absent" | **0 occurrences** — the reviewer field states the requirement and leaves the live decision to GitHub |
-| "merge ready" / "pending review" / "pending approval" | **0 occurrences** |
+| the transient approval phrase, in both its spaced and hyphenated forms | no live occurrence; replaced by approval-authority and authority-condition wording. The search is run variant-aware (`not[- ]yet[- ]approved`), because a literal-space search missed a hyphenated instance in the tracker |
+| the transient reviewer-absence phrase | no live occurrence; the reviewer field states the requirement and leaves the live decision to GitHub |
+| the transient merge-readiness and pending-decision phrases (`merge[- ]ready`, `pending (review\|approval)`) | no live occurrence |
 | "draft" | no occurrence asserts the current draft state of a pull request; the preflight table is explicitly a point-in-time observation, and the remaining hits are pre-existing unrelated history |
 | "authority condition" / "GitHub" | the durable form is used throughout: approval authority, authority condition, and GitHub-owned live evidence |
 

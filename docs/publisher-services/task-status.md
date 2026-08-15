@@ -291,10 +291,10 @@ Each branch starts from the repository's verified development branch and targets
     specification branch together with the `ADR-0008` reconciliation, after which
     the content received explicit CTO specification approval and merged as the
     approved baseline. Three further specification defects, found by measuring
-    the implementation candidate against that baseline, are reconciled by the
-    **not-yet-approved** `BE-04-SPEC-ADDENDUM-01` under item 15, which is what
-    still requires fresh exact-head independent review and explicit CTO
-    approval.
+    the implementation candidate against that baseline, are reconciled by
+    `BE-04-SPEC-ADDENDUM-01` under item 15, whose approval authority is the CTO
+    and whose authority condition is that the exact CTO-approved content be
+    reachable from `develop`.
     Authoring the specification candidate created **no** relation, migration,
     runtime code, GraphQL surface, role or job. The later implementation
     candidate does contain a migration and runtime code, but it is **unmerged**,
