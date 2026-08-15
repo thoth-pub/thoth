@@ -9,11 +9,16 @@ Planned metrics collection, normalization, orchestration, rollup application, OP
 Visibility: private
 GitHub default branch: `main`
 Active development branch: `develop`
-Repository content: placeholder-only `README.md` on `main` and `develop` as of 2026-07-24
+Repository content: placeholder-only `README.md` on `main` and `develop`,
+independently re-verified live 2026-08-15 (both branches identical, same
+initial commit; `compare/main...develop` reports `status: identical`)
 CI: none
 Deployment: none verified
 
 Both branches exist and contain only the placeholder `README.md`. The repository remains non-implementation-ready because it has no workspace, implementation, CI, protection evidence or runtime.
+
+It is not currently a verified consumer of any contract; see
+`docs/engineering/repository-map/contracts.md` section 3.
 
 ## Canonical naming
 

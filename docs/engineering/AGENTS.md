@@ -83,27 +83,44 @@ Do not leave two apparently current control indexes or designs.
 
 A task specification must include:
 
-- programme;
+- owning GitHub issue;
+- programme and stage;
 - repository;
 - task ID;
 - risk;
-- approved base and PR target;
+- exact authorized base branch and base commit, and PR target;
 - dependencies;
 - objective;
 - scope;
 - non-goals;
 - invariants;
+- cross-repository impact: affected contracts, known consumers, and either
+  downstream work assigned or a recorded reason each known consumer remains
+  compatible;
+- authorized write paths (existing files), authorized new-file paths and
+  prohibited paths;
+- action-authorization matrix (see root `AGENTS.md` section 6);
+- automatic side effects expected from authorized actions (for example CI
+  triggered by opening a PR);
 - acceptance criteria;
 - required tests;
 - migration effect;
 - rollout;
 - rollback;
-- stop conditions;
+- HOLD/STOP conditions;
 - approval.
+
+An implementation handoff for a coding agent must use
+`docs/engineering/ai-delivery/implementation-handoff-template.md` and carries
+the same write-budget, action-authorization and cross-repository fields
+forward from the approved task specification.
 
 An ADR must identify all affected programmes and repositories.
 
-A repository map must distinguish verified facts from gaps.
+A repository map must distinguish verified facts from gaps, and
+`docs/engineering/repository-map/contracts.md` must distinguish verified
+repository ownership and contract/consumer relationships from unverified or
+inferred ones. Do not infer ownership from a repository's name.
 
 ## 4. Completion claims
 

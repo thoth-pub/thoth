@@ -3,10 +3,21 @@
 Status: Proposed until merged and approved
 Owner: CTO
 Workflow: GitHub Flow (`ghf`)
+Scope: `thoth-pub/thoth`
+
+This document defines the branching and release workflow for the
+`thoth-pub/thoth` repository. It does not impose `thoth`'s `develop`/`master`
+topology on any other repository. Each other Thoth repository's branch
+topology is authoritative in that repository's own entry under
+`docs/engineering/repository-map/repositories/` and
+`docs/engineering/repository-map/branch-topology.md`, verified from live
+GitHub state, not assumed from this document. Section 6 defines how
+cross-repository dependency and compatibility ordering is coordinated when a
+change spans repositories with different local topologies.
 
 ## 1. Standard delivery flow
 
-Thoth repositories use the following normal workflow:
+`thoth-pub/thoth` uses the following normal workflow:
 
 1. Start from the latest `develop` branch.
 2. Create a short-lived branch under `feature/`.
@@ -146,26 +157,53 @@ Each affected repository owns its own branch and final PR. No physical branch sp
 
 ## 6. Multi-repository programmes
 
-Branches are repository-local.
+Branches are repository-local. Each repository's branch topology — its
+default branch, active development branch and target release flow — is
+authoritative in that repository's own `docs/engineering/repository-map/`
+entry, verified from live GitHub state. Repositories are not required to share
+`thoth`'s `develop`/`master` names or flow: for example, at time of writing
+`thoth-app` and `thoth-pyramid` develop on `dev` and release from `main`, while
+`thoth-dissemination`, `thoth-strapi` and the standalone `thoth-client` develop
+on `develop`.
 
-A coordinated programme may use the same branch naming convention in multiple repositories, but there is no single Git branch spanning repositories.
+A coordinated programme may use the same task/slice branch naming convention
+in multiple repositories, but there is no single Git branch spanning
+repositories, and the base/target of each repository-local branch follows that
+repository's own topology, not `thoth`'s.
 
 For example:
 
 ```text
-thoth:             feature/metrics
-thoth-sphinx:       feature/metrics
-thoth-app:         feature/metrics
-metrics-dashboard: feature/metrics
+thoth:              feature/metrics -> develop
+thoth-sphinx:        feature/metrics -> develop   (Sphinx's own develop)
+thoth-app:           feature/metrics -> dev        (thoth-app's own active branch, until BR-APP-01 normalizes it)
+metrics-dashboard:   feature/metrics -> dev        (until BR-DASH-01 normalizes it)
 ```
 
 Each repository has:
 
-- its own integration branch from that repository's `develop`;
-- its own slice branches;
-- its own final `feature/<programme> -> develop` PR.
+- its own integration or task branch from that repository's own verified base;
+- its own slice branches where applicable;
+- its own final pull request into that repository's own target branch.
 
-Final PRs are merged in the documented dependency order.
+### 6.1 Cross-repository dependency and compatibility ordering
+
+A task specification for a change that affects a shared contract (see
+`docs/engineering/repository-map/contracts.md` and operating-model.md section
+4.1) must record, for every affected repository:
+
+- the owning repository for the contract being changed;
+- which repositories are consumers and whether each requires a change;
+- the required merge order across repositories (which PR must merge before
+  which);
+- the compatibility window during which the old and new contract must both
+  work, if any;
+- whether deployment order matters in addition to merge order.
+
+Final PRs are merged in the documented dependency order: an upstream
+contract-owning repository's change merges before a downstream consumer's
+change that depends on it, unless the task specification records an explicit
+compatibility window that makes the order safe to reverse.
 
 Where a downstream repository needs an API contract before the upstream final PR merges, use one of:
 

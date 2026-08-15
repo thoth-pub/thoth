@@ -53,18 +53,25 @@ It may not settle a cross-programme architectural conflict independently.
 
 ### 2.4 Implementing agent
 
-An implementing agent may:
+Authorization for an implementing agent is **deny-by-default, granular and
+non-transitive**: it is granted action-by-action by the task specification or
+implementation-handoff prompt, and authorization for one action never implies
+authorization for another. See root `AGENTS.md` section 6 for the full action
+list and the non-transitivity examples (source-write does not imply commit;
+commit does not imply push; push does not imply PR mutation; repo-write does
+not imply issue mutation; merge does not imply deployment; deployment does not
+imply activation; provider-read does not imply provider-write).
 
-- inspect repositories;
-- create a task branch;
-- edit code and documentation;
-- add or update tests;
-- run local checks;
-- commit changes;
-- push a branch;
-- open or update a draft pull request.
+A typical bounded task authorizes: repository inspection; task-branch creation
+from the exact approved base; editing code and documentation within the stated
+write budget; adding or updating tests; running local checks; committing;
+pushing; and opening or updating a draft pull request. Unlisted mutations —
+including file deletion/move/rename, manual CI dispatch or rerun,
+provider/runtime reads or writes, migration execution, release/tag/publication,
+merge, deployment and production activation — are denied unless the task
+specification explicitly authorizes them.
 
-An implementing agent may not:
+An implementing agent may never:
 
 - merge its own pull request;
 - deploy or activate production behaviour;
@@ -72,7 +79,16 @@ An implementing agent may not:
 - perform destructive production operations;
 - silently change approved architecture;
 - approve its own work;
-- broaden task scope without an approved specification change.
+- broaden task scope, write budget or action authorization without an approved
+  specification change;
+- assume that read/inspection or edit authorization extends to commit, push,
+  PR, issue mutation, CI dispatch, provider/runtime, merge, deployment or
+  activation actions it was not explicitly given.
+
+An implementing agent working on a substantive or contract-affecting task must
+complete the cross-repository impact analysis in section 4.1 before treating
+its scope as single-repository, and must not modify a repository outside its
+own bounded task and write budget.
 
 ### 2.5 Independent reviewer
 
@@ -117,15 +133,42 @@ Do not duplicate a live GitHub lifecycle event into a new repository commit
 merely so that a Markdown file repeats it. Repository documents may reference
 the PR; they need not copy every review identifier or merge timestamp.
 
+### 3.2 Resumption from durable evidence
+
+A task must be resumable without prior chat history. Recovery or resumption of
+an in-flight task starts from durable evidence, in this order: the owning
+GitHub issue; the committed task specification; the live branch and its exact
+head commit; the pull request; review records; CI results; and, where
+applicable, runtime/provider evidence. Do not resume a task from conversational
+memory alone when this evidence conflicts with it; reconcile the conflict
+against live evidence first.
+
 ## 4. Mandatory task and branch boundary
 
 Use one bounded task per slice branch and pull request.
 
-Follow `branching-and-release-workflow.md`.
+This shared operating model is repository-agnostic. It governs any repository
+that adopts these AI-led delivery controls, not only `thoth-pub/thoth`.
+`develop`/`master` is `thoth-pub/thoth`'s own verified branch topology, given
+below as a worked example; it is not a default assumed for any other
+repository. Every task verifies and records its own repository's actual base
+and target branch before branching. See
+`docs/engineering/ai-delivery/branching-and-release-workflow.md`, which is
+itself scoped to `thoth-pub/thoth`, and that repository's own
+`docs/engineering/repository-map/repositories/<name>.md` entry (or, for a
+target repository that lacks a repository-map entry here, that repository's
+own root/nested `AGENTS.md` and its verified live branch state) for any other
+repository.
 
-Normal tasks branch from `develop` and target `develop`.
+Normal tasks branch from the repository's verified repository-local base
+branch and target that same branch (for `thoth-pub/thoth`: branch from
+`develop`, target `develop`).
 
-For an approved large programme, create `feature/<programme>` from `develop`; each bounded slice branches from and targets that programme integration branch. The final approved programme pull request targets `develop`.
+For an approved large programme, create `feature/<programme>` from the
+repository's verified base branch; each bounded slice branches from and
+targets that programme integration branch. The final approved programme pull
+request targets the repository's verified base branch (for `thoth-pub/thoth`:
+`develop`).
 
 A bounded task has:
 
@@ -138,7 +181,40 @@ A bounded task has:
 
 A programme integration branch is permitted only under the controlled large-programme workflow. It does not replace bounded slice branches, task specifications or independent review.
 
-Prefer additive, backwards-compatible and initially inactive changes that can merge directly into `develop` safely. Use an integration branch only when the programme genuinely requires integrated validation before entering `develop`.
+Prefer additive, backwards-compatible and initially inactive changes that can merge directly into the repository's verified base branch safely (for `thoth-pub/thoth`: `develop`). Use an integration branch only when the programme genuinely requires integrated validation before entering that base branch.
+
+### 4.1 Cross-repository impact-analysis gate
+
+Every substantive or contract-affecting task must pass a cross-repository
+impact-analysis gate before repository scope is approved (Gate 0/1 below). A
+task is not single-repository merely because the initiating request or issue
+originated in one repository.
+
+The control role or programme conversation scoping the task must, as
+applicable:
+
+1. identify whether the change affects a shared contract: database/domain
+   model, GraphQL/API schema and behaviour, generated clients/types,
+   authorization semantics, export formats, configuration/environment
+   contracts, event/job payloads, dissemination/platform behaviour, UI
+   assumptions, CMS/site contracts, package/library interfaces, or
+   deployment/compatibility windows;
+2. identify the owning repository for that contract and its known consumers,
+   using verified live evidence and
+   `docs/engineering/repository-map/contracts.md`, never inferring ownership
+   from a repository's name;
+3. for each known consumer, either create or reference a downstream
+   repository-local task, or record explicitly why that consumer remains
+   compatible without change;
+4. define dependencies, required compatibility, and merge/deployment order
+   across the affected repositories.
+
+A downstream repository must never guess an unmerged upstream contract. Each
+affected repository receives its own bounded task, branch and pull request; no
+single implementing agent is given unrestricted write access to more than one
+repository for the same task. Where correctness spans repositories, each
+repository change is independently reviewed, and a cross-repository
+integration review is added once the dependent changes exist.
 
 ## 5. Task lifecycle
 
@@ -149,20 +225,35 @@ Implementation may be scoped only when:
 - required product decisions are settled;
 - architecture is approved or the task is explicitly discovery-only;
 - dependencies are known;
-- blocking unknowns are resolved or declared stop conditions.
+- blocking unknowns are resolved or declared stop conditions;
+- the cross-repository impact-analysis gate (section 4.1) has been applied and
+  the task's affected/not-affected repository assessment is recorded.
 
 ### Gate 1 - Specification approved
 
-The task specification must be committed or attached to an authoritative GitHub issue.
+The task specification must be committed or attached to an authoritative
+GitHub issue, which is the durable live task ledger entry for the task: it
+carries the current gate, approved spec reference, risk, exact authorized
+base, active branch/PR, blockers and next action as they change, so the task
+can be resumed from GitHub evidence alone without prior conversation history.
 
-The specification must use `task-specification-template.md` or contain equivalent information.
+The specification must use `task-specification-template.md` or contain
+equivalent information, including the write budget, action-authorization
+matrix and cross-repository impact fields required by
+`docs/engineering/AGENTS.md` section 3.
+
+A specification for substantive or contract-affecting work is not approved
+until section 4.1's cross-repository impact analysis is complete for that
+task.
 
 ### Gate 2 - Implementation
 
 The implementing agent:
 
 1. confirms repository, base branch and base commit;
-2. creates a fresh task branch from the approved base (`develop` or the programme integration branch);
+2. creates a fresh task branch from the approved base (the repository's
+   verified base branch — `develop` for `thoth-pub/thoth` — or the programme
+   integration branch);
 3. inspects relevant code before editing;
 4. implements only the approved scope;
 5. adds required tests;
@@ -286,6 +377,16 @@ approved specification
 Production activation, deployment, migration execution and release may still
 require a separate authorization or event. That separate production gate does
 not require a new PR merely to document that the implementation PR merged.
+
+Implementation, independent review, merge authorization, merge, migration
+authorization, migration execution, deployment authorization, deployment,
+production-activation authorization, production activation, observation and
+closure are distinct actions with distinct evidence. Authorization for one
+does not authorize the next: an `APPROVED` independent review authorizes
+nothing beyond the review decision itself; merge authorization authorizes only
+the merge; a merged PR authorizes neither migration execution, deployment nor
+production activation, each of which requires its own explicit authorization
+event under `release-gates.md`.
 
 ## 6. Review decisions
 

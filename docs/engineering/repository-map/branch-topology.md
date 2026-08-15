@@ -1,7 +1,10 @@
 # Branch Topology
 
 Status: VERIFIED OBSERVED STATE PLUS APPROVED TARGET POLICY
-Evidence date: 2026-07-24
+Evidence date: 2026-07-24 for `thoth`, `thoth-app`, `thoth-dissemination`,
+`metrics-dashboard`, `metrics-widget`, `cc-license`; independently re-verified
+2026-08-15 for `thoth-sphinx`, and newly added and verified 2026-08-15 for
+`thoth-client` (standalone), `thoth-pyramid`, `thoth-strapi`.
 
 ## 1. Target repository policy
 
@@ -38,10 +41,32 @@ The Metrics design requires one repository-local `feature/metrics` integration b
 | `thoth` | `master` | `develop` | `develop -> master` | conforms |
 | `thoth-app` | `main` | `dev` | `dev -> main` | normalization required |
 | `thoth-dissemination` | `main` | `develop` | `develop -> main` | release-branch normalization required |
-| `thoth-sphinx` | `main` | `develop` | none; placeholder-only README | `master`/protection/bootstrap required |
+| `thoth-sphinx` | `main` | `develop` | none; placeholder-only README, identical on `main` and `develop` | `master`/protection/bootstrap required |
+| `thoth-client` (standalone `thoth-pub/thoth-client`) | `master` | `develop` | `develop -> master` (feature PRs merge to `develop`; `develop` is 1 commit ahead of `master` via a release merge) | conforms to the `develop -> master` pattern |
+| `thoth-pyramid` | `main` | `dev` | not yet observed as a completed release cycle | normalization required if brought under target topology |
+| `thoth-strapi` | `main` | `develop` | not yet observed as a completed release cycle | normalization required if brought under target topology |
 | `metrics-dashboard` | `main` | `dev` | `dev -> main` | development/release/Vercel normalization required |
 | `metrics-widget` | `main` | `dev` | releases from `main` | normalization required |
 | `cc-license` | `main` | `develop` | release branch `main` | release-branch normalization required |
+
+### 3.1 2026-08-15 re-verification notes
+
+`thoth-sphinx` was re-verified live on 2026-08-15: both `main` and `develop`
+exist, are identical (`compare/main...develop` reports `ahead_by: 0, behind_by:
+0, status: identical`), and both contain only the placeholder `README.md`
+from the same initial commit. The repository remains bootstrap-only; no
+branch-topology correction was required for this row.
+
+`thoth-client` (standalone), `thoth-pyramid` and `thoth-strapi` were added and
+verified live for the first time on 2026-08-15. See
+`repositories/thoth-client.md`, `repositories/thoth-pyramid.md` and
+`repositories/thoth-strapi.md` for full detail, and `contracts.md` for the
+explicit distinction between the standalone Python `thoth-pub/thoth-client`
+and the internal Rust `thoth-client` workspace member in `thoth-pub/thoth`.
+
+No branch normalization is performed by this record. Rows marked
+"normalization required" describe a gap against the target topology only; a
+normalization task remains separately scoped and separately authorized.
 
 ## 4. Control rule
 
