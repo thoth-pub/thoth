@@ -6,8 +6,11 @@
 Programme:                Publisher Services and Distribution Configuration
 Repository:               thoth-pub/thoth
 Task ID:                  BE-04-SPEC-ADDENDUM-01
-Approved specification:   docs/engineering/ai-delivery/tasks/BE-04.md (the document
-                          this addendum corrects), read in full before any edit
+Approved specification:   docs/engineering/ai-delivery/tasks/BE-04.md as merged into
+                          develop through PR #814 - the CTO-approved,
+                          repository-authoritative BASELINE this addendum corrects.
+                          Read in full before any edit. Addendum 01 itself is a new
+                          amendment candidate and is NOT YET APPROVED
 Risk:                     HIGH
 Base branch and commit:   develop at ed32712766c8f5a1951bb53ec3192e18f067c7d2
 PR target:                develop
@@ -39,9 +42,20 @@ The branch was created from the exact develop SHA, **not** from PR #816.
 Documents read in full before any edit: [`AGENTS.md`](../../../../AGENTS.md),
 [`thoth-api/AGENTS.md`](../../../../thoth-api/AGENTS.md),
 [`docs/engineering/AGENTS.md`](../../AGENTS.md),
+[`ADR-0005`](../../decisions/ADR-0005-terminal-merge-evidence.md),
 [`ADR-0007`](../../decisions/ADR-0007-conventional-request-scoped-graphql-dataloader.md),
 [`ADR-0008`](../../decisions/ADR-0008-machine-roles-and-durable-job-primitives.md)
 and [`tasks/BE-04.md`](../tasks/BE-04.md) (4,574 lines at the base).
+
+The live PR [#814](https://github.com/thoth-pub/thoth/pull/814) record was also
+read: it is **MERGED**, its merge commit is
+`ed32712766c8f5a1951bb53ec3192e18f067c7d2` — the same SHA as the authorized base
+— and it carries the CTO's explicit BE-04 implementation authorization against
+that base, naming `docs/engineering/ai-delivery/tasks/BE-04.md` as merged through
+that PR as the repository-authoritative specification. That evidence is the basis
+for the approved-baseline / not-yet-approved-addendum distinction used throughout
+this report. Per ADR-0005 sections 5 and 6, the pull request is referenced rather
+than its comment identifiers transcribed.
 
 PR #816's code, migration, loaders and implementation report were inspected as
 **evidence only**. Neither that branch nor its pull request was modified,
@@ -70,7 +84,7 @@ squash, no force push. Exact SHAs are the GitHub pull-request record.
 | File | Change |
 |---|---|
 | `docs/engineering/ai-delivery/tasks/BE-04.md` | the three corrections and the new section 34 addendum record |
-| `docs/publisher-services/task-status.md` | BE-04 state, dependencies, PR column and narrative items 14-15 |
+| `docs/publisher-services/task-status.md` | BE-04 state, dependencies, PR column, acceptance column and narrative items 13-15 |
 | `CHANGELOG.md` | one `### Changed` entry under `## [Unreleased]` |
 | `docs/engineering/ai-delivery/implementation-reports/BE-04-SPEC-ADDENDUM-01-implementation-report.md` | this report |
 
@@ -184,26 +198,63 @@ acquired and dropped inside the closure:
 with `$2` the job ids L1 returned; L2 and L3 are skipped only when L1 returns
 none. The deterministic arithmetic is:
 
+Cost is decided **per dispatch chunk**, because L2 and L3 are skipped for a chunk
+whose L1 returns no job, so a page-global flag would misprice a mixed multi-chunk
+page. The arithmetic is:
+
 ```text
 statements = 2
-           + (3 if the chunk resolves a job else 1) * C_job
-           + 1 * C_assign   (only when enabledDistributionPlatforms is selected)
+           + 3 * C_job_nonempty
+           + 1 * C_job_empty
+           + 1 * C_assign
 ```
 
-which evaluates to **five** (job-only) and **six** (full report) at `C = 1`.
+where `C_job_nonempty` and `C_job_empty` count composite dispatch chunks whose L1
+returned at least one job and none respectively (both zero when
+`latestBackCatalogueJob` is not selected), and `C_assign` counts
+assignment-loader chunks (zero when `enabledDistributionPlatforms` is not
+selected). It evaluates mechanically:
+
+| Selection | Page | `C_job_nonempty` | `C_job_empty` | `C_assign` | Statements |
+|---|---|---:|---:|---:|---:|
+| full job-only | has a job, N ≤ 200 | 1 | 0 | 0 | **5** |
+| full report | has a job, N ≤ 200 | 1 | 0 | 1 | **6** |
+| full job-only | no job on the page | 0 | 1 | 0 | **3** |
+| full report | no job on the page | 0 | 1 | 1 | **4** |
+
+A multi-chunk page is derived from the actual per-chunk classification, never
+collapsed to one page-global flag.
 
 The distinction the corrected section draws, and which the previous revision did
 not, is between what BE-04 owns and what it consumes. Structural and provable:
 two root statements; three statements per composite-loader chunk resolving a job,
 one otherwise; one per assignment-loader chunk; every statement set-based; exact
 selection dependence; and **zero** dispatches of the target and attempt loaders
-on the report path. Not BE-04's property: the value of `C`, which is the shared
-ADR-0007 chunking property with ADR-0007 section 4.6's stated bound
+on the report path. Not BE-04's property: the dispatch-chunk count itself, which
+is the shared ADR-0007 chunking property with ADR-0007 section 4.6's stated bound
 `ceil(N / 200)` and its section 10.2 evidence. Section 25.12 therefore measures
-`C` per loader and asserts the **derived** total, and a `C_job > 1` at a page
-size at or below 200 is escalated as an ADR-0007 finding (new stop condition 23)
-rather than absorbed by relaxing the expectation — because the same deviation
-would apply equally to BE-02's already-merged assignment loader.
+the per-chunk classification and asserts the **derived** total.
+
+Loader-dispatch acceptance is stated **per loader**, not as a blanket rule, since
+"every loader dispatches once" is false for any loader the query did not select:
+each *selected* first-level loader has its expected chunk count (one at N ≤ 200);
+each *unselected* loader has zero dispatches; and the second-level target and
+attempt loaders have zero report-path dispatches in every selection. Concretely
+`C_assign` is **0** for the job-only selection and **1** for the full report
+selection at N ≤ 200.
+
+An unexpected `C_job > 1` at N ≤ 200, with loader-first obeyed and
+`configured_loader` unchanged, blocks BE-04 under stop condition 23 and must be
+**classified on evidence** as (a) BE-04 field-specific, (b) a dependency or
+runtime regression affecting the shared ADR-0007 foundation, or (c) another
+execution shape; only (b) is escalated to the owning Shared Thoth GraphQL /
+Backend Architecture programme, and a genuine shared finding must be surfaced
+there rather than worked around locally. An earlier revision of this report
+asserted that such a deviation would apply "equally" to BE-02's merged assignment
+loader. That inference is **withdrawn**: ADR-0007 requires field-specific
+query-count evidence per adopting field and establishes no universal sublinear
+bound for arbitrary arrival timing, so no claim about BE-02 or any other field
+may be made without independently verifying that field.
 
 Explicitly not done, each being outside this task's authority: no change to
 ADR-0007's `200`/`10`; no look-ahead-driven load shaping, which would reintroduce
@@ -270,13 +321,75 @@ repaired here (non-goal 22).
 
 ### 5.4 Statements corrected because the repository disproves them
 
-Two statements elsewhere in BE-04.md were falsified by observed repository state
-and were corrected rather than left standing, as
+Statements elsewhere in `BE-04.md` and in the tracker were falsified by observed
+repository state and were corrected rather than left standing, as
 [`docs/engineering/AGENTS.md`](../../AGENTS.md) section 1 requires: section 31's
-"`feature/publisher-services/be-04` does not exist and must not exist", and the
-tracker's equivalent sentence. Both now record the branch and draft pull request
-as observed state that is explicitly not an approval, an authorization or a
-delivery.
+"`feature/publisher-services/be-04` does not exist and must not exist", the
+tracker's equivalent sentence, and — after the PR #814 record was read — every
+statement that materially implied BE-04 had never had an approved specification
+or an implementation authorization. Section 5.5 records that second group.
+
+### 5.5 Remediation round: three review findings against the addendum itself
+
+The addendum's first revision was reviewed and three findings were raised against
+it. All three are corrected in this same branch and pull request; the three
+substantive addendum decisions (the NULL-safe constraint, Route A, and the
+`thoth-client` gate resolution) were **not** reopened.
+
+**Finding 1 — the statement arithmetic was not mathematically exact.** The first
+revision used a single page-global boolean and wrote
+`2 + (3 if J else 1) * C_job + C_assign`. Cost is decided **per dispatch chunk**,
+so a multi-chunk page containing one chunk that resolves jobs and another that
+does not was mispriced. Replaced throughout by
+
+```text
+statements = 2 + 3 * C_job_nonempty + 1 * C_job_empty + 1 * C_assign
+```
+
+with the four named cases (5, 6, 3, 4) evaluated mechanically in a table, an
+explicit multi-chunk worked example, and a requirement that a multi-chunk page be
+derived from the actual per-chunk classification rather than collapsed to a
+page-global flag. The same revision asserted `C_job = C_assign = 1` for both
+selections, which is self-contradictory: the job-only selection does not select
+`enabledDistributionPlatforms`, so its `C_assign` is **0**. Loader-dispatch
+acceptance is now stated per loader — each selected first-level loader has its
+expected chunk count, each unselected loader has zero, and the second-level
+loaders have zero on the report path — rather than as a blanket claim that every
+loader dispatches once. Reconciled in specification sections 17.4.3, 25.1, 25.12
+and 26 item 16, in section 34.3, in the tracker, in the changelog and in section
+5.2 of this report.
+
+**Finding 2 — the control records conflated two different things.** They read as
+though BE-04 had never had an approved specification, when the live GitHub
+authority shows otherwise: PR #814 is merged, its merge commit **is** the
+authorized base `ed32712766…`, and it carries the CTO's explicit implementation
+authorization naming the merged `BE-04.md` as the repository-authoritative
+specification. The corrected framing, applied to all four files, is
+**APPROVED BASELINE / ADDENDUM 01 NOT YET APPROVED**: the baseline specification
+and the implementation authorization bound to `develop @ ed32712766…` were real
+and are preserved as historical authority; the candidate on
+`feature/publisher-services/be-04` was properly authorized work; and the
+authorization is insufficient — not void — for implementation against the
+corrected contract, which needs addendum approval, a freshly verified base and a
+new explicit authorization. The specification's `Status:` line, its
+implementation-authorization header, section 6.3, section 31 and new section 34.0
+carry this distinction; historical DRAFT and remediation-round narrative is
+retained where it is clearly labelled as pre-merge history. No review or approval
+comment identifier is transcribed into a committed file (ADR-0005 section 5).
+
+**Finding 3 — an unsupported inference about BE-02.** The first revision said a
+`C_job > 1` deviation would apply "equally" to BE-02's merged assignment loader.
+ADR-0007 requires field-specific query-count evidence per adopting field and
+establishes no universal sublinear bound for arbitrary arrival timing, so that
+inference is not established. It is **withdrawn** in the specification and in this
+report. The escalation rule now requires the cause to be classified on evidence as
+(a) BE-04-specific, (b) a shared-foundation dependency/runtime regression, or (c)
+another execution shape, escalates only (b) to the owning Shared Thoth GraphQL /
+Backend Architecture programme, preserves the control that a genuine
+shared-architecture finding must be surfaced rather than worked around locally,
+and forbids any claim about another field's loader without independently
+verifying that field. Reconciled in section 17.4.3, stop condition 23, section
+34.3, the tracker and this report.
 
 ## 6. Database and migration effects
 
@@ -331,17 +444,27 @@ Consistency search, over the terms the addendum task fixed:
 
 | Term | Finding |
 |---|---|
-| `error_result_check` | 7 occurrences, all consistent with the NULL-safe form |
+| `error_result_check` | all occurrences consistent with the NULL-safe form |
 | `result = 'FAILED'` | remaining occurrences are the state-machine transitions T3/T4 and the corrected DDL/truth table |
 | "error fields on a non-`FAILED`" | the section 25.4 bullet is replaced by the explicit reject/accept lists; the section 11.2 reference remains and is now true |
 | "five statements" / "six statements" | only inside the withdrawn-contract narrative of 17.4.1 and section 34.3, both explicitly historical |
+| `C_job = C_assign` | **0 occurrences** — the contradictory joint assertion is gone |
+| `(3 if J else 1)` | **0 occurrences** — the page-global form is gone |
+| `C_job_nonempty` / `C_job_empty` | 14 occurrences each, across the spec, tracker, changelog and this report, all in the per-chunk arithmetic |
+| "every loader" | only the explicit negation ("`every loader dispatches once` is false") and the correct per-loader phrase "every loader the selection does not reach" |
 | `200` | ADR-0007's configured batch size and the report page size, never restated as a BE-04 guarantee |
 | "yield" | the loader yield budget in 17.4.1 and pre-existing unrelated uses |
 | "upstream loader" | 17.4.1 only, describing the rejected shape |
-| `cargo test -p thoth-client` | 4 occurrences, every one stating it is **not** a gate and does not pass |
-| "IMPLEMENTATION DELIVERED" | absent from the repository |
+| "equally" / "same deviation" | the BE-02 inference is **withdrawn** in both the spec and this report; the only other occurrence is a pre-existing, unrelated tracker sentence |
+| `BE-02` | no occurrence asserts a BE-02 loader defect; the withdrawal sentences are the only new ones |
+| `cargo test -p thoth-client` | every occurrence states it is **not** a gate and does not pass |
+| "specification remains unapproved" / "no specification is approved" | **0 occurrences** — replaced by the baseline/addendum distinction |
+| "approved specification" / "PR #814" | every occurrence attributes approval and the implementation authorization to the **baseline** merged through PR #814 |
+| "specification candidate" | now used only of addendum 01, or explicitly labelled as pre-merge history |
+| the prohibited "implementation delivered" phrasing | absent |
 | "READY" | no occurrence describes BE-04 as ready |
-| "BLOCKED" | BE-04 and its candidate are `BLOCKED` in the tracker, the spec and this report |
+| "BLOCKED" | BE-04 and its candidate are `BLOCKED`, with the reason stated as the contract being corrected rather than the work being unauthorized |
+| `5296197259` | **0 occurrences** — the authorization is referenced through PR #814, not by comment identifier (ADR-0005 section 5) |
 
 ## 10. Manual verification
 
@@ -387,8 +510,12 @@ therefore not recommended without a replacement correction.
    recorded as residual debt for a separate task.
 4. **PR #816 is not reconciled.** Bringing it into line with the corrected
    specification is later, separately authorized work.
-5. **The specification remains unapproved.** This addendum corrects a candidate;
-   it does not approve one.
+5. **Addendum 01 is not approved.** The **baseline** specification is
+   CTO-approved and repository-authoritative through PR #814, and the baseline
+   implementation authorization bound to `develop` at `ed32712766…` is preserved
+   as historical authority. This addendum corrects that baseline and does not
+   approve itself; implementation against the corrected contract needs a fresh
+   base and a new explicit CTO implementation authorization.
 
 ## 14. Unresolved issues
 
@@ -402,17 +529,26 @@ therefore not recommended without a replacement correction.
    naming it.
 3. Whether `BE-04.md` should also bound the report's `limit` argument. A caller
    may currently request a page larger than the configured maximum batch size, in
-   which case `C > 1` legitimately and the arithmetic scales as stated; clamping
-   would change BE-03's merged behaviour and is therefore outside this task.
+   which case `C_job_nonempty + C_job_empty > 1` legitimately and the per-chunk
+   arithmetic prices it correctly; clamping would change BE-03's merged behaviour
+   and is therefore outside this task.
 
 ## 15. Agent self-assessment
 
-The three findings are each evidenced against merged repository state rather than
-against narrative: Finding A was reproduced against the full specified constraint
-set on PostgreSQL 17.10, Finding C was reproduced by running the command at the
-authorized base, and Finding B's mechanism was derived from the pinned
-`dataloader` and `juniper` sources and corroborated by the candidate's own
+The three specification findings are each evidenced against merged repository
+state rather than against narrative: Finding A was reproduced against the full
+specified constraint set on PostgreSQL 17.10, Finding C was reproduced by running
+the command at the authorized base, and Finding B's mechanism was derived from the
+pinned `dataloader` and `juniper` sources and corroborated by the candidate's own
 measurements.
+
+The three remediation findings of section 5.5 are also corrected in this branch.
+Two of them are worth naming plainly as errors in the addendum's first revision
+rather than as refinements: the statement arithmetic was not exact, and the
+control records misstated the approval history in a way that would have erased a
+real CTO approval and a real implementation authorization from the durable
+record. Both are corrected against the live GitHub authority and the per-chunk
+model, and the three substantive addendum decisions were not reopened.
 
 Suggested review focus, in order:
 
