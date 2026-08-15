@@ -253,6 +253,37 @@ reconciliation, for the reason in section 6.3. `BE-04.md` is **not** touched, an
 neither is `ADR-0007`, `ADR-0008`, any workflow, any manifest, `policy.rs`, or
 anything in `thoth-client`.
 
+### 4.2 Authorized actions actually used, by the reconciliation
+
+Authorization is action-by-action and not transitive. What the reconciliation
+authorization covered, and what was actually done:
+
+| Action | Authorized | Used |
+|---|---|---|
+| repository/GitHub read inspection | yes | yes |
+| source/worktree modification, bounded | yes | yes — the files in section 4.1 |
+| new file creation | not needed | **no** — every changed file already existed |
+| file deletion, move or rename | no | **no** |
+| branch creation | not needed | **no** — the existing branch was reused |
+| commit | yes | yes — one merge commit and additive commits (section 3) |
+| push to `feature/publisher-services/be-04` | yes | yes |
+| pull-request creation or body/metadata update | **no** | **no** |
+| issue/comment mutation | **no** | **no** |
+| manual CI dispatch or rerun | **no** | **no** |
+| provider/runtime read or write | **no** | **no** |
+| migration execution | disposable only | disposable only — a database created and dropped for the run |
+| release, tag or publication | **no** | **no** |
+| merge of PR #816 | **no** | **no** |
+| deployment or production activation | **no** | **no** |
+
+Automatic side effect expected from the authorized push: repository CI runs on
+PR #816. Nothing else external was triggered.
+
+Cross-repository impact: none. The generated SDL is byte-identical across the
+reconciliation (section 17), so every known consumer of the Thoth GraphQL
+contract — `thoth-client` in-workspace, and `thoth-app` downstream — remains
+compatible without change, for the reasons already recorded in section 10.6.
+
 ---
 
 ## 5. Implementation decisions
