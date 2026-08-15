@@ -9,8 +9,10 @@ Task ID:                  BE-04-SPEC-ADDENDUM-01
 Approved specification:   docs/engineering/ai-delivery/tasks/BE-04.md as merged into
                           develop through PR #814 - the CTO-approved,
                           repository-authoritative BASELINE this addendum corrects.
-                          Read in full before any edit. Addendum 01 itself is a new
-                          amendment candidate and is NOT YET APPROVED
+                          Read in full before any edit. Addendum 01 is the corrected
+                          specification content carried by PR #817; its approval
+                          authority is the CTO and its live approval state is
+                          GitHub-owned (ADR-0005)
 Risk:                     HIGH
 Base branch and commit:   develop at ed32712766c8f5a1951bb53ec3192e18f067c7d2
 PR target:                develop
@@ -18,19 +20,23 @@ Task branch:              feature/publisher-services/be-04-spec-addendum-01
 Dependencies:             ADR-0003, ADR-0005, ADR-0007, ADR-0008 (all APPROVED and
                           repository-authoritative); BE-02, BE-03 (CLOSED)
 Implementing agent/model: Claude Opus 5, extra-high reasoning
-Independent reviewer:     required and absent - a fresh independent strong model and
-                          context that did not author or materially assist with BE-04
-                          or with this addendum
+Independent review:       required; the reviewer must be independent of the
+                          implementation and of the addendum authoring - a fresh
+                          strong model and context that did not author or materially
+                          assist with BE-04 or with this addendum. The live review
+                          decision and its exact-head binding are GitHub-owned
 ```
 
-Preflight, performed before any edit and re-verified against the live remote:
+Preflight, performed before any edit and re-verified against the live remote. This
+table is a point-in-time observation record of what preflight saw, not a claim
+about the current live state of any pull request:
 
 | Check | Required | Observed |
 |---|---|---|
 | `origin/develop` | `ed32712766c8f5a1951bb53ec3192e18f067c7d2` | `ed32712766c8f5a1951bb53ec3192e18f067c7d2` |
-| PR [#816](https://github.com/thoth-pub/thoth/pull/816) state | `OPEN` | `OPEN` |
-| PR #816 draft | `true` | `true` |
-| PR #816 merged | never | `mergedAt: null` |
+| PR [#816](https://github.com/thoth-pub/thoth/pull/816) state at preflight | `OPEN` | `OPEN` |
+| PR #816 draft state at preflight | `true` | `true` |
+| PR #816 merged at preflight | never | `mergedAt: null` |
 | PR #816 head | `6356ac1c7fc8d53001a93b378d92dc0368a77405` | `6356ac1c7fc8d53001a93b378d92dc0368a77405` |
 | `origin/feature/publisher-services/be-04` | equal to the PR head, no later commit | `6356ac1c7fc8d53001a93b378d92dc0368a77405` |
 | PR #816 commit list | six commits ending at `6356ac1c` | six commits ending at `6356ac1c` |
@@ -364,16 +370,17 @@ though BE-04 had never had an approved specification, when the live GitHub
 authority shows otherwise: PR #814 is merged, its merge commit **is** the
 authorized base `ed32712766…`, and it carries the CTO's explicit implementation
 authorization naming the merged `BE-04.md` as the repository-authoritative
-specification. The corrected framing, applied to all four files, is
-**APPROVED BASELINE / ADDENDUM 01 NOT YET APPROVED**: the baseline specification
-and the implementation authorization bound to `develop @ ed32712766…` were real
-and are preserved as historical authority; the candidate on
-`feature/publisher-services/be-04` was properly authorized work; and the
-authorization is insufficient — not void — for implementation against the
-corrected contract, which needs addendum approval, a freshly verified base and a
-new explicit authorization. The specification's `Status:` line, its
+specification. The corrected framing, applied to all four files, separates the
+**approved baseline** from **addendum 01** and its authority condition: the
+baseline specification and the implementation authorization bound to
+`develop @ ed32712766…` were real and are preserved as historical authority; the
+candidate on `feature/publisher-services/be-04` was properly authorized work; and
+the authorization is insufficient — not void — for implementation against the
+corrected contract, which needs the corrected content to become
+repository-authoritative, a freshly verified base and a new explicit
+authorization. The specification's `Status:` line, its
 implementation-authorization header, section 6.3, section 31 and new section 34.0
-carry this distinction; historical DRAFT and remediation-round narrative is
+carry this distinction; historical `DRAFT` and remediation-round narrative is
 retained where it is clearly labelled as pre-merge history. No review or approval
 comment identifier is transcribed into a committed file (ADR-0005 section 5).
 
@@ -460,11 +467,16 @@ Consistency search, over the terms the addendum task fixed:
 | `cargo test -p thoth-client` | every occurrence states it is **not** a gate and does not pass |
 | "specification remains unapproved" / "no specification is approved" | **0 occurrences** — replaced by the baseline/addendum distinction |
 | "approved specification" / "PR #814" | every occurrence attributes approval and the implementation authorization to the **baseline** merged through PR #814 |
-| "specification candidate" | now used only of addendum 01, or explicitly labelled as pre-merge history |
+| "specification candidate" | used only of addendum 01, or explicitly labelled as pre-merge history |
 | the prohibited "implementation delivered" phrasing | absent |
 | "READY" | no occurrence describes BE-04 as ready |
-| "BLOCKED" | BE-04 and its candidate are `BLOCKED`, with the reason stated as the contract being corrected rather than the work being unauthorized |
+| "BLOCKED" | durable: BE-04 and its candidate are `BLOCKED` because the candidate was built against the baseline contract and does not satisfy the corrected one — a reason that survives review, approval and merge of this addendum |
 | `5296197259` | **0 occurrences** — the authorization is referenced through PR #814, not by comment identifier (ADR-0005 section 5) |
+| "NOT YET APPROVED" / "not yet approved" | **0 occurrences** in committed files — replaced by approval-authority and authority-condition wording |
+| "required and absent" | **0 occurrences** — the reviewer field states the requirement and leaves the live decision to GitHub |
+| "merge ready" / "pending review" / "pending approval" | **0 occurrences** |
+| "draft" | no occurrence asserts the current draft state of a pull request; the preflight table is explicitly a point-in-time observation, and the remaining hits are pre-existing unrelated history |
+| "authority condition" / "GitHub" | the durable form is used throughout: approval authority, authority condition, and GitHub-owned live evidence |
 
 ## 10. Manual verification
 
@@ -510,12 +522,15 @@ therefore not recommended without a replacement correction.
    recorded as residual debt for a separate task.
 4. **PR #816 is not reconciled.** Bringing it into line with the corrected
    specification is later, separately authorized work.
-5. **Addendum 01 is not approved.** The **baseline** specification is
+5. **Approval is not this report's to give.** The **baseline** specification is
    CTO-approved and repository-authoritative through PR #814, and the baseline
    implementation authorization bound to `develop` at `ed32712766…` is preserved
-   as historical authority. This addendum corrects that baseline and does not
-   approve itself; implementation against the corrected contract needs a fresh
-   base and a new explicit CTO implementation authorization.
+   as historical authority. Addendum 01 is the corrected specification content
+   carried by PR #817; its approval authority is the CTO and its live approval
+   state is GitHub-owned. This report issues no approval decision, and
+   implementation against the corrected contract needs the corrected content to
+   become repository-authoritative, a fresh base and a new explicit CTO
+   implementation authorization.
 
 ## 14. Unresolved issues
 
