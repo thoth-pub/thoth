@@ -52,7 +52,21 @@ Verified consumers:
 | `thoth-pub/thoth-dissemination` | Thoth API for location write-back and publisher/work discovery | YES for a breaking API change affecting location write-back |
 | `thoth-pub/thoth-client` (standalone) | Public GraphQL schema **and** the Thoth REST/export API (verified: `thothlibrary/rest.py`, `thothlibrary/rest_cli.py`, `thothlibrary/rest_structures.py`, and README section "REST Usage" documenting `ThothRESTClient`) | YES for a breaking GraphQL schema change **or** a breaking REST/export API or export-format change; this is a published third-party-facing client and requires its own versioned release. Do not assume every export-format change is breaking — assess the specific change against `ThothRESTClient`'s documented usage. |
 | `thoth-export-server` (internal, same repository) | GraphQL schema, via the internal `thoth-client` crate | Reviewed in the same PR; not a cross-repository concern |
+| `thoth-pub/metrics-dashboard` | Public GraphQL schema (verified: `config/index.ts`, `url: process.env.NEXT_PUBLIC_THOTH_API_URL ?? 'https://api.thoth.pub/graphql'`) | YES for any breaking schema change |
+| `thoth-pub/metrics-widget` | Public GraphQL schema (verified: `src/shared/config/index.ts`, `url: import.meta.env.VITE_THOTH_API_URL ?? 'https://api.thoth.pub/graphql'`) | YES for any breaking schema change |
 | `thoth-pub/thoth-sphinx` | Planned: Thoth GraphQL client, per the private Metrics design | `UNVERIFIED` — Sphinx has no implementation yet (see section 3); record as a future consumer only |
+
+**Current versus planned Metrics data path.** The rows above for
+`metrics-dashboard` and `metrics-widget` record their **currently verified**
+direct dependency on the public Thoth GraphQL API. The approved Thoth Metrics
+architecture separately identifies both repositories as primary Metrics
+client repositories and requires their **future** authenticated data path to
+go through a protected Metrics GraphQL surface / BFF rather than the current
+direct public-API call. That future architecture is not yet implemented and
+does not change what is verified today: as of this record, both repositories
+call the public Thoth GraphQL API directly, and a breaking change to that
+public schema requires impact assessment for both today, independent of when
+the protected Metrics path lands.
 
 ### 2.2 Strapi CMS content contracts
 
