@@ -10,21 +10,29 @@ Before changing anything, record:
 
 ```text
 Programme:
+Owning GitHub issue:
 Repository: thoth-pub/thoth
 Task ID:
 Approved specification:
 Risk: LOW | MEDIUM | HIGH | CRITICAL
-Base branch and commit:
+Base branch and exact base commit:
 PR target:
 Task branch:
 Dependencies:
+Authorized write paths (existing files):
+Authorized new-file paths:
+Prohibited paths:
+Action authorization: see section 6
+Cross-repository impact: see section 6.1
 Implementing agent/model:
 Independent reviewer/model:
 ```
 
-Do not implement without an approved written specification. A GitHub issue is sufficient only when it contains the information required by `docs/engineering/ai-delivery/task-specification-template.md`.
+Do not implement without an approved written specification. A GitHub issue is sufficient only when it contains the information required by `docs/engineering/ai-delivery/task-specification-template.md`, including an explicit write budget and action-authorization matrix.
 
 If any item is unknown, treat it as missing work.
+
+GitHub is the live task ledger for this repository: the owning issue, its linked pull request, review threads and CI hold current lifecycle state. Committed documentation records durable architecture and doctrine, not the day-to-day status of an individual task. See `docs/engineering/AGENTS.md` section 1.1 and `ADR-0005`.
 
 ## 2. Authority
 
@@ -109,15 +117,54 @@ Rules:
 - keep programme branches current at approved checkpoints;
 - do not rewrite shared branch history after others depend on it.
 
-## 6. Allowed and prohibited actions
+## 6. Granular action authorization
 
-An implementing agent may:
+Authorization is granted action-by-action and is **not transitive**. Authorization
+for one action never implies authorization for another. A task's specification or
+implementation-handoff prompt (see
+`docs/engineering/ai-delivery/implementation-handoff-template.md`) must state
+exactly which of the following actions are authorized for that task. Any action
+not explicitly authorized is denied by default.
 
-- inspect the repository and relevant history;
-- edit within approved scope;
-- add tests and documentation;
-- run local checks against local or disposable services;
-- commit, push and open/update a draft PR.
+Distinct actions:
+
+- repository/GitHub read inspection;
+- source/worktree modification within the approved write budget;
+- creation of new files at explicitly authorized paths;
+- deletion, move or rename of files;
+- branch creation;
+- commit;
+- push;
+- pull-request creation/update;
+- issue/comment mutation;
+- manual CI dispatch or rerun;
+- provider/runtime read;
+- provider/runtime write;
+- migration execution;
+- release/tag/publication;
+- merge;
+- deployment;
+- production activation.
+
+Without limiting the list above:
+
+- source-write authorization does not include commit authorization;
+- commit authorization does not include push authorization;
+- push authorization does not include pull-request mutation authorization;
+- repository-write authorization does not include GitHub issue/comment mutation authorization;
+- merge authorization does not include deployment authorization;
+- deployment authorization does not include production-activation authorization;
+- provider-read authorization does not include provider-write authorization.
+
+A typical bounded documentation or implementation task authorizes: repository
+inspection; source edits within the stated write budget; creation of the
+specifically listed new files; branch creation from the stated exact base;
+local validation; commit; push; and opening or updating a draft pull request
+targeting the stated PR target. It does not authorize file deletion, move or
+rename; manual CI dispatch or rerun; provider or runtime reads or writes;
+migration execution; release, tag or publication actions; merge; deployment;
+or production activation — unless the task specification explicitly lists
+them.
 
 An implementing agent must not:
 
@@ -128,8 +175,29 @@ An implementing agent must not:
 - run commands against production databases or services;
 - dispatch write-capable production workflows;
 - perform destructive production operations;
-- broaden scope without an approved specification update;
-- change approved architecture silently.
+- broaden scope, write budget or action authorization without an approved
+  specification update;
+- change approved architecture silently;
+- treat read/inspection authorization as edit authorization, or edit
+  authorization as commit, push or pull-request authorization.
+
+### 6.1 Cross-repository impact
+
+Before substantive scope affecting a shared contract is approved — database or
+domain model, GraphQL/API schema and behaviour, generated clients/types,
+authorization semantics, export formats, configuration/environment contracts,
+event/job payloads, dissemination or platform behaviour, UI assumptions,
+CMS/site contracts, package/library interfaces, or deployment/compatibility
+windows — identify the owning repository and known consumers from
+`docs/engineering/repository-map/contracts.md`, and record whether each known
+consumer requires a change or remains compatible and why. Do not treat a task
+as single-repository merely because it originated in one repository.
+
+Never give one implementing agent unrestricted write access to more than one
+repository for the same task. Each affected repository gets its own bounded
+task, branch and pull request, independently reviewed. A downstream repository
+must never guess an unmerged upstream contract; it waits for the upstream
+change to merge, or consumes an explicitly pinned preview.
 
 ## 7. Standard local checks
 

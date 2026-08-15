@@ -156,6 +156,20 @@ ghcr.io/thoth-pub/thoth
 
 The production runtime and deployment/rollback process require separate verification.
 
+## Contract relationships
+
+This repository owns the canonical PostgreSQL domain, migrations, GraphQL API
+and export formats consumed by `thoth-app`, `thoth-pyramid`,
+`thoth-dissemination` and the standalone `thoth-client`. See
+`docs/engineering/repository-map/contracts.md` for verified consumers and
+required compatibility handling.
+
+The `thoth-client` workspace member listed above is an **internal** Rust
+crate, depended on only by `thoth-export-server` within this same workspace.
+It is not the same project as the standalone, separately published
+`thoth-pub/thoth-client` Python repository documented in
+`repositories/thoth-client.md`. See `contracts.md` section 1.
+
 ## Programme effects
 
 Publisher Services:

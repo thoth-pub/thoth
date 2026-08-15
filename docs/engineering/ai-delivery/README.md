@@ -11,6 +11,11 @@ These documents apply across Thoth engineering programmes unless a stricter appr
 - `risk-classification.md` - task risk levels and mandatory controls.
 - `model-selection.md` - implementation and review model guidance.
 - `task-specification-template.md` - required specification before implementation.
+- `implementation-handoff-template.md` - reusable bounded handoff prompt for a
+  coding agent, derived from an approved task specification: exact base, write
+  budget, granular action matrix, automatic side effects, preflight,
+  cross-repository impact, HOLD/STOP conditions and the required completion
+  report.
 - `implementation-report-template.md` - required agent completion report.
 - `implementation-reports/` - completed task-specific implementation evidence.
 - `independent-review-template.md` - evidence-based review format.

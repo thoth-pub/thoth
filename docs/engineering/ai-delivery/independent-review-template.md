@@ -15,7 +15,8 @@ agent instance that implemented the task.
 
 Reviewer model:
 Reasoning level:
-Reviewed commit:
+Authorized base branch/commit:
+Reviewed commit (exact head):
 Pull request:
 Specification:
 
@@ -29,6 +30,43 @@ APPROVED | CHANGES REQUIRED | BLOCKED
 - Are any non-goals implemented?
 - Are any acceptance criteria unsupported by evidence?
 - Does the implementation silently change architecture?
+
+Findings:
+
+[...]
+
+## 2.1 Base, head and write-budget verification
+
+- Verify the base branch/commit the task branch was actually created from
+  matches the specification's authorized base; if it does not, this is a
+  blocking finding, not a note.
+- Verify the reviewed commit is the exact current PR head; if the head has
+  moved since this review began, restart the review at the new head rather
+  than approving a stale diff.
+- Compare the actual diff file-by-file against the specification's authorized
+  write paths and authorized new-file list. Every changed or created file must
+  appear on one of those lists.
+- Verify no file was deleted, moved or renamed unless explicitly authorized.
+- Verify no path outside the write budget was touched, including
+  configuration, CI workflow, branch-protection or provider/runtime files
+  unless explicitly authorized.
+
+Findings:
+
+[...]
+
+## 2.2 Action authorization compliance
+
+Compare the implementation report's "authorized actions actually used" against
+the specification's action-authorization matrix.
+
+- Was any action performed that the matrix marks `NO` or leaves unauthorized?
+- Was commit/push/PR/issue-mutation/CI-dispatch/provider-write/merge/
+  deployment/activation authorization ever assumed from a different,
+  unrelated authorization (non-transitivity violation)?
+- Are automatic external effects (CI runs, container/package publication)
+  disclosed and consistent with what the specification predicted?
+- Were any manual external actions taken that were not explicitly authorized?
 
 Findings:
 
@@ -110,6 +148,28 @@ Assess:
 - cross-repository consumers;
 - error-contract changes;
 - rollout ordering.
+
+Findings:
+
+[...]
+
+### 7.1 Cross-repository impact and downstream compatibility
+
+- Does the specification's cross-repository impact assessment match the
+  actual diff (no undeclared contract change, no declared-but-unchanged
+  contract)?
+- For every known consumer listed in
+  `docs/engineering/repository-map/contracts.md`, is it either assigned a
+  tracked downstream task or backed by an explicit, reviewable reason it
+  remains compatible?
+- Does any downstream repository need to guess an unmerged contract from this
+  PR? If so, this is a blocking finding.
+- Is the recorded merge/deployment order across affected repositories correct
+  and sufficient to prevent a broken intermediate state?
+- Does this change affect a generated contract (GraphQL schema, generated
+  client/types, exported OpenAPI/export format)? If so, is the generation
+  command and resulting diff recorded, and are downstream generated-client
+  implications identified?
 
 Findings:
 

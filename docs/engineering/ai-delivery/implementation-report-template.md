@@ -8,10 +8,12 @@ Do not write `passed` without the exact command and result.
 
 ## 1. Repository state
 
+Owning GitHub issue:
 Repository:
 Workflow: STANDARD | PROGRAMME_INTEGRATION
 Base branch:
-Base commit:
+Authorized base commit:
+Actual base commit:
 PR target:
 Programme integration branch:
 Task branch:
@@ -36,11 +38,80 @@ Out-of-scope changes made: NONE | [explain and link to approval]
 
 ## 4. Files changed
 
-For each material file:
+Authorized write paths (from the task specification):
+
+- [path]
+- [...]
+
+Authorized new-file paths:
+
+- [path]
+- [...]
+
+Actual files changed, for each material file:
 
 - `path`
   - reason:
   - behavioural effect:
+  - within authorized write budget: YES | NO
+
+Actual new files created:
+
+- `path` - within authorized new-file list: YES | NO
+- [...]
+
+Files deleted, moved or renamed: NONE | [list and link to the authorization
+that permitted it]
+
+### 4.1 Write-budget compliance
+
+PASS | FAIL
+
+[If FAIL, list every file changed outside the authorized write/new-file paths
+and treat this as an unauthorized action per section 4.2, not as a normal
+deviation.]
+
+## 4.2 Authorized actions actually used
+
+For each action in the task specification's action-authorization matrix,
+record whether it was actually used:
+
+- repository inspection:
+- source edit:
+- new file creation:
+- file deletion/move/rename:
+- branch creation:
+- commit:
+- push:
+- PR creation/update:
+- issue/comment mutation:
+- manual CI dispatch/rerun:
+- provider/runtime read:
+- provider/runtime write:
+- migration execution:
+- release/tag/publication:
+- merge:
+- deployment:
+- production activation:
+- other:
+
+Unauthorized actions performed: NONE | [list explicitly; this is a stop
+condition, not a routine finding]
+
+## 4.3 Automatic and manual external effects
+
+Automatic CI/provider effects observed (for example a workflow triggered by
+opening the PR, and whether it performed any external write such as a
+container-registry push):
+
+[...]
+
+Manually initiated external actions (anything the implementing agent
+triggered outside the normal push/PR flow, e.g. a manual workflow dispatch):
+NONE | [list and link to the authorization that permitted it]
+
+External writes/publication (releases, tags, packages, registries, third-party
+services): NONE | [list]
 
 ## 5. Implementation decisions
 
@@ -49,10 +120,10 @@ List decisions made within the approved design:
 1. [...]
 2. [...]
 
-List any deviation from the specification:
+List any deviation from the specification requiring authorization:
 
 - NONE; or
-- [deviation, reason, approval status]
+- [deviation, reason, whether it was authorized and by whom]
 
 ## 6. Database and migration effects
 
