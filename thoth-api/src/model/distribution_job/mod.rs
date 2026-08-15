@@ -399,16 +399,25 @@ pub struct DistributionJobAttempt {
 
 /// One durable job as the GraphQL `DistributionJob` type exposes it.
 ///
-/// The nested `targets` and `attempts` collections are resolved by **two
-/// different bounded mechanisms**, and which one applies is a property of the
-/// producing path rather than of the field:
+/// The nested `targets` and `attempts` collections are resolved by **bounded
+/// mechanisms**, and which one applies is a property of the producing path
+/// rather than of the field. There are exactly three producing shapes:
 ///
 /// - the **worker claim path** pre-resolves both with its own set-based
 ///   statements, because that path must stay a constant four statements for a
 ///   claim of any size and deliberately does not use `RequestLoaders`;
-/// - every other path leaves them absent, and the field resolvers batch through
-///   the request-local `ADR-0007` loaders, which is what keeps the staff
-///   report's statement count constant in the page size.
+/// - the **staff report's `latestBackCatalogueJob` path** also arrives
+///   preloaded, but through a loader rather than directly: one first-level
+///   request-local `ADR-0007` composite loader keyed by `publisher_id` resolves
+///   the complete payload — the latest job together with its targets and its
+///   attempts — inside a single batch function, so the field resolvers read
+///   already-materialized values and dispatch no second-level loader. That is
+///   what keeps the report's statement count constant in the page size;
+/// - the **single-job mutation payloads** of `completeDistributionJob`,
+///   `failDistributionJob` and `cancelDistributionJob` leave both absent, and
+///   their field resolvers batch through the request-local second-level
+///   `ADR-0007` target and attempt loaders. There the cohort is one job, so the
+///   dependent-arrival question the report path had to avoid does not arise.
 ///
 /// The claim token is **not** part of this type. It is returned only on
 /// [`ClaimedDistributionJob`].
