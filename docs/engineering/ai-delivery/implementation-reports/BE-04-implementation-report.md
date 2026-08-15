@@ -4,8 +4,10 @@ Programme: Publisher Services and Distribution Configuration
 Repository: `thoth-pub/thoth`
 Task ID: BE-04 — Durable distribution jobs
 Approved specification: [`docs/engineering/ai-delivery/tasks/BE-04.md`](../tasks/BE-04.md),
-repository-authoritative through PR
-[#814](https://github.com/thoth-pub/thoth/pull/814)
+repository-authoritative in its corrected form — baseline through PR
+[#814](https://github.com/thoth-pub/thoth/pull/814),
+`BE-04-SPEC-ADDENDUM-01` through PR
+[#817](https://github.com/thoth-pub/thoth/pull/817)
 Risk: HIGH
 Workflow: STANDARD
 Implementing agent/model: Claude Opus 5, reasoning level Extra High
@@ -15,9 +17,65 @@ Authority condition: this report records what was implemented and measured. It
 makes no approval decision. Live review, merge-authorization and merge evidence
 is the GitHub pull-request record (`ADR-0005`).
 
+This report covers **two** authorized episodes on one branch, and neither
+supersedes the other as history:
+
+1. the original bounded implementation, authorized against the **baseline**
+   specification at `develop @ ed32712766…`;
+2. the **implementation reconciliation** against the **corrected** specification
+   at `develop @ 8c0c54bd…`, which is what sections marked *reconciliation*
+   record.
+
+Where the corrected contract changed a requirement, this report states the
+corrected result. It does not rewrite the original episode out of the record.
+
 ---
 
 ## 1. Repository state
+
+### 1.0 Reconciliation against the corrected specification
+
+| Item | Value |
+|---|---|
+| Corrected authorized base | `8c0c54bd7b2e58a645ffe39abd8ceeee86e47686` |
+| What that SHA is | the merge commit of specification-addendum PR [#817](https://github.com/thoth-pub/thoth/pull/817), verified as `origin/develop` before any reconciliation edit |
+| Reconciliation authorization | PR #816 comment [5301898691](https://github.com/thoth-pub/thoth/pull/816#issuecomment-5301898691), by `ja573` on 2026-08-15, explicitly bound to `develop @ 8c0c54bd7b2e58a645ffe39abd8ceeee86e47686` and to the corrected contract |
+| Branch head before reconciliation | `6356ac1c7fc8d53001a93b378d92dc0368a77405` |
+| Base incorporation | ordinary `git merge --no-ff` of that exact SHA; no rebase, amend, squash or force-push |
+| Merge commit | `f4cb9dafa1d2112424742fdfa128c4a1e9c685db` |
+| Branch | `feature/publisher-services/be-04`, unchanged |
+| PR | [#816](https://github.com/thoth-pub/thoth/pull/816), unchanged, target `develop` |
+
+Reconciliation preflight, performed before any edit:
+
+- `git fetch origin --prune`;
+- `git rev-parse origin/develop` = `8c0c54bd7b2e58a645ffe39abd8ceeee86e47686`,
+  matching the authorized corrected base exactly;
+- `gh pr view 817` reports `state: MERGED`,
+  `mergeCommit.oid: 8c0c54bd7b2e58a645ffe39abd8ceeee86e47686`,
+  `baseRefName: develop`;
+- `git rev-parse origin/feature/publisher-services/be-04` =
+  `6356ac1c7fc8d53001a93b378d92dc0368a77405`, unmoved;
+- `gh pr view 816` reports `state: OPEN`, `isDraft: true`, `mergedAt: null`,
+  `headRefOid: 6356ac1c7fc8d53001a93b378d92dc0368a77405`,
+  `baseRefName: develop`;
+- the CTO reconciliation authorization exists on PR #816 as comment
+  `5301898691` and names that exact base SHA;
+- the working tree was clean (`git status --porcelain` empty).
+
+After the merge, `8c0c54bd7b2e58a645ffe39abd8ceeee86e47686` is an ancestor of the
+branch head (`git merge-base --is-ancestor`) and
+`docs/engineering/ai-delivery/tasks/BE-04.md` on the branch is byte-identical to
+its content on `develop`. **No specification content was edited.**
+
+One conflict arose, in `docs/publisher-services/task-status.md`. The branch side
+still described BE-04 as an implementation candidate delivered against the
+pre-addendum contract, which the corrected specification contradicts; the
+`develop` side is repository-authoritative and was taken whole, and the tracker
+is then reconciled to its durable post-reconciliation form by a later commit on
+this branch. `CHANGELOG.md` merged cleanly, preserving PR #817's entry.
+
+### 1.1 Original implementation base and authorization
 
 | Item | Value |
 |---|---|
@@ -27,7 +85,10 @@ is the GitHub pull-request record (`ADR-0005`).
 | Branch | `feature/publisher-services/be-04`, created from that exact SHA |
 | PR target | `develop` |
 
-### 1.1 Preflight, performed before any edit
+That authorization remains valid history. It is **insufficient** for the
+corrected contract, which is why the reconciliation above carries its own.
+
+### 1.2 Preflight of the original episode, performed before any edit
 
 - `git fetch origin --prune`;
 - `git rev-parse origin/develop` = `ed32712766c8f5a1951bb53ec3192e18f067c7d2`, matching the
@@ -69,13 +130,24 @@ workspace. DIS-02 is not implemented.
 
 ## 3. Commits
 
+Original implementation episode:
+
 | SHA | Subject |
 |---|---|
 | `c896c306` | `feat(publisher-services): add BE-04 durable distribution job schema` |
 | `79203042` | `feat(publisher-services): create BE-04 jobs inside the BE-03 transaction` |
 | `430d8d14` | `feat(publisher-services): add BE-04 worker API, role and staff-report fields` |
 | `19e618f7` | `test(publisher-services): add BE-04 database, concurrency and contract evidence` |
-| _(final)_ | `docs(publisher-services): record BE-04 implementation evidence` |
+| `7163b432` | `docs(publisher-services): record BE-04 implementation evidence` |
+| `6356ac1c` | `docs(publisher-services): complete the BE-04 report's CI section` |
+
+Reconciliation episode, all additive on top of the published history:
+
+| SHA | Subject |
+|---|---|
+| `f4cb9daf` | `Merge develop into feature/publisher-services/be-04` |
+| `951d8270` | `fix(publisher-services): reconcile BE-04 with the corrected contract` |
+| _(this commit)_ | `docs(publisher-services): reconcile BE-04 control records` |
 
 The exact implementation head is recorded on the pull request and is the SHA the
 independent review must be taken against.
@@ -155,7 +227,31 @@ none to relax an assertion:
    as an addition and an unauthorized one still fails.
 
 `src/bin/thoth.rs` gained one shared test-environment lock and a
-command-tree-initialisation helper; section 11 records why.
+command-tree-initialisation helper; section 12.1 records why.
+
+### 4.1 Files changed by the reconciliation
+
+The reconciliation touched a strict subset of the files above, plus the control
+records:
+
+```text
+thoth-api/migrations/20260814_v1.7.0/up.sql        Correction A
+thoth-api/src/model/distribution_job/crud.rs       Correction B (composite read)
+thoth-api/src/model/distribution_job/tests.rs      Correction A truth table
+thoth-api/src/graphql/dataloader.rs                Correction B (composite loader)
+thoth-api/src/graphql/dataloader/fixture.rs        per-chunk outcome recording
+thoth-api/src/graphql/model.rs                     Correction B (resolver)
+thoth-api/src/graphql/distribution_job_tests.rs    section 25.12 rewrite
+docs/engineering/ai-delivery/implementation-reports/BE-04-implementation-report.md
+docs/publisher-services/task-status.md
+CHANGELOG.md
+```
+
+`down.sql` is unchanged: it drops the relations and types, and carries no copy of
+the corrected `CHECK`. `thoth-api/src/schema.rs` is unchanged by the
+reconciliation, for the reason in section 6.3. `BE-04.md` is **not** touched, and
+neither is `ADR-0007`, `ADR-0008`, any workflow, any manifest, `policy.rs`, or
+anything in `thoth-client`.
 
 ---
 
@@ -290,6 +386,85 @@ distribution_job_deduplication_key_formula_check
 PostgreSQL 17.10 accepted the deduplication-key formula check, so stop
 condition 7 does not fire.
 
+#### 6.2.1 Correction A — the NULL-safe attempt-error `CHECK` (reconciliation)
+
+The migration previously carried
+
+```sql
+CONSTRAINT distribution_job_attempt_error_result_check CHECK (
+    (error_code IS NULL AND error_detail IS NULL)
+    OR result = 'FAILED'
+)
+```
+
+which does not enforce the invariant it names. PostgreSQL rejects a row only when
+a `CHECK` evaluates to `FALSE` and admits it when the result is `UNKNOWN`. On an
+**open** attempt — `finished_at IS NULL` and therefore `result IS NULL` under
+`distribution_job_attempt_closure_check` — the first arm is `FALSE` and
+`result = 'FAILED'` is `NULL`, so `FALSE OR NULL` is `NULL` and a row carrying
+error fields was **accepted**. Those are exactly the states section 11.2's claim
+statement creates most often.
+
+It now reads:
+
+```sql
+CONSTRAINT distribution_job_attempt_error_result_check CHECK (
+    (error_code IS NULL AND error_detail IS NULL)
+    OR (
+        result IS NOT NULL
+        AND result = 'FAILED'
+    )
+)
+```
+
+The specification's own expression was implemented literally, so no equivalence
+argument is owed. The `result IS NOT NULL` conjunct converts the previously
+`UNKNOWN` rows to `FALSE` and changes no row the constraint already decided: the
+state machine of section 11.2 is untouched.
+
+Observed `pg_get_constraintdef` on the migrated database, PostgreSQL 17.10:
+
+```text
+CHECK ((((error_code IS NULL) AND (error_detail IS NULL))
+     OR ((result IS NOT NULL) AND (result = 'FAILED'::distribution_job_attempt_result))))
+```
+
+PostgreSQL stores the conjunct rather than folding it away, so the catalog itself
+is evidence the hole is closed. The test asserts the stored expression still
+contains `error_code IS NULL`, `error_detail IS NULL`, `result IS NOT NULL` and
+`FAILED`, so a future edit that reintroduces the three-valued hole fails on the
+catalog and not only on behaviour.
+
+Observed truth table, every case asserted on **`INSERT`** and on **`UPDATE`** of
+an open attempt into the same state, with each rejection attributed to
+`distribution_job_attempt_error_result_check` **by name** through the database
+error's `constraint_name`, so a neighbouring constraint cannot stand in for it:
+
+| # | `result` | Error fields | `INSERT` | `UPDATE` | Old expression |
+|---:|---|---|---|---|---|
+| 1 | `NULL` (open) | `error_code` only | **rejected** | **rejected** | accepted — the defect |
+| 2 | `NULL` (open) | `error_code` + `error_detail` | **rejected** | **rejected** | accepted — the defect |
+| 3 | `SUCCEEDED` | `error_code` only, and both | **rejected** | **rejected** | rejected |
+| 4 | `ABANDONED` | `error_code` only, and both | **rejected** | **rejected** | rejected |
+| 5 | `CANCELLED` | `error_code` only, and both | **rejected** | **rejected** | rejected |
+| 6 | `NULL` (open) | both `NULL` | **accepted** | **accepted** | accepted |
+| 7 | `FAILED` | valid `error_code` + `error_detail` | **accepted** | **accepted** | accepted |
+| 8 | `FAILED` | both `NULL` | **accepted** | **accepted** | accepted |
+
+Rows 3–5 are each exercised twice, in the `error_code`-only and the
+`error_code` + `error_detail` form, giving eight distinct rejection cases in each
+of the two write modes. `error_detail` alone is deliberately not a case for this
+constraint: `distribution_job_attempt_error_pairing_check` refuses it first, so it
+would prove nothing here. Every acceptance is proven to have **persisted** by
+reading the row back, not merely by the absence of an error.
+
+Rows 1 and 2 are the load-bearing ones — the rows the withdrawn expression
+admitted. Test:
+`model::distribution_job::tests::the_attempt_error_result_constraint_is_null_safe_on_insert_and_update`.
+
+`down.sql` needs no change: it drops the relations and the types, and never
+restates the constraint.
+
 ### 6.3 `schema.rs`
 
 `thoth-api/src/schema.rs` was edited **manually** under ADR-0003 Architecture A.
@@ -306,16 +481,53 @@ Parity with the migration is asserted by test
 all three relations — and against the text of `schema.rs` for the `joinable!` and
 same-query entries.
 
+**Correction A has no `schema.rs` impact, recorded as a reviewed conclusion**
+rather than omitted. Diesel's `table!` macro encodes columns, types and
+nullability; it does not encode `CHECK` constraints, so changing a check
+expression is outside the checked-in Diesel table contract. `schema.rs` is
+therefore unchanged by the reconciliation, and migration/schema parity is
+unaffected — the parity test above passes at the reconciled head.
+
 ### 6.4 Forward, revert, re-apply and populated behaviour
 
 | Check | Result |
 |---|---|
 | Empty database: apply → revert → re-apply | all three succeed; after revert, zero `distribution_job%` tables and zero `distribution_job%` types remain |
-| `cargo run migrate` / `cargo run migrate --revert` | both succeed against a disposable database (section 9) |
+| `cargo run migrate` / `cargo run migrate --revert` | both succeed against a disposable database (section 12) |
 | Representative populated database | forward migration succeeds; **zero** job, target and attempt rows created |
 | Existing rows | every `publisher`, `publisher_distribution_platform`, `publisher_service_configuration_history` and `work` row byte-identical before and after |
 | `pg_class.relfilenode` | **unchanged** for `publisher`, `publisher_distribution_platform`, `publisher_service_configuration_history` and `work` |
 | Down migration on a **populated** database | exercised with one job, two targets and one closed attempt present, plus representative desired-state and audit rows; the drop succeeds, no assignment row and no configuration audit row is touched, and the migration re-applies afterwards |
+
+Every row above was **re-run at the reconciled head** and passed, through the
+migration tests
+(`the_migration_directory_sorts_after_every_existing_one`,
+`the_migration_applies_reverts_and_re_applies_on_an_empty_database`,
+`the_migration_changes_no_existing_row_and_rewrites_no_existing_table`,
+`only_distribution_job_is_diesel_managed_and_the_indexes_are_exactly_the_specified_three`,
+`every_named_constraint_of_sections_7_2_to_7_4_exists_in_the_catalog`,
+`schema_rs_matches_the_migration_for_all_three_relations`,
+`the_attempt_budget_constant_and_the_migration_agree`).
+
+The CLI path was re-run at the reconciled head against a **freshly created,
+disposable** database (`thoth_be04_migrate`, created for the run and dropped
+after it, on a local PostgreSQL 17.10 — never production and never a shared
+service):
+
+| Step | Observed |
+|---|---|
+| `cargo run -- migrate --database-url <disposable>` on an empty database | exit 0; `__diesel_schema_migrations` head `20260814`; `distribution_job`, `distribution_job_target`, `distribution_job_attempt` present |
+| Row counts immediately after forward | `distribution_job=0 target=0 attempt=0` |
+| Corrected constraint as stored | the `pg_get_constraintdef` output quoted in section 6.2.1 |
+| `cargo run -- migrate --database-url <disposable> --revert` | exit 0; zero `distribution_job%` relations and zero `distribution_job%` types remain |
+| Re-apply after the revert | exit 0; the three relations and the corrected constraint return, with the nine named indexes of section 6.2 |
+
+Measured forward duration on a representative populated disposable database:
+**7.0165 ms**. Under deliberate contention with `lock_timeout = 750ms` the
+migration waited **757.454083 ms** and then failed cleanly, taking no partial
+effect. **Neither figure is a production prediction**: they are
+disposable-environment measurements on a small local dataset, and the production
+lock window depends on the production tables' size and concurrent write load.
 
 ### 6.5 Observed locking on the referenced existing tables
 
@@ -895,84 +1107,156 @@ matching **zero** publishers deterministically and without error; conjunction
 with the existing filters; application before pagination; and the count query
 returning exactly the number of filtered results for every case.
 
-### 11.1 Measured statement counts, and an observed divergence from section 17.4
+### 11.1 Measured statement counts (reconciliation)
 
 Measured with the production batchers and the connection-level SQL probe. Counts
 exclude pool liveness checks, transaction control statements and Diesel's
 per-connection custom-type OID resolution, which is bounded by the number of new
-enum types and never by the key count (observed: 1).
+enum types and never by the key count (observed: 1 in every run below).
 
-| Selection | Page size | Statements | Section 17.4 bound | Latest-job chunks | Target chunks | Attempt chunks | Assignment chunks |
-|---|---:|---:|---:|---|---|---|---|
-| job-only | 1 | **5** | 5 | `[1]` | `[1]` | `[1]` | `[]` |
-| job-only | 25 | **7** | 5 | `[25]` | `[11, 14]` | `[11, 14]` | `[]` |
-| job-only | 200 | **11** | 5 | `[200]` | `[11, 38, 75, 76]` | `[11, 57, 89, 43]` | `[]` |
-| full report | 1 | **6** | 6 | `[1]` | `[1]` | `[1]` | `[1]` |
-| full report | 25 | **8** | 6 | `[25]` | `[11, 14]` | `[11, 14]` | `[25]` |
-| full report | 200 | **6** | 6 | `[200]` | `[200]` | `[200]` | `[200]` |
+Every expectation is **derived** from the measured per-chunk classification
+through section 17.4.3's arithmetic and then compared with the observed total.
+Nothing in the table is a hard-coded target:
 
-**This diverges from the specification's stated bound at page sizes above one,
-and the divergence is recorded rather than smoothed over.** Section 17.4 expects
-five and six at every supported page size, on the premise that "a batch of up to
-200 keys dispatches as one statement".
+```text
+statements = 2 + 3 * C_job_nonempty + 1 * C_job_empty + 1 * C_assign
+```
 
-That premise holds for the **first-level** loader. `latestBackCatalogueJob` is
-keyed by `publisher_id`, which is available at resolver entry, and it dispatches
-as exactly one chunk at every page size measured, including 200.
+| Fixture | Selection | Page | Composite chunks | Classification | `C_job_nonempty` | `C_job_empty` | `C_assign` | Target dispatches | Attempt dispatches | Derived | **Observed** |
+|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---:|
+| page with a job | job-only | 1 | `[1]` | non-empty | 1 | 0 | 0 | 0 | 0 | 5 | **5** |
+| page with a job | job-only | 25 | `[25]` | non-empty | 1 | 0 | 0 | 0 | 0 | 5 | **5** |
+| page with a job | job-only | 200 | `[200]` | non-empty | 1 | 0 | 0 | 0 | 0 | 5 | **5** |
+| page with a job | full report | 1 | `[1]` | non-empty | 1 | 0 | 1 | 0 | 0 | 6 | **6** |
+| page with a job | full report | 25 | `[25]` | non-empty | 1 | 0 | 1 | 0 | 0 | 6 | **6** |
+| page with a job | full report | 200 | `[200]` | non-empty | 1 | 0 | 1 | 0 | 0 | 6 | **6** |
+| page with no job | job-only | 1 | `[1]` | empty | 0 | 1 | 0 | 0 | 0 | 3 | **3** |
+| page with no job | job-only | 25 | `[25]` | empty | 0 | 1 | 0 | 0 | 0 | 3 | **3** |
+| page with no job | job-only | 200 | `[200]` | empty | 0 | 1 | 0 | 0 | 0 | 3 | **3** |
+| page with no job | full report | 1 | `[1]` | empty | 0 | 1 | 1 | 0 | 0 | 4 | **4** |
+| page with no job | full report | 25 | `[25]` | empty | 0 | 1 | 1 | 0 | 0 | 4 | **4** |
+| page with no job | full report | 200 | `[200]` | empty | 0 | 1 | 1 | 0 | 0 | 4 | **4** |
 
-It does **not** hold for the two **second-level** loaders. `targets` and
-`attempts` are keyed by `distribution_job_id`, which exists only after the first
-loader has resolved, so their keys arrive while the parent futures are resuming.
-Under the `dataloader` configuration that ADR-0007 and BE-04 both fix at
-`200`/`10`, a dispatch is triggered by the yield budget as well as by the batch
-size, and that budget can expire before every sibling has registered. The
-resulting chunking is **scheduler-dependent and not reproducible run to run**:
-the last row above shows the same three loaders dispatching as a single chunk
-each at page size 200 in one run, while the row above it shows four chunks each
-for the job-only selection at the same page size in the same run.
+Derived equals observed in all twelve cases, so the four named outcomes of
+section 17.4.3 — **5** and **6** on a page containing at least one job, **3** and
+**4** on a page whose publishers have none — are consequences of the arithmetic
+rather than assertions. `C_assign` is `0` for the job-only selection because it
+does not select `enabledDistributionPlatforms`; the assignment chunks observed
+for the full report selection were `[1]`, `[25]` and `[200]` respectively.
 
-Section 17.4's own fallback — "state the exact arithmetic … and show that exact
-number" — is therefore also not satisfiable, because there is no stable exact
-number to state.
+The whole matrix was re-run **five** times and was identical in every cell,
+including the chunk vectors. The withdrawn nested-loader shape was not
+reproducible run to run; this one is, which is the point of removing the
+dependent-arrival cohort rather than tuning around it.
 
-What was **not** done to make a number fit: the loaders were not merged, not
-re-keyed, not eagerly preloaded in the parent resolver (which would break the
-selection-dependence the same section requires), and their approved `200`/`10`
-configuration was not changed.
-
-What the test asserts instead, at every page size, is what is stable and is what
-the bound exists to protect:
+The assertions the test makes, beyond the derived total:
 
 1. exactly **two** root statements — one filtered/ordered/paginated page query
-   and one latest-change query;
-2. **exact selection dependence** — BE-02's assignment loader dispatches when and
-   only when `enabledDistributionPlatforms` is selected, and never otherwise;
-3. every job loader's dispatch chunks **partition** the page's keys exactly, so
-   no key is loaded twice and none is missed;
-4. every statement is set-based (`= ANY(...)` or the paginated page query), and
-   the total stays far below the page size — 11 statements for 200 publishers —
-   so there is no per-publisher, per-job or per-attempt loop and no growth in N
-   in the N+1 sense this control exists to prevent.
+   and one latest-change query — at every page size;
+2. `C_job = 1` at page sizes 1, 25 and 200, which is `ADR-0007` section 4.6's
+   `ceil(N / 200)` for a loader-first cohort. This is the shared foundation's
+   property, consumed and not restated as a BE-04 guarantee. `C_job > 1` at
+   `N <= 200` would be `BLOCKED` under stop condition 23, not a count to relax;
+3. **zero** dispatches of the target and attempt loaders under both report
+   selections — the scheduler-independent assertion that proves the report path
+   carries no dependent-arrival cohort;
+4. exact selection dependence in **both** directions: the assignment loader
+   dispatches when and only when `enabledDistributionPlatforms` is selected, and
+   a selection reaching neither job field dispatches the composite loader zero
+   times and issues no `distribution_job%` statement at all (test
+   `an_unselected_composite_loader_dispatches_nothing`, observed total `3`);
+5. the per-chunk branch in both directions, each **measured**: L2 and L3 occur
+   exactly once each for a non-empty chunk, and are **absent from the captured
+   SQL entirely** for an empty one, measured on the no-job page rather than
+   inferred. L1 occurs exactly once in every case;
+6. every dispatch chunk **partitions** the requested key set, so no key is loaded
+   twice and none is missed;
+7. every statement is set-based (`= ANY(...)` or the paginated page query);
+8. the fixture is really the fixture — the job page's first row carries a
+   non-null job with one target and one attempt, and every row of the no-job page
+   is null — so a low count cannot come from empty collections.
 
-**This is for the independent reviewer and the CTO to rule on.** It is recorded
-here as an open item rather than resolved by the implementing agent.
+Test:
+`graphql::distribution_job_tests::the_report_statement_count_equals_the_derived_per_chunk_arithmetic`.
 
-### 11.2 Loaders
+Nothing was changed to make a number fit: `ADR-0007`'s `200`/`10` is untouched,
+no look-ahead was added, no request-scoped result store was introduced, no yield
+budget was raised, no sleep or retry was added, and no unrelated loaders were
+merged. The composite loader is one loader for one field family, not two loaders
+joined.
 
-Three new `ADR-0007` request-local loaders were added to the existing
-`RequestLoaders` bundle: latest job (keyed by `publisher_id`), targets and
-attempts (both keyed by `distribution_job_id`). Each is built through
-`configured_loader` with the approved explicit `200`/`10`, is request-local,
-non-cached and dropped with the request, uses `try_load` only, is **total** over
-requested keys, registers its key at resolver entry with no unrelated awaited
-work before `try_load`, issues one set-based statement per dispatch with no
-per-parent loop, holds no connection across an `.await`, and **fails closed
-batch-wide** with no per-key fallback and no fabricated empty success. The
-target and attempt loaders are deliberately **not** merged.
+### 11.2 Loaders (reconciliation)
 
-A batch-wide backend failure was observed to surface at the
-`latestBackCatalogueJob` field path for every key, with no successful empty data
-and no partially populated job in the response.
+`latestBackCatalogueJob` is backed by **one** field-specific, request-local
+`ADR-0007` DataLoader:
+
+| Property | Value |
+|---|---|
+| Key | `publisher_id` — the key the summary already holds at resolver entry |
+| Value | `Result<Option<DistributionJobPayload>, SharedBatchError>` — the **complete** field value, job plus targets plus attempts, or `None` |
+| Type | `LatestBackCatalogueJobLoader`, batcher `LatestBackCatalogueJobBatcher` |
+| Construction | `configured_loader`, unchanged approved `200`/`10` |
+
+Its batch function executes inside **one** `tokio::task::spawn_blocking`
+boundary, acquiring **one** pooled Diesel connection inside that closure and
+dropping it there, so no connection crosses an `.await`:
+
+| # | Statement | Issued |
+|---|---|---|
+| L1 | `SELECT DISTINCT ON (publisher_id) … FROM distribution_job WHERE publisher_id = ANY($1) AND kind = 'PUBLISHER_BACK_CATALOGUE' ORDER BY publisher_id, created_at DESC, distribution_job_id DESC` | always, once per chunk |
+| L2 | `… FROM distribution_job_target WHERE distribution_job_id = ANY($2) ORDER BY distribution_job_id, platform` | once per chunk, **only** when L1 returned at least one job |
+| L3 | `… FROM distribution_job_attempt WHERE distribution_job_id = ANY($2) ORDER BY distribution_job_id, attempt_number DESC` | once per chunk, **only** when L1 returned at least one job |
+
+L1 reuses the existing `latest_back_catalogue_jobs` helper unchanged, so the
+`DISTINCT ON` total order and its use of
+`distribution_job_publisher_latest_idx` are exactly as before. L2 and L3 are
+partitioned per parent in memory, preserving canonical platform order and
+newest-attempt-first order, and each job becomes a
+`DistributionJobPayload::preloaded(...)`.
+
+The loader is request-local, non-cached and dropped with the request; uses
+`try_load` only; registers its key at resolver entry with no unrelated awaited
+work before the call; issues set-based SQL with no per-parent loop; and is
+**total** over its requested keys — every key is seeded with a successful `None`
+before jobs are placed, so a publisher with no job returns the absent value
+rather than a missing map entry.
+
+A failure in **any** of L1, L2 or L3 propagates out of the blocking closure and
+replaces every requested key's value with the shared error, so the chunk **fails
+closed** for all of them: no per-key fallback, no partially populated job and no
+successful empty substitution. A batch-wide backend failure was observed to
+surface at the `latestBackCatalogueJob` field path for every key with no
+successful empty data and no partially populated job in the response. The
+single-closure `?` chain is what makes an L2 or L3 failure indistinguishable from
+an L1 failure in this respect.
+
+`PublisherServiceConfigurationSummary.latestBackCatalogueJob` calls the composite
+loader at resolver entry, does no unrelated awaited work first, and returns the
+loaded `Option<DistributionJobPayload>` **directly**. It no longer wraps the job
+as lazy. `DistributionJob.targets` and `DistributionJob.attempts` therefore read
+already-materialized values on the report path and issue zero SQL and zero
+second-level loader calls, which is item 3 of section 11.1.
+
+**Child selection is deliberately not part of the load shape.** Targets and
+attempts are materialized whenever the field is selected at all, even for
+`latestBackCatalogueJob { status }`. Deciding otherwise would require Juniper
+look-ahead at the resolver, the retired `ADR-0006` mechanism. The cost is stated
+rather than hidden: a status-only selection issues three loader statements
+instead of one, over row sets bounded by construction — at most 17 targets from
+the closed inventory and at most 5 attempts under
+`distribution_job_attempt_count_check`.
+
+**The two second-level loaders are retained, and are not unused.** They no longer
+appear on the report path, and back only the single-job mutation payloads of
+`completeDistributionJob`, `failDistributionJob` and `cancelDistributionJob`,
+which still return lazy payloads; there the cohort is one job and the
+dependent-arrival question does not arise. Their `RequestLoaders` entries carry
+that as a doc comment so a later reader does not mistake them for report
+machinery.
+
+The **worker claim path is unchanged**: it resolves its own targets and attempts
+set-based, does not use `RequestLoaders`, and its four-statement claim payload
+contract is intact (section 8.6, re-measured green at the reconciled head).
 
 ---
 
@@ -983,18 +1267,48 @@ at any shared service.** The disposable PostgreSQL is 17.10, `UTF8`-encoded to
 match CI and production — the character-boundary truncation evidence is only
 meaningful under a multi-byte-aware encoding.
 
+All figures below are the **reconciled head's**, re-run in full after the
+corrections; they are not carried over from the original episode.
+
 | Command | Result |
 |---|---|
 | `cargo fmt --all -- --check` | pass |
 | `git diff --check` | pass |
 | `cargo check --workspace` | pass |
-| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | pass |
-| `cargo test -p thoth-api --features backend` | pass — 1174 passed, 0 failed |
-| `cargo test -p thoth-client` | **fails identically at the authorized base** (27 × `cannot find 'graphql' in crate`), verified by running the same command in a worktree at `ed32712766c8f5a1951bb53ec3192e18f067c7d2`. Single-package feature unification drops `thoth-api`'s `backend` feature, which only the workspace/dev-dependency edge enables. This is a **pre-existing condition, not a BE-04 regression**; the supported path is the workspace build, which passes |
-| `cargo test --workspace` | pass — 1381 passed, 0 failed, 8 ignored, across all targets (`thoth-api` 1174, `thoth` bin 24, `thoth-api` integration 13, `thoth-api-server` 3, `thoth-client` 4, `thoth-errors` 11, `thoth-export-server` 144 + 6 + 2) |
-| `cargo test --workspace --release` | pass — the same 1381 passed, 0 failed, 8 ignored |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | pass — no warnings |
+| `cargo test -p thoth-api --features backend` | pass — 1176 lib + 13 integration passed, 0 failed, 8 doc-tests ignored |
+| `cargo test --workspace` | pass — 1385 passed, 0 failed, 8 ignored |
+| `cargo test --workspace --release` | pass — the same 1385 passed, 0 failed, 8 ignored |
 | `cargo run migrate` | pass against a disposable database |
 | `cargo run migrate --revert` | pass against a disposable database |
+
+Per-target breakdown, identical in both profiles: `thoth` lib 0, `thoth` bin 24,
+`thoth-api` lib 1176, `thoth-api` integration 13, `thoth-api-server` 3,
+`thoth-client` 4, `thoth-errors` 11, `thoth-export-server` 144; doc-tests
+`thoth-api` 8 ignored, `thoth-client` 6 passed, `thoth-export-server` 2 passed.
+The count rose from 1381 to 1385 through the four tests the reconciliation added
+or split, net of the one it replaced.
+
+**`thoth-client` test execution, as section 25.13 requires.** In `cargo test
+--workspace`, `thoth-client`'s test target executed and passed **4** unit tests
+(`Running unittests src/lib.rs (target/debug/deps/thoth_client-…)`, `test result:
+ok. 4 passed; 0 failed`) plus **6** doc-tests (`Doc-tests thoth_client`, `test
+result: ok. 6 passed; 0 failed`). In `cargo test --workspace --release`, the same
+target executed and passed **4** unit tests
+(`target/release/deps/thoth_client-…`) and **6** doc-tests. Both runs therefore
+show `thoth-client` tests actually executing, not merely a green workspace
+summary.
+
+**`cargo test -p thoth-client` is deliberately not run as a gate**, per section
+25.13 and section 34.4 of the corrected specification. It does not build at the
+authorized base either — `thoth-api` does not compile with its `backend` feature
+off, and only the workspace and build-dependency edges enable it — and reporting
+it as `PASS` would be false while repairing it is unrelated scope under non-goal
+22. The repository's own CI control is `cargo test --workspace`, required here in
+both profiles. The standalone failure remains pre-existing repository
+packaging/test-mode debt for a separate task. No repository control changed
+between the addendum and this reconciliation that would require the standalone
+command instead.
 
 The release run is required in addition to the debug run because the
 configuration-argument tests are profile-dependent, exactly as
@@ -1121,23 +1435,40 @@ automatic production rollback procedure.
 5. **`work_id`'s `ON DELETE CASCADE` is unobservable in BE-04**, because no
    BE-04 row ever sets it. A future work-level job task must revisit that choice
    explicitly rather than inherit it silently.
-6. **The report's statement count diverges from section 17.4 above page size 1**,
-   for the reason and with the measurements in section 11.1. This is the one
-   substantive open item in this implementation.
+6. **A status-only `latestBackCatalogueJob { status }` selection still issues
+   three loader statements**, because the composite loader's shape deliberately
+   does not depend on the query's selection (section 11.2). This is the accepted
+   cost recorded by section 17.4.2, over row sets bounded by construction, and
+   the alternative would reintroduce look-ahead.
 7. **`cargo test -p thoth-client` does not build in isolation**, at this head and
-   at the authorized base alike (section 12).
+   at the authorized base alike (section 12). It is not a BE-04 gate under
+   section 25.13, and the standalone failure remains pre-existing repository
+   packaging debt for a separate task.
 8. **The specification's section 17.4 example selections write
    `targets { distributionPlatform }`** while its normative type definition in
    section 16.2 declares `platform`. The implementation follows the normative
    type definition; see section 5 item 6.
+9. **An L2- or L3-specific backend failure is proven by construction rather than
+   by fault injection.** The observed failure evidence induces the failure at the
+   connection, which the single blocking closure propagates identically for all
+   three statements through one `?` chain. There is no separate fixture that
+   fails only L2 or only L3.
+
+The previous item 6 — the report statement-count divergence from section 17.4 —
+is **removed rather than rewritten**, because the corrected implementation
+satisfies the corrected contract exactly, measured in section 11.1 and
+reproducible across five full re-runs.
 
 ---
 
 ## 16. Unresolved issues
 
-Item 6 of section 15 — the report statement-count divergence — is unresolved and
-is deliberately left for the independent reviewer and the CTO. Nothing else is
-unresolved.
+**None.** The statement-count divergence that was the single unresolved item at
+the previous head is resolved by Correction B: derived and observed totals are
+equal in all twelve measured cases, `C_job = 1` at every page size at or below
+200, and the second-level loaders record zero dispatches on the report path. Stop
+condition 23 did not fire, so no shared-foundation classification was required
+and **no claim is made about `BE-02`'s assignment loader or any other field**.
 
 ---
 
@@ -1158,6 +1489,27 @@ unresolved.
 - **PR #799 is untouched.**
 - Merge would authorize repository integration only.
 
+Reconciliation-specific confirmations:
+
+- **The published history was not rewritten.** The reconciliation is an ordinary
+  merge commit plus additive commits: no amend, no rebase, no squash, no
+  force-push, and no second branch or pull request.
+- **No specification content was edited.** `BE-04.md` on this branch is
+  byte-identical to its content on `develop @ 8c0c54bd…`; `ADR-0007` and
+  `ADR-0008` are untouched.
+- **No GitHub metadata was mutated.** The pull request was not marked ready for
+  review, its body was not edited, no reviewer was requested, no review was
+  submitted, no workflow was dispatched and nothing was merged. The
+  reconciliation changed the branch only; live pull-request lifecycle state is
+  the GitHub record.
+- **The public GraphQL contract did not change.** The generated SDL at the
+  reconciled head hashes to
+  `38820a24f7c1b1bac8f6ddc5286efd55dd7ece5f0155806ca4720f228ec93140`, byte-identical
+  to the pre-reconciliation head recorded in section 10.2.
+- **All validation ran against disposable local services.** The one database
+  created for CLI migration evidence was created for that run and dropped after
+  it.
+
 ---
 
 ## 18. Agent self-assessment and suggested review focus
@@ -1167,10 +1519,17 @@ declare its own work approved.
 
 Suggested review focus, in order:
 
-1. **The report statement-count divergence** (section 11.1). This is the one
-   place where measured behaviour does not meet a stated acceptance criterion,
-   and the decision about what to do belongs to the reviewer and the CTO.
-2. **The `OFF` fail-closed rollback** (section 7.4). It is the highest-
+1. **The composite loader and its statement arithmetic** (sections 11.1 and
+   11.2). Specifically: that the value really is the complete field, that L2 and
+   L3 are skipped rather than merely cheap for an empty chunk, that the resolver
+   returns a preloaded payload rather than a lazy one, that the second-level
+   loaders retain a genuine mutation-payload consumer, and that the test derives
+   its expectation from measured classification rather than asserting a constant.
+2. **The NULL-safe `CHECK` and its truth table** (section 6.2.1). Specifically:
+   that the first two rejection cases — the ones the old expression admitted —
+   are present on both `INSERT` and `UPDATE`, and that each rejection is
+   attributed to this constraint by name.
+3. **The `OFF` fail-closed rollback** (section 7.4). It is the highest-
    consequence behaviour in the task, and the snapshot comparison is the
    evidence it rests on.
 3. **The claim statement** (`model/distribution_job/crud.rs`). Whether it really
