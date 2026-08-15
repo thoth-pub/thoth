@@ -145,9 +145,12 @@ Reconciliation episode, all additive on top of the published history:
 
 | SHA | Subject |
 |---|---|
-| `f4cb9daf` | `Merge develop into feature/publisher-services/be-04` |
-| `951d8270` | `fix(publisher-services): reconcile BE-04 with the corrected contract` |
-| _(this commit)_ | `docs(publisher-services): reconcile BE-04 control records` |
+| `f4cb9daf` | `Merge develop into feature/publisher-services/be-04` — the ordinary merge of the authorized base |
+| `951d8270` | `fix(publisher-services): reconcile BE-04 with the corrected contract` — Corrections A and B and the section 25.12 rewrite |
+| _(this file's own commits)_ | `docs(publisher-services): …` — this report, the tracker and the changelog, which cannot record their own SHAs |
+
+No commit was amended, rebased, squashed or force-pushed, and the
+pre-reconciliation head `6356ac1c` remains an ancestor of the branch.
 
 The exact implementation head is recorded on the pull request and is the SHA the
 independent review must be taken against.
