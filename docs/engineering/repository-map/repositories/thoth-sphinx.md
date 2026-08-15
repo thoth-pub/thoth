@@ -12,32 +12,39 @@ Active development branch: `develop`
 CI: none — `actions/workflows` reports zero workflows on the repository
 Deployment: none verified
 
-Repository content, re-verified live 2026-08-15. This supersedes the earlier
-2026-08-15 record that described `main` and `develop` as identical and
-placeholder-only; that description is no longer accurate:
+Repository content, re-verified live 2026-08-15 after the repository's own
+control-reconciliation work completed. This supersedes any earlier record
+describing `main` and `develop` as identical and placeholder-only; that
+description is not accurate:
 
-- `main` is at `0896e4061e06bc640f917f1aaf25c14b6e25269a` and remains the
-  original placeholder-only branch: `README.md` and nothing else;
-- `develop` is at `7d6d4a24fde1ee0473f2ac66387167998f67ebb1` and contains a
-  root `AGENTS.md` plus the same, unchanged placeholder `README.md` (identical
-  `README.md` blob `ba19f1ba2a27adc8640691aea407aeb51b1a6f32` on both
-  branches);
+- `main` remains the GitHub default branch, is at
+  `0896e4061e06bc640f917f1aaf25c14b6e25269a`, and remains the original
+  placeholder commit: `README.md` and nothing else;
+- `develop` is the active development branch, is at
+  `ff7de985d03f0c94d5ad8d60727f9cf85b6435cd`, and contains a root `AGENTS.md`
+  plus the same, unchanged placeholder `README.md` (identical `README.md` blob
+  `ba19f1ba2a27adc8640691aea407aeb51b1a6f32` on both branches);
 - `main` and `develop` are therefore **not** identical:
-  `compare/main...develop` reports `ahead_by: 5, behind_by: 0,
-  status: ahead`, with `AGENTS.md` the only changed file.
+  `compare/main...develop` reports `ahead_by: 8, behind_by: 0,
+  status: ahead`, and the root `AGENTS.md` is the only content difference
+  between the two branches.
 
-`develop` has diverged from `main` solely through the completed
-repository-control work that added the repository-local root `AGENTS.md`
-(`CTRL-REPO-SPHINX-01`, merged through that repository's own pull requests).
-No runtime, bootstrap, CI or provider implementation exists on either branch:
-there is no Cargo workspace, no crate or module structure, no GitHub Actions
-workflow, no protection evidence and no provisioned runtime.
+`develop` has diverged from `main` solely through completed
+repository-control and reconciliation work: the commits that added the
+repository-local root `AGENTS.md` and subsequently corrected its recorded
+content (`CTRL-REPO-SPHINX-01` and its reconciliation follow-ups, merged
+through that repository's own pull requests). That divergence is
+repository-control history. It is **not** branch normalization, and it is not
+runtime or bootstrap implementation: no `master` branch has been established
+by it, and no runtime, bootstrap, Cargo, CI or provider implementation exists
+on either branch — there is no Cargo workspace, no crate or module structure,
+no GitHub Actions workflow, no protection evidence and no provisioned runtime.
 
 The repository therefore remains **bootstrap-only and
 non-implementation-ready**. Branch normalization (`BR-SPHINX-01`) and
 bootstrap (`SPHINX-BOOT-01`) remain separate, separately scoped and separately
-authorized tasks. Neither is performed nor authorized by this record, and this
-record performs no branch normalization.
+authorized tasks, and both remain unimplemented. Neither is performed nor
+authorized by this record, and this record performs no branch normalization.
 
 It is not currently a verified consumer of any contract; see
 `docs/engineering/repository-map/contracts.md` section 3.
@@ -66,10 +73,10 @@ from SPHINX-BOOT-01 and is not performed by this record. It must:
 - protect `master` and `develop`;
 - retain `main` until references are confirmed absent.
 
-Because `main` is currently behind `develop` by the repository-control commits
-described above, any normalization plan must state explicitly what `master`
-created from `main` contains, and must not assume the two branches are
-interchangeable.
+Because `main` is currently behind `develop` by the repository-control and
+reconciliation commits described above, any normalization plan must state
+explicitly what `master` created from `main` contains, and must not assume the
+two branches are interchangeable.
 
 The resulting flow is:
 

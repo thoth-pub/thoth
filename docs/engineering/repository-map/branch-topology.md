@@ -51,23 +51,28 @@ The Metrics design requires one repository-local `feature/metrics` integration b
 
 ### 3.1 2026-08-15 re-verification notes
 
-`thoth-sphinx` was re-verified live on 2026-08-15. This note supersedes the
-earlier 2026-08-15 statement that `main` and `develop` were identical and both
-placeholder-only; that statement is no longer accurate. Both branches exist and
-have **diverged**:
+`thoth-sphinx` was re-verified live on 2026-08-15, after that repository's own
+control-reconciliation work completed. This note supersedes any earlier
+statement that `main` and `develop` were identical and both placeholder-only;
+that statement is not accurate. Both branches exist and have **diverged**:
 
-- `main` is at `0896e4061e06bc640f917f1aaf25c14b6e25269a` and remains the
-  original placeholder-only branch, containing `README.md` alone;
-- `develop` is at `7d6d4a24fde1ee0473f2ac66387167998f67ebb1` and contains a
-  root `AGENTS.md` plus the same, unchanged placeholder `README.md`;
-- `compare/main...develop` reports `ahead_by: 5, behind_by: 0, status: ahead`,
-  with `AGENTS.md` the only changed file.
+- `main` remains the GitHub default branch, is at
+  `0896e4061e06bc640f917f1aaf25c14b6e25269a`, and remains the original
+  placeholder commit, containing `README.md` alone;
+- `develop` is the active development branch, is at
+  `ff7de985d03f0c94d5ad8d60727f9cf85b6435cd`, and contains a root `AGENTS.md`
+  plus the same, unchanged placeholder `README.md`;
+- `compare/main...develop` reports `ahead_by: 8, behind_by: 0, status: ahead`,
+  with the root `AGENTS.md` the only content difference between the branches.
 
-The divergence is solely the completed repository-control work that added the
-repository-local root `AGENTS.md`. The repository has zero GitHub Actions
-workflows and no runtime, bootstrap, CI or provider implementation, so it
-remains bootstrap-only and non-implementation-ready. `BR-SPHINX-01` and
-`SPHINX-BOOT-01` remain separate, separately authorized tasks; see
+The divergence is completed repository-control and reconciliation work only:
+the commits that added the repository-local root `AGENTS.md` and subsequently
+corrected its recorded content. It is **not** branch normalization — no
+`master` branch has been established by it — and it is not runtime, bootstrap,
+Cargo, CI or provider implementation. The repository has zero GitHub Actions
+workflows and no such implementation, so it remains bootstrap-only and
+non-implementation-ready. `BR-SPHINX-01` and `SPHINX-BOOT-01` remain separate,
+separately authorized and unimplemented tasks; see
 `repositories/thoth-sphinx.md`. The row above is corrected accordingly and no
 branch normalization is performed.
 
