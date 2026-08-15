@@ -1,6 +1,9 @@
 # Repository and Environment Map
 
-Status: Verified 2026-07-24
+Status: Verified 2026-07-24; repository entries and contract relationships for
+`thoth-client` (standalone), `thoth-pyramid`, `thoth-strapi` and the
+`thoth-sphinx` branch state independently verified 2026-08-15 (see
+`branch-topology.md` and `contracts.md` for evidence dates by row)
 Owner: CTO
 
 This directory records the repository, branch, build, CI, release and deployment boundaries required for AI-led delivery.
@@ -8,6 +11,10 @@ This directory records the repository, branch, build, CI, release and deployment
 ## Files
 
 - `branch-topology.md` - observed branch state, desired standard and normalization gates.
+- `contracts.md` - verified repository ownership and contract/consumer
+  relationships, used by the cross-repository impact-analysis gate; also
+  disambiguates the standalone Python `thoth-pub/thoth-client` from the
+  internal Rust `thoth-client` workspace member in `thoth-pub/thoth`.
 - `environments.md` - verified runtime, preview and release boundaries.
 - `control-gaps.md` - missing controls and required follow-up tasks.
 - `graphql-mutation-guard-runtime-operations.md` - the evidenced operational
@@ -26,6 +33,11 @@ This directory records the repository, branch, build, CI, release and deployment
 - `repositories/thoth-app.md`
 - `repositories/thoth-dissemination.md`
 - `repositories/thoth-sphinx.md`
+- `repositories/thoth-client.md` - standalone Python API client (distinct from
+  the internal Rust `thoth-client` workspace member documented in
+  `repositories/thoth.md`).
+- `repositories/thoth-pyramid.md`
+- `repositories/thoth-strapi.md`
 - `repositories/metrics-dashboard.md`
 - `repositories/metrics-widget.md`
 - `repositories/cc-license.md`

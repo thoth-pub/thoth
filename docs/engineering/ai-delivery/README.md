@@ -11,6 +11,11 @@ These documents apply across Thoth engineering programmes unless a stricter appr
 - `risk-classification.md` - task risk levels and mandatory controls.
 - `model-selection.md` - implementation and review model guidance.
 - `task-specification-template.md` - required specification before implementation.
+- `implementation-handoff-template.md` - reusable bounded handoff prompt for a
+  coding agent, derived from an approved task specification: exact base, write
+  budget, granular action matrix, automatic side effects, preflight,
+  cross-repository impact, HOLD/STOP conditions and the required completion
+  report.
 - `implementation-report-template.md` - required agent completion report.
 - `implementation-reports/` - completed task-specific implementation evidence.
 - `independent-review-template.md` - evidence-based review format.
@@ -76,19 +81,26 @@ A task is complete only when:
 
 ## Branching summary
 
-Thoth uses GitHub Flow (`ghf`):
+These delivery controls use GitHub Flow (`ghf`) as their pattern, but the
+branch names are repository-local, not a shared default. `thoth-pub/thoth`
+itself uses:
 
 ```text
 feature/* -> develop -> master
 ```
 
-For approved large programmes:
+For approved large programmes in `thoth-pub/thoth`:
 
 ```text
 feature/<programme>/<slice> -> feature/<programme> -> develop -> master
 ```
 
-Implementation branches normally start from `develop`. `master` is the release branch.
+In `thoth-pub/thoth`, implementation branches normally start from `develop`
+and `master` is the release branch. Another repository adopting these
+controls verifies and uses its own base, target and release branch names —
+see `branching-and-release-workflow.md` section on scope, and that
+repository's own repository-map entry or `AGENTS.md` where one exists. Do not
+assume `develop`/`master` for a repository other than `thoth-pub/thoth`.
 
 ## Authority
 

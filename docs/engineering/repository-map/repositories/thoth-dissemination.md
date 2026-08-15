@@ -72,6 +72,14 @@ GitHub Actions also perform scheduled/manual operational work. Some paths can:
 
 Dry run and read-only discovery must remain credential-free where designed.
 
+## Contract relationships
+
+Verified consumer of the Thoth API for location write-back and publisher/work
+discovery, owned by `thoth-pub/thoth`. See
+`docs/engineering/repository-map/contracts.md` section 2.1. A breaking API
+change affecting location write-back is a cross-repository impact that must
+be assessed before scope is approved.
+
 ## Programme effects
 
 Publisher Services:

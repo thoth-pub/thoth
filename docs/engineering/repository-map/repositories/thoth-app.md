@@ -84,6 +84,14 @@ Preview branch observed: `dev`
 
 Changing branch topology requires coordinated Vercel configuration and rollback evidence.
 
+## Contract relationships
+
+Verified consumer of the Thoth GraphQL schema owned by `thoth-pub/thoth` (see
+"Generated artefacts" above and
+`docs/engineering/repository-map/contracts.md` section 2.1). A breaking
+schema change requires this repository to regenerate types and is a
+cross-repository impact that must be assessed before scope is approved.
+
 ## Programme effects
 
 Publisher Services:
