@@ -1,6 +1,8 @@
 # BE-04 Implementation Report
 
 Programme: Publisher Services and Distribution Configuration
+Owning GitHub issue: [#821](https://github.com/thoth-pub/thoth/issues/821)
+Parent programme issue: [#765](https://github.com/thoth-pub/thoth/issues/765)
 Repository: `thoth-pub/thoth`
 Task ID: BE-04 — Durable distribution jobs
 Approved specification: [`docs/engineering/ai-delivery/tasks/BE-04.md`](../tasks/BE-04.md),
@@ -17,14 +19,20 @@ Authority condition: this report records what was implemented and measured. It
 makes no approval decision. Live review, merge-authorization and merge evidence
 is the GitHub pull-request record (`ADR-0005`).
 
-This report covers **two** authorized episodes on one branch, and neither
-supersedes the other as history:
+This report covers **three** authorized episodes on one branch, and none
+supersedes another as history:
 
 1. the original bounded implementation, authorized against the **baseline**
    specification at `develop @ ed32712766…`;
 2. the **implementation reconciliation** against the **corrected** specification
    at `develop @ 8c0c54bd…`, which is what sections marked *reconciliation*
-   record.
+   record;
+3. the **review remediation** authorized on owning issue
+   [#821](https://github.com/thoth-pub/thoth/issues/821) from exact PR #816 head
+   `b72a6376…`, which incorporates current repository-control doctrine from
+   `develop @ ec7868a4…` and corrects stale documentation. It is what sections
+   marked *remediation* record, and it changed **no runtime behaviour**
+   (section 4.5).
 
 Where the corrected contract changed a requirement, this report states the
 corrected result. It does not rewrite the original episode out of the record.
@@ -33,7 +41,64 @@ corrected result. It does not rewrite the original episode out of the record.
 
 ## 1. Repository state
 
-### 1.0 Reconciliation against the corrected specification
+### 1.1 Current state, as the implementation-report template requires
+
+| Template field | Value |
+|---|---|
+| Owning GitHub issue | [#821](https://github.com/thoth-pub/thoth/issues/821) |
+| Parent programme issue | [#765](https://github.com/thoth-pub/thoth/issues/765) |
+| Repository | `thoth-pub/thoth` |
+| Workflow | `STANDARD` — one bounded task, one slice branch, one pull request; no programme integration branch |
+| Base branch | `develop` |
+| Authorized base commit | `ec7868a4a44b3d52da5638975995bb66a488b3b4` — the base the remediation was authorized against on issue #821 |
+| Actual base commit | `ec7868a4a44b3d52da5638975995bb66a488b3b4`, incorporated by ordinary `--no-ff` merge; **equal to the authorized base**, and an ancestor of the head (`git merge-base --is-ancestor`) |
+| PR target | `develop` |
+| Programme integration branch | none |
+| Task branch | `feature/publisher-services/be-04` |
+| Head commit before this episode | `b72a6376d91afd4e23e56a61f7a8d5a77f7558b8` |
+| Head commit | the exact head recorded on PR #816 after this episode's push; it is the SHA the fresh independent review must be taken against, and is deliberately not transcribed here (`ADR-0005`) |
+| Pull request | [#816](https://github.com/thoth-pub/thoth/pull/816), target `develop` |
+| Expected branch deletion after merge | YES |
+| Final programme PR required | NO |
+| Implementing model | Claude Opus 5 |
+| Reasoning level | Extra High (`xhigh`) |
+
+### 1.2 Review-remediation preflight, performed before any edit (remediation)
+
+| Check | Observed |
+|---|---|
+| `git fetch origin --prune` | performed |
+| `git rev-parse origin/develop` | `ec7868a4a44b3d52da5638975995bb66a488b3b4` — equal to the authorized base |
+| `git rev-parse origin/feature/publisher-services/be-04` | `b72a6376d91afd4e23e56a61f7a8d5a77f7558b8` — unmoved from the authorized starting head |
+| local `HEAD` before any action | `b72a6376d91afd4e23e56a61f7a8d5a77f7558b8` |
+| `gh pr view 816` | `state: OPEN`, `isDraft: true`, `mergedAt: null`, `headRefOid: b72a6376…`, `baseRefName: develop` |
+| `gh issue view 821` | `state: OPEN`, recording the review-remediation authority, the exact starting head, the exact authorized `develop`, and the six blocking findings |
+| issue #821 comment [5302276182](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302276182) | authorizes exactly the **automatic** `publish-to-dockerhub` pull-request workflow side effect of the authorized push, including its normal `staging-pr-*` publication to `ghcr.io/thoth-pub/thoth`, and explicitly not manual dispatch/rerun, release or tag publication, any other publication, merge, deployment, migration execution, IdP changes, role grants, credential provisioning, worker deployment, `OFF -> ON`, pilot, dissemination, external platform calls, production access, or any action on PR #799 |
+| working tree | clean (`git status --porcelain` empty) |
+
+Neither stop condition fired: `develop` had not moved from `ec7868a4…` and PR
+#816's head had not moved from `b72a6376…`.
+
+### 1.3 Base incorporation (remediation)
+
+| Item | Value |
+|---|---|
+| Command | `git merge --no-ff ec7868a4a44b3d52da5638975995bb66a488b3b4` |
+| History treatment | ordinary merge commit; **no** rebase, amend, squash or force-push |
+| Merge commit | `76342682c7730e42ee83828b15c519a3f8848028` |
+| Conflicts | **one**, in `CHANGELOG.md` |
+| Resolution | both sides had prepended a new first entry under `### Added`. The `develop` entry (`CTRL-REPO-THOTH-01`) is kept **byte-identical and in its position at the top**, and BE-04's implementation entry follows it. No entry was dropped, reworded or merged into another; PR #817's entry was untouched |
+| Content preserved | `AGENTS.md`, `docs/engineering/AGENTS.md`, `operating-model.md`, the four `ai-delivery` templates, `contracts.md` and every repository-map entry are byte-identical to `develop @ ec7868a4…` on the branch |
+| `BE-04.md` | **not touched**, and byte-identical to its content on `develop @ ec7868a4…`; the conflict did not require changing it |
+
+What `develop` brought in is control/documentation only — the PR #820
+repository-control doctrine, the new `implementation-handoff-template.md`, the
+new `contracts.md`, and four new repository-map entries. **No Rust, migration,
+manifest, workflow or generated-contract file changed on the `develop` side**,
+so no substantive source/specification incompatibility arose and no
+`STOP / BLOCKED` condition applied.
+
+### 1.4 Reconciliation against the corrected specification
 
 | Item | Value |
 |---|---|
@@ -75,7 +140,7 @@ pre-addendum contract, which the corrected specification contradicts; the
 is then reconciled to its durable post-reconciliation form by a later commit on
 this branch. `CHANGELOG.md` merged cleanly, preserving PR #817's entry.
 
-### 1.1 Original implementation base and authorization
+### 1.5 Original implementation base and authorization
 
 | Item | Value |
 |---|---|
@@ -88,7 +153,7 @@ this branch. `CHANGELOG.md` merged cleanly, preserving PR #817's entry.
 That authorization remains valid history. It is **insufficient** for the
 corrected contract, which is why the reconciliation above carries its own.
 
-### 1.2 Preflight of the original episode, performed before any edit
+### 1.6 Preflight of the original episode, performed before any edit
 
 - `git fetch origin --prune`;
 - `git rev-parse origin/develop` = `ed32712766c8f5a1951bb53ec3192e18f067c7d2`, matching the
@@ -109,6 +174,31 @@ corrected contract, which is why the reconciliation above carries its own.
 PR [#799](https://github.com/thoth-pub/thoth/pull/799) was not touched, dispatched,
 rebased or referenced by any change in this branch.
 
+### 1.7 Authority history
+
+Four distinct authorizations apply to this branch. Each is recorded because
+authorization is granted action-by-action and is **not transitive** (root
+`AGENTS.md` section 6): none of these authorizes anything another one covers,
+and none of them authorizes merge, deployment, migration execution or
+production activation.
+
+| # | Authority | Where | Covers | Still valid as |
+|---:|---|---|---|---|
+| 1 | Original BE-04 implementation authorization | PR #814 comment [5296197259](https://github.com/thoth-pub/thoth/pull/814#issuecomment-5296197259), bound to `develop @ ed32712766…` | the original bounded implementation against the **baseline** specification | **valid history**. It was proper authorization for the work actually done; it was *insufficient* for the corrected contract only because the contract it was bound to later changed |
+| 2 | Corrected-contract implementation authorization | PR #816 comment [5301898691](https://github.com/thoth-pub/thoth/pull/816#issuecomment-5301898691), bound to `develop @ 8c0c54bd…` | the implementation reconciliation against the **corrected** specification (PR #817) | the authority under which episode 2 was performed |
+| 3 | Review-remediation authority | owning issue [#821](https://github.com/thoth-pub/thoth/issues/821), bound to PR #816 head `b72a6376…` and `develop @ ec7868a4…` | this episode: the ordinary merge of exact `ec7868a4…`, bounded corrections to stale BE-04 source documentation and to the implementation report/control records under current doctrine, local/disposable validation, ordinary commits, and one push to the existing branch | the authority under which episode 3 was performed |
+| 4 | Automatic staging-image publication authority | issue #821 comment [5302276182](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302276182) | **only** the automatic `publish-to-dockerhub` pull-request workflow side effect of the authorized push, including its normal `staging-pr-*` image publication to `ghcr.io/thoth-pub/thoth` | narrow and non-transitive; see section 4.3 |
+
+No authorization exists for merge of PR #816, deployment, environment or
+production migration execution or rollback, identity-provider changes, role
+grants, credential provisioning, worker deployment,
+`THOTH_DISTRIBUTION_JOB_CREATION` `OFF -> ON`, pilot execution, dissemination,
+external platform calls, production access, release or tag publication, manual
+CI dispatch or rerun, or any action on PR #799. None was performed.
+
+Live review, approval and merge state for PR #816 is the GitHub record and is
+deliberately not transcribed into this file (`ADR-0005`).
+
 ---
 
 ## 2. Scope confirmation
@@ -125,6 +215,18 @@ storage, no credential storage, no token issuance, no workflow change, no
 mutation-guard change, no deployment, no production migration execution and no
 production access. `thoth-app` is not modified and is not a member of this
 workspace. DIS-02 is not implemented.
+
+**Out-of-scope changes made: NONE**, in any of the three episodes.
+
+The review remediation added no scope of its own. It is bounded to
+incorporating the authorized `develop` base, correcting stale documentation in
+the one authorized source file, bringing this report and the control records
+under current doctrine, completing the cross-repository impact assessment
+(section 10.7), and re-running the local gate. No architectural or runtime
+redesign was performed, and the two Addendum 01 corrections that had already
+passed source review — the NULL-safe attempt-error `CHECK` and the first-level
+composite loader with its 5/6/3/4 per-chunk arithmetic — were neither reopened
+nor redesigned.
 
 ---
 
@@ -147,10 +249,23 @@ Reconciliation episode, all additive on top of the published history:
 |---|---|
 | `f4cb9daf` | `Merge develop into feature/publisher-services/be-04` — the ordinary merge of the authorized base |
 | `951d8270` | `fix(publisher-services): reconcile BE-04 with the corrected contract` — Corrections A and B and the section 25.12 rewrite |
-| _(this file's own commits)_ | `docs(publisher-services): …` — this report, the tracker and the changelog, which cannot record their own SHAs |
+| `9ab1e84e` | `docs(publisher-services): reconcile BE-04 control records` |
+| `ab65049a` | `docs(publisher-services): record BE-04 reconciliation action budget` |
+| `48cecf3a` | `docs(publisher-services): correct the BE-04 workspace test totals` |
+| `b72a6376` | `docs(publisher-services): make the BE-04 commit table self-consistent` — the head the fresh independent review was taken against |
 
-No commit was amended, rebased, squashed or force-pushed, and the
-pre-reconciliation head `6356ac1c` remains an ancestor of the branch.
+Review-remediation episode, all additive on top of the published history:
+
+| SHA | Subject |
+|---|---|
+| `76342682` | `Merge develop into feature/publisher-services/be-04` — the ordinary `--no-ff` merge of exact `ec7868a4…` (section 1.3) |
+| `91e5208d` | `docs(publisher-services): correct the stale BE-04 payload documentation` — the section 6 source correction |
+| _(this file's own commit)_ | `docs(publisher-services): …` — this report, the tracker and the changelog, which cannot record their own SHA |
+
+No commit was amended, rebased, squashed or force-pushed. The
+pre-reconciliation head `6356ac1c` and the pre-remediation head `b72a6376`
+both remain ancestors of the branch, and exactly **one** push was performed
+after all local commits were ready (section 4.3).
 
 The exact implementation head is recorded on the pull request and is the SHA the
 independent review must be taken against.
@@ -256,36 +371,181 @@ reconciliation, for the reason in section 6.3. `BE-04.md` is **not** touched, an
 neither is `ADR-0007`, `ADR-0008`, any workflow, any manifest, `policy.rs`, or
 anything in `thoth-client`.
 
-### 4.2 Authorized actions actually used, by the reconciliation
+### 4.2 Files changed by the review remediation, and the write budget
 
-Authorization is action-by-action and not transitive. What the reconciliation
+The remediation's authorized manual-edit budget is **exactly four existing
+paths**, and its authorized new-file budget is **NONE**:
+
+Authorized write paths (existing files):
+
+```text
+thoth-api/src/model/distribution_job/mod.rs
+docs/engineering/ai-delivery/implementation-reports/BE-04-implementation-report.md
+docs/publisher-services/task-status.md
+CHANGELOG.md
+```
+
+Authorized new-file paths: **NONE**.
+
+Prohibited for manual edit, and all confirmed untouched by this episode:
+`docs/engineering/ai-delivery/tasks/BE-04.md`, `ADR-0007`, `ADR-0008`, every
+workflow file, the CI classifier, every Cargo manifest, every migration SQL
+file, `schema.rs`, all GraphQL runtime/resolver code, all tests, `policy.rs`
+and all other authorization code, `thoth-client`, and every other repository.
+
+Actual manual remediation edits, all four inside that budget:
+
+| Path | Reason | Behavioural effect | Within budget |
+|---|---|---|---|
+| `thoth-api/src/model/distribution_job/mod.rs` | the `DistributionJobPayload` doc comment still described the rejected pre-addendum report path (section 6) | **none** — one doc comment; no code, signature, type or test changed | YES |
+| `docs/engineering/ai-delivery/implementation-reports/BE-04-implementation-report.md` | bring this report into substantive compliance with the current implementation-report template and correct the same stale architecture statement | none — documentation | YES |
+| `docs/publisher-services/task-status.md` | reconcile the durable tracker after the `develop` merge and this remediation | none — documentation | YES |
+| `CHANGELOG.md` | conflict resolution during the authorized merge, plus the remediation record | none — documentation | YES |
+
+Actual new files created by the remediation: **NONE**.
+
+Files deleted, moved or renamed by the remediation: **NONE**.
+
+#### 4.2.1 Merge incorporation is not a manual write-budget edit
+
+These files changed on the branch **only** because the authorized
+`git merge --no-ff ec7868a4…` incorporated `develop`'s authoritative content.
+They were not manually edited, and each is byte-identical to `develop @
+ec7868a4…` on the branch:
+
+```text
+AGENTS.md                                                    (modified on develop)
+docs/engineering/AGENTS.md                                   (modified on develop)
+docs/engineering/ai-delivery/README.md                       (modified on develop)
+docs/engineering/ai-delivery/branching-and-release-workflow.md
+docs/engineering/ai-delivery/implementation-report-template.md
+docs/engineering/ai-delivery/independent-review-template.md
+docs/engineering/ai-delivery/operating-model.md
+docs/engineering/ai-delivery/task-specification-template.md
+docs/engineering/repository-map/README.md
+docs/engineering/repository-map/branch-topology.md
+docs/engineering/repository-map/repositories/thoth.md
+docs/engineering/repository-map/repositories/thoth-app.md
+docs/engineering/repository-map/repositories/thoth-dissemination.md
+docs/engineering/repository-map/repositories/thoth-sphinx.md
+docs/engineering/ai-delivery/implementation-handoff-template.md   (new on develop)
+docs/engineering/repository-map/contracts.md                      (new on develop)
+docs/engineering/repository-map/repositories/thoth-client.md      (new on develop)
+docs/engineering/repository-map/repositories/thoth-pyramid.md     (new on develop)
+docs/engineering/repository-map/repositories/thoth-strapi.md      (new on develop)
+```
+
+The five new files above are `develop`'s, incorporated by merge. They are
+**not** new-file creations by this agent, and the new-file budget of NONE is
+therefore not consumed. `CHANGELOG.md` is the one file that is both
+merge-affected and manually edited: its single conflict was resolved as
+section 1.3 records, and its `develop` entry is byte-identical.
+
+#### 4.2.2 Write-budget compliance
+
+**WRITE-BUDGET COMPLIANCE: PASS.**
+
+Every file the branch changed relative to `develop @ ec7868a4…` is either a
+BE-04 implementation file from the two earlier authorized episodes (sections 4
+and 4.1) or one of the four authorized remediation paths above. This episode
+changed no file outside its four-path budget, created no file and deleted,
+moved or renamed nothing.
+
+### 4.3 Authorized actions actually used
+
+Authorization is action-by-action and not transitive. What each episode's
 authorization covered, and what was actually done:
 
-| Action | Authorized | Used |
+| Action | Reconciliation: authorized / used | Remediation: authorized / used |
 |---|---|---|
-| repository/GitHub read inspection | yes | yes |
-| source/worktree modification, bounded | yes | yes — the files in section 4.1 |
-| new file creation | not needed | **no** — every changed file already existed |
-| file deletion, move or rename | no | **no** |
-| branch creation | not needed | **no** — the existing branch was reused |
-| commit | yes | yes — one merge commit and additive commits (section 3) |
-| push to `feature/publisher-services/be-04` | yes | yes |
-| pull-request creation or body/metadata update | **no** | **no** |
-| issue/comment mutation | **no** | **no** |
-| manual CI dispatch or rerun | **no** | **no** |
-| provider/runtime read or write | **no** | **no** |
-| migration execution | disposable only | disposable only — a database created and dropped for the run |
-| release, tag or publication | **no** | **no** |
-| merge of PR #816 | **no** | **no** |
-| deployment or production activation | **no** | **no** |
+| repository/GitHub read inspection | yes / yes | yes / **yes** |
+| source/worktree modification, bounded | yes / yes — section 4.1 | yes / **yes** — the four paths in section 4.2 |
+| new file creation | not needed / **no** | **no** (budget NONE) / **no** |
+| file deletion, move or rename | no / **no** | **no** / **no** |
+| branch creation | not needed / **no** | not needed / **no** — the existing branch was reused |
+| commit | yes / yes | yes / **yes** — one merge commit and additive commits (section 3) |
+| push to `feature/publisher-services/be-04` | yes / yes | yes / **yes** — exactly one |
+| pull-request creation or body/title/base/state update | **no** / **no** | **no** / **no** |
+| issue/comment mutation | **no** / **no** | **no** / **no** |
+| manual CI dispatch, rerun or cancel | **no** / **no** | **no** / **no** |
+| provider/runtime read | **no** / **no** | **no** / **no** |
+| provider/runtime write | **no** / **no** | **no** / **no** |
+| migration execution | disposable only / disposable only | disposable only / **disposable only** — a database created for the run and dropped after it |
+| release, tag or publication | **no** / **no** | **no** / **no** (the automatic `staging-pr-*` image is a CI side effect, section 4.4, not an action taken here) |
+| merge of PR #816 | **no** / **no** | **no** / **no** |
+| deployment | **no** / **no** | **no** / **no** |
+| production activation | **no** / **no** | **no** / **no** |
+| other | — | none |
 
-Automatic side effect expected from the authorized push: repository CI runs on
-PR #816. Nothing else external was triggered.
+**Unauthorized actions performed: NONE.**
 
-Cross-repository impact: none. The generated SDL is byte-identical across the
-reconciliation (section 17), so every known consumer of the Thoth GraphQL
-contract — `thoth-client` in-workspace, and `thoth-app` downstream — remains
-compatible without change, for the reasons already recorded in section 10.6.
+One distinction matters for attribution. The control plane had already created
+issue #821, linked it to #765, updated PR #816's body and recorded the
+automatic staging-image publication authority **before** this implementation
+episode began. Those are the control plane's actions, not this agent's. This
+implementation agent mutated **no** GitHub metadata: it created no issue,
+posted no comment, edited no issue and edited no pull-request body, title, base
+or state, requested no reviewer, submitted no review and marked nothing ready
+for review.
+
+### 4.4 Automatic and manual external effects
+
+**Automatic CI/provider effects expected from the one authorized push.** The
+push triggers normal pull-request CI on PR #816. The complete PR contains Rust
+and migration changes, so the repository's classifier is expected to set
+`run_docker=true`, and the normal `publish-to-dockerhub` pull-request workflow
+may therefore publish its ordinary
+`ghcr.io/thoth-pub/thoth:staging-pr-*` image.
+
+That publication is an **AUTHORIZED AUTOMATIC CI SIDE EFFECT** under issue #821
+comment [5302276182](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302276182).
+It is **not** a deployment, not a production activation, not a release and not
+a tag publication: it publishes a staging image built from the pull request,
+and nothing consumes it automatically. Exactly **one** push was performed,
+after all local commits and all validation were complete, so this episode does
+not cause repeated staging-image publication.
+
+**Manually initiated external actions: NONE.** No workflow was dispatched,
+rerun, cancelled or restarted; no registry push was invoked directly; no
+release, tag or package was published; and no image was deployed. If normal CI
+fails, that is reported as a finding — it is not manually rerun.
+
+**External writes/publication other than the authorized automatic
+`staging-pr-*` image: NONE.**
+
+### 4.5 Substantive regression check (remediation)
+
+The remediation was verified not to have altered the substantive BE-04
+implementation. Confirmed unchanged, by diffing the branch's source against the
+pre-remediation head `b72a6376…`:
+
+| Substantive property | Status |
+|---|---|
+| NULL-safe attempt-error `CHECK` (section 6.2.1) | unchanged |
+| `INSERT` + `UPDATE` truth-table tests | unchanged |
+| composite `publisher_id` loader | unchanged |
+| one `spawn_blocking` / one connection composite dispatch | unchanged |
+| L1/L2/L3 conditional shape | unchanged |
+| fail-closed total batch semantics | unchanged |
+| report preloaded payload | unchanged |
+| mutation-only secondary child loaders | unchanged |
+| worker claim path | unchanged |
+| query-count test arithmetic | unchanged |
+| `C_job = 1` expectation at `N <= 200` | unchanged |
+| zero target/attempt dispatch on the report path | unchanged |
+| linked OAPEN/DOAB job semantics | unchanged |
+| `OFF` fail-closed behaviour | unchanged |
+| migration backfill behaviour | unchanged |
+| state machine and max attempts | unchanged |
+| stale-token protection | unchanged |
+| `DISSEMINATION_WORKER` authorization | unchanged |
+| generated SDL | unchanged |
+
+The only source change in the remediation is the doc comment of section 6. The
+diff of `thoth-api/src/model/distribution_job/mod.rs` against `b72a6376…`
+contains **comment lines only**: no statement, expression, signature, type,
+derive, attribute or test changed anywhere in the workspace. No other `.rs`,
+`.sql`, `.toml`, workflow or generated file differs from `b72a6376…`.
 
 ---
 
@@ -297,10 +557,26 @@ compatible without change, for the reasons already recorded in section 10.6.
 2. **The claim statement's projection is the whole job row**, so section 12.3's
    optional merge of statement 2 into statement 1 is taken. The claim path is
    therefore recovery + claim + targets + attempts = a constant four statements.
-3. **`DistributionJobPayload`** carries optionally preloaded children. The worker
-   claim path preloads them with its own two set-based statements and
-   deliberately does not use `RequestLoaders`; every other path leaves them lazy
-   and batches through the ADR-0007 loaders.
+3. **`DistributionJobPayload`** carries optionally preloaded children, and there
+   are exactly **three** producing shapes — not two. The **worker claim path**
+   preloads them with its own two set-based statements and deliberately does not
+   use `RequestLoaders`. The **staff report's `latestBackCatalogueJob` path**
+   also arrives preloaded, but through a loader rather than directly: the
+   first-level `publisher_id` composite `ADR-0007` loader resolves the complete
+   payload — job, targets and attempts — inside one batch function, so the
+   report's `targets` and `attempts` resolvers read already-materialized values
+   and dispatch no second-level loader at all. Only the **single-job mutation
+   payloads** of `completeDistributionJob`, `failDistributionJob` and
+   `cancelDistributionJob` remain lazy and batch through the second-level
+   `ADR-0007` target and attempt loaders; there the cohort is one job, so the
+   dependent-arrival problem the report path had to avoid does not arise.
+
+   This replaces the earlier statement that the claim path was the only
+   preloading producer and that *every other path* left the children lazy. That
+   description belonged to the rejected pre-addendum design, in which the report
+   did batch through second-level child loaders; it has been false since
+   Correction B, and it is corrected here and in the source doc comment rather
+   than left to be re-derived from sections 11.1 and 11.2.
 4. **The kinds filter is bound as `text[]` and cast to the enum array**
    (`j.kind = ANY($2::text[]::public.distribution_job_kind[])`), which keeps the
    comparison on the enum type exactly as specified while avoiding a
@@ -543,10 +819,11 @@ migration tests
 `schema_rs_matches_the_migration_for_all_three_relations`,
 `the_attempt_budget_constant_and_the_migration_agree`).
 
-The CLI path was re-run at the reconciled head against a **freshly created,
-disposable** database (`thoth_be04_migrate`, created for the run and dropped
-after it, on a local PostgreSQL 17.10 — never production and never a shared
-service):
+The CLI path was re-run at the reconciled head, and again at the **remediated**
+head, each time against a **freshly created, disposable** database
+(`thoth_be04_migrate` and `thoth_be04_remediation` respectively, each created
+for its run and dropped after it, on a local PostgreSQL 17.10 — never
+production and never a shared service). Both runs observed the same results:
 
 | Step | Observed |
 |---|---|
@@ -1115,6 +1392,66 @@ arms, with no fifth. Observed at the GraphQL boundary:
 - the backend commit SHA of the reviewed BE-04 head and the SDL artifact hash
   above are the values later APP-01/APP-02 contract pinning should use.
 
+### 10.7 Cross-repository impact, every verified consumer
+
+This is the cross-repository impact-analysis gate of `operating-model.md`
+section 4.1 and root `AGENTS.md` section 6.1, applied against the current
+authoritative `docs/engineering/repository-map/contracts.md`.
+
+**Contract affected:** the public GraphQL schema and behaviour of the canonical
+Thoth API. **Owning repository:** `thoth-pub/thoth` — this repository
+(`contracts.md` section 2.1). No other contract class in section 4.1 is
+touched: no export format, no configuration/environment contract consumed by
+another repository, no CMS/site contract, no package/library interface, and no
+deployment/compatibility window (the merged state is inactive).
+
+The shared compatibility evidence, from which every row below follows:
+
+1. **BE-04 is purely additive to the SDL.** The unified diff at section 10.2 is
+   144 added lines and exactly two removed lines, and both removals are the
+   previous single-line renderings of `publisherServiceConfigurations` and
+   `publisherServiceConfigurationCount`, replaced by renderings carrying two
+   new arguments.
+2. **No existing GraphQL field, type, enum value or argument was removed.**
+3. **Nothing existing became stricter**: no existing field's type, nullability,
+   arguments, defaults or description changed. The one field added to an
+   existing type, `PublisherServiceConfigurationSummary.latestBackCatalogueJob`,
+   is **nullable**; the two arguments added to existing queries,
+   `jobStatuses` and `withoutBackCatalogueJob`, are optional — `jobStatuses`
+   renders as `[DistributionJobStatus!] = []` and `withoutBackCatalogueJob` as a
+   nullable `Boolean` with no default, so absent and `null` both mean "no
+   filter".
+4. **Every existing client document therefore remains valid and returns exactly
+   what it returned before.** New types are unreferenced by existing selections;
+   an unselected new field costs nothing (section 11.1 item 4 measures this:
+   a selection reaching neither job field issues no `distribution_job%`
+   statement at all).
+5. **This remediation changed the SDL not at all.** It is a documentation-only
+   episode (sections 4.2 and 4.5), so the generated SDL is identical to the
+   already-produced BE-04 candidate's, whose hash is recorded in section 10.2.
+
+| # | Consumer | Contract consumed | Verdict | Reason |
+|---:|---|---|---|---|
+| 1 | `thoth-pub/thoth-app` | GraphQL schema via `graphql-codegen` (`thoth-app/codegen.ts`) | **REMAINS COMPATIBLE** | Its codegen consumes the schema additively: points 2–4 above mean its existing documents still typecheck and its generated types gain only unreferenced additions. The BE-04 surface it would eventually render (APP-01/APP-02) is new work under its own bounded task, not a compatibility obligation created here. Not modified by this task |
+| 2 | `thoth-pub/thoth-pyramid` | GraphQL schema via `graphql-codegen` (`thoth-pyramid/codegen.ts`) and the metadata export API (`META_API_URL`) | **REMAINS COMPATIBLE** | Same additive-schema reasoning as row 1. Additionally, BE-04 changes **no export format and no export-server behaviour**: it adds no export, alters no `thoth-export-server` output and does not modify `thoth-client/assets/queries.graphql` (section 10.6), so the `META_API_URL` half of its contract is untouched |
+| 3 | `thoth-pub/thoth-dissemination` | Thoth API for location write-back and publisher/work discovery | **REMAINS COMPATIBLE** | BE-04 removes and narrows nothing on the location write-back or discovery surfaces, and adds no requirement to them. The new worker mutations are additive and gated behind `DISSEMINATION_WORKER`, which is **declared** only; no role was created or granted (section 9.3), so this repository's current behaviour cannot change. Its future consumption of the worker protocol is DIS-02, which is `BLOCKED` and out of scope |
+| 4 | `thoth-pub/thoth-client` (standalone Python `thothlibrary`) | public GraphQL schema **and** the Thoth REST/export API | **REMAINS COMPATIBLE** | Two halves, both clear. GraphQL: points 2–4 — a published third-party client's existing queries remain valid because nothing was removed or made stricter. REST/export: BE-04 **changes no REST route, no response shape and no export format**, so `ThothRESTClient`'s documented usage (`thothlibrary/rest.py`, `rest_cli.py`, `rest_structures.py`) is untouched. No versioned release of that package is required by this change. This is the standalone repository, **not** the internal Rust crate — see row 5 |
+| 5 | `thoth-export-server` (internal, same repository) | GraphQL schema via the internal `thoth-client` Rust crate | **REMAINS COMPATIBLE** | In-workspace and reviewed in the same PR, so not a cross-repository concern. `thoth-client/assets/queries.graphql` is **unchanged** (section 10.6); its 144 tests and the crate's 4 unit plus 6 doc tests execute and pass in both workspace profiles (section 12) |
+| 6 | `thoth-pub/metrics-dashboard` | public GraphQL schema, verified at `config/index.ts` (`NEXT_PUBLIC_THOTH_API_URL ?? 'https://api.thoth.pub/graphql'`) | **REMAINS COMPATIBLE** | It calls the public API directly today. Points 2–4 apply unchanged: nothing it queries was removed, retyped or made stricter. Its future protected Metrics/BFF data path is unimplemented architecture and does not alter this assessment, exactly as `contracts.md` section 2.1 requires |
+| 7 | `thoth-pub/metrics-widget` | public GraphQL schema, verified at `src/shared/config/index.ts` (`VITE_THOTH_API_URL ?? 'https://api.thoth.pub/graphql'`) | **REMAINS COMPATIBLE** | Same as row 6. Its separate package-interface contract with `thoth-pyramid` (`contracts.md` section 2.4) is a `metrics-widget` -> Pyramid dependency that BE-04 does not touch in either direction |
+| 8 | `thoth-pub/thoth-sphinx` | planned Thoth GraphQL client | **NOT A CURRENT CONSUMER** | `contracts.md` section 3 records that Sphinx has **no implementation, CI or runtime**, and its row in section 2.1 is `UNVERIFIED`. It is a future consumer only, so no compatibility action and no downstream task is required today. It is deliberately **not** recorded as `REMAINS COMPATIBLE`, because there is nothing live to be compatible |
+
+`thoth-pub/thoth-strapi` is assessed and excluded on evidence rather than by
+omission: `contracts.md` section 2.2 records it as a Strapi 4 CMS that is **not
+a Thoth API consumer** — no Thoth GraphQL client dependency exists in its
+manifest — and its contract with Pyramid is a content/ID-linkage contract that
+BE-04 does not touch.
+
+**No downstream repository task is created**, because no consumer requires a
+change; `operating-model.md` section 4.1 item 3 is satisfied by recording the
+reason each remains compatible. **No downstream repository was modified**, and
+no breaking contract effect was found, so no `STOP / BLOCKED` condition applied.
+
 ---
 
 ## 11. Reporting
@@ -1178,10 +1515,11 @@ rather than assertions. `C_assign` is `0` for the job-only selection because it
 does not select `enabledDistributionPlatforms`; the assignment chunks observed
 for the full report selection were `[1]`, `[25]` and `[200]` respectively.
 
-The whole matrix was re-run **five** times and was identical in every cell,
-including the chunk vectors. The withdrawn nested-loader shape was not
-reproducible run to run; this one is, which is the point of removing the
-dependent-arrival cohort rather than tuning around it.
+The whole matrix was re-run **five** times at the reconciled head and **three**
+further times at the remediated head (section 12.0), and was identical in every
+cell across all eight runs, including the chunk vectors. The withdrawn
+nested-loader shape was not reproducible run to run; this one is, which is the
+point of removing the dependent-arrival cohort rather than tuning around it.
 
 The assertions the test makes, beyond the derived total:
 
@@ -1301,8 +1639,12 @@ at any shared service.** The disposable PostgreSQL is 17.10, `UTF8`-encoded to
 match CI and production — the character-boundary truncation evidence is only
 meaningful under a multi-byte-aware encoding.
 
-All figures below are the **reconciled head's**, re-run in full after the
-corrections; they are not carried over from the original episode.
+All figures below are the **remediated head's**. Because this is a HIGH-risk
+candidate moving to a new exact review head, the complete local gate was re-run
+in full after the `develop` merge and the documentation corrections; nothing is
+carried over from an earlier episode. Every figure was **unchanged** from the
+reconciled head, which is the expected result for a documentation-only episode
+and is itself part of the section 4.5 regression evidence.
 
 | Command | Result |
 |---|---|
@@ -1320,10 +1662,13 @@ Per-target breakdown, identical in both profiles: `thoth` lib 0, `thoth` bin 24,
 `thoth-api` lib 1176, `thoth-api` integration 13, `thoth-api-server` 3,
 `thoth-client` 4, `thoth-errors` 11, `thoth-export-server` 144; doc-tests
 `thoth-api` 8 ignored, `thoth-client` 6 passed, `thoth-export-server` 2 passed.
-The count rose from 1381 to 1383: the reconciliation added three tests — the
-attempt-error truth table, the derived-arithmetic matrix and the
-unselected-composite-loader case — and removed the one that recorded the
-withdrawn divergence, a net of two in `thoth-api`'s library suite.
+Those sum to 1375 unit/integration plus 8 executed doc-tests, which is the 1383
+above. The count rose from 1381 to 1383 at the **reconciliation**: it added
+three tests — the attempt-error truth table, the derived-arithmetic matrix and
+the unselected-composite-loader case — and removed the one that recorded the
+withdrawn divergence, a net of two in `thoth-api`'s library suite. The
+**remediation added and removed no test**, and the totals are unchanged from
+the reconciled head in both profiles.
 
 **`thoth-client` test execution, as section 25.13 requires.** In `cargo test
 --workspace`, `thoth-client`'s test target executed and passed **4** unit tests
@@ -1350,6 +1695,38 @@ The release run is required in addition to the debug run because the
 configuration-argument tests are profile-dependent, exactly as
 `THOTH-GQL-OPS-02` established: in pinned `clap_builder`, an unregistered
 argument panics only under `cfg(debug_assertions)`.
+
+### 12.0 Focused BE-04 report evidence, re-run at the remediated head
+
+The section 11.1 matrix was re-run **three** further times at the remediated
+head, through
+`graphql::distribution_job_tests::the_report_statement_count_equals_the_derived_per_chunk_arithmetic`
+and
+`graphql::distribution_job_tests::an_unselected_composite_loader_dispatches_nothing`.
+All three runs were identical in every cell, and identical to the reconciled
+head's five runs:
+
+| Page fixture | Selection | `N = 1` | `N = 25` | `N = 200` |
+|---|---|---:|---:|---:|
+| page containing at least one job | job-only | **5** | **5** | **5** |
+| page containing at least one job | full report | **6** | **6** | **6** |
+| page whose publishers have no job | job-only | **3** | **3** | **3** |
+| page whose publishers have no job | full report | **4** | **4** | **4** |
+
+Derived equalled observed in all twelve cells of every run. The
+scheduler-independent properties held in all of them:
+
+| Property | Observed, every run and every page size |
+|---|---|
+| `C_job` (composite loader dispatch chunks) | **1** — the chunk vectors were exactly `[1]`, `[25]` and `[200]` |
+| target loader dispatches | **0** |
+| attempt loader dispatches | **0** |
+| driver metadata lookups (excluded from the counts) | 1 |
+| chunk classification | `[Some(true)]` on the job page, `[Some(false)]` on the no-job page — the L2/L3-skipped branch measured, not inferred |
+
+`C_job = 1` at `N = 200` is `ADR-0007` section 4.6's `ceil(N / 200)` for a
+loader-first cohort, so stop condition 23 did not fire. No test was weakened,
+skipped, retried or re-run to obtain a passing cell.
 
 ### 12.1 Switch registration evidence
 
@@ -1383,14 +1760,26 @@ production behaviour changed.
 
 ---
 
-## 12.2 CI
+### 12.2 CI
+
+CI status at the exact remediated head: **see the pull request.**
 
 Repository CI runs on the pull request carrying this implementation and covers
 the classification, changelog, format, lint, build, test and migration jobs.
 Its result at the exact reviewed head is **terminal GitHub evidence** under
 `ADR-0005` and is deliberately not transcribed into this file, which would be
-falsified by any later run. No workflow file was changed and no workflow was
-manually dispatched.
+falsified by any later run. No workflow file was changed, and no workflow was
+manually dispatched, rerun or cancelled in any episode.
+
+The one authorized push is expected to register a normal pull-request CI run at
+the new exact head. Because the complete pull request contains Rust and
+migration changes, the classifier is expected to set `run_docker=true` and the
+normal `publish-to-dockerhub` pull-request workflow may publish its ordinary
+`staging-pr-*` image; section 4.4 records that as an authorized automatic CI
+side effect. A CI failure at the exact head is reported as a finding for the
+review to weigh — it is not manually rerun, and missing required checks at the
+reviewed head are a review blocker rather than something this report may
+declare resolved.
 
 ---
 
@@ -1546,6 +1935,36 @@ Reconciliation-specific confirmations:
   created for CLI migration evidence was created for that run and dropped after
   it.
 
+Remediation-specific confirmations:
+
+- **No merge of PR #816**, no deployment, no environment or production migration
+  execution or rollback, no identity-provider change, no role grant, no
+  credential provisioning, no worker deployment, no
+  `THOTH_DISTRIBUTION_JOB_CREATION` `OFF -> ON` activation, no pilot, no
+  dissemination, no external platform call, no production access, no release or
+  tag publication, and no registry or package publication other than the
+  authorized automatic `staging-pr-*` CI image (section 4.4).
+- **No manual CI action.** No workflow was dispatched, rerun, cancelled or
+  restarted.
+- **No GitHub metadata mutation by this implementation agent.** No issue was
+  created or edited, no comment was posted on #821 or #765, and PR #816's body,
+  title, base and state were not touched — it remains a draft because nothing
+  here changed it. The control plane's earlier issue and PR-body actions are
+  its own and are not claimed here (section 4.3).
+- **The published history was not rewritten** in this episode either: one
+  ordinary `--no-ff` merge commit, additive commits, and exactly **one** push.
+  No amend, no rebase, no squash, no force-push, no second branch and no second
+  pull request.
+- **No specification content was edited.** `BE-04.md` on this branch is
+  byte-identical to `develop @ ec7868a4…`, and `ADR-0007` and `ADR-0008` remain
+  untouched.
+- **No runtime behaviour changed.** The only source diff against the
+  pre-remediation head `b72a6376…` is doc-comment lines (section 4.5).
+- **`develop`'s authoritative content was preserved whole**, including the new
+  `contracts.md`, the new `implementation-handoff-template.md` and the four new
+  repository-map entries.
+- **PR #799 is untouched** by this episode as by the previous two.
+
 ---
 
 ## 18. Agent self-assessment and suggested review focus
@@ -1579,3 +1998,22 @@ Suggested review focus, in order:
    disposable-environment figures are being read as what they are.
 7. The three modified pre-existing test files (section 4), to confirm that each
    change preserves the original assertion's intent rather than relaxing it.
+
+For the review-remediation episode specifically, the cheapest high-value checks
+are:
+
+8. **That the remediation really is documentation-only** (section 4.5). The
+   single-command check is that `git diff b72a6376… HEAD -- '*.rs'` contains
+   only `///` lines and that no `.sql`, `.toml`, workflow or generated file
+   differs at all.
+9. **That the corrected architecture prose now matches the code** in all three
+   places it appears — the `DistributionJobPayload` doc comment, section 5 item
+   3, and sections 11.1/11.2 — and that no fourth stale copy survives.
+10. **That the write budget held** (section 4.2), distinguishing the files the
+    authorized merge incorporated from the four files manually edited, and that
+    the five new files on the branch are `develop`'s rather than this agent's.
+11. **The cross-repository matrix** (section 10.7), particularly rows 4 and 5 —
+    that the standalone Python `thoth-pub/thoth-client` and the internal Rust
+    `thoth-client` crate are assessed as the two distinct things `contracts.md`
+    section 1 requires — and row 8, that `thoth-sphinx` is recorded as a future
+    consumer rather than as compatible.
