@@ -184,7 +184,10 @@ CREATE TABLE public.distribution_job_attempt (
 
     CONSTRAINT distribution_job_attempt_error_result_check CHECK (
         (error_code IS NULL AND error_detail IS NULL)
-        OR result = 'FAILED'
+        OR (
+            result IS NOT NULL
+            AND result = 'FAILED'
+        )
     ),
 
     CONSTRAINT distribution_job_attempt_error_pairing_check

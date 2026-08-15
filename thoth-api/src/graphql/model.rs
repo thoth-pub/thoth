@@ -1496,14 +1496,19 @@ impl PublisherServiceConfigurationSummary {
         // Loader-first (`ADR-0007` section 4.5): the publisher id is already
         // available on `self`, so the key is registered at resolver entry with
         // no unrelated awaited work before `try_load`.
-        let job = unpack_loaded(
+        //
+        // The composite loader returns the **complete** payload — the job with
+        // its targets and attempts already materialized — so `targets` and
+        // `attempts` below resolve from memory and the report path issues no
+        // second-level loader call and no further statement (specification
+        // section 17.4.2).
+        unpack_loaded(
             context
                 .loaders
                 .latest_back_catalogue_jobs
                 .try_load(self.configuration.publisher_id())
                 .await,
-        )?;
-        Ok(job.map(DistributionJobPayload::lazy))
+        )
     }
 }
 

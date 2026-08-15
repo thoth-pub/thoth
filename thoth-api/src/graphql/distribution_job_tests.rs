@@ -1048,6 +1048,48 @@ fn seed_publishers_with_jobs(pool: &PgPool, count: usize) {
         .expect("align attempt counts");
 }
 
+/// The no-job fixture: publishers with enabled `AutomaticPush` assignments and
+/// **no** durable job, which is the state of every publisher whose assignments
+/// predate this feature.
+///
+/// The assignments matter: they keep `enabledDistributionPlatforms` non-empty,
+/// so the full report selection still exercises `BE-02`'s loader and the
+/// measured difference between the two fixtures is the job path alone.
+fn seed_publishers_without_jobs(pool: &PgPool, count: usize) {
+    let mut connection = pool.get().expect("connection");
+    sql_query(format!(
+        "INSERT INTO publisher (publisher_id, publisher_name, zitadel_id) \
+         SELECT gen_random_uuid(), 'Jobless Press ' || lpad(i::text, 5, '0'), \
+                'org-' || lpad(i::text, 5, '0') \
+         FROM generate_series(1, {count}) AS i"
+    ))
+    .execute(&mut connection)
+    .expect("seed publishers");
+
+    sql_query(
+        "INSERT INTO publisher_distribution_platform \
+           (publisher_id, platform, enabled, activation_id, enabled_at) \
+         SELECT p.publisher_id, 'ZENODO', true, gen_random_uuid(), now() FROM publisher p",
+    )
+    .execute(&mut connection)
+    .expect("seed assignments");
+
+    #[derive(diesel::QueryableByName)]
+    struct CountRow {
+        #[diesel(sql_type = diesel::sql_types::BigInt)]
+        count: i64,
+    }
+
+    assert_eq!(
+        sql_query("SELECT count(*) AS count FROM distribution_job")
+            .get_result::<CountRow>(&mut connection)
+            .expect("count jobs")
+            .count,
+        0,
+        "the no-job fixture must contain no job at all"
+    );
+}
+
 /// The job-only selection of section 17.4 A: every `BE-04` field, and no field
 /// that invokes `BE-02`'s assignment loader.
 fn job_only_selection(limit: usize) -> String {
@@ -1075,208 +1117,355 @@ fn full_report_selection(limit: usize) -> String {
     )
 }
 
-/// Measured statement counts for both section 17.4 selections, at page sizes 1,
-/// 25 and 200.
+/// The measured report statement count, for **both** section 17.4.3 selections,
+/// at page sizes 1, 25 and 200, on a page that contains at least one job **and**
+/// on a page that contains none.
 ///
-/// **Observed divergence from the specified bound, recorded rather than smoothed
-/// over.** Section 17.4 expects five statements for the job-only selection and
-/// six for the full report selection at every supported page size, on the
-/// premise that "a batch of up to 200 keys dispatches as one statement". That
-/// premise holds for the **first-level** loader: `latestBackCatalogueJob` is
-/// keyed by `publisher_id`, which is available at resolver entry, and it
-/// dispatches exactly once at every page size measured here.
+/// The expectation is **derived** from the measured per-chunk classification
+/// rather than hard-coded, exactly as section 25.12 requires:
 ///
-/// It does **not** hold for the two **second-level** loaders. `targets` and
-/// `attempts` are keyed by `distribution_job_id`, which exists only after the
-/// first loader has resolved, so their keys arrive while the parent futures are
-/// resuming. Under the `dataloader` configuration that `ADR-0007` and `BE-04`
-/// both fix at `200`/`10`, a dispatch is triggered by the yield budget as well
-/// as by the batch size, and that budget can expire before every sibling has
-/// registered. The observed chunking is therefore **scheduler-dependent and not
-/// reproducible run to run**: the full report selection at page size 200 has
-/// been observed as a single chunk per loader (six statements, the specified
-/// bound) and the job-only selection at the same page size as four chunks per
-/// loader (eleven statements).
+/// ```text
+/// statements = 2 + 3 * C_job_nonempty + 1 * C_job_empty + 1 * C_assign
+/// ```
 ///
-/// Section 17.4's own fallback — "state the exact arithmetic ... and show that
-/// exact number" — is therefore not satisfiable either, because there is no
-/// stable exact number to state. This test asserts what **is** stable, and what
-/// the bound exists to protect, and prints the exact observed figures for the
-/// implementation report:
+/// so the four named outcomes — five and six on a page with a job, three and
+/// four on a page without one — fall out of the arithmetic instead of being
+/// asserted as magic numbers. `C_job_empty` costs one statement rather than
+/// three because the composite loader skips L2 and L3 entirely for a chunk whose
+/// L1 returned no job, which is why the arithmetic is stated per dispatch chunk
+/// and never collapsed to a page-global "does this page have any job" flag.
 ///
-/// 1. the two root statements are exactly two, at every page size;
-/// 2. selection dependence holds exactly — `BE-02`'s assignment loader
-///    dispatches when and only when `enabledDistributionPlatforms` is selected;
-/// 3. every job loader's dispatch chunks **partition** the page's keys, so no
-///    key is loaded twice and none is missed;
-/// 4. every statement is set-based and the total stays far below the page size,
-///    so there is no per-publisher, per-job or per-attempt loop and no growth in
-///    N in the N+1 sense this control exists to prevent.
+/// What is BE-04's own, provable by construction and independent of any
+/// scheduler, is the per-chunk statement shape and the **zero** dispatches of
+/// the second-level target and attempt loaders on the report path — the
+/// assertion that proves the report carries no dependent-arrival cohort. The
+/// dispatch-chunk count itself is the shared `ADR-0007` foundation's property:
+/// section 4.6 fixes `ceil(N / 200)`, which is one for every page size measured
+/// here, and section 10.2 records it measured. This test consumes that property
+/// and neither restates it as a BE-04 guarantee nor weakens it.
 ///
-/// The divergence is recorded in the implementation report for the reviewer and
-/// the CTO to rule on. It is not resolved here, and nothing about the loaders'
-/// configuration, keys or separation has been changed to make a number fit.
+/// An unexpected `C_job > 1` at a page size at or below 200 is `BLOCKED` under
+/// stop condition 23. It is not absorbed by relaxing this expectation.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn the_report_statement_count_is_selection_dependent_and_set_based_at_every_page_size() {
-    for (label, selection, specified_bound, assignment_dispatches) in [
+async fn the_report_statement_count_equals_the_derived_per_chunk_arithmetic() {
+    for (fixture_label, seed, page_has_job) in [
         (
-            "job-only selection",
-            job_only_selection as fn(usize) -> String,
-            5usize,
-            0usize,
+            "page containing at least one job",
+            seed_publishers_with_jobs as fn(&PgPool, usize),
+            true,
         ),
         (
-            "full report selection",
-            full_report_selection as fn(usize) -> String,
-            6,
-            1,
+            "page whose publishers have no job",
+            seed_publishers_without_jobs as fn(&PgPool, usize),
+            false,
         ),
     ] {
-        for page_size in [1usize, 25, 200] {
-            let (_guard, ordinary_pool) = test_db::setup_test_db();
-            seed_publishers_with_jobs(&ordinary_pool, page_size);
+        for (label, selection, selects_assignments) in [
+            (
+                "job-only selection",
+                job_only_selection as fn(usize) -> String,
+                false,
+            ),
+            ("full report selection", full_report_selection, true),
+        ] {
+            for page_size in [1usize, 25, 200] {
+                let (_guard, ordinary_pool) = test_db::setup_test_db();
+                seed(&ordinary_pool, page_size);
 
-            let probe = SqlProbe::install(&test_db::test_db_url());
-            let stats = ObservedLoaderStats::default();
-            let observed = (
-                Arc::clone(&stats.publisher_distribution_platforms),
-                Arc::clone(&stats.latest_back_catalogue_jobs),
-                Arc::clone(&stats.distribution_job_targets),
-                Arc::clone(&stats.distribution_job_attempts),
-            );
-            let mut context = superuser_context(&probe.pool);
-            context.loaders =
-                RequestLoaders::for_request_observed_all(Arc::clone(&probe.pool), stats);
-            let schema = create_schema();
+                let probe = SqlProbe::install(&test_db::test_db_url());
+                let stats = ObservedLoaderStats::default();
+                let observed = (
+                    Arc::clone(&stats.publisher_distribution_platforms),
+                    Arc::clone(&stats.latest_back_catalogue_jobs),
+                    Arc::clone(&stats.distribution_job_targets),
+                    Arc::clone(&stats.distribution_job_attempts),
+                );
+                let mut context = superuser_context(&probe.pool);
+                context.loaders =
+                    RequestLoaders::for_request_observed_all(Arc::clone(&probe.pool), stats);
+                let schema = create_schema();
 
-            probe.start();
-            let response = run(&schema, &context, &selection(page_size)).await;
-            let captured = probe.captured_statements();
-            let statements = domain_statements(&captured);
+                probe.start();
+                let response = run(&schema, &context, &selection(page_size)).await;
+                let captured = probe.captured_statements();
+                let statements = domain_statements(&captured);
+                let (assignments, composite, targets, attempts) = observed;
 
-            let rows = data(&response, "publisherServiceConfigurations");
-            assert_eq!(rows.as_array().expect("array").len(), page_size, "{label}");
-            assert!(
-                rows[0]["latestBackCatalogueJob"]["distributionJobId"].is_string(),
-                "at least one publisher in the fixture must have a non-null job, \
-                 so the target and attempt loaders actually dispatch"
-            );
-            assert_eq!(
-                rows[0]["latestBackCatalogueJob"]["attempts"]
-                    .as_array()
-                    .expect("attempts")
-                    .len(),
-                1,
-                "and the attempt loader must have something to return, rather \
-                 than proving a low count only because every nested collection \
-                 was empty"
-            );
-            assert_eq!(
-                rows[0]["latestBackCatalogueJob"]["targets"]
-                    .as_array()
-                    .expect("targets")
-                    .len(),
-                1
-            );
+                let case = format!("{label} | {fixture_label} | page {page_size}");
+                let rows = data(&response, "publisherServiceConfigurations");
+                assert_eq!(rows.as_array().expect("array").len(), page_size, "{case}");
 
-            let (assignments, latest, targets, attempts) = observed;
-            println!(
-                "BE-04 report measurement | {label} | page {page_size} | statements {} \
-                 (section 17.4 bound {specified_bound}) | latest-job chunks {:?} | \
-                 target chunks {:?} | attempt chunks {:?} | assignment chunks {:?} | \
-                 driver metadata lookups {}",
-                statements.len(),
-                latest.batch_sizes(),
-                targets.batch_sizes(),
-                attempts.batch_sizes(),
-                assignments.batch_sizes(),
-                metadata_lookups(&captured).len(),
-            );
+                // The fixture must actually be the fixture, or a low count would
+                // prove nothing.
+                if page_has_job {
+                    assert!(
+                        rows[0]["latestBackCatalogueJob"]["distributionJobId"].is_string(),
+                        "{case}: the fixture must carry a non-null job"
+                    );
+                    assert_eq!(
+                        rows[0]["latestBackCatalogueJob"]["targets"]
+                            .as_array()
+                            .expect("targets")
+                            .len(),
+                        1,
+                        "{case}: and a target, so the count is not low merely \
+                         because every nested collection was empty"
+                    );
+                    assert_eq!(
+                        rows[0]["latestBackCatalogueJob"]["attempts"]
+                            .as_array()
+                            .expect("attempts")
+                            .len(),
+                        1,
+                        "{case}: and an attempt, for the same reason"
+                    );
+                } else {
+                    assert!(
+                        rows.as_array()
+                            .expect("array")
+                            .iter()
+                            .all(|row| row["latestBackCatalogueJob"].is_null()),
+                        "{case}: no publisher on this page may have a job"
+                    );
+                }
 
-            // 1. Exactly two root statements, at every page size.
-            assert_eq!(
-                statements_matching(&captured, "FROM \"publisher\" ").len(),
-                1,
-                "{label} at {page_size}: one filtered, ordered, paginated page query"
-            );
-            assert_eq!(
-                statements_matching(
-                    &captured,
-                    "FROM \"publisher_service_configuration_history\""
-                )
-                .len(),
-                1,
-                "{label} at {page_size}: one latest-change query"
-            );
+                // --------------------------------------------------------
+                // Measured chunk classification.
+                // --------------------------------------------------------
+                let classifications = composite.classifications();
+                assert!(
+                    classifications.iter().all(Option::is_some),
+                    "{case}: every composite chunk must be classified; a `None` \
+                     means a chunk failed. Observed {classifications:?}"
+                );
+                let c_job_nonempty = classifications
+                    .iter()
+                    .filter(|outcome| **outcome == Some(true))
+                    .count();
+                let c_job_empty = classifications
+                    .iter()
+                    .filter(|outcome| **outcome == Some(false))
+                    .count();
+                let c_job = composite.dispatch_count();
+                let c_assign = assignments.dispatch_count();
 
-            // 2. Selection dependence, exactly.
-            assert_eq!(
-                assignments.dispatch_count(),
-                assignment_dispatches,
-                "{label} at {page_size}: BE-02's assignment loader must dispatch \
-                 when and only when enabledDistributionPlatforms is selected"
-            );
-            assert!(
-                latest.dispatch_count() >= 1
-                    && targets.dispatch_count() >= 1
-                    && attempts.dispatch_count() >= 1,
-                "{label} at {page_size}: every selected job loader dispatches"
-            );
+                let derived = 2 + 3 * c_job_nonempty + c_job_empty + c_assign;
 
-            // 3. Each loader's chunks partition the page's keys exactly.
-            for (name, loader) in [
-                ("latest-job", &latest),
-                ("target", &targets),
-                ("attempt", &attempts),
-            ] {
-                let chunks = loader.batch_sizes();
+                println!(
+                    "BE-04 report measurement | {case} | statements {observed_total} \
+                     (derived {derived}) | composite chunks {composite_chunks:?} \
+                     classified {classifications:?} | C_job_nonempty {c_job_nonempty} \
+                     | C_job_empty {c_job_empty} | C_assign {c_assign} \
+                     | target dispatches {target_dispatches} \
+                     | attempt dispatches {attempt_dispatches} \
+                     | assignment chunks {assignment_chunks:?} \
+                     | driver metadata lookups {metadata}",
+                    observed_total = statements.len(),
+                    composite_chunks = composite.batch_sizes(),
+                    target_dispatches = targets.dispatch_count(),
+                    attempt_dispatches = attempts.dispatch_count(),
+                    assignment_chunks = assignments.batch_sizes(),
+                    metadata = metadata_lookups(&captured).len(),
+                );
+
+                // 1. The derived total, and the observed total, are equal.
                 assert_eq!(
-                    chunks.iter().sum::<usize>(),
-                    page_size,
-                    "{label} at {page_size}: the {name} loader's chunks must \
-                     partition the requested keys — no key loaded twice, none \
-                     missed. Observed {chunks:?}"
+                    statements.len(),
+                    derived,
+                    "{case}: the observed statement count must equal the section \
+                     17.4.3 arithmetic evaluated with the measured chunk \
+                     classification: 2 + 3*{c_job_nonempty} + {c_job_empty} + \
+                     {c_assign}. Observed statements:\n{}",
+                    statements
+                        .iter()
+                        .map(|sql| sql.as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                );
+
+                // 2. Exactly two root statements, at every page size.
+                assert_eq!(
+                    statements_matching(&captured, "FROM \"publisher\" ").len(),
+                    1,
+                    "{case}: one filtered, ordered, paginated page query"
+                );
+                assert_eq!(
+                    statements_matching(
+                        &captured,
+                        "FROM \"publisher_service_configuration_history\""
+                    )
+                    .len(),
+                    1,
+                    "{case}: one latest-change query"
+                );
+
+                // 3. Per-loader dispatch expectations, stated per loader rather
+                //    than as a blanket "every loader dispatches once".
+                assert_eq!(
+                    c_job,
+                    1,
+                    "{case}: the composite loader is keyed by publisher_id, which \
+                     is available at resolver entry, so a page of N <= 200 is one \
+                     loader-first cohort and one chunk (ADR-0007 section 4.6). \
+                     C_job > 1 here is BLOCKED under stop condition 23, not a \
+                     count to relax. Observed chunks {:?}",
+                    composite.batch_sizes()
+                );
+                assert_eq!(
+                    c_assign,
+                    usize::from(selects_assignments),
+                    "{case}: BE-02's assignment loader dispatches when and only \
+                     when enabledDistributionPlatforms is selected"
+                );
+
+                // 4. The scheduler-independent assertion: the second-level
+                //    loaders are not on the report path at all.
+                assert_eq!(
+                    targets.dispatch_count(),
+                    0,
+                    "{case}: DistributionJob.targets must read the preloaded value \
+                     on the report path and issue no second-level loader call"
+                );
+                assert_eq!(
+                    attempts.dispatch_count(),
+                    0,
+                    "{case}: DistributionJob.attempts must read the preloaded value \
+                     on the report path and issue no second-level loader call"
+                );
+
+                // 5. Both directions of the per-chunk branch, each measured
+                //    rather than inferred.
+                if page_has_job {
+                    assert_eq!(
+                        (c_job_nonempty, c_job_empty),
+                        (1, 0),
+                        "{case}: a chunk whose L1 returns a job costs three \
+                         statements"
+                    );
+                    assert_eq!(
+                        statements_matching(&captured, "FROM \"distribution_job_target\"").len(),
+                        1,
+                        "{case}: L2 runs exactly once for a non-empty chunk"
+                    );
+                    assert_eq!(
+                        statements_matching(&captured, "FROM \"distribution_job_attempt\"").len(),
+                        1,
+                        "{case}: L3 runs exactly once for a non-empty chunk"
+                    );
+                } else {
+                    assert_eq!(
+                        (c_job_nonempty, c_job_empty),
+                        (0, 1),
+                        "{case}: a chunk whose L1 returns no job costs one statement"
+                    );
+                    assert!(
+                        statements_matching(&captured, "FROM \"distribution_job_target\"")
+                            .is_empty(),
+                        "{case}: L2 must not be issued at all for an empty chunk"
+                    );
+                    assert!(
+                        statements_matching(&captured, "FROM \"distribution_job_attempt\"")
+                            .is_empty(),
+                        "{case}: L3 must not be issued at all for an empty chunk"
+                    );
+                }
+                assert_eq!(
+                    statements_matching(&captured, "FROM \"distribution_job\" ").len(),
+                    1,
+                    "{case}: L1 is issued once per composite chunk, always"
+                );
+
+                // 6. Every dispatch chunk partitions the requested key set.
+                for (name, loader) in [("composite", &composite), ("assignment", &assignments)] {
+                    let chunks = loader.batch_sizes();
+                    if chunks.is_empty() {
+                        continue;
+                    }
+                    assert_eq!(
+                        chunks.iter().sum::<usize>(),
+                        page_size,
+                        "{case}: the {name} loader's chunks must partition the \
+                         requested keys — no key loaded twice, none missed. \
+                         Observed {chunks:?}"
+                    );
+                }
+
+                // 7. Every statement is set-based.
+                assert!(
+                    statements
+                        .iter()
+                        .all(|sql| sql.contains("= ANY(") || sql.contains("LIMIT")),
+                    "{case}: every statement must be set-based:\n{}",
+                    statements
+                        .iter()
+                        .map(|sql| sql.as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                );
+                assert!(
+                    metadata_lookups(&captured).len() <= 4,
+                    "{case}: Diesel resolves a custom type's OID once per \
+                     connection per type and caches it, so these are bounded by \
+                     the four new enum types and never by the key count"
                 );
             }
-            assert_eq!(
-                latest.batch_sizes(),
-                vec![page_size],
-                "{label} at {page_size}: the first-level loader is keyed by \
-                 publisher_id, which is available at resolver entry, so it \
-                 dispatches as exactly one chunk"
-            );
-
-            // 4. Every statement is set-based, and the total stays far below N.
-            assert!(
-                statements
-                    .iter()
-                    .all(|sql| sql.contains("= ANY(") || sql.contains("LIMIT")),
-                "{label} at {page_size}: every statement must be set-based:\n{}",
-                statements
-                    .iter()
-                    .map(|sql| sql.as_str())
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            );
-            assert!(
-                statements.len() >= specified_bound,
-                "{label} at {page_size}: every specified statement is issued"
-            );
-            assert!(
-                statements.len() < page_size.max(specified_bound + 1),
-                "{label} at {page_size}: observed {} statements, which must stay \
-                 far below the page size — there is no per-publisher, per-job or \
-                 per-attempt loop",
-                statements.len()
-            );
-            assert!(
-                metadata_lookups(&captured).len() <= 4,
-                "{label} at {page_size}: Diesel resolves a custom type's OID once \
-                 per connection per type and caches it, so these are bounded by \
-                 the four new enum types and never by the key count"
-            );
         }
     }
+}
+
+/// The other half of exact selection dependence: a selection that does **not**
+/// reach `latestBackCatalogueJob` dispatches the composite loader **zero**
+/// times, so the loader costs nothing when the field is not asked for.
+///
+/// The matrix above proves "dispatches when selected"; this proves "and only
+/// when".
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_unselected_composite_loader_dispatches_nothing() {
+    let (_guard, ordinary_pool) = test_db::setup_test_db();
+    seed_publishers_with_jobs(&ordinary_pool, 25);
+
+    let probe = SqlProbe::install(&test_db::test_db_url());
+    let stats = ObservedLoaderStats::default();
+    let observed = (
+        Arc::clone(&stats.publisher_distribution_platforms),
+        Arc::clone(&stats.latest_back_catalogue_jobs),
+        Arc::clone(&stats.distribution_job_targets),
+        Arc::clone(&stats.distribution_job_attempts),
+    );
+    let mut context = superuser_context(&probe.pool);
+    context.loaders = RequestLoaders::for_request_observed_all(Arc::clone(&probe.pool), stats);
+    let schema = create_schema();
+
+    probe.start();
+    let response = run(
+        &schema,
+        &context,
+        "{ publisherServiceConfigurations(limit: 25) { \
+             configuration { publisher { publisherId } \
+                             enabledDistributionPlatforms { platform } } } }",
+    )
+    .await;
+    let captured = probe.captured_statements();
+    let statements = domain_statements(&captured);
+    let (assignments, composite, targets, attempts) = observed;
+
+    assert_eq!(
+        data(&response, "publisherServiceConfigurations")
+            .as_array()
+            .expect("array")
+            .len(),
+        25
+    );
+    assert_eq!(composite.dispatch_count(), 0, "C_job must be 0");
+    assert_eq!(targets.dispatch_count(), 0);
+    assert_eq!(attempts.dispatch_count(), 0);
+    assert_eq!(assignments.dispatch_count(), 1, "C_assign must be 1");
+    assert!(
+        statements_matching(&captured, "FROM \"distribution_job\"").is_empty(),
+        "an unselected loader issues no statement of any kind"
+    );
+    // 2 + 3*0 + 0 + 1.
+    assert_eq!(statements.len(), 3);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

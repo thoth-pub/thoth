@@ -23,10 +23,10 @@ use uuid::Uuid;
 
 use crate::db::PgPool;
 use crate::model::distribution_job::crud::{
-    attempts_for_jobs, latest_back_catalogue_jobs, targets_for_jobs,
+    attempts_for_jobs, latest_back_catalogue_job_payloads, targets_for_jobs,
 };
 use crate::model::distribution_job::{
-    DistributionJob, DistributionJobAttempt, DistributionJobTarget,
+    DistributionJobAttempt, DistributionJobPayload, DistributionJobTarget,
 };
 use crate::model::publisher_distribution_platform::crud::enabled_assignment_rows;
 use crate::model::publisher_distribution_platform::PublisherDistributionPlatformAssignment;
@@ -72,11 +72,23 @@ pub(crate) struct RequestLoaders {
     /// `Publisher.distributionPlatforms` (`BE-02`), keyed by `publisher_id`.
     pub(crate) publisher_distribution_platforms: PublisherDistributionPlatformLoader,
     /// `PublisherServiceConfigurationSummary.latestBackCatalogueJob` (`BE-04`),
-    /// keyed by `publisher_id`.
+    /// keyed by `publisher_id`, valued by the **complete** field value.
+    ///
+    /// This is the report path's only job loader. The two loaders below are
+    /// **not** reachable from the report.
     pub(crate) latest_back_catalogue_jobs: LatestBackCatalogueJobLoader,
     /// `DistributionJob.targets` (`BE-04`), keyed by `distribution_job_id`.
+    ///
+    /// Retained **only** for the single-job mutation payloads of
+    /// `completeDistributionJob`, `failDistributionJob` and
+    /// `cancelDistributionJob`, where the cohort is one job and the
+    /// dependent-arrival question does not arise. It records zero dispatches on
+    /// the report path.
     pub(crate) distribution_job_targets: DistributionJobTargetLoader,
     /// `DistributionJob.attempts` (`BE-04`), keyed by `distribution_job_id`.
+    ///
+    /// Retained on the same single-job mutation-payload basis as
+    /// [`Self::distribution_job_targets`].
     pub(crate) distribution_job_attempts: DistributionJobAttemptLoader,
     #[cfg(all(test, feature = "backend"))]
     pub(crate) fixture: Option<fixture::FixtureLoaders>,
@@ -270,20 +282,43 @@ impl BatchFn<Uuid, PublisherDistributionPlatformValue> for PublisherDistribution
 // `BE-04` job loaders
 // ---------------------------------------------------------------------------
 
-/// The loaded value of one `latestBackCatalogueJob` key.
+/// The loaded value of one `latestBackCatalogueJob` key: the **complete** field
+/// value, not a bare job needing further loads.
 ///
 /// A publisher with no durable job loads a successful `None`, which is the only
 /// representation of "no job" this codebase has: nothing fabricates a
 /// placeholder job, a synthetic status or a zero count.
-pub(crate) type LatestBackCatalogueJobValue = Result<Option<DistributionJob>, SharedBatchError>;
+pub(crate) type LatestBackCatalogueJobValue =
+    Result<Option<DistributionJobPayload>, SharedBatchError>;
 
 pub(crate) type LatestBackCatalogueJobLoader =
     Loader<Uuid, LatestBackCatalogueJobValue, LatestBackCatalogueJobBatcher>;
 
-/// Batch function for `PublisherServiceConfigurationSummary.latestBackCatalogueJob`.
+/// Composite batch function for
+/// `PublisherServiceConfigurationSummary.latestBackCatalogueJob`
+/// (specification section 17.4.2).
 ///
-/// The key is exactly `publisher_id`: the field takes no result-changing
-/// argument, so no second key dimension exists.
+/// The key is exactly `publisher_id` — the key the report already holds at
+/// resolver entry — and the value is the whole field: the latest
+/// `PUBLISHER_BACK_CATALOGUE` job *together with* its targets and attempts, or
+/// `None`. The field takes no result-changing argument, so no second key
+/// dimension exists.
+///
+/// This is not two loaders merged to make a count fit. It is `ADR-0007` section
+/// 4.4's "one loader represents one reviewed logical field/query family" applied
+/// to the family this field actually is: the targets and attempts of the latest
+/// job are sub-structure of the one returned value, reachable from nowhere else
+/// in the report. Loading them here is what makes the whole field **one
+/// loader-first cohort**, which is the only shape with a stated bound. The
+/// rejected alternative — a latest-job loader feeding two loaders keyed by
+/// `distribution_job_id` — produces a dependent-arrival cohort whose only
+/// provable bound is `ceil(N / max_batch_size) <= dispatches <= N`.
+///
+/// The load shape deliberately does not depend on the query's own selection:
+/// targets and attempts are materialized whenever the field is selected at all,
+/// even for `latestBackCatalogueJob { status }`. Deciding otherwise would need
+/// Juniper look-ahead at the resolver, which is the retired `ADR-0006`
+/// mechanism.
 pub(crate) struct LatestBackCatalogueJobBatcher {
     pool: Arc<PgPool>,
     #[cfg(all(test, feature = "backend"))]
@@ -291,26 +326,51 @@ pub(crate) struct LatestBackCatalogueJobBatcher {
 }
 
 impl BatchFn<Uuid, LatestBackCatalogueJobValue> for LatestBackCatalogueJobBatcher {
+    /// Load one dispatch chunk inside **one** `spawn_blocking` boundary on
+    /// **one** pooled connection acquired and dropped inside that closure, so no
+    /// connection is ever held across an `.await` (`ADR-0007` section 4.7).
+    ///
+    /// Three set-based statements for a chunk whose L1 returns at least one job,
+    /// one for a chunk whose L1 returns none. There is no per-publisher,
+    /// per-job, per-target or per-attempt statement, no fallback query and no
+    /// retry.
+    ///
+    /// The result is **total** over the requested keys: every key is seeded with
+    /// a successful `None` before jobs are placed, so a publisher with no job
+    /// returns the absent value rather than a missing map entry. A failure in
+    /// any of L1, L2 or L3 replaces every key's value with the shared error, so
+    /// the chunk fails closed for all of them, with no partially populated job
+    /// and no successful empty substitution.
     async fn load(&mut self, keys: &[Uuid]) -> HashMap<Uuid, LatestBackCatalogueJobValue> {
-        #[cfg(all(test, feature = "backend"))]
-        if let Some(stats) = &self.stats {
-            stats.record(keys);
-        }
         let pool = Arc::clone(&self.pool);
         let owned_keys = keys.to_vec();
         let result = tokio::task::spawn_blocking(move || {
             let mut connection = pool.get().map_err(ThothError::from)?;
-            latest_back_catalogue_jobs(&mut connection, &owned_keys)
+            latest_back_catalogue_job_payloads(&mut connection, &owned_keys)
         })
         .await;
+
+        // Recorded after the load, so the chunk's size and whether its L1
+        // returned a job — which is what decides whether L2 and L3 ran — are
+        // one atomic observation.
+        #[cfg(all(test, feature = "backend"))]
+        if let Some(stats) = &self.stats {
+            stats.record_outcome(
+                keys,
+                match &result {
+                    Ok(Ok(payloads)) => Some(!payloads.is_empty()),
+                    _ => None,
+                },
+            );
+        }
 
         let mut output: HashMap<Uuid, LatestBackCatalogueJobValue> =
             keys.iter().map(|key| (*key, Ok(None))).collect();
         match result {
-            Ok(Ok(rows)) => {
-                for job in rows {
-                    if let Some(slot) = output.get_mut(&job.publisher_id) {
-                        *slot = Ok(Some(job));
+            Ok(Ok(payloads)) => {
+                for payload in payloads {
+                    if let Some(slot) = output.get_mut(&payload.job.publisher_id) {
+                        *slot = Ok(Some(payload));
                     }
                 }
             }

@@ -1097,6 +1097,301 @@ fn rand_attempt_number() -> i32 {
     NEXT.fetch_add(1, Ordering::SeqCst)
 }
 
+const ERROR_RESULT_CHECK: &str = "distribution_job_attempt_error_result_check";
+
+/// The constraint PostgreSQL names when it refuses a write, so a rejection is
+/// attributed to the constraint under test rather than to a neighbouring one
+/// that happens to fail on the same row.
+fn refusing_constraint(error: &diesel::result::Error) -> String {
+    match error {
+        diesel::result::Error::DatabaseError(_, info) => {
+            info.constraint_name().unwrap_or("<unnamed>").to_owned()
+        }
+        other => panic!("expected a database error, observed {other:?}"),
+    }
+}
+
+/// Insert one attempt row for `job_id` with the given extra columns/values,
+/// under a fresh ordinal so uniqueness never decides the outcome.
+fn insert_attempt(
+    pool: &PgPool,
+    job_id: Uuid,
+    extra_columns: &str,
+    extra_values: &str,
+) -> Result<usize, diesel::result::Error> {
+    sql_query(format!(
+        "INSERT INTO distribution_job_attempt \
+         (distribution_job_id, attempt_number, claim_token, claimed_by{extra_columns}) \
+         VALUES ('{job_id}', {}, gen_random_uuid(), 'worker'{extra_values})",
+        rand_attempt_number()
+    ))
+    .execute(&mut pool.get().expect("connection"))
+}
+
+/// Insert one valid **open** attempt — `finished_at IS NULL`, `result IS NULL`,
+/// both error fields null — and return its identifier, so the `UPDATE` half of
+/// the truth table starts from the state the claim statement actually creates.
+fn open_attempt(pool: &PgPool, job_id: Uuid) -> Uuid {
+    #[derive(QueryableByName)]
+    struct IdRow {
+        #[diesel(sql_type = SqlUuid)]
+        distribution_job_attempt_id: Uuid,
+    }
+
+    sql_query(format!(
+        "INSERT INTO distribution_job_attempt \
+         (distribution_job_id, attempt_number, claim_token, claimed_by) \
+         VALUES ('{job_id}', {}, gen_random_uuid(), 'worker') \
+         RETURNING distribution_job_attempt_id",
+        rand_attempt_number()
+    ))
+    .get_result::<IdRow>(&mut pool.get().expect("connection"))
+    .expect("an open attempt with no error fields must be accepted")
+    .distribution_job_attempt_id
+}
+
+fn update_attempt(
+    pool: &PgPool,
+    attempt_id: Uuid,
+    set_clause: &str,
+) -> Result<usize, diesel::result::Error> {
+    sql_query(format!(
+        "UPDATE distribution_job_attempt SET {set_clause} \
+         WHERE distribution_job_attempt_id = '{attempt_id}'"
+    ))
+    .execute(&mut pool.get().expect("connection"))
+}
+
+/// `distribution_job_attempt_error_result_check`, proven as an explicit
+/// three-valued truth table on `INSERT` **and** on `UPDATE` (specification
+/// sections 7.4 and 25.4).
+///
+/// The error fields are *closure* fields: they may exist only on an attempt a
+/// worker closed with `result = 'FAILED'`. The withdrawn expression
+/// `(error_code IS NULL AND error_detail IS NULL) OR result = 'FAILED'`
+/// did not enforce that, because on an **open** attempt `result IS NULL` makes
+/// the second arm `NULL`, and PostgreSQL admits a row whose `CHECK` evaluates
+/// to `UNKNOWN`. The first two rejection cases below are exactly the rows that
+/// expression admitted; a suite that omits them does not test this constraint.
+///
+/// The `UPDATE` half is not redundant: section 11.2's closure statements write
+/// the error fields by update, so an insert-only suite would leave the write
+/// path that actually sets them unproven.
+#[test]
+fn the_attempt_error_result_constraint_is_null_safe_on_insert_and_update() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let (_publisher_id, job_id) = publisher_with_pending_job(&pool);
+
+    // The stored expression itself, so a future edit that reintroduces the
+    // three-valued hole is visible in the catalog and not only in behaviour.
+    let definition = catalog_values(
+        &pool,
+        &format!(
+            "SELECT pg_get_constraintdef(oid) AS value FROM pg_constraint \
+             WHERE conname = '{ERROR_RESULT_CHECK}'"
+        ),
+    );
+    assert_eq!(
+        definition.len(),
+        1,
+        "the constraint must exist exactly once"
+    );
+    let stored = &definition[0];
+    for fragment in [
+        "error_code IS NULL",
+        "error_detail IS NULL",
+        "result IS NOT NULL",
+        "FAILED",
+    ] {
+        assert!(
+            stored.contains(fragment),
+            "{ERROR_RESULT_CHECK} must remain NULL-safe and contain {fragment:?}. \
+             Observed: {stored}"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Rejections. Each is expressed twice: as an INSERT of the state, and
+    // as an UPDATE of an open attempt into the same state.
+    //
+    // `error_detail` alone is deliberately not a separate case here: it is
+    // refused by distribution_job_attempt_error_pairing_check before this
+    // constraint decides, so it would prove nothing about this one.
+    // ------------------------------------------------------------------
+    let rejections: [(&str, &str, &str, &str); 8] = [
+        // 1. open attempt, error_code only - admitted by the old expression.
+        (
+            "open attempt with error_code",
+            ", error_code",
+            ", 'TRANSPORT_FAILURE'",
+            "error_code = 'TRANSPORT_FAILURE'",
+        ),
+        // 2. open attempt, both error fields - admitted by the old expression.
+        (
+            "open attempt with error_code and error_detail",
+            ", error_code, error_detail",
+            ", 'TRANSPORT_FAILURE', 'bounded description'",
+            "error_code = 'TRANSPORT_FAILURE', error_detail = 'bounded description'",
+        ),
+        // 3. SUCCEEDED with either error field set.
+        (
+            "SUCCEEDED with error_code",
+            ", finished_at, result, error_code",
+            ", CURRENT_TIMESTAMP, 'SUCCEEDED', 'TRANSPORT_FAILURE'",
+            "finished_at = CURRENT_TIMESTAMP, result = 'SUCCEEDED', \
+             error_code = 'TRANSPORT_FAILURE'",
+        ),
+        (
+            "SUCCEEDED with error_code and error_detail",
+            ", finished_at, result, error_code, error_detail",
+            ", CURRENT_TIMESTAMP, 'SUCCEEDED', 'TRANSPORT_FAILURE', 'bounded description'",
+            "finished_at = CURRENT_TIMESTAMP, result = 'SUCCEEDED', \
+             error_code = 'TRANSPORT_FAILURE', error_detail = 'bounded description'",
+        ),
+        // 4. ABANDONED with either error field set.
+        (
+            "ABANDONED with error_code",
+            ", finished_at, result, error_code",
+            ", CURRENT_TIMESTAMP, 'ABANDONED', 'TRANSPORT_FAILURE'",
+            "finished_at = CURRENT_TIMESTAMP, result = 'ABANDONED', \
+             error_code = 'TRANSPORT_FAILURE'",
+        ),
+        (
+            "ABANDONED with error_code and error_detail",
+            ", finished_at, result, error_code, error_detail",
+            ", CURRENT_TIMESTAMP, 'ABANDONED', 'TRANSPORT_FAILURE', 'bounded description'",
+            "finished_at = CURRENT_TIMESTAMP, result = 'ABANDONED', \
+             error_code = 'TRANSPORT_FAILURE', error_detail = 'bounded description'",
+        ),
+        // 5. CANCELLED with either error field set.
+        (
+            "CANCELLED with error_code",
+            ", finished_at, result, error_code",
+            ", CURRENT_TIMESTAMP, 'CANCELLED', 'TRANSPORT_FAILURE'",
+            "finished_at = CURRENT_TIMESTAMP, result = 'CANCELLED', \
+             error_code = 'TRANSPORT_FAILURE'",
+        ),
+        (
+            "CANCELLED with error_code and error_detail",
+            ", finished_at, result, error_code, error_detail",
+            ", CURRENT_TIMESTAMP, 'CANCELLED', 'TRANSPORT_FAILURE', 'bounded description'",
+            "finished_at = CURRENT_TIMESTAMP, result = 'CANCELLED', \
+             error_code = 'TRANSPORT_FAILURE', error_detail = 'bounded description'",
+        ),
+    ];
+
+    for (label, columns, values, set_clause) in rejections {
+        let inserted = insert_attempt(&pool, job_id, columns, values);
+        let error = inserted.expect_err(&format!(
+            "INSERT of {label} must be refused by the database"
+        ));
+        assert_eq!(
+            refusing_constraint(&error),
+            ERROR_RESULT_CHECK,
+            "INSERT of {label} must be refused by {ERROR_RESULT_CHECK} itself"
+        );
+
+        let attempt_id = open_attempt(&pool, job_id);
+        let updated = update_attempt(&pool, attempt_id, set_clause);
+        let error = updated.expect_err(&format!(
+            "UPDATE into {label} must be refused by the database"
+        ));
+        assert_eq!(
+            refusing_constraint(&error),
+            ERROR_RESULT_CHECK,
+            "UPDATE into {label} must be refused by {ERROR_RESULT_CHECK} itself"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Acceptances, each proven to have actually persisted rather than
+    // merely to have not errored.
+    // ------------------------------------------------------------------
+
+    // 6. An open attempt with both error fields null.
+    let open_id = open_attempt(&pool, job_id);
+    assert_eq!(
+        update_attempt(&pool, open_id, "error_code = NULL, error_detail = NULL")
+            .expect("an open attempt with both error fields null must be accepted"),
+        1
+    );
+    assert_eq!(
+        scalar_count(
+            &pool,
+            &format!(
+                "SELECT count(*) AS count FROM distribution_job_attempt \
+                 WHERE distribution_job_attempt_id = '{open_id}' \
+                   AND finished_at IS NULL AND result IS NULL \
+                   AND error_code IS NULL AND error_detail IS NULL"
+            )
+        ),
+        1
+    );
+
+    // 7. A closed FAILED attempt carrying a valid code and detail.
+    assert!(insert_attempt(
+        &pool,
+        job_id,
+        ", finished_at, result, error_code, error_detail",
+        ", CURRENT_TIMESTAMP, 'FAILED', 'TRANSPORT_FAILURE', 'bounded description'",
+    )
+    .is_ok());
+    let failed_id = open_attempt(&pool, job_id);
+    assert_eq!(
+        update_attempt(
+            &pool,
+            failed_id,
+            "finished_at = CURRENT_TIMESTAMP, result = 'FAILED', \
+             error_code = 'TRANSPORT_FAILURE', error_detail = 'bounded description'",
+        )
+        .expect("a closed FAILED attempt with valid error fields must be accepted"),
+        1
+    );
+    assert_eq!(
+        scalar_count(
+            &pool,
+            &format!(
+                "SELECT count(*) AS count FROM distribution_job_attempt \
+                 WHERE distribution_job_attempt_id = '{failed_id}' \
+                   AND result = 'FAILED' AND error_code = 'TRANSPORT_FAILURE'"
+            )
+        ),
+        1
+    );
+
+    // 8. A closed FAILED attempt with both error fields null - a legitimate
+    //    state, since the error fields are optional even at FAILED closure.
+    assert!(insert_attempt(
+        &pool,
+        job_id,
+        ", finished_at, result",
+        ", CURRENT_TIMESTAMP, 'FAILED'",
+    )
+    .is_ok());
+    let bare_id = open_attempt(&pool, job_id);
+    assert_eq!(
+        update_attempt(
+            &pool,
+            bare_id,
+            "finished_at = CURRENT_TIMESTAMP, result = 'FAILED'",
+        )
+        .expect("a closed FAILED attempt with both error fields null must be accepted"),
+        1
+    );
+    assert_eq!(
+        scalar_count(
+            &pool,
+            &format!(
+                "SELECT count(*) AS count FROM distribution_job_attempt \
+                 WHERE distribution_job_attempt_id = '{bare_id}' \
+                   AND result = 'FAILED' \
+                   AND error_code IS NULL AND error_detail IS NULL"
+            )
+        ),
+        1
+    );
+}
+
 #[test]
 fn a_job_with_several_targets_is_readable_in_canonical_order() {
     let (_guard, pool) = test_db::setup_test_db();

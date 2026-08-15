@@ -739,6 +739,68 @@ pub(crate) fn latest_back_catalogue_jobs(
         .map_err(Into::into)
 }
 
+/// The **complete** `latestBackCatalogueJob` field value for every requested
+/// publisher: the latest `PUBLISHER_BACK_CATALOGUE` job together with its
+/// targets and its attempts, or nothing (specification section 17.4.2).
+///
+/// This is the whole body of the composite report loader's batch function, and
+/// the reason the field is **one** loader-first cohort rather than a nested
+/// chain: the targets and attempts of the latest job are sub-structure of the
+/// one value the field returns, not an independent query family, so resolving
+/// them here is what makes the statement count provable.
+///
+/// Exactly three statements per non-empty chunk, and exactly one for a chunk
+/// whose L1 returns nothing:
+///
+/// | # | Statement | Issued |
+/// |---|---|---|
+/// | L1 | `DISTINCT ON (publisher_id)` latest job for the requested publishers | always |
+/// | L2 | every target of the returned job ids | only when L1 returned a job |
+/// | L3 | every attempt of the returned job ids | only when L1 returned a job |
+///
+/// Both key arrays are bounded by the loader's configured maximum batch size,
+/// and the returned rows are bounded by construction rather than by page size:
+/// at most 17 targets (the closed inventory) and at most 5 attempts
+/// (`distribution_job_attempt_count_check`) per job.
+///
+/// A failure in any of the three propagates, so the caller fails the whole
+/// chunk closed rather than returning a partially populated job.
+pub(crate) fn latest_back_catalogue_job_payloads(
+    connection: &mut PgConnection,
+    publisher_ids: &[Uuid],
+) -> ThothResult<Vec<DistributionJobPayload>> {
+    let jobs = latest_back_catalogue_jobs(connection, publisher_ids)?;
+    if jobs.is_empty() {
+        // No job on this chunk: L2 and L3 are not issued at all. This is the
+        // `C_job_empty` branch of the section 17.4.3 arithmetic, and it is a
+        // skipped statement rather than an empty one.
+        return Ok(Vec::new());
+    }
+
+    let job_ids: Vec<Uuid> = jobs.iter().map(|job| job.distribution_job_id).collect();
+    let mut targets = partition_by_job(targets_for_jobs(connection, &job_ids)?, |target| {
+        target.distribution_job_id
+    });
+    let mut attempts = partition_by_job(attempts_for_jobs(connection, &job_ids)?, |attempt| {
+        attempt.distribution_job_id
+    });
+
+    Ok(jobs
+        .into_iter()
+        .map(|job| {
+            let job_id = job.distribution_job_id;
+            // Both partitions preserve their statement's ordering, so the
+            // payload carries canonical platform order and newest-attempt-first
+            // order exactly as the direct path does.
+            DistributionJobPayload::preloaded(
+                job,
+                targets.remove(&job_id).unwrap_or_default(),
+                attempts.remove(&job_id).unwrap_or_default(),
+            )
+        })
+        .collect())
+}
+
 /// Every target of every requested job, in one set-based statement, ordered so
 /// that partitioning per parent preserves canonical platform order.
 pub(crate) fn targets_for_jobs(

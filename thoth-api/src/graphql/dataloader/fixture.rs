@@ -26,6 +26,7 @@ use thoth_errors::ThothError;
 pub(crate) struct BatchStats {
     dispatches: AtomicUsize,
     batches: Mutex<Vec<usize>>,
+    classifications: Mutex<Vec<Option<bool>>>,
 }
 
 impl BatchStats {
@@ -37,12 +38,41 @@ impl BatchStats {
             .push(keys.len());
     }
 
+    /// Record one **completed** dispatch together with what it resolved.
+    ///
+    /// A loader whose statement cost depends on what its chunk found uses this
+    /// instead of [`Self::record`], so the chunk's size and its classification
+    /// are one atomic observation and can never be paired up wrongly. `BE-04`'s
+    /// composite job loader is the only such loader: its L2 and L3 are skipped
+    /// for a chunk whose L1 returns no job, which is exactly the
+    /// `C_job_nonempty`/`C_job_empty` split of specification section 17.4.3.
+    ///
+    /// `resolved_any` is `None` for a chunk that failed, where the question has
+    /// no answer.
+    pub(crate) fn record_outcome<K>(&self, keys: &[K], resolved_any: Option<bool>) {
+        let mut batches = self.batches.lock().expect("batch stats lock");
+        let mut classifications = self.classifications.lock().expect("batch stats lock");
+        self.dispatches.fetch_add(1, Ordering::SeqCst);
+        batches.push(keys.len());
+        classifications.push(resolved_any);
+    }
+
     pub(crate) fn dispatch_count(&self) -> usize {
         self.dispatches.load(Ordering::SeqCst)
     }
 
     pub(crate) fn batch_sizes(&self) -> Vec<usize> {
         self.batches.lock().expect("batch stats lock").clone()
+    }
+
+    /// Per-chunk classification, in dispatch order: `Some(true)` for a chunk
+    /// whose L1 returned at least one job, `Some(false)` for one that returned
+    /// none, `None` for a chunk that failed.
+    pub(crate) fn classifications(&self) -> Vec<Option<bool>> {
+        self.classifications
+            .lock()
+            .expect("batch stats lock")
+            .clone()
     }
 }
 
