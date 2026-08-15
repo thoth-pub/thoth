@@ -52,13 +52,44 @@ Use verified actual branches until normalization or explicit exceptions complete
 
 ### CG-05 - Related repositories lack complete instructions
 
-App, dashboard, widget and cc-license remain outstanding. Dissemination has
-incomplete controls.
+CG-05 is **OPEN**, narrowed to `metrics-dashboard`, `metrics-widget` and
+`cc-license`. Each still has no root `AGENTS.md` on any branch (re-verified
+live 2026-08-15) and each remains outstanding for this gap.
 
-Sphinx is no longer outstanding for this gap: repository-local root
-`AGENTS.md` instructions have been merged onto its `develop` branch (see
-CG-03). That closes the instruction item only. It does not close CG-03, and it
-does not make the repository implementation-ready.
+The following repositories are **no longer outstanding** for this gap. Each
+carries a merged, authoritative repository-local root `AGENTS.md` — the
+repository-local specialization of the Shared Engineering Controls — on its
+active development branch, re-verified live 2026-08-15 at the exact head each
+instruction PR merged as:
+
+| Repository | Active development branch | Verified head | Instruction PR |
+|---|---|---|---|
+| `thoth-app` | `dev` | `7a4e7c6ceaec36fbdb201eaeb9ae36985a709889` | [#114](https://github.com/thoth-pub/thoth-app/pull/114) |
+| `thoth-dissemination` | `develop` | `71ef7724326e9e75ccea2c004b5ca5be8197f27e` | [#96](https://github.com/thoth-pub/thoth-dissemination/pull/96) |
+| `thoth-client` (standalone) | `develop` | `d6ffdc67c48cbf64f8a716f26d7d82eb541d1ecf` | [#55](https://github.com/thoth-pub/thoth-client/pull/55) |
+| `thoth-pyramid` | `dev` | `2ee7a71f068db828a547fb60627d5a89243d209d` | [#15](https://github.com/thoth-pub/thoth-pyramid/pull/15) |
+| `thoth-strapi` | `develop` | `306220326189697252a708a203d6b4cc02f018cc` | [#5](https://github.com/thoth-pub/thoth-strapi/pull/5) |
+| `thoth-sphinx` | `develop` | `ff7de985d03f0c94d5ad8d60727f9cf85b6435cd` | [#4](https://github.com/thoth-pub/thoth-sphinx/pull/4) (reconciliation) |
+
+App is therefore no longer outstanding, and Dissemination's repository-local
+control coverage is no longer incomplete: its root `AGENTS.md` was revised to
+complete coverage and merged. Later work in any of these repositories must
+read and preserve the merged file rather than add one as though absent.
+
+This closes the **instruction item only**, for each listed repository, and
+nothing else. In particular it does not close, weaken or make ready:
+
+- CG-03, which remains **OPEN** for Sphinx branch normalization and bootstrap
+  readiness; BR-SPHINX-01 and SPHINX-BOOT-01 remain separate, separately
+  authorized and unimplemented;
+- branch-topology normalization in any repository, including BR-APP-01 and
+  BR-DIS-01 (see CG-04);
+- CG-11 CI gaps, Pyramid's dev-target CI gap, or Strapi's Docker/Node CI
+  defect;
+- Dissemination's README/environment-protection contradiction, which remains a
+  separate follow-up;
+- CG-08 Metrics readiness, or any Metrics-specific documentation, which remain
+  a separate programme.
 
 ### CG-06 - Shared ADR approvals (RESOLVED 2026-07-29)
 
