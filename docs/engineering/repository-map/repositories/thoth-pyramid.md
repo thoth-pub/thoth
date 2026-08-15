@@ -32,6 +32,8 @@ before branching.
 - `graphql-request` and GraphQL Code Generator (`@graphql-codegen/cli`,
   `@graphql-codegen/client-preset`)
 - `thoth-blocks` package dependency
+- `metrics-widget` package dependency (`^2.0.1`, verified in `package.json`
+  `dependencies`), owned by `thoth-pub/metrics-widget`
 
 ## Generated artefacts
 
@@ -55,10 +57,15 @@ Consumes (verified from `.env.example` and `codegen.ts`):
 - the `thoth-pub/thoth-strapi` CMS content API (`STRAPI_URL`,
   `STRAPI_REQUEST_ORIGIN`).
 
-See `docs/engineering/repository-map/contracts.md` sections 2.1 and 2.2. A
-breaking change to either the Thoth GraphQL schema/export format or to
-Strapi's Thoth-ID-linkage content types or content-delivery API shape is a
-contract change this repository must account for.
+Also depends directly on the published npm package `metrics-widget` (`^2.0.1`
+in `package.json` `dependencies`), owned by `thoth-pub/metrics-widget` — a
+package/library interface dependency, not a network API call.
+
+See `docs/engineering/repository-map/contracts.md` sections 2.1, 2.2 and 2.4.
+A breaking change to the Thoth GraphQL schema/export format, to Strapi's
+Thoth-ID-linkage content types or content-delivery API shape, or to
+`metrics-widget`'s public package interface, is a contract change this
+repository must account for.
 
 Other external dependencies observed in `.env.example`: Algolia (search),
 Matomo (analytics, optional), Snipcart (cart/checkout, optional), and an
@@ -72,3 +79,6 @@ account-request email/HMAC flow. These are not Thoth-owned contracts.
   branch being implemented.
 - Do not assume Strapi's content-delivery API or Thoth-ID-linkage content
   types are stable without verifying `thoth-strapi` directly.
+- Do not assume the `metrics-widget` package interface is stable without
+  verifying `thoth-pub/metrics-widget` directly; this record does not
+  authorize or imply any `metrics-widget` implementation or control task.

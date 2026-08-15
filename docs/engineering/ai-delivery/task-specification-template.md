@@ -1,13 +1,32 @@
 # Task Specification Template
 
-Copy this file to the relevant programme task directory and replace every bracketed field.
+This template is canonical shared doctrine maintained in `thoth-pub/thoth`. It
+may be copied into, or referenced by, any repository that adopts these AI-led
+delivery controls. Copy this file to the relevant programme task directory and
+replace every bracketed field.
 
 A task may not enter implementation with unresolved required fields.
+
+When completing this template for a task in a repository other than
+`thoth-pub/thoth`, distinguish two separate authority sources and do not
+conflate them:
+
+1. the **target repository's own** root and nested `AGENTS.md` files and
+   local controls, which govern that repository and are authoritative for its
+   own conventions, stack and prohibited assumptions;
+2. this **canonical shared doctrine**, maintained in `thoth-pub/thoth` under
+   `docs/engineering/ai-delivery/` and `docs/engineering/repository-map/`,
+   consulted when the task requires the shared cross-repository control model
+   (action authorization, cross-repository impact analysis, lifecycle
+   evidence). Do not assume a `docs/engineering/...` directory exists in the
+   target repository itself; it may not.
 
 Write durable state only. Do not record transient pull-request lifecycle status
 such as `PENDING MERGE` or `AWAITING CTO MERGE AUTHORIZATION`: GitHub is the
 live authority for those, and recording them here guarantees the file is stale
-after merge. See `../AGENTS.md` section 1.1 and `operating-model.md` section 5.1.
+after merge. See `../AGENTS.md` section 1.1 and `operating-model.md` section
+5.1 — both canonical shared-doctrine references in `thoth-pub/thoth`, per the
+distinction above, not necessarily paths that exist in the target repository.
 
 ---
 
@@ -19,9 +38,12 @@ Stage: [programme stage/phase, or `None`]
 Owning GitHub issue: [owner/repository#NNN]
 Repository: [owner/repository]
 Workflow: STANDARD | PROGRAMME_INTEGRATION
-Base branch: [normally `develop`; otherwise approved `feature/<programme>`]
+Base branch: [the target repository's verified repository-local base branch —
+  for `thoth-pub/thoth` this is normally `develop`; for any other repository,
+  verify it live and record it here rather than assuming `develop` — or an
+  approved `feature/<programme>` integration branch]
 Exact authorized base commit: [full 40-character SHA verified immediately before implementation]
-PR target: [`develop` or approved `feature/<programme>`]
+PR target: [the same verified repository-local base branch, or the approved `feature/<programme>` integration branch]
 Programme integration branch: [branch or `None`]
 Risk: LOW | MEDIUM | HIGH | CRITICAL
 Owner: [role/person]
@@ -322,7 +344,10 @@ Review reasoning level: [level]
 - parent programme branch refresh requirement:
 - branch deletion after merge: YES
 - final programme PR required: YES | NO
-- final release path: `develop -> master`
+- final release path: [the target repository's verified repository-local
+  release path, or `None` if that repository has no separate release branch —
+  for `thoth-pub/thoth` this is `develop -> master`; do not assume that path
+  for any other repository]
 
 ## 21. Approval
 

@@ -81,19 +81,26 @@ A task is complete only when:
 
 ## Branching summary
 
-Thoth uses GitHub Flow (`ghf`):
+These delivery controls use GitHub Flow (`ghf`) as their pattern, but the
+branch names are repository-local, not a shared default. `thoth-pub/thoth`
+itself uses:
 
 ```text
 feature/* -> develop -> master
 ```
 
-For approved large programmes:
+For approved large programmes in `thoth-pub/thoth`:
 
 ```text
 feature/<programme>/<slice> -> feature/<programme> -> develop -> master
 ```
 
-Implementation branches normally start from `develop`. `master` is the release branch.
+In `thoth-pub/thoth`, implementation branches normally start from `develop`
+and `master` is the release branch. Another repository adopting these
+controls verifies and uses its own base, target and release branch names —
+see `branching-and-release-workflow.md` section on scope, and that
+repository's own repository-map entry or `AGENTS.md` where one exists. Do not
+assume `develop`/`master` for a repository other than `thoth-pub/thoth`.
 
 ## Authority
 

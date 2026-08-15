@@ -56,10 +56,34 @@ scope is approved.
 
 ## CI and release
 
-GitHub Actions build and (on release) push a Docker image, per
-`build_docker.yml` and `build_docker_release.yml`. Verify current workflow
-files directly before relying on this record; do not dispatch these workflows
-manually without separate authorization.
+Verified directly from `.github/workflows/build_docker.yml` and
+`build_docker_release.yml` (`develop`, 2026-08-15). This repository has three
+distinct, separately triggered GHCR-publishing paths — do not conflate them:
+
+1. **PR creation/update -> automatic staging GHCR publication.**
+   `build_docker.yml` triggers `on: pull_request` (every open/update event,
+   with no path filter and no documentation-only classifier gating it,
+   unlike `thoth-pub/thoth`'s own PR workflow). It unconditionally logs into
+   `ghcr.io`, runs `docker/build-push-action@v5` with `push: true`, and tags
+   the image `staging-pr-<PR number>` on `ghcr.io/thoth-pub/thoth-strapi`.
+   Opening or updating any PR against this repository — including a
+   documentation-only change — publishes a staging image automatically. This
+   is not conditional on file paths changed.
+2. **Release publication -> release GHCR publication.** `build_docker_release.yml`
+   triggers `on: release: types: [published]` and pushes semver-tagged images
+   (`{{version}}`, `{{major}}.{{minor}}`, `{{major}}`) to the same
+   `ghcr.io/thoth-pub/thoth-strapi`. This only runs when a GitHub release is
+   published, a separate, explicitly authorized action.
+3. **Manual workflow dispatch -> separate mutation requiring explicit
+   authorization.** `build_docker.yml` also declares `on: workflow_dispatch`,
+   so it can additionally be triggered manually, independent of any PR. Manual
+   dispatch is its own action under the granular action-authorization model
+   (root `AGENTS.md` section 6) and is never authorized by PR-open/update
+   authorization or by read/inspection authorization.
+
+Verify current workflow files directly before relying on this record for a
+task; do not dispatch either workflow manually without separate, explicit
+authorization.
 
 ## Prohibited assumptions
 
@@ -67,5 +91,10 @@ manually without separate authorization.
   dependency was found in its manifest.
 - Do not assume its Thoth-ID-linkage content types are stable without
   verifying both this repository and `thoth-pub/thoth-pyramid` directly.
-- Do not dispatch its Docker build/release workflows without explicit
-  authorization.
+- Do not dispatch its Docker build/release workflows manually without
+  explicit authorization.
+- Do not assume opening or updating a PR against this repository is
+  publication-free because a change is documentation-only or otherwise
+  low-risk: `build_docker.yml` has no docs-only classifier and pushes a
+  `staging-pr-*` image to `ghcr.io/thoth-pub/thoth-strapi` on every PR
+  open/update, unconditionally.

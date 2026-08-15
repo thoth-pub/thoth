@@ -32,16 +32,31 @@ Production/runtime effect: [NONE intended, or explain]
 Approved specification: [link/path]
 Relevant ADRs: [list or `None`]
 
-Documents the implementing agent must read before editing anything, in
-addition to the approved specification:
+Distinguish two separate authority sources for the target repository named in
+section 1, and do not conflate them:
 
-- root `AGENTS.md` and every nested `AGENTS.md` applicable to files in the
-  write budget;
-- `docs/engineering/ai-delivery/operating-model.md`;
-- `docs/engineering/ai-delivery/branching-and-release-workflow.md`;
-- `docs/engineering/repository-map/README.md` and the relevant repository-map
-  entries and `contracts.md`;
-- [any additional programme-specific documents or ADRs].
+a) **the target repository's own root and nested `AGENTS.md` files and local
+   controls.** These govern the target repository directly, are read from
+   that repository (not assumed to be `thoth-pub/thoth`), and are
+   authoritative for its own conventions, stack, branch topology and
+   prohibited assumptions. If the target repository is not `thoth-pub/thoth`,
+   do not assume it has a `docs/engineering/` directory or any of the other
+   canonical-doctrine paths below; verify what that repository actually has.
+
+b) **canonical shared doctrine**, maintained in `thoth-pub/thoth` and
+   consulted whenever this task requires the shared cross-repository control
+   model (action authorization, cross-repository impact analysis, lifecycle
+   evidence):
+
+   - `thoth-pub/thoth`'s `docs/engineering/ai-delivery/operating-model.md`;
+   - `thoth-pub/thoth`'s
+     `docs/engineering/ai-delivery/branching-and-release-workflow.md` (scoped
+     to `thoth-pub/thoth`'s own branch topology; not authoritative for any
+     other repository's branch topology);
+   - `thoth-pub/thoth`'s `docs/engineering/repository-map/README.md`, the
+     relevant repository-map entries and `contracts.md`;
+   - [any additional programme-specific documents or ADRs, and their owning
+     repository].
 
 Use live repository evidence for repository facts. Do not rely on this
 handoff for a repository fact if live repository evidence contradicts it. If
@@ -51,9 +66,12 @@ resolving it unilaterally.
 ## 3. Exact base, branch and PR target
 
 ```text
-Authorized base branch: [normally `develop`]
+Authorized base branch: [the target repository's verified repository-local
+  base branch — for thoth-pub/thoth this is normally `develop`; for any other
+  repository, verify it live rather than assuming `develop`]
 Exact authorized base commit: [full 40-character SHA]
-PR target: [`develop` or approved `feature/<programme>`]
+PR target: [the same verified repository-local base branch, or an approved
+  `feature/<programme>` integration branch]
 Authorized task branch: [feature/<area>/<task-id>]
 ```
 

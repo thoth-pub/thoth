@@ -147,11 +147,28 @@ against live evidence first.
 
 Use one bounded task per slice branch and pull request.
 
-Follow `branching-and-release-workflow.md`.
+This shared operating model is repository-agnostic. It governs any repository
+that adopts these AI-led delivery controls, not only `thoth-pub/thoth`.
+`develop`/`master` is `thoth-pub/thoth`'s own verified branch topology, given
+below as a worked example; it is not a default assumed for any other
+repository. Every task verifies and records its own repository's actual base
+and target branch before branching. See
+`docs/engineering/ai-delivery/branching-and-release-workflow.md`, which is
+itself scoped to `thoth-pub/thoth`, and that repository's own
+`docs/engineering/repository-map/repositories/<name>.md` entry (or, for a
+target repository that lacks a repository-map entry here, that repository's
+own root/nested `AGENTS.md` and its verified live branch state) for any other
+repository.
 
-Normal tasks branch from `develop` and target `develop`.
+Normal tasks branch from the repository's verified repository-local base
+branch and target that same branch (for `thoth-pub/thoth`: branch from
+`develop`, target `develop`).
 
-For an approved large programme, create `feature/<programme>` from `develop`; each bounded slice branches from and targets that programme integration branch. The final approved programme pull request targets `develop`.
+For an approved large programme, create `feature/<programme>` from the
+repository's verified base branch; each bounded slice branches from and
+targets that programme integration branch. The final approved programme pull
+request targets the repository's verified base branch (for `thoth-pub/thoth`:
+`develop`).
 
 A bounded task has:
 
@@ -164,7 +181,7 @@ A bounded task has:
 
 A programme integration branch is permitted only under the controlled large-programme workflow. It does not replace bounded slice branches, task specifications or independent review.
 
-Prefer additive, backwards-compatible and initially inactive changes that can merge directly into `develop` safely. Use an integration branch only when the programme genuinely requires integrated validation before entering `develop`.
+Prefer additive, backwards-compatible and initially inactive changes that can merge directly into the repository's verified base branch safely (for `thoth-pub/thoth`: `develop`). Use an integration branch only when the programme genuinely requires integrated validation before entering that base branch.
 
 ### 4.1 Cross-repository impact-analysis gate
 
@@ -234,7 +251,9 @@ task.
 The implementing agent:
 
 1. confirms repository, base branch and base commit;
-2. creates a fresh task branch from the approved base (`develop` or the programme integration branch);
+2. creates a fresh task branch from the approved base (the repository's
+   verified base branch — `develop` for `thoth-pub/thoth` — or the programme
+   integration branch);
 3. inspects relevant code before editing;
 4. implements only the approved scope;
 5. adds required tests;
