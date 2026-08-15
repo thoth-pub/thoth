@@ -41,7 +41,7 @@ The Metrics design requires one repository-local `feature/metrics` integration b
 | `thoth` | `master` | `develop` | `develop -> master` | conforms |
 | `thoth-app` | `main` | `dev` | `dev -> main` | normalization required |
 | `thoth-dissemination` | `main` | `develop` | `develop -> main` | release-branch normalization required |
-| `thoth-sphinx` | `main` | `develop` | none; placeholder-only README, identical on `main` and `develop` | `master`/protection/bootstrap required |
+| `thoth-sphinx` | `main` | `develop` | none; `main` is placeholder-README-only, `develop` is ahead by the repository-control root `AGENTS.md` only; bootstrap-only, zero workflows | `master`/protection/bootstrap required |
 | `thoth-client` (standalone `thoth-pub/thoth-client`) | `master` | `develop` | `develop -> master` (feature PRs merge to `develop`; `develop` is 1 commit ahead of `master` via a release merge) | conforms to the `develop -> master` pattern |
 | `thoth-pyramid` | `main` | `dev` | not yet observed as a completed release cycle | normalization required if brought under target topology |
 | `thoth-strapi` | `main` | `develop` | not yet observed as a completed release cycle | normalization required if brought under target topology |
@@ -51,11 +51,25 @@ The Metrics design requires one repository-local `feature/metrics` integration b
 
 ### 3.1 2026-08-15 re-verification notes
 
-`thoth-sphinx` was re-verified live on 2026-08-15: both `main` and `develop`
-exist, are identical (`compare/main...develop` reports `ahead_by: 0, behind_by:
-0, status: identical`), and both contain only the placeholder `README.md`
-from the same initial commit. The repository remains bootstrap-only; no
-branch-topology correction was required for this row.
+`thoth-sphinx` was re-verified live on 2026-08-15. This note supersedes the
+earlier 2026-08-15 statement that `main` and `develop` were identical and both
+placeholder-only; that statement is no longer accurate. Both branches exist and
+have **diverged**:
+
+- `main` is at `0896e4061e06bc640f917f1aaf25c14b6e25269a` and remains the
+  original placeholder-only branch, containing `README.md` alone;
+- `develop` is at `7d6d4a24fde1ee0473f2ac66387167998f67ebb1` and contains a
+  root `AGENTS.md` plus the same, unchanged placeholder `README.md`;
+- `compare/main...develop` reports `ahead_by: 5, behind_by: 0, status: ahead`,
+  with `AGENTS.md` the only changed file.
+
+The divergence is solely the completed repository-control work that added the
+repository-local root `AGENTS.md`. The repository has zero GitHub Actions
+workflows and no runtime, bootstrap, CI or provider implementation, so it
+remains bootstrap-only and non-implementation-ready. `BR-SPHINX-01` and
+`SPHINX-BOOT-01` remain separate, separately authorized tasks; see
+`repositories/thoth-sphinx.md`. The row above is corrected accordingly and no
+branch normalization is performed.
 
 `thoth-client` (standalone), `thoth-pyramid` and `thoth-strapi` were added and
 verified live for the first time on 2026-08-15. See
@@ -106,12 +120,15 @@ Risk: HIGH because the repository contains production external-write workflows.
 
 ### BR-SPHINX-01 - Complete `thoth-sphinx` topology
 
-- create `master` from current `main`;
-- retain the existing `develop` branch;
+- create `master` from current `main`, which is placeholder-README-only and
+  behind `develop`;
+- retain the existing `develop` branch, preserving the root `AGENTS.md` it
+  already carries;
 - align `develop` with the approved bootstrap base before implementation;
 - make `master` the release/default branch;
 - add protections to `master` and `develop`;
-- perform SPHINX-BOOT-01 on a task branch from `develop`;
+- perform SPHINX-BOOT-01, which is a separate task, on a task branch from
+  `develop`;
 - retain `main` until references are confirmed absent.
 
 Risk: MEDIUM before runtime exists.

@@ -58,17 +58,54 @@ scope is approved.
 
 Verified directly from `.github/workflows/build_docker.yml` and
 `build_docker_release.yml` (`develop`, 2026-08-15). This repository has three
-distinct, separately triggered GHCR-publishing paths — do not conflate them:
+distinct, separately triggered, publication-capable GHCR paths — do not
+conflate them with each other, and do not conflate a path being triggered with
+an image having been published:
 
-1. **PR creation/update -> automatic staging GHCR publication.**
+1. **PR creation/update -> automatic staging GHCR publication attempt.**
    `build_docker.yml` triggers `on: pull_request` (every open/update event,
    with no path filter and no documentation-only classifier gating it,
    unlike `thoth-pub/thoth`'s own PR workflow). It unconditionally logs into
-   `ghcr.io`, runs `docker/build-push-action@v5` with `push: true`, and tags
-   the image `staging-pr-<PR number>` on `ghcr.io/thoth-pub/thoth-strapi`.
-   Opening or updating any PR against this repository — including a
-   documentation-only change — publishes a staging image automatically. This
-   is not conditional on file paths changed.
+   `ghcr.io`, runs `docker/build-push-action@v5` with `push: true`, and its
+   configured tag is `staging-pr-<PR number>` on
+   `ghcr.io/thoth-pub/thoth-strapi`.
+
+   Separate the **trigger** from the **outcome**, because they are different
+   facts with different evidence:
+
+   - *Trigger (certain, from the workflow file).* Opening or updating any PR
+     against this repository — including a documentation-only change —
+     automatically starts a publication-capable run. This is not conditional
+     on the file paths changed. PR creation/update in this repository is
+     therefore a **publication-capable external side effect** and triggers an
+     **automatic publication attempt**, not merely a build or a check.
+   - *Outcome (must be observed, never assumed).* A run that completes
+     successfully publishes the `staging-pr-*` staging image. A run may also
+     fail **before** publication: the registry login and the image push are
+     separate steps, and a failure in `Build and push` leaves nothing
+     published while the login has already happened. Whether an image was
+     actually published must be established from the observed run conclusion
+     and step results for that specific run, and from the registry, rather
+     than inferred from the fact that a PR was opened or updated.
+
+   Observed example (verified 2026-08-15): both `pull_request` runs for PR
+   [#5](https://github.com/thoth-pub/thoth-strapi/pull/5) — run IDs
+   `31897054063` and `31898765737` — concluded `failure`, with
+   `Login to Container registry` succeeding, `Build and push` failing and
+   `Image digest` skipped. The publication attempt was triggered
+   automatically in both cases; neither run reached publication. This is the
+   distinction in practice: the attempt is guaranteed by the trigger, the
+   published image is not.
+
+   Neither reading weakens the authorization requirement. Because PR
+   creation/update here is publication-capable, it requires explicit
+   pull-request-mutation authorization for this repository under the granular,
+   non-transitive action-authorization model (root `AGENTS.md` section 6), and
+   read/inspection authorization never implies it. Manual
+   `workflow_dispatch`, release publication, provider/runtime actions,
+   deployment and production activation remain **distinct** actions, each
+   separately authorized, and none of them is authorized by PR-open/update
+   authorization.
 2. **Release publication -> release GHCR publication.** `build_docker_release.yml`
    triggers `on: release: types: [published]` and pushes semver-tagged images
    (`{{version}}`, `{{major}}.{{minor}}`, `{{major}}`) to the same
@@ -95,6 +132,11 @@ authorization.
   explicit authorization.
 - Do not assume opening or updating a PR against this repository is
   publication-free because a change is documentation-only or otherwise
-  low-risk: `build_docker.yml` has no docs-only classifier and pushes a
-  `staging-pr-*` image to `ghcr.io/thoth-pub/thoth-strapi` on every PR
-  open/update, unconditionally.
+  low-risk: `build_docker.yml` has no docs-only classifier and attempts a
+  `staging-pr-*` push to `ghcr.io/thoth-pub/thoth-strapi` on every PR
+  open/update, unconditionally. Treat PR creation/update here as a
+  publication-capable action requiring explicit authorization.
+- Conversely, do not assume the staging image **was** published because a PR
+  was opened or updated, or because the workflow was triggered. The trigger is
+  guaranteed; the publication is not. Observe the run conclusion, its step
+  results and the registry before recording a publication as having occurred.
