@@ -50,31 +50,47 @@ authorized and unimplemented tasks.
 
 Use verified actual branches until normalization or explicit exceptions complete. Publisher Services uses standard task branches. Metrics uses repository-local integration branches only after readiness.
 
-### CG-05 - Related repositories lack complete instructions
+### CG-05 - Related repositories lack complete instructions (RESOLVED 2026-08-16)
 
-CG-05 is **OPEN**, narrowed to `metrics-dashboard`, `metrics-widget` and
-`cc-license`. Each still has no root `AGENTS.md` on any branch (re-verified
-live 2026-08-15) and each remains outstanding for this gap.
+CG-05 is **RESOLVED for the instruction item**. No repository in this map
+remains outstanding for it. Every managed repository carries a merged,
+authoritative repository-local root `AGENTS.md` — the repository-local
+specialization of the Shared Engineering Controls — on its active development
+branch, verified live at the exact head each instruction PR merged as:
 
-The following repositories are **no longer outstanding** for this gap. Each
-carries a merged, authoritative repository-local root `AGENTS.md` — the
-repository-local specialization of the Shared Engineering Controls — on its
-active development branch, re-verified live 2026-08-15 at the exact head each
-instruction PR merged as:
+| Repository | Active development branch | Verified head | Instruction PR | Verified |
+|---|---|---|---|---|
+| `thoth-app` | `dev` | `7a4e7c6ceaec36fbdb201eaeb9ae36985a709889` | [#114](https://github.com/thoth-pub/thoth-app/pull/114) | 2026-08-15 |
+| `thoth-dissemination` | `develop` | `71ef7724326e9e75ccea2c004b5ca5be8197f27e` | [#96](https://github.com/thoth-pub/thoth-dissemination/pull/96) | 2026-08-15 |
+| `thoth-client` (standalone) | `develop` | `d6ffdc67c48cbf64f8a716f26d7d82eb541d1ecf` | [#55](https://github.com/thoth-pub/thoth-client/pull/55) | 2026-08-15 |
+| `thoth-pyramid` | `dev` | `8f2d6faf70aabea61d11cbf361f602b719f9b3e2` | [#15](https://github.com/thoth-pub/thoth-pyramid/pull/15), later revised by [#17](https://github.com/thoth-pub/thoth-pyramid/pull/17) | 2026-08-16 |
+| `thoth-strapi` | `develop` | `306220326189697252a708a203d6b4cc02f018cc` | [#5](https://github.com/thoth-pub/thoth-strapi/pull/5) | 2026-08-15 |
+| `thoth-sphinx` | `develop` | `ff7de985d03f0c94d5ad8d60727f9cf85b6435cd` | [#4](https://github.com/thoth-pub/thoth-sphinx/pull/4) (reconciliation) | 2026-08-15 |
+| `metrics-dashboard` | `dev` | `963b0ea78a9a65153ab7d78b7c26e3cb35d763f4` | [#10](https://github.com/thoth-pub/metrics-dashboard/pull/10) | 2026-08-16 |
+| `metrics-widget` | `dev` | `363bce443b4a87459f5197e38bb7f4cfd4518f60` | [#2](https://github.com/thoth-pub/metrics-widget/pull/2) | 2026-08-16 |
+| `cc-license` | `develop` | `3dd497981da5d540739158d086394d22b3146b25` | [#2](https://github.com/thoth-pub/cc-license/pull/2) | 2026-08-16 |
+| `baboon` | `develop` | `bdf0ee33b6e93179ac76b4ad514a6e71627825d3` | [#16](https://github.com/thoth-pub/baboon/pull/16) | 2026-08-16 |
 
-| Repository | Active development branch | Verified head | Instruction PR |
-|---|---|---|---|
-| `thoth-app` | `dev` | `7a4e7c6ceaec36fbdb201eaeb9ae36985a709889` | [#114](https://github.com/thoth-pub/thoth-app/pull/114) |
-| `thoth-dissemination` | `develop` | `71ef7724326e9e75ccea2c004b5ca5be8197f27e` | [#96](https://github.com/thoth-pub/thoth-dissemination/pull/96) |
-| `thoth-client` (standalone) | `develop` | `d6ffdc67c48cbf64f8a716f26d7d82eb541d1ecf` | [#55](https://github.com/thoth-pub/thoth-client/pull/55) |
-| `thoth-pyramid` | `dev` | `2ee7a71f068db828a547fb60627d5a89243d209d` | [#15](https://github.com/thoth-pub/thoth-pyramid/pull/15) |
-| `thoth-strapi` | `develop` | `306220326189697252a708a203d6b4cc02f018cc` | [#5](https://github.com/thoth-pub/thoth-strapi/pull/5) |
-| `thoth-sphinx` | `develop` | `ff7de985d03f0c94d5ad8d60727f9cf85b6435cd` | [#4](https://github.com/thoth-pub/thoth-sphinx/pull/4) (reconciliation) |
+`metrics-dashboard`, `metrics-widget` and `cc-license` completed their rollout
+under programme `CTRL-DELIVERY-02`
+([#824](https://github.com/thoth-pub/thoth/issues/824)), which also brought
+`thoth-pub/baboon` under management for the first time — see
+[`repositories/baboon.md`](./repositories/baboon.md) for its responsibility,
+topology, contract relationships and workflow classes, including the HIGH-risk
+pull-request-triggered production SFTP scratch write confined to
+`/manchester/.ci-healthcheck/`.
 
-App is therefore no longer outstanding, and Dissemination's repository-local
-control coverage is no longer incomplete: its root `AGENTS.md` was revised to
-complete coverage and merged. Later work in any of these repositories must
-read and preserve the merged file rather than add one as though absent.
+For `cc-license`, the control PR [#2](https://github.com/thoth-pub/cc-license/pull/2)
+was preceded by supporting repair PR
+[#4](https://github.com/thoth-pub/cc-license/pull/4)
+(issue [#3](https://github.com/thoth-pub/cc-license/issues/3)), which merged
+first as `2d9b0c798c23a14131edeeb7fd525188500882dd` to clear a blocking Clippy
+gate. **No crate publication occurred as part of this programme.**
+
+App is no longer outstanding, and Dissemination's repository-local control
+coverage is no longer incomplete: its root `AGENTS.md` was revised to complete
+coverage and merged. Later work in any of these repositories must read and
+preserve the merged file rather than add one as though absent.
 
 This closes the **instruction item only**, for each listed repository, and
 nothing else. In particular it does not close, weaken or make ready:
@@ -82,14 +98,18 @@ nothing else. In particular it does not close, weaken or make ready:
 - CG-03, which remains **OPEN** for Sphinx branch normalization and bootstrap
   readiness; BR-SPHINX-01 and SPHINX-BOOT-01 remain separate, separately
   authorized and unimplemented;
-- branch-topology normalization in any repository, including BR-APP-01 and
-  BR-DIS-01 (see CG-04);
-- CG-11 CI gaps, Pyramid's dev-target CI gap, or Strapi's Docker/Node CI
+- branch-topology normalization in any repository, including BR-APP-01,
+  BR-DIS-01, BR-DASH-01, BR-WIDGET-01 and BR-LIC-01 (see CG-04);
+- the CG-11 CI gaps, which remain **OPEN** in full apart from the specific
+  Pyramid `dev` trigger repair recorded there, or Strapi's Docker/Node CI
   defect;
 - Dissemination's README/environment-protection contradiction, which remains a
   separate follow-up;
 - CG-08 Metrics readiness, or any Metrics-specific documentation, which remain
-  a separate programme.
+  a separate programme. Dashboard and widget control completion is readiness
+  evidence for programme
+  [#766](https://github.com/thoth-pub/thoth/issues/766) only; it does not
+  change Metrics architecture or start Metrics implementation.
 
 ### CG-06 - Shared ADR approvals (RESOLVED 2026-07-29)
 
@@ -194,7 +214,29 @@ No verified complete cursor, replication or snapshot route exists.
 
 ### CG-11 - CI gaps
 
+CG-11 is **OPEN**.
+
 App lacks explicit lint/build/codegen; dashboard lacks detected CI/tests; widget lacks unit tests; cc-license uses old Actions.
+
+All four of those items remain **OPEN and unchanged**. The repository-local
+control rollout recorded in CG-05 documented them; it did not repair any of
+them.
+
+One separate, adjacent gap tracked alongside these is **RESOLVED**:
+`thoth-pyramid`'s active `dev` branch previously received no GitHub Actions CI,
+because `.github/workflows/ci.yml` filtered both `push` and `pull_request` to
+`main` only. `CTRL-PYRAMID-CI-01` (issue
+[#16](https://github.com/thoth-pub/thoth-pyramid/issues/16), PR
+[#17](https://github.com/thoth-pub/thoth-pyramid/pull/17), merged as
+`8f2d6faf70aabea61d11cbf361f602b719f9b3e2`) changed those filters to
+`[main, dev]`, so pushes to and pull requests targeting `dev` now run the
+existing `test` job. Verified live 2026-08-16 on the merged workflow, with a
+successful post-merge `push` run on `dev`.
+
+That resolution is about **trigger coverage only**. It does not assert that
+Pyramid's CI coverage is adequate, and it does not close the repository's
+broader CI-quality, formatting, dependency/build or codegen concerns, nor its
+branch normalization, all of which remain separate and open.
 
 ### CG-12 - Thoth schema generation (RESOLVED via Architecture A)
 

@@ -2,8 +2,9 @@
 
 Status: Verified 2026-07-24; repository entries and contract relationships for
 `thoth-client` (standalone), `thoth-pyramid`, `thoth-strapi` and the
-`thoth-sphinx` branch state independently verified 2026-08-15 (see
-`branch-topology.md` and `contracts.md` for evidence dates by row)
+`thoth-sphinx` branch state independently verified 2026-08-15; `baboon` added
+and verified 2026-08-16 (see `branch-topology.md` and `contracts.md` for
+evidence dates by row)
 Owner: CTO
 
 This directory records the repository, branch, build, CI, release and deployment boundaries required for AI-led delivery.
@@ -41,6 +42,9 @@ This directory records the repository, branch, build, CI, release and deployment
 - `repositories/metrics-dashboard.md`
 - `repositories/metrics-widget.md`
 - `repositories/cc-license.md`
+- `repositories/baboon.md` - library-oriented MARC exchange service; consumes
+  the Thoth GraphQL and export APIs, and has a HIGH-risk pull-request-triggered
+  production SFTP scratch write.
 
 ## Usage rule
 

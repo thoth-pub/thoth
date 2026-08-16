@@ -4,7 +4,8 @@ Status: VERIFIED OBSERVED STATE PLUS APPROVED TARGET POLICY
 Evidence date: 2026-07-24 for `thoth`, `thoth-app`, `thoth-dissemination`,
 `metrics-dashboard`, `metrics-widget`, `cc-license`; independently re-verified
 2026-08-15 for `thoth-sphinx`, and newly added and verified 2026-08-15 for
-`thoth-client` (standalone), `thoth-pyramid`, `thoth-strapi`.
+`thoth-client` (standalone), `thoth-pyramid`, `thoth-strapi`; `baboon` newly
+added and verified 2026-08-16.
 
 ## 1. Target repository policy
 
@@ -48,6 +49,7 @@ The Metrics design requires one repository-local `feature/metrics` integration b
 | `metrics-dashboard` | `main` | `dev` | `dev -> main` | development/release/Vercel normalization required |
 | `metrics-widget` | `main` | `dev` | releases from `main` | normalization required |
 | `cc-license` | `main` | `develop` | release branch `main` | release-branch normalization required |
+| `baboon` | `master` | `develop` | `develop -> release/* -> master`, tagged and merged back into `develop` | conforms |
 
 ### 3.1 2026-08-15 re-verification notes
 
@@ -82,6 +84,23 @@ verified live for the first time on 2026-08-15. See
 `repositories/thoth-strapi.md` for full detail, and `contracts.md` for the
 explicit distinction between the standalone Python `thoth-pub/thoth-client`
 and the internal Rust `thoth-client` workspace member in `thoth-pub/thoth`.
+
+### 3.2 2026-08-16 `baboon` registration
+
+`thoth-pub/baboon` was added to this map and verified live on 2026-08-16. It is
+a private repository whose observed topology already matches the target
+`develop -> master` pattern: `master` is the GitHub default and release branch,
+`develop` is the active integration branch, and releases reach `master` through
+`release/*` branches, are tagged (for example `v0.5.0`) and are merged back into
+`develop`. Verified heads: `develop` `bdf0ee33b6e93179ac76b4ad514a6e71627825d3`,
+`master` `36f83a176fc4b195a3ff24c75302c1f2dbf53b1c`, with
+`compare/master...develop` reporting `ahead_by: 3, behind_by: 0`.
+
+Because the observed flow already conforms, **no `BR-` normalization task is
+created or required for `baboon`**, and none is authorized by this record. See
+`repositories/baboon.md` for responsibility, contract relationships, external
+state and the three distinct workflow classes, including the HIGH-risk
+pull-request-triggered production SFTP scratch write.
 
 No branch normalization is performed by this record. Rows marked
 "normalization required" describe a gap against the target topology only; a
