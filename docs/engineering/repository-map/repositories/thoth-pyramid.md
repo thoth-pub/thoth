@@ -1,6 +1,6 @@
 # Repository: thoth-pub/thoth-pyramid
 
-Evidence date: 2026-08-15
+Evidence date: 2026-08-15; CI trigger coverage verified 2026-08-16
 
 ## Responsibility
 
@@ -16,11 +16,44 @@ Private.
 
 GitHub default/release: `main`
 Active development: `dev`
+Verified `dev` head: `8f2d6faf70aabea61d11cbf361f602b719f9b3e2` (2026-08-16)
 Target-policy state: normalization required if this repository is brought
 under the `develop -> master` target topology in
 `docs/engineering/repository-map/branch-topology.md`; no normalization task is
 authorized by this record. Verify the current branch and PR target directly
 before branching.
+
+## CI
+
+Single workflow: `.github/workflows/ci.yml`, one `test` job running
+`npm install`, `npm run lint` and `npm test`.
+
+Verified trigger coverage (2026-08-16, at `dev`
+`8f2d6faf70aabea61d11cbf361f602b719f9b3e2`):
+
+```text
+push:          main, dev
+pull_request:  main, dev
+```
+
+Pushes to `dev` and pull requests targeting `dev` therefore run repository CI.
+The earlier gap — where both filters were `main` only, so a pull request
+targeting the active `dev` branch received no GitHub Actions CI at all — is
+repaired, by `CTRL-PYRAMID-CI-01` (issue
+[#16](https://github.com/thoth-pub/thoth-pyramid/issues/16), PR
+[#17](https://github.com/thoth-pub/thoth-pyramid/pull/17)).
+
+**This records trigger coverage only.** It is not a statement that CI coverage
+is adequate, and it does not replace scope-appropriate local validation. The
+following remain separate, open concerns and are not addressed by it:
+
+- broader CI quality and the depth of the existing `test` job;
+- the repository's formatting gap;
+- dependency and build concerns;
+- codegen concerns, including verifying the schema source before regenerating;
+- branch normalization.
+
+See [CG-11](../control-gaps.md#cg-11---ci-gaps).
 
 ## Stack
 
