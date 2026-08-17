@@ -160,13 +160,14 @@ pub enum DistributionPlatformGroup {
 
 /// How a destination receives a publisher's existing back catalogue.
 ///
-/// This is metadata about future behaviour only. BE-02 creates no job and
-/// performs no upload.
+/// `BE-04`'s service-configuration coordinator reads this classification when
+/// determining whether a newly activated group qualifies for durable
+/// back-catalogue job creation. BE-02 creates no job and performs no upload.
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLEnum),
     graphql(
-        description = "How a destination is expected to receive a publisher's existing back catalogue. Descriptive metadata only: no job or upload is created"
+        description = "How a destination's existing back catalogue is handled. Newly activating a group that contains at least one AUTOMATIC_PUSH destination qualifies that activation for durable back-catalogue job creation; PULL_FEED and MANUAL create no automatic job. This classification itself performs no dissemination"
     )
 )]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, EnumString, Display)]

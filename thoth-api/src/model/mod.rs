@@ -887,6 +887,7 @@ pub mod contact;
 pub mod contribution;
 pub mod contributor;
 pub mod country;
+pub mod distribution_job;
 pub mod endorsement;
 pub mod file;
 pub mod funding;

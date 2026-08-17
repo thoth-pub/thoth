@@ -23,6 +23,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
+use crate::model::distribution_job::DistributionJobCreation;
 use crate::model::publisher::{Publisher, ThothPackage};
 use crate::model::publisher_distribution_platform::DistributionPlatform;
 use crate::model::Timestamp;
@@ -174,6 +175,14 @@ pub struct CanonicalServiceConfigurationState {
 pub struct ServiceConfigurationWriteContext<'a> {
     pub source: PublisherServiceConfigurationSource,
     pub actor: &'a str,
+    /// Whether a qualifying activation in this transaction may create a durable
+    /// distribution job (`BE-04`).
+    ///
+    /// This is supplied by the resolver from the request context, exactly as
+    /// `source` and `actor` are. The coordinator makes **no** ambient
+    /// environment lookup of its own, which is also what lets every creation
+    /// test drive the switch directly with no environment mutation.
+    pub job_creation: DistributionJobCreation,
 }
 
 #[cfg_attr(

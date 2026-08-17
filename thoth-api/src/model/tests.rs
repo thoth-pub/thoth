@@ -22,6 +22,7 @@ pub(crate) mod db {
     use crate::graphql::Context;
     use crate::model::contribution::{Contribution, ContributionType, NewContribution};
     use crate::model::contributor::{Contributor, NewContributor};
+    use crate::model::distribution_job::DistributionJobCreation;
     use crate::model::imprint::{Imprint, NewImprint};
     use crate::model::institution::{Institution, NewInstitution};
     use crate::model::publication::{NewPublication, Publication, PublicationType};
@@ -146,7 +147,13 @@ END $$;
 
     pub(crate) fn test_context(pool: Arc<PgPool>, user_id: &str) -> Context {
         let (s3_client, cloudfront_client) = test_clients();
-        Context::new(pool, Some(test_user(user_id)), s3_client, cloudfront_client)
+        Context::new(
+            pool,
+            Some(test_user(user_id)),
+            s3_client,
+            cloudfront_client,
+            DistributionJobCreation::default(),
+        )
     }
 
     pub(crate) fn test_user_with_role(user_id: &str, role: Role, org_id: &str) -> IntrospectedUser {
@@ -190,13 +197,27 @@ END $$;
     }
 
     pub(crate) fn test_context_with_user(pool: Arc<PgPool>, user: IntrospectedUser) -> Context {
-        let (s3_client, cloudfront_client) = test_clients();
-        Context::new(pool, Some(user), s3_client, cloudfront_client)
+        test_context_with_job_creation(pool, Some(user), DistributionJobCreation::default())
     }
 
     pub(crate) fn test_context_anonymous(pool: Arc<PgPool>) -> Context {
+        test_context_with_job_creation(pool, None, DistributionJobCreation::default())
+    }
+
+    /// A context whose automatic distribution-job creation setting is chosen by
+    /// the test.
+    ///
+    /// This is how `BE-04`'s switch evidence is produced: the value travels
+    /// through the request context and the write context exactly as it does in
+    /// production, so an `OFF` case and an `ON` case differ in exactly one
+    /// value and **no environment variable is mutated by any test**.
+    pub(crate) fn test_context_with_job_creation(
+        pool: Arc<PgPool>,
+        user: Option<IntrospectedUser>,
+        job_creation: DistributionJobCreation,
+    ) -> Context {
         let (s3_client, cloudfront_client) = test_clients();
-        Context::new(pool, None, s3_client, cloudfront_client)
+        Context::new(pool, user, s3_client, cloudfront_client, job_creation)
     }
 
     pub(crate) fn create_publisher(pool: &PgPool) -> Publisher {

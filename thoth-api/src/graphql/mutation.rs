@@ -15,6 +15,15 @@ use crate::model::{
     contact::{Contact, ContactPolicy, NewContact, PatchContact},
     contribution::{Contribution, ContributionPolicy, NewContribution, PatchContribution},
     contributor::{Contributor, ContributorPolicy, NewContributor, PatchContributor},
+    distribution_job::{
+        crud::{
+            cancel_distribution_job, claim_distribution_jobs, complete_distribution_job,
+            fail_distribution_job, validate_error_code,
+        },
+        CancelDistributionJobInput, ClaimDistributionJobsInput, ClaimedDistributionJob,
+        CompleteDistributionJobInput, DistributionJobPayload, FailDistributionJobInput,
+        DISTRIBUTION_JOB_CLAIM_DEFAULT_BATCH, DISTRIBUTION_JOB_LEASE_DEFAULT_SECONDS,
+    },
     endorsement::{Endorsement, EndorsementPolicy, NewEndorsement, PatchEndorsement},
     file::{
         CompleteFileUpload, File, FilePolicy, FileUpload, FileUploadResponse,
@@ -81,8 +90,75 @@ fn replace_service_configuration(
     let write_context = ServiceConfigurationWriteContext {
         source: PublisherServiceConfigurationSource::SuperuserApi,
         actor: context.user_id()?,
+        // `BE-04`: the switch travels with the audit provenance as an explicit
+        // parameter, so the coordinator never reads ambient state and every test
+        // can drive it directly.
+        job_creation: context.job_creation,
     };
     replace_publisher_service_configuration(&context.db, &write_context, data)
+}
+
+/// Authorize a worker claim and delegate to the durable job lifecycle.
+///
+/// The worker identity written to `claimed_by` is derived from the
+/// authenticated principal, exactly as `BE-03` derives its audit actor.
+/// Accepting a worker-supplied identity would make the audit field spoofable and
+/// would introduce a second identifier format; deriving it introduces neither.
+fn claim_jobs(
+    context: &Context,
+    data: &ClaimDistributionJobsInput,
+) -> ThothResult<Vec<ClaimedDistributionJob>> {
+    context.require_dissemination_worker()?;
+    let worker = context.user_id()?;
+    claim_distribution_jobs(
+        &context.db,
+        worker,
+        data.limit.unwrap_or(DISTRIBUTION_JOB_CLAIM_DEFAULT_BATCH),
+        data.lease_seconds
+            .unwrap_or(DISTRIBUTION_JOB_LEASE_DEFAULT_SECONDS),
+        &data.kinds.clone().unwrap_or_default(),
+    )
+}
+
+fn complete_job(
+    context: &Context,
+    data: &CompleteDistributionJobInput,
+) -> ThothResult<DistributionJobPayload> {
+    context.require_dissemination_worker()?;
+    complete_distribution_job(&context.db, data.distribution_job_id, data.claim_token)
+        .map(DistributionJobPayload::lazy)
+}
+
+fn fail_job(
+    context: &Context,
+    data: &FailDistributionJobInput,
+) -> ThothResult<DistributionJobPayload> {
+    context.require_dissemination_worker()?;
+    // Validated at resolver entry, before any state transition is attempted, so
+    // a malformed code leaves the job, its attempt and the caller's claim token
+    // exactly as they were and the worker may resubmit under the same token.
+    validate_error_code(&data.error_code)?;
+    fail_distribution_job(
+        &context.db,
+        data.distribution_job_id,
+        data.claim_token,
+        &data.error_code,
+        data.error_detail.as_deref(),
+        data.retryable,
+    )
+    .map(DistributionJobPayload::lazy)
+}
+
+/// Authorize an administrative cancellation.
+///
+/// Superuser only. `DISSEMINATION_WORKER` is deliberately **not** permitted
+/// here: a worker transitions the jobs it holds and does nothing else.
+fn cancel_job(
+    context: &Context,
+    data: &CancelDistributionJobInput,
+) -> ThothResult<DistributionJobPayload> {
+    context.require_superuser()?;
+    cancel_distribution_job(&context.db, data.distribution_job_id).map(DistributionJobPayload::lazy)
 }
 
 #[juniper::graphql_object(Context = Context)]
@@ -106,7 +182,7 @@ impl MutationRoot {
     }
 
     #[graphql(
-        description = "Replace a publisher's complete desired service configuration under optimistic concurrency control. Superuser only. This stores desired configuration: it creates no distribution job and triggers no dissemination"
+        description = "Replace a publisher's complete desired service configuration under optimistic concurrency control. Superuser only. Newly activating an AUTOMATIC_PUSH destination also creates that activation's durable distribution job and targets atomically in the same transaction, while automatic distribution job creation is enabled; while it is disabled such a replacement fails and rolls back in full rather than committing the activation without its job. No other change creates a job, and this mutation performs no dissemination."
     )]
     fn replace_publisher_service_configuration(
         context: &Context,
@@ -114,6 +190,49 @@ impl MutationRoot {
         data: ReplacePublisherServiceConfigurationInput,
     ) -> FieldResult<PublisherServiceConfiguration> {
         replace_service_configuration(context, &data).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Claim a bounded batch of due distribution jobs. Requires the DISSEMINATION_WORKER role."
+    )]
+    fn claim_distribution_jobs(
+        context: &Context,
+        #[graphql(description = "How many jobs to claim, for how long, and of which kinds")]
+        data: ClaimDistributionJobsInput,
+    ) -> FieldResult<Vec<ClaimedDistributionJob>> {
+        claim_jobs(context, &data).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Record successful completion of a claimed distribution job. Requires the DISSEMINATION_WORKER role."
+    )]
+    fn complete_distribution_job(
+        context: &Context,
+        #[graphql(description = "Which claimed job succeeded, and under which claim")]
+        data: CompleteDistributionJobInput,
+    ) -> FieldResult<DistributionJobPayload> {
+        complete_job(context, &data).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Record failure of a claimed distribution job, optionally scheduling a retry. Requires the DISSEMINATION_WORKER role."
+    )]
+    fn fail_distribution_job(
+        context: &Context,
+        #[graphql(description = "Which claimed job failed, how, and whether to retry it")]
+        data: FailDistributionJobInput,
+    ) -> FieldResult<DistributionJobPayload> {
+        fail_job(context, &data).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Cancel a pending or running distribution job. Superuser only. This does not undo any external delivery already performed."
+    )]
+    fn cancel_distribution_job(
+        context: &Context,
+        #[graphql(description = "Which job to cancel")] data: CancelDistributionJobInput,
+    ) -> FieldResult<DistributionJobPayload> {
+        cancel_job(context, &data).map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(description = "Create a new imprint with the specified values")]

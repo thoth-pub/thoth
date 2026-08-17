@@ -30,6 +30,11 @@ lazy_static! {
         // release build silently resolved the default `OFF` and a debug build
         // panicked on the unknown argument (`THOTH-GQL-OPS-02`).
         .arg(arguments::mutation_guard_mode())
+        // Same reason as `mutation-guard-mode` above, for the same dispatch:
+        // `init` reaches the `graphql_api` handler, which reads
+        // `distribution-job-creation`. Registering it on only one production
+        // command path is the exact defect `THOTH-GQL-OPS-02` had to fix.
+        .arg(arguments::distribution_job_creation())
         .arg(arguments::aws_access_key_id())
         .arg(arguments::aws_secret_access_key())
         .arg(arguments::aws_region());

@@ -38,6 +38,11 @@ fn superuser_context() -> ServiceConfigurationWriteContext<'static> {
     ServiceConfigurationWriteContext {
         source: PublisherServiceConfigurationSource::SuperuserApi,
         actor: ACTOR,
+        // `BE-03`'s own evidence is taken with automatic job creation `ON`, so
+        // these tests keep exercising the coordinator's committed behaviour for
+        // every activation they perform. `BE-04`'s switch evidence, which needs
+        // both positions, uses its own contexts.
+        job_creation: DistributionJobCreation::On,
     }
 }
 
@@ -1834,6 +1839,8 @@ fn summaries(
         publishers,
         packages,
         enabled_platforms,
+        vec![],
+        None,
     )
     .expect("report")
 }
@@ -1899,14 +1906,17 @@ fn the_report_filters_by_publisher_package_and_enabled_platforms() {
             &pool,
             vec![],
             vec![],
-            vec![DistributionPlatform::Zenodo, DistributionPlatform::Oapen]
+            vec![DistributionPlatform::Zenodo, DistributionPlatform::Oapen],
+            vec![],
+            None,
         )
         .expect("count"),
         1,
         "the count query applies the same predicates as the list query"
     );
     assert_eq!(
-        PublisherServiceConfiguration::count(&pool, vec![], vec![], vec![]).expect("count"),
+        PublisherServiceConfiguration::count(&pool, vec![], vec![], vec![], vec![], None)
+            .expect("count"),
         3
     );
 }
@@ -1991,6 +2001,8 @@ fn the_report_orders_deterministically_with_a_publisher_id_tie_breaker() {
             vec![],
             vec![],
             vec![],
+            vec![],
+            None,
         )
         .expect("page");
         paged.extend(
@@ -2088,13 +2100,31 @@ fn the_migrated_database_matches_the_schema_contract() {
         vec!["service_configuration_updated_at"]
     );
 
-    // No capability state and no job table is created anywhere by BE-03.
+    // No capability state is created anywhere: capabilities are derived on read
+    // from the package and are persisted nowhere.
     assert!(catalog_values(
         &pool,
         "SELECT table_name AS value FROM information_schema.tables \
-         WHERE table_schema = 'public' AND (table_name ILIKE '%capabilit%' OR table_name LIKE '%job%')"
+         WHERE table_schema = 'public' AND table_name ILIKE '%capabilit%'"
     )
     .is_empty());
+    // The only job relations that exist are `BE-04`'s three, and `BE-03` still
+    // creates none of them: this assertion was "no job table at all" until
+    // `BE-04` legitimately added them, and it is narrowed to the exact
+    // inventory rather than deleted.
+    assert_eq!(
+        catalog_values(
+            &pool,
+            "SELECT table_name AS value FROM information_schema.tables \
+             WHERE table_schema = 'public' AND table_name LIKE '%job%' \
+             ORDER BY table_name"
+        ),
+        vec![
+            "distribution_job",
+            "distribution_job_attempt",
+            "distribution_job_target",
+        ]
+    );
     assert!(catalog_values(
         &pool,
         "SELECT column_name AS value FROM information_schema.columns \

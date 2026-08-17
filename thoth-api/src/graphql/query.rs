@@ -17,6 +17,7 @@ use crate::model::{
     contact::{Contact, ContactOrderBy, ContactType},
     contribution::{Contribution, ContributionType},
     contributor::{Contributor, ContributorOrderBy},
+    distribution_job::DistributionJobStatus,
     endorsement::{Endorsement, EndorsementOrderBy},
     file::File,
     funding::Funding,
@@ -671,6 +672,11 @@ impl QueryRoot {
     #[graphql(
         description = "Query the protected desired service configuration of every publisher, with the metadata of its latest recorded change. Superuser only"
     )]
+    // The report's filter set is fixed by the specification: publishers,
+    // packages, enabled platforms, job statuses, job presence, plus pagination
+    // and ordering. Each is an independent, named GraphQL argument, so
+    // collapsing them into a struct would change the public contract.
+    #[allow(clippy::too_many_arguments)]
     fn publisher_service_configurations(
         context: &Context,
         #[graphql(
@@ -688,6 +694,15 @@ impl QueryRoot {
             description = "If set, only shows results for publishers that have every one of these distribution platforms enabled. Multiple values narrow the results rather than widening them"
         )]
         enabled_platforms: Option<Vec<DistributionPlatform>>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results whose latest publisher back-catalogue job has one of these statuses. Multiple values widen the results"
+        )]
+        job_statuses: Option<Vec<DistributionJobStatus>>,
+        #[graphql(
+            description = "If set to true, only shows publishers with no publisher back-catalogue job at all; if false, only publishers that have at least one"
+        )]
+        without_back_catalogue_job: Option<bool>,
         #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
         #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
@@ -707,6 +722,8 @@ impl QueryRoot {
                     publishers.unwrap_or_default(),
                     packages.unwrap_or_default(),
                     enabled_platforms.unwrap_or_default(),
+                    job_statuses.unwrap_or_default(),
+                    without_back_catalogue_job,
                 )
             })
             .map_err(IntoFieldError::into_field_error)
@@ -732,6 +749,15 @@ impl QueryRoot {
             description = "If set, only counts publishers that have every one of these distribution platforms enabled. Multiple values narrow the results rather than widening them"
         )]
         enabled_platforms: Option<Vec<DistributionPlatform>>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only counts publishers whose latest publisher back-catalogue job has one of these statuses. Multiple values widen the results"
+        )]
+        job_statuses: Option<Vec<DistributionJobStatus>>,
+        #[graphql(
+            description = "If set to true, only counts publishers with no publisher back-catalogue job at all; if false, only publishers that have at least one"
+        )]
+        without_back_catalogue_job: Option<bool>,
     ) -> FieldResult<i32> {
         context
             .require_superuser()
@@ -741,6 +767,8 @@ impl QueryRoot {
                     publishers.unwrap_or_default(),
                     packages.unwrap_or_default(),
                     enabled_platforms.unwrap_or_default(),
+                    job_statuses.unwrap_or_default(),
+                    without_back_catalogue_job,
                 )
             })
             .map_err(IntoFieldError::into_field_error)

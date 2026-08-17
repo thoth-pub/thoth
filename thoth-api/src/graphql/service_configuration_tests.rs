@@ -20,6 +20,7 @@ use super::dataloader::fixture::{BatchStats, SqlProbe};
 use super::dataloader::RequestLoaders;
 use super::{create_schema, Context, GraphQLRequest, Schema};
 use crate::db::PgPool;
+use crate::model::distribution_job::DistributionJobCreation;
 use crate::model::publisher::{Publisher, PublisherCapability, ThothPackage};
 use crate::model::publisher_distribution_platform::DistributionPlatform;
 use crate::model::publisher_service_configuration::crud::replace_publisher_service_configuration;
@@ -147,6 +148,9 @@ fn seed_configuration(
         &ServiceConfigurationWriteContext {
             source: PublisherServiceConfigurationSource::SuperuserApi,
             actor: "fixture-superuser",
+            // Fixtures seed real activations, so they run with creation `ON`;
+            // the switch's own fail-closed evidence is separate.
+            job_creation: DistributionJobCreation::On,
         },
         &ReplacePublisherServiceConfigurationInput {
             publisher_id,
@@ -156,6 +160,23 @@ fn seed_configuration(
         },
     )
     .expect("seed configuration");
+}
+
+/// A superuser context that permits automatic distribution-job creation.
+///
+/// `BE-03`'s write-path evidence activates `AutomaticPush` destinations, and
+/// `BE-04` refuses to **commit** such an activation while creation is `OFF`
+/// (fail-closed, `BE-04` specification section 9.4.2). These tests are about the
+/// configuration write path rather than about the switch, so they run with
+/// creation `ON` and keep asserting exactly what they asserted before. The
+/// switch's own evidence — both positions, and the `OFF` rollback — lives in
+/// `BE-04`'s own tests.
+fn superuser_writer(pool: Arc<PgPool>, user_id: &str) -> Context {
+    test_db::test_context_with_job_creation(
+        pool,
+        Some(test_db::test_superuser(user_id)),
+        DistributionJobCreation::On,
+    )
 }
 
 fn capabilities_of(value: &JsonValue) -> Vec<String> {
@@ -447,8 +468,7 @@ async fn only_a_superuser_may_replace_the_configuration() {
     // Every denial was decided before the database was touched.
     assert_eq!(token(&pool, publisher.publisher_id), current);
 
-    let superuser =
-        test_db::test_context_with_user(Arc::clone(&pool), test_db::test_superuser("su-write"));
+    let superuser = superuser_writer(Arc::clone(&pool), "su-write");
     let response = run(&schema, &superuser, &query).await;
     let configuration = data(&response, "replacePublisherServiceConfiguration");
     assert_eq!(configuration["subscriptionPackage"], "SPHINX");
@@ -623,8 +643,7 @@ async fn a_platform_only_change_leaves_effective_capabilities_unchanged() {
     let publisher = test_db::create_publisher(&pool);
     seed_configuration(&pool, publisher.publisher_id, ThothPackage::Obelisk, &[]);
     let schema = create_schema();
-    let context =
-        test_db::test_context_with_user(Arc::clone(&pool), test_db::test_superuser("su-platform"));
+    let context = superuser_writer(Arc::clone(&pool), "su-platform");
 
     let response = run(
         &schema,
@@ -1016,10 +1035,7 @@ async fn every_committed_change_issues_exactly_one_publisher_update() {
         }
 
         let probe = SqlProbe::install(&test_db::test_db_url());
-        let context = test_db::test_context_with_user(
-            Arc::clone(&probe.pool),
-            test_db::test_superuser("su-update-count"),
-        );
+        let context = superuser_writer(Arc::clone(&probe.pool), "su-update-count");
         let schema = create_schema();
 
         let supplied = if case == "stale" {
@@ -1167,10 +1183,7 @@ async fn catalogue_scale_write_amplification_is_measured_in_a_disposable_environ
     let control_before = max_freshness(control_publisher.publisher_id);
 
     let probe = SqlProbe::install(&test_db::test_db_url());
-    let context = test_db::test_context_with_user(
-        Arc::clone(&probe.pool),
-        test_db::test_superuser("su-catalogue"),
-    );
+    let context = superuser_writer(Arc::clone(&probe.pool), "su-catalogue");
     let schema = create_schema();
     let current = token(&probe.pool, target.publisher_id);
 
@@ -1276,16 +1289,41 @@ fn the_protected_assignment_resolver_is_loader_first_and_uses_try_load_only() {
 #[test]
 fn no_second_assignment_loader_was_introduced() {
     let source = include_str!("dataloader.rs");
+    // The batcher inventory is named rather than counted, so an authorized
+    // addition is visible as an addition and an unauthorized one still fails.
+    // `BE-04` adds exactly three, each with a different key, value and
+    // statement; `BE-03` still adds none.
+    for batcher in [
+        "pub(crate) struct PublisherDistributionPlatformBatcher",
+        "pub(crate) struct LatestBackCatalogueJobBatcher",
+        "pub(crate) struct DistributionJobTargetBatcher",
+        "pub(crate) struct DistributionJobAttemptBatcher",
+    ] {
+        assert_eq!(
+            source.matches(batcher).count(),
+            1,
+            "`{batcher}` exists once"
+        );
+    }
+    let declared: Vec<&str> = source
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with("pub(crate) struct ") && line.ends_with("Batcher {"))
+        .collect();
     assert_eq!(
-        source.matches("pub(crate) struct").count()
-            - source.matches("pub(crate) struct SharedBatchError").count()
-            - source.matches("pub(crate) struct LoaderConfig").count()
-            - source.matches("pub(crate) struct RequestLoaders").count(),
-        1,
-        "exactly one batcher struct exists"
+        declared.len(),
+        4,
+        "exactly four batcher structs exist, and no fifth was introduced: {declared:?}"
     );
+    let bundle = source
+        .split_once("pub(crate) struct RequestLoaders {")
+        .expect("the request bundle")
+        .1
+        .split_once("\n}\n")
+        .expect("bundle body")
+        .0;
     assert_eq!(
-        source
+        bundle
             .matches("pub(crate) publisher_distribution_platforms:")
             .count(),
         1,

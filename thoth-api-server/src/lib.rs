@@ -19,6 +19,7 @@ use thoth_api::{
     graphql::{
         create_schema, run_mutation_guard, Context, GraphQLRequest, MutationGuardMode, Schema,
     },
+    model::distribution_job::DistributionJobCreation,
     storage::{create_cloudfront_client, create_s3_client, CloudFrontClient, S3Client},
 };
 use zitadel::{
@@ -87,16 +88,25 @@ async fn graphql_schema(st: Data<Arc<Schema>>) -> HttpResponse {
 }
 
 #[post("/graphql")]
+// Every parameter is an Actix extractor the handler genuinely needs: the schema,
+// the pool, the two storage clients, the two request-scoped control values and
+// the request body. Grouping them would only hide the extraction.
+#[allow(clippy::too_many_arguments)]
 async fn graphql(
     st: Data<Arc<Schema>>,
     pool: Data<PgPool>,
     s3_client: Data<S3Client>,
     cloudfront_client: Data<CloudFrontClient>,
     guard_mode: Data<MutationGuardMode>,
+    distribution_job_creation: Data<DistributionJobCreation>,
     user: Option<IntrospectedUser>,
     data: Json<GraphQLRequest>,
 ) -> Result<HttpResponse, Error> {
     let mode = *guard_mode.into_inner().as_ref();
+    // Unlike the guard mode, this value must reach the resolver: the
+    // configuration coordinator takes it as an explicit parameter and makes no
+    // ambient environment lookup of its own.
+    let job_creation = *distribution_job_creation.into_inner().as_ref();
 
     // Both paths produce ONE `GraphQLResponse`, which then flows through the
     // single existing status branch below. A guard rejection is an ordinary
@@ -121,6 +131,7 @@ async fn graphql(
                 user,
                 s3_client.into_inner(),
                 cloudfront_client.into_inner(),
+                job_creation,
             );
             data.execute(&st, &ctx).await
         }
@@ -146,6 +157,7 @@ pub async fn start_server(
     private_key: String,
     zitadel_url: String,
     mutation_guard_mode: MutationGuardMode,
+    distribution_job_creation: DistributionJobCreation,
     aws_access_key_id: String,
     aws_secret_access_key: String,
     aws_region: String,
@@ -188,6 +200,7 @@ pub async fn start_server(
             .app_data(Data::new(cloudfront_client.clone()))
             .app_data(Data::new(Arc::new(create_schema())))
             .app_data(Data::new(mutation_guard_mode))
+            .app_data(Data::new(distribution_job_creation))
             .service(index)
             .service(graphql_index)
             .service(graphql)
@@ -258,6 +271,10 @@ mod tests {
                 .app_data(Data::new(cloudfront_client))
                 .app_data(Data::new(Arc::new(create_schema())))
                 .app_data(Data::new(mode))
+                // `BE-04`: the handler extracts this alongside the guard mode,
+                // and registers the merged default here so these tests keep
+                // exercising the production-default configuration.
+                .app_data(Data::new(DistributionJobCreation::default()))
                 .service(graphql),
         )
         .await

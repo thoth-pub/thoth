@@ -884,6 +884,31 @@ mod audit {
 
     const ENFORCEMENT_CONSTRAINT_NAME: &str = "work_relation_single_book_chapter_parent";
 
+    /// The version of the enforcement migration these tests exercise.
+    const ENFORCEMENT_MIGRATION_VERSION: &str = "20260813";
+
+    /// Revert migrations until the **enforcement** migration itself has been
+    /// reverted.
+    ///
+    /// These tests were written when enforcement was the newest migration, so a
+    /// single `revert_last_migration` meant "revert enforcement". Any later
+    /// migration — `BE-04`'s distribution-job schema is the first — would
+    /// otherwise be reverted instead, leaving enforcement installed and quietly
+    /// turning the tests that depend on its absence into no-ops. Reverting down
+    /// to and including the target keeps their meaning under any migration
+    /// order, and the subsequent `run_pending_migrations` re-applies everything
+    /// in order, enforcement first.
+    fn revert_through_enforcement(conn: &mut PgConnection) {
+        loop {
+            let reverted = conn
+                .revert_last_migration(MIGRATIONS)
+                .expect("revert migration");
+            if reverted.to_string() == ENFORCEMENT_MIGRATION_VERSION {
+                return;
+            }
+        }
+    }
+
     /// The exact `up.sql` of the enforcement migration, used by the activation-race
     /// test to run the guard + install inside a transaction we control.
     const MIGRATION_UP_SQL: &str = include_str!("../../../migrations/20260813_v1.6.3/up.sql");
@@ -2000,8 +2025,7 @@ ORDER BY distinct_parent_count DESC, work_id";
         conn.run_pending_migrations(MIGRATIONS)
             .expect("initial migrations");
         // Revert enforcement so we can build representative valid data first.
-        conn.revert_last_migration(MIGRATIONS)
-            .expect("revert enforcement");
+        revert_through_enforcement(&mut conn);
 
         let pool = db.pool();
         let publisher = create_publisher(&pool);
@@ -2047,8 +2071,7 @@ ORDER BY distinct_parent_count DESC, work_id";
         let mut conn = db.conn();
         conn.run_pending_migrations(MIGRATIONS)
             .expect("initial migrations");
-        conn.revert_last_migration(MIGRATIONS)
-            .expect("revert enforcement");
+        revert_through_enforcement(&mut conn);
 
         let pool = db.pool();
         let publisher = create_publisher(&pool);
@@ -2126,8 +2149,7 @@ ORDER BY distinct_parent_count DESC, work_id";
             .unwrap()
             .n;
 
-        conn.revert_last_migration(MIGRATIONS)
-            .expect("down migration");
+        revert_through_enforcement(&mut conn);
         assert!(!enforcement_triggers_present(&mut conn), "triggers removed");
 
         let after = sql_query("SELECT COUNT(*) AS n FROM work_relation")
@@ -2143,7 +2165,7 @@ ORDER BY distinct_parent_count DESC, work_id";
         let db = TempMigrationDb::new();
         let mut conn = db.conn();
         conn.run_pending_migrations(MIGRATIONS).expect("up");
-        conn.revert_last_migration(MIGRATIONS).expect("down");
+        revert_through_enforcement(&mut conn);
         conn.run_pending_migrations(MIGRATIONS).expect("up again");
         assert!(enforcement_triggers_present(&mut conn));
     }
@@ -2160,9 +2182,7 @@ ORDER BY distinct_parent_count DESC, work_id";
         setup
             .run_pending_migrations(MIGRATIONS)
             .expect("migrations");
-        setup
-            .revert_last_migration(MIGRATIONS)
-            .expect("revert enforcement");
+        revert_through_enforcement(&mut setup);
 
         let pool = db.pool();
         let publisher = create_publisher(&pool);

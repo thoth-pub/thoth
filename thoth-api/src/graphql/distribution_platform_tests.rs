@@ -664,18 +664,34 @@ fn the_production_bundle_uses_the_explicit_200_10_configuration() {
     assert_eq!(LOADER_CONFIG.max_batch_size, 200);
     assert_eq!(LOADER_CONFIG.yield_count, 10);
 
-    // The assignment loader is built through `configured_loader`, so the
-    // configuration cannot silently fall back to crate defaults.
+    // Every loader in the production bundle is built through
+    // `configured_loader`, so the configuration cannot silently fall back to
+    // crate defaults. `BE-04` moved the construction into one private `build`
+    // that both `for_request` and the observed constructors delegate to, so the
+    // guard inspects that single site.
     let source = include_str!("dataloader.rs");
     let constructor = source
-        .split_once("pub(crate) fn for_request(")
+        .split_once("    fn build(pool: Arc<PgPool>) -> Self {")
         .expect("production constructor")
         .1
         .split_once("\n    }\n")
         .expect("constructor body")
         .0;
-    assert!(constructor.contains("configured_loader("));
+    assert_eq!(
+        constructor.matches("configured_loader(").count(),
+        4,
+        "every one of the four production loaders is explicitly configured"
+    );
     assert!(constructor.contains("PublisherDistributionPlatformBatcher"));
+    assert!(constructor.contains("LatestBackCatalogueJobBatcher"));
+    assert!(constructor.contains("DistributionJobTargetBatcher"));
+    assert!(constructor.contains("DistributionJobAttemptBatcher"));
+    assert_eq!(
+        source.matches("Loader::new(").count(),
+        1,
+        "the only bare `Loader::new` is inside `configured_loader` itself, so no \
+         loader is built bypassing the approved configuration"
+    );
 }
 
 /// Seed `count` publishers, each with one enabled assignment.

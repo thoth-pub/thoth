@@ -2,7 +2,7 @@ use crate::arguments;
 use clap::{ArgMatches, Command};
 use lazy_static::lazy_static;
 use thoth::{
-    api::graphql::MutationGuardMode,
+    api::{graphql::MutationGuardMode, model::distribution_job::DistributionJobCreation},
     api_server,
     errors::{ThothError, ThothResult},
     export_server,
@@ -25,6 +25,7 @@ lazy_static! {
                 .arg(arguments::key())
                 .arg(arguments::zitadel_url())
                 .arg(arguments::mutation_guard_mode())
+                .arg(arguments::distribution_job_creation())
                 .arg(arguments::aws_access_key_id())
                 .arg(arguments::aws_secret_access_key())
                 .arg(arguments::aws_region()),
@@ -60,6 +61,27 @@ pub(crate) fn mutation_guard_mode(arguments: &ArgMatches) -> ThothResult<Mutatio
         .map_err(ThothError::InternalError)
 }
 
+/// Resolve the effective automatic distribution-job creation setting from parsed
+/// arguments.
+///
+/// This is the single accessor every command path uses, so a command that
+/// dispatches here must register [`arguments::distribution_job_creation`]. Both
+/// `start graphql-api` and `init` do.
+///
+/// Defaults to `OFF`; `clap`'s `value_parser` has already restricted the string
+/// to the two accepted values, so an invalid value fails during parsing rather
+/// than reaching this function.
+pub(crate) fn distribution_job_creation(
+    arguments: &ArgMatches,
+) -> ThothResult<DistributionJobCreation> {
+    arguments
+        .get_one::<String>("distribution-job-creation")
+        .map(String::as_str)
+        .unwrap_or("OFF")
+        .parse::<DistributionJobCreation>()
+        .map_err(ThothError::InternalError)
+}
+
 pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     let database_url = arguments.get_one::<String>("db").unwrap().to_owned();
     let host = arguments.get_one::<String>("host").unwrap().to_owned();
@@ -73,6 +95,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
         .unwrap()
         .to_owned();
     let mutation_guard_mode = mutation_guard_mode(arguments)?;
+    let distribution_job_creation = distribution_job_creation(arguments)?;
 
     api_server(
         database_url,
@@ -84,6 +107,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
         private_key,
         zitadel_url,
         mutation_guard_mode,
+        distribution_job_creation,
         arguments
             .get_one::<String>("aws-access-key-id")
             .unwrap()

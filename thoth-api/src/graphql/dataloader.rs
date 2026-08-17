@@ -22,6 +22,12 @@ use thoth_errors::ThothError;
 use uuid::Uuid;
 
 use crate::db::PgPool;
+use crate::model::distribution_job::crud::{
+    attempts_for_jobs, latest_back_catalogue_job_payloads, targets_for_jobs,
+};
+use crate::model::distribution_job::{
+    DistributionJobAttempt, DistributionJobPayload, DistributionJobTarget,
+};
 use crate::model::publisher_distribution_platform::crud::enabled_assignment_rows;
 use crate::model::publisher_distribution_platform::PublisherDistributionPlatformAssignment;
 
@@ -65,8 +71,37 @@ where
 pub(crate) struct RequestLoaders {
     /// `Publisher.distributionPlatforms` (`BE-02`), keyed by `publisher_id`.
     pub(crate) publisher_distribution_platforms: PublisherDistributionPlatformLoader,
+    /// `PublisherServiceConfigurationSummary.latestBackCatalogueJob` (`BE-04`),
+    /// keyed by `publisher_id`, valued by the **complete** field value.
+    ///
+    /// This is the report path's only job loader. The two loaders below are
+    /// **not** reachable from the report.
+    pub(crate) latest_back_catalogue_jobs: LatestBackCatalogueJobLoader,
+    /// `DistributionJob.targets` (`BE-04`), keyed by `distribution_job_id`.
+    ///
+    /// Retained **only** for the single-job mutation payloads of
+    /// `completeDistributionJob`, `failDistributionJob` and
+    /// `cancelDistributionJob`, where the cohort is one job and the
+    /// dependent-arrival question does not arise. It records zero dispatches on
+    /// the report path.
+    pub(crate) distribution_job_targets: DistributionJobTargetLoader,
+    /// `DistributionJob.attempts` (`BE-04`), keyed by `distribution_job_id`.
+    ///
+    /// Retained on the same single-job mutation-payload basis as
+    /// [`Self::distribution_job_targets`].
+    pub(crate) distribution_job_attempts: DistributionJobAttemptLoader,
     #[cfg(all(test, feature = "backend"))]
     pub(crate) fixture: Option<fixture::FixtureLoaders>,
+}
+
+/// Per-loader dispatch observation for the whole production bundle.
+#[cfg(all(test, feature = "backend"))]
+#[derive(Default)]
+pub(crate) struct ObservedLoaderStats {
+    pub(crate) publisher_distribution_platforms: Arc<fixture::BatchStats>,
+    pub(crate) latest_back_catalogue_jobs: Arc<fixture::BatchStats>,
+    pub(crate) distribution_job_targets: Arc<fixture::BatchStats>,
+    pub(crate) distribution_job_attempts: Arc<fixture::BatchStats>,
 }
 
 impl RequestLoaders {
@@ -74,18 +109,18 @@ impl RequestLoaders {
     ///
     /// Every loader is built per request and dropped with the request, so no
     /// loader and no completed loader result crosses a request boundary.
+    #[cfg(all(test, feature = "backend"))]
     pub(crate) fn for_request(pool: Arc<PgPool>) -> Self {
-        Self {
-            publisher_distribution_platforms: configured_loader(
-                PublisherDistributionPlatformBatcher {
-                    pool,
-                    #[cfg(all(test, feature = "backend"))]
-                    stats: None,
-                },
-            ),
-            #[cfg(all(test, feature = "backend"))]
-            fixture: None,
-        }
+        Self::build(pool, None)
+    }
+
+    /// Construct the ADR-0007 request-local bundle directly.
+    ///
+    /// Every loader is built per request and dropped with the request, so no
+    /// loader and no completed loader result crosses a request boundary.
+    #[cfg(not(all(test, feature = "backend")))]
+    pub(crate) fn for_request(pool: Arc<PgPool>) -> Self {
+        Self::build(pool)
     }
 
     /// The production bundle with the assignment loader's dispatch chunks
@@ -95,14 +130,66 @@ impl RequestLoaders {
     /// as [`Self::for_request`]; only the observation is test-only.
     #[cfg(all(test, feature = "backend"))]
     pub(crate) fn for_request_observed(pool: Arc<PgPool>, stats: Arc<fixture::BatchStats>) -> Self {
+        Self::build(
+            pool,
+            Some(ObservedLoaderStats {
+                publisher_distribution_platforms: stats,
+                ..ObservedLoaderStats::default()
+            }),
+        )
+    }
+
+    /// The production bundle with **every** loader's dispatch chunks recorded.
+    ///
+    /// This is what `BE-04`'s selection-dependent statement-count evidence uses:
+    /// it must show not only how many statements ran, but which loaders
+    /// dispatched and in how many chunks.
+    #[cfg(all(test, feature = "backend"))]
+    pub(crate) fn for_request_observed_all(pool: Arc<PgPool>, stats: ObservedLoaderStats) -> Self {
+        Self::build(pool, Some(stats))
+    }
+
+    #[cfg(all(test, feature = "backend"))]
+    fn build(pool: Arc<PgPool>, stats: Option<ObservedLoaderStats>) -> Self {
+        let stats = stats.unwrap_or_default();
         Self {
             publisher_distribution_platforms: configured_loader(
                 PublisherDistributionPlatformBatcher {
-                    pool,
-                    stats: Some(stats),
+                    pool: Arc::clone(&pool),
+                    stats: Some(stats.publisher_distribution_platforms),
                 },
             ),
+            latest_back_catalogue_jobs: configured_loader(LatestBackCatalogueJobBatcher {
+                pool: Arc::clone(&pool),
+                stats: Some(stats.latest_back_catalogue_jobs),
+            }),
+            distribution_job_targets: configured_loader(DistributionJobTargetBatcher {
+                pool: Arc::clone(&pool),
+                stats: Some(stats.distribution_job_targets),
+            }),
+            distribution_job_attempts: configured_loader(DistributionJobAttemptBatcher {
+                pool,
+                stats: Some(stats.distribution_job_attempts),
+            }),
             fixture: None,
+        }
+    }
+
+    #[cfg(not(all(test, feature = "backend")))]
+    fn build(pool: Arc<PgPool>) -> Self {
+        Self {
+            publisher_distribution_platforms: configured_loader(
+                PublisherDistributionPlatformBatcher {
+                    pool: Arc::clone(&pool),
+                },
+            ),
+            latest_back_catalogue_jobs: configured_loader(LatestBackCatalogueJobBatcher {
+                pool: Arc::clone(&pool),
+            }),
+            distribution_job_targets: configured_loader(DistributionJobTargetBatcher {
+                pool: Arc::clone(&pool),
+            }),
+            distribution_job_attempts: configured_loader(DistributionJobAttemptBatcher { pool }),
         }
     }
 }
@@ -188,6 +275,261 @@ impl BatchFn<Uuid, PublisherDistributionPlatformValue> for PublisherDistribution
             }
         }
         output
+    }
+}
+
+// ---------------------------------------------------------------------------
+// `BE-04` job loaders
+// ---------------------------------------------------------------------------
+
+/// The loaded value of one `latestBackCatalogueJob` key: the **complete** field
+/// value, not a bare job needing further loads.
+///
+/// A publisher with no durable job loads a successful `None`, which is the only
+/// representation of "no job" this codebase has: nothing fabricates a
+/// placeholder job, a synthetic status or a zero count.
+pub(crate) type LatestBackCatalogueJobValue =
+    Result<Option<DistributionJobPayload>, SharedBatchError>;
+
+pub(crate) type LatestBackCatalogueJobLoader =
+    Loader<Uuid, LatestBackCatalogueJobValue, LatestBackCatalogueJobBatcher>;
+
+/// Composite batch function for
+/// `PublisherServiceConfigurationSummary.latestBackCatalogueJob`
+/// (specification section 17.4.2).
+///
+/// The key is exactly `publisher_id` — the key the report already holds at
+/// resolver entry — and the value is the whole field: the latest
+/// `PUBLISHER_BACK_CATALOGUE` job *together with* its targets and attempts, or
+/// `None`. The field takes no result-changing argument, so no second key
+/// dimension exists.
+///
+/// This is not two loaders merged to make a count fit. It is `ADR-0007` section
+/// 4.4's "one loader represents one reviewed logical field/query family" applied
+/// to the family this field actually is: the targets and attempts of the latest
+/// job are sub-structure of the one returned value, reachable from nowhere else
+/// in the report. Loading them here is what makes the whole field **one
+/// loader-first cohort**, which is the only shape with a stated bound. The
+/// rejected alternative — a latest-job loader feeding two loaders keyed by
+/// `distribution_job_id` — produces a dependent-arrival cohort whose only
+/// provable bound is `ceil(N / max_batch_size) <= dispatches <= N`.
+///
+/// The load shape deliberately does not depend on the query's own selection:
+/// targets and attempts are materialized whenever the field is selected at all,
+/// even for `latestBackCatalogueJob { status }`. Deciding otherwise would need
+/// Juniper look-ahead at the resolver, which is the retired `ADR-0006`
+/// mechanism.
+pub(crate) struct LatestBackCatalogueJobBatcher {
+    pool: Arc<PgPool>,
+    #[cfg(all(test, feature = "backend"))]
+    stats: Option<Arc<fixture::BatchStats>>,
+}
+
+impl BatchFn<Uuid, LatestBackCatalogueJobValue> for LatestBackCatalogueJobBatcher {
+    /// Load one dispatch chunk inside **one** `spawn_blocking` boundary on
+    /// **one** pooled connection acquired and dropped inside that closure, so no
+    /// connection is ever held across an `.await` (`ADR-0007` section 4.7).
+    ///
+    /// Three set-based statements for a chunk whose L1 returns at least one job,
+    /// one for a chunk whose L1 returns none. There is no per-publisher,
+    /// per-job, per-target or per-attempt statement, no fallback query and no
+    /// retry.
+    ///
+    /// The result is **total** over the requested keys: every key is seeded with
+    /// a successful `None` before jobs are placed, so a publisher with no job
+    /// returns the absent value rather than a missing map entry. A failure in
+    /// any of L1, L2 or L3 replaces every key's value with the shared error, so
+    /// the chunk fails closed for all of them, with no partially populated job
+    /// and no successful empty substitution.
+    async fn load(&mut self, keys: &[Uuid]) -> HashMap<Uuid, LatestBackCatalogueJobValue> {
+        let pool = Arc::clone(&self.pool);
+        let owned_keys = keys.to_vec();
+        let result = tokio::task::spawn_blocking(move || {
+            let mut connection = pool.get().map_err(ThothError::from)?;
+            latest_back_catalogue_job_payloads(&mut connection, &owned_keys)
+        })
+        .await;
+
+        // Recorded after the load, so the chunk's size and whether its L1
+        // returned a job — which is what decides whether L2 and L3 ran — are
+        // one atomic observation.
+        #[cfg(all(test, feature = "backend"))]
+        if let Some(stats) = &self.stats {
+            stats.record_outcome(
+                keys,
+                match &result {
+                    Ok(Ok(payloads)) => Some(!payloads.is_empty()),
+                    _ => None,
+                },
+            );
+        }
+
+        let mut output: HashMap<Uuid, LatestBackCatalogueJobValue> =
+            keys.iter().map(|key| (*key, Ok(None))).collect();
+        match result {
+            Ok(Ok(payloads)) => {
+                for payload in payloads {
+                    if let Some(slot) = output.get_mut(&payload.job.publisher_id) {
+                        *slot = Ok(Some(payload));
+                    }
+                }
+            }
+            Ok(Err(error)) => fail_batch(&mut output, keys, error),
+            Err(join_error) => fail_batch(
+                &mut output,
+                keys,
+                ThothError::InternalError(join_error.to_string()),
+            ),
+        }
+        output
+    }
+}
+
+/// The loaded value of one `DistributionJob.targets` key.
+pub(crate) type DistributionJobTargetValue = Result<Vec<DistributionJobTarget>, SharedBatchError>;
+
+pub(crate) type DistributionJobTargetLoader =
+    Loader<Uuid, DistributionJobTargetValue, DistributionJobTargetBatcher>;
+
+/// Batch function for `DistributionJob.targets`, keyed by `distribution_job_id`.
+pub(crate) struct DistributionJobTargetBatcher {
+    pool: Arc<PgPool>,
+    #[cfg(all(test, feature = "backend"))]
+    stats: Option<Arc<fixture::BatchStats>>,
+}
+
+impl BatchFn<Uuid, DistributionJobTargetValue> for DistributionJobTargetBatcher {
+    async fn load(&mut self, keys: &[Uuid]) -> HashMap<Uuid, DistributionJobTargetValue> {
+        #[cfg(all(test, feature = "backend"))]
+        if let Some(stats) = &self.stats {
+            stats.record(keys);
+        }
+        let pool = Arc::clone(&self.pool);
+        let owned_keys = keys.to_vec();
+        let result = tokio::task::spawn_blocking(move || {
+            let mut connection = pool.get().map_err(ThothError::from)?;
+            targets_for_jobs(&mut connection, &owned_keys)
+        })
+        .await;
+
+        let mut output: HashMap<Uuid, DistributionJobTargetValue> =
+            keys.iter().map(|key| (*key, Ok(Vec::new()))).collect();
+        match result {
+            Ok(Ok(rows)) => {
+                // Rows arrive ordered by `(distribution_job_id, platform)`, so
+                // pushing in order preserves canonical per-job platform order.
+                for target in rows {
+                    if let Some(Ok(targets)) = output.get_mut(&target.distribution_job_id) {
+                        targets.push(target);
+                    }
+                }
+            }
+            Ok(Err(error)) => fail_batch(&mut output, keys, error),
+            Err(join_error) => fail_batch(
+                &mut output,
+                keys,
+                ThothError::InternalError(join_error.to_string()),
+            ),
+        }
+        output
+    }
+}
+
+/// The loaded value of one `DistributionJob.attempts` key.
+pub(crate) type DistributionJobAttemptValue = Result<Vec<DistributionJobAttempt>, SharedBatchError>;
+
+pub(crate) type DistributionJobAttemptLoader =
+    Loader<Uuid, DistributionJobAttemptValue, DistributionJobAttemptBatcher>;
+
+/// Batch function for `DistributionJob.attempts`, keyed by
+/// `distribution_job_id`.
+///
+/// This is a **separate** loader from the target loader, with a different value
+/// and a different statement. The two are deliberately not merged to lower a
+/// statement count: that would trade a correct, independently batched,
+/// independently fail-closed pair for a contrived join.
+pub(crate) struct DistributionJobAttemptBatcher {
+    pool: Arc<PgPool>,
+    #[cfg(all(test, feature = "backend"))]
+    stats: Option<Arc<fixture::BatchStats>>,
+}
+
+impl BatchFn<Uuid, DistributionJobAttemptValue> for DistributionJobAttemptBatcher {
+    async fn load(&mut self, keys: &[Uuid]) -> HashMap<Uuid, DistributionJobAttemptValue> {
+        #[cfg(all(test, feature = "backend"))]
+        if let Some(stats) = &self.stats {
+            stats.record(keys);
+        }
+        let pool = Arc::clone(&self.pool);
+        let owned_keys = keys.to_vec();
+        let result = tokio::task::spawn_blocking(move || {
+            let mut connection = pool.get().map_err(ThothError::from)?;
+            attempts_for_jobs(&mut connection, &owned_keys)
+        })
+        .await;
+
+        let mut output: HashMap<Uuid, DistributionJobAttemptValue> =
+            keys.iter().map(|key| (*key, Ok(Vec::new()))).collect();
+        match result {
+            Ok(Ok(rows)) => {
+                // Rows arrive most recent first within each parent.
+                for attempt in rows {
+                    if let Some(Ok(attempts)) = output.get_mut(&attempt.distribution_job_id) {
+                        attempts.push(attempt);
+                    }
+                }
+            }
+            Ok(Err(error)) => fail_batch(&mut output, keys, error),
+            Err(join_error) => fail_batch(
+                &mut output,
+                keys,
+                ThothError::InternalError(join_error.to_string()),
+            ),
+        }
+        output
+    }
+}
+
+/// Replace every key's value with one shared error.
+///
+/// A batch-wide backend failure fails closed for **every** requested key. It
+/// never becomes successful empty data, and no per-key fallback query runs
+/// afterwards to recover individual results (`ADR-0007` invariant 9).
+fn fail_batch<V, E>(
+    output: &mut HashMap<Uuid, Result<V, SharedBatchError>>,
+    keys: &[Uuid],
+    error: E,
+) where
+    E: Into<ThothError>,
+{
+    let error = SharedBatchError::from_thoth(error.into(), JOB_ERROR_CONVENTION);
+    for key in keys {
+        output.insert(*key, Err(error.clone()));
+    }
+}
+
+/// The `BE-04` job fields join the same field family as
+/// `enabledDistributionPlatforms`, whose merged convention is
+/// `ThothResult -> FieldResult` through `.map_err(Into::into)`. The loaders must
+/// therefore produce the same message-only shape as a direct read would and
+/// invent no `extensions.type`.
+pub(crate) const JOB_ERROR_CONVENTION: FieldErrorConvention = FieldErrorConvention::Conventional;
+
+/// Project one loaded value onto its field's `FieldResult`.
+///
+/// `try_load` is the only approved database-loader API: a defective batch that
+/// omits a requested key fails closed here instead of panicking inside
+/// `Loader::load`.
+pub(crate) fn unpack_loaded<T>(
+    outcome: Result<Result<T, SharedBatchError>, std::io::Error>,
+) -> Result<T, FieldError> {
+    match outcome {
+        Ok(Ok(value)) => Ok(value),
+        Ok(Err(error)) => Err(error.to_field_error()),
+        Err(missing) => Err(FieldError::new(
+            format!("loader returned no entry: {missing}"),
+            graphql_value!(None),
+        )),
     }
 }
 

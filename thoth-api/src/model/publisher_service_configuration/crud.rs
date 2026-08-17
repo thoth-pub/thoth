@@ -11,7 +11,7 @@
 use std::collections::{HashMap, HashSet};
 
 use diesel::pg::PgConnection;
-use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{Connection, ExpressionMethods, NullableExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
@@ -22,16 +22,21 @@ use super::{
     ReplacePublisherServiceConfigurationInput, ServiceConfigurationWriteContext,
 };
 use crate::db::PgPool;
+use crate::model::distribution_job::crud::{
+    cancel_pending_jobs_for_disabled_group_on, create_back_catalogue_job_on,
+};
+use crate::model::distribution_job::{DistributionJobKind, DistributionJobStatus};
 use crate::model::publisher::{Publisher, PublisherField, PublisherOrderBy, ThothPackage};
 use crate::model::publisher_distribution_platform::crud::{
-    enabled_assignment_rows, lock_publisher,
+    enabled_assignment_rows, lock_publisher, AssignmentLifecycleOutcome,
 };
 use crate::model::publisher_distribution_platform::{
-    DistributionPlatform, PublisherDistributionPlatform,
+    BackCatalogueBehaviour, DistributionPlatform, PublisherDistributionPlatform,
 };
 use crate::model::Timestamp;
 use crate::schema::{
-    publisher, publisher_distribution_platform, publisher_service_configuration_history,
+    distribution_job, publisher, publisher_distribution_platform,
+    publisher_service_configuration_history,
 };
 
 /// The latest-change columns the staff report needs, in canonical order.
@@ -47,10 +52,14 @@ type LatestChangeRow = (Uuid, Timestamp, String, PublisherServiceConfigurationSo
 /// `publisher_service_configuration_history`.
 ///
 /// It executes exactly **one** transaction on **one** connection and performs
-/// the whole of specification section 7.3 steps 2 to 12 inside it. `BE-04` will
-/// later extend that same transaction between steps 9 and 12 to create durable
-/// job rows atomically with the desired-state change; `BE-03` adds no job, hook,
-/// callback, event or placeholder for it.
+/// the whole of `BE-03` specification section 7.3 steps 2 to 12 inside it.
+/// `BE-04` extends that same transaction in place, between steps 9 and 10, to
+/// create durable job rows atomically with the desired-state change and to
+/// cancel the pending jobs of a withdrawn assignment. It adds **no** second
+/// transaction, nested transaction, savepoint, hook, callback, event or
+/// after-the-fact best-effort path, so a job cannot exist without the
+/// desired-state change that justified it and that change cannot commit without
+/// the job it qualified for.
 ///
 /// It makes **no authorization decision of its own**. Authorization is the
 /// caller's responsibility (specification sections 7.2 and 11.1), and the caller
@@ -63,7 +72,8 @@ type LatestChangeRow = (Uuid, Timestamp, String, PublisherServiceConfigurationSo
 /// linked-group normalization, the normalized-state predicate, the activation
 /// and timestamp semantics or the non-assignable rule.
 ///
-/// It creates no distribution job and triggers no dissemination.
+/// Qualifying `BE-04` activations may create durable distribution-job rows as
+/// part of this transaction; the coordinator itself performs no dissemination.
 pub(crate) fn replace_publisher_service_configuration(
     db: &PgPool,
     write_context: &ServiceConfigurationWriteContext<'_>,
@@ -130,7 +140,14 @@ fn replace_in_transaction(
     // Every desired group is enabled **unconditionally**: the call is not gated
     // on a membership diff, because membership equality does not imply the group
     // is normalized. The primitive alone decides no-op versus repair.
+    //
+    // BE-04: each outcome is retained with its group representative, because the
+    // qualifying-job determination of step 9a needs both the representative (to
+    // reach the group's members and their code-owned descriptors) and the
+    // activation identity the lifecycle call minted.
     let mut lifecycle_changed = false;
+    let mut activated: Vec<(DistributionPlatform, Uuid)> = Vec::new();
+    let mut disabled: Vec<DistributionPlatform> = Vec::new();
     for representative in group_representatives(&desired) {
         let outcome = PublisherDistributionPlatform::enable_on(
             connection,
@@ -138,6 +155,12 @@ fn replace_in_transaction(
             representative,
         )?;
         lifecycle_changed |= outcome.changed();
+        // A `Repaired` group is deliberately absent from this list. A repair is
+        // not a new zero-enabled-to-enabled activation, and that — and nothing
+        // about observed delivery — is why it creates no automatic job.
+        if let AssignmentLifecycleOutcome::Activated { activation_id } = outcome {
+            activated.push((representative, activation_id));
+        }
     }
 
     // Closure under linked membership guarantees a group is either wholly
@@ -154,6 +177,80 @@ fn replace_in_transaction(
             representative,
         )?;
         lifecycle_changed |= outcome.changed();
+        if outcome == AssignmentLifecycleOutcome::Disabled {
+            disabled.push(representative);
+        }
+    }
+
+    // Step 9a. Qualifying-job determination: pure computation, no I/O. A group
+    // qualifies when it was newly `Activated` **and** its member set contains at
+    // least one `AutomaticPush` destination. The behaviour is read from
+    // code-owned descriptors and never inferred from a destination's name, and
+    // an empty target set is what makes the `PullFeed` and `Manual` cases
+    // exhaustive and future-proof for a mixed group.
+    let qualifying: Vec<(Uuid, Vec<DistributionPlatform>)> = activated
+        .iter()
+        .filter_map(|(representative, activation_id)| {
+            let targets: Vec<DistributionPlatform> = representative
+                .linked_members()
+                .into_iter()
+                .filter(|platform| {
+                    platform.descriptor().back_catalogue_behaviour
+                        == BackCatalogueBehaviour::AutomaticPush
+                })
+                .collect();
+            (!targets.is_empty()).then_some((*activation_id, targets))
+        })
+        .collect();
+
+    // The source/switch rule is **one expression at one site**, so no caller —
+    // present or future — can bypass either half of it.
+    let superuser_api = write_context.source == PublisherServiceConfigurationSource::SuperuserApi;
+    let create_jobs = write_context.job_creation.is_on() && superuser_api;
+
+    // Step 9a'. `OFF` fails closed. Treating it as "commit the activation, skip
+    // the job" would leave that activation without an onboarding job for ever:
+    // nothing afterwards repairs it, because a later replacement naming the same
+    // platforms yields `Unchanged`, and section 9.4.4 deliberately runs no sweep
+    // when the switch is turned on.
+    //
+    // Returning the error here discards every lifecycle write step 9 made,
+    // because the coordinator owns one transaction on one connection. That is
+    // what delivers the required rollback without a savepoint, a compensating
+    // write or a second transaction.
+    //
+    // MIGRATION_BACKFILL is deliberately not subject to this rule: it is
+    // job-free *by design* rather than because a feature is disabled, so it
+    // commits normally under both switch positions.
+    if !qualifying.is_empty() && superuser_api && !write_context.job_creation.is_on() {
+        return Err(ThothError::DistributionJobCreationDisabled);
+    }
+
+    // Step 9b. Deduplicated job and target writes, in canonical
+    // group-representative order. Reached only when `create_jobs` holds.
+    //
+    // These precede the publisher UPDATE of step 10 deliberately: that statement
+    // fires the AFTER UPDATE work-freshness trigger, whose single set-based
+    // statement takes row locks on all N of the publisher's work rows and holds
+    // them until commit. Writing the jobs first costs nothing and shortens the
+    // widest part of the lock footprint.
+    if create_jobs {
+        for (activation_id, targets) in &qualifying {
+            create_back_catalogue_job_on(connection, data.publisher_id, *activation_id, targets)?;
+        }
+    }
+
+    // Step 9c. Assignment-withdrawal cancellation, in the same transaction as
+    // the disable that caused it. `PENDING` jobs for the withdrawn group are
+    // cancelled with `ASSIGNMENT_DISABLED`; `RUNNING` jobs are left alone,
+    // because external work may be in flight and cancelling cannot undo an
+    // upload.
+    for representative in &disabled {
+        cancel_pending_jobs_for_disabled_group_on(
+            connection,
+            data.publisher_id,
+            &representative.linked_members(),
+        )?;
     }
 
     // A true no-op: the package was unchanged and every lifecycle call reported
@@ -295,6 +392,7 @@ impl PublisherServiceConfiguration {
     /// per publisher in that page — and no per-publisher loop. The protected
     /// `enabledDistributionPlatforms` field resolves separately through `BE-02`'s
     /// existing request-local assignment DataLoader.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn all_summaries(
         db: &PgPool,
         limit: i32,
@@ -303,9 +401,17 @@ impl PublisherServiceConfiguration {
         publishers: Vec<Uuid>,
         packages: Vec<ThothPackage>,
         enabled_platforms: Vec<DistributionPlatform>,
+        job_statuses: Vec<DistributionJobStatus>,
+        without_back_catalogue_job: Option<bool>,
     ) -> ThothResult<Vec<PublisherServiceConfigurationSummary>> {
         let mut connection = db.get()?;
-        let query = filtered_publishers(publishers, packages, enabled_platforms);
+        let query = filtered_publishers(
+            publishers,
+            packages,
+            enabled_platforms,
+            job_statuses,
+            without_back_catalogue_job,
+        );
         // The requested order plus a mandatory `publisher_id ASC` tie-breaker,
         // exactly as `publishersByDistributionPlatform` does, so offset
         // pagination is deterministic.
@@ -419,14 +525,22 @@ impl PublisherServiceConfiguration {
         publishers: Vec<Uuid>,
         packages: Vec<ThothPackage>,
         enabled_platforms: Vec<DistributionPlatform>,
+        job_statuses: Vec<DistributionJobStatus>,
+        without_back_catalogue_job: Option<bool>,
     ) -> ThothResult<i32> {
         let mut connection = db.get()?;
         // See the `Crud::count` note on the i64 -> i32 conversion.
-        filtered_publishers(publishers, packages, enabled_platforms)
-            .count()
-            .get_result::<i64>(&mut connection)
-            .map(|total| total.to_string().parse::<i32>().unwrap())
-            .map_err(Into::into)
+        filtered_publishers(
+            publishers,
+            packages,
+            enabled_platforms,
+            job_statuses,
+            without_back_catalogue_job,
+        )
+        .count()
+        .get_result::<i64>(&mut connection)
+        .map(|total| total.to_string().parse::<i32>().unwrap())
+        .map_err(Into::into)
     }
 }
 
@@ -442,6 +556,8 @@ fn filtered_publishers<'a>(
     publishers: Vec<Uuid>,
     packages: Vec<ThothPackage>,
     enabled_platforms: Vec<DistributionPlatform>,
+    job_statuses: Vec<DistributionJobStatus>,
+    without_back_catalogue_job: Option<bool>,
 ) -> publisher::BoxedQuery<'a, diesel::pg::Pg> {
     let mut query = publisher::table.into_boxed();
     if !publishers.is_empty() {
@@ -449,6 +565,40 @@ fn filtered_publishers<'a>(
     }
     if !packages.is_empty() {
         query = query.filter(publisher::subscription_package.eq_any(packages));
+    }
+    // `BE-04`: the latest back-catalogue job's status, with **OR** semantics
+    // within the list. That is deliberately the opposite of `enabled_platforms`
+    // just below, and it is not an inconsistency: a status is single-valued per
+    // job, so AND over two statuses would match nothing.
+    //
+    // "Latest" is the same total order the report's field and its loader use —
+    // `created_at DESC`, then the job id `DESC` — so the selected row is
+    // deterministic even for two jobs sharing a `created_at`.
+    if !job_statuses.is_empty() {
+        let latest_status = distribution_job::table
+            .filter(distribution_job::publisher_id.eq(publisher::publisher_id))
+            .filter(distribution_job::kind.eq(DistributionJobKind::PublisherBackCatalogue))
+            .order((
+                distribution_job::created_at.desc(),
+                distribution_job::distribution_job_id.desc(),
+            ))
+            .select(distribution_job::status.nullable())
+            .single_value();
+        query = query.filter(latest_status.eq_any(job_statuses));
+    }
+    // `BE-04`: presence or absence of any back-catalogue job at all. Combining
+    // `true` here with a non-empty `job_statuses` is a documented contradiction
+    // that matches zero publishers; it is deterministic, and it is not an error.
+    if let Some(without) = without_back_catalogue_job {
+        let has_any_job = distribution_job::table
+            .filter(distribution_job::publisher_id.eq(publisher::publisher_id))
+            .filter(distribution_job::kind.eq(DistributionJobKind::PublisherBackCatalogue))
+            .select(distribution_job::distribution_job_id);
+        query = if without {
+            query.filter(diesel::dsl::not(diesel::dsl::exists(has_any_job)))
+        } else {
+            query.filter(diesel::dsl::exists(has_any_job))
+        };
     }
     let required: Vec<DistributionPlatform> = deduplicate_platforms(&enabled_platforms);
     if !required.is_empty() {

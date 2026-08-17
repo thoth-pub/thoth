@@ -179,6 +179,43 @@ pub enum ThothError {
         "The publisher service configuration changed since it was read. Reload it and try again."
     )]
     StalePublisherServiceConfiguration,
+    /// The presented distribution-job claim token is not the job's current
+    /// token, or the job is not `RUNNING`.
+    ///
+    /// The message deliberately discloses neither the current token, nor the
+    /// current holder, nor whether one exists. "Not claimed" and "held by
+    /// another worker" report identically on purpose: telling a caller that
+    /// another worker currently holds the job is exactly the information that
+    /// makes a stale caller retry aggressively.
+    #[error("The distribution job claim is no longer valid.")]
+    StaleDistributionJobClaim,
+    /// The distribution job is `SUCCEEDED`, `FAILED` or `CANCELLED`.
+    ///
+    /// The payload carries the current status code, which the caller is
+    /// entitled to know: an automated worker must be able to distinguish "this
+    /// job is finished, stop" from "someone else owns this now, stop".
+    #[error("The distribution job is already in the terminal state {0}.")]
+    DistributionJobAlreadyTerminal(String),
+    /// A configuration transaction would have produced a new activation
+    /// requiring a durable onboarding job while automatic creation is `OFF`.
+    ///
+    /// The message states the operational fact and nothing more: no SQL, table
+    /// name, column name, driver text, environment-variable value, environment
+    /// name, deployment identifier or platform credential. The switch's *name*
+    /// is the operator-facing control and belongs in the runbook, not in this
+    /// payload.
+    #[error(
+        "Automatic distribution job creation is disabled, so this platform activation cannot be saved."
+    )]
+    DistributionJobCreationDisabled,
+    /// A worker supplied a classification code outside the published shape.
+    ///
+    /// The message is a fixed string with no interpolation: it must not echo
+    /// the submitted value, quote any part of it, report its length, or restate
+    /// the pattern with the offending characters. The malformed value is the
+    /// caller's, is unbounded, and is never reflected.
+    #[error("The supplied distribution job error code is not a valid classification code.")]
+    InvalidDistributionJobErrorCode,
 }
 
 impl ThothError {
@@ -213,6 +250,30 @@ impl juniper::IntoFieldError for ThothError {
                 self.to_string(),
                 graphql_value!({
                     "type": "STALE_SERVICE_CONFIGURATION"
+                }),
+            ),
+            ThothError::StaleDistributionJobClaim => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "STALE_DISTRIBUTION_JOB_CLAIM"
+                }),
+            ),
+            ThothError::DistributionJobAlreadyTerminal(_) => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "DISTRIBUTION_JOB_TERMINAL"
+                }),
+            ),
+            ThothError::DistributionJobCreationDisabled => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "DISTRIBUTION_JOB_CREATION_DISABLED"
+                }),
+            ),
+            ThothError::InvalidDistributionJobErrorCode => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "INVALID_DISTRIBUTION_JOB_ERROR_CODE"
                 }),
             ),
             _ => juniper::FieldError::new(
