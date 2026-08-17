@@ -1,7 +1,8 @@
 # Repository Ownership and Contracts
 
 Status: VERIFIED OBSERVED STATE
-Evidence date: 2026-08-15
+Evidence date: 2026-08-15; `thoth-pub/baboon` and the `cc_license` crate
+dependency added and verified 2026-08-16
 
 This record describes verified repository ownership and contract/consumer
 relationships across the repositories in the repository map, to guide the
@@ -54,7 +55,20 @@ Verified consumers:
 | `thoth-export-server` (internal, same repository) | GraphQL schema, via the internal `thoth-client` crate | Reviewed in the same PR; not a cross-repository concern |
 | `thoth-pub/metrics-dashboard` | Public GraphQL schema (verified: `config/index.ts`, `url: process.env.NEXT_PUBLIC_THOTH_API_URL ?? 'https://api.thoth.pub/graphql'`) | YES for any breaking schema change |
 | `thoth-pub/metrics-widget` | Public GraphQL schema (verified: `src/shared/config/index.ts`, `url: import.meta.env.VITE_THOTH_API_URL ?? 'https://api.thoth.pub/graphql'`) | YES for any breaking schema change |
+| `thoth-pub/baboon` | Public GraphQL schema **and** the metadata export API (verified 2026-08-16: `.github/workflows/library-marc-feeds.yml` sets `THOTH_GRAPHQL_URL: https://api.thoth.pub/graphql` and `THOTH_EXPORT_BASE_URL: https://export.thoth.pub`, consumed by `src/thoth_graphql.rs` and `src/marc_export.rs`) | YES for a breaking schema change **or** a breaking export-format or export-availability change; see the note below |
 | `thoth-pub/thoth-sphinx` | Planned: Thoth GraphQL client, per the private Metrics design | `UNVERIFIED` — Sphinx has no implementation yet (see section 3); record as a future consumer only |
+
+**Baboon impact analysis.** `thoth-pub/baboon` is a verified downstream
+consumer of both contracts owned here, and owns neither. A breaking or
+semantically significant upstream change — schema, nullability, enum values,
+authorization semantics, pagination, export formats, or export availability for
+withdrawn or unsubscribed works — requires an explicit impact analysis against
+Baboon, recorded on the upstream task, even though the change originates in
+`thoth-pub/thoth`. Baboon must not guess an unmerged upstream contract. Export
+availability matters specifically because Baboon generates deleted-title batches
+from its cached last-exported record rather than re-exporting a withdrawn or
+unsubscribed work. See
+`docs/engineering/repository-map/repositories/baboon.md`.
 
 **Current versus planned Metrics data path.** The rows above for
 `metrics-dashboard` and `metrics-widget` record their **currently verified**
@@ -97,6 +111,9 @@ public content-delivery API shape, is a contract change that
 - `thoth-pub/thoth-pyramid` directly depends on the published npm package
   `metrics-widget` (`^2.0.1` in `thoth-pyramid/package.json`), owned by
   `thoth-pub/metrics-widget`. See section 2.4.
+- `thoth-export-server`, in this repository, directly depends on the published
+  Rust crate `cc_license` (`0.1.0`), owned by `thoth-pub/cc-license`. See
+  section 2.5.
 
 ### 2.4 metrics-widget package dependency
 
@@ -114,6 +131,30 @@ that `thoth-pub/thoth-pyramid` must be assessed as a consumer of under the
 cross-repository impact-analysis gate. This record does not start, authorize
 or imply any `metrics-widget` implementation or control task; it records the
 verified dependency only.
+
+### 2.5 cc-license crate dependency
+
+Owning repository: `thoth-pub/cc-license`.
+
+Verified consumer: `thoth-export-server`, in this repository, depends on the
+published Rust crate `cc_license = "0.1.0"` (verified 2026-08-16 in
+`thoth-export-server/Cargo.toml`, resolved in `Cargo.lock` to version `0.1.0`
+from `registry+https://github.com/rust-lang/crates.io-index`). This is a
+package/library interface dependency on a crates.io release, not a network API
+call and not a workspace-internal dependency.
+
+Thoth therefore already consumes the released crate rather than copying its
+parsing rules. A breaking change to the `cc_license` public API, or a new
+release Thoth is expected to adopt, is a contract change that must be assessed
+against `thoth-export-server` under the cross-repository impact-analysis gate,
+and reaches this repository only through a deliberate, separately authorized
+dependency bump.
+
+The published `0.1.0` release predates the current engineering-control
+programme. Recording this dependency does not imply that any crate publication
+occurred as part of it, and does not authorize one. The exact publication
+command, credentials, approval and rollback/yank procedure remain unverified;
+see `repositories/cc-license.md`.
 
 ## 3. Repositories with no implementation yet
 
