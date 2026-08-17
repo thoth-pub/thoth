@@ -72,7 +72,8 @@ type LatestChangeRow = (Uuid, Timestamp, String, PublisherServiceConfigurationSo
 /// linked-group normalization, the normalized-state predicate, the activation
 /// and timestamp semantics or the non-assignable rule.
 ///
-/// It creates no distribution job and triggers no dissemination.
+/// Qualifying `BE-04` activations may create durable distribution-job rows as
+/// part of this transaction; the coordinator itself performs no dissemination.
 pub(crate) fn replace_publisher_service_configuration(
     db: &PgPool,
     write_context: &ServiceConfigurationWriteContext<'_>,

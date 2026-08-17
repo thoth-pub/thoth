@@ -1060,6 +1060,106 @@ fn the_replacement_mutation_description_states_its_conditional_job_creation() {
     );
 }
 
+/// The rendered SDL description attached to one top-level declaration.
+///
+/// Juniper renders a type, input or enum description as a quoted line
+/// immediately preceding the declaration, so the description is the last line
+/// before it. The surrounding quotes are stripped; a declaration rendered
+/// without a description fails loudly rather than returning a declaration line
+/// that would silently satisfy an absence assertion.
+///
+/// This is deliberately separate from [`mutation_field_description`], which
+/// extracts a **field** description from inside the `MutationRoot` block.
+fn declaration_description<'a>(sdl: &'a str, declaration: &str) -> &'a str {
+    let line = sdl
+        .split_once(declaration)
+        .unwrap_or_else(|| panic!("SDL must declare `{declaration}`"))
+        .0
+        .lines()
+        .next_back()
+        .expect("a declaration is preceded by at least one line")
+        .trim();
+
+    line.strip_prefix('"')
+        .and_then(|body| body.strip_suffix('"'))
+        .unwrap_or_else(|| {
+            panic!("`{declaration}` must carry a rendered description, found `{line}`")
+        })
+}
+
+#[test]
+fn the_back_catalogue_behaviour_description_states_its_role_in_job_creation() {
+    let sdl = create_schema().as_sdl();
+    let description = declaration_description(&sdl, "enum BackCatalogueBehaviour {");
+
+    // The defect this guards. BE-02's description survived into BE-04 promising
+    // that reading this classification creates nothing at all, which stopped
+    // being true the moment the canonical coordinator started reading
+    // `AutomaticPush` to decide whether a new activation qualifies for a durable
+    // job. A caller reading only introspection would have been told that the
+    // most consequential classification in the contract had no consequences.
+    for stale in ["no job or upload is created", "Descriptive metadata only"] {
+        assert!(
+            !description.contains(stale),
+            "the back-catalogue classification must not describe itself as \
+             creating no job: `{stale}` survives in {description}"
+        );
+    }
+
+    // The behaviour that qualifies a new activation, and the fact that
+    // qualification is about a *new activation* rather than every read.
+    for required in [
+        "AUTOMATIC_PUSH",
+        "Newly activating",
+        "qualifies that activation for durable back-catalogue job creation",
+    ] {
+        assert!(
+            description.contains(required),
+            "the description must state `{required}`: {description}"
+        );
+    }
+
+    // Creation is not universal across the behaviours: the two non-push
+    // behaviours are named as creating no automatic job, so nothing here reads
+    // as "any back-catalogue behaviour creates a job".
+    assert!(
+        description.contains("PULL_FEED and MANUAL create no automatic job"),
+        "the description must not imply every behaviour creates an automatic \
+         job: {description}"
+    );
+
+    // The accurate half of the old description, which the correction keeps:
+    // classifying a destination still disseminates nothing.
+    assert!(
+        description.contains("performs no dissemination"),
+        "the accurate no-dissemination statement must survive the correction: \
+         {description}"
+    );
+
+    // A description-only correction: the enum's value inventory, its value names
+    // and their order are untouched, so no consumer's generated enum changes.
+    let behaviour = sdl_block(&sdl, "enum BackCatalogueBehaviour {");
+    let rendered: Vec<&str> = behaviour
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+    assert_eq!(
+        rendered.len(),
+        3,
+        "the enum must render exactly three values: {behaviour}"
+    );
+    for (line, value) in rendered
+        .iter()
+        .zip(["AUTOMATIC_PUSH", "PULL_FEED", "MANUAL"])
+    {
+        assert!(
+            line.ends_with(value),
+            "value {value} must remain rendered in canonical order, found `{line}`"
+        );
+    }
+}
+
 // ==========================================================================
 // 25.12  Report semantics, filters and statement counts
 // ==========================================================================
