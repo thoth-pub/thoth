@@ -19,7 +19,7 @@ Authority condition: this report records what was implemented and measured. It
 makes no approval decision. Live review, merge-authorization and merge evidence
 is the GitHub pull-request record (`ADR-0005`).
 
-This report covers **five** authorized episodes on one branch, and none
+This report covers **six** authorized episodes on one branch, and none
 supersedes another as history:
 
 1. the original bounded implementation, authorized against the **baseline**
@@ -36,11 +36,17 @@ supersedes another as history:
 4. the **evidence-only correction**, authorized on issue #821 comment
    [5302513784](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302513784)
    from exact PR #816 head `470d894e…` (section 1.8);
-5. this **current-control review remediation**, from exact PR #816 head
+5. the **current-control review remediation**, from exact PR #816 head
    `baab3149…`, which makes the durable tracker merge-stable and records the
    cross-repository assessment of `thoth-pub/baboon` after Baboon became a
    verified consumer in `contracts.md`. It is documentation and control only
-   (section 1.9).
+   (section 1.9);
+6. this **GraphQL-description remediation**, from exact PR #816 head
+   `fd85ea20…`, which corrects the public description of
+   `replacePublisherServiceConfiguration` and adds the introspection regression
+   evidence for it. It is the **one** episode that changes the generated SDL,
+   and it changes only description metadata: **no runtime behaviour and no
+   structural schema** (section 1.10).
 
 Episode 3's implementation, source and documentation work was authorized. **A
 specific authorization violation occurred inside it**: two pushes beyond its
@@ -67,12 +73,12 @@ corrected result. It does not rewrite the original episode out of the record.
 | Repository | `thoth-pub/thoth` |
 | Workflow | `STANDARD` — one bounded task, one slice branch, one pull request; no programme integration branch |
 | Base branch | `develop` |
-| Authorized base commit | `6f192ea6d7188e1ddef492b14903845cb8dde8d8` — the exact `develop` required for the current-control episode (section 1.9). The earlier episodes' bases are recorded in sections 1.3, 1.4 and 1.5 |
-| Actual base commit | `6f192ea6d7188e1ddef492b14903845cb8dde8d8`; **equal to the required `develop`**, and an ancestor of the head (`git merge-base --is-ancestor` succeeds). It was incorporated by the ordinary merge `baab3149…`, which pre-dates this episode |
+| Authorized base commit | `6f192ea6d7188e1ddef492b14903845cb8dde8d8` — the exact `develop` required for both the current-control episode (section 1.9) and the GraphQL-description episode (section 1.10). The earlier episodes' bases are recorded in sections 1.3, 1.4 and 1.5 |
+| Actual base commit | `6f192ea6d7188e1ddef492b14903845cb8dde8d8`; **equal to the required `develop`**, and an ancestor of the head (`git merge-base --is-ancestor` succeeds). It was incorporated by the ordinary merge `baab3149…`, which pre-dates both episodes |
 | PR target | `develop` |
 | Programme integration branch | none |
 | Task branch | `feature/publisher-services/be-04` |
-| Head commit before this episode | `baab3149711a5fc5f40b2da98d31fbc6a10ce8e8` |
+| Head commit before this episode | `fd85ea201b793c5c97a963cfae861b0bb177a854` |
 | Head commit | the exact head recorded on PR #816 after this episode's push; it is the SHA the fresh independent review must be taken against, and is deliberately not transcribed here (`ADR-0005`) |
 | Pull request | [#816](https://github.com/thoth-pub/thoth/pull/816), target `develop` |
 | Expected branch deletion after merge | YES |
@@ -193,9 +199,10 @@ rebased or referenced by any change in this branch.
 
 ### 1.7 Authority history
 
-**Six** distinct authorizations apply to this branch, alongside one
-process-exception acceptance (row 5) that is deliberately **not** an
-authorization. Each is recorded because authorization is granted
+**Seven** distinct authorizations apply to this branch, alongside two
+process-exception acceptances (row 5, and the two recorded in section 1.10)
+that are deliberately **not** authorizations. Each is recorded because
+authorization is granted
 action-by-action and is **not transitive** (root `AGENTS.md` section 6): none of
 these authorizes anything another one covers, and none of them authorizes merge,
 deployment, migration execution or production activation.
@@ -208,7 +215,8 @@ deployment, migration execution or production activation.
 | 4 | Automatic staging-image publication authority | issue #821 comment [5302276182](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302276182) | **only** the automatic `publish-to-dockerhub` pull-request workflow side effect **of the authorized push**, including its normal `staging-pr-*` image publication to `ghcr.io/thoth-pub/thoth` | narrow and non-transitive. It authorized the publication caused by push 1; it did **not** extend to the publications caused by pushes 2 and 3 (section 3.1.1) |
 | 5 | CTO process-exception acceptance | issue #821 comment [5302513784](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302513784) | acceptance of the two already-occurred unauthorized pushes and their two additional automatic `staging-pr-*` publications, with the risk accepted and no registry cleanup required | **not** an authorization. It accepts an already-occurred violation after the fact and explicitly does **not** authorize it retroactively (section 3.1.2) |
 | 6 | Evidence-only remediation authority | issue #821 comment [5302513784](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302513784), bound to PR #816 head `470d894e…` | episode 4: read inspection, edits to **this report only**, one ordinary commit, exactly one push, and the single normal automatic `staging-pr-*` publication that push causes | the authority under which episode 4 was performed (section 1.8) |
-| 7 | Current-control review-remediation authority | control-plane instruction for the current episode, bound to PR #816 head `baab3149…` and to `develop @ 6f192ea6…`, under the standing BE-04 control authorization on owning issue [#821](https://github.com/thoth-pub/thoth/issues/821) | episode 5: read inspection, edits to **exactly two** Markdown files — the tracker and this report — one ordinary commit, exactly one push, and the single normal automatic `staging-pr-*` publication that push causes | the authority under which episode 5 was performed (section 1.9) |
+| 7 | Current-control review-remediation authority | control-plane instruction for episode 5, bound to PR #816 head `baab3149…` and to `develop @ 6f192ea6…`, under the standing BE-04 control authorization on owning issue [#821](https://github.com/thoth-pub/thoth/issues/821) | episode 5: read inspection, edits to **exactly two** Markdown files — the tracker and this report — one ordinary commit, exactly one push, and the single normal automatic `staging-pr-*` publication that push causes | the authority under which episode 5 was performed (section 1.9) |
+| 8 | GraphQL-description remediation authority | owning issue #821 comment [5316879599](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5316879599), bound to PR #816 head `fd85ea20…` and to `develop @ 6f192ea6…`, and restated in PR #816's body | episode 6: read inspection, edits to **exactly three** paths — `thoth-api/src/graphql/mutation.rs`, `thoth-api/src/graphql/distribution_job_tests.rs` and this report — local validation, one ordinary commit, exactly one push, and the single normal automatic PR CI cycle and `staging-pr-*` publication that push causes | the authority under which episode 6 was performed (section 1.10). It authorizes **no** reply to or resolution of either Codex review thread |
 
 No authorization exists for merge of PR #816, deployment, environment or
 production migration execution or rollback, identity-provider changes, role
@@ -267,6 +275,60 @@ than this report.
 This episode changed **no** BE-04 implementation behaviour, no source file, and
 no file other than the two Markdown control records above.
 
+### 1.10 GraphQL-description remediation episode
+
+| Item | Value |
+|---|---|
+| Purpose | correct a valid public-contract defect raised by the current Codex `P2` review thread: the GraphQL description on `replacePublisherServiceConfiguration` still carried BE-03's statement that the mutation "creates no distribution job", which BE-04 made false. Schema introspection therefore misdescribed the mutation's most consequential side effect. The episode corrects the description, adds introspection regression evidence, and refreshes this report's generated-SDL evidence |
+| Authority | owning issue #821 comment [5316879599](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5316879599), restated in PR #816's body |
+| Finding | Codex review thread [`PRRT_kwDODkn0bc6Z0E3k`](https://github.com/thoth-pub/thoth/pull/816#discussion_r3796799665), inline comment `3796799665` on `thoth-api/src/graphql/mutation.rs`, verified `isResolved: false` and `isOutdated: false` at the starting head |
+| Earlier Codex thread | [`PRRT_kwDODkn0bc6ZzLGA`](https://github.com/thoth-pub/thoth/pull/816#discussion_r3796456236) on `docs/publisher-services/task-status.md`, verified `isResolved: false` and `isOutdated: **true**` at the starting head. It was **not** replied to and **not** resolved |
+| Starting head, verified before any edit | `fd85ea201b793c5c97a963cfae861b0bb177a854`, equal to `origin/feature/publisher-services/be-04` and to PR #816's head (`OPEN`, `isDraft: false`, `mergedAt: null`, base `develop`) |
+| `origin/develop`, verified before any edit | `6f192ea6d7188e1ddef492b14903845cb8dde8d8` — unmoved. This episode performs **no** merge and **no** `develop` incorporation |
+| Working tree at start | clean |
+| Manual write budget | **exactly three existing files**: `thoth-api/src/graphql/mutation.rs`, `thoth-api/src/graphql/distribution_job_tests.rs` and `docs/engineering/ai-delivery/implementation-reports/BE-04-implementation-report.md` |
+| New-file budget | **NONE** |
+| Delete / move / rename budget | **NONE** |
+| Authorized repository actions | repository/GitHub read inspection; edits to the three files above; local validation; **one** ordinary commit; **exactly one** ordinary push |
+| Authorized automatic side effect | the single normal pull-request CI cycle caused by that push, including the one normal `staging-pr-*` publication to `ghcr.io/thoth-pub/thoth` |
+| Explicitly excluded | migration, `schema.rs`, model/CRUD, authorization/policy, `Context` and job-creation plumbing changes; `CHANGELOG.md`, `docs/publisher-services/task-status.md`, `BE-04.md`, ADR, workflow, manifest, `contracts.md` and repository-map edits; `thoth-client` and every other repository; PR body/title/base/state mutation; reviewer request; review submission; reply to or resolution of **either** Codex thread; issue/comment mutation; manual CI dispatch, rerun or cancellation; a second push; force-push, amend, rebase or squash; merge; deployment; environment or production migration execution; IdP, role or credential actions; worker deployment; `OFF -> ON`; pilot; dissemination; external platform calls; production access; release or tag publication; any other registry or package publication; and any action on PR #799 |
+| Validation | the **complete** local gate was re-run, not skipped: this episode creates a new source commit on a HIGH-risk task, so the previous SHA-bound review evidence does not carry over (section 12) |
+| Runtime behaviour change | **NONE** |
+| Migration / `schema.rs` / data effect | **NONE** |
+| Authorization / security effect | **NONE** |
+| External platform effect | **NONE** |
+| Structural GraphQL change | **NONE** — no field, argument, type, default, nullability or return type changed |
+| Public GraphQL metadata change | **YES** — the description of `replacePublisherServiceConfiguration`, and therefore the generated SDL bytes and hash (section 10.2) |
+| Head after this episode | recorded on the pull request, not transcribed here — `ADR-0005` owns live final-head and CI evidence |
+
+This is the **only** episode on this branch that changes the generated SDL. It
+changes description metadata only; sections 10.2 and 10.7 state exactly what did
+and did not change, and section 12 records the full re-run gate.
+
+#### 1.10.1 Control-plane process exceptions preceding this episode
+
+Two further already-occurred control-plane exceptions are recorded on issue #821
+comment `5316879599` and in PR #816's body. They are recorded here because
+durable process history must not be lost, and **none of them is retroactively
+authorized**:
+
+1. during control preflight for this episode, an `eyes` reaction was added to
+   Codex comment `3796456236` and `ja573` was assigned to issue #821. Both were
+   **unauthorized** GitHub mutations. The CTO accepted them as a process
+   exception **without retroactive authorization**, separately authorized
+   cleanup, and both items were restored to their prior state before this
+   episode's authorization was recorded: the reaction was removed and issue #821
+   again has no assignee;
+2. after comment `5316879599` was created it was subjected to an additional
+   **unauthorized no-op comment update** whose substantive content was
+   unchanged. The CTO accepted that already-occurred action as a process
+   exception, again **without retroactive authorization**, and no further
+   cleanup is required because the content was unchanged.
+
+Neither exception changed repository source, the PR head, CI, runtime,
+deployment or production state. Neither was performed by this implementing
+agent during this episode, which mutated no GitHub state at all.
+
 ---
 
 ## 2. Scope confirmation
@@ -298,6 +360,15 @@ redesign was performed, and the two Addendum 01 corrections that had already
 passed source review — the NULL-safe attempt-error `CHECK` and the first-level
 composite loader with its 5/6/3/4 per-chunk arithmetic — were neither reopened
 nor redesigned.
+
+The GraphQL-description remediation (section 1.10) added no scope of its own
+either. It corrects one public description so that introspection stops
+contradicting the approved contract, adds the regression evidence that keeps it
+corrected, and refreshes this report's SDL evidence. **The approved BE-04
+runtime semantics were not redesigned and not changed**: the conditional
+creation rule, the atomic in-transaction write and the `OFF` fail-closed
+rollback are exactly what sections 7.2, 7.4 and 7.5 already recorded, and this
+episode makes the public description match them rather than altering them.
 
 ---
 
@@ -350,12 +421,20 @@ commit:
 | SHA | Subject |
 |---|---|
 | `baab3149` | `Merge branch 'develop' into feature/publisher-services/be-04` — starting state, not authored by this agent |
-| _(this file's own commit)_ | `docs(publisher-services): make BE-04 control state merge-stable` — the tracker merge-stability correction and the `thoth-pub/baboon` cross-repository assessment, which cannot record its own SHA |
+| `fd85ea20` | `docs(publisher-services): make BE-04 control state merge-stable` — the tracker merge-stability correction and the `thoth-pub/baboon` cross-repository assessment |
+
+GraphQL-description remediation episode (section 1.10), one commit, on top of
+the published history:
+
+| SHA | Subject |
+|---|---|
+| _(this episode's own commit)_ | `fix(graphql): correct service replacement job description` — the corrected description, its SDL regression test and this report's refreshed evidence, which cannot record its own SHA |
 
 No commit was amended, rebased, squashed or force-pushed in any episode. The
 pre-reconciliation head `6356ac1c`, the pre-remediation head `b72a6376`, the
-pre-correction head `470d894e` and the current-control starting head `baab3149`
-all remain ancestors of the branch.
+pre-correction head `470d894e`, the current-control starting head `baab3149`
+and the GraphQL-description starting head `fd85ea20` all remain ancestors of the
+branch.
 
 ### 3.1 Authorization violation: one authorized push, two unauthorized pushes
 
@@ -629,6 +708,22 @@ docs/publisher-services/task-status.md
 with no new, deleted, moved or renamed file, no source file and no
 `CHANGELOG.md` change.
 
+The GraphQL-description episode's budget is exactly three existing files
+(section 1.10), and it holds: `git diff --name-only fd85ea20…` returns exactly
+
+```text
+docs/engineering/ai-delivery/implementation-reports/BE-04-implementation-report.md
+thoth-api/src/graphql/distribution_job_tests.rs
+thoth-api/src/graphql/mutation.rs
+```
+
+with no new, deleted, moved or renamed file, no migration, no `schema.rs`
+change, no `CHANGELOG.md` change, no tracker change and no `thoth-client`
+change. `thoth-client/assets/schema.graphql` regenerates from the corrected
+description, but it remains build-generated and gitignored: it was not
+hand-edited, not committed and not force-added, and `.gitignore` is unchanged
+(section 10.2).
+
 The write budget was never the thing exceeded. The one authorization violation
 on this branch is the push count of section 3.1.
 
@@ -637,26 +732,26 @@ on this branch is the push count of section 3.1.
 Authorization is action-by-action and not transitive. What each episode's
 authorization covered, and what was actually done:
 
-| Action | Reconciliation: authorized / used | Remediation: authorized / used | Evidence-only: authorized / used | Current-control: authorized / used |
-|---|---|---|---|---|
-| repository/GitHub read inspection | yes / yes | yes / yes | yes / **yes** | yes / **yes** |
-| source/worktree modification, bounded | yes / yes — section 4.1 | yes / yes — the four paths in section 4.2 | yes, **this report only** / **yes — this report only** | yes, **two Markdown files only** / **yes — exactly those two** |
-| new file creation | not needed / **no** | **no** (budget NONE) / **no** | **no** (budget NONE) / **no** | **no** (budget NONE) / **no** |
-| file deletion, move or rename | no / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
-| branch creation | not needed / **no** | not needed / **no** — the existing branch was reused | **no** / **no** | **no** / **no** — the existing branch was reused |
-| commit | yes / yes | yes / yes — one merge commit and additive commits (section 3) | **one** / **one** | **one** / **one** |
-| push to `feature/publisher-services/be-04` | yes / yes | **one** / **three** — **1 authorized + 2 UNAUTHORIZED** (section 3.1) | **one** / **one** | **one** / **one** |
-| pull-request creation or body/title/base/state update | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
-| issue/comment mutation | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** — no reply to and no resolution of the Codex thread |
-| manual CI dispatch, rerun or cancel | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
-| provider/runtime read | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
-| provider/runtime write | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
-| migration execution | disposable only / disposable only | disposable only / disposable only — a database created for the run and dropped after it | **no** / **no** — documentation-only episode | **no** / **no** — documentation-only episode |
-| release, tag or publication | **no** / **no** | **no** / **no** — no release or tag was published; the automatic `staging-pr-*` registry writes are CI side effects of pushes, classified in section 3.1.1 | **no** / **no** | **no** / **no** — other than the one automatic `staging-pr-*` CI side effect of the authorized push |
-| merge of PR #816 | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
-| deployment | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
-| production activation | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
-| other | — | none | none | none |
+| Action | Reconciliation: authorized / used | Remediation: authorized / used | Evidence-only: authorized / used | Current-control: authorized / used | GraphQL-description: authorized / used |
+|---|---|---|---|---|---|
+| repository/GitHub read inspection | yes / yes | yes / yes | yes / **yes** | yes / **yes** | yes / **yes** |
+| source/worktree modification, bounded | yes / yes — section 4.1 | yes / yes — the four paths in section 4.2 | yes, **this report only** / **yes — this report only** | yes, **two Markdown files only** / **yes — exactly those two** | yes, **three files only** / **yes — exactly those three** (section 4.6) |
+| new file creation | not needed / **no** | **no** (budget NONE) / **no** | **no** (budget NONE) / **no** | **no** (budget NONE) / **no** | **no** (budget NONE) / **no** |
+| file deletion, move or rename | no / **no** | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| branch creation | not needed / **no** | not needed / **no** — the existing branch was reused | **no** / **no** | **no** / **no** — the existing branch was reused | **no** / **no** — the existing branch was reused |
+| commit | yes / yes | yes / yes — one merge commit and additive commits (section 3) | **one** / **one** | **one** / **one** | **one** / **one** |
+| push to `feature/publisher-services/be-04` | yes / yes | **one** / **three** — **1 authorized + 2 UNAUTHORIZED** (section 3.1) | **one** / **one** | **one** / **one** | **one** / **one** |
+| pull-request creation or body/title/base/state update | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| issue/comment mutation | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** — no reply to and no resolution of the Codex thread | **no** / **no** — **neither** Codex thread was replied to or resolved, and #821 was not mutated |
+| manual CI dispatch, rerun or cancel | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| provider/runtime read | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| provider/runtime write | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| migration execution | disposable only / disposable only | disposable only / disposable only — a database created for the run and dropped after it | **no** / **no** — documentation-only episode | **no** / **no** — documentation-only episode | disposable only / disposable only — the suite's own disposable test database; no migration was run against any environment or shared database |
+| release, tag or publication | **no** / **no** | **no** / **no** — no release or tag was published; the automatic `staging-pr-*` registry writes are CI side effects of pushes, classified in section 3.1.1 | **no** / **no** | **no** / **no** — other than the one automatic `staging-pr-*` CI side effect of the authorized push | **no** / **no** — other than the one automatic `staging-pr-*` CI side effect of the authorized push |
+| merge of PR #816 | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| deployment | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| production activation | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| other | — | none | none | none | none |
 
 #### 4.3.1 Unauthorized actions performed
 
@@ -691,8 +786,17 @@ Disposition:
 - **no registry cleanup is required**, and none is pending.
 
 No unauthorized action occurred in the original implementation episode, in the
-reconciliation episode, in the evidence-only episode, or in the current-control
-review-remediation episode of section 1.9.
+reconciliation episode, in the evidence-only episode, in the current-control
+review-remediation episode of section 1.9, or in the GraphQL-description
+remediation episode of section 1.10.
+
+Two further unauthorized actions occurred on the **control plane**, not in any
+implementation episode: the accidental `eyes` reaction and issue assignment, and
+the accidental no-op update of comment `5316879599`. Section 1.10.1 records
+them, their CTO process-exception acceptance, the completed cleanup of the first
+pair and the absence of retroactive authorization for any of them. They are
+listed there rather than here because this implementing agent did not perform
+them.
 
 One distinction matters for attribution. The control plane had already created
 issue #821, linked it to #765, updated PR #816's body and recorded the
@@ -719,16 +823,19 @@ was published; and no image was deployed. Every publication below is an
 automatic consequence of a push, never a manually initiated action. If normal
 CI fails, that is reported as a finding — it is not manually rerun.
 
-**AUTHORIZED AUTOMATIC EFFECTS.** Three, one per authorized push: the
+**AUTHORIZED AUTOMATIC EFFECTS.** Four, one per authorized push: the
 `staging-pr-*` publication caused by the review remediation's **authorized**
 push (push 1, head `88d71dc8`), authorized by issue #821 comment
 [5302276182](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302276182);
 the single publication caused by the evidence-only episode's one authorized
 push, authorized by comment
 [5302513784](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302513784);
-and the single publication caused by the current-control episode's one
+the single publication caused by the current-control episode's one
 authorized push, authorized by that episode's control-plane instruction
-(section 1.9). None is a deployment, a production activation, a release or a tag
+(section 1.9); and the single publication caused by the GraphQL-description
+episode's one authorized push, authorized by comment
+[5316879599](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5316879599).
+None is a deployment, a production activation, a release or a tag
 publication: each publishes a staging image built from the pull request, and
 nothing consumes it automatically.
 
@@ -784,6 +891,54 @@ diff of `thoth-api/src/model/distribution_job/mod.rs` against `b72a6376…`
 contains **comment lines only**: no statement, expression, signature, type,
 derive, attribute or test changed anywhere in the workspace. No other `.rs`,
 `.sql`, `.toml`, workflow or generated file differs from `b72a6376…`.
+
+**Chronological scope of that table.** Every row above, including the
+`generated SDL | unchanged` row, is measured against the **pre-remediation head
+`b72a6376…`** and is a statement about **episodes 3, 4 and 5 only**. It remains
+true of them. It is **not** a claim about the branch's final head: the
+GraphQL-description episode of section 1.10 intentionally changes the generated
+SDL's description metadata, and section 4.6 measures that episode separately.
+
+### 4.6 Change scope of the GraphQL-description remediation
+
+Measured against this episode's starting head `fd85ea20…`.
+`git diff --name-only fd85ea201b793c5c97a963cfae861b0bb177a854` returns exactly
+three paths, and nothing else in the repository differs:
+
+| Path | Change | Executable-code change |
+|---|---|---|
+| `thoth-api/src/graphql/mutation.rs` | the `#[graphql(description = …)]` string literal on `replace_publisher_service_configuration` | **NONE** |
+| `thoth-api/src/graphql/distribution_job_tests.rs` | one added SDL regression test and its one added extraction helper | **test-only**; no production code |
+| `docs/engineering/ai-delivery/implementation-reports/BE-04-implementation-report.md` | this episode's evidence | none — documentation |
+
+Confirmed unchanged in `thoth-api/src/graphql/mutation.rs`, by reading the
+complete diff of that file:
+
+- the `replace_publisher_service_configuration` function signature, its
+  `context`/`data` parameters, its argument description and its
+  `FieldResult<PublisherServiceConfiguration>` return type;
+- its body — the single `replace_service_configuration(context, &data)
+  .map_err(IntoFieldError::into_field_error)` call;
+- the free helper `replace_service_configuration`, including
+  `context.require_superuser()?`, the `ServiceConfigurationWriteContext`
+  construction, `source: PublisherServiceConfigurationSource::SuperuserApi`,
+  `actor: context.user_id()?`, `job_creation: context.job_creation` and the
+  coordinator call;
+- every other resolver, helper, `use` declaration and attribute in the file.
+
+The file's diff is **one changed line**, and that line is inside a string
+literal used solely as GraphQL metadata. No statement, expression, signature,
+type, derive, control-flow branch or authorization check changed anywhere in the
+workspace, and no `.sql`, `.toml`, `schema.rs` or workflow file differs from
+`fd85ea20…`.
+
+Confirmed unchanged by this episode, and re-verified by the full gate of
+section 12: the creation matrix of section 7.2, the `OFF` fail-closed rollback
+of section 7.4, the transaction statement order of section 7.5, the state
+machine and concurrency evidence of section 8, the authorization matrix of
+section 9.2 and the statement-count arithmetic of sections 11.1 and 12.0. **No
+existing assertion was weakened, skipped or deleted**; the episode's only test
+change is additive.
 
 ---
 
@@ -1538,24 +1693,99 @@ Arguments added to existing queries: `jobStatuses` and
 
 No scalar, interface, union or query was added.
 
+**One existing field's description was corrected**, by the episode of section
+1.10: `MutationRoot.replacePublisherServiceConfiguration`. That is a change to
+public GraphQL **metadata**, not to the added surface above and not to any
+structural element — the field's name, argument, argument type, return type and
+nullability are untouched. Section 10.2 records both hashes and the exact
+difference.
+
 ### 10.2 Exact SDL diff
 
 Generated only through the normal `thoth-client` build path
-(`cargo build --workspace`, which runs `thoth-client/build.rs`). The baseline was
-produced by building the **authorized base** in a separate git worktree the same
-way.
+(`cargo build --workspace`, which runs `thoth-client/build.rs` and writes
+`thoth-client/assets/schema.graphql`). The baseline was produced by building the
+**authorized base** in a separate git worktree the same way. That artifact is
+build-generated and gitignored, so it is regenerated rather than read from the
+working tree; forcing `build.rs` to re-run (`touch thoth-client/build.rs`) is
+required after a cached build, because a fully cached workspace build does not
+rewrite it.
 
 ```text
-base SDL   sha256 25329c1687d8b4222638c2f673bd2751a13adeda8c6f181d4ac83e869abac479
-head SDL   sha256 38820a24f7c1b1bac8f6ddc5286efd55dd7ece5f0155806ca4720f228ec93140
+base SDL                       sha256 25329c1687d8b4222638c2f673bd2751a13adeda8c6f181d4ac83e869abac479
+BE-04 implementation SDL       sha256 38820a24f7c1b1bac8f6ddc5286efd55dd7ece5f0155806ca4720f228ec93140   177 141 bytes
 ```
 
-The unified diff contains **144 added lines and exactly two removed lines**. The
-two removals are the previous single-line renderings of
-`publisherServiceConfigurations` and `publisherServiceConfigurationCount`,
-replaced by renderings that carry the two new arguments. **No existing field's
-type, nullability, arguments, defaults or description changed**, and no type was
-removed.
+That second hash is the SDL of the BE-04 implementation and of every head from
+it through `fd85ea20…`, the starting head of the GraphQL-description episode:
+episodes 3, 4 and 5 changed no schema-bearing source, and the artifact
+regenerated at `fd85ea20…` reproduces `38820a24…` byte-for-byte.
+
+The unified diff **against the authorized base** contains **144 added lines and
+exactly two removed lines**. The two removals are the previous single-line
+renderings of `publisherServiceConfigurations` and
+`publisherServiceConfigurationCount`, replaced by renderings that carry the two
+new arguments. No existing field's type, nullability, arguments or defaults
+changed, and no type was removed. **One existing field description changed, in
+the separate episode recorded immediately below** — it is not part of the 144/2
+figure, which measures the implementation episodes.
+
+#### 10.2.1 SDL after the GraphQL-description correction
+
+```text
+previous SDL, at head fd85ea20…   sha256 38820a24f7c1b1bac8f6ddc5286efd55dd7ece5f0155806ca4720f228ec93140   177 141 bytes
+new SDL, after the correction     sha256 340caaa3d90d887525b4620be4f15ffe15fc47fa75b18f37f827b66b2f4b3810   177 450 bytes
+```
+
+**Why the hash changed.** Juniper renders a field description as a quoted line
+immediately preceding the field, so correcting the description of
+`replacePublisherServiceConfiguration` rewrites exactly that one SDL line. The
+artifact grew by **309 bytes**, which is exactly the length difference between
+the two description strings (210 → 519 characters). Nothing else moved.
+
+**Proof that the difference is confined to that one line.** Substituting the
+previous description line back into the newly generated artifact — changing that
+line and nothing else — reproduces
+`38820a24f7c1b1bac8f6ddc5286efd55dd7ece5f0155806ca4720f228ec93140` byte-for-byte.
+The two artifacts therefore differ in exactly one line, at the same line number,
+and that line is a description.
+
+The old and new renderings, quoted verbatim from the generated SDL:
+
+```graphql
+  "Replace a publisher's complete desired service configuration under optimistic concurrency control. Superuser only. This stores desired configuration: it creates no distribution job and triggers no dissemination"
+  "Replace a publisher's complete desired service configuration under optimistic concurrency control. Superuser only. Newly activating an AUTOMATIC_PUSH destination also creates that activation's durable distribution job and targets atomically in the same transaction, while automatic distribution job creation is enabled; while it is disabled such a replacement fails and rolls back in full rather than committing the activation without its job. No other change creates a job, and this mutation performs no dissemination."
+```
+
+The first is **false under the approved BE-04 contract** and is quoted here only
+as the finding's record. The second states what sections 7.2, 7.4 and 7.5
+measured: conditional creation on a newly activated `AUTOMATIC_PUSH`
+destination, atomicity inside the configuration transaction, the fail-closed
+rollback while creation is disabled, that other changes create no job, and the
+unchanged absence of dissemination.
+
+**Structural GraphQL compatibility is unchanged by this correction.** Verified
+field by field against `fd85ea20…`:
+
+| Structural element | Status |
+|---|---|
+| mutation name `replacePublisherServiceConfiguration` | unchanged |
+| argument name `data` and its description | unchanged |
+| argument type `ReplacePublisherServiceConfigurationInput!` | unchanged |
+| argument defaults | unchanged — none exists |
+| return type `PublisherServiceConfiguration!` | unchanged |
+| nullability | unchanged |
+| the `MutationRoot` field set | unchanged |
+| every `QueryRoot` field | unchanged |
+| every type, input, enum and enum value | unchanged |
+| authorization behaviour and error contract | unchanged |
+| runtime behaviour | unchanged |
+| `thoth-client/assets/queries.graphql` and every generated client operation | unchanged |
+
+This is a **description-only public-contract metadata change**. It is
+deliberately **not** classified as a structural schema change, and the branch's
+final generated SDL is deliberately **not** claimed to be byte-identical to
+`fd85ea20…` or to any earlier implementation head.
 
 The two new argument lines, quoted verbatim from the generated SDL, beside the
 merged siblings they must match:
@@ -1646,14 +1876,19 @@ arms, with no fifth. Observed at the GraphQL boundary:
   operations the internal export client does not consume, and one nullable field
   plus two defaulted arguments on surfaces it does not query;
 - `thoth-client/assets/schema.graphql` was **not** hand-edited, not committed and
-  not force-added, and `.gitignore` was not modified;
+  not force-added, and `.gitignore` was not modified. It regenerates from the
+  corrected description exactly as it regenerates from any schema-bearing
+  source change (section 10.2.1);
 - `thoth-app` is **not modified** and is not a member of this workspace. The
   change is assessed as **additive-only** for its codegen: new types are
   unreferenced by existing selections, the one new field on an existing type is
   nullable, and the two new arguments carry defaults, so an existing document
   continues to compile and to return exactly what it returned before;
 - the backend commit SHA of the reviewed BE-04 head and the SDL artifact hash
-  above are the values later APP-01/APP-02 contract pinning should use.
+  for that head are the values later APP-01/APP-02 contract pinning should use.
+  After the GraphQL-description correction the current value is
+  `340caaa3d90d887525b4620be4f15ffe15fc47fa75b18f37f827b66b2f4b3810`
+  (section 10.2.1), not the `38820a24…` recorded for the earlier heads.
 
 ### 10.7 Cross-repository impact, every verified consumer
 
@@ -1677,7 +1912,7 @@ The shared compatibility evidence, from which every row below follows:
    new arguments.
 2. **No existing GraphQL field, type, enum value or argument was removed.**
 3. **Nothing existing became stricter**: no existing field's type, nullability,
-   arguments, defaults or description changed. The one field added to an
+   arguments or defaults changed. The one field added to an
    existing type, `PublisherServiceConfigurationSummary.latestBackCatalogueJob`,
    is **nullable**; the two arguments added to existing queries,
    `jobStatuses` and `withoutBackCatalogueJob`, are optional — `jobStatuses`
@@ -1689,11 +1924,26 @@ The shared compatibility evidence, from which every row below follows:
    an unselected new field costs nothing (section 11.1 item 4 measures this:
    a selection reaching neither job field issues no `distribution_job%`
    statement at all).
-5. **Neither remediation episode changed the SDL at all.** Both the review
-   remediation and the current-control remediation of section 1.9 are
-   documentation-only (sections 4.2, 4.5 and 1.9), so the generated SDL is
-   identical to the already-produced BE-04 implementation's, whose hash is
-   recorded in section 10.2.
+5. **Episodes 3, 4 and 5 changed the SDL not at all; episode 6 changed exactly
+   one description.** The review remediation, the evidence-only correction and
+   the current-control remediation of section 1.9 are documentation-only
+   (sections 4.2, 4.5 and 1.9), so the SDL at `fd85ea20…` is identical to the
+   already-produced BE-04 implementation's, hash `38820a24…`. The
+   GraphQL-description remediation of section 1.10 then corrected the
+   description of `replacePublisherServiceConfiguration`, giving hash
+   `340caaa3…` (section 10.2.1). That is a **description-only metadata change**:
+   one quoted SDL line, no structural element, and the rest of the artifact
+   byte-identical.
+6. **A description change is not a compatibility event for any consumer.**
+   GraphQL descriptions are documentation carried in the schema. They are not
+   part of any operation's syntax or of any generated type: no query, mutation,
+   fragment or variable definition references a description, `graphql-codegen`
+   emits none into the TypeScript types it generates from these documents, and
+   no execution result changes. A consumer that re-fetches the schema sees
+   corrected prose on one mutation — a mutation that, additionally, only a
+   superuser may call. **Every consumer verdict below is therefore unaffected
+   by episode 6**, and the corrected description is strictly more accurate than
+   the one it replaces.
 
 | # | Consumer | Contract consumed | Verdict | Reason |
 |---:|---|---|---|---|
@@ -1962,12 +2212,15 @@ at any shared service.** The disposable PostgreSQL is 17.10, `UTF8`-encoded to
 match CI and production — the character-boundary truncation evidence is only
 meaningful under a multi-byte-aware encoding.
 
-All figures below are the **remediated head's**. Because this is a HIGH-risk
-candidate moving to a new exact review head, the complete local gate was re-run
-in full after the `develop` merge and the documentation corrections; nothing is
-carried over from an earlier episode. Every figure was **unchanged** from the
-reconciled head, which is the expected result for a documentation-only episode
-and is itself part of the section 4.5 regression evidence.
+The figures in the table immediately below are the **remediated head's**
+(episode 3). Because this is a HIGH-risk candidate moving to a new exact review
+head, the complete local gate was re-run in full after the `develop` merge and
+the documentation corrections; nothing is carried over from an earlier episode.
+Every figure was **unchanged** from the reconciled head, which is the expected
+result for a documentation-only episode and is itself part of the section 4.5
+regression evidence. **Section 12.3 records the separate full re-run at the
+GraphQL-description episode**, whose test totals are one higher because that
+episode adds one test.
 
 | Command | Result |
 |---|---|
@@ -2108,6 +2361,110 @@ declare resolved.
 
 ---
 
+### 12.3 Full gate re-run at the GraphQL-description episode
+
+Episodes 4 and 5 deliberately did **not** re-run the Cargo gate, because they
+changed no source. Episode 6 does change source, so the previous SHA-bound
+review evidence does not carry over on a HIGH-risk task and the **complete**
+gate was re-run. Run from the same disposable local environment: PostgreSQL
+17.10 `UTF8` and a local Redis, both disposable. **Nothing was pointed at
+production or at any shared service, and no migration was executed against any
+environment or shared database.**
+
+| Command | Result |
+|---|---|
+| `cargo fmt --all -- --check` | **pass** — no output |
+| `git diff --check` | **pass** — no output |
+| `cargo check --workspace` | **pass** |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | **pass** — no lint warning in any workspace crate. The single line matching `warning:` is cargo's pre-existing future-incompatibility note for the third-party `proc-macro-error2 v2.0.1` dependency, which is present at the starting head too and is not a lint on this repository's code |
+| `cargo test -p thoth-api --features backend` | **pass** — 1177 lib + 13 integration passed, 0 failed, 8 doc-tests ignored |
+| `cargo test --workspace` | **pass** — 1384 passed, 0 failed, 8 ignored |
+| `cargo test --workspace --release` | **pass** — the same 1384 passed, 0 failed, 8 ignored |
+
+Per-target breakdown, identical in both profiles: `thoth` lib 0, `thoth` bin 24,
+`thoth-api` lib **1177**, `thoth-api` integration 13, `thoth-api-server` 3,
+`thoth-client` 4, `thoth-errors` 11, `thoth-export-server` 144; doc-tests
+`thoth-api` 8 ignored, `thoth-client` 6 passed, `thoth-export-server` 2 passed.
+Those sum to 1376 unit/integration plus 8 executed doc-tests, which is the 1384
+above.
+
+**The totals rose from 1383 to 1384, by exactly one, in `thoth-api`'s library
+suite.** That is this episode's one added test. **No test was removed, renamed,
+weakened, skipped, retried or re-run to obtain a passing result**, and no
+pre-existing assertion changed.
+
+`cargo run migrate` and `cargo run migrate --revert` were **not** re-run: this
+episode changes no migration, no `schema.rs` and no model, and the migration
+evidence of section 6.4 stands at the unchanged migration. That is recorded as a
+reasoned scope decision, not an omission.
+
+#### 12.3.1 The added SDL regression evidence
+
+One test was added, in `thoth-api/src/graphql/distribution_job_tests.rs`,
+alongside one small extraction helper. It operates on `create_schema().as_sdl()`
+— the real generated schema, not a fixture — and uses the repository's existing
+brace-balanced `sdl_support::sdl_block` extraction rather than a new parsing
+framework.
+
+```text
+graphql::distribution_job_tests::the_replacement_mutation_description_states_its_conditional_job_creation
+```
+
+The helper `mutation_field_description` extracts the `MutationRoot` block with
+`sdl_block`, then takes the quoted line Juniper renders immediately before the
+field declaration and strips its quotes. A field rendered **without** a
+description makes the helper panic rather than return the declaration line,
+so an absence assertion cannot pass vacuously.
+
+What the test asserts, against the rendered description of
+`replacePublisherServiceConfiguration`:
+
+| # | Property proven | Assertion |
+|---:|---|---|
+| 1 | the false statement is gone | the description does **not** contain `creates no distribution job` |
+| 2 | conditional, atomic durable-job creation | it contains `AUTOMATIC_PUSH`, `durable distribution job`, `atomically in the same transaction` and `while automatic distribution job creation is enabled` |
+| 3 | fail-closed while creation is disabled | it contains `while it is disabled` and `fails and rolls back in full` |
+| 4 | creation is conditional, not universal | it contains `No other change creates a job` |
+| 5 | the accurate no-dissemination statement survives | it contains `performs no dissemination` |
+
+The assertions are substring assertions on semantically load-bearing phrases, so
+punctuation, ordering and line wrapping are deliberately **not** part of the
+contract, while a reversion to the false claim or a loss of any of the four
+required statements fails the test.
+
+**The guard was verified to fail on the defect it exists for.** Restoring the
+previous description locally and running the test by its exact name fails at the
+first assertion with the extracted description in the message:
+
+```text
+the replacement mutation must not describe itself as creating no distribution job:
+Replace a publisher's complete desired service configuration under optimistic
+concurrency control. Superuser only. This stores desired configuration: it
+creates no distribution job and triggers no dissemination
+```
+
+That failure also confirms the helper extracts the intended line rather than an
+adjacent one. The local reversion was discarded immediately; the committed
+description is the corrected one.
+
+**No behavioural test was modified**, and no existing SDL assertion was
+weakened. Two pre-existing guards independently corroborate that the structural
+declaration is untouched: `distribution_platform_tests.rs` asserts the exact
+rendered field declaration
+`replacePublisherServiceConfiguration("Complete desired service configuration to store" data: ReplacePublisherServiceConfigurationInput!): PublisherServiceConfiguration!`,
+and `the_additive_sdl_inventory_is_exactly_section_20_1` asserts the
+`MutationRoot` field set. Both pass unchanged.
+
+#### 12.3.2 Changelog
+
+`CHANGELOG.md` was **not** edited: it is outside this episode's three-path write
+budget. The pull request's required `## [Unreleased]` entry for BE-04 already
+exists from the implementation episodes, so the repository's `check-changelog`
+control is satisfied by the pull request as a whole, which is what that control
+measures. No new entry was added and none was removed.
+
+---
+
 ## 13. ADR-0008 compliance
 
 The seven approved shared conventions are enumerated as exactly seven and are
@@ -2203,6 +2560,16 @@ automatic production rollback procedure.
    connection, which the single blocking closure propagates identically for all
    three statements through one `?` chain. There is no separate fixture that
    fails only L2 or only L3.
+10. **Three further places still carry BE-03-era "no distribution job" wording**,
+    found while correcting the mutation description and left unchanged because
+    they are outside that correction's authorized three-path write budget:
+    the coordinator's doc comment at
+    `model/publisher_service_configuration/crud.rs:75`, the module doc comment at
+    `model/publisher_service_configuration/mod.rs:11`, and the public
+    `BackCatalogueBehaviour` enum description. Section 18.1 assesses each. Only
+    the third is public, and none is the mutation description the Codex finding
+    named. Whether any warrants a separate bounded task is a decision for the
+    reviewer, not for this episode.
 
 The previous item 6 — the report statement-count divergence from section 17.4 —
 is **removed rather than rewritten**, because the corrected implementation
@@ -2252,10 +2619,12 @@ Reconciliation-specific confirmations:
   submitted, no workflow was dispatched and nothing was merged. The
   reconciliation changed the branch only; live pull-request lifecycle state is
   the GitHub record.
-- **The public GraphQL contract did not change.** The generated SDL at the
-  reconciled head hashes to
+- **The reconciliation changed the public GraphQL contract in no way, not even
+  in metadata.** The generated SDL at the reconciled head hashes to
   `38820a24f7c1b1bac8f6ddc5286efd55dd7ece5f0155806ca4720f228ec93140`, byte-identical
-  to the pre-reconciliation head recorded in section 10.2.
+  to the pre-reconciliation head recorded in section 10.2. This is a statement
+  about the reconciliation only; the later GraphQL-description episode changes
+  that hash, and section 10.2.1 records the current value.
 - **All validation ran against disposable local services.** The one database
   created for CLI migration evidence was created for that run and dropped after
   it.
@@ -2351,6 +2720,57 @@ Current-control review-remediation confirmations (section 1.9):
 - **PR #799 is untouched.**
 - **Exactly one commit and exactly one push.**
 
+GraphQL-description remediation confirmations (section 1.10):
+
+- **This episode changed exactly three files** — `thoth-api/src/graphql/mutation.rs`,
+  `thoth-api/src/graphql/distribution_job_tests.rs` and this report — and no
+  other file in the repository (section 4.6).
+- **No runtime behaviour changed.** The only change in `mutation.rs` is one
+  `#[graphql(description = …)]` string literal. No signature, body, helper,
+  authorization check, input, return type, `Context` field or job-creation
+  plumbing changed, and no statement or expression differs anywhere in the
+  workspace.
+- **No migration, `schema.rs`, model, CRUD, policy, manifest, workflow,
+  `CHANGELOG.md`, tracker, `BE-04.md`, ADR, `contracts.md`, repository-map or
+  `thoth-client` change**, and no migration execution against any environment,
+  shared or production database. The suite's own disposable local database and
+  Redis were the only services used.
+- **The public GraphQL contract changed in description metadata only, and that
+  is stated rather than denied.** The generated SDL hash moves from
+  `38820a24…` to `340caaa3…`; the two artifacts differ in exactly one quoted
+  description line and are otherwise byte-identical (section 10.2.1).
+- **The structural GraphQL schema is unchanged**: same mutation name, argument,
+  argument type, defaults, return type, nullability, mutation set, query fields,
+  types, enums, authorization behaviour, errors and generated client
+  operations. This is deliberately **not** classified as a structural schema
+  change.
+- **Every consumer verdict in section 10.7 remains `REMAINS COMPATIBLE`**, on
+  evidence rather than by assumption: descriptions are not part of any
+  operation's syntax or of any generated type. `thoth-pub/baboon` in particular
+  remains compatible, and **no downstream repository was modified or contacted**.
+- **The false statement is gone from the contract.** `creates no distribution
+  job` no longer appears in any GraphQL description. It survives in this report
+  and in BE-03's own records only as clearly labelled historical or
+  BE-03-scoped text, never as current BE-04 contract evidence, and a regression
+  test now fails if it returns (section 12.3).
+- **No existing test or assertion was weakened, skipped or deleted.** The
+  episode's only test change is one added SDL test and its one added helper.
+- **The complete local gate was re-run**, not carried over, because this
+  episode creates a new source commit on a HIGH-risk task (section 12.3).
+- **Neither Codex review thread was replied to or resolved**, and no issue,
+  comment, reaction, assignment, PR body, title, base, state, reviewer request
+  or review was mutated by this agent. The control-plane exceptions of section
+  1.10.1 were not this agent's actions and are not retroactively authorized by
+  their acceptance.
+- **No manual CI action, no merge, no deployment, no IdP/role/credential
+  action, no worker deployment, no `THOTH_DISTRIBUTION_JOB_CREATION`
+  `OFF -> ON`, no pilot, no dissemination, no external platform call, no
+  production access, no release or tag publication**, and no registry or
+  package publication other than the single normal automatic `staging-pr-*`
+  image caused by its one authorized push.
+- **PR #799 is untouched.**
+- **Exactly one commit and exactly one push.**
+
 ---
 
 ## 18. Agent self-assessment and suggested review focus
@@ -2418,3 +2838,49 @@ cheapest high-value checks are:
 14. **That this episode really is documentation-only.** The single-command check
     is that `git diff --name-only baab3149… HEAD` returns exactly the two
     Markdown files of section 1.9 and nothing else.
+
+For the GraphQL-description remediation episode (section 1.10), the cheapest
+high-value checks are:
+
+15. **That the corrected description is true of the code, clause by clause.**
+    Read it against sections 7.2, 7.4 and 7.5 and against
+    `model/publisher_service_configuration/crud.rs`: that a newly *activated*
+    `AUTOMATIC_PUSH` destination is the creating case and a *repaired* or
+    unchanged one is not, that the job and its targets are written inside the
+    same transaction as the configuration, that the disabled case rolls the
+    whole transaction back rather than committing without the job, and that
+    nothing in the sentence implies dissemination.
+16. **That the change really is description-only.** The single-command check is
+    that `git diff fd85ea20… HEAD -- thoth-api/src/graphql/mutation.rs` is one
+    changed line inside a string literal, and that
+    `git diff --name-only fd85ea20… HEAD` returns exactly the three paths of
+    section 4.6.
+17. **That the SDL evidence reproduces.** Rebuild the artifact
+    (`touch thoth-client/build.rs && cargo build --workspace`) and confirm
+    `shasum -a 256 thoth-client/assets/schema.graphql` is `340caaa3…`, and that
+    substituting the previous description line back reproduces `38820a24…`
+    (section 10.2.1). A cached build does **not** rewrite the artifact, so the
+    `touch` matters.
+18. **That the regression test would actually fail on the defect.** Restore the
+    old description locally and confirm
+    `the_replacement_mutation_description_states_its_conditional_job_creation`
+    fails, then discard the change.
+
+#### 18.1 Adjacent stale wording found but deliberately not changed
+
+Searching the branch for the corrected phrase surfaced three further places
+where BE-03-era wording reads as stale under BE-04. **All three are outside this
+episode's three-path write budget and outside the Codex finding that authorized
+it, so none was changed.** None is public GraphQL contract evidence: none is
+reachable through schema introspection, and the corrected mutation description
+is the only thing a client or operator reads. They are recorded here so the
+reviewer can decide whether any deserves a separate bounded task.
+
+| # | Location | Current wording | Assessment |
+|---:|---|---|---|
+| 1 | `thoth-api/src/model/publisher_service_configuration/crud.rs:75`, the doc comment on `replace_publisher_service_configuration` | "It creates no distribution job and triggers no dissemination." | **Stale, and self-contradictory within its own doc block.** Lines 56–62 of the same comment already state that `BE-04` extends the coordinator's transaction in place to create durable job rows atomically. This is the clearest of the three and the closest internal analogue of the Codex finding, but it is a Rust doc comment on a `pub(crate)` function — not a public description, not in the SDL, and not part of any contract a consumer reads |
+| 2 | `thoth-api/src/model/publisher_service_configuration/mod.rs:11` | "`BE-03` owns desired configuration only. It creates no distribution job, no job target and no job attempt…" | **Defensible as written**, because it is explicitly an ownership statement about `BE-03`, and the durable job entities are owned by `model/distribution_job`. It reads oddly beside `BE-04`'s in-transaction extension, so it is listed for completeness rather than asserted to be wrong |
+| 3 | `thoth-api/src/model/publisher_distribution_platform/mod.rs`, the `BackCatalogueBehaviour` enum description, which **is** public: "How a destination is expected to receive a publisher's existing back catalogue. Descriptive metadata only: no job or upload is created" | as quoted | **Arguably stale, and the only public one.** The clause was accurate for BE-02/BE-03 and is narrowly still defensible — the classification itself is metadata and creates nothing by being read or stored — but under BE-04 activating an `AUTOMATIC_PUSH` destination does create a job, so a reader may take the clause more broadly than it is meant. It was **not** changed: the authorizing finding names `replacePublisherServiceConfiguration` only, and the write budget excludes this file |
+
+No change was made to any of the three. Flagging them is not a request to widen
+this episode.

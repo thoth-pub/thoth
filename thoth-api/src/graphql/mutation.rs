@@ -182,7 +182,7 @@ impl MutationRoot {
     }
 
     #[graphql(
-        description = "Replace a publisher's complete desired service configuration under optimistic concurrency control. Superuser only. This stores desired configuration: it creates no distribution job and triggers no dissemination"
+        description = "Replace a publisher's complete desired service configuration under optimistic concurrency control. Superuser only. Newly activating an AUTOMATIC_PUSH destination also creates that activation's durable distribution job and targets atomically in the same transaction, while automatic distribution job creation is enabled; while it is disabled such a replacement fails and rolls back in full rather than committing the activation without its job. No other change creates a job, and this mutation performs no dissemination."
     )]
     fn replace_publisher_service_configuration(
         context: &Context,

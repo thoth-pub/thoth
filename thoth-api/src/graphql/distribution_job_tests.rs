@@ -982,6 +982,84 @@ fn the_additive_sdl_inventory_is_exactly_section_20_1() {
     }
 }
 
+/// The rendered SDL description attached to one `MutationRoot` field.
+///
+/// Juniper renders a field description as a quoted line immediately preceding
+/// the field declaration, so the description is the last line before it. The
+/// surrounding quotes are stripped; a field rendered without a description
+/// fails loudly rather than returning a declaration line that would silently
+/// satisfy an absence assertion.
+fn mutation_field_description<'a>(sdl: &'a str, field_declaration: &str) -> &'a str {
+    let mutation = sdl_block(sdl, "type MutationRoot {");
+    let declaration = format!("\n  {field_declaration}");
+    let line = mutation
+        .split_once(declaration.as_str())
+        .unwrap_or_else(|| panic!("`MutationRoot` must declare `{field_declaration}`"))
+        .0
+        .lines()
+        .next_back()
+        .expect("a declared field is preceded by at least one line")
+        .trim();
+
+    line.strip_prefix('"')
+        .and_then(|body| body.strip_suffix('"'))
+        .unwrap_or_else(|| {
+            panic!("`{field_declaration}` must carry a rendered description, found `{line}`")
+        })
+}
+
+#[test]
+fn the_replacement_mutation_description_states_its_conditional_job_creation() {
+    let sdl = create_schema().as_sdl();
+    let description = mutation_field_description(&sdl, "replacePublisherServiceConfiguration(");
+
+    // The defect this guards. BE-03's description survived into BE-04 stating
+    // that the mutation creates no distribution job, which stopped being true
+    // the moment BE-04 made a qualifying activation create one inside this very
+    // transaction. A caller reading only introspection would have been told the
+    // opposite of the mutation's most consequential side effect.
+    assert!(
+        !description.contains("creates no distribution job"),
+        "the replacement mutation must not describe itself as creating no \
+         distribution job: {description}"
+    );
+
+    // Conditional, atomic durable-job creation: which activation creates a job,
+    // that it is durable, that it is committed with the configuration rather
+    // than after it, and that it happens only while creation is enabled.
+    for required in [
+        "AUTOMATIC_PUSH",
+        "durable distribution job",
+        "atomically in the same transaction",
+        "while automatic distribution job creation is enabled",
+    ] {
+        assert!(
+            description.contains(required),
+            "the description must state `{required}`: {description}"
+        );
+    }
+
+    // Fail-closed: while creation is disabled the qualifying replacement is
+    // refused whole. Nothing here may read as "commits, minus the job".
+    for required in ["while it is disabled", "fails and rolls back in full"] {
+        assert!(
+            description.contains(required),
+            "the description must state the fail-closed behaviour `{required}`: {description}"
+        );
+    }
+
+    // The two statements the correction must not lose: creation is conditional,
+    // not universal, and BE-04 still disseminates nothing.
+    assert!(
+        description.contains("No other change creates a job"),
+        "the description must not imply every configuration change creates a job: {description}"
+    );
+    assert!(
+        description.contains("performs no dissemination"),
+        "the accurate no-dissemination statement must survive the correction: {description}"
+    );
+}
+
 // ==========================================================================
 // 25.12  Report semantics, filters and statement counts
 // ==========================================================================
