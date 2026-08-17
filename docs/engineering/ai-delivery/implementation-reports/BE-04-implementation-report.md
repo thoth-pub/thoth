@@ -19,7 +19,7 @@ Authority condition: this report records what was implemented and measured. It
 makes no approval decision. Live review, merge-authorization and merge evidence
 is the GitHub pull-request record (`ADR-0005`).
 
-This report covers **four** authorized episodes on one branch, and none
+This report covers **five** authorized episodes on one branch, and none
 supersedes another as history:
 
 1. the original bounded implementation, authorized against the **baseline**
@@ -33,9 +33,14 @@ supersedes another as history:
    `develop @ ec7868a4…` and corrects stale documentation. It is what sections
    marked *remediation* record, and it changed **no runtime behaviour**
    (section 4.5);
-4. this **final evidence-only correction**, authorized on issue #821 comment
+4. the **evidence-only correction**, authorized on issue #821 comment
    [5302513784](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302513784)
-   from exact PR #816 head `470d894e…` (section 1.8).
+   from exact PR #816 head `470d894e…` (section 1.8);
+5. this **current-control review remediation**, from exact PR #816 head
+   `baab3149…`, which makes the durable tracker merge-stable and records the
+   cross-repository assessment of `thoth-pub/baboon` after Baboon became a
+   verified consumer in `contracts.md`. It is documentation and control only
+   (section 1.9).
 
 Episode 3's implementation, source and documentation work was authorized. **A
 specific authorization violation occurred inside it**: two pushes beyond its
@@ -62,12 +67,12 @@ corrected result. It does not rewrite the original episode out of the record.
 | Repository | `thoth-pub/thoth` |
 | Workflow | `STANDARD` — one bounded task, one slice branch, one pull request; no programme integration branch |
 | Base branch | `develop` |
-| Authorized base commit | `ec7868a4a44b3d52da5638975995bb66a488b3b4` — the base the remediation was authorized against on issue #821 |
-| Actual base commit | `ec7868a4a44b3d52da5638975995bb66a488b3b4`, incorporated by ordinary `--no-ff` merge; **equal to the authorized base**, and an ancestor of the head (`git merge-base --is-ancestor`) |
+| Authorized base commit | `6f192ea6d7188e1ddef492b14903845cb8dde8d8` — the exact `develop` required for the current-control episode (section 1.9). The earlier episodes' bases are recorded in sections 1.3, 1.4 and 1.5 |
+| Actual base commit | `6f192ea6d7188e1ddef492b14903845cb8dde8d8`; **equal to the required `develop`**, and an ancestor of the head (`git merge-base --is-ancestor` succeeds). It was incorporated by the ordinary merge `baab3149…`, which pre-dates this episode |
 | PR target | `develop` |
 | Programme integration branch | none |
 | Task branch | `feature/publisher-services/be-04` |
-| Head commit before this episode | `b72a6376d91afd4e23e56a61f7a8d5a77f7558b8` |
+| Head commit before this episode | `baab3149711a5fc5f40b2da98d31fbc6a10ce8e8` |
 | Head commit | the exact head recorded on PR #816 after this episode's push; it is the SHA the fresh independent review must be taken against, and is deliberately not transcribed here (`ADR-0005`) |
 | Pull request | [#816](https://github.com/thoth-pub/thoth/pull/816), target `develop` |
 | Expected branch deletion after merge | YES |
@@ -188,11 +193,12 @@ rebased or referenced by any change in this branch.
 
 ### 1.7 Authority history
 
-Four distinct authorizations apply to this branch. Each is recorded because
-authorization is granted action-by-action and is **not transitive** (root
-`AGENTS.md` section 6): none of these authorizes anything another one covers,
-and none of them authorizes merge, deployment, migration execution or
-production activation.
+**Six** distinct authorizations apply to this branch, alongside one
+process-exception acceptance (row 5) that is deliberately **not** an
+authorization. Each is recorded because authorization is granted
+action-by-action and is **not transitive** (root `AGENTS.md` section 6): none of
+these authorizes anything another one covers, and none of them authorizes merge,
+deployment, migration execution or production activation.
 
 | # | Authority | Where | Covers | Still valid as |
 |---:|---|---|---|---|
@@ -201,7 +207,8 @@ production activation.
 | 3 | Review-remediation authority | owning issue [#821](https://github.com/thoth-pub/thoth/issues/821), bound to PR #816 head `b72a6376…` and `develop @ ec7868a4…` | episode 3: the ordinary merge of exact `ec7868a4…`, bounded corrections to stale BE-04 source documentation and to the implementation report/control records under current doctrine, local/disposable validation, ordinary commits, and **one** push to the existing branch | the authority under which episode 3 was performed. Its one-push limit was **exceeded** — see section 3.1 |
 | 4 | Automatic staging-image publication authority | issue #821 comment [5302276182](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302276182) | **only** the automatic `publish-to-dockerhub` pull-request workflow side effect **of the authorized push**, including its normal `staging-pr-*` image publication to `ghcr.io/thoth-pub/thoth` | narrow and non-transitive. It authorized the publication caused by push 1; it did **not** extend to the publications caused by pushes 2 and 3 (section 3.1.1) |
 | 5 | CTO process-exception acceptance | issue #821 comment [5302513784](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302513784) | acceptance of the two already-occurred unauthorized pushes and their two additional automatic `staging-pr-*` publications, with the risk accepted and no registry cleanup required | **not** an authorization. It accepts an already-occurred violation after the fact and explicitly does **not** authorize it retroactively (section 3.1.2) |
-| 6 | Final evidence-only remediation authority | issue #821 comment [5302513784](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302513784), bound to PR #816 head `470d894e…` | episode 4: read inspection, edits to **this report only**, one ordinary commit, exactly one push, and the single normal automatic `staging-pr-*` publication that push causes | the authority under which episode 4 was performed (section 1.8) |
+| 6 | Evidence-only remediation authority | issue #821 comment [5302513784](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302513784), bound to PR #816 head `470d894e…` | episode 4: read inspection, edits to **this report only**, one ordinary commit, exactly one push, and the single normal automatic `staging-pr-*` publication that push causes | the authority under which episode 4 was performed (section 1.8) |
+| 7 | Current-control review-remediation authority | control-plane instruction for the current episode, bound to PR #816 head `baab3149…` and to `develop @ 6f192ea6…`, under the standing BE-04 control authorization on owning issue [#821](https://github.com/thoth-pub/thoth/issues/821) | episode 5: read inspection, edits to **exactly two** Markdown files — the tracker and this report — one ordinary commit, exactly one push, and the single normal automatic `staging-pr-*` publication that push causes | the authority under which episode 5 was performed (section 1.9) |
 
 No authorization exists for merge of PR #816, deployment, environment or
 production migration execution or rollback, identity-provider changes, role
@@ -216,7 +223,7 @@ than absorbed into this paragraph.
 Live review, approval and merge state for PR #816 is the GitHub record and is
 deliberately not transcribed into this file (`ADR-0005`).
 
-### 1.8 Final evidence-only correction episode
+### 1.8 Evidence-only correction episode
 
 | Item | Value |
 |---|---|
@@ -237,6 +244,29 @@ deliberately not transcribed into this file (`ADR-0005`).
 This episode changed **no** BE-04 implementation behaviour and no file other
 than this report.
 
+### 1.9 Current-control review-remediation episode
+
+| Item | Value |
+|---|---|
+| Purpose | two bounded corrections: (a) a Codex `P1` review finding that the durable tracker described BE-04 in transient workflow terms that merging PR #816 would immediately falsify, contrary to `docs/engineering/AGENTS.md` section 1.1; and (b) the cross-repository evidence gap created when `thoth-pub/baboon` was registered in `contracts.md` as a verified consumer of the Thoth GraphQL and metadata-export contracts **after** this report's consumer matrix was written (section 10.7) |
+| Starting head, verified before any edit | `baab3149711a5fc5f40b2da98d31fbc6a10ce8e8`, equal to `origin/feature/publisher-services/be-04` and to PR #816's head (`OPEN`, `isDraft: false`, `mergedAt: null`, base `develop`) |
+| What that head is | an ordinary merge of `develop @ 6f192ea6…` into the branch, authored by `ja573` on 2026-08-17. It was **not** created by this agent; it is this episode's authorized starting state |
+| `origin/develop`, verified before any edit | `6f192ea6d7188e1ddef492b14903845cb8dde8d8`, and an ancestor of the starting head (`git merge-base --is-ancestor` succeeds). This episode performs **no** merge and **no** `develop` incorporation of its own |
+| Codex review thread | [`PRRT_kwDODkn0bc6ZzLGA`](https://github.com/thoth-pub/thoth/pull/816#discussion_r3796456236), inline comment `3796456236` on `docs/publisher-services/task-status.md`, verified `isResolved: false` and `isOutdated: false` at the starting head |
+| Working tree at start | clean |
+| Manual write budget | **exactly two existing files**: `docs/publisher-services/task-status.md` and `docs/engineering/ai-delivery/implementation-reports/BE-04-implementation-report.md` |
+| New-file budget | **NONE** |
+| Delete / move / rename budget | **NONE** |
+| Authorized repository actions | repository/GitHub read inspection; edits to the two files above; **one** ordinary commit; **exactly one** ordinary push |
+| Authorized automatic side effect | the single normal pull-request CI cycle caused by that push, including the one normal `staging-pr-*` publication to `ghcr.io/thoth-pub/thoth` |
+| Explicitly excluded | all source, runtime, test, migration and generated-contract changes; migration execution; `CHANGELOG.md`, `BE-04.md`, ADR, workflow, manifest, `contracts.md` and repository-map edits; `thoth-pub/baboon` and every other repository; PR body/title/base/state mutation; marking ready; reviewer request; review submission; reply to or resolution of the Codex thread; issue/comment mutation; manual CI dispatch, rerun or cancellation; a second push; force-push, amend, rebase or squash; merge; deployment; IdP, role or credential actions; worker deployment; `OFF -> ON`; pilot; dissemination; external platform calls; production access; release or tag publication; any other registry or package publication; and any action on PR #799 |
+| Validation | documentation-only, so Cargo tests, migrations and runtime validation were **deliberately not re-run**: the previously reviewed source is unchanged by this episode |
+| Runtime / specification / GraphQL / migration / cross-repository source effect | **NONE** in every case |
+| Head after this episode | recorded on the pull request, not transcribed here — `ADR-0005` owns live final-head and CI evidence |
+
+This episode changed **no** BE-04 implementation behaviour, no source file, and
+no file other than the two Markdown control records above.
+
 ---
 
 ## 2. Scope confirmation
@@ -254,13 +284,16 @@ mutation-guard change, no deployment, no production migration execution and no
 production access. `thoth-app` is not modified and is not a member of this
 workspace. DIS-02 is not implemented.
 
-**Out-of-scope changes made: NONE**, in any of the three episodes.
+**Out-of-scope changes made: NONE**, in any episode.
 
 The review remediation added no scope of its own. It is bounded to
 incorporating the authorized `develop` base, correcting stale documentation in
 the one authorized source file, bringing this report and the control records
 under current doctrine, completing the cross-repository impact assessment
-(section 10.7), and re-running the local gate. No architectural or runtime
+(section 10.7), and re-running the local gate. The current-control review
+remediation (section 1.9) likewise added no scope of its own: it is bounded to
+making the durable tracker merge-stable and to recording the `thoth-pub/baboon`
+cross-repository assessment, in exactly two Markdown files. No architectural or runtime
 redesign was performed, and the two Addendum 01 corrections that had already
 passed source review — the NULL-safe attempt-error `CHECK` and the first-level
 composite loader with its 5/6/3/4 per-chunk arithmetic — were neither reopened
@@ -302,15 +335,27 @@ Review-remediation episode, all additive on top of the published history:
 | `4cd424b1` | `docs(publisher-services): repair the BE-04 tracker row` — the collapsed-column repair and the first version of section 3.1 |
 | `470d894e` | `docs(publisher-services): correct the BE-04 push-count disclosure` — the section 3.1 wording correction |
 
-Final evidence-only episode (section 1.8), one commit:
+Evidence-only episode (section 1.8), one commit:
 
 | SHA | Subject |
 |---|---|
-| _(this file's own commit)_ | `docs(publisher-services): record BE-04 process exception` — the authorization-evidence corrections of sections 3.1, 4.3.1, 4.4, 5.1 and 17, which cannot record its own SHA |
+| `12133d70` | `docs(publisher-services): record BE-04 process exception` — the authorization-evidence corrections of sections 3.1, 4.3.1, 4.4, 5.1 and 17 |
+
+Current-control review-remediation episode (section 1.9), one commit. Its
+authorized starting head `baab3149` is an ordinary merge of `develop @
+6f192ea6…` into the branch, authored by `ja573` and created **before** this
+episode began; it is this episode's starting state and is **not** this agent's
+commit:
+
+| SHA | Subject |
+|---|---|
+| `baab3149` | `Merge branch 'develop' into feature/publisher-services/be-04` — starting state, not authored by this agent |
+| _(this file's own commit)_ | `docs(publisher-services): make BE-04 control state merge-stable` — the tracker merge-stability correction and the `thoth-pub/baboon` cross-repository assessment, which cannot record its own SHA |
 
 No commit was amended, rebased, squashed or force-pushed in any episode. The
-pre-reconciliation head `6356ac1c`, the pre-remediation head `b72a6376` and the
-pre-correction head `470d894e` all remain ancestors of the branch.
+pre-reconciliation head `6356ac1c`, the pre-remediation head `b72a6376`, the
+pre-correction head `470d894e` and the current-control starting head `baab3149`
+all remain ancestors of the branch.
 
 ### 3.1 Authorization violation: one authorized push, two unauthorized pushes
 
@@ -568,10 +613,21 @@ and 4.1) or one of the four authorized remediation paths above. The review
 remediation changed no file outside its four-path budget, created no file and
 deleted, moved or renamed nothing.
 
-The final evidence-only episode's budget was narrower still — this report
+The evidence-only episode's budget was narrower still — this report
 alone — and it too holds: `git diff --name-only 470d894e…` returns exactly
 `docs/engineering/ai-delivery/implementation-reports/BE-04-implementation-report.md`,
 with no new, deleted, moved or renamed file.
+
+The current-control episode's budget is exactly two existing Markdown files
+(section 1.9), and it holds: `git diff --name-only baab3149…` returns exactly
+
+```text
+docs/engineering/ai-delivery/implementation-reports/BE-04-implementation-report.md
+docs/publisher-services/task-status.md
+```
+
+with no new, deleted, moved or renamed file, no source file and no
+`CHANGELOG.md` change.
 
 The write budget was never the thing exceeded. The one authorization violation
 on this branch is the push count of section 3.1.
@@ -581,26 +637,26 @@ on this branch is the push count of section 3.1.
 Authorization is action-by-action and not transitive. What each episode's
 authorization covered, and what was actually done:
 
-| Action | Reconciliation: authorized / used | Remediation: authorized / used | Final evidence-only: authorized / used |
-|---|---|---|---|
-| repository/GitHub read inspection | yes / yes | yes / yes | yes / **yes** |
-| source/worktree modification, bounded | yes / yes — section 4.1 | yes / yes — the four paths in section 4.2 | yes, **this report only** / **yes — this report only** |
-| new file creation | not needed / **no** | **no** (budget NONE) / **no** | **no** (budget NONE) / **no** |
-| file deletion, move or rename | no / **no** | **no** / **no** | **no** / **no** |
-| branch creation | not needed / **no** | not needed / **no** — the existing branch was reused | **no** / **no** |
-| commit | yes / yes | yes / yes — one merge commit and additive commits (section 3) | **one** / **one** |
-| push to `feature/publisher-services/be-04` | yes / yes | **one** / **three** — **1 authorized + 2 UNAUTHORIZED** (section 3.1) | **one** / **one** |
-| pull-request creation or body/title/base/state update | **no** / **no** | **no** / **no** | **no** / **no** |
-| issue/comment mutation | **no** / **no** | **no** / **no** | **no** / **no** |
-| manual CI dispatch, rerun or cancel | **no** / **no** | **no** / **no** | **no** / **no** |
-| provider/runtime read | **no** / **no** | **no** / **no** | **no** / **no** |
-| provider/runtime write | **no** / **no** | **no** / **no** | **no** / **no** |
-| migration execution | disposable only / disposable only | disposable only / disposable only — a database created for the run and dropped after it | **no** / **no** — documentation-only episode |
-| release, tag or publication | **no** / **no** | **no** / **no** — no release or tag was published; the automatic `staging-pr-*` registry writes are CI side effects of pushes, classified in section 3.1.1 | **no** / **no** |
-| merge of PR #816 | **no** / **no** | **no** / **no** | **no** / **no** |
-| deployment | **no** / **no** | **no** / **no** | **no** / **no** |
-| production activation | **no** / **no** | **no** / **no** | **no** / **no** |
-| other | — | none | none |
+| Action | Reconciliation: authorized / used | Remediation: authorized / used | Evidence-only: authorized / used | Current-control: authorized / used |
+|---|---|---|---|---|
+| repository/GitHub read inspection | yes / yes | yes / yes | yes / **yes** | yes / **yes** |
+| source/worktree modification, bounded | yes / yes — section 4.1 | yes / yes — the four paths in section 4.2 | yes, **this report only** / **yes — this report only** | yes, **two Markdown files only** / **yes — exactly those two** |
+| new file creation | not needed / **no** | **no** (budget NONE) / **no** | **no** (budget NONE) / **no** | **no** (budget NONE) / **no** |
+| file deletion, move or rename | no / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| branch creation | not needed / **no** | not needed / **no** — the existing branch was reused | **no** / **no** | **no** / **no** — the existing branch was reused |
+| commit | yes / yes | yes / yes — one merge commit and additive commits (section 3) | **one** / **one** | **one** / **one** |
+| push to `feature/publisher-services/be-04` | yes / yes | **one** / **three** — **1 authorized + 2 UNAUTHORIZED** (section 3.1) | **one** / **one** | **one** / **one** |
+| pull-request creation or body/title/base/state update | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| issue/comment mutation | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** — no reply to and no resolution of the Codex thread |
+| manual CI dispatch, rerun or cancel | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| provider/runtime read | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| provider/runtime write | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| migration execution | disposable only / disposable only | disposable only / disposable only — a database created for the run and dropped after it | **no** / **no** — documentation-only episode | **no** / **no** — documentation-only episode |
+| release, tag or publication | **no** / **no** | **no** / **no** — no release or tag was published; the automatic `staging-pr-*` registry writes are CI side effects of pushes, classified in section 3.1.1 | **no** / **no** | **no** / **no** — other than the one automatic `staging-pr-*` CI side effect of the authorized push |
+| merge of PR #816 | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| deployment | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| production activation | **no** / **no** | **no** / **no** | **no** / **no** | **no** / **no** |
+| other | — | none | none | none |
 
 #### 4.3.1 Unauthorized actions performed
 
@@ -635,7 +691,8 @@ Disposition:
 - **no registry cleanup is required**, and none is pending.
 
 No unauthorized action occurred in the original implementation episode, in the
-reconciliation episode, or in this final evidence-only episode.
+reconciliation episode, in the evidence-only episode, or in the current-control
+review-remediation episode of section 1.9.
 
 One distinction matters for attribution. The control plane had already created
 issue #821, linked it to #765, updated PR #816's body and recorded the
@@ -662,14 +719,16 @@ was published; and no image was deployed. Every publication below is an
 automatic consequence of a push, never a manually initiated action. If normal
 CI fails, that is reported as a finding — it is not manually rerun.
 
-**AUTHORIZED AUTOMATIC EFFECT.** The `staging-pr-*` publication caused by the
-review remediation's **authorized** push (push 1, head `88d71dc8`), and the
-single `staging-pr-*` publication caused by this final evidence-only episode's
-one authorized push. The first is authorized by issue #821 comment
-[5302276182](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302276182),
-the second by comment
-[5302513784](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302513784).
-Neither is a deployment, a production activation, a release or a tag
+**AUTHORIZED AUTOMATIC EFFECTS.** Three, one per authorized push: the
+`staging-pr-*` publication caused by the review remediation's **authorized**
+push (push 1, head `88d71dc8`), authorized by issue #821 comment
+[5302276182](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302276182);
+the single publication caused by the evidence-only episode's one authorized
+push, authorized by comment
+[5302513784](https://github.com/thoth-pub/thoth/issues/821#issuecomment-5302513784);
+and the single publication caused by the current-control episode's one
+authorized push, authorized by that episode's control-plane instruction
+(section 1.9). None is a deployment, a production activation, a release or a tag
 publication: each publishes a staging image built from the pull request, and
 nothing consumes it automatically.
 
@@ -793,7 +852,8 @@ pushes and their two extra publications remain unauthorized in this record.
 
 No deviation broadened the write budget, the task scope or the architecture,
 and no deviation occurred in the original implementation episode, the
-reconciliation episode, or this final evidence-only episode.
+reconciliation episode, the evidence-only episode, or the current-control
+review-remediation episode of section 1.9.
 
 ---
 
@@ -1629,9 +1689,11 @@ The shared compatibility evidence, from which every row below follows:
    an unselected new field costs nothing (section 11.1 item 4 measures this:
    a selection reaching neither job field issues no `distribution_job%`
    statement at all).
-5. **This remediation changed the SDL not at all.** It is a documentation-only
-   episode (sections 4.2 and 4.5), so the generated SDL is identical to the
-   already-produced BE-04 candidate's, whose hash is recorded in section 10.2.
+5. **Neither remediation episode changed the SDL at all.** Both the review
+   remediation and the current-control remediation of section 1.9 are
+   documentation-only (sections 4.2, 4.5 and 1.9), so the generated SDL is
+   identical to the already-produced BE-04 implementation's, whose hash is
+   recorded in section 10.2.
 
 | # | Consumer | Contract consumed | Verdict | Reason |
 |---:|---|---|---|---|
@@ -1642,13 +1704,71 @@ The shared compatibility evidence, from which every row below follows:
 | 5 | `thoth-export-server` (internal, same repository) | GraphQL schema via the internal `thoth-client` Rust crate | **REMAINS COMPATIBLE** | In-workspace and reviewed in the same PR, so not a cross-repository concern. `thoth-client/assets/queries.graphql` is **unchanged** (section 10.6); its 144 tests and the crate's 4 unit plus 6 doc tests execute and pass in both workspace profiles (section 12) |
 | 6 | `thoth-pub/metrics-dashboard` | public GraphQL schema, verified at `config/index.ts` (`NEXT_PUBLIC_THOTH_API_URL ?? 'https://api.thoth.pub/graphql'`) | **REMAINS COMPATIBLE** | It calls the public API directly today. Points 2–4 apply unchanged: nothing it queries was removed, retyped or made stricter. Its future protected Metrics/BFF data path is unimplemented architecture and does not alter this assessment, exactly as `contracts.md` section 2.1 requires |
 | 7 | `thoth-pub/metrics-widget` | public GraphQL schema, verified at `src/shared/config/index.ts` (`VITE_THOTH_API_URL ?? 'https://api.thoth.pub/graphql'`) | **REMAINS COMPATIBLE** | Same as row 6. Its separate package-interface contract with `thoth-pyramid` (`contracts.md` section 2.4) is a `metrics-widget` -> Pyramid dependency that BE-04 does not touch in either direction |
-| 8 | `thoth-pub/thoth-sphinx` | planned Thoth GraphQL client | **NOT A CURRENT CONSUMER** | `contracts.md` section 3 records that Sphinx has **no implementation, CI or runtime**, and its row in section 2.1 is `UNVERIFIED`. It is a future consumer only, so no compatibility action and no downstream task is required today. It is deliberately **not** recorded as `REMAINS COMPATIBLE`, because there is nothing live to be compatible |
+| 8 | `thoth-pub/baboon` | public GraphQL schema **and** the metadata export API, verified at `.github/workflows/library-marc-feeds.yml` (`THOTH_GRAPHQL_URL: https://api.thoth.pub/graphql`, `THOTH_EXPORT_BASE_URL: https://export.thoth.pub`), consumed by `src/thoth_graphql.rs` and `src/marc_export.rs` | **REMAINS COMPATIBLE** | Both halves of its contract are untouched; the full evidence is enumerated immediately below. Added during the current-control review remediation (section 1.9), after Baboon became a verified consumer in `contracts.md` |
+| 9 | `thoth-pub/thoth-sphinx` | planned Thoth GraphQL client | **NOT A CURRENT CONSUMER** | `contracts.md` section 3 records that Sphinx has **no implementation, CI or runtime**, and its row in section 2.1 is `UNVERIFIED`. It is a future consumer only, so no compatibility action and no downstream task is required today. It is deliberately **not** recorded as `REMAINS COMPATIBLE`, because there is nothing live to be compatible |
+
+**`thoth-pub/baboon`: verdict REMAINS COMPATIBLE, with its reasoning stated in
+full.** Baboon was registered in `contracts.md` (evidence date 2026-08-16) as a
+verified consumer of both contracts owned by this repository **after** BE-04's
+implementation and its earlier consumer matrix were written. This assessment was
+therefore **added during the current-control review remediation of section 1.9**,
+and it is deliberately **not** claimed to have been performed during the original
+implementation. `contracts.md` section 2.1 and
+`repository-map/repositories/baboon.md` both require an explicit upstream impact
+analysis against Baboon for any breaking or semantically significant change to
+schema, nullability, enum values, authorization semantics, pagination, export
+formats, or export availability. Assessed against each:
+
+1. **BE-04's public GraphQL change is additive** — section 10.2's unified diff is
+   144 added lines against exactly two removed lines, and both removals are
+   re-renderings of existing queries that gained optional arguments.
+2. **No existing GraphQL field is removed.**
+3. **No existing field type is changed incompatibly** — no existing field's type
+   changed at all.
+4. **No existing nullability is tightened** — the single field added to an
+   existing type, `PublisherServiceConfigurationSummary.latestBackCatalogueJob`,
+   is itself **nullable**, and no existing field's nullability changed.
+5. **No existing required argument is introduced on an existing field** — the two
+   added arguments, `jobStatuses` and `withoutBackCatalogueJob`, are both
+   optional.
+6. **No existing argument default is changed incompatibly** — no pre-existing
+   argument default was altered; `jobStatuses` renders as
+   `[DistributionJobStatus!] = []` and `withoutBackCatalogueJob` as a nullable
+   `Boolean` with no default, so for both, absent and `null` mean "no filter".
+7. **BE-04 does not change the metadata export format.** It adds no export,
+   alters no `thoth-export-server` output, and leaves
+   `thoth-client/assets/queries.graphql` unchanged (section 10.6), so the bytes
+   `src/marc_export.rs` receives are unchanged.
+8. **BE-04 does not change metadata-export availability semantics.** No
+   withdrawal, unsubscription, gating or suppression rule is added or altered, so
+   the export-availability property Baboon's deleted-title batches depend on —
+   the reason it caches the last exported record rather than re-exporting a
+   withdrawn or unsubscribed work — is untouched. Nothing in BE-04 changes which
+   works can be exported.
+9. **BE-04 does not modify the existing GraphQL discovery fields Baboon depends
+   on** in `src/thoth_graphql.rs`; every BE-04 surface is new, and no existing
+   discovery field, argument or pagination behaviour changed.
+10. **The new `DISSEMINATION_WORKER` authorization governs new worker operations
+    only.** It is **declared**, not created or granted (section 9.3), it applies
+    solely to the four new worker mutations, and it changes no authorization
+    semantics on any surface Baboon calls.
+
+**Conclusion: no `thoth-pub/baboon` repository source change and no downstream
+Baboon task is required for BE-04.** Baboon was **not modified**, and no pull
+request, workflow dispatch or other action was taken in that repository — which
+matters particularly there, because opening or updating a Baboon pull request has
+an automatic production SFTP side effect (`baboon.md`, workflow class B). No
+breaking or semantically significant effect was found, so no `STOP / BLOCKED`
+condition applied.
 
 `thoth-pub/thoth-strapi` is assessed and excluded on evidence rather than by
 omission: `contracts.md` section 2.2 records it as a Strapi 4 CMS that is **not
 a Thoth API consumer** — no Thoth GraphQL client dependency exists in its
 manifest — and its contract with Pyramid is a content/ID-linkage contract that
-BE-04 does not touch.
+BE-04 does not touch. `thoth-pub/cc-license` is likewise excluded on evidence:
+`contracts.md` section 2.5 records it as a crate this repository **consumes**
+(`cc_license` in `thoth-export-server`), not a consumer of any contract BE-04
+changes, and BE-04 neither bumps nor touches that dependency.
 
 **No downstream repository task is created**, because no consumer requires a
 change; `operating-model.md` section 4.1 item 3 is satisfied by recording the
@@ -2185,7 +2305,7 @@ Remediation-specific confirmations:
   repository-map entries.
 - **PR #799 is untouched** by every episode.
 
-Final evidence-only episode confirmations (section 1.8):
+Evidence-only episode confirmations (section 1.8):
 
 - **This episode changed exactly one file**, this report, and no other file in
   the repository.
@@ -2200,6 +2320,36 @@ Final evidence-only episode confirmations (section 1.8):
   image caused by its one authorized push.
 - **Exactly one commit and exactly one push**, both authorized by comment
   `5302513784`.
+
+Current-control review-remediation confirmations (section 1.9):
+
+- **This episode changed exactly two files** — `docs/publisher-services/task-status.md`
+  and this report — and no other file in the repository.
+- **No source, runtime, test, migration, generated-contract, `CHANGELOG.md`,
+  `BE-04.md`, ADR, workflow, manifest, `contracts.md` or repository-map edit**,
+  and no migration execution. No `develop` merge was performed by this episode:
+  `baab3149…` pre-dates it and is its authorized starting state.
+- **The prior process-exception history is preserved unchanged.** The one
+  authorized push, the two unauthorized pushes, their two unauthorized automatic
+  `staging-pr-*` publications, the CTO's acceptance, the absence of retroactive
+  authorization and the absence of any cleanup requirement all remain recorded
+  exactly as sections 3.1, 3.1.1, 3.1.2, 4.3.1 and 4.4 state them. This episode
+  neither softened nor reversed that record.
+- **The `thoth-pub/baboon` assessment is honestly dated.** It is recorded as
+  added during this episode, after Baboon became a verified consumer in
+  `contracts.md`, and is **not** claimed to have been performed during the
+  original implementation.
+- **No downstream repository was touched.** `thoth-pub/baboon` was read only
+  through this repository's own repository-map records; no Baboon pull request,
+  workflow dispatch, secret access or external write occurred.
+- **No PR metadata mutation, no issue or comment mutation, no reply to the Codex
+  review thread and no resolution of it, no manual CI, no merge, no deployment,
+  no IdP/role/credential action, no worker action, no `OFF -> ON`, no pilot, no
+  dissemination, no external platform call, no production access, no release or
+  tag publication**, and no registry or package publication other than the single
+  normal automatic `staging-pr-*` image caused by its one authorized push.
+- **PR #799 is untouched.**
+- **Exactly one commit and exactly one push.**
 
 ---
 
@@ -2251,5 +2401,20 @@ are:
 11. **The cross-repository matrix** (section 10.7), particularly rows 4 and 5 —
     that the standalone Python `thoth-pub/thoth-client` and the internal Rust
     `thoth-client` crate are assessed as the two distinct things `contracts.md`
-    section 1 requires — and row 8, that `thoth-sphinx` is recorded as a future
+    section 1 requires — and row 9, that `thoth-sphinx` is recorded as a future
     consumer rather than as compatible.
+
+For the current-control review-remediation episode (section 1.9), the
+cheapest high-value checks are:
+
+12. **That the tracker is now merge-stable.** Read
+    `docs/publisher-services/task-status.md` twice — once as if PR #816 were
+    still open, once as if it had just merged — and confirm no sentence becomes
+    false in either reading, so that merging requires no corrective commit.
+13. **That the `thoth-pub/baboon` assessment rests on evidence** (section 10.7,
+    row 8 and the ten enumerated points), particularly point 8: that
+    export-availability semantics really are untouched, since that is the
+    property Baboon's deleted-title batches depend on.
+14. **That this episode really is documentation-only.** The single-command check
+    is that `git diff --name-only baab3149… HEAD` returns exactly the two
+    Markdown files of section 1.9 and nothing else.
