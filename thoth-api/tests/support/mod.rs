@@ -10,6 +10,7 @@ use fs2::FileExt;
 use serde_json::Value;
 use thoth_api::db::{init_pool, run_migrations, PgPool};
 use thoth_api::graphql::{create_schema, Context, GraphQLRequest};
+use thoth_api::model::distribution_job::DistributionJobCreation;
 use thoth_api::storage::{create_cloudfront_client, create_s3_client, CloudFrontClient, S3Client};
 use zitadel::actix::introspection::IntrospectedUser;
 
@@ -98,7 +99,13 @@ pub async fn execute_graphql(
 ) -> Value {
     let schema = create_schema();
     let (s3_client, cloudfront_client) = test_clients();
-    let ctx = Context::new(pool, user, s3_client, cloudfront_client);
+    let ctx = Context::new(
+        pool,
+        user,
+        s3_client,
+        cloudfront_client,
+        DistributionJobCreation::default(),
+    );
 
     let request_json = match variables {
         Some(vars) => serde_json::json!({ "query": query, "variables": vars }),

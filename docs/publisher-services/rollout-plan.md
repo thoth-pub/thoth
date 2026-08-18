@@ -1,0 +1,521 @@
+# Publisher Services Rollout Plan
+
+Status: PROPOSED CONTROLLED SEQUENCE
+Owner: CTO
+Production activation: explicit CTO approval required
+
+## 1. Safety principles
+
+- Add schema and APIs before changing live behaviour.
+- Keep automatic job creation inactive initially.
+- Audit and backfill before strict enforcement or cutover.
+- Run legacy and API configuration in comparison mode.
+- Fail closed.
+- Pilot one bounded publisher/platform activation.
+- Observe before cleanup.
+- Preserve rollback until reconciliation proves stability.
+
+## 2. Stage 0 - Control foundation
+
+Required:
+
+- P0-01 documents and master issue;
+- ADR-0001 approved;
+- ADR-0002 approved;
+- repository/branch readiness recorded;
+- task specifications and review assignments.
+
+Achieved evidence:
+
+- PR #764 merged into `develop` as
+  `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06`;
+- master issue [#765](https://github.com/thoth-pub/thoth/issues/765) exists and
+  links every programme task;
+- P0-01 `CLOSED`: closeout PR
+  [#767](https://github.com/thoth-pub/thoth/pull/767) (reviewed content head
+  `d72137893ddea512c0d05c81d310eb59d045cd2b`) was independently `APPROVED` and
+  merged into `develop` as `bac598e32abbd0d7e69ff467c82945ee00df02ba` on
+  2026-07-27, making the repository the authoritative P0-01 closure record;
+- issue #765 synchronized on 2026-07-27 as an external mirror of the completed
+  repository closeout; issue #765 remains open;
+- `ADR-0002` platform domain boundaries approved by the CTO on 2026-07-27
+  (approval PR [#769](https://github.com/thoth-pub/thoth/pull/769)); this removes
+  one shared-ADR dependency and does not unlock implementation;
+- `ADR-0001` publisher package capabilities approved by Javi, CTO, on
+  2026-07-28 through approval PR
+  [#772](https://github.com/thoth-pub/thoth/pull/772); this removes the shared
+  decision dependency and does not unlock Publisher Services implementation.
+
+- historical record: the pre-amendment bounded
+  [`ADR-01` implementation specification](../engineering/ai-delivery/tasks/ADR-01.md)
+  at exact content head `820f9cfa22d284f8f347db338aa2461408f4ed12` was
+  independently reviewed and explicitly CTO-approved (Javi, CTO,
+  2026-08-05), and that historical content became repository-authoritative
+  when specification
+  [PR #780](https://github.com/thoth-pub/thoth/pull/780) merged. It defined
+  the read-only evidence scope, the required per-destination record, the
+  evidence classification, the decisions ADR-01 must produce and the exact
+  stop labels that fire when evidence is missing; it resolved no platform
+  question, finalized no inventory, and authorized no ADR-01
+  implementation. That historical approval remains valid and applies only
+  to the superseded pre-amendment content: the currently linked `ADR-01.md`
+  is amended content with status
+  `APPROVED AND REPOSITORY-AUTHORITATIVE - ADR-01 DELIVERY MERGED -
+  COMPLETE`. The ADR-01 implementation was separately authorized on
+  2026-08-06 and merged through PR
+  [#783](https://github.com/thoth-pub/thoth/pull/783).
+
+Amendment state (2026-08-06):
+
+- `ADR-01-SPEC-AMEND-01` corrected the ADR-01 specification content from the
+  CTO-approved [evidence ledger](adr-01-evidence-ledger.md); the corrected
+  content was independently reviewed (review `4873802457`, `APPROVED`) and
+  explicitly CTO-approved
+  ([PR #781](https://github.com/thoth-pub/thoth/pull/781) comment
+  `5203642323`, 2026-08-06) at exact content head
+  `1276c70a81e73f57d833eecb0e6886bd0cabf69e`; the approval-state head
+  `bdfded20e8cac65fcd7713b07d189052e0eba745` received final independent
+  review `4874093991` (`APPROVED`) and CTO merge authorization (review
+  `4874128610`), and PR #781 merged into `develop` as
+  `a511e01c83c5e805a75e0fdaeb3b5297c39ef291` on 2026-08-06T11:29:53Z,
+  making the corrected ADR-01 specification repository-authoritative; the
+  historical ADR-01 specification approval applies only to the superseded
+  pre-amendment content.
+
+ADR-01 implementation state (2026-08-07):
+
+- the ADR-01 implementation was separately and explicitly authorized by the
+  CTO on 2026-08-06 from exact base
+  `32123d363a6806d377ac322e3814fb432a803453` and delivered as a
+  documentation-only PR on `feature/publisher-services/adr-01`,
+  producing [ADR-0004](../engineering/decisions/ADR-0004-distribution-platform-inventory.md)
+  (`APPROVED AND REPOSITORY-AUTHORITATIVE`), the complete
+  [evidence matrix](adr-01-evidence-matrix.md) and the approved
+  [final inventory](platform-inventory.md); the content was independently
+  reviewed at exact head `44e6f821535fbee56c830dd6eda237fc6d06fbfd` (review
+  `4881233664`, `APPROVED`) and explicitly CTO-approved (review
+  `4881279067`, 2026-08-07); the approval-state head
+  `82874c2bfb0c211198252e4f4a0b669d31e14836` received final independent
+  review `4881832108` (`APPROVED`) and CTO merge authorization
+  `4881847699`; and PR [#783](https://github.com/thoth-pub/thoth/pull/783)
+  merged into `develop` as `299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb` on
+  2026-08-07T10:02:34Z. ADR-01 is `MERGED - COMPLETE`: an evidence and
+  architecture-decision task that is not runtime implemented and not
+  production ready. Post-merge control reconciliation is delivered by
+  [ADR-01-CLOSEOUT-01](../engineering/ai-delivery/tasks/ADR-01-CLOSEOUT-01.md).
+  `BE-02`'s ADR-01 dependency was satisfied by that merge.
+
+BE-02 implementation state (2026-08-12):
+
+- `BE-02` is `CLOSED`. The bounded implementation was delivered under its own
+  approved specification (PR [#788](https://github.com/thoth-pub/thoth/pull/788))
+  and separate explicit implementation authorization, and merged into `develop`
+  through implementation PR
+  [#805](https://github.com/thoth-pub/thoth/pull/805) as an inactive additive
+  foundation: the closed 17-value `DistributionPlatform` enum, the
+  `publisher_distribution_platform` relation, the assignment lifecycle, linked
+  OAPEN/DOAB normalization and four additive public GraphQL read surfaces. The
+  migration creates zero assignment rows. Merge authorized repository
+  integration only; deployment, environment and production migration execution,
+  assignment creation or backfill, distribution activation and
+  `OBSERVE`/`ENFORCE` remain separately gated and unauthorized. `BE-03`'s
+  `BE-02` dependency is satisfied.
+
+BE-03 implementation state:
+
+- `BE-03` is `CLOSED`. The bounded implementation was delivered under its own
+  approved specification (PR [#808](https://github.com/thoth-pub/thoth/pull/808))
+  and separate explicit implementation authorization, and merged into `develop`
+  through implementation PR
+  [#809](https://github.com/thoth-pub/thoth/pull/809) as an inactive additive
+  foundation: the canonical optimistic-concurrency configuration token, the
+  closed two-value configuration-source type, the append-only configuration
+  audit table, the single canonical service-configuration write coordinator,
+  the protected owner-and-superuser read, the superuser-only staff report and
+  replace mutation, and effective package capability exposure derived from
+  BE-01's code-owned capability mapping. The migration creates zero audit rows
+  and changes no package and no assignment. Merge authorized repository
+  integration only; deployment, environment and production migration execution,
+  package commercial backfill, assignment creation or backfill, durable job
+  creation, dissemination, distribution activation and `OBSERVE`/`ENFORCE`
+  remain separately gated and unauthorized. The `BE-03` dependency of `BE-04`,
+  `MIG-01`, `APP-01` and `APP-02` is satisfied; none of those tasks becomes
+  ready, and each retains its remaining blockers.
+
+Outstanding evidence:
+
+- applicable repository/branch-readiness decisions;
+- approved task specifications and review assignments for implementation work;
+- no unresolved control contradiction.
+
+Rollback:
+
+- revert documentation PR; no runtime effect.
+
+### 2.1 Coordinated task sequence
+
+The programme uses one fresh branch and one PR per task. There is no Publisher
+Services programme integration branch, and backend and app remain separate
+repositories with separate branches and PRs.
+
+Dependency graph — the programme's hard dependencies form a directed acyclic
+graph, not a single serial chain:
+
+```text
+ADR-01-SPEC -> ADR-01-SPEC-AMEND-01 -> ADR-01 -> BE-02
+
+BE-01 ----+
+          +-> BE-03 -> APP-01
+BE-02 ----+
+
+BE-03 ------------+
+BR-APP-01 --------+
+CG-11 closure ----+-> APP-01 implementation
+APP-01 spec ------+
+```
+
+Explicitly: `ADR-01-SPEC` and `ADR-01` do not depend on `BE-01`; the
+historical `ADR-01-SPEC -> ADR-01` relationship remains part of the record,
+but `ADR-01-SPEC-AMEND-01` is now an additional required gate: ADR-01
+implementation requires the approved and merged amendment plus fresh
+implementation authorization from a new exact `develop` base; `BE-02`
+depends on an approved and merged `ADR-01` implementation, not the ADR-01
+specification alone; `BE-03` depends on both `BE-01` and `BE-02`; `APP-01`
+implementation depends on `BE-03`, app branch readiness (`BR-APP-01` or an
+explicit CTO exception), CG-11 closure, and its own approved specification. A
+preferred delivery order may sequence independent tasks for coordination
+convenience, but a preferred order is not a hard dependency.
+
+Parallel `thoth-app` readiness track:
+
+```text
+BR-APP-01 branch-topology normalization
+a separately specified CG-11 CI closure task
+APP-01 specification
+APP-01 implementation
+```
+
+No authoritative task ID exists in current repository records for the CG-11 CI
+closure task; it is referred to by description until that task is specified and
+its ID is recorded.
+
+Controls:
+
+- `thoth-app` must not begin `APP-01` implementation until `BE-03` exposes the
+  approved protected API.
+- `BR-APP-01` is a separate HIGH-risk task because it changes Vercel production
+  and preview routing.
+- `APP-01` must use the verified app development branch after normalization, or
+  an explicit CTO exception.
+- Cross-repository compatibility is bound through exact commit SHAs and an exact
+  GraphQL schema contract, never through a moving branch name.
+
+### 2.2 Reserved BE-03/APP-01 GraphQL contract control
+
+Reserved and documented, not implemented. `BE-03` has merged, so this control
+now binds the later `APP-01` task.
+
+1. `BE-03` produced an exact generated GraphQL SDL at its reviewed
+   implementation head, merged through PR
+   [#809](https://github.com/thoth-pub/thoth/pull/809). This control binds
+   against that head, not against any later documentation change.
+2. `APP-01` records the exact `BE-03` commit SHA.
+3. `APP-01` code generation consumes a schema artifact pinned to that SHA, or a
+   preview API proven to expose that exact schema.
+4. `APP-01` must not generate against an unpinned moving test API and claim
+   exact compatibility.
+5. The app pull request records the backend PR, the backend SHA, the schema
+   artifact or preview identity, the generated-code diff and the
+   compatibility-test result.
+6. Backend contract availability precedes app merge.
+7. Backend additions remain backwards-compatible, so the existing app continues
+   to function unchanged.
+8. App rollback must not require removing the additive backend foundation.
+
+Changing the app's code-generation schema source requires its own approved task
+specification.
+
+## 3. Stage 1 - Licence and package foundations
+
+Deliver:
+
+- LIC-01;
+- BE-01;
+- LIC-02 only after production licence audit planning.
+
+Controls:
+
+- additive package column with OASIS default;
+- package capability mapping inactive outside read paths;
+- no platform assignment changes;
+- no strict licence enforcement before audit.
+
+Exit evidence:
+
+- migration and capability matrix tests;
+- supported licence inventory;
+- zero unexplained current licence values.
+
+Rollback:
+
+- disable consuming paths;
+- use forward repair for persisted package values if required;
+- do not delete audit evidence.
+
+## 4. Stage 2 - Platform and protected configuration
+
+Deliver:
+
+- ADR-01;
+- BE-02;
+- BE-03;
+- BE-04 storage/API with automatic job creation disabled.
+
+Controls:
+
+- the approved ADR-01 implementation merges before BE-02 finalizes
+  `DistributionPlatform` - satisfied by the merge of PR #783 as `299b0eff`;
+  BE-02 derives the enum only from the approved, repository-authoritative
+  final inventory, and only under its own approved bounded specification and
+  explicit implementation authorization;
+- every enum value has a code-owned descriptor, and no `OTHER` or fallback value
+  exists;
+- linked normalization in backend;
+- optimistic concurrency;
+- audit transaction;
+- job creation feature flag/config default off;
+- worker role cannot alter publisher configuration.
+
+Exit evidence:
+
+- authorization matrix;
+- linked-state tests;
+- job concurrency/lease tests;
+- no live jobs created by deployment.
+
+Rollback:
+
+- disable configuration mutation;
+- preserve additive tables;
+- revert client exposure.
+
+## 5. Stage 3 - Audit and backfill
+
+Deliver:
+
+- MIG-01 dry-run tool;
+- approved package mapping;
+- approved platform mapping;
+- licence normalization plan.
+
+Required dry-run output:
+
+- publisher count by package;
+- publisher/platform assignments;
+- unmatched legacy identifiers;
+- linked-state anomalies;
+- unsupported licences;
+- expected inserts/updates;
+- expected job count, which must be zero;
+- rerun result.
+
+Production run controls:
+
+- explicit input checksum/version;
+- no-job import mode;
+- transaction/batching plan;
+- bounded logs;
+- reconciliation queries;
+- backup/restore readiness;
+- CTO approval immediately before execution.
+
+Stop conditions:
+
+- any unexpected job;
+- unexplained publisher omission;
+- ambiguous platform mapping;
+- unsupported licence without disposition;
+- counts differ from reviewed dry run.
+
+Rollback:
+
+- transaction rollback where possible;
+- otherwise approved reverse/forward repair using captured before-state;
+- automatic jobs remain disabled.
+
+## 6. Stage 4 - Interfaces
+
+Deliver:
+
+- APP-01;
+- APP-02;
+- APP-03.
+
+Controls:
+
+- package read-only for publisher users;
+- superuser-only mutations/reports;
+- server result replaces optimistic linked-platform state;
+- generated GraphQL types pinned to the exact reviewed backend commit SHA under
+  the reserved contract control in section 2.2, never generated from an unpinned
+  moving test API;
+- app readiness controls satisfied: BR-APP-01 or an explicit CTO exception, and
+  the separately specified CG-11 CI closure task;
+- no frontend-owned capability or linked-platform matrix.
+
+Exit evidence:
+
+- authorization E2E tests;
+- concurrency failure UX;
+- CSV/report count parity;
+- API-backed licence option parity.
+
+Rollback:
+
+- hide/disable routes;
+- retain backend additive APIs;
+- no data rollback.
+
+## 7. Stage 5 - Dissemination comparison
+
+Deliver DIS-01 in modes:
+
+```text
+env
+compare
+api
+```
+
+Initial production mode:
+
+```text
+compare
+```
+
+Comparison report must show:
+
+- legacy publisher set;
+- API publisher set;
+- additions;
+- omissions;
+- linked-platform normalization;
+- unsupported platform descriptors;
+- duplicate adapter routes.
+
+Cutover gate:
+
+- differences resolved or explicitly approved;
+- API outages tested fail closed;
+- empty API assignment tested as no-op;
+- no fallback to all publishers/works;
+- rollback to `env` documented and exercised.
+
+Activation:
+
+- switch one pathway/platform at a time where practical;
+- CTO approval per high-risk cutover.
+
+## 8. Stage 6 - Back-catalogue worker pilot
+
+Deploy DIS-02 with:
+
+- schedule disabled or tightly bounded;
+- protected environment;
+- explicit worker identity;
+- low concurrency;
+- retry/backoff;
+- metrics and alerts;
+- no automatic job creation.
+
+Pilot:
+
+1. choose one publisher;
+2. choose one verified `AutomaticPush` platform;
+3. review eligible catalogue count;
+4. enable one activation/job;
+5. observe claim, attempts, adapter outcomes and completion;
+6. reconcile external state and Thoth locations;
+7. exercise retry or controlled failure;
+8. record decision.
+
+Do not pilot OAPEN/DOAB first unless linked multi-target behaviour is the explicit test objective.
+
+Rollback:
+
+- stop worker schedule;
+- revoke/disable worker role;
+- cancel pending pilot jobs;
+- restore legacy path;
+- reconcile partial external delivery.
+
+## 9. Stage 7 - General enablement
+
+Prerequisites:
+
+- successful pilot;
+- no unresolved P0/P1 findings;
+- acceptable comparison history;
+- alerting operational;
+- support/runbook ownership assigned.
+
+Enable:
+
+- automatic job creation for approved destinations;
+- scheduled worker;
+- controlled platform-by-platform adoption.
+
+Maintain:
+
+- legacy comparison or fallback;
+- reconciliation reports;
+- bounded concurrency;
+- activation audit.
+
+## 10. Stage 8 - Downstream services
+
+### OCLC KBART
+
+Enable EXP-01 after:
+
+- OCLC_KB enum approval;
+- publisher backfill reconciliation;
+- public output/privacy review.
+
+### OAI-PMH
+
+Begin OAI-01 only after:
+
+- BE-01 merged;
+- LIC-02 merged and enforced safely;
+- deferred branch divergence assessed;
+- fresh branch/port decision recorded;
+- complete package/licence/lifecycle test matrix.
+
+## 11. Stage 9 - Observation and cleanup
+
+Minimum observation record includes:
+
+- activation dates;
+- comparison differences;
+- failed/retried jobs;
+- stale leases;
+- unexpected external duplicates;
+- support incidents;
+- rollback events;
+- publisher configuration corrections.
+
+Cleanup requires:
+
+- E2E-01 approval;
+- stable observation period set by CTO;
+- no unresolved high-severity reconciliation issues;
+- explicit cleanup task and rollback assessment.
+
+Only then remove:
+
+- publisher-ID environment lists;
+- comparison mode;
+- duplicate licence lists;
+- superseded scripts/configuration.
+
+Cleanup is irreversible operational change and requires independent review plus CTO approval.

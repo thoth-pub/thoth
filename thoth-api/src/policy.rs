@@ -16,6 +16,46 @@ pub(crate) enum Role {
     PublisherUser,
     WorkLifecycle,
     CdnWrite,
+    /// The `BE-04`/`DIS-02` durable distribution worker
+    /// ([ADR-0008](../../docs/engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md)
+    /// section 3.2).
+    ///
+    /// This is a **Publisher-Services-specific** machine role with exactly three
+    /// permitted operations, not a generic service role. It is unscoped because
+    /// a back-catalogue worker genuinely operates across every publisher, which
+    /// is the only condition under which ADR-0008 section 3.1 permits an
+    /// unscoped machine role: a per-organisation grant would have to be
+    /// re-issued for every publisher and would silently skip the first
+    /// unenrolled one, which is a fail-*open* failure mode for coverage.
+    ///
+    /// It confers **no** publisher scope, no `CDN_WRITE` capability and no
+    /// Metrics permission, and `SUPERUSER` does not imply it.
+    DisseminationWorker,
+}
+
+/// The unscoped-role check, expressed once.
+///
+/// This trait is **private to this module** deliberately. It is the shared
+/// implementation of a key-presence check on `project_roles`, and nothing more:
+/// it is not a general service-role API, there is no `ServiceRole` type, no role
+/// registry and no machine-identity storage.
+///
+/// Sharing this implementation pattern between `SUPERUSER` and
+/// `DISSEMINATION_WORKER` says nothing about what either role may do. ADR-0008
+/// section 3.1 fixes that independently: `SUPERUSER` authority does not imply
+/// machine-role authority, and holding a machine role confers no administrative
+/// authority.
+trait UnscopedRoleAccess {
+    fn has_unscoped_role(&self, role: Role) -> bool;
+}
+
+impl UnscopedRoleAccess for IntrospectedUser {
+    fn has_unscoped_role(&self, role: Role) -> bool {
+        let role = role.as_ref();
+        self.project_roles
+            .as_ref()
+            .is_some_and(|roles| roles.contains_key(role))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -38,6 +78,13 @@ impl PublisherPermissions {
 pub(crate) trait UserAccess {
     fn is_superuser(&self) -> bool;
 
+    /// Whether the user holds the unscoped `DISSEMINATION_WORKER` project role.
+    ///
+    /// This is the one explicit guard predicate for that role. There is no role
+    /// inheritance anywhere in this module, so this is true only when the role
+    /// itself is present.
+    fn is_dissemination_worker(&self) -> bool;
+
     /// Returns true if the user has the given role scoped to the given ZITADEL organisation id.
     fn has_role_for_org(&self, role: Role, org_id: &str) -> bool;
 
@@ -52,10 +99,11 @@ pub(crate) trait UserAccess {
 
 impl UserAccess for IntrospectedUser {
     fn is_superuser(&self) -> bool {
-        let role = Role::Superuser.as_ref();
-        self.project_roles
-            .as_ref()
-            .is_some_and(|roles| roles.contains_key(role))
+        self.has_unscoped_role(Role::Superuser)
+    }
+
+    fn is_dissemination_worker(&self) -> bool {
+        self.has_unscoped_role(Role::DisseminationWorker)
     }
 
     fn has_role_for_org(&self, role: Role, org_id: &str) -> bool {
@@ -79,11 +127,18 @@ impl UserAccess for IntrospectedUser {
 
         let mut org_ids: HashSet<String> = HashSet::new();
 
-        // Collect org ids from all scoped project roles (excluding SUPERUSER).
-        // This is future-proof: adding a new publisher-scoped role automatically enables publisher selection.
-        let superuser_key = Role::Superuser.as_ref();
+        // Collect org ids from all scoped project roles, excluding the unscoped
+        // ones. This is future-proof: adding a new publisher-scoped role
+        // automatically enables publisher selection.
+        //
+        // `DISSEMINATION_WORKER` is excluded for the same reason `SUPERUSER` is:
+        // it is an unscoped project role, so any organisation key present under
+        // it is not a publisher the account may act for. Without this a
+        // worker-only account would appear to hold publisher organisations in
+        // the frontend switcher list, which it must not.
+        let unscoped_keys = [Role::Superuser.as_ref(), Role::DisseminationWorker.as_ref()];
         for (role_key, scoped) in project_roles {
-            if role_key == superuser_key {
+            if unscoped_keys.contains(&role_key.as_str()) {
                 continue;
             }
 
@@ -146,6 +201,31 @@ pub(crate) trait PolicyContext {
     fn require_superuser(&self) -> ThothResult<&IntrospectedUser> {
         let user = self.require_authentication()?;
         if user.is_superuser() {
+            Ok(user)
+        } else {
+            Err(ThothError::Unauthorised)
+        }
+    }
+
+    /// Require that the authenticated user holds the `DISSEMINATION_WORKER`
+    /// role.
+    ///
+    /// This is the one explicit guard for the three permitted worker
+    /// operations. It mirrors [`Self::require_superuser`] in shape and in
+    /// nothing else: `SUPERUSER` does **not** satisfy it, and this guard confers
+    /// no publisher scope, no administrative authority and no capability of any
+    /// other role. A principal that must genuinely act as both is granted both
+    /// roles explicitly, and may then exercise exactly the operations each is
+    /// independently allowed — which is a `BE-04` matrix decision and not a
+    /// general role-composition rule.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ThothError::Unauthorised`] if the user is not authenticated or
+    /// does not hold the role.
+    fn require_dissemination_worker(&self) -> ThothResult<&IntrospectedUser> {
+        let user = self.require_authentication()?;
+        if user.is_dissemination_worker() {
             Ok(user)
         } else {
             Err(ThothError::Unauthorised)
@@ -305,6 +385,86 @@ mod tests {
         assert_eq!(Role::PublisherUser.as_ref(), "PUBLISHER_USER");
         assert_eq!(Role::WorkLifecycle.as_ref(), "WORK_LIFECYCLE");
         assert_eq!(Role::CdnWrite.as_ref(), "CDN_WRITE");
+        assert_eq!(Role::DisseminationWorker.as_ref(), "DISSEMINATION_WORKER");
+    }
+
+    #[test]
+    fn is_dissemination_worker_checks_project_roles_key() {
+        let mut roles: HashMap<String, HashMap<String, String>> = HashMap::new();
+        roles.insert(
+            Role::DisseminationWorker.as_ref().to_string(),
+            HashMap::new(),
+        );
+
+        let user = mk_user(Some(roles));
+        assert!(user.is_dissemination_worker());
+
+        assert!(!mk_user(None).is_dissemination_worker());
+    }
+
+    #[test]
+    fn neither_superuser_nor_the_worker_role_implies_the_other() {
+        let mut superuser_roles: HashMap<String, HashMap<String, String>> = HashMap::new();
+        superuser_roles.insert(Role::Superuser.as_ref().to_string(), HashMap::new());
+        let superuser = mk_user(Some(superuser_roles));
+        assert!(superuser.is_superuser());
+        assert!(
+            !superuser.is_dissemination_worker(),
+            "SUPERUSER must not confer machine-role authority"
+        );
+
+        let mut worker_roles: HashMap<String, HashMap<String, String>> = HashMap::new();
+        worker_roles.insert(
+            Role::DisseminationWorker.as_ref().to_string(),
+            HashMap::new(),
+        );
+        let worker = mk_user(Some(worker_roles));
+        assert!(worker.is_dissemination_worker());
+        assert!(
+            !worker.is_superuser(),
+            "a machine role must not confer administrative authority"
+        );
+    }
+
+    #[test]
+    fn a_worker_only_account_holds_no_publisher_scope_or_permission() {
+        let mut roles: HashMap<String, HashMap<String, String>> = HashMap::new();
+        // ZITADEL may still carry an organisation key under an unscoped role;
+        // it is not a publisher this account may act for.
+        roles.insert(
+            Role::DisseminationWorker.as_ref().to_string(),
+            scoped("org-1"),
+        );
+        let user = mk_user(Some(roles));
+
+        assert!(
+            user.publisher_org_ids().is_empty(),
+            "a worker account must not appear to hold publisher organisations"
+        );
+        assert_eq!(
+            user.permissions_for_org("org-1"),
+            PublisherPermissions::default(),
+            "the worker role confers no publisher_admin, work_lifecycle or cdn_write capability"
+        );
+        assert_eq!(
+            user.permissions_for_org("org-2"),
+            PublisherPermissions::default()
+        );
+        assert!(!user.has_role_for_org(Role::PublisherUser, "org-1"));
+        assert!(!user.has_role_for_org(Role::CdnWrite, "org-1"));
+    }
+
+    #[test]
+    fn publisher_org_ids_still_collects_scoped_roles_alongside_the_worker_role() {
+        let mut roles: HashMap<String, HashMap<String, String>> = HashMap::new();
+        roles.insert(Role::PublisherUser.as_ref().to_string(), scoped("org-1"));
+        roles.insert(
+            Role::DisseminationWorker.as_ref().to_string(),
+            scoped("org-9"),
+        );
+
+        let user = mk_user(Some(roles));
+        assert_eq!(user.publisher_org_ids(), vec!["org-1".to_string()]);
     }
 
     #[test]

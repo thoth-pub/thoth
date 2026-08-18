@@ -42,6 +42,67 @@ pub fn port(default_value: &'static str, env_value: &'static str) -> Arg {
         .num_args(1)
 }
 
+/// Guard mode for the central GraphQL mutation request guard
+/// (`ADR-0006` section 4.12.6).
+///
+/// Exactly three values are exposed, and the default is `OFF`:
+///
+/// ```text
+/// OFF      evaluate nothing, reject nothing, emit nothing; loader store unavailable
+/// OBSERVE  evaluate as ENFORCE would but never reject;     loader store unavailable
+/// ENFORCE  reject a baseline-valid mutation whose executable top-level
+///          response key occurs more than once;             loader store may be used
+/// ```
+///
+/// Loader store availability is **derived** from this single value, so there is
+/// deliberately no separate store-enable argument: `OFF + store enabled` and
+/// `OBSERVE + store enabled` are unrepresentable.
+///
+/// Changing this away from `OFF` in production is a separately authorized
+/// activation, not a deployment detail.
+pub fn mutation_guard_mode() -> Arg {
+    Arg::new("mutation-guard-mode")
+        .long("mutation-guard-mode")
+        .value_name("THOTH_GRAPHQL_MUTATION_GUARD_MODE")
+        .env("THOTH_GRAPHQL_MUTATION_GUARD_MODE")
+        .default_value("OFF")
+        .value_parser(["OFF", "OBSERVE", "ENFORCE"])
+        .help("GraphQL mutation request guard mode: OFF, OBSERVE or ENFORCE")
+        .num_args(1)
+}
+
+/// Whether a qualifying platform activation may create a durable distribution
+/// job (`BE-04` specification section 9.3).
+///
+/// Exactly two values are exposed, and the default is `OFF`:
+///
+/// ```text
+/// OFF  a SUPERUSER_API configuration transaction that would produce a new
+///      activation requiring an onboarding job **fails closed** and rolls back
+///      in full; PullFeed, Manual, package-only, repair, disable and
+///      MIGRATION_BACKFILL writes remain permitted
+/// ON   the required durable job and its targets are created atomically inside
+///      that same configuration transaction
+/// ```
+///
+/// `OFF` deliberately does **not** mean "commit the activation, skip the job":
+/// that would strand the activation without an onboarding job for ever, because
+/// turning the switch on runs no sweep over existing rows.
+///
+/// The value is read once at process start; there is no reload path. Changing it
+/// away from `OFF` in a deployed environment is a separately authorized
+/// production activation, not a deployment detail.
+pub fn distribution_job_creation() -> Arg {
+    Arg::new("distribution-job-creation")
+        .long("distribution-job-creation")
+        .value_name("THOTH_DISTRIBUTION_JOB_CREATION")
+        .env("THOTH_DISTRIBUTION_JOB_CREATION")
+        .default_value("OFF")
+        .value_parser(["OFF", "ON"])
+        .help("Automatic durable distribution-job creation: OFF or ON")
+        .num_args(1)
+}
+
 pub fn key() -> Arg {
     Arg::new("key")
         .short('k')

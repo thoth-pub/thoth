@@ -24,6 +24,17 @@ lazy_static! {
         .arg(arguments::gql_url())
         .arg(arguments::key())
         .arg(arguments::zitadel_url())
+        // `init` dispatches into the same handler as `start graphql-api`
+        // (`src/bin/thoth.rs`), which reads `mutation-guard-mode`. Registering
+        // the argument here is what makes that read find it: without it, a
+        // release build silently resolved the default `OFF` and a debug build
+        // panicked on the unknown argument (`THOTH-GQL-OPS-02`).
+        .arg(arguments::mutation_guard_mode())
+        // Same reason as `mutation-guard-mode` above, for the same dispatch:
+        // `init` reaches the `graphql_api` handler, which reads
+        // `distribution-job-creation`. Registering it on only one production
+        // command path is the exact defect `THOTH-GQL-OPS-02` had to fix.
+        .arg(arguments::distribution_job_creation())
         .arg(arguments::aws_access_key_id())
         .arg(arguments::aws_secret_access_key())
         .arg(arguments::aws_region());
@@ -51,6 +62,22 @@ pub(super) fn migrate(arguments: &clap::ArgMatches) -> ThothResult<()> {
 pub(super) fn run_migrations(arguments: &clap::ArgMatches) -> ThothResult<()> {
     let database_url = arguments.get_one::<String>("db").unwrap();
     run_db_migrations(database_url)
+}
+
+/// The `init` sequence: run the database migrations **first**, and start the
+/// API only if they succeeded.
+///
+/// Generic over the two steps purely so that the ordering guarantee and the
+/// abort-on-migration-failure guarantee can be asserted without a database or a
+/// bound socket. The semantics are exactly those of the previous inline
+/// `run_migrations(arguments)?; start::graphql_api(arguments)`.
+pub(super) fn run_init<M, A>(run_migrations: M, start_api: A) -> ThothResult<()>
+where
+    M: FnOnce() -> ThothResult<()>,
+    A: FnOnce() -> ThothResult<()>,
+{
+    run_migrations()?;
+    start_api()
 }
 
 fn revert_migrations(arguments: &clap::ArgMatches) -> ThothResult<()> {

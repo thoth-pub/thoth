@@ -73,6 +73,381 @@ mod display_and_parse {
     }
 }
 
+mod package {
+    use super::*;
+
+    const ALL_PACKAGES: [ThothPackage; 4] = [
+        ThothPackage::Oasis,
+        ThothPackage::Obelisk,
+        ThothPackage::Sphinx,
+        ThothPackage::Pyramid,
+    ];
+
+    const ALL_CAPABILITIES: [PublisherCapability; 6] = [
+        PublisherCapability::OaiPmh,
+        PublisherCapability::MetricsCollect,
+        PublisherCapability::MetricsImport,
+        PublisherCapability::MetricsDashboard,
+        PublisherCapability::MetricsWidget,
+        PublisherCapability::MetricsOperasExport,
+    ];
+
+    // The approved capability matrix, row per package, column per capability in
+    // ALL_CAPABILITIES order: OAI_PMH, METRICS_COLLECT, METRICS_IMPORT,
+    // METRICS_DASHBOARD, METRICS_WIDGET, METRICS_OPERAS_EXPORT.
+    const EXPECTED_MATRIX: [(ThothPackage, [bool; 6]); 4] = [
+        (
+            ThothPackage::Oasis,
+            [false, false, false, false, false, false],
+        ),
+        (
+            ThothPackage::Obelisk,
+            [true, true, false, false, false, false],
+        ),
+        (ThothPackage::Sphinx, [true, true, true, true, true, true]),
+        (ThothPackage::Pyramid, [true, true, true, true, true, true]),
+    ];
+
+    #[test]
+    fn all_24_package_capability_pairs_match_approved_matrix() {
+        for (package, expected_row) in EXPECTED_MATRIX {
+            for (capability, expected) in ALL_CAPABILITIES.iter().zip(expected_row) {
+                assert_eq!(
+                    package.has_capability(*capability),
+                    expected,
+                    "{package} / {capability} should be {expected}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn has_capability_agrees_with_capabilities() {
+        for package in ALL_PACKAGES {
+            for capability in ALL_CAPABILITIES {
+                assert_eq!(
+                    package.has_capability(capability),
+                    package.capabilities().contains(&capability)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn capabilities_contain_no_duplicates() {
+        for package in ALL_PACKAGES {
+            let capabilities = package.capabilities();
+            for (index, capability) in capabilities.iter().enumerate() {
+                assert!(
+                    !capabilities[index + 1..].contains(capability),
+                    "{package} lists {capability} more than once"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn oasis_has_no_capability() {
+        assert!(ThothPackage::Oasis.capabilities().is_empty());
+    }
+
+    #[test]
+    fn obelisk_has_only_oai_pmh_and_metrics_collect() {
+        assert_eq!(
+            ThothPackage::Obelisk.capabilities(),
+            &[
+                PublisherCapability::OaiPmh,
+                PublisherCapability::MetricsCollect
+            ]
+        );
+    }
+
+    #[test]
+    fn sphinx_and_pyramid_capabilities_are_equivalent_and_complete() {
+        assert_eq!(
+            ThothPackage::Sphinx.capabilities(),
+            ThothPackage::Pyramid.capabilities()
+        );
+        assert_eq!(ThothPackage::Sphinx.capabilities(), &ALL_CAPABILITIES);
+    }
+
+    #[test]
+    fn package_default_is_oasis() {
+        let package: ThothPackage = Default::default();
+        assert_eq!(package, ThothPackage::Oasis);
+    }
+
+    #[test]
+    fn package_codes_are_exact_screaming_snake_case() {
+        use std::str::FromStr;
+        let expected = [
+            (ThothPackage::Oasis, "OASIS"),
+            (ThothPackage::Obelisk, "OBELISK"),
+            (ThothPackage::Sphinx, "SPHINX"),
+            (ThothPackage::Pyramid, "PYRAMID"),
+        ];
+        for (package, code) in expected {
+            assert_eq!(format!("{package}"), code);
+            assert_eq!(
+                serde_json::to_string(&package).unwrap(),
+                format!("{code:?}")
+            );
+            assert_eq!(
+                serde_json::from_str::<ThothPackage>(&format!("{code:?}")).unwrap(),
+                package
+            );
+            assert_eq!(ThothPackage::from_str(code).unwrap(), package);
+        }
+    }
+
+    #[test]
+    fn capability_codes_are_exact_screaming_snake_case() {
+        use std::str::FromStr;
+        let expected = [
+            (PublisherCapability::OaiPmh, "OAI_PMH"),
+            (PublisherCapability::MetricsCollect, "METRICS_COLLECT"),
+            (PublisherCapability::MetricsImport, "METRICS_IMPORT"),
+            (PublisherCapability::MetricsDashboard, "METRICS_DASHBOARD"),
+            (PublisherCapability::MetricsWidget, "METRICS_WIDGET"),
+            (
+                PublisherCapability::MetricsOperasExport,
+                "METRICS_OPERAS_EXPORT",
+            ),
+        ];
+        for (capability, code) in expected {
+            assert_eq!(format!("{capability}"), code);
+            assert_eq!(
+                serde_json::to_string(&capability).unwrap(),
+                format!("{code:?}")
+            );
+            assert_eq!(
+                serde_json::from_str::<PublisherCapability>(&format!("{code:?}")).unwrap(),
+                capability
+            );
+            assert_eq!(PublisherCapability::from_str(code).unwrap(), capability);
+        }
+    }
+
+    #[test]
+    fn no_alias_lowercase_or_other_value_is_accepted() {
+        use std::str::FromStr;
+        for invalid in ["oasis", "Oasis", "OTHER", "BASIC", "", "OASIS "] {
+            assert!(ThothPackage::from_str(invalid).is_err());
+            assert!(serde_json::from_str::<ThothPackage>(&format!("{invalid:?}")).is_err());
+        }
+        for invalid in ["oai_pmh", "OaiPmh", "OTHER", "METRICS", ""] {
+            assert!(PublisherCapability::from_str(invalid).is_err());
+            assert!(serde_json::from_str::<PublisherCapability>(&format!("{invalid:?}")).is_err());
+        }
+    }
+
+    #[test]
+    fn publisher_serialization_includes_package() {
+        let publisher = Publisher {
+            subscription_package: ThothPackage::Obelisk,
+            ..Default::default()
+        };
+        let serialized = serde_json::to_string(&publisher).unwrap();
+        assert!(serialized.contains("\"subscriptionPackage\":\"OBELISK\""));
+    }
+
+    #[test]
+    fn pre_be01_publisher_json_without_package_remains_readable() {
+        // Snapshot shape produced before subscription_package existed.
+        let legacy = r#"{
+            "publisherId": "00000000-0000-0000-0000-000000000001",
+            "publisherName": "Legacy Press",
+            "publisherShortname": null,
+            "publisherUrl": null,
+            "zitadelId": null,
+            "accessibilityStatement": null,
+            "accessibilityReportUrl": null,
+            "createdAt": "1970-01-01T00:00:00Z",
+            "updatedAt": "1970-01-01T00:00:00Z"
+        }"#;
+        let publisher: Publisher = serde_json::from_str(legacy).unwrap();
+        assert_eq!(publisher.publisher_name, "Legacy Press");
+        assert_eq!(publisher.subscription_package, ThothPackage::Oasis);
+    }
+
+    #[cfg(feature = "backend")]
+    #[test]
+    fn package_and_capability_graphql_enums_roundtrip_with_exact_codes() {
+        use crate::model::tests::assert_graphql_enum_roundtrip;
+        use juniper::{FromInputValue, InputValue, ToInputValue};
+
+        let package_codes = [
+            (ThothPackage::Oasis, "OASIS"),
+            (ThothPackage::Obelisk, "OBELISK"),
+            (ThothPackage::Sphinx, "SPHINX"),
+            (ThothPackage::Pyramid, "PYRAMID"),
+        ];
+        for (package, code) in package_codes {
+            assert_graphql_enum_roundtrip(package);
+            let input: InputValue = package.to_input_value();
+            assert_eq!(input, InputValue::scalar(code.to_string()));
+            let enum_input: InputValue = InputValue::enum_value(code);
+            assert_eq!(
+                ThothPackage::from_input_value(&enum_input).unwrap(),
+                package
+            );
+        }
+
+        let capability_codes = [
+            (PublisherCapability::OaiPmh, "OAI_PMH"),
+            (PublisherCapability::MetricsCollect, "METRICS_COLLECT"),
+            (PublisherCapability::MetricsImport, "METRICS_IMPORT"),
+            (PublisherCapability::MetricsDashboard, "METRICS_DASHBOARD"),
+            (PublisherCapability::MetricsWidget, "METRICS_WIDGET"),
+            (
+                PublisherCapability::MetricsOperasExport,
+                "METRICS_OPERAS_EXPORT",
+            ),
+        ];
+        for (capability, code) in capability_codes {
+            assert_graphql_enum_roundtrip(capability);
+            let input: InputValue = capability.to_input_value();
+            assert_eq!(input, InputValue::scalar(code.to_string()));
+            let enum_input: InputValue = InputValue::enum_value(code);
+            assert_eq!(
+                PublisherCapability::from_input_value(&enum_input).unwrap(),
+                capability
+            );
+        }
+    }
+}
+
+#[cfg(feature = "backend")]
+mod package_db {
+    use super::*;
+    use diesel::dsl::sql;
+    use diesel::prelude::*;
+    use diesel::sql_types::{Array, Text};
+
+    use crate::model::tests::assert_db_enum_roundtrip;
+    use crate::model::tests::db::{create_publisher, setup_test_db};
+    use crate::model::Crud;
+
+    #[test]
+    fn database_enum_values_and_order_are_exact() {
+        let (_guard, pool) = setup_test_db();
+        let mut connection = pool.get().expect("Failed to get DB connection");
+
+        let labels: Vec<String> = diesel::select(sql::<Array<Text>>(
+            "ARRAY(SELECT enumlabel FROM pg_enum \
+             JOIN pg_type ON pg_type.oid = pg_enum.enumtypid \
+             WHERE pg_type.typname = 'thoth_package' \
+             ORDER BY enumsortorder)",
+        ))
+        .get_result(&mut connection)
+        .expect("Failed to read thoth_package enum labels");
+
+        assert_eq!(labels, ["OASIS", "OBELISK", "SPHINX", "PYRAMID"]);
+    }
+
+    #[test]
+    fn subscription_package_column_is_non_null_with_oasis_default() {
+        let (_guard, pool) = setup_test_db();
+        let mut connection = pool.get().expect("Failed to get DB connection");
+
+        let is_nullable: String = diesel::select(sql::<Text>(
+            "(SELECT is_nullable::text FROM information_schema.columns \
+             WHERE table_schema = 'public' AND table_name = 'publisher' \
+             AND column_name = 'subscription_package')",
+        ))
+        .get_result(&mut connection)
+        .expect("Failed to read column nullability");
+        assert_eq!(is_nullable, "NO");
+
+        let column_default: String = diesel::select(sql::<Text>(
+            "(SELECT column_default::text FROM information_schema.columns \
+             WHERE table_schema = 'public' AND table_name = 'publisher' \
+             AND column_name = 'subscription_package')",
+        ))
+        .get_result(&mut connection)
+        .expect("Failed to read column default");
+        assert_eq!(column_default, "'OASIS'::thoth_package");
+    }
+
+    #[test]
+    fn db_enum_roundtrips_every_package_value() {
+        let (_guard, pool) = setup_test_db();
+        let cases = [
+            ("'OASIS'::thoth_package", ThothPackage::Oasis),
+            ("'OBELISK'::thoth_package", ThothPackage::Obelisk),
+            ("'SPHINX'::thoth_package", ThothPackage::Sphinx),
+            ("'PYRAMID'::thoth_package", ThothPackage::Pyramid),
+        ];
+        for (literal, expected) in cases {
+            assert_db_enum_roundtrip::<ThothPackage, crate::schema::sql_types::ThothPackage>(
+                pool.as_ref(),
+                literal,
+                expected,
+            );
+        }
+    }
+
+    #[test]
+    fn new_publisher_without_package_receives_oasis_database_default() {
+        let (_guard, pool) = setup_test_db();
+
+        // NewPublisher has no package field; the database default must apply.
+        let publisher = create_publisher(pool.as_ref());
+        assert_eq!(publisher.subscription_package, ThothPackage::Oasis);
+
+        let fetched = Publisher::from_id(pool.as_ref(), &publisher.publisher_id)
+            .expect("Failed to fetch publisher");
+        assert_eq!(fetched.subscription_package, ThothPackage::Oasis);
+    }
+
+    #[test]
+    fn database_rejects_null_package() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let mut connection = pool.get().expect("Failed to get DB connection");
+
+        let result = diesel::sql_query(format!(
+            "UPDATE publisher SET subscription_package = NULL \
+             WHERE publisher_id = '{}'",
+            publisher.publisher_id
+        ))
+        .execute(&mut connection);
+        assert!(result.is_err(), "NULL subscription_package was accepted");
+    }
+
+    #[test]
+    fn database_rejects_unknown_package_value() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let mut connection = pool.get().expect("Failed to get DB connection");
+
+        for invalid in ["'OTHER'", "'oasis'", "''"] {
+            let result = diesel::sql_query(format!(
+                "UPDATE publisher SET subscription_package = {invalid}::thoth_package \
+                 WHERE publisher_id = '{}'",
+                publisher.publisher_id
+            ))
+            .execute(&mut connection);
+            assert!(
+                result.is_err(),
+                "Unknown package value {invalid} was accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn history_snapshot_written_after_be01_contains_package() {
+        use crate::model::HistoryEntry;
+
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+
+        let history = publisher.new_history_entry("user-1");
+        let snapshot: String = serde_json::from_value(history.data).unwrap();
+        assert!(snapshot.contains("\"subscriptionPackage\":\"OASIS\""));
+    }
+}
+
 mod helpers {
     use super::*;
     use crate::model::{Crud, HistoryEntry};

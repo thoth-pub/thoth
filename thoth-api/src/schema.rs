@@ -86,6 +86,34 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "checksum_algorithm"))]
     pub struct ChecksumAlgorithm;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "thoth_package"))]
+    pub struct ThothPackage;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "distribution_platform"))]
+    pub struct DistributionPlatform;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "publisher_service_configuration_source"))]
+    pub struct PublisherServiceConfigurationSource;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "distribution_job_kind"))]
+    pub struct DistributionJobKind;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "distribution_job_status"))]
+    pub struct DistributionJobStatus;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "distribution_job_attempt_result"))]
+    pub struct DistributionJobAttemptResult;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "distribution_job_cancellation_reason"))]
+    pub struct DistributionJobCancellationReason;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -328,6 +356,64 @@ table! {
         user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::{
+        DistributionJobCancellationReason, DistributionJobKind, DistributionJobStatus,
+    };
+
+    distribution_job (distribution_job_id) {
+        distribution_job_id -> Uuid,
+        kind -> DistributionJobKind,
+        publisher_id -> Uuid,
+        work_id -> Nullable<Uuid>,
+        activation_id -> Uuid,
+        status -> DistributionJobStatus,
+        deduplication_key -> Text,
+        attempt_count -> Int4,
+        available_at -> Timestamptz,
+        claim_token -> Nullable<Uuid>,
+        claimed_by -> Nullable<Text>,
+        claimed_at -> Nullable<Timestamptz>,
+        lease_expires_at -> Nullable<Timestamptz>,
+        completed_at -> Nullable<Timestamptz>,
+        cancellation_reason -> Nullable<DistributionJobCancellationReason>,
+        last_error_code -> Nullable<Text>,
+        last_error_detail -> Nullable<Text>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::DistributionJobAttemptResult;
+
+    distribution_job_attempt (distribution_job_attempt_id) {
+        distribution_job_attempt_id -> Uuid,
+        distribution_job_id -> Uuid,
+        attempt_number -> Int4,
+        claim_token -> Uuid,
+        claimed_by -> Text,
+        started_at -> Timestamptz,
+        finished_at -> Nullable<Timestamptz>,
+        result -> Nullable<DistributionJobAttemptResult>,
+        error_code -> Nullable<Text>,
+        error_detail -> Nullable<Text>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::DistributionPlatform;
+
+    distribution_job_target (distribution_job_id, platform) {
+        distribution_job_id -> Uuid,
+        platform -> DistributionPlatform,
+        created_at -> Timestamptz,
     }
 }
 
@@ -602,6 +688,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::ThothPackage;
 
     publisher (publisher_id) {
         publisher_id -> Uuid,
@@ -611,8 +698,41 @@ table! {
         zitadel_id -> Nullable<Text>,
         accessibility_statement -> Nullable<Text>,
         accessibility_report_url -> Nullable<Text>,
+        subscription_package -> ThothPackage,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+        service_configuration_updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::DistributionPlatform;
+
+    publisher_distribution_platform (publisher_id, platform) {
+        publisher_id -> Uuid,
+        platform -> DistributionPlatform,
+        enabled -> Bool,
+        activation_id -> Uuid,
+        enabled_at -> Timestamptz,
+        disabled_at -> Nullable<Timestamptz>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::PublisherServiceConfigurationSource;
+
+    publisher_service_configuration_history (publisher_service_configuration_history_id) {
+        publisher_service_configuration_history_id -> Uuid,
+        publisher_id -> Uuid,
+        actor -> Text,
+        source -> PublisherServiceConfigurationSource,
+        before_state -> Jsonb,
+        after_state -> Jsonb,
+        created_at -> Timestamptz,
     }
 }
 
@@ -949,6 +1069,10 @@ joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
 joinable!(contribution_history -> contribution (contribution_id));
 joinable!(contributor_history -> contributor (contributor_id));
+joinable!(distribution_job -> publisher (publisher_id));
+joinable!(distribution_job -> work (work_id));
+joinable!(distribution_job_attempt -> distribution_job (distribution_job_id));
+joinable!(distribution_job_target -> distribution_job (distribution_job_id));
 joinable!(endorsement -> institution (author_institution_id));
 joinable!(endorsement -> work (work_id));
 joinable!(endorsement_history -> endorsement (endorsement_id));
@@ -977,7 +1101,9 @@ joinable!(price -> publication (publication_id));
 joinable!(price_history -> price (price_id));
 joinable!(publication -> work (work_id));
 joinable!(publication_history -> publication (publication_id));
+joinable!(publisher_distribution_platform -> publisher (publisher_id));
 joinable!(publisher_history -> publisher (publisher_id));
+joinable!(publisher_service_configuration_history -> publisher (publisher_id));
 joinable!(reference -> work (work_id));
 joinable!(reference_history -> reference (reference_id));
 joinable!(series -> imprint (imprint_id));
@@ -1012,6 +1138,9 @@ allow_tables_to_appear_in_same_query!(
     contribution_history,
     contributor,
     contributor_history,
+    distribution_job,
+    distribution_job_attempt,
+    distribution_job_target,
     endorsement,
     endorsement_history,
     file,
@@ -1033,7 +1162,9 @@ allow_tables_to_appear_in_same_query!(
     publication,
     publication_history,
     publisher,
+    publisher_distribution_platform,
     publisher_history,
+    publisher_service_configuration_history,
     reference,
     reference_history,
     series,

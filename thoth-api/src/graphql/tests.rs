@@ -41,6 +41,28 @@ use serde_json::Value as JsonValue;
 use std::str::FromStr;
 use uuid::Uuid;
 
+/// Drive Juniper's **async** execution path from a synchronous `#[test]`.
+///
+/// Async execution is the supported general GraphQL test execution shape
+/// (`ADR-0007` section 4.1); this bridge exists so the existing synchronous
+/// test callers migrate without individual rewrites. It must not be called
+/// from inside an already-running Tokio runtime: nesting `block_on` would
+/// panic deep inside Tokio or deadlock, so misuse fails explicitly here with
+/// an actionable message instead. Async tests should `.await`
+/// `juniper::execute` directly.
+fn block_on_graphql<F: std::future::Future>(future: F) -> F::Output {
+    assert!(
+        tokio::runtime::Handle::try_current().is_err(),
+        "block_on_graphql must not be called from inside a running Tokio runtime; \
+         await juniper::execute directly in async tests"
+    );
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("failed to build GraphQL test runtime")
+        .block_on(future)
+}
+
 fn execute_graphql(
     schema: &Schema,
     context: &Context,
@@ -48,12 +70,33 @@ fn execute_graphql(
     variables: Option<Variables>,
 ) -> JsonValue {
     let vars = variables.unwrap_or_default();
-    let (value, errors) = juniper::execute_sync(query, None, schema, &vars, context)
+    let (value, errors) = block_on_graphql(juniper::execute(query, None, schema, &vars, context))
         .expect("GraphQL execution failed");
     if !errors.is_empty() {
         panic!("GraphQL errors: {errors:?}");
     }
     serde_json::to_value(value).expect("Failed to serialize GraphQL response")
+}
+
+#[test]
+fn block_on_graphql_runs_juniper_async_execution_from_a_sync_test() {
+    let value = block_on_graphql(async { 41 + 1 });
+    assert_eq!(value, 42);
+}
+
+#[tokio::test]
+async fn block_on_graphql_fails_explicitly_inside_a_running_runtime() {
+    let outcome = std::panic::catch_unwind(|| block_on_graphql(async {}));
+    let panic = outcome.expect_err("nested-runtime misuse must fail explicitly");
+    let message = panic
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| panic.downcast_ref::<&str>().map(ToString::to_string))
+        .unwrap_or_default();
+    assert!(
+        message.contains("must not be called from inside a running Tokio runtime"),
+        "expected the explicit misuse message, got: {message}"
+    );
 }
 
 fn insert_var<T>(vars: &mut Variables, name: &str, value: T)
@@ -2839,9 +2882,14 @@ fn graphql_markup_mutations_accept_valid_jatsxml_but_reject_breaks_and_markup_li
         },
     );
     insert_var(&mut abstract_vars, "markup", MarkupFormat::PlainText);
-    let (_, abstract_errors) =
-        juniper::execute_sync(abstract_query, None, &schema, &abstract_vars, &context)
-            .expect("GraphQL execution should succeed with validation errors");
+    let (_, abstract_errors) = block_on_graphql(juniper::execute(
+        abstract_query,
+        None,
+        &schema,
+        &abstract_vars,
+        &context,
+    ))
+    .expect("GraphQL execution should succeed with validation errors");
     assert!(
         !abstract_errors.is_empty(),
         "Expected abstract validation error"
@@ -2868,9 +2916,14 @@ fn graphql_markup_mutations_accept_valid_jatsxml_but_reject_breaks_and_markup_li
         },
     );
     insert_var(&mut biography_vars, "markup", MarkupFormat::JatsXml);
-    let (_, biography_errors) =
-        juniper::execute_sync(biography_query, None, &schema, &biography_vars, &context)
-            .expect("GraphQL execution should succeed with validation errors");
+    let (_, biography_errors) = block_on_graphql(juniper::execute(
+        biography_query,
+        None,
+        &schema,
+        &biography_vars,
+        &context,
+    ))
+    .expect("GraphQL execution should succeed with validation errors");
     assert!(
         !biography_errors.is_empty(),
         "Expected biography validation error"
@@ -2909,7 +2962,7 @@ fn graphql_update_title_rejects_break_elements_for_jats_xml() {
     );
     insert_var(&mut vars, "markup", MarkupFormat::JatsXml);
 
-    let (_, errors) = juniper::execute_sync(query, None, &schema, &vars, &context)
+    let (_, errors) = block_on_graphql(juniper::execute(query, None, &schema, &vars, &context))
         .expect("GraphQL execution should succeed with validation errors");
     assert!(!errors.is_empty(), "Expected GraphQL validation error");
     assert!(!errors[0].error().message().is_empty());
@@ -3116,7 +3169,7 @@ fn graphql_create_publication_rejects_invalid_isbn_before_db_constraint() {
         },
     );
 
-    let (value, errors) = juniper::execute_sync(query, None, &schema, &vars, &context)
+    let (value, errors) = block_on_graphql(juniper::execute(query, None, &schema, &vars, &context))
         .expect("GraphQL execution should succeed with validation errors");
     assert!(!errors.is_empty(), "Expected GraphQL validation error");
     let message = errors[0].error().message();
@@ -3746,6 +3799,242 @@ fn graphql_mutations_cover_all() {
     );
 }
 
+// BE-01: the publisher package foundation must expose no public GraphQL
+// surface. See docs/engineering/ai-delivery/tasks/BE-01.md section 6.6.
+//
+// BE-03 deliberately makes `ThothPackage` and `PublisherCapability`
+// SDL-reachable for the first time, and only through the protected
+// `PublisherServiceConfiguration` type (BE-03 section 14.2). A blanket
+// "these strings must not appear anywhere in the SDL" assertion is therefore
+// intentionally false from BE-03 onwards. The security intent it encoded — that
+// no package or capability value is readable on the public `Publisher` type or
+// by an anonymous caller — is preserved below, and strengthened from a
+// whole-document string search into per-type assertions plus a reachability
+// assertion, because type reachability in the SDL is not value exposure.
+
+// The extraction these guards depend on is brace-balanced and string-aware, so
+// each guard inspects the **whole** declaration. See
+// `crate::graphql::sdl_support::sdl_block` for why a `split_once('}')`
+// extraction silently truncated the public `Publisher` type at `imprints`.
+use crate::graphql::sdl_support::sdl_block;
+
+#[test]
+fn the_public_publisher_type_exposes_no_package_capability_or_configuration_field() {
+    let schema = create_schema();
+    let sdl = schema.as_sdl();
+    let publisher_type = sdl_block(&sdl, "type Publisher {");
+
+    // Coverage precondition. `imprints` carries a nested object default, which
+    // the previous extraction treated as the end of the type; these two fields
+    // are declared after it. Asserting them here means the prohibitions below
+    // are known to have been applied to the whole declaration rather than to a
+    // truncated prefix of it.
+    for post_imprints_sentinel in ["contacts(", "distributionPlatforms:"] {
+        assert!(
+            publisher_type.contains(post_imprints_sentinel),
+            "guard coverage is incomplete: `{post_imprints_sentinel}` is declared after \
+             `imprints` but was not extracted: {publisher_type}"
+        );
+    }
+
+    for forbidden in [
+        "subscriptionPackage",
+        "ThothPackage",
+        "effectiveCapabilities",
+        "capabilities",
+        "PublisherCapability",
+        // No configuration-version field of any spelling.
+        "serviceConfiguration",
+        "configurationVersion",
+        "expectedUpdatedAt",
+        "serviceConfigurationUpdatedAt",
+    ] {
+        assert!(
+            !publisher_type.contains(forbidden),
+            "the public Publisher type must not expose `{forbidden}`: {publisher_type}"
+        );
+    }
+
+    // The publisher input types stay package-free too.
+    for input in ["input NewPublisher {", "input PatchPublisher {"] {
+        let block = sdl_block(&sdl, input);
+        assert!(!block.contains("subscriptionPackage"));
+        assert!(!block.contains("apabilit"));
+    }
+}
+
+#[test]
+fn package_and_capability_enums_are_sdl_reachable_only_through_protected_configuration() {
+    let schema = create_schema();
+    let sdl = schema.as_sdl();
+
+    // Both enums are reachable, exactly as BE-03 section 14.2 requires.
+    assert_eq!(sdl.matches("enum ThothPackage {").count(), 1);
+    assert_eq!(sdl.matches("enum PublisherCapability {").count(), 1);
+
+    // `PublisherCapability` is returned by exactly one field in the whole
+    // schema, and that field is on the protected configuration type.
+    let capability_fields: Vec<&str> = sdl
+        .lines()
+        .filter(|line| {
+            line.contains("PublisherCapability!]!") || line.contains(": PublisherCapability")
+        })
+        .collect();
+    assert_eq!(
+        capability_fields.len(),
+        1,
+        "exactly one field may return PublisherCapability, got: {capability_fields:?}"
+    );
+    assert!(capability_fields[0].contains("effectiveCapabilities: [PublisherCapability!]!"));
+    assert!(sdl_block(&sdl, "type PublisherServiceConfiguration {")
+        .contains("effectiveCapabilities: [PublisherCapability!]!"));
+
+    // Every `ThothPackage` reference is on the protected configuration type, in
+    // the superuser-only mutation input, or in a superuser-only report
+    // argument. Nothing else in the schema mentions the package.
+    assert!(sdl_block(&sdl, "type PublisherServiceConfiguration {")
+        .contains("subscriptionPackage: ThothPackage!"));
+    assert!(
+        sdl_block(&sdl, "input ReplacePublisherServiceConfigurationInput {")
+            .contains("subscriptionPackage: ThothPackage!")
+    );
+    for line in sdl.lines().filter(|line| line.contains("ThothPackage")) {
+        let is_enum_declaration = line.contains("enum ThothPackage {");
+        let is_protected_field = line.trim() == "subscriptionPackage: ThothPackage!";
+        let is_protected_argument = line.contains("publisherServiceConfigurations(")
+            || line.contains("publisherServiceConfigurationCount(");
+        assert!(
+            is_enum_declaration || is_protected_field || is_protected_argument,
+            "unexpected ThothPackage reference in the SDL: {line}"
+        );
+    }
+    assert_eq!(
+        sdl.matches("subscriptionPackage: ThothPackage!").count(),
+        2,
+        "exactly the protected type field and the superuser input field"
+    );
+}
+
+#[test]
+fn publisher_queries_reject_package_selection_for_all_callers() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+
+    let queries = [
+        "{ publishers(limit: 10) { publisherId subscriptionPackage } }",
+        "{ publishers(limit: 10) { publisherId capabilities } }",
+        "{ publisherCount(subscriptionPackage: \"OASIS\") }",
+    ];
+
+    let anonymous = test_db::test_context_anonymous(pool.clone());
+    let authenticated = test_db::test_context(pool.clone(), "ordinary-user");
+    let superuser = test_db::test_context_with_user(pool.clone(), test_db::test_superuser("su-1"));
+
+    for context in [&anonymous, &authenticated, &superuser] {
+        for query in queries {
+            let result = block_on_graphql(juniper::execute(
+                query,
+                None,
+                &schema,
+                &Variables::new(),
+                context,
+            ));
+            assert!(
+                result.is_err(),
+                "Query unexpectedly passed validation: {query}"
+            );
+        }
+    }
+}
+
+#[test]
+fn ordinary_publisher_inputs_reject_subscription_package() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+
+    let create = r#"mutation {
+      createPublisher(data: { publisherName: "Package Press", subscriptionPackage: "OASIS" }) { publisherId }
+    }"#;
+    let patch = r#"mutation {
+      updatePublisher(data: {
+        publisherId: "00000000-0000-0000-0000-000000000001",
+        publisherName: "Package Press",
+        subscriptionPackage: "SPHINX"
+      }) { publisherId }
+    }"#;
+
+    // Schema validation must reject the unknown input field for every caller,
+    // superusers included: no ordinary publisher mutation can set a package.
+    let ordinary = test_db::test_context(pool.clone(), "ordinary-user");
+    let superuser = test_db::test_context_with_user(pool.clone(), test_db::test_superuser("su-2"));
+    for context in [&ordinary, &superuser] {
+        for mutation in [create, patch] {
+            let result = block_on_graphql(juniper::execute(
+                mutation,
+                None,
+                &schema,
+                &Variables::new(),
+                context,
+            ));
+            assert!(
+                result.is_err(),
+                "Mutation unexpectedly passed validation: {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn ordinary_publisher_mutations_leave_package_unchanged() {
+    use crate::model::publisher::ThothPackage;
+    use diesel::prelude::*;
+
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let context = test_db::test_context_with_user(pool.clone(), test_db::test_superuser("su-3"));
+
+    let publisher_org = format!("org-{}", Uuid::new_v4());
+    let created = create_with_data(
+        &schema,
+        &context,
+        "createPublisher",
+        "NewPublisher",
+        "publisherId",
+        make_new_publisher(&publisher_org),
+    );
+    let publisher_id = json_uuid(&created["publisherId"]);
+
+    // Ordinary create carries no package field; the database default applies.
+    let created_model = Publisher::from_id(pool.as_ref(), &publisher_id).unwrap();
+    assert_eq!(created_model.subscription_package, ThothPackage::Oasis);
+
+    // Simulate a package assigned outside BE-01's surface, then prove the
+    // ordinary patch mutation cannot change or reset it.
+    {
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        diesel::sql_query(format!(
+            "UPDATE publisher SET subscription_package = 'OBELISK' \
+             WHERE publisher_id = '{publisher_id}'"
+        ))
+        .execute(&mut connection)
+        .expect("Failed to set package fixture");
+    }
+
+    let publisher = Publisher::from_id(pool.as_ref(), &publisher_id).unwrap();
+    update_with_data(
+        &schema,
+        &context,
+        "updatePublisher",
+        "PatchPublisher",
+        "publisherId",
+        patch_publisher(&publisher),
+    );
+
+    let updated = Publisher::from_id(pool.as_ref(), &publisher_id).unwrap();
+    assert!(updated.publisher_name.ends_with("Updated"));
+    assert_eq!(updated.subscription_package, ThothPackage::Obelisk);
+}
+
 // THOTH-CHAPTER-01 / #803 Phase B — the single-parent rule surfaces a deterministic,
 // safe client error through the GraphQL mutation boundary, and it is an integrity
 // rule independent of authorization.
@@ -3835,8 +4124,9 @@ fn create_work_relation_rejects_second_book_chapter_parent_through_graphql() {
     // rule, surfaced as a deterministic, safe client message.
     let mut vars = Variables::new();
     insert_var(&mut vars, "data", has_child(book_b_id, chapter_id));
-    let (_value, errors) = juniper::execute_sync(mutation, None, &schema, &vars, &context)
-        .expect("GraphQL execution should succeed with a field error");
+    let (_value, errors) =
+        block_on_graphql(juniper::execute(mutation, None, &schema, &vars, &context))
+            .expect("GraphQL execution should succeed with a field error");
     assert!(
         !errors.is_empty(),
         "a second distinct parent must return an error"
@@ -3869,7 +4159,7 @@ fn create_work_relation_rejects_second_book_chapter_parent_through_graphql() {
     let mut anon_vars = Variables::new();
     insert_var(&mut anon_vars, "data", has_child(book_a_id, chapter_two_id));
     let (_anon_value, anon_errors) =
-        juniper::execute_sync(mutation, None, &schema, &anon_vars, &anon)
+        block_on_graphql(juniper::execute(mutation, None, &schema, &anon_vars, &anon))
             .expect("GraphQL execution should succeed with a field error");
     assert!(
         !anon_errors.is_empty(),

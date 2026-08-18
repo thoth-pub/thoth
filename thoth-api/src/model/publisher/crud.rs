@@ -3,6 +3,7 @@ use super::{
     PublisherOrderBy,
 };
 use crate::db::PgPool;
+use crate::model::publisher_distribution_platform::DistributionPlatform;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherId};
 use crate::schema::{publisher, publisher_history};
 use diesel::{
@@ -126,6 +127,117 @@ impl Crud for Publisher {
 }
 
 impl Publisher {
+    /// Publishers with an **enabled** assignment for `platform`.
+    ///
+    /// One set-based join query. The composite assignment primary key
+    /// `(publisher_id, platform)` plus the platform equality means a publisher
+    /// can match at most once, so no duplicate row is possible. Ordering is the
+    /// requested publisher order followed by a mandatory `publisher_id ASC`
+    /// tie-breaker, which makes offset/limit pagination deterministic even when
+    /// publisher names collide. When the primary sort field is already
+    /// `publisher_id` the tie-breaker is redundant but harmless, and is kept so
+    /// the deterministic ordering rule holds uniformly.
+    pub fn all_by_distribution_platform(
+        db: &crate::db::PgPool,
+        limit: i32,
+        offset: i32,
+        order: PublisherOrderBy,
+        platform: DistributionPlatform,
+    ) -> ThothResult<Vec<Publisher>> {
+        use crate::schema::publisher::dsl::*;
+        use crate::schema::publisher_distribution_platform::dsl as assignment;
+        let mut connection = db.get()?;
+        let mut query = publisher
+            .inner_join(crate::schema::publisher_distribution_platform::table)
+            .filter(assignment::platform.eq(platform))
+            .filter(assignment::enabled.eq(true))
+            .select(crate::schema::publisher::all_columns)
+            .into_boxed();
+
+        query = match order.field {
+            PublisherField::PublisherId => {
+                apply_directional_order!(query, order.direction, order, publisher_id, publisher_id)
+            }
+            PublisherField::PublisherName => {
+                apply_directional_order!(
+                    query,
+                    order.direction,
+                    order,
+                    publisher_name,
+                    publisher_id
+                )
+            }
+            PublisherField::PublisherShortname => {
+                apply_directional_order!(
+                    query,
+                    order.direction,
+                    order,
+                    publisher_shortname,
+                    publisher_id
+                )
+            }
+            PublisherField::PublisherUrl => {
+                apply_directional_order!(query, order.direction, order, publisher_url, publisher_id)
+            }
+            PublisherField::ZitadelId => {
+                apply_directional_order!(query, order.direction, order, zitadel_id, publisher_id)
+            }
+            PublisherField::AccessibilityStatement => {
+                apply_directional_order!(
+                    query,
+                    order.direction,
+                    order,
+                    accessibility_statement,
+                    publisher_id
+                )
+            }
+            PublisherField::AccessibilityReportUrl => {
+                apply_directional_order!(
+                    query,
+                    order.direction,
+                    order,
+                    accessibility_report_url,
+                    publisher_id
+                )
+            }
+            PublisherField::CreatedAt => {
+                apply_directional_order!(query, order.direction, order, created_at, publisher_id)
+            }
+            PublisherField::UpdatedAt => {
+                apply_directional_order!(query, order.direction, order, updated_at, publisher_id)
+            }
+        };
+
+        query
+            .limit(limit.into())
+            .offset(offset.into())
+            .load::<Publisher>(&mut connection)
+            .map_err(Into::into)
+    }
+
+    /// The number of publishers with an **enabled** assignment for `platform`.
+    ///
+    /// This counts exactly the population returned by
+    /// [`Self::all_by_distribution_platform`] before pagination.
+    pub fn count_by_distribution_platform(
+        db: &crate::db::PgPool,
+        platform: DistributionPlatform,
+    ) -> ThothResult<i32> {
+        use crate::schema::publisher::dsl::*;
+        use crate::schema::publisher_distribution_platform::dsl as assignment;
+        let mut connection = db.get()?;
+
+        // See the `Crud::count` note on the i64 -> i32 conversion.
+        publisher
+            .inner_join(crate::schema::publisher_distribution_platform::table)
+            .filter(assignment::platform.eq(platform))
+            .filter(assignment::enabled.eq(true))
+            .count()
+            .get_result::<i64>(&mut connection)
+            .map(|t| t.to_string().parse::<i32>().unwrap())
+            .map_err(Into::into)
+    }
+
     pub fn by_zitadel_ids(
         db: &crate::db::PgPool,
         org_ids: Vec<String>,

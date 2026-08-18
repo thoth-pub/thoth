@@ -17,6 +17,7 @@ use crate::model::{
     contact::{Contact, ContactOrderBy, ContactType},
     contribution::{Contribution, ContributionType},
     contributor::{Contributor, ContributorOrderBy},
+    distribution_job::DistributionJobStatus,
     endorsement::{Endorsement, EndorsementOrderBy},
     file::File,
     funding::Funding,
@@ -28,7 +29,11 @@ use crate::model::{
     location::{Location, LocationOrderBy, LocationPlatform},
     price::{CurrencyCode, Price},
     publication::{Publication, PublicationOrderBy, PublicationType},
-    publisher::{Publisher, PublisherOrderBy},
+    publisher::{Publisher, PublisherOrderBy, ThothPackage},
+    publisher_distribution_platform::{DistributionPlatform, DistributionPlatformOption},
+    publisher_service_configuration::{
+        PublisherServiceConfiguration, PublisherServiceConfigurationSummary,
+    },
     r#abstract::{Abstract, AbstractOrderBy},
     reference::{Reference, ReferenceOrderBy},
     series::{Series, SeriesOrderBy, SeriesType},
@@ -39,9 +44,30 @@ use crate::model::{
     Crud, Doi,
 };
 use crate::policy::PolicyContext;
-use thoth_errors::ThothError;
+use juniper::IntoFieldError;
+use thoth_errors::{ThothError, ThothResult};
 
 pub struct QueryRoot;
+
+/// Load one publisher's protected service configuration under the section 11.1
+/// read matrix.
+///
+/// Anonymous callers are rejected **before** any publisher load. For an
+/// authenticated caller the publisher is loaded first, so an unknown
+/// `publisherId` returns `EntityNotFound`; publisher existence is already public
+/// through the anonymous `publisher`/`publishers` queries, so this discloses
+/// nothing new. The role check is then exactly
+/// `PolicyContext::require_publisher_for`: superuser, or `PUBLISHER_USER` for
+/// that publisher's organisation. There is **one** authorization decision for
+/// the whole type, including `effectiveCapabilities`.
+fn load_protected_configuration(
+    context: &Context,
+    publisher_id: Uuid,
+) -> ThothResult<PublisherServiceConfiguration> {
+    let publisher: Publisher = context.load_current(&publisher_id)?;
+    context.require_publisher_for(&publisher)?;
+    Ok(PublisherServiceConfiguration::new(publisher))
+}
 
 #[juniper::graphql_object(Context = Context)]
 impl QueryRoot {
@@ -587,6 +613,165 @@ impl QueryRoot {
             None,
         )
         .map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Query the full list of distribution platforms and their metadata. This list is code-owned and identical for every publisher"
+    )]
+    fn distribution_platform_options() -> Vec<DistributionPlatformOption> {
+        DistributionPlatformOption::all()
+    }
+
+    #[graphql(
+        description = "Query the list of publishers with an enabled assignment for a distribution platform"
+    )]
+    fn publishers_by_distribution_platform(
+        context: &Context,
+        #[graphql(description = "Distribution platform to search on")]
+        platform: DistributionPlatform,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = PublisherOrderBy::default(),
+            description = "The order in which to sort the results. Results are always additionally sorted by publisher ID ascending, so pagination is deterministic"
+        )]
+        order: Option<PublisherOrderBy>,
+    ) -> FieldResult<Vec<Publisher>> {
+        Publisher::all_by_distribution_platform(
+            &context.db,
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
+            order.unwrap_or_default(),
+            platform,
+        )
+        .map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Get the total number of publishers with an enabled assignment for a distribution platform"
+    )]
+    fn publisher_count_by_distribution_platform(
+        context: &Context,
+        #[graphql(description = "Distribution platform to search on")]
+        platform: DistributionPlatform,
+    ) -> FieldResult<i32> {
+        Publisher::count_by_distribution_platform(&context.db, platform).map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Query the protected desired service configuration of one publisher. Readable only by a superuser or by a PUBLISHER_USER of that publisher"
+    )]
+    fn publisher_service_configuration(
+        context: &Context,
+        #[graphql(description = "Thoth publisher ID to search on")] publisher_id: Uuid,
+    ) -> FieldResult<PublisherServiceConfiguration> {
+        load_protected_configuration(context, publisher_id)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Query the protected desired service configuration of every publisher, with the metadata of its latest recorded change. Superuser only"
+    )]
+    // The report's filter set is fixed by the specification: publishers,
+    // packages, enabled platforms, job statuses, job presence, plus pagination
+    // and ordering. Each is an independent, named GraphQL argument, so
+    // collapsing them into a struct would change the public contract.
+    #[allow(clippy::too_many_arguments)]
+    fn publisher_service_configurations(
+        context: &Context,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results for publishers with these IDs"
+        )]
+        publishers: Option<Vec<Uuid>>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results for publishers with these subscription packages"
+        )]
+        packages: Option<Vec<ThothPackage>>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results for publishers that have every one of these distribution platforms enabled. Multiple values narrow the results rather than widening them"
+        )]
+        enabled_platforms: Option<Vec<DistributionPlatform>>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results whose latest publisher back-catalogue job has one of these statuses. Multiple values widen the results"
+        )]
+        job_statuses: Option<Vec<DistributionJobStatus>>,
+        #[graphql(
+            description = "If set to true, only shows publishers with no publisher back-catalogue job at all; if false, only publishers that have at least one"
+        )]
+        without_back_catalogue_job: Option<bool>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(
+            default = PublisherOrderBy::default(),
+            description = "The order in which to sort the results. Results are always additionally sorted by publisher ID ascending, so pagination is deterministic"
+        )]
+        order: Option<PublisherOrderBy>,
+    ) -> FieldResult<Vec<PublisherServiceConfigurationSummary>> {
+        context
+            .require_superuser()
+            .and_then(|_| {
+                PublisherServiceConfiguration::all_summaries(
+                    &context.db,
+                    limit.unwrap_or_default(),
+                    offset.unwrap_or_default(),
+                    order.unwrap_or_default(),
+                    publishers.unwrap_or_default(),
+                    packages.unwrap_or_default(),
+                    enabled_platforms.unwrap_or_default(),
+                    job_statuses.unwrap_or_default(),
+                    without_back_catalogue_job,
+                )
+            })
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Get the total number of publishers matching a protected service configuration report filter. Superuser only"
+    )]
+    fn publisher_service_configuration_count(
+        context: &Context,
+        #[graphql(
+            default = vec![],
+            description = "If set, only counts publishers with these IDs"
+        )]
+        publishers: Option<Vec<Uuid>>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only counts publishers with these subscription packages"
+        )]
+        packages: Option<Vec<ThothPackage>>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only counts publishers that have every one of these distribution platforms enabled. Multiple values narrow the results rather than widening them"
+        )]
+        enabled_platforms: Option<Vec<DistributionPlatform>>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only counts publishers whose latest publisher back-catalogue job has one of these statuses. Multiple values widen the results"
+        )]
+        job_statuses: Option<Vec<DistributionJobStatus>>,
+        #[graphql(
+            description = "If set to true, only counts publishers with no publisher back-catalogue job at all; if false, only publishers that have at least one"
+        )]
+        without_back_catalogue_job: Option<bool>,
+    ) -> FieldResult<i32> {
+        context
+            .require_superuser()
+            .and_then(|_| {
+                PublisherServiceConfiguration::count(
+                    &context.db,
+                    publishers.unwrap_or_default(),
+                    packages.unwrap_or_default(),
+                    enabled_platforms.unwrap_or_default(),
+                    job_statuses.unwrap_or_default(),
+                    without_back_catalogue_job,
+                )
+            })
+            .map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(description = "Query the full list of imprints")]

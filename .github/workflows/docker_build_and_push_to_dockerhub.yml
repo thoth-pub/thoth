@@ -8,7 +8,31 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  classify:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    outputs:
+      run_docker: ${{ steps.classify.outputs.run_docker }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Classify CI changes
+        id: classify
+        run: python3 .github/scripts/classify_ci_changes.py
   build_and_push_staging_docker_image:
+    needs: classify
+    if: >-
+      ${{
+        always() &&
+        !cancelled() &&
+        (
+          needs.classify.result != 'success' ||
+          needs.classify.outputs.run_docker == 'true'
+        )
+      }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
