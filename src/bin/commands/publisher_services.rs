@@ -69,6 +69,8 @@ lazy_static! {
                         .arg(report_out())
                         .arg(execution_mode())
                         .arg(max_works_per_publisher())
+                        .arg(reviewed_report())
+                        .arg(expected_reviewed_report_sha256())
                         .arg(arguments::distribution_job_creation()),
                 ),
         );
@@ -157,6 +159,36 @@ fn max_works_per_publisher() -> Arg {
         .num_args(1)
 }
 
+/// The exact Gate-D-reviewed dry-run reconciliation report, required for a
+/// production apply so its omission evidence can be bound (B6). clap enforces its
+/// presence for `--execution-mode production`.
+fn reviewed_report() -> Arg {
+    Arg::new("reviewed-report")
+        .long("reviewed-report")
+        .value_name("REPORT_PATH")
+        .help(
+            "Path to the exact Gate-D-reviewed DRY_RUN reconciliation report. \
+             Required for --execution-mode production",
+        )
+        .value_parser(value_parser!(PathBuf))
+        .required_if_eq("execution-mode", "production")
+        .num_args(1)
+}
+
+/// The expected lowercase raw-byte SHA-256 of the reviewed report, required for a
+/// production apply.
+fn expected_reviewed_report_sha256() -> Arg {
+    Arg::new("expected-reviewed-report-sha256")
+        .long("expected-reviewed-report-sha256")
+        .value_name("SHA256_HEX")
+        .help(
+            "The expected reviewed-report raw-byte SHA-256 (lowercase hexadecimal). \
+             Required for --execution-mode production",
+        )
+        .required_if_eq("execution-mode", "production")
+        .num_args(1)
+}
+
 pub fn dry_run(arguments: &ArgMatches) -> ThothResult<()> {
     let database_url = arguments.get_one::<String>("db").unwrap();
     let pool = init_pool(database_url);
@@ -191,8 +223,9 @@ pub fn apply(arguments: &ArgMatches) -> ThothResult<()> {
     let pool = init_pool(database_url);
     let max_works = arguments.get_one::<i64>("max-works-per-publisher").copied();
     // `--execution-mode` is required and its value is restricted by clap; the
-    // production envelope is enforced as required by `required_if_eq`, so the
-    // `Production` variant here always carries an approved envelope.
+    // production envelope, reviewed-report path and expected report hash are
+    // enforced as required by `required_if_eq`, so the `Production` variant here
+    // always carries an approved envelope and reviewed omission evidence.
     let mode = match arguments
         .get_one::<String>("execution-mode")
         .unwrap()
@@ -201,6 +234,12 @@ pub fn apply(arguments: &ArgMatches) -> ThothResult<()> {
         "production" => ApplyExecutionMode::Production {
             max_works_per_publisher: max_works
                 .expect("clap requires --max-works-per-publisher for production"),
+            reviewed_report_path: arguments
+                .get_one::<PathBuf>("reviewed-report")
+                .expect("clap requires --reviewed-report for production"),
+            expected_reviewed_report_sha256: arguments
+                .get_one::<String>("expected-reviewed-report-sha256")
+                .expect("clap requires --expected-reviewed-report-sha256 for production"),
         },
         _ => ApplyExecutionMode::Disposable {
             max_works_per_publisher: max_works,
@@ -250,25 +289,74 @@ mod tests {
         COMMAND.clone().try_get_matches_from(argv)
     }
 
+    /// The complete set of production-required arguments.
+    const PRODUCTION_FULL: &[&str] = &[
+        "--execution-mode",
+        "production",
+        "--max-works-per-publisher",
+        "100",
+        "--reviewed-report",
+        "reviewed-report.json",
+        "--expected-reviewed-report-sha256",
+        "deadbeef",
+    ];
+
     #[test]
     fn production_apply_requires_a_lock_envelope() {
         // Production without an envelope is rejected at parse time: the unsafe
         // production combination is never even constructed.
-        let error = parse_apply(&["--execution-mode", "production"])
-            .expect_err("production without an envelope must fail to parse");
+        let error = parse_apply(&[
+            "--execution-mode",
+            "production",
+            "--reviewed-report",
+            "reviewed-report.json",
+            "--expected-reviewed-report-sha256",
+            "deadbeef",
+        ])
+        .expect_err("production without an envelope must fail to parse");
         assert_eq!(
             error.kind(),
             clap::error::ErrorKind::MissingRequiredArgument
         );
+    }
 
-        // Production WITH an envelope parses.
-        assert!(parse_apply(&[
+    #[test]
+    fn production_apply_requires_a_reviewed_report_path() {
+        let error = parse_apply(&[
             "--execution-mode",
             "production",
             "--max-works-per-publisher",
-            "100"
+            "100",
+            "--expected-reviewed-report-sha256",
+            "deadbeef",
         ])
-        .is_ok());
+        .expect_err("production without a reviewed report must fail to parse");
+        assert_eq!(
+            error.kind(),
+            clap::error::ErrorKind::MissingRequiredArgument
+        );
+    }
+
+    #[test]
+    fn production_apply_requires_the_expected_report_hash() {
+        let error = parse_apply(&[
+            "--execution-mode",
+            "production",
+            "--max-works-per-publisher",
+            "100",
+            "--reviewed-report",
+            "reviewed-report.json",
+        ])
+        .expect_err("production without an expected report hash must fail to parse");
+        assert_eq!(
+            error.kind(),
+            clap::error::ErrorKind::MissingRequiredArgument
+        );
+    }
+
+    #[test]
+    fn production_apply_with_envelope_report_and_hash_parses() {
+        assert!(parse_apply(PRODUCTION_FULL).is_ok());
     }
 
     #[test]
@@ -281,7 +369,7 @@ mod tests {
     }
 
     #[test]
-    fn disposable_apply_does_not_require_an_envelope() {
+    fn disposable_apply_requires_neither_envelope_nor_reviewed_report() {
         assert!(parse_apply(&["--execution-mode", "disposable"]).is_ok());
         assert!(parse_apply(&[
             "--execution-mode",

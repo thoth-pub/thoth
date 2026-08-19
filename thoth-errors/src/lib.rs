@@ -269,6 +269,18 @@ pub enum ThothError {
     /// write, leaving inputs untouched.
     #[error("MIG-01 artifact paths alias: {0}")]
     MigrationBackfillArtifactAlias(String),
+    /// The exact Gate-D-reviewed `MIG-01` dry-run reconciliation report supplied
+    /// to a production apply did not match the expected reviewed evidence: a
+    /// raw-byte hash mismatch, an unparseable or wrong-mode report, or a
+    /// manifest/plan identity mismatch. The apply stops before any write.
+    #[error("MIG-01 reviewed dry-run report does not match the expected evidence: {0}")]
+    MigrationBackfillReviewedReportMismatch(String),
+    /// The current publisher-omission evidence differs from the exact
+    /// Gate-D-reviewed dry-run report, so the reviewed production snapshot
+    /// changed between review and apply. The apply stops before any write;
+    /// recovery is a fresh dry run, Gate-D review and Gate-E authorization.
+    #[error("MIG-01 production apply blocked by changed omission evidence: {0}")]
+    MigrationBackfillOmissionMismatch(String),
 }
 
 impl ThothError {

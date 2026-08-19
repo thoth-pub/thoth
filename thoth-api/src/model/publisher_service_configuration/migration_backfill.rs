@@ -602,7 +602,10 @@ fn job_table_counts(db: &PgPool) -> ThothResult<(i64, i64, i64)> {
 /// The bounded, sanitized reconciliation report. Written as human-readable JSON;
 /// it is not the hashed machine plan and carries the additional #828 reporting
 /// dimensions that are deliberately not part of canonical plan schema v1.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+// `Deserialize` is derived so a production apply can parse the exact reviewed
+// dry-run report (its raw-byte SHA-256 is verified first); the emitted fields,
+// order and semantics are unchanged.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReconciliationReport {
     pub mode: ReportMode,
@@ -635,28 +638,28 @@ pub struct ReconciliationReport {
 }
 
 /// Whether the report describes a dry run or an apply.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ReportMode {
     DryRun,
     Apply,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageCount {
     pub subscription_package: ThothPackage,
     pub publishers: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlatformCount {
     pub platform: DistributionPlatform,
     pub publishers: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LinkedStateAnomaly {
     pub publisher_id: Uuid,
@@ -664,7 +667,7 @@ pub struct LinkedStateAnomaly {
     pub enabled_members: Vec<DistributionPlatform>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LicenceFinding {
     pub value: String,
@@ -674,7 +677,7 @@ pub struct LicenceFinding {
 
 /// The reported licence disposition, including the `UNREVIEWED` state a value has
 /// when the manifest declares no disposition for it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum LicenceDispositionReport {
     Unreviewed,
@@ -683,14 +686,14 @@ pub enum LicenceDispositionReport {
     Reject,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmittedPublisher {
     pub publisher_id: Uuid,
     pub reason: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppliedSummary {
     pub reviewed_noops: i64,
@@ -732,21 +735,30 @@ pub struct DryRunOutcome {
 /// additionally enforces the strict job-state preflight (before any write) and
 /// the post-apply zero-job invariant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ApplyExecutionMode {
-    /// Disposable/local execution. No production job-state preflight and no
-    /// production licence gate; an optional lock envelope may still be supplied
-    /// for testing or pacing.
+pub enum ApplyExecutionMode<'a> {
+    /// Disposable/local execution. No production job-state preflight, no
+    /// production licence gate and no Gate-D reviewed-report evidence; an optional
+    /// lock envelope may still be supplied for testing or pacing.
     Disposable {
         max_works_per_publisher: Option<i64>,
     },
-    /// Production execution. A per-publisher work-count lock envelope is
-    /// **required** by construction; the strict job-state preflight, the
-    /// production licence fail-closed gate and the post-apply zero-job invariant
-    /// all apply.
-    Production { max_works_per_publisher: i64 },
+    /// Production execution. A per-publisher work-count lock envelope **and** the
+    /// exact Gate-D-reviewed dry-run reconciliation report (with its expected
+    /// raw-byte SHA-256) are **required** by construction, so "production without
+    /// reviewed omission evidence" is unrepresentable. The strict job-state
+    /// preflight, the production licence fail-closed gate, the reviewed-report
+    /// omission-evidence binding (`B6`) and the post-apply zero-job invariant all
+    /// apply.
+    Production {
+        max_works_per_publisher: i64,
+        /// Path to the exact Gate-D-reviewed `DRY_RUN` reconciliation report.
+        reviewed_report_path: &'a Path,
+        /// The expected lowercase raw-byte SHA-256 of that report, bound at Gate E.
+        expected_reviewed_report_sha256: &'a str,
+    },
 }
 
-impl ApplyExecutionMode {
+impl<'a> ApplyExecutionMode<'a> {
     fn is_production(self) -> bool {
         matches!(self, ApplyExecutionMode::Production { .. })
     }
@@ -760,7 +772,21 @@ impl ApplyExecutionMode {
             } => max_works_per_publisher,
             ApplyExecutionMode::Production {
                 max_works_per_publisher,
+                ..
             } => Some(max_works_per_publisher),
+        }
+    }
+
+    /// The reviewed dry-run report path and expected SHA-256, present only for
+    /// production. Disposable apply carries none.
+    fn reviewed_report(self) -> Option<(&'a Path, &'a str)> {
+        match self {
+            ApplyExecutionMode::Disposable { .. } => None,
+            ApplyExecutionMode::Production {
+                reviewed_report_path,
+                expected_reviewed_report_sha256,
+                ..
+            } => Some((reviewed_report_path, expected_reviewed_report_sha256)),
         }
     }
 }
@@ -773,8 +799,9 @@ pub struct ApplyRequest<'a> {
     pub expected_plan_sha256: &'a str,
     pub report_out_path: &'a Path,
     /// The explicit execution scope. Gate B never invents a production threshold;
-    /// the required production envelope is supplied by Gate D/E.
-    pub mode: ApplyExecutionMode,
+    /// the required production envelope and reviewed report are supplied by
+    /// Gate D/E.
+    pub mode: ApplyExecutionMode<'a>,
     pub job_creation: DistributionJobCreation,
 }
 
@@ -836,13 +863,19 @@ pub fn apply(db: &PgPool, request: &ApplyRequest<'_>) -> ThothResult<ApplyOutcom
     let production = request.mode.is_production();
 
     // Reject aliasing input/output artifacts before any read or write, so an
-    // interrupted apply can never destroy the reviewed manifest or plan it needs
-    // for deterministic recovery. Inputs are untouched when this rejects.
-    assert_distinct_artifacts(&[
+    // interrupted apply can never destroy the reviewed manifest, plan or report
+    // it needs for deterministic recovery. Inputs are untouched when this rejects.
+    // For production the reviewed dry-run report is an immutable input too and
+    // must not alias the manifest, reviewed plan or apply-report output (`B6`).
+    let mut artifacts: Vec<(&str, &Path)> = vec![
         ("manifest", request.manifest_path),
         ("reviewed plan", request.plan_path),
         ("report output", request.report_out_path),
-    ])?;
+    ];
+    if let Some((reviewed_report_path, _)) = request.mode.reviewed_report() {
+        artifacts.push(("reviewed dry-run report", reviewed_report_path));
+    }
+    assert_distinct_artifacts(&artifacts)?;
 
     // Production apply requires the strict job-state precondition (switch
     // effectively OFF and all three distribution-job tables empty) before any
@@ -893,6 +926,24 @@ pub fn apply(db: &PgPool, request: &ApplyRequest<'_>) -> ThothResult<ApplyOutcom
     // MIG-01 never rewrites a licence value.
     if production {
         enforce_reviewed_licences(db, &manifest, &plan.entries)?;
+    }
+
+    // B6: a production apply binds the exact Gate-D-reviewed dry-run report. Its
+    // raw-byte hash is verified before parsing; it must be a DRY_RUN report whose
+    // manifest/plan hashes match this apply; and the current publisher-omission
+    // evidence (recomputed with the same repository-authoritative logic dry run
+    // uses) must exactly equal the reviewed report's omission evidence. Any
+    // mismatch STOPs before the first new write. This runs on every production
+    // apply/resume invocation.
+    if let Some((reviewed_report_path, expected_report_sha256)) = request.mode.reviewed_report() {
+        verify_reviewed_report(
+            db,
+            reviewed_report_path,
+            expected_report_sha256,
+            &manifest_sha256,
+            &plan_sha256,
+            &manifest,
+        )?;
     }
 
     // The reconciliation report's breakdown is computed against the pre-write
@@ -1243,6 +1294,21 @@ fn omitted_publishers(db: &PgPool, mapped: &HashSet<Uuid>) -> ThothResult<Vec<Om
     Ok(omitted)
 }
 
+/// The current publisher-omission evidence for a manifest, computed with the
+/// **same** repository-authoritative logic dry run uses (`omitted_publishers`),
+/// so dry-run and apply omission semantics cannot diverge (`B6`).
+fn current_omission_set(
+    db: &PgPool,
+    manifest: &MigrationManifest,
+) -> ThothResult<Vec<OmittedPublisher>> {
+    let mapped: HashSet<Uuid> = manifest
+        .publishers
+        .iter()
+        .map(|entry| entry.publisher_id)
+        .collect();
+    omitted_publishers(db, &mapped)
+}
+
 /// The linked-group anomalies visible in a canonical enabled set: a group with
 /// exactly one enabled member.
 fn linked_anomalies(
@@ -1361,6 +1427,77 @@ fn enforce_reviewed_licences(
                 }
             }
         }
+    }
+    Ok(())
+}
+
+/// Bind the exact Gate-D-reviewed dry-run reconciliation report to a production
+/// apply and fail closed on any mismatch, before the first new write (`B6`).
+///
+/// Hash first, parse second: the report's identity is the SHA-256 of its exact
+/// raw bytes, so the raw bytes are hashed and checked against the expected
+/// Gate-E-bound value before the report is ever parsed. There is deliberately no
+/// canonical-reserialization contract for the report — the raw-byte hash is the
+/// identity. The parsed report must be a `DRY_RUN` report whose `manifestSha256`
+/// and `planSha256` match the exact manifest and reviewed plan being applied, and
+/// the current publisher-omission evidence — recomputed with the same logic dry
+/// run uses — must exactly equal the reviewed report's omission evidence
+/// (set-semantic, deterministically ordered by canonical publisher UUID, and
+/// including the recorded reason). Production apply never reinterprets, waives or
+/// synthesizes an omission; it only proves the reviewed evidence is unchanged.
+fn verify_reviewed_report(
+    db: &PgPool,
+    reviewed_report_path: &Path,
+    expected_report_sha256: &str,
+    applied_manifest_sha256: &str,
+    reviewed_plan_sha256: &str,
+    manifest: &MigrationManifest,
+) -> ThothResult<()> {
+    // 1. Hash the exact raw report bytes and require equality before parsing.
+    let report_bytes = read_file(reviewed_report_path)?;
+    let report_sha256 = sha256_hex(&report_bytes);
+    if report_sha256 != expected_report_sha256.to_ascii_lowercase() {
+        return Err(ThothError::MigrationBackfillReviewedReportMismatch(
+            "the reviewed dry-run report hash does not match the expected reviewed report hash"
+                .to_string(),
+        ));
+    }
+    // 2. Parse the hash-pinned trusted bytes with the MIG-01 report type.
+    let report: ReconciliationReport = serde_json::from_slice(&report_bytes).map_err(|error| {
+        ThothError::MigrationBackfillReviewedReportMismatch(format!(
+            "the reviewed report is not a parseable MIG-01 reconciliation report: {error}"
+        ))
+    })?;
+    // 3. It must be a DRY_RUN report; an APPLY report is never Gate-D evidence.
+    if report.mode != ReportMode::DryRun {
+        return Err(ThothError::MigrationBackfillReviewedReportMismatch(
+            "the reviewed report is not a DRY_RUN report".to_string(),
+        ));
+    }
+    // 4. Its manifest identity must match the exact manifest being applied.
+    if report.manifest_sha256 != applied_manifest_sha256 {
+        return Err(ThothError::MigrationBackfillReviewedReportMismatch(
+            "the reviewed report manifestSha256 does not match the applied manifest".to_string(),
+        ));
+    }
+    // 5. Its plan identity must match the exact reviewed plan being applied.
+    if report.plan_sha256 != reviewed_plan_sha256 {
+        return Err(ThothError::MigrationBackfillReviewedReportMismatch(
+            "the reviewed report planSha256 does not match the reviewed plan".to_string(),
+        ));
+    }
+    // 6. Current omission evidence must exactly equal the reviewed evidence.
+    //    Both are deterministically sorted by canonical publisher UUID and carry
+    //    the recorded reason, so vector equality is exact set-and-reason equality.
+    let current = current_omission_set(db, manifest)?;
+    if current != report.omitted_publishers {
+        return Err(ThothError::MigrationBackfillOmissionMismatch(format!(
+            "current publisher-omission evidence ({} publishers) differs from the reviewed report \
+             ({} publishers); the reviewed production snapshot changed. Recovery requires a fresh \
+             dry run, Gate-D review and Gate-E authorization, not a local override",
+            current.len(),
+            report.omitted_publishers.len()
+        )));
     }
     Ok(())
 }
@@ -1560,6 +1697,55 @@ mod tests {
         let outcome = dry_run(pool, &request).expect("dry run");
         let bytes = std::fs::read(&plan_out).expect("plan bytes");
         (outcome, bytes)
+    }
+
+    /// A dry run that also retains the emitted report path and its exact raw-byte
+    /// SHA-256, so production-mode tests can supply Gate-D reviewed-report
+    /// evidence.
+    fn dry_run_artifacts(
+        pool: &PgPool,
+        manifest_path: &std::path::Path,
+    ) -> (DryRunOutcome, Vec<u8>, std::path::PathBuf, String) {
+        let plan_out = tmp_path("plan.json");
+        let report_out = tmp_path("report.json");
+        let request = DryRunRequest {
+            manifest_path,
+            plan_out_path: &plan_out,
+            report_out_path: &report_out,
+            run_production_preflight: false,
+            job_creation: DistributionJobCreation::Off,
+        };
+        let outcome = dry_run(pool, &request).expect("dry run");
+        let plan_bytes = std::fs::read(&plan_out).expect("plan bytes");
+        let report_sha = sha256_hex(&std::fs::read(&report_out).expect("report bytes"));
+        (outcome, plan_bytes, report_out, report_sha)
+    }
+
+    /// A production-mode apply carrying the reviewed report path and expected
+    /// report hash.
+    #[allow(clippy::too_many_arguments)]
+    fn apply_production(
+        pool: &PgPool,
+        manifest_path: &std::path::Path,
+        plan_bytes: &[u8],
+        expected_plan_sha: &str,
+        job_creation: DistributionJobCreation,
+        envelope: i64,
+        reviewed_report_path: &std::path::Path,
+        expected_report_sha: &str,
+    ) -> ThothResult<ApplyOutcome> {
+        apply_plan_mode(
+            pool,
+            manifest_path,
+            plan_bytes,
+            expected_plan_sha,
+            job_creation,
+            ApplyExecutionMode::Production {
+                max_works_per_publisher: envelope,
+                reviewed_report_path,
+                expected_reviewed_report_sha256: expected_report_sha,
+            },
+        )
     }
 
     /// A dry run returning the raw result (for failure-path assertions), using
@@ -2707,20 +2893,20 @@ mod tests {
             "OBELISK",
             &["ZENODO"],
         )]));
-        let (outcome, bytes) = run_dry_run(&pool, &manifest);
+        let (outcome, bytes, report_path, report_sha) = dry_run_artifacts(&pool, &manifest);
         let sha = outcome.plan_sha256.clone();
 
-        let applied = apply_plan_mode(
+        let applied = apply_production(
             &pool,
             &manifest,
             &bytes,
             &sha,
             DistributionJobCreation::Off,
-            ApplyExecutionMode::Production {
-                max_works_per_publisher: 10,
-            },
+            10,
+            &report_path,
+            &report_sha,
         )
-        .expect("production apply succeeds under OFF + empty job state");
+        .expect("production apply succeeds under OFF + empty job state with unchanged omissions");
         assert_eq!(applied.written, 1);
         // The post-apply invariant held: job tables remain empty.
         assert_eq!(
@@ -2739,17 +2925,19 @@ mod tests {
             "OBELISK",
             &["ZENODO"],
         )]));
-        let (outcome, bytes) = run_dry_run(&pool, &manifest);
+        let (outcome, bytes, report_path, report_sha) = dry_run_artifacts(&pool, &manifest);
         let sha = outcome.plan_sha256.clone();
-        let result = apply_plan_mode(
+        // The job-state preflight runs before the reviewed-report check, so a
+        // valid report is supplied but the switch-ON precondition stops first.
+        let result = apply_production(
             &pool,
             &manifest,
             &bytes,
             &sha,
             DistributionJobCreation::On,
-            ApplyExecutionMode::Production {
-                max_works_per_publisher: 10,
-            },
+            10,
+            &report_path,
+            &report_sha,
         );
         assert!(matches!(
             result,
@@ -2784,17 +2972,17 @@ mod tests {
             "OBELISK",
             &["ZENODO"],
         )]));
-        let (outcome, bytes) = run_dry_run(&pool, &manifest);
+        let (outcome, bytes, report_path, report_sha) = dry_run_artifacts(&pool, &manifest);
         let sha = outcome.plan_sha256.clone();
-        let result = apply_plan_mode(
+        let result = apply_production(
             &pool,
             &manifest,
             &bytes,
             &sha,
             DistributionJobCreation::Off,
-            ApplyExecutionMode::Production {
-                max_works_per_publisher: 10,
-            },
+            10,
+            &report_path,
+            &report_sha,
         );
         assert!(matches!(
             result,
@@ -2843,18 +3031,20 @@ mod tests {
         set_state(&pool, publisher_id, ThothPackage::Oasis, &[]);
         // The manifest declares NO disposition for the observed licence.
         let manifest = write_manifest(&manifest_value(&[(publisher_id, "OBELISK", &["ZENODO"])]));
-        let (outcome, bytes) = run_dry_run(&pool, &manifest);
+        let (outcome, bytes, report_path, report_sha) = dry_run_artifacts(&pool, &manifest);
         let sha = outcome.plan_sha256.clone();
 
-        let result = apply_plan_mode(
+        // The licence gate runs before the reviewed-report check, so a valid
+        // report is supplied but the unreviewed licence stops first.
+        let result = apply_production(
             &pool,
             &manifest,
             &bytes,
             &sha,
             DistributionJobCreation::Off,
-            ApplyExecutionMode::Production {
-                max_works_per_publisher: 10,
-            },
+            10,
+            &report_path,
+            &report_sha,
         );
         assert!(matches!(
             result,
@@ -2883,17 +3073,17 @@ mod tests {
                 publisher_id,
                 &[(licence, "NORMALIZE")],
             ));
-            let (outcome, bytes) = run_dry_run(&pool, &manifest);
+            let (outcome, bytes, report_path, report_sha) = dry_run_artifacts(&pool, &manifest);
             let sha = outcome.plan_sha256.clone();
-            let result = apply_plan_mode(
+            let result = apply_production(
                 &pool,
                 &manifest,
                 &bytes,
                 &sha,
                 DistributionJobCreation::Off,
-                ApplyExecutionMode::Production {
-                    max_works_per_publisher: 10,
-                },
+                10,
+                &report_path,
+                &report_sha,
             );
             assert!(matches!(
                 result,
@@ -2910,17 +3100,17 @@ mod tests {
                 publisher_id,
                 &[(licence, "SUPPORTED")],
             ));
-            let (outcome, bytes) = run_dry_run(&pool, &manifest);
+            let (outcome, bytes, report_path, report_sha) = dry_run_artifacts(&pool, &manifest);
             let sha = outcome.plan_sha256.clone();
-            let applied = apply_plan_mode(
+            let applied = apply_production(
                 &pool,
                 &manifest,
                 &bytes,
                 &sha,
                 DistributionJobCreation::Off,
-                ApplyExecutionMode::Production {
-                    max_works_per_publisher: 10,
-                },
+                10,
+                &report_path,
+                &report_sha,
             )
             .expect("supported licence permits production apply");
             assert_eq!(applied.written, 1);
@@ -3253,5 +3443,601 @@ mod tests {
             let _ = std::fs::remove_file(&link);
         }
         let _ = std::fs::remove_file(&absolute);
+    }
+
+    // ---------------------------------------------------------------------
+    // B6 - reviewed omission-evidence binding for production apply
+    // ---------------------------------------------------------------------
+
+    /// Produce a variant of an existing report by mutating its parsed JSON, then
+    /// return the new report path and its exact raw-byte SHA-256. Because the
+    /// returned hash is over the mutated bytes, the raw-byte identity check
+    /// passes and the mutated field is what triggers the intended failure.
+    fn report_variant(
+        report_path: &std::path::Path,
+        mutate: impl FnOnce(&mut serde_json::Value),
+    ) -> (std::path::PathBuf, String) {
+        let bytes = std::fs::read(report_path).unwrap();
+        let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        mutate(&mut value);
+        let new_bytes = serde_json::to_vec(&value).unwrap();
+        let path = tmp_path("report-variant.json");
+        std::fs::write(&path, &new_bytes).unwrap();
+        let sha = sha256_hex(&new_bytes);
+        (path, sha)
+    }
+
+    /// A production apply that is expected to reach the reviewed-report check:
+    /// a fresh disposable DB (zero jobs), switch OFF, no licences, envelope large.
+    fn setup_reachable_production(pool: &PgPool) -> (Uuid, std::path::PathBuf) {
+        let publisher = create_publisher(pool);
+        set_state(pool, publisher.publisher_id, ThothPackage::Oasis, &[]);
+        let manifest = write_manifest(&manifest_value(&[(
+            publisher.publisher_id,
+            "OBELISK",
+            &["ZENODO"],
+        )]));
+        (publisher.publisher_id, manifest)
+    }
+
+    #[test]
+    fn reviewed_report_hash_mismatch_fails_before_any_write() {
+        let (_guard, pool) = setup_test_db();
+        let (publisher_id, manifest) = setup_reachable_production(&pool);
+        let (outcome, bytes, report_path, _report_sha) = dry_run_artifacts(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        // A wrong expected report hash (but a real report file) fails closed.
+        let result = apply_production(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            10,
+            &report_path,
+            &"0".repeat(64),
+        );
+        assert!(matches!(
+            result,
+            Err(ThothError::MigrationBackfillReviewedReportMismatch(_))
+        ));
+        assert!(mig_history(&pool, publisher_id).is_empty());
+    }
+
+    #[test]
+    fn malformed_reviewed_report_with_matching_hash_fails_before_any_write() {
+        let (_guard, pool) = setup_test_db();
+        let (publisher_id, manifest) = setup_reachable_production(&pool);
+        let (outcome, bytes, _report_path, _sha) = dry_run_artifacts(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        // Garbage report bytes, with the correct hash of those garbage bytes.
+        let garbage = b"{ this is not a MIG-01 report }".to_vec();
+        let garbage_path = tmp_path("garbage-report.json");
+        std::fs::write(&garbage_path, &garbage).unwrap();
+        let garbage_sha = sha256_hex(&garbage);
+        let result = apply_production(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            10,
+            &garbage_path,
+            &garbage_sha,
+        );
+        assert!(matches!(
+            result,
+            Err(ThothError::MigrationBackfillReviewedReportMismatch(_))
+        ));
+        assert!(mig_history(&pool, publisher_id).is_empty());
+    }
+
+    #[test]
+    fn non_dry_run_reviewed_report_fails_before_any_write() {
+        let (_guard, pool) = setup_test_db();
+        let (publisher_id, manifest) = setup_reachable_production(&pool);
+        let (outcome, bytes, report_path, _sha) = dry_run_artifacts(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        let (variant_path, variant_sha) =
+            report_variant(&report_path, |v| v["mode"] = serde_json::json!("APPLY"));
+        let result = apply_production(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            10,
+            &variant_path,
+            &variant_sha,
+        );
+        assert!(matches!(
+            result,
+            Err(ThothError::MigrationBackfillReviewedReportMismatch(_))
+        ));
+        assert!(mig_history(&pool, publisher_id).is_empty());
+    }
+
+    #[test]
+    fn reviewed_report_manifest_hash_mismatch_fails_before_any_write() {
+        let (_guard, pool) = setup_test_db();
+        let (publisher_id, manifest) = setup_reachable_production(&pool);
+        let (outcome, bytes, report_path, _sha) = dry_run_artifacts(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        let (variant_path, variant_sha) = report_variant(&report_path, |v| {
+            v["manifestSha256"] = serde_json::json!("0".repeat(64))
+        });
+        let result = apply_production(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            10,
+            &variant_path,
+            &variant_sha,
+        );
+        assert!(matches!(
+            result,
+            Err(ThothError::MigrationBackfillReviewedReportMismatch(_))
+        ));
+        assert!(mig_history(&pool, publisher_id).is_empty());
+    }
+
+    #[test]
+    fn reviewed_report_plan_hash_mismatch_fails_before_any_write() {
+        let (_guard, pool) = setup_test_db();
+        let (publisher_id, manifest) = setup_reachable_production(&pool);
+        let (outcome, bytes, report_path, _sha) = dry_run_artifacts(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        let (variant_path, variant_sha) = report_variant(&report_path, |v| {
+            v["planSha256"] = serde_json::json!("0".repeat(64))
+        });
+        let result = apply_production(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            10,
+            &variant_path,
+            &variant_sha,
+        );
+        assert!(matches!(
+            result,
+            Err(ThothError::MigrationBackfillReviewedReportMismatch(_))
+        ));
+        assert!(mig_history(&pool, publisher_id).is_empty());
+    }
+
+    #[test]
+    fn newly_created_omitted_publisher_after_dry_run_stops_before_any_write() {
+        let (_guard, pool) = setup_test_db();
+        let (publisher_id, manifest) = setup_reachable_production(&pool);
+        let (outcome, bytes, report_path, report_sha) = dry_run_artifacts(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        // A new publisher appears after the reviewed dry run: it is not in the
+        // manifest, so it becomes a new omission the reviewed report never saw.
+        let _newcomer = create_publisher(&pool);
+        let result = apply_production(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            10,
+            &report_path,
+            &report_sha,
+        );
+        assert!(matches!(
+            result,
+            Err(ThothError::MigrationBackfillOmissionMismatch(_))
+        ));
+        assert!(mig_history(&pool, publisher_id).is_empty());
+    }
+
+    #[test]
+    fn a_disappeared_reviewed_omission_stops_before_any_write() {
+        let (_guard, pool) = setup_test_db();
+        let (publisher_id, manifest) = setup_reachable_production(&pool);
+        // An omitted (non-manifest) publisher exists at dry-run time.
+        let omitted = create_publisher(&pool);
+        let (outcome, bytes, report_path, report_sha) = dry_run_artifacts(&pool, &manifest);
+        assert!(outcome
+            .report
+            .omitted_publishers
+            .iter()
+            .any(|entry| entry.publisher_id == omitted.publisher_id));
+        let sha = outcome.plan_sha256.clone();
+        // The reviewed omitted publisher is removed before apply.
+        {
+            let mut connection = pool.get().unwrap();
+            sql_query(format!(
+                "DELETE FROM publisher WHERE publisher_id = '{}'",
+                omitted.publisher_id
+            ))
+            .execute(&mut connection)
+            .unwrap();
+        }
+        let result = apply_production(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            10,
+            &report_path,
+            &report_sha,
+        );
+        assert!(matches!(
+            result,
+            Err(ThothError::MigrationBackfillOmissionMismatch(_))
+        ));
+        assert!(mig_history(&pool, publisher_id).is_empty());
+    }
+
+    #[test]
+    fn a_changed_omission_reason_stops_before_any_write() {
+        let (_guard, pool) = setup_test_db();
+        let (publisher_id, manifest) = setup_reachable_production(&pool);
+        let _omitted = create_publisher(&pool);
+        let (outcome, bytes, report_path, _sha) = dry_run_artifacts(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        // A reviewed report whose omission reason differs from the deterministic
+        // recorded reason is rejected, even though the publisher-ID set matches.
+        let (variant_path, variant_sha) = report_variant(&report_path, |v| {
+            v["omittedPublishers"][0]["reason"] = serde_json::json!("a different reviewed reason")
+        });
+        let result = apply_production(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            10,
+            &variant_path,
+            &variant_sha,
+        );
+        assert!(matches!(
+            result,
+            Err(ThothError::MigrationBackfillOmissionMismatch(_))
+        ));
+        assert!(mig_history(&pool, publisher_id).is_empty());
+    }
+
+    #[test]
+    fn unchanged_omission_evidence_with_an_omitted_publisher_succeeds() {
+        let (_guard, pool) = setup_test_db();
+        let (publisher_id, manifest) = setup_reachable_production(&pool);
+        // An omitted publisher exists and is unchanged through apply.
+        let omitted = create_publisher(&pool);
+        let (outcome, bytes, report_path, report_sha) = dry_run_artifacts(&pool, &manifest);
+        assert!(outcome
+            .report
+            .omitted_publishers
+            .iter()
+            .any(|entry| entry.publisher_id == omitted.publisher_id));
+        let sha = outcome.plan_sha256.clone();
+        let applied = apply_production(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            10,
+            &report_path,
+            &report_sha,
+        )
+        .expect("unchanged omission evidence permits production apply");
+        assert_eq!(applied.written, 1);
+        assert_eq!(package_now(&pool, publisher_id), ThothPackage::Obelisk);
+    }
+
+    #[test]
+    fn unchanged_omission_evidence_is_compatible_with_same_plan_partial_resume() {
+        let (_guard, pool) = setup_test_db();
+        let a = create_publisher(&pool);
+        let b = create_publisher(&pool);
+        let omitted = create_publisher(&pool);
+        set_state(&pool, a.publisher_id, ThothPackage::Oasis, &[]);
+        set_state(&pool, b.publisher_id, ThothPackage::Oasis, &[]);
+        let manifest = write_manifest(&manifest_value(&[
+            (a.publisher_id, "OBELISK", &["ZENODO"]),
+            (b.publisher_id, "SPHINX", &["INTERNET_ARCHIVE"]),
+        ]));
+        let (outcome, bytes, report_path, report_sha) = dry_run_artifacts(&pool, &manifest);
+        assert!(outcome
+            .report
+            .omitted_publishers
+            .iter()
+            .any(|entry| entry.publisher_id == omitted.publisher_id));
+        let sha = outcome.plan_sha256.clone();
+        let actor = audit_actor(&sha);
+
+        // Publisher A durably commits under this exact plan's actor (interrupted run).
+        let entry_a = outcome
+            .plan
+            .entries
+            .iter()
+            .find(|entry| entry.publisher_id == a.publisher_id)
+            .unwrap();
+        let context = ServiceConfigurationWriteContext {
+            source: PublisherServiceConfigurationSource::MigrationBackfill,
+            actor: &actor,
+            job_creation: DistributionJobCreation::Off,
+        };
+        replace_publisher_service_configuration(
+            &pool,
+            &context,
+            &ReplacePublisherServiceConfigurationInput {
+                publisher_id: a.publisher_id,
+                subscription_package: entry_a.desired.subscription_package,
+                enabled_distribution_platforms: entry_a
+                    .desired
+                    .enabled_distribution_platforms
+                    .clone(),
+                expected_updated_at: entry_a.reviewed_configuration_version,
+            },
+        )
+        .unwrap();
+
+        // Resume with unchanged omission evidence: A already applied, B written.
+        let resumed = apply_production(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            10,
+            &report_path,
+            &report_sha,
+        )
+        .expect("unchanged omission evidence permits resume");
+        assert_eq!(resumed.already_applied, 1);
+        assert_eq!(resumed.written, 1);
+        assert_eq!(package_now(&pool, b.publisher_id), ThothPackage::Sphinx);
+    }
+
+    #[test]
+    fn omission_mismatch_after_an_earlier_commit_stops_all_further_writes() {
+        let (_guard, pool) = setup_test_db();
+        let a = create_publisher(&pool);
+        let b = create_publisher(&pool);
+        set_state(&pool, a.publisher_id, ThothPackage::Oasis, &[]);
+        set_state(&pool, b.publisher_id, ThothPackage::Oasis, &[]);
+        let manifest = write_manifest(&manifest_value(&[
+            (a.publisher_id, "OBELISK", &["ZENODO"]),
+            (b.publisher_id, "SPHINX", &["INTERNET_ARCHIVE"]),
+        ]));
+        let (outcome, bytes, report_path, report_sha) = dry_run_artifacts(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        let actor = audit_actor(&sha);
+
+        // Publisher A durably commits under this exact plan's actor.
+        let entry_a = outcome
+            .plan
+            .entries
+            .iter()
+            .find(|entry| entry.publisher_id == a.publisher_id)
+            .unwrap();
+        let context = ServiceConfigurationWriteContext {
+            source: PublisherServiceConfigurationSource::MigrationBackfill,
+            actor: &actor,
+            job_creation: DistributionJobCreation::Off,
+        };
+        replace_publisher_service_configuration(
+            &pool,
+            &context,
+            &ReplacePublisherServiceConfigurationInput {
+                publisher_id: a.publisher_id,
+                subscription_package: entry_a.desired.subscription_package,
+                enabled_distribution_platforms: entry_a
+                    .desired
+                    .enabled_distribution_platforms
+                    .clone(),
+                expected_updated_at: entry_a.reviewed_configuration_version,
+            },
+        )
+        .unwrap();
+
+        // Publisher membership changes after the earlier commit: a new omission.
+        let _newcomer = create_publisher(&pool);
+
+        // Resume STOPs before any further new write; A's prior commit is preserved.
+        let result = apply_production(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            10,
+            &report_path,
+            &report_sha,
+        );
+        assert!(matches!(
+            result,
+            Err(ThothError::MigrationBackfillOmissionMismatch(_))
+        ));
+        assert_eq!(
+            mig_history(&pool, a.publisher_id).len(),
+            1,
+            "A stays committed"
+        );
+        assert!(
+            mig_history(&pool, b.publisher_id).is_empty(),
+            "B is not written under changed omission evidence"
+        );
+    }
+
+    /// Build a production `ApplyRequest` with explicit artifact paths, for the
+    /// alias-rejection cases.
+    #[allow(clippy::too_many_arguments)]
+    fn production_request<'a>(
+        manifest_path: &'a std::path::Path,
+        plan_path: &'a std::path::Path,
+        plan_sha: &'a str,
+        report_out_path: &'a std::path::Path,
+        reviewed_report_path: &'a std::path::Path,
+        expected_report_sha: &'a str,
+    ) -> ApplyRequest<'a> {
+        ApplyRequest {
+            manifest_path,
+            plan_path,
+            expected_plan_sha256: plan_sha,
+            report_out_path,
+            mode: ApplyExecutionMode::Production {
+                max_works_per_publisher: 10,
+                reviewed_report_path,
+                expected_reviewed_report_sha256: expected_report_sha,
+            },
+            job_creation: DistributionJobCreation::Off,
+        }
+    }
+
+    #[test]
+    fn reviewed_report_aliasing_another_artifact_is_rejected_and_preserves_inputs() {
+        let (_guard, pool) = setup_test_db();
+        let (publisher_id, manifest) = setup_reachable_production(&pool);
+        let (outcome, bytes, report_path, report_sha) = dry_run_artifacts(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        let plan_path = tmp_path("reviewed-plan.json");
+        std::fs::write(&plan_path, &bytes).unwrap();
+        let report_out = tmp_path("apply-report.json");
+
+        let manifest_before = std::fs::read(&manifest).unwrap();
+        let plan_before = std::fs::read(&plan_path).unwrap();
+        let review_before = std::fs::read(&report_path).unwrap();
+
+        // reviewed report == manifest input.
+        let request = production_request(
+            &manifest,
+            &plan_path,
+            &sha,
+            &report_out,
+            &manifest,
+            &report_sha,
+        );
+        assert!(matches!(
+            apply(&pool, &request),
+            Err(ThothError::MigrationBackfillArtifactAlias(_))
+        ));
+        // reviewed report == reviewed plan input.
+        let request = production_request(
+            &manifest,
+            &plan_path,
+            &sha,
+            &report_out,
+            &plan_path,
+            &report_sha,
+        );
+        assert!(matches!(
+            apply(&pool, &request),
+            Err(ThothError::MigrationBackfillArtifactAlias(_))
+        ));
+        // reviewed report == apply-report output.
+        let request = production_request(
+            &manifest,
+            &plan_path,
+            &sha,
+            &report_path,
+            &report_path,
+            &report_sha,
+        );
+        assert!(matches!(
+            apply(&pool, &request),
+            Err(ThothError::MigrationBackfillArtifactAlias(_))
+        ));
+
+        // All immutable inputs are untouched and nothing was written.
+        assert_eq!(std::fs::read(&manifest).unwrap(), manifest_before);
+        assert_eq!(std::fs::read(&plan_path).unwrap(), plan_before);
+        assert_eq!(std::fs::read(&report_path).unwrap(), review_before);
+        assert!(mig_history(&pool, publisher_id).is_empty());
+    }
+
+    #[test]
+    fn reviewed_report_bytes_and_omission_ordering_are_deterministic() {
+        let (_guard, pool) = setup_test_db();
+        let (_publisher_id, manifest) = setup_reachable_production(&pool);
+        // Extra omitted publishers to exercise omission ordering determinism.
+        create_publisher(&pool);
+        create_publisher(&pool);
+
+        let (first, _b1, report1, sha1) = dry_run_artifacts(&pool, &manifest);
+        let (second, _b2, report2, sha2) = dry_run_artifacts(&pool, &manifest);
+        assert_eq!(sha1, sha2, "report hash is stable for a fixed snapshot");
+        assert_eq!(
+            std::fs::read(&report1).unwrap(),
+            std::fs::read(&report2).unwrap(),
+            "report bytes are byte-identical for a fixed snapshot"
+        );
+        // The omission evidence is sorted by canonical publisher UUID.
+        let ids: Vec<Uuid> = first
+            .report
+            .omitted_publishers
+            .iter()
+            .map(|entry| entry.publisher_id)
+            .collect();
+        let mut sorted = ids.clone();
+        sorted.sort();
+        assert_eq!(ids, sorted, "omissions are UUID-ordered");
+        assert_eq!(
+            first.report.omitted_publishers,
+            second.report.omitted_publishers
+        );
+    }
+
+    #[test]
+    fn disposable_apply_is_report_independent() {
+        let (_guard, pool) = setup_test_db();
+        let (publisher_id, manifest) = setup_reachable_production(&pool);
+        let (outcome, bytes) = run_dry_run(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        // A new omission appears; disposable apply carries no reviewed report and
+        // is deliberately not gated by the omission-evidence binding.
+        let _newcomer = create_publisher(&pool);
+        let applied = apply_plan(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            None,
+        )
+        .expect("disposable apply does not require reviewed-report evidence");
+        assert_eq!(applied.written, 1);
+        assert_eq!(package_now(&pool, publisher_id), ThothPackage::Obelisk);
+    }
+
+    #[test]
+    fn a_manifest_publisher_deleted_after_dry_run_is_still_rejected() {
+        // Strengthening: a deleted MANIFEST publisher is caught by the existing
+        // resolution/classification path (EntityNotFound), complementing the
+        // omission check which binds non-manifest membership.
+        let (_guard, pool) = setup_test_db();
+        let (publisher_id, manifest) = setup_reachable_production(&pool);
+        let (outcome, bytes, report_path, report_sha) = dry_run_artifacts(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        {
+            let mut connection = pool.get().unwrap();
+            sql_query(format!(
+                "DELETE FROM publisher WHERE publisher_id = '{publisher_id}'"
+            ))
+            .execute(&mut connection)
+            .unwrap();
+        }
+        let result = apply_production(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            10,
+            &report_path,
+            &report_sha,
+        );
+        assert!(
+            result.is_err(),
+            "a deleted manifest publisher must fail closed"
+        );
     }
 }
