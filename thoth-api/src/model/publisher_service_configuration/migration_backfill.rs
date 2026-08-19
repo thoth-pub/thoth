@@ -172,14 +172,40 @@ pub enum LicenceDisposition {
 }
 
 impl MigrationManifest {
-    fn validate_version(&self) -> ThothResult<()> {
+    /// Version-validate the manifest and reject ambiguous reviewed input.
+    ///
+    /// A duplicated licence-disposition value is rejected outright — even when
+    /// both copies carry the same disposition — so exactly one unambiguous
+    /// reviewed disposition exists per stored licence value and no ordering-
+    /// dependent first-wins choice is ever made. This runs before any write.
+    fn validate(&self) -> ThothResult<()> {
         if self.manifest_version != MANIFEST_VERSION {
             return Err(ThothError::MigrationBackfillManifestInvalid(format!(
                 "unsupported manifest version {} (expected {MANIFEST_VERSION})",
                 self.manifest_version
             )));
         }
+        let mut seen: HashSet<&str> = HashSet::new();
+        for entry in &self.licence_dispositions {
+            if !seen.insert(entry.value.as_str()) {
+                return Err(ThothError::MigrationBackfillManifestInvalid(format!(
+                    "licence value {:?} has more than one reviewed disposition; a licence value \
+                     may appear at most once in licenceDispositions",
+                    entry.value
+                )));
+            }
+        }
         Ok(())
+    }
+
+    /// The single reviewed disposition for a licence value, if the manifest
+    /// declares one. Validation has already proven at most one entry per value,
+    /// so this lookup is unambiguous and order-independent.
+    fn disposition_for(&self, value: &str) -> Option<LicenceDisposition> {
+        self.licence_dispositions
+            .iter()
+            .find(|entry| entry.value == value)
+            .map(|entry| entry.disposition)
     }
 }
 
@@ -524,6 +550,38 @@ pub fn production_job_state_preflight(
             "automatic distribution-job creation is not effectively OFF".to_string(),
         ));
     }
+    let (jobs, targets, attempts) = job_table_counts(db)?;
+    if jobs != 0 || targets != 0 || attempts != 0 {
+        return Err(ThothError::MigrationBackfillProductionPrecondition(format!(
+            "distribution job state is not empty (jobs={jobs}, targets={targets}, attempts={attempts})"
+        )));
+    }
+    Ok(())
+}
+
+/// The mandatory production post-apply invariant: the three distribution-job
+/// tables must still be zero at the end of a production apply invocation.
+///
+/// `MIGRATION_BACKFILL` is job-free by source semantics, so this must always
+/// hold; the check is defence in depth. A violation fails closed — the apply
+/// does not claim successful reconciliation, attempts no cross-publisher
+/// rollback, and leaves the durable configuration audit rows as the recovery
+/// evidence.
+fn production_post_apply_job_invariant(db: &PgPool) -> ThothResult<()> {
+    let (jobs, targets, attempts) = job_table_counts(db)?;
+    if jobs != 0 || targets != 0 || attempts != 0 {
+        return Err(ThothError::MigrationBackfillProductionPrecondition(
+            format!(
+                "post-apply invariant violated: distribution job state is not empty \
+             (jobs={jobs}, targets={targets}, attempts={attempts})"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// The row counts of the three distribution-job tables.
+fn job_table_counts(db: &PgPool) -> ThothResult<(i64, i64, i64)> {
     let mut connection = db.get()?;
     let jobs: i64 = distribution_job::table
         .count()
@@ -534,12 +592,7 @@ pub fn production_job_state_preflight(
     let attempts: i64 = distribution_job_attempt::table
         .count()
         .get_result(&mut connection)?;
-    if jobs != 0 || targets != 0 || attempts != 0 {
-        return Err(ThothError::MigrationBackfillProductionPrecondition(format!(
-            "distribution job state is not empty (jobs={jobs}, targets={targets}, attempts={attempts})"
-        )));
-    }
-    Ok(())
+    Ok((jobs, targets, attempts))
 }
 
 // ---------------------------------------------------------------------------
@@ -670,6 +723,48 @@ pub struct DryRunOutcome {
     pub report: ReconciliationReport,
 }
 
+/// The apply execution scope. This is a required, explicit, mutually exclusive
+/// choice — never an omitted boolean — so that unsafe production combinations are
+/// structurally unrepresentable.
+///
+/// In particular, `Production` **cannot** be constructed without a lock envelope:
+/// there is no "production with no approved envelope" value. Production execution
+/// additionally enforces the strict job-state preflight (before any write) and
+/// the post-apply zero-job invariant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApplyExecutionMode {
+    /// Disposable/local execution. No production job-state preflight and no
+    /// production licence gate; an optional lock envelope may still be supplied
+    /// for testing or pacing.
+    Disposable {
+        max_works_per_publisher: Option<i64>,
+    },
+    /// Production execution. A per-publisher work-count lock envelope is
+    /// **required** by construction; the strict job-state preflight, the
+    /// production licence fail-closed gate and the post-apply zero-job invariant
+    /// all apply.
+    Production { max_works_per_publisher: i64 },
+}
+
+impl ApplyExecutionMode {
+    fn is_production(self) -> bool {
+        matches!(self, ApplyExecutionMode::Production { .. })
+    }
+
+    /// The effective per-publisher lock envelope, if any. Always `Some` for
+    /// production (required by construction); optional for disposable.
+    fn lock_envelope(self) -> Option<i64> {
+        match self {
+            ApplyExecutionMode::Disposable {
+                max_works_per_publisher,
+            } => max_works_per_publisher,
+            ApplyExecutionMode::Production {
+                max_works_per_publisher,
+            } => Some(max_works_per_publisher),
+        }
+    }
+}
+
 /// Inputs for an apply. The reviewed plan and its expected SHA-256 are mandatory;
 /// the manifest is required so its recorded raw-byte hash can be re-verified.
 pub struct ApplyRequest<'a> {
@@ -677,13 +772,10 @@ pub struct ApplyRequest<'a> {
     pub plan_path: &'a Path,
     pub expected_plan_sha256: &'a str,
     pub report_out_path: &'a Path,
-    /// When set, the production job-state preflight must pass before any write.
-    pub run_production_preflight: bool,
+    /// The explicit execution scope. Gate B never invents a production threshold;
+    /// the required production envelope is supplied by Gate D/E.
+    pub mode: ApplyExecutionMode,
     pub job_creation: DistributionJobCreation,
-    /// The approved maximum per-publisher work-count lock envelope. When set, a
-    /// pending publisher whose current work count exceeds it stops the run before
-    /// that publisher is written. Gate B never invents a production threshold.
-    pub max_works_per_publisher: Option<i64>,
 }
 
 /// The result of an apply.
@@ -699,6 +791,13 @@ pub struct ApplyOutcome {
 /// Produce a deterministic dry-run plan and reconciliation report; write no
 /// database change.
 pub fn dry_run(db: &PgPool, request: &DryRunRequest<'_>) -> ThothResult<DryRunOutcome> {
+    // Reject aliasing input/output artifacts before any read or write, so a
+    // dry run can never overwrite its own manifest with the plan or the report.
+    assert_distinct_artifacts(&[
+        ("manifest", request.manifest_path),
+        ("plan output", request.plan_out_path),
+        ("report output", request.report_out_path),
+    ])?;
     if request.run_production_preflight {
         production_job_state_preflight(db, request.job_creation)?;
     }
@@ -734,7 +833,22 @@ pub fn dry_run(db: &PgPool, request: &DryRunRequest<'_>) -> ThothResult<DryRunOu
 /// every entry, and write only the pending entries through the canonical
 /// coordinator with a fixed `MIGRATION_BACKFILL` source and derived actor.
 pub fn apply(db: &PgPool, request: &ApplyRequest<'_>) -> ThothResult<ApplyOutcome> {
-    if request.run_production_preflight {
+    let production = request.mode.is_production();
+
+    // Reject aliasing input/output artifacts before any read or write, so an
+    // interrupted apply can never destroy the reviewed manifest or plan it needs
+    // for deterministic recovery. Inputs are untouched when this rejects.
+    assert_distinct_artifacts(&[
+        ("manifest", request.manifest_path),
+        ("reviewed plan", request.plan_path),
+        ("report output", request.report_out_path),
+    ])?;
+
+    // Production apply requires the strict job-state precondition (switch
+    // effectively OFF and all three distribution-job tables empty) before any
+    // write. The required lock envelope is guaranteed by construction of
+    // `ApplyExecutionMode::Production`.
+    if production {
         production_job_state_preflight(db, request.job_creation)?;
     }
 
@@ -771,6 +885,16 @@ pub fn apply(db: &PgPool, request: &ApplyRequest<'_>) -> ThothResult<ApplyOutcom
         classes.push((index, class));
     }
 
+    // B2: a production apply re-audits the current licence state against the
+    // exact immutable manifest (its raw-byte hash is already bound into the
+    // reviewed plan). Licence state is not protected by the configuration token,
+    // so a value that is unreviewed — or that carries a disposition requiring a
+    // separate normalization/repair action — must STOP before the first write.
+    // MIG-01 never rewrites a licence value.
+    if production {
+        enforce_reviewed_licences(db, &manifest, &plan.entries)?;
+    }
+
     // The reconciliation report's breakdown is computed against the pre-write
     // state, so it describes the change this apply is about to make rather than
     // the post-write state (which is all no-ops).
@@ -792,7 +916,11 @@ pub fn apply(db: &PgPool, request: &ApplyRequest<'_>) -> ThothResult<ApplyOutcom
             ResumeClassification::AlreadyAppliedByThisPlan => already_applied += 1,
             ResumeClassification::Drift => unreachable!("drift stopped the run above"),
             ResumeClassification::Pending => {
-                if let Some(envelope) = request.max_works_per_publisher {
+                // Recompute the current work count immediately before this
+                // publisher's write and stop if it exceeds the approved envelope.
+                // Work count is an operational estimate, so a value within the
+                // envelope — even if it drifted from the dry run — does not fail.
+                if let Some(envelope) = request.mode.lock_envelope() {
                     let current = work_count(db, entry.publisher_id)?;
                     if current > envelope {
                         return Err(ThothError::MigrationBackfillLockEnvelopeExceeded(format!(
@@ -817,6 +945,13 @@ pub fn apply(db: &PgPool, request: &ApplyRequest<'_>) -> ThothResult<ApplyOutcom
                 written += 1;
             }
         }
+    }
+
+    // B1: mandatory production post-apply invariant. Verify again that no
+    // distribution job/target/attempt row exists before claiming success. A
+    // violation fails closed with no reconciliation claim and no rollback.
+    if production {
+        production_post_apply_job_invariant(db)?;
     }
 
     let applied = AppliedSummary {
@@ -871,7 +1006,7 @@ pub fn parse_manifest(bytes: &[u8]) -> ThothResult<MigrationManifest> {
     let manifest: MigrationManifest = serde_json::from_slice(bytes).map_err(|error| {
         ThothError::MigrationBackfillManifestInvalid(format!("manifest is not valid JSON: {error}"))
     })?;
-    manifest.validate_version()?;
+    manifest.validate()?;
     Ok(manifest)
 }
 
@@ -1148,11 +1283,7 @@ fn licence_finding(
     db: &PgPool,
     value: &str,
 ) -> ThothResult<Option<LicenceFinding>> {
-    let disposition = manifest
-        .licence_dispositions
-        .iter()
-        .find(|entry| entry.value == value)
-        .map(|entry| entry.disposition);
+    let disposition = manifest.disposition_for(value);
     let reported = match disposition {
         Some(LicenceDisposition::Supported) => return Ok(None),
         Some(LicenceDisposition::Normalize) => LicenceDispositionReport::Normalize,
@@ -1175,6 +1306,63 @@ fn works_with_licence(db: &PgPool, value: &str) -> ThothResult<i64> {
         .count()
         .get_result::<i64>(&mut connection)
         .map_err(Into::into)
+}
+
+/// Fail closed if any considered publisher's current catalogue licence state is
+/// not reviewed as supported by the exact immutable manifest (`B2`).
+///
+/// A production package/platform apply must not proceed while a required licence
+/// remains unresolved. A value is blocking when it is:
+///
+/// - `UNREVIEWED` — the manifest declares no disposition for it; or
+/// - `NORMALIZE`/`DEFER`/`REJECT` — a reviewed disposition that, per the approved
+///   #828 licence semantics, requires a separate normalization/repair action or
+///   leaves the value unresolved (a recorded `defer` alone does not satisfy
+///   MIG-01).
+///
+/// Only `SUPPORTED` permits the apply to continue. This performs **no** licence
+/// write and never rewrites a value; unresolved licence normalization is a
+/// distinct, separately authorized gate (and is out of scope for Gate B).
+fn enforce_reviewed_licences(
+    db: &PgPool,
+    manifest: &MigrationManifest,
+    entries: &[PlanEntry],
+) -> ThothResult<()> {
+    let mut checked: HashSet<String> = HashSet::new();
+    for entry in entries {
+        for value in distinct_licences(db, entry.publisher_id)? {
+            if !checked.insert(value.clone()) {
+                continue;
+            }
+            match manifest.disposition_for(&value) {
+                Some(LicenceDisposition::Supported) => {}
+                Some(LicenceDisposition::Normalize) => {
+                    return Err(ThothError::MigrationBackfillUnresolvedLicence(format!(
+                        "licence {value:?} is reviewed NORMALIZE and requires a separate, \
+                         separately authorized normalization action before a production apply"
+                    )))
+                }
+                Some(LicenceDisposition::Defer) => {
+                    return Err(ThothError::MigrationBackfillUnresolvedLicence(format!(
+                        "licence {value:?} is reviewed DEFER and remains unresolved; a deferred \
+                         disposition alone does not permit a production apply"
+                    )))
+                }
+                Some(LicenceDisposition::Reject) => {
+                    return Err(ThothError::MigrationBackfillUnresolvedLicence(format!(
+                        "licence {value:?} is reviewed REJECT and is not permitted"
+                    )))
+                }
+                None => {
+                    return Err(ThothError::MigrationBackfillUnresolvedLicence(format!(
+                        "licence {value:?} has no reviewed disposition in the immutable manifest \
+                         (UNREVIEWED)"
+                    )))
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -1218,6 +1406,55 @@ fn assemble_report(
         max_works_per_publisher: plan.expected.max_works_per_publisher,
         applied,
     }
+}
+
+/// Reject any two `MIG-01` artifact paths that resolve to the same filesystem
+/// location (`B5`), before any read or write, so an interrupted run can never
+/// destroy a reviewed manifest or plan it needs for deterministic recovery.
+///
+/// Resolution handles identical lexical paths, relative-path normalization and
+/// existing symlink aliases: an existing path is canonicalized; a not-yet-
+/// existing output is resolved through its existing parent directory combined
+/// with its filename. This stays deliberately MIG-01-local.
+fn assert_distinct_artifacts(artifacts: &[(&str, &Path)]) -> ThothResult<()> {
+    let mut resolved: Vec<(&str, std::path::PathBuf)> = Vec::with_capacity(artifacts.len());
+    for (label, path) in artifacts {
+        let identity = resolve_artifact_identity(path)?;
+        if let Some((other, _)) = resolved.iter().find(|(_, existing)| *existing == identity) {
+            return Err(ThothError::MigrationBackfillArtifactAlias(format!(
+                "the {label} path and the {other} path resolve to the same location {}",
+                identity.display()
+            )));
+        }
+        resolved.push((label, identity));
+    }
+    Ok(())
+}
+
+/// The resolved filesystem identity of an artifact path, following symlinks and
+/// normalizing relative components. An existing path canonicalizes directly; a
+/// not-yet-existing output resolves through its existing parent directory.
+fn resolve_artifact_identity(path: &Path) -> ThothResult<std::path::PathBuf> {
+    if let Ok(canonical) = path.canonicalize() {
+        return Ok(canonical);
+    }
+    let file_name = path.file_name().ok_or_else(|| {
+        ThothError::MigrationBackfillArtifactAlias(format!(
+            "{} is not a usable file path",
+            path.display()
+        ))
+    })?;
+    let parent = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        _ => Path::new("."),
+    };
+    let parent = parent.canonicalize().map_err(|error| {
+        ThothError::MigrationBackfillArtifactAlias(format!(
+            "cannot resolve the directory for {}: {error}",
+            path.display()
+        ))
+    })?;
+    Ok(parent.join(file_name))
 }
 
 fn read_file(path: &Path) -> ThothResult<Vec<u8>> {
@@ -1325,6 +1562,22 @@ mod tests {
         (outcome, bytes)
     }
 
+    /// A dry run returning the raw result (for failure-path assertions), using
+    /// fresh temp output paths.
+    fn try_dry_run(pool: &PgPool, manifest_path: &std::path::Path) -> ThothResult<DryRunOutcome> {
+        let plan_out = tmp_path("plan.json");
+        let report_out = tmp_path("report.json");
+        let request = DryRunRequest {
+            manifest_path,
+            plan_out_path: &plan_out,
+            report_out_path: &report_out,
+            run_production_preflight: false,
+            job_creation: DistributionJobCreation::Off,
+        };
+        dry_run(pool, &request)
+    }
+
+    /// Disposable-mode apply with an optional lock envelope.
     fn apply_plan(
         pool: &PgPool,
         manifest_path: &std::path::Path,
@@ -1332,6 +1585,27 @@ mod tests {
         expected_sha: &str,
         job_creation: DistributionJobCreation,
         max_works: Option<i64>,
+    ) -> ThothResult<ApplyOutcome> {
+        apply_plan_mode(
+            pool,
+            manifest_path,
+            plan_bytes,
+            expected_sha,
+            job_creation,
+            ApplyExecutionMode::Disposable {
+                max_works_per_publisher: max_works,
+            },
+        )
+    }
+
+    /// Apply with an explicit execution mode (used by the production-path tests).
+    fn apply_plan_mode(
+        pool: &PgPool,
+        manifest_path: &std::path::Path,
+        plan_bytes: &[u8],
+        expected_sha: &str,
+        job_creation: DistributionJobCreation,
+        mode: ApplyExecutionMode,
     ) -> ThothResult<ApplyOutcome> {
         let plan_path = tmp_path("reviewed-plan.json");
         std::fs::write(&plan_path, plan_bytes).unwrap();
@@ -1341,9 +1615,8 @@ mod tests {
             plan_path: &plan_path,
             expected_plan_sha256: expected_sha,
             report_out_path: &report_out,
-            run_production_preflight: false,
+            mode,
             job_creation,
-            max_works_per_publisher: max_works,
         };
         apply(pool, &request)
     }
@@ -2139,26 +2412,106 @@ mod tests {
     // Lock envelope and synthetic volume
     // ---------------------------------------------------------------------
 
+    /// Configurable synthetic-volume fixture: create `count` works under a fresh
+    /// publisher/imprint and return the publisher id.
+    fn seed_publisher_with_works(pool: &PgPool, count: i64) -> Uuid {
+        let publisher = create_publisher(pool);
+        let imprint = create_imprint(pool, &publisher);
+        for _ in 0..count {
+            create_work(pool, &imprint);
+        }
+        publisher.publisher_id
+    }
+
     #[test]
     fn synthetic_work_volume_is_reflected_in_affected_work_count() {
+        // A configurable fixture exercised across several representative sizes,
+        // rather than a single hard-coded volume.
+        for volume in [0_i64, 1, 5, 25] {
+            let (_guard, pool) = setup_test_db();
+            let publisher_id = seed_publisher_with_works(&pool, volume);
+            set_state(&pool, publisher_id, ThothPackage::Oasis, &[]);
+            let manifest =
+                write_manifest(&manifest_value(&[(publisher_id, "OBELISK", &["ZENODO"])]));
+            let (outcome, _bytes) = run_dry_run(&pool, &manifest);
+            let entry = &outcome.plan.entries[0];
+            assert_eq!(entry.affected_work_count, volume, "volume {volume}");
+            assert_eq!(
+                outcome.plan.expected.affected_works, volume,
+                "volume {volume}"
+            );
+            assert_eq!(
+                outcome.plan.expected.max_works_per_publisher, volume,
+                "volume {volume}"
+            );
+        }
+    }
+
+    #[test]
+    fn work_count_drift_after_dry_run_is_operational_not_a_config_token() {
+        // Work count is an operational estimate, not a configuration concurrency
+        // token: works added AFTER the dry run do not invalidate the reviewed
+        // configuration state, and apply succeeds when the NEW current count is
+        // within the approved envelope.
         let (_guard, pool) = setup_test_db();
-        let publisher = create_publisher(&pool);
-        let imprint = create_imprint(&pool, &publisher);
-        let volume = 7;
-        for _ in 0..volume {
+        let publisher_id = seed_publisher_with_works(&pool, 2);
+        set_state(&pool, publisher_id, ThothPackage::Oasis, &[]);
+        let imprint = create_imprint(&pool, &Publisher::from_id(&pool, &publisher_id).unwrap());
+        let manifest = write_manifest(&manifest_value(&[(publisher_id, "OBELISK", &["ZENODO"])]));
+
+        let (outcome, bytes) = run_dry_run(&pool, &manifest);
+        assert_eq!(outcome.plan.entries[0].affected_work_count, 2);
+        let sha = outcome.plan_sha256.clone();
+
+        // Two more works appear after the dry run: current count becomes 4.
+        for _ in 0..2 {
             create_work(&pool, &imprint);
         }
-        set_state(&pool, publisher.publisher_id, ThothPackage::Oasis, &[]);
-        let manifest = write_manifest(&manifest_value(&[(
-            publisher.publisher_id,
-            "OBELISK",
-            &["ZENODO"],
-        )]));
-        let (outcome, _bytes) = run_dry_run(&pool, &manifest);
-        let entry = &outcome.plan.entries[0];
-        assert_eq!(entry.affected_work_count, volume);
-        assert_eq!(outcome.plan.expected.affected_works, volume);
-        assert_eq!(outcome.plan.expected.max_works_per_publisher, volume);
+        // Envelope 5 >= new current count 4: apply still succeeds (the reviewed
+        // configuration state and token are unchanged).
+        let applied = apply_plan(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            Some(5),
+        )
+        .expect("within-envelope apply succeeds despite work drift");
+        assert_eq!(applied.written, 1);
+        assert_eq!(package_now(&pool, publisher_id), ThothPackage::Obelisk);
+    }
+
+    #[test]
+    fn work_count_growth_past_the_envelope_after_dry_run_stops_before_write() {
+        let (_guard, pool) = setup_test_db();
+        let publisher_id = seed_publisher_with_works(&pool, 2);
+        set_state(&pool, publisher_id, ThothPackage::Oasis, &[]);
+        let imprint = create_imprint(&pool, &Publisher::from_id(&pool, &publisher_id).unwrap());
+        let manifest = write_manifest(&manifest_value(&[(publisher_id, "OBELISK", &["ZENODO"])]));
+
+        let (outcome, bytes) = run_dry_run(&pool, &manifest);
+        assert_eq!(outcome.plan.entries[0].affected_work_count, 2);
+        let sha = outcome.plan_sha256.clone();
+
+        // Works added after the dry run push the current count to 6, above the
+        // approved envelope of 4: apply stops before writing that publisher.
+        for _ in 0..4 {
+            create_work(&pool, &imprint);
+        }
+        let stopped = apply_plan(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            Some(4),
+        );
+        assert!(matches!(
+            stopped,
+            Err(ThothError::MigrationBackfillLockEnvelopeExceeded(_))
+        ));
+        assert!(mig_history(&pool, publisher_id).is_empty());
     }
 
     #[test]
@@ -2269,5 +2622,636 @@ mod tests {
             .omitted_publishers
             .iter()
             .any(|entry| entry.publisher_id == mapped.publisher_id));
+    }
+
+    // ---------------------------------------------------------------------
+    // B3 - duplicate licence dispositions
+    // ---------------------------------------------------------------------
+
+    fn manifest_with_licences(publisher_id: Uuid, licences: &[(&str, &str)]) -> serde_json::Value {
+        let dispositions: Vec<serde_json::Value> = licences
+            .iter()
+            .map(|(value, disposition)| serde_json::json!({ "value": value, "disposition": disposition }))
+            .collect();
+        serde_json::json!({
+            "manifestVersion": 1,
+            "publishers": [{
+                "publisherId": publisher_id.to_string(),
+                "subscriptionPackage": "OBELISK",
+                "enabledDistributionPlatforms": ["ZENODO"],
+            }],
+            "licenceDispositions": dispositions,
+        })
+    }
+
+    #[test]
+    fn duplicate_licence_dispositions_are_rejected_regardless_of_agreement() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(&pool);
+        set_state(&pool, publisher.publisher_id, ThothPackage::Oasis, &[]);
+
+        // Same value, different disposition — ambiguous, rejected.
+        let conflicting = write_manifest(&manifest_with_licences(
+            publisher.publisher_id,
+            &[("cc-by", "SUPPORTED"), ("cc-by", "NORMALIZE")],
+        ));
+        assert!(matches!(
+            try_dry_run(&pool, &conflicting),
+            Err(ThothError::MigrationBackfillManifestInvalid(_))
+        ));
+
+        // Same value, same disposition — still rejected (no silent dedup).
+        let duplicated = write_manifest(&manifest_with_licences(
+            publisher.publisher_id,
+            &[("cc-by", "SUPPORTED"), ("cc-by", "SUPPORTED")],
+        ));
+        assert!(matches!(
+            try_dry_run(&pool, &duplicated),
+            Err(ThothError::MigrationBackfillManifestInvalid(_))
+        ));
+
+        // Distinct values — accepted.
+        let unique = write_manifest(&manifest_with_licences(
+            publisher.publisher_id,
+            &[("cc-by", "SUPPORTED"), ("cc-by-nc", "NORMALIZE")],
+        ));
+        assert!(try_dry_run(&pool, &unique).is_ok());
+    }
+
+    // ---------------------------------------------------------------------
+    // B1 - fail-closed production apply controls
+    // ---------------------------------------------------------------------
+
+    /// Establish a publisher whose only work carries an explicit licence value.
+    fn publisher_with_licence(pool: &PgPool, licence: &str) -> Uuid {
+        let publisher = create_publisher(pool);
+        let imprint = create_imprint(pool, &publisher);
+        let work = create_work(pool, &imprint);
+        let mut connection = pool.get().unwrap();
+        sql_query(format!(
+            "UPDATE work SET license = '{licence}' WHERE work_id = '{}'",
+            work.work_id
+        ))
+        .execute(&mut connection)
+        .unwrap();
+        publisher.publisher_id
+    }
+
+    #[test]
+    fn production_apply_succeeds_only_off_empty_and_leaves_zero_jobs() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(&pool);
+        set_state(&pool, publisher.publisher_id, ThothPackage::Oasis, &[]);
+        let manifest = write_manifest(&manifest_value(&[(
+            publisher.publisher_id,
+            "OBELISK",
+            &["ZENODO"],
+        )]));
+        let (outcome, bytes) = run_dry_run(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+
+        let applied = apply_plan_mode(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            ApplyExecutionMode::Production {
+                max_works_per_publisher: 10,
+            },
+        )
+        .expect("production apply succeeds under OFF + empty job state");
+        assert_eq!(applied.written, 1);
+        // The post-apply invariant held: job tables remain empty.
+        assert_eq!(
+            table_count(&pool, "SELECT count(*) AS count FROM distribution_job"),
+            0
+        );
+    }
+
+    #[test]
+    fn production_apply_rejects_switch_on_before_any_write() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(&pool);
+        set_state(&pool, publisher.publisher_id, ThothPackage::Oasis, &[]);
+        let manifest = write_manifest(&manifest_value(&[(
+            publisher.publisher_id,
+            "OBELISK",
+            &["ZENODO"],
+        )]));
+        let (outcome, bytes) = run_dry_run(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        let result = apply_plan_mode(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::On,
+            ApplyExecutionMode::Production {
+                max_works_per_publisher: 10,
+            },
+        );
+        assert!(matches!(
+            result,
+            Err(ThothError::MigrationBackfillProductionPrecondition(_))
+        ));
+        assert!(mig_history(&pool, publisher.publisher_id).is_empty());
+    }
+
+    #[test]
+    fn production_apply_rejects_nonzero_job_state_before_any_write() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(&pool);
+        set_state(&pool, publisher.publisher_id, ThothPackage::Oasis, &[]);
+        // A pre-existing job makes the strict production precondition fail.
+        let activation = Uuid::new_v4();
+        let dedup_key = format!(
+            "PUBLISHER_BACK_CATALOGUE:{}:{activation}",
+            publisher.publisher_id
+        );
+        {
+            let mut connection = pool.get().unwrap();
+            sql_query(format!(
+                "INSERT INTO distribution_job (kind, publisher_id, activation_id, deduplication_key) \
+                 VALUES ('PUBLISHER_BACK_CATALOGUE', '{}', '{activation}', '{dedup_key}')",
+                publisher.publisher_id
+            ))
+            .execute(&mut connection)
+            .unwrap();
+        }
+        let manifest = write_manifest(&manifest_value(&[(
+            publisher.publisher_id,
+            "OBELISK",
+            &["ZENODO"],
+        )]));
+        let (outcome, bytes) = run_dry_run(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        let result = apply_plan_mode(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            ApplyExecutionMode::Production {
+                max_works_per_publisher: 10,
+            },
+        );
+        assert!(matches!(
+            result,
+            Err(ThothError::MigrationBackfillProductionPrecondition(_))
+        ));
+        assert!(mig_history(&pool, publisher.publisher_id).is_empty());
+    }
+
+    #[test]
+    fn post_apply_job_invariant_detects_a_nonzero_job_table() {
+        // The end-of-invocation invariant fails closed if a job row exists, and
+        // passes on an empty job state.
+        let (_guard, pool) = setup_test_db();
+        production_post_apply_job_invariant(&pool).expect("empty job state passes");
+        let publisher = create_publisher(&pool);
+        let activation = Uuid::new_v4();
+        let dedup_key = format!(
+            "PUBLISHER_BACK_CATALOGUE:{}:{activation}",
+            publisher.publisher_id
+        );
+        {
+            let mut connection = pool.get().unwrap();
+            sql_query(format!(
+                "INSERT INTO distribution_job (kind, publisher_id, activation_id, deduplication_key) \
+                 VALUES ('PUBLISHER_BACK_CATALOGUE', '{}', '{activation}', '{dedup_key}')",
+                publisher.publisher_id
+            ))
+            .execute(&mut connection)
+            .unwrap();
+        }
+        assert!(matches!(
+            production_post_apply_job_invariant(&pool),
+            Err(ThothError::MigrationBackfillProductionPrecondition(_))
+        ));
+    }
+
+    // ---------------------------------------------------------------------
+    // B2 - production licence fail-closed
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn production_apply_stops_on_an_unreviewed_licence_before_any_write() {
+        let (_guard, pool) = setup_test_db();
+        let licence = "https://example.org/unreviewed-licence";
+        let publisher_id = publisher_with_licence(&pool, licence);
+        set_state(&pool, publisher_id, ThothPackage::Oasis, &[]);
+        // The manifest declares NO disposition for the observed licence.
+        let manifest = write_manifest(&manifest_value(&[(publisher_id, "OBELISK", &["ZENODO"])]));
+        let (outcome, bytes) = run_dry_run(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+
+        let result = apply_plan_mode(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            ApplyExecutionMode::Production {
+                max_works_per_publisher: 10,
+            },
+        );
+        assert!(matches!(
+            result,
+            Err(ThothError::MigrationBackfillUnresolvedLicence(_))
+        ));
+        // No configuration write occurred, and the licence value is untouched.
+        assert!(mig_history(&pool, publisher_id).is_empty());
+        assert_eq!(package_now(&pool, publisher_id), ThothPackage::Oasis);
+        let stored = licence_of_only_work(&pool, publisher_id);
+        assert_eq!(
+            stored.as_deref(),
+            Some(licence),
+            "licence must not be rewritten"
+        );
+    }
+
+    #[test]
+    fn production_apply_uses_the_exact_reviewed_disposition() {
+        let licence = "https://example.org/reviewed-licence";
+        // NORMALIZE (requires a separate action) blocks the production apply.
+        {
+            let (_guard, pool) = setup_test_db();
+            let publisher_id = publisher_with_licence(&pool, licence);
+            set_state(&pool, publisher_id, ThothPackage::Oasis, &[]);
+            let manifest = write_manifest(&manifest_with_licences(
+                publisher_id,
+                &[(licence, "NORMALIZE")],
+            ));
+            let (outcome, bytes) = run_dry_run(&pool, &manifest);
+            let sha = outcome.plan_sha256.clone();
+            let result = apply_plan_mode(
+                &pool,
+                &manifest,
+                &bytes,
+                &sha,
+                DistributionJobCreation::Off,
+                ApplyExecutionMode::Production {
+                    max_works_per_publisher: 10,
+                },
+            );
+            assert!(matches!(
+                result,
+                Err(ThothError::MigrationBackfillUnresolvedLicence(_))
+            ));
+            assert!(mig_history(&pool, publisher_id).is_empty());
+        }
+        // SUPPORTED lets the production apply proceed.
+        {
+            let (_guard, pool) = setup_test_db();
+            let publisher_id = publisher_with_licence(&pool, licence);
+            set_state(&pool, publisher_id, ThothPackage::Oasis, &[]);
+            let manifest = write_manifest(&manifest_with_licences(
+                publisher_id,
+                &[(licence, "SUPPORTED")],
+            ));
+            let (outcome, bytes) = run_dry_run(&pool, &manifest);
+            let sha = outcome.plan_sha256.clone();
+            let applied = apply_plan_mode(
+                &pool,
+                &manifest,
+                &bytes,
+                &sha,
+                DistributionJobCreation::Off,
+                ApplyExecutionMode::Production {
+                    max_works_per_publisher: 10,
+                },
+            )
+            .expect("supported licence permits production apply");
+            assert_eq!(applied.written, 1);
+            // The licence value is still not rewritten.
+            assert_eq!(
+                licence_of_only_work(&pool, publisher_id).as_deref(),
+                Some(licence)
+            );
+        }
+    }
+
+    #[test]
+    fn disposable_apply_does_not_apply_the_production_licence_gate() {
+        // The licence fail-closed gate is a production-mode control; disposable
+        // apply (used for configuration-mechanics testing) is not gated by it.
+        let (_guard, pool) = setup_test_db();
+        let publisher_id = publisher_with_licence(&pool, "https://example.org/unreviewed");
+        set_state(&pool, publisher_id, ThothPackage::Oasis, &[]);
+        let manifest = write_manifest(&manifest_value(&[(publisher_id, "OBELISK", &["ZENODO"])]));
+        let (outcome, bytes) = run_dry_run(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        let applied = apply_plan(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            None,
+        )
+        .unwrap();
+        assert_eq!(applied.written, 1);
+    }
+
+    fn licence_of_only_work(pool: &PgPool, publisher_id: Uuid) -> Option<String> {
+        #[derive(diesel::QueryableByName)]
+        struct Row {
+            #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
+            license: Option<String>,
+        }
+        let mut connection = pool.get().unwrap();
+        let rows: Vec<Row> = diesel::sql_query(format!(
+            "SELECT w.license FROM work w JOIN imprint i ON w.imprint_id = i.imprint_id \
+             WHERE i.publisher_id = '{publisher_id}' LIMIT 1"
+        ))
+        .load(&mut connection)
+        .unwrap();
+        rows.into_iter().next().and_then(|row| row.license)
+    }
+
+    // ---------------------------------------------------------------------
+    // B4A - late drift after an earlier commit, fail-closed + forward repair
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn late_drift_after_an_earlier_commit_fails_closed_and_enables_forward_repair() {
+        let (_guard, pool) = setup_test_db();
+        let a = create_publisher(&pool);
+        let b = create_publisher(&pool);
+        set_state(&pool, a.publisher_id, ThothPackage::Oasis, &[]);
+        set_state(&pool, b.publisher_id, ThothPackage::Oasis, &[]);
+        let manifest = write_manifest(&manifest_value(&[
+            (a.publisher_id, "OBELISK", &["ZENODO"]),
+            (b.publisher_id, "SPHINX", &["INTERNET_ARCHIVE"]),
+        ]));
+        let (outcome, bytes) = run_dry_run(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        let actor = audit_actor(&sha);
+
+        // Publisher A durably commits under this exact plan's derived actor.
+        let entry_a = outcome
+            .plan
+            .entries
+            .iter()
+            .find(|entry| entry.publisher_id == a.publisher_id)
+            .unwrap();
+        let context = ServiceConfigurationWriteContext {
+            source: PublisherServiceConfigurationSource::MigrationBackfill,
+            actor: &actor,
+            job_creation: DistributionJobCreation::Off,
+        };
+        replace_publisher_service_configuration(
+            &pool,
+            &context,
+            &ReplacePublisherServiceConfigurationInput {
+                publisher_id: a.publisher_id,
+                subscription_package: entry_a.desired.subscription_package,
+                enabled_distribution_platforms: entry_a
+                    .desired
+                    .enabled_distribution_platforms
+                    .clone(),
+                expected_updated_at: entry_a.reviewed_configuration_version,
+            },
+        )
+        .unwrap();
+
+        // A genuine late drift invalidates publisher B's reviewed before-state.
+        set_state(&pool, b.publisher_id, ThothPackage::Pyramid, &[]);
+
+        // Re-applying the SAME reviewed plan fails closed on B's drift and writes
+        // nothing new. A is not double-written; B is not written.
+        let result = apply_plan(
+            &pool,
+            &manifest,
+            &bytes,
+            &sha,
+            DistributionJobCreation::Off,
+            None,
+        );
+        assert!(matches!(result, Err(ThothError::MigrationBackfillDrift(_))));
+        assert_eq!(
+            mig_history(&pool, a.publisher_id).len(),
+            1,
+            "A committed exactly once"
+        );
+        assert!(
+            mig_history(&pool, b.publisher_id).is_empty(),
+            "B must not be written under the invalidated plan"
+        );
+        assert_eq!(package_now(&pool, b.publisher_id), ThothPackage::Pyramid);
+
+        // A remains recognizable as applied-by-this-plan: exact source, derived
+        // actor, before, after and current state all line up.
+        let row = &mig_history(&pool, a.publisher_id)[0];
+        assert_eq!(
+            row.source,
+            PublisherServiceConfigurationSource::MigrationBackfill
+        );
+        assert_eq!(row.actor, actor);
+        let before = typed_state(&row.before_state).unwrap();
+        let after = typed_state(&row.after_state).unwrap();
+        assert_eq!(before.subscription_package, ThothPackage::Oasis);
+        assert_eq!(after.subscription_package, ThothPackage::Obelisk);
+        let current_a = current_state(&pool, a.publisher_id).unwrap();
+        assert_eq!(current_a, after);
+        assert_eq!(
+            classify_entry(&pool, entry_a, &actor).unwrap(),
+            ResumeClassification::AlreadyAppliedByThisPlan
+        );
+
+        // Forward repair: a fresh dry run against the drifted state yields a new
+        // reviewed plan where A is a no-op and B reflects its NEW before-state.
+        let (repair, _bytes) = run_dry_run(&pool, &manifest);
+        let repair_a = repair
+            .plan
+            .entries
+            .iter()
+            .find(|entry| entry.publisher_id == a.publisher_id)
+            .unwrap();
+        let repair_b = repair
+            .plan
+            .entries
+            .iter()
+            .find(|entry| entry.publisher_id == b.publisher_id)
+            .unwrap();
+        assert_eq!(repair_a.classification, PlanClassification::ReviewedNoop);
+        assert_eq!(repair_b.classification, PlanClassification::Pending);
+        assert_eq!(
+            repair_b.before.subscription_package,
+            ThothPackage::Pyramid,
+            "the forward-repair plan captures B's genuinely new before-state"
+        );
+        assert_ne!(
+            repair.plan_sha256, sha,
+            "forward repair is a fresh reviewed plan, not the invalidated one"
+        );
+    }
+
+    // ---------------------------------------------------------------------
+    // B5 - artifact alias protection
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn dry_run_rejects_aliasing_output_and_input_paths() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(&pool);
+        set_state(&pool, publisher.publisher_id, ThothPackage::Oasis, &[]);
+        let manifest = write_manifest(&manifest_value(&[(
+            publisher.publisher_id,
+            "OBELISK",
+            &["ZENODO"],
+        )]));
+        let manifest_before = std::fs::read(&manifest).unwrap();
+        let report = tmp_path("report.json");
+
+        // Manifest == plan output.
+        let request = DryRunRequest {
+            manifest_path: &manifest,
+            plan_out_path: &manifest,
+            report_out_path: &report,
+            run_production_preflight: false,
+            job_creation: DistributionJobCreation::Off,
+        };
+        assert!(matches!(
+            dry_run(&pool, &request),
+            Err(ThothError::MigrationBackfillArtifactAlias(_))
+        ));
+        // Plan output == report output.
+        let plan_out = tmp_path("shared.json");
+        let request = DryRunRequest {
+            manifest_path: &manifest,
+            plan_out_path: &plan_out,
+            report_out_path: &plan_out,
+            run_production_preflight: false,
+            job_creation: DistributionJobCreation::Off,
+        };
+        assert!(matches!(
+            dry_run(&pool, &request),
+            Err(ThothError::MigrationBackfillArtifactAlias(_))
+        ));
+        // The manifest was left untouched by the rejected invocations.
+        assert_eq!(std::fs::read(&manifest).unwrap(), manifest_before);
+        assert!(!plan_out.exists(), "no output written on rejection");
+    }
+
+    #[test]
+    fn apply_rejects_aliasing_plan_manifest_and_report_paths() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(&pool);
+        set_state(&pool, publisher.publisher_id, ThothPackage::Oasis, &[]);
+        let manifest = write_manifest(&manifest_value(&[(
+            publisher.publisher_id,
+            "OBELISK",
+            &["ZENODO"],
+        )]));
+        let (outcome, bytes) = run_dry_run(&pool, &manifest);
+        let sha = outcome.plan_sha256.clone();
+        let plan_path = tmp_path("reviewed-plan.json");
+        std::fs::write(&plan_path, &bytes).unwrap();
+        let plan_before = std::fs::read(&plan_path).unwrap();
+
+        // Reviewed plan == report output would destroy the reviewed plan.
+        let request = ApplyRequest {
+            manifest_path: &manifest,
+            plan_path: &plan_path,
+            expected_plan_sha256: &sha,
+            report_out_path: &plan_path,
+            mode: ApplyExecutionMode::Disposable {
+                max_works_per_publisher: None,
+            },
+            job_creation: DistributionJobCreation::Off,
+        };
+        assert!(matches!(
+            apply(&pool, &request),
+            Err(ThothError::MigrationBackfillArtifactAlias(_))
+        ));
+
+        // Manifest == report output.
+        let request = ApplyRequest {
+            manifest_path: &manifest,
+            plan_path: &plan_path,
+            expected_plan_sha256: &sha,
+            report_out_path: &manifest,
+            mode: ApplyExecutionMode::Disposable {
+                max_works_per_publisher: None,
+            },
+            job_creation: DistributionJobCreation::Off,
+        };
+        assert!(matches!(
+            apply(&pool, &request),
+            Err(ThothError::MigrationBackfillArtifactAlias(_))
+        ));
+
+        // Manifest == reviewed plan (caught before parsing).
+        let request = ApplyRequest {
+            manifest_path: &manifest,
+            plan_path: &manifest,
+            expected_plan_sha256: &sha,
+            report_out_path: &tmp_path("r.json"),
+            mode: ApplyExecutionMode::Disposable {
+                max_works_per_publisher: None,
+            },
+            job_creation: DistributionJobCreation::Off,
+        };
+        assert!(matches!(
+            apply(&pool, &request),
+            Err(ThothError::MigrationBackfillArtifactAlias(_))
+        ));
+
+        // No write occurred and the reviewed plan is intact.
+        assert_eq!(std::fs::read(&plan_path).unwrap(), plan_before);
+        assert!(mig_history(&pool, publisher.publisher_id).is_empty());
+    }
+
+    #[test]
+    fn artifact_alias_detection_normalizes_relative_and_symlink_paths() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(&pool);
+        set_state(&pool, publisher.publisher_id, ThothPackage::Oasis, &[]);
+
+        // Relative alias: a bare filename and its "./name" form resolve equal.
+        let dir = std::env::temp_dir();
+        let unique = format!("mig01-alias-{}.json", Uuid::new_v4());
+        let manifest_value = manifest_value(&[(publisher.publisher_id, "OBELISK", &["ZENODO"])]);
+        let absolute = dir.join(&unique);
+        std::fs::write(&absolute, serde_json::to_vec(&manifest_value).unwrap()).unwrap();
+        let alias = dir.join(format!("./{unique}"));
+        let report = tmp_path("report.json");
+        let request = DryRunRequest {
+            manifest_path: &absolute,
+            plan_out_path: &alias,
+            report_out_path: &report,
+            run_production_preflight: false,
+            job_creation: DistributionJobCreation::Off,
+        };
+        assert!(
+            matches!(
+                dry_run(&pool, &request),
+                Err(ThothError::MigrationBackfillArtifactAlias(_))
+            ),
+            "a relative-path alias of the manifest must be rejected"
+        );
+
+        // Symlink alias: a symlink pointing at the manifest resolves equal to it.
+        let link = dir.join(format!("mig01-link-{}.json", Uuid::new_v4()));
+        if std::os::unix::fs::symlink(&absolute, &link).is_ok() {
+            let request = DryRunRequest {
+                manifest_path: &absolute,
+                plan_out_path: &link,
+                report_out_path: &report,
+                run_production_preflight: false,
+                job_creation: DistributionJobCreation::Off,
+            };
+            assert!(
+                matches!(
+                    dry_run(&pool, &request),
+                    Err(ThothError::MigrationBackfillArtifactAlias(_))
+                ),
+                "a symlink alias of the manifest must be rejected"
+            );
+            let _ = std::fs::remove_file(&link);
+        }
+        let _ = std::fs::remove_file(&absolute);
     }
 }

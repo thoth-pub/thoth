@@ -257,6 +257,18 @@ pub enum ThothError {
     /// lock envelope. The apply stops before writing that publisher.
     #[error("MIG-01 lock envelope exceeded: {0}")]
     MigrationBackfillLockEnvelopeExceeded(String),
+    /// A production `MIG-01` apply observed a catalogue licence value that is not
+    /// reviewed as supported (unreviewed, or carrying a disposition that requires
+    /// a separate normalization/repair action). The apply stops before any write;
+    /// it never rewrites a licence value.
+    #[error("MIG-01 production apply blocked by unresolved licence state: {0}")]
+    MigrationBackfillUnresolvedLicence(String),
+    /// Two `MIG-01` input/output artifact paths resolve to the same filesystem
+    /// location, which could destroy a reviewed manifest or plan needed for
+    /// deterministic recovery. The invocation is rejected before any read or
+    /// write, leaving inputs untouched.
+    #[error("MIG-01 artifact paths alias: {0}")]
+    MigrationBackfillArtifactAlias(String),
 }
 
 impl ThothError {
