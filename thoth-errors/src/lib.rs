@@ -216,6 +216,71 @@ pub enum ThothError {
     /// caller's, is unbounded, and is never reflected.
     #[error("The supplied distribution job error code is not a valid classification code.")]
     InvalidDistributionJobErrorCode,
+    /// The `MIG-01` input manifest, or the reviewed plan, could not be read,
+    /// parsed or version-validated. These administrative inputs are operator-
+    /// supplied files, not GraphQL/API input, so this variant never reaches a
+    /// public API surface.
+    #[error("MIG-01 manifest/plan is invalid: {0}")]
+    MigrationBackfillManifestInvalid(String),
+    /// A `MIG-01` manifest maps the same canonical publisher more than once, so a
+    /// unique desired state cannot be resolved. Surfaced rather than guessed.
+    #[error("MIG-01 mapping is ambiguous: {0}")]
+    MigrationBackfillAmbiguousMapping(String),
+    /// A `MIG-01` manifest names a publisher that does not resolve to a canonical
+    /// Thoth publisher identity.
+    #[error("MIG-01 manifest references an unmatched publisher: {0}")]
+    MigrationBackfillUnmatchedPublisher(String),
+    /// The reviewed `MIG-01` plan's raw-byte SHA-256 did not equal the expected
+    /// reviewed plan SHA-256. The apply stops before parsing for execution.
+    #[error("The MIG-01 reviewed plan hash does not match the expected reviewed plan hash.")]
+    MigrationBackfillPlanHashMismatch,
+    /// The raw `MIG-01` manifest SHA-256 did not equal the value recorded in the
+    /// reviewed plan.
+    #[error("The MIG-01 manifest hash does not match the hash recorded in the reviewed plan.")]
+    MigrationBackfillManifestHashMismatch,
+    /// The supplied `MIG-01` plan is semantically parseable but not in canonical
+    /// bytes (byte-order mark, insignificant whitespace or a noncanonical
+    /// equivalent encoding). It is rejected before any write.
+    #[error("The MIG-01 reviewed plan is not in canonical byte form and was rejected.")]
+    MigrationBackfillNoncanonicalPlan,
+    /// A reviewed `MIG-01` plan entry classified as drift during resume
+    /// classification. The invocation stops before any new write; recovery is
+    /// forward repair under a fresh reviewed and authorized plan.
+    #[error("MIG-01 apply stopped on drift: {0}")]
+    MigrationBackfillDrift(String),
+    /// The strict production job-state precondition failed: automatic
+    /// distribution-job creation is not effectively `OFF`, or a distribution-job
+    /// table is non-empty. The apply stops before any write.
+    #[error("MIG-01 production precondition failed: {0}")]
+    MigrationBackfillProductionPrecondition(String),
+    /// A pending publisher's current work count exceeds the approved per-publisher
+    /// lock envelope. The apply stops before writing that publisher.
+    #[error("MIG-01 lock envelope exceeded: {0}")]
+    MigrationBackfillLockEnvelopeExceeded(String),
+    /// A production `MIG-01` apply observed a catalogue licence value that is not
+    /// reviewed as supported (unreviewed, or carrying a disposition that requires
+    /// a separate normalization/repair action). The apply stops before any write;
+    /// it never rewrites a licence value.
+    #[error("MIG-01 production apply blocked by unresolved licence state: {0}")]
+    MigrationBackfillUnresolvedLicence(String),
+    /// Two `MIG-01` input/output artifact paths resolve to the same filesystem
+    /// location, which could destroy a reviewed manifest or plan needed for
+    /// deterministic recovery. The invocation is rejected before any read or
+    /// write, leaving inputs untouched.
+    #[error("MIG-01 artifact paths alias: {0}")]
+    MigrationBackfillArtifactAlias(String),
+    /// The exact Gate-D-reviewed `MIG-01` dry-run reconciliation report supplied
+    /// to a production apply did not match the expected reviewed evidence: a
+    /// raw-byte hash mismatch, an unparseable or wrong-mode report, or a
+    /// manifest/plan identity mismatch. The apply stops before any write.
+    #[error("MIG-01 reviewed dry-run report does not match the expected evidence: {0}")]
+    MigrationBackfillReviewedReportMismatch(String),
+    /// The current publisher-omission evidence differs from the exact
+    /// Gate-D-reviewed dry-run report, so the reviewed production snapshot
+    /// changed between review and apply. The apply stops before any write;
+    /// recovery is a fresh dry run, Gate-D review and Gate-E authorization.
+    #[error("MIG-01 production apply blocked by changed omission evidence: {0}")]
+    MigrationBackfillOmissionMismatch(String),
 }
 
 impl ThothError {

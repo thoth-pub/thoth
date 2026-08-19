@@ -12,7 +12,8 @@ lazy_static::lazy_static! {
         .subcommand(commands::start::COMMAND.clone())
         .subcommand(commands::INIT.clone())
         .subcommand(commands::cache::COMMAND.clone())
-        .subcommand(commands::zitadel::COMMAND.clone());
+        .subcommand(commands::zitadel::COMMAND.clone())
+        .subcommand(commands::publisher_services::COMMAND.clone());
 }
 
 fn main() -> thoth::errors::ThothResult<()> {
@@ -36,6 +37,14 @@ fn main() -> thoth::errors::ThothResult<()> {
         },
         Some(("zitadel", arguments)) => match arguments.subcommand() {
             Some(("setup", _)) => commands::zitadel::setup(arguments),
+            _ => unreachable!(),
+        },
+        Some(("publisher-services", arguments)) => match arguments.subcommand() {
+            Some(("migration-backfill", arguments)) => match arguments.subcommand() {
+                Some(("dry-run", arguments)) => commands::publisher_services::dry_run(arguments),
+                Some(("apply", arguments)) => commands::publisher_services::apply(arguments),
+                _ => unreachable!(),
+            },
             _ => unreachable!(),
         },
         _ => unreachable!(),
