@@ -26,7 +26,13 @@
 //!   state recheck under the lock, exactly one normal `work_history` row from
 //!   the complete pre-update Work with the plan-derived actor, and a
 //!   single-column `work.license` update whose business-data SET surface is
-//!   only the licence.
+//!   only the licence;
+//! - post-write reconciliation after the last write transaction and before
+//!   any successful APPLY outcome: the deterministic-source residual query
+//!   must come back empty (fail-closed otherwise, with committed Works
+//!   preserved), and the report's resulting target counts and manual
+//!   residuals are one consistent current snapshot, distinct from the
+//!   reviewed planned conversion tallies.
 //!
 //! The 28 manual-resolution values are **never** executable here: they are
 //! read, counted and reported only. This path deliberately does not use
@@ -659,25 +665,32 @@ fn affected_works(db: &PgPool, sources: &[&str]) -> ThothResult<Vec<AffectedWork
     Ok(affected)
 }
 
-/// Current Work counts for each manual-resolution value, ascending by value;
-/// all reviewed values are present, zeros included. Report-only.
-fn manual_value_counts(
+/// Current Work counts for each given exact licence value, restricted to the
+/// bound MIG-01 canonical publisher scope, ascending by value; every supplied
+/// value is present in the result, zeros included. Report-only.
+///
+/// The MIG-01 publisher scope is the reporting boundary because it is the
+/// scope V3 binds every LIC-NORM operation and the downstream MIG-01
+/// package/platform licence gate to; a Work outside that scope is a scope
+/// mismatch for deterministic sources and out of reporting scope for
+/// residual counting.
+fn scoped_value_counts(
     db: &PgPool,
-    register: &ManualResolutionRegister,
+    values: &[&str],
+    scope: &HashSet<Uuid>,
 ) -> ThothResult<Vec<ValueCount>> {
-    let values: Vec<&str> = register
-        .values
-        .iter()
-        .map(|value| value.value.as_str())
-        .collect();
     let mut connection = db.get()?;
-    let rows: Vec<Option<String>> = work::table
-        .filter(work::license.eq_any(&values))
-        .select(work::license)
+    let rows: Vec<(Option<String>, Uuid)> = work::table
+        .inner_join(imprint::table)
+        .filter(work::license.eq_any(values))
+        .select((work::license, imprint::publisher_id))
         .load(&mut connection)?;
     let mut tally: BTreeMap<&str, i64> = values.iter().map(|value| (*value, 0)).collect();
-    for row in rows.into_iter().flatten() {
-        if let Some(count) = tally.get_mut(row.as_str()) {
+    for (license, publisher_id) in rows {
+        if !scope.contains(&publisher_id) {
+            continue;
+        }
+        if let Some(count) = license.as_deref().and_then(|value| tally.get_mut(value)) {
             *count += 1;
         }
     }
@@ -688,6 +701,114 @@ fn manual_value_counts(
             works,
         })
         .collect())
+}
+
+/// Current Work counts for each manual-resolution value within the bound
+/// MIG-01 publisher scope, ascending by value; all reviewed values are
+/// present, zeros included. Report-only: manual values are never executable.
+fn manual_value_counts(
+    db: &PgPool,
+    register: &ManualResolutionRegister,
+    scope: &HashSet<Uuid>,
+) -> ThothResult<Vec<ValueCount>> {
+    let values: Vec<&str> = register
+        .values
+        .iter()
+        .map(|value| value.value.as_str())
+        .collect();
+    scoped_value_counts(db, &values, scope)
+}
+
+/// The number of distinct manual values currently carried by at least one
+/// in-scope Work, derived from the exact per-value count vector reported.
+fn manual_distinct_value_count(counts: &[ValueCount]) -> i64 {
+    counts.iter().filter(|entry| entry.works > 0).count() as i64
+}
+
+/// The number of in-scope Works currently carrying any manual value, derived
+/// from the exact per-value count vector reported.
+fn manual_work_count(counts: &[ValueCount]) -> i64 {
+    counts.iter().map(|entry| entry.works).sum()
+}
+
+// ---------------------------------------------------------------------------
+// Post-write reconciliation
+// ---------------------------------------------------------------------------
+
+/// The post-write reconciliation snapshot: current catalogue evidence taken
+/// after the last write transaction has committed and **before** any
+/// successful APPLY outcome or report exists.
+///
+/// This is actual current state, never a planned delta: a snapshot only
+/// exists when the post-write deterministic-source query came back empty.
+struct PostWriteReconciliation {
+    /// The count of current Works still carrying any deterministic source
+    /// value, from the post-write query. Provably `0` on every path that
+    /// constructs this value; a non-empty result fails closed instead.
+    deterministic_source_works_remaining: i64,
+    /// Actual current in-scope Work counts for every reviewed canonical
+    /// target — catalogue state after the write loop, distinct from the
+    /// reviewed planned conversion tallies.
+    resulting_target_value_counts: Vec<ValueCount>,
+    /// Current in-scope manual-resolution residuals, from the same snapshot.
+    manual_unresolved_values: Vec<ValueCount>,
+}
+
+/// Take the post-write reconciliation snapshot, failing closed on any
+/// residual deterministic source value.
+///
+/// There is a real concurrency interval between the pre-write membership
+/// check and the completion of all per-Work write transactions: another
+/// transaction can introduce a Work carrying a deterministic source value
+/// while this apply is running. Successful reconciliation therefore requires
+/// re-querying every current Work carrying any of the 24 source values after
+/// the write loop, with the same bound MIG-01 publisher-scope semantics the
+/// reviewed operation uses. On any residual: no successful report is emitted,
+/// no cross-Work rollback is attempted, previously committed Works remain
+/// committed, and recovery is deterministic same-plan resume where valid,
+/// otherwise separately reviewed forward repair.
+fn post_write_reconciliation(
+    db: &PgPool,
+    inputs: &VerifiedInputs,
+) -> ThothResult<PostWriteReconciliation> {
+    let rules = inputs.rules();
+    let sources: Vec<&str> = rules.keys().copied().collect();
+    let scope = inputs.publisher_scope();
+
+    let residual = affected_works(db, &sources)?;
+    if let Some(out_of_scope) = residual
+        .iter()
+        .find(|current| !scope.contains(&current.publisher_id))
+    {
+        return Err(ThothError::LicenceNormalizationScopeMismatch(format!(
+            "after the write loop, work {} carries a deterministic source value under \
+             publisher {}, which is absent from the bound MIG-01 manifest; previously \
+             committed Works remain committed and remediation requires an approved MIG-01 \
+             manifest/programme amendment with a newly frozen hash and fresh review",
+            out_of_scope.work_id, out_of_scope.publisher_id
+        )));
+    }
+    if !residual.is_empty() {
+        return Err(ThothError::LicenceNormalizationDrift(format!(
+            "{} work(s) still carry a deterministic source value after the write loop \
+             (first: {}); no successful reconciliation is claimed and no cross-Work \
+             rollback is attempted — previously committed Works remain committed; recovery \
+             is deterministic same-plan resume where valid, otherwise separately reviewed \
+             forward repair",
+            residual.len(),
+            residual[0].work_id
+        )));
+    }
+
+    let targets: Vec<&str> = inputs.targets().into_iter().collect();
+    let resulting_target_value_counts = scoped_value_counts(db, &targets, &scope)?;
+    let manual_unresolved_values = manual_value_counts(db, &inputs.manual, &scope)?;
+
+    Ok(PostWriteReconciliation {
+        deterministic_source_works_remaining: residual.len() as i64,
+        resulting_target_value_counts,
+        manual_unresolved_values,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -757,15 +878,9 @@ fn build_plan(
         });
     }
 
-    let manual_unresolved_values = manual_value_counts(db, &inputs.manual)?;
-    let manual_unresolved_value_count = manual_unresolved_values
-        .iter()
-        .filter(|entry| entry.works > 0)
-        .count() as i64;
-    let manual_unresolved_work_count: i64 = manual_unresolved_values
-        .iter()
-        .map(|entry| entry.works)
-        .sum();
+    let manual_unresolved_values = manual_value_counts(db, &inputs.manual, &scope)?;
+    let manual_unresolved_value_count = manual_distinct_value_count(&manual_unresolved_values);
+    let manual_unresolved_work_count = manual_work_count(&manual_unresolved_values);
 
     let works_considered = entries.len() as i64;
     let expected = NormalizationPlanExpected {
@@ -977,12 +1092,35 @@ pub struct NormalizationReport {
     pub works_considered: i64,
     pub works_changing: i64,
     pub expected_history_rows: i64,
+    /// Reviewed/planned affected-Work counts per deterministic source value,
+    /// from the reviewed plan.
     pub source_value_counts: Vec<ValueCount>,
+    /// Reviewed/planned conversion tallies per canonical target, from the
+    /// reviewed plan. These are deltas the plan intends to produce, **not**
+    /// resulting catalogue state; see `resulting_target_value_counts`.
     pub target_value_counts: Vec<ValueCount>,
-    /// Current Work counts for every manual-resolution value. Report-only:
-    /// these values are never executable and are never modified by this task.
+    /// Actual current in-scope Work counts for every reviewed canonical
+    /// target, queried from catalogue state after the write loop. Present
+    /// only on a successful APPLY report (post-write reconciliation).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resulting_target_value_counts: Option<Vec<ValueCount>>,
+    /// The count of current Works still carrying any deterministic source
+    /// value, from the post-write reconciliation query. Present only on a
+    /// successful APPLY report, where it is provably `0`: a non-empty
+    /// post-write residual fails closed and no successful report exists.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deterministic_source_works_remaining: Option<i64>,
+    /// Current in-scope Work counts for every manual-resolution value: the
+    /// dry-run snapshot for a DRY_RUN report, the post-write reconciliation
+    /// snapshot for an APPLY report. Report-only: these values are never
+    /// executable and are never modified by this task.
     pub manual_unresolved_values: Vec<ValueCount>,
+    /// Distinct manual values currently carried by at least one in-scope
+    /// Work. Always derived from the exact `manual_unresolved_values` vector
+    /// in this same report, never from a different snapshot.
     pub manual_unresolved_value_count: i64,
+    /// In-scope Works currently carrying any manual value. Always derived
+    /// from the exact `manual_unresolved_values` vector in this same report.
     pub manual_unresolved_work_count: i64,
     pub affected_publisher_ids: Vec<Uuid>,
     /// The expected operational export/specification cache effect of the
@@ -1021,10 +1159,17 @@ fn assemble_report(
     plan: &NormalizationPlan,
     plan_sha256: &str,
     parts: &ReportParts,
+    reconciliation: Option<&PostWriteReconciliation>,
     writes_performed: i64,
     history_rows_written: i64,
     applied: Option<NormalizationAppliedSummary>,
 ) -> NormalizationReport {
+    // The manual aggregates are derived from the exact per-value vector this
+    // report embeds — one snapshot, internally consistent — never from the
+    // dry-run `plan.expected` aggregates, which describe an earlier snapshot.
+    let manual_unresolved_values = parts.manual_unresolved_values.clone();
+    let manual_unresolved_value_count = manual_distinct_value_count(&manual_unresolved_values);
+    let manual_unresolved_work_count = manual_work_count(&manual_unresolved_values);
     NormalizationReport {
         mode,
         deterministic_manifest_sha256: inputs.deterministic_sha256.clone(),
@@ -1037,9 +1182,13 @@ fn assemble_report(
         expected_history_rows: plan.expected.history_rows,
         source_value_counts: plan.expected.source_value_counts.clone(),
         target_value_counts: plan.expected.target_value_counts.clone(),
-        manual_unresolved_values: parts.manual_unresolved_values.clone(),
-        manual_unresolved_value_count: plan.expected.manual_unresolved_value_count,
-        manual_unresolved_work_count: plan.expected.manual_unresolved_work_count,
+        resulting_target_value_counts: reconciliation
+            .map(|snapshot| snapshot.resulting_target_value_counts.clone()),
+        deterministic_source_works_remaining: reconciliation
+            .map(|snapshot| snapshot.deterministic_source_works_remaining),
+        manual_unresolved_values,
+        manual_unresolved_value_count,
+        manual_unresolved_work_count,
         affected_publisher_ids: parts.affected_publisher_ids.clone(),
         expected_export_cache_effect: ExpectedExportCacheEffect {
             affected_publishers: parts.affected_publisher_ids.len() as i64,
@@ -1112,6 +1261,7 @@ pub fn dry_run(db: &PgPool, request: &DryRunRequest<'_>) -> ThothResult<DryRunOu
         &plan,
         &plan_sha256,
         &parts,
+        None,
         0,
         0,
         None,
@@ -1181,9 +1331,12 @@ pub struct ApplyOutcome {
 /// The whole plan is classified before the first database write; any `DRIFT`
 /// stops the invocation with no new write. Writes are processed in ascending
 /// `work_id`, one bounded transaction per Work, each rechecking the reviewed
-/// state under its row lock. Previously committed Works remain committed;
-/// recovery is deterministic resume or separately authorized forward repair,
-/// never cross-work rollback.
+/// state under its row lock. After the last write and before any successful
+/// outcome, post-write reconciliation re-queries the deterministic-source
+/// residual (which must be empty) and snapshots the actual resulting target
+/// counts and current manual residuals for the report. Previously committed
+/// Works remain committed on any failure; recovery is deterministic resume or
+/// separately authorized forward repair, never cross-work rollback.
 pub fn apply(db: &PgPool, request: &ApplyRequest<'_>) -> ThothResult<ApplyOutcome> {
     let mut artifacts: Vec<(&str, &Path)> = vec![
         (
@@ -1304,22 +1457,8 @@ pub fn apply(db: &PgPool, request: &ApplyRequest<'_>) -> ThothResult<ApplyOutcom
         )));
     }
 
-    // 9. Record the current manual unresolved counts without modifying them,
-    //    and the affected-publisher evidence for the report.
-    let manual_unresolved_values = manual_value_counts(db, &inputs.manual)?;
-    let parts = ReportParts {
-        manual_unresolved_values,
-        affected_publisher_ids: plan
-            .entries
-            .iter()
-            .map(|entry| entry.publisher_id)
-            .collect::<BTreeSet<Uuid>>()
-            .into_iter()
-            .collect(),
-    };
-
-    // 10. Write only PENDING entries, in ascending work_id (the canonical plan
-    //     order), one bounded transaction per Work.
+    // 9. Write only PENDING entries, in ascending work_id (the canonical plan
+    //    order), one bounded transaction per Work.
     let mut written = 0usize;
     let mut already_applied = 0usize;
     for (entry, class) in plan.entries.iter().zip(&classes) {
@@ -1334,6 +1473,24 @@ pub fn apply(db: &PgPool, request: &ApplyRequest<'_>) -> ThothResult<ApplyOutcom
         }
     }
 
+    // 10. Post-write reconciliation, before any successful outcome exists:
+    //     re-query every current Work carrying a deterministic source value
+    //     (fail closed on any residual, with committed Works preserved), and
+    //     take one consistent current snapshot of the resulting target counts
+    //     and the manual residuals. The manual detail and aggregates in the
+    //     report all derive from this one snapshot.
+    let reconciliation = post_write_reconciliation(db, &inputs)?;
+    let parts = ReportParts {
+        manual_unresolved_values: reconciliation.manual_unresolved_values.clone(),
+        affected_publisher_ids: plan
+            .entries
+            .iter()
+            .map(|entry| entry.publisher_id)
+            .collect::<BTreeSet<Uuid>>()
+            .into_iter()
+            .collect(),
+    };
+
     let applied = NormalizationAppliedSummary {
         written: written as i64,
         already_applied: already_applied as i64,
@@ -1344,6 +1501,7 @@ pub fn apply(db: &PgPool, request: &ApplyRequest<'_>) -> ThothResult<ApplyOutcom
         &plan,
         &plan_sha256,
         &parts,
+        Some(&reconciliation),
         written as i64,
         written as i64,
         Some(applied),
@@ -3941,6 +4099,20 @@ mod tests {
         assert_eq!(first.report.mode, ReportMode::DryRun);
         assert_eq!(first.report.writes_performed, 0);
         assert_eq!(first.report.history_rows_written, 0);
+        // Post-write reconciliation evidence exists only on an APPLY report:
+        // a dry run performs no writes and claims no resulting state.
+        assert_eq!(first.report.deterministic_source_works_remaining, None);
+        assert_eq!(first.report.resulting_target_value_counts, None);
+        // The dry-run manual aggregates are derived from the same per-value
+        // vector the report embeds.
+        assert_eq!(
+            first.report.manual_unresolved_value_count,
+            manual_distinct_value_count(&first.report.manual_unresolved_values)
+        );
+        assert_eq!(
+            first.report.manual_unresolved_work_count,
+            manual_work_count(&first.report.manual_unresolved_values)
+        );
         assert_eq!(
             first
                 .report
@@ -4037,6 +4209,17 @@ mod tests {
         assert_eq!(applied.report.mode, ReportMode::Apply);
         assert_eq!(applied.report.writes_performed, 1);
         assert_eq!(applied.report.history_rows_written, 1);
+        // Post-write reconciliation evidence: the deterministic-source
+        // residual query ran and came back empty, and the resulting target
+        // counts are current catalogue state for all 9 reviewed targets.
+        assert_eq!(applied.report.deterministic_source_works_remaining, Some(0));
+        let resulting = applied
+            .report
+            .resulting_target_value_counts
+            .as_ref()
+            .expect("a successful apply carries resulting target counts");
+        assert_eq!(resulting.len(), DETERMINISTIC_TARGET_COUNT);
+        assert_eq!(count_for(resulting, target), 1);
 
         let after = Work::from_id(&pool, &work_row.work_id).unwrap();
         assert_eq!(after.license.as_deref(), Some(target));
@@ -4199,6 +4382,15 @@ mod tests {
             "a no-op rerun must not touch the row at all"
         );
         assert_eq!(history_count(&pool, work_row.work_id), 1);
+        // The rerun performed zero Work writes and zero history inserts, and
+        // its post-write reconciliation reports the same catalogue state.
+        assert_eq!(second.report.writes_performed, 0);
+        assert_eq!(second.report.history_rows_written, 0);
+        assert_eq!(second.report.deterministic_source_works_remaining, Some(0));
+        assert_eq!(
+            second.report.resulting_target_value_counts, first.report.resulting_target_value_counts,
+            "the resulting catalogue state is unchanged by a no-op rerun"
+        );
     }
 
     #[test]
@@ -4646,8 +4838,269 @@ mod tests {
     }
 
     // -----------------------------------------------------------------
-    // Apply-time artifact and plan binding
+    // Post-write reconciliation (SR-1 / SR-2)
     // -----------------------------------------------------------------
+
+    /// A complete insertable Work row carrying the given licence, for
+    /// injection inside another connection's open transaction.
+    fn new_source_work_values(imprint_id: Uuid, licence: &str) -> crate::model::work::NewWork {
+        use crate::model::work::{NewWork, WorkStatus, WorkType};
+        NewWork {
+            work_type: WorkType::Monograph,
+            work_status: WorkStatus::Forthcoming,
+            reference: None,
+            edition: Some(1),
+            imprint_id,
+            doi: None,
+            publication_date: None,
+            withdrawn_date: None,
+            place: None,
+            page_count: None,
+            page_breakdown: None,
+            image_count: None,
+            table_count: None,
+            audio_count: None,
+            video_count: None,
+            license: Some(licence.to_string()),
+            copyright_holder: None,
+            landing_page: None,
+            lccn: None,
+            oclc: None,
+            general_note: None,
+            bibliography_note: None,
+            toc: None,
+            resources_description: None,
+            cover_url: None,
+            cover_caption: None,
+            first_page: None,
+            last_page: None,
+            page_interval: None,
+        }
+    }
+
+    /// The reported count for one exact value in a `ValueCount` vector.
+    fn count_for(counts: &[ValueCount], value: &str) -> i64 {
+        counts
+            .iter()
+            .find(|entry| entry.value == value)
+            .unwrap_or_else(|| panic!("value {value:?} missing from the count vector"))
+            .works
+    }
+
+    #[test]
+    fn a_source_work_appearing_during_the_write_loop_prevents_successful_reconciliation() {
+        // SR-1: the concurrency interval between the pre-write membership
+        // check and the completion of the per-Work write transactions. The
+        // ordering is enforced by locks, not sleeps: the injector holds the
+        // second planned Work's row lock, waits until the first planned write
+        // has committed (so the apply is provably past its pre-write checks),
+        // then commits a brand-new deterministic-source Work while releasing
+        // the lock. The apply finishes its writes and must then fail closed
+        // on the post-write residual instead of reporting success.
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(&pool);
+        let imprint = create_imprint(&pool, &publisher);
+        create_licensed_work(
+            &pool,
+            &imprint,
+            "https://creativecommons.org/licenses/by/4.0/deed.en",
+        );
+        create_licensed_work(
+            &pool,
+            &imprint,
+            "https://creativecommons.org/licenses/by/4.0/deed.de",
+        );
+        let files = input_files(&[publisher.publisher_id]);
+        let (outcome, plan_bytes, _, _) = run_dry_run(&pool, &files);
+        assert_eq!(outcome.plan.entries.len(), 2);
+        let first = outcome.plan.entries[0].clone();
+        let second = outcome.plan.entries[1].clone();
+
+        let (locked_tx, locked_rx) = std::sync::mpsc::channel::<()>();
+        let injector_pool = pool.clone();
+        let injector_imprint = imprint.imprint_id;
+        let injected_source = "https://creativecommons.org/licenses/by-nc/4.0/deed.en";
+        let injector = std::thread::spawn(move || -> Uuid {
+            let mut connection = injector_pool.get().unwrap();
+            connection
+                .transaction::<Uuid, ThothError, _>(|connection| {
+                    let _locked: Work = work::table
+                        .find(second.work_id)
+                        .for_update()
+                        .first(connection)?;
+                    locked_tx.send(()).unwrap();
+                    // READ COMMITTED sees fresh commits per statement: wait for
+                    // the apply's first write transaction to commit, proving
+                    // the write loop is past the pre-write membership check.
+                    for _ in 0..3000 {
+                        let current: Work = work::table.find(first.work_id).first(connection)?;
+                        if current.license.as_deref() == Some(first.to.as_str()) {
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                    let injected: Work = diesel::insert_into(work::table)
+                        .values(&new_source_work_values(injector_imprint, injected_source))
+                        .get_result(connection)?;
+                    Ok(injected.work_id)
+                })
+                .unwrap()
+        });
+        locked_rx.recv().unwrap();
+
+        let error = apply_plan(
+            &pool,
+            &files,
+            &plan_bytes,
+            &outcome.plan_sha256,
+            ApplyExecutionMode::Disposable,
+        )
+        .expect_err("a post-write deterministic-source residual must fail closed");
+        let injected_work_id = injector.join().unwrap();
+        assert!(
+            matches!(
+                error,
+                ThothError::LicenceNormalizationDrift(ref message)
+                    if message.contains("after the write loop")
+                        && message.contains(&injected_work_id.to_string())
+            ),
+            "{error}"
+        );
+
+        // Previously committed planned Works remain committed, with their
+        // history evidence; no cross-Work rollback happened.
+        for entry in [&outcome.plan.entries[0], &outcome.plan.entries[1]] {
+            let now = Work::from_id(&pool, &entry.work_id).unwrap();
+            assert_eq!(now.license.as_deref(), Some(entry.to.as_str()));
+            assert_eq!(history_count(&pool, entry.work_id), 1);
+        }
+        // The injected Work is untouched: detected, never normalized.
+        let injected_now = Work::from_id(&pool, &injected_work_id).unwrap();
+        assert_eq!(injected_now.license.as_deref(), Some(injected_source));
+        assert_eq!(history_count(&pool, injected_work_id), 0);
+    }
+
+    #[test]
+    fn resulting_target_counts_are_actual_catalogue_state_not_plan_deltas() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(&pool);
+        let imprint = create_imprint(&pool, &publisher);
+        let target = "https://creativecommons.org/licenses/by-nc-sa/4.0/";
+        // An already-canonical in-scope Work carrying the reviewed target...
+        let already_canonical = create_licensed_work(&pool, &imprint, target);
+        // ...and a planned Work that will normalize into the same target.
+        create_licensed_work(
+            &pool,
+            &imprint,
+            "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
+        );
+        // A Work under a publisher outside the bound MIG-01 scope carrying the
+        // same target: not a deterministic source, so it blocks nothing, but
+        // it must not be counted in the scoped resulting evidence.
+        let outside = create_publisher(&pool);
+        let outside_imprint = create_imprint(&pool, &outside);
+        create_licensed_work(&pool, &outside_imprint, target);
+
+        let files = input_files(&[publisher.publisher_id]);
+        let (outcome, plan_bytes, _, _) = run_dry_run(&pool, &files);
+        let applied = apply_plan(
+            &pool,
+            &files,
+            &plan_bytes,
+            &outcome.plan_sha256,
+            ApplyExecutionMode::Disposable,
+        )
+        .expect("apply");
+
+        // The reviewed plan delta for the target is 1 (the one conversion)...
+        assert_eq!(count_for(&applied.report.target_value_counts, target), 1);
+        // ...while the resulting count is actual post-write catalogue state:
+        // the converted Work AND the pre-existing canonical Work, in scope.
+        let resulting = applied
+            .report
+            .resulting_target_value_counts
+            .as_ref()
+            .expect("a successful apply carries resulting target counts");
+        assert_eq!(resulting.len(), DETERMINISTIC_TARGET_COUNT);
+        assert_eq!(count_for(resulting, target), 2);
+        assert_eq!(
+            applied.report.deterministic_source_works_remaining,
+            Some(0),
+            "the post-write residual query must be reported as zero"
+        );
+        // The pre-existing canonical Work was never written.
+        let untouched = Work::from_id(&pool, &already_canonical.work_id).unwrap();
+        assert_eq!(untouched.updated_at, already_canonical.updated_at);
+        assert_eq!(history_count(&pool, already_canonical.work_id), 0);
+    }
+
+    #[test]
+    fn apply_manual_counts_are_one_current_snapshot_not_the_dry_run_aggregates() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(&pool);
+        let imprint = create_imprint(&pool, &publisher);
+        create_licensed_work(
+            &pool,
+            &imprint,
+            "https://creativecommons.org/licenses/by-nd/4.0/deed.en",
+        );
+        let files = input_files(&[publisher.publisher_id]);
+        // At review time no manual value is present in the catalogue.
+        let (outcome, plan_bytes, _, _) = run_dry_run(&pool, &files);
+        assert_eq!(outcome.plan.expected.manual_unresolved_value_count, 0);
+        assert_eq!(outcome.plan.expected.manual_unresolved_work_count, 0);
+
+        // Manual-resolution state then changes independently, without touching
+        // any deterministic plan entry.
+        let mark = "https://creativecommons.org/publicdomain/mark/1.0/";
+        let typo = "https://creativecommons.org/licences/by-nc-nc/4.0/";
+        let manual_one = create_licensed_work(&pool, &imprint, mark);
+        let manual_two = create_licensed_work(&pool, &imprint, mark);
+        let manual_three = create_licensed_work(&pool, &imprint, typo);
+        // A manual value under an out-of-scope publisher is outside the bound
+        // MIG-01 reporting scope and must not be counted.
+        let outside = create_publisher(&pool);
+        let outside_imprint = create_imprint(&pool, &outside);
+        create_licensed_work(&pool, &outside_imprint, mark);
+
+        let applied = apply_plan(
+            &pool,
+            &files,
+            &plan_bytes,
+            &outcome.plan_sha256,
+            ApplyExecutionMode::Disposable,
+        )
+        .expect("apply");
+        let report = &applied.report;
+
+        // Detailed per-value counts reflect the current post-write snapshot.
+        assert_eq!(report.manual_unresolved_values.len(), MANUAL_VALUE_COUNT);
+        assert_eq!(count_for(&report.manual_unresolved_values, mark), 2);
+        assert_eq!(count_for(&report.manual_unresolved_values, typo), 1);
+        // Aggregates agree with — and are derived from — that same vector.
+        assert_eq!(report.manual_unresolved_value_count, 2);
+        assert_eq!(report.manual_unresolved_work_count, 3);
+        assert_eq!(
+            report.manual_unresolved_value_count,
+            manual_distinct_value_count(&report.manual_unresolved_values)
+        );
+        assert_eq!(
+            report.manual_unresolved_work_count,
+            manual_work_count(&report.manual_unresolved_values)
+        );
+        // They are decoupled from the stale dry-run aggregates.
+        assert_ne!(
+            report.manual_unresolved_work_count,
+            outcome.plan.expected.manual_unresolved_work_count
+        );
+        // No manual value was written by LIC-NORM-01.
+        for manual in [&manual_one, &manual_two, &manual_three] {
+            let now = Work::from_id(&pool, &manual.work_id).unwrap();
+            assert_eq!(now.license, manual.license);
+            assert_eq!(now.updated_at, manual.updated_at);
+            assert_eq!(history_count(&pool, manual.work_id), 0);
+        }
+    }
 
     #[test]
     fn an_apply_with_the_wrong_plan_hash_is_rejected() {
