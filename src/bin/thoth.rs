@@ -45,9 +45,42 @@ fn main() -> thoth::errors::ThothResult<()> {
                 Some(("apply", arguments)) => commands::publisher_services::apply(arguments),
                 _ => unreachable!(),
             },
+            Some(("licence-normalization", arguments)) => {
+                match resolve_licence_normalization_dispatch(arguments) {
+                    (LicenceNormalizationDispatch::DryRun, arguments) => {
+                        commands::publisher_services::licence_normalization_dry_run(arguments)
+                    }
+                    (LicenceNormalizationDispatch::Apply, arguments) => {
+                        commands::publisher_services::licence_normalization_apply(arguments)
+                    }
+                }
+            }
             _ => unreachable!(),
         },
         _ => unreachable!(),
+    }
+}
+
+/// The `MIG-01-LIC-NORM-01` handler a parsed `licence-normalization` invocation
+/// dispatches to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LicenceNormalizationDispatch {
+    DryRun,
+    Apply,
+}
+
+/// The routing seam `main` uses for `publisher-services licence-normalization`:
+/// it maps the parsed subcommand to its intended handler and hands back the
+/// handler's sub-matches. Kept as a separate function so tests can prove that
+/// an invocation parsed through the real root command tree dispatches to the
+/// dry-run/apply handler rather than falling into an `unreachable!()` arm.
+fn resolve_licence_normalization_dispatch(
+    arguments: &clap::ArgMatches,
+) -> (LicenceNormalizationDispatch, &clap::ArgMatches) {
+    match arguments.subcommand() {
+        Some(("dry-run", arguments)) => (LicenceNormalizationDispatch::DryRun, arguments),
+        Some(("apply", arguments)) => (LicenceNormalizationDispatch::Apply, arguments),
+        _ => unreachable!("clap enforces a licence-normalization subcommand"),
     }
 }
 
@@ -775,5 +808,191 @@ mod distribution_job_creation_control {
             Some("THOTH_GRAPHQL_MUTATION_GUARD_MODE")
         );
         assert_eq!(arg.get_default_values(), ["OFF"]);
+    }
+}
+
+/// `MIG-01-LIC-NORM-01` — root-command dispatch of
+/// `publisher-services licence-normalization`.
+///
+/// Every test parses the **real** root `THOTH` command tree, so the evidence
+/// covers the exact production parse path, and then drives the exact routing
+/// seam `main` uses (`resolve_licence_normalization_dispatch`) to prove the
+/// invocation reaches the intended handler rather than an `unreachable!()`
+/// fallback.
+#[cfg(test)]
+mod licence_normalization_dispatch {
+    use super::*;
+    use clap::ArgMatches;
+
+    /// The complete required licence-normalization input arguments.
+    const INPUTS: &[&str] = &[
+        "--database-url",
+        "postgres://localhost/x",
+        "--deterministic-manifest",
+        "deterministic.json",
+        "--expected-deterministic-manifest-sha256",
+        "aaa",
+        "--manual-register",
+        "manual.json",
+        "--expected-manual-register-sha256",
+        "bbb",
+        "--mig01-manifest",
+        "mig01.json",
+        "--expected-mig01-manifest-sha256",
+        "ccc",
+    ];
+
+    /// Parse a full `thoth publisher-services licence-normalization ...`
+    /// argument vector through the real root command tree and return the
+    /// `licence-normalization` sub-matches, exactly as `main` receives them.
+    fn parse_root(subcommand: &str, extra: &[&str]) -> Result<ArgMatches, clap::Error> {
+        let _lock = super::test_env_lock::hold();
+        let mut argv = vec![
+            "thoth",
+            "publisher-services",
+            "licence-normalization",
+            subcommand,
+        ];
+        argv.extend_from_slice(INPUTS);
+        argv.extend_from_slice(extra);
+        let matches = THOTH.clone().try_get_matches_from(argv)?;
+        let (name, publisher_services) = matches.subcommand().expect("a subcommand parsed");
+        assert_eq!(name, "publisher-services");
+        let (name, licence_normalization) = publisher_services
+            .subcommand()
+            .expect("a publisher-services subcommand parsed");
+        assert_eq!(name, "licence-normalization");
+        Ok(licence_normalization.clone())
+    }
+
+    #[test]
+    fn the_root_command_routes_licence_normalization_dry_run() {
+        let matches = parse_root(
+            "dry-run",
+            &["--plan-out", "plan.json", "--report-out", "report.json"],
+        )
+        .expect("`dry-run` should parse through the root tree");
+        let (dispatch, arguments) = resolve_licence_normalization_dispatch(&matches);
+        assert_eq!(dispatch, LicenceNormalizationDispatch::DryRun);
+        // The handler receives the exact sub-matches it needs.
+        assert_eq!(
+            arguments.get_one::<std::path::PathBuf>("plan-out").unwrap(),
+            &std::path::PathBuf::from("plan.json")
+        );
+        assert_eq!(
+            arguments
+                .get_one::<String>("expected-deterministic-manifest-sha256")
+                .unwrap(),
+            "aaa"
+        );
+    }
+
+    #[test]
+    fn the_root_command_routes_licence_normalization_apply() {
+        let matches = parse_root(
+            "apply",
+            &[
+                "--plan",
+                "plan.json",
+                "--expected-plan-sha256",
+                "ddd",
+                "--report-out",
+                "report.json",
+                "--execution-mode",
+                "disposable",
+            ],
+        )
+        .expect("`apply` should parse through the root tree");
+        let (dispatch, arguments) = resolve_licence_normalization_dispatch(&matches);
+        assert_eq!(dispatch, LicenceNormalizationDispatch::Apply);
+        assert_eq!(
+            arguments.get_one::<String>("expected-plan-sha256").unwrap(),
+            "ddd"
+        );
+        assert_eq!(
+            arguments.get_one::<String>("execution-mode").unwrap(),
+            "disposable"
+        );
+    }
+
+    #[test]
+    fn required_licence_normalization_arguments_fail_closed_at_the_root() {
+        // No subcommand at all. The shared environment lock is not reentrant,
+        // so it is held only for this direct parse and released before
+        // `parse_root` (which takes it itself) runs below.
+        {
+            let _lock = super::test_env_lock::hold();
+            assert!(THOTH
+                .clone()
+                .try_get_matches_from(["thoth", "publisher-services", "licence-normalization"])
+                .is_err());
+        }
+        // Apply without an execution mode.
+        let error = parse_root(
+            "apply",
+            &[
+                "--plan",
+                "plan.json",
+                "--expected-plan-sha256",
+                "ddd",
+                "--report-out",
+                "report.json",
+            ],
+        )
+        .expect_err("apply without an execution mode must fail to parse");
+        assert_eq!(
+            error.kind(),
+            clap::error::ErrorKind::MissingRequiredArgument
+        );
+        // A malformed execution mode.
+        let error = parse_root(
+            "apply",
+            &[
+                "--plan",
+                "plan.json",
+                "--expected-plan-sha256",
+                "ddd",
+                "--report-out",
+                "report.json",
+                "--execution-mode",
+                "yolo",
+            ],
+        )
+        .expect_err("a malformed execution mode must fail to parse");
+        assert_eq!(error.kind(), clap::error::ErrorKind::InvalidValue);
+    }
+
+    #[test]
+    fn the_migration_backfill_routing_is_untouched() {
+        let _lock = super::test_env_lock::hold();
+        // The pre-existing MIG-01 migration-backfill path still parses through
+        // the root tree exactly as before.
+        let matches = THOTH
+            .clone()
+            .try_get_matches_from([
+                "thoth",
+                "publisher-services",
+                "migration-backfill",
+                "apply",
+                "--database-url",
+                "postgres://localhost/x",
+                "--manifest",
+                "m.json",
+                "--plan",
+                "p.json",
+                "--expected-plan-sha256",
+                "abc",
+                "--report-out",
+                "r.json",
+                "--execution-mode",
+                "disposable",
+            ])
+            .expect("`migration-backfill apply` should still parse");
+        let (name, publisher_services) = matches.subcommand().expect("a subcommand parsed");
+        assert_eq!(name, "publisher-services");
+        let (name, _) = publisher_services
+            .subcommand()
+            .expect("a publisher-services subcommand parsed");
+        assert_eq!(name, "migration-backfill");
     }
 }

@@ -436,6 +436,8 @@ impl From<Work> for PatchWork {
 #[cfg(feature = "backend")]
 pub mod crud;
 #[cfg(feature = "backend")]
+pub mod licence_normalization;
+#[cfg(feature = "backend")]
 mod policy;
 #[cfg(feature = "backend")]
 pub(crate) use policy::WorkPolicy;

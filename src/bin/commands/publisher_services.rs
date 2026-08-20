@@ -23,6 +23,12 @@ use thoth::{
             apply as run_apply, dry_run as run_dry_run, ApplyExecutionMode, ApplyRequest,
             DryRunRequest,
         },
+        model::work::licence_normalization::{
+            apply as run_licence_normalization_apply, dry_run as run_licence_normalization_dry_run,
+            ApplyExecutionMode as LicenceNormalizationExecutionMode,
+            ApplyRequest as LicenceNormalizationApplyRequest,
+            DryRunRequest as LicenceNormalizationDryRunRequest, NormalizationReport,
+        },
     },
     errors::ThothResult,
 };
@@ -72,6 +78,52 @@ lazy_static! {
                         .arg(reviewed_report())
                         .arg(expected_reviewed_report_sha256())
                         .arg(arguments::distribution_job_creation()),
+                ),
+        )
+        .subcommand(
+            Command::new("licence-normalization")
+                .about(
+                    "MIG-01-LIC-NORM-01 bounded deterministic licence normalization over the \
+                     24 reviewed representation-only mappings; the 28 manual-resolution \
+                     values are reported only and never written"
+                )
+                .subcommand_required(true)
+                .arg_required_else_help(true)
+                .subcommand(
+                    Command::new("dry-run")
+                        .about(
+                            "Produce the deterministic canonical normalization plan and \
+                             reconciliation report; write no database change"
+                        )
+                        .arg(arguments::database())
+                        .arg(deterministic_manifest())
+                        .arg(expected_deterministic_manifest_sha256())
+                        .arg(manual_register())
+                        .arg(expected_manual_register_sha256())
+                        .arg(mig01_manifest())
+                        .arg(expected_mig01_manifest_sha256())
+                        .arg(plan_out())
+                        .arg(report_out()),
+                )
+                .subcommand(
+                    Command::new("apply")
+                        .about(
+                            "Apply exactly a reviewed normalization plan: one Work per \
+                             transaction, licence column only, one history row per write"
+                        )
+                        .arg(arguments::database())
+                        .arg(deterministic_manifest())
+                        .arg(expected_deterministic_manifest_sha256())
+                        .arg(manual_register())
+                        .arg(expected_manual_register_sha256())
+                        .arg(mig01_manifest())
+                        .arg(expected_mig01_manifest_sha256())
+                        .arg(plan())
+                        .arg(expected_plan_sha256())
+                        .arg(report_out())
+                        .arg(execution_mode())
+                        .arg(licence_normalization_reviewed_report())
+                        .arg(licence_normalization_expected_reviewed_report_sha256()),
                 ),
         );
 }
@@ -189,6 +241,93 @@ fn expected_reviewed_report_sha256() -> Arg {
         .num_args(1)
 }
 
+fn deterministic_manifest() -> Arg {
+    Arg::new("deterministic-manifest")
+        .long("deterministic-manifest")
+        .value_name("MANIFEST_PATH")
+        .help("Path to the reviewed, immutable deterministic normalization manifest")
+        .value_parser(value_parser!(PathBuf))
+        .required(true)
+        .num_args(1)
+}
+
+fn expected_deterministic_manifest_sha256() -> Arg {
+    Arg::new("expected-deterministic-manifest-sha256")
+        .long("expected-deterministic-manifest-sha256")
+        .value_name("SHA256_HEX")
+        .help("The expected deterministic-manifest raw-byte SHA-256 (lowercase hexadecimal)")
+        .required(true)
+        .num_args(1)
+}
+
+fn manual_register() -> Arg {
+    Arg::new("manual-register")
+        .long("manual-register")
+        .value_name("REGISTER_PATH")
+        .help("Path to the reviewed, immutable, non-executable manual-resolution register")
+        .value_parser(value_parser!(PathBuf))
+        .required(true)
+        .num_args(1)
+}
+
+fn expected_manual_register_sha256() -> Arg {
+    Arg::new("expected-manual-register-sha256")
+        .long("expected-manual-register-sha256")
+        .value_name("SHA256_HEX")
+        .help("The expected manual-register raw-byte SHA-256 (lowercase hexadecimal)")
+        .required(true)
+        .num_args(1)
+}
+
+fn mig01_manifest() -> Arg {
+    Arg::new("mig01-manifest")
+        .long("mig01-manifest")
+        .value_name("MANIFEST_PATH")
+        .help("Path to the exact bound MIG-01 production manifest")
+        .value_parser(value_parser!(PathBuf))
+        .required(true)
+        .num_args(1)
+}
+
+fn expected_mig01_manifest_sha256() -> Arg {
+    Arg::new("expected-mig01-manifest-sha256")
+        .long("expected-mig01-manifest-sha256")
+        .value_name("SHA256_HEX")
+        .help("The expected MIG-01 manifest raw-byte SHA-256 (lowercase hexadecimal)")
+        .required(true)
+        .num_args(1)
+}
+
+/// The exact independently reviewed dry-run report, required for a production
+/// licence-normalization apply. clap enforces its presence for
+/// `--execution-mode production`.
+fn licence_normalization_reviewed_report() -> Arg {
+    Arg::new("reviewed-report")
+        .long("reviewed-report")
+        .value_name("REPORT_PATH")
+        .help(
+            "Path to the exact independently reviewed DRY_RUN reconciliation report. \
+             Required for --execution-mode production",
+        )
+        .value_parser(value_parser!(PathBuf))
+        .required_if_eq("execution-mode", "production")
+        .num_args(1)
+}
+
+/// The expected lowercase raw-byte SHA-256 of the reviewed report, required
+/// for a production licence-normalization apply.
+fn licence_normalization_expected_reviewed_report_sha256() -> Arg {
+    Arg::new("expected-reviewed-report-sha256")
+        .long("expected-reviewed-report-sha256")
+        .value_name("SHA256_HEX")
+        .help(
+            "The expected reviewed-report raw-byte SHA-256 (lowercase hexadecimal). \
+             Required for --execution-mode production",
+        )
+        .required_if_eq("execution-mode", "production")
+        .num_args(1)
+}
+
 pub fn dry_run(arguments: &ArgMatches) -> ThothResult<()> {
     let database_url = arguments.get_one::<String>("db").unwrap();
     let pool = init_pool(database_url);
@@ -260,6 +399,118 @@ pub fn apply(arguments: &ArgMatches) -> ThothResult<()> {
         "  written: {}, already applied: {}, reviewed no-ops: {}",
         outcome.written, outcome.already_applied, outcome.reviewed_noops,
     );
+    Ok(())
+}
+
+/// The bounded human-readable summary shared by both licence-normalization
+/// modes. The domain report is authoritative; this is operator convenience.
+fn print_licence_normalization_report(report: &NormalizationReport) {
+    println!(
+        "  deterministic manifest SHA-256: {}",
+        report.deterministic_manifest_sha256
+    );
+    println!(
+        "  manual register SHA-256:        {}",
+        report.manual_resolution_sha256
+    );
+    println!(
+        "  MIG-01 manifest SHA-256:        {}",
+        report.mig01_manifest_sha256
+    );
+    println!("  plan SHA-256:                   {}", report.plan_sha256);
+    println!("  audit actor:                    {}", report.audit_actor);
+    println!(
+        "  works considered: {}, changing: {}, expected history rows: {}",
+        report.works_considered, report.works_changing, report.expected_history_rows,
+    );
+    println!(
+        "  manual unresolved values: {} ({} works) — reported only, never written; they \
+         continue to block the MIG-01 package/platform production apply",
+        report.manual_unresolved_value_count, report.manual_unresolved_work_count,
+    );
+    println!(
+        "  expected export-cache effect: {} publisher(s) / {} work(s) regenerate stale \
+         export output on next request (no cache action is triggered)",
+        report.expected_export_cache_effect.affected_publishers,
+        report.expected_export_cache_effect.affected_works,
+    );
+}
+
+pub fn licence_normalization_dry_run(arguments: &ArgMatches) -> ThothResult<()> {
+    let database_url = arguments.get_one::<String>("db").unwrap();
+    let pool = init_pool(database_url);
+    let request = LicenceNormalizationDryRunRequest {
+        deterministic_manifest_path: arguments
+            .get_one::<PathBuf>("deterministic-manifest")
+            .unwrap(),
+        expected_deterministic_manifest_sha256: arguments
+            .get_one::<String>("expected-deterministic-manifest-sha256")
+            .unwrap(),
+        manual_register_path: arguments.get_one::<PathBuf>("manual-register").unwrap(),
+        expected_manual_register_sha256: arguments
+            .get_one::<String>("expected-manual-register-sha256")
+            .unwrap(),
+        mig01_manifest_path: arguments.get_one::<PathBuf>("mig01-manifest").unwrap(),
+        expected_mig01_manifest_sha256: arguments
+            .get_one::<String>("expected-mig01-manifest-sha256")
+            .unwrap(),
+        plan_out_path: arguments.get_one::<PathBuf>("plan-out").unwrap(),
+        report_out_path: arguments.get_one::<PathBuf>("report-out").unwrap(),
+    };
+    let outcome = run_licence_normalization_dry_run(&pool, &request)?;
+    println!("MIG-01-LIC-NORM-01 dry run complete. No database write was performed.");
+    print_licence_normalization_report(&outcome.report);
+    Ok(())
+}
+
+pub fn licence_normalization_apply(arguments: &ArgMatches) -> ThothResult<()> {
+    let database_url = arguments.get_one::<String>("db").unwrap();
+    let pool = init_pool(database_url);
+    // `--execution-mode` is required and value-restricted by clap; the
+    // reviewed-report path and expected hash are enforced by `required_if_eq`,
+    // so the `Production` variant always carries the reviewed evidence.
+    let mode = match arguments
+        .get_one::<String>("execution-mode")
+        .unwrap()
+        .as_str()
+    {
+        "production" => LicenceNormalizationExecutionMode::Production {
+            reviewed_report_path: arguments
+                .get_one::<PathBuf>("reviewed-report")
+                .expect("clap requires --reviewed-report for production"),
+            expected_reviewed_report_sha256: arguments
+                .get_one::<String>("expected-reviewed-report-sha256")
+                .expect("clap requires --expected-reviewed-report-sha256 for production"),
+        },
+        _ => LicenceNormalizationExecutionMode::Disposable,
+    };
+    let request = LicenceNormalizationApplyRequest {
+        deterministic_manifest_path: arguments
+            .get_one::<PathBuf>("deterministic-manifest")
+            .unwrap(),
+        expected_deterministic_manifest_sha256: arguments
+            .get_one::<String>("expected-deterministic-manifest-sha256")
+            .unwrap(),
+        manual_register_path: arguments.get_one::<PathBuf>("manual-register").unwrap(),
+        expected_manual_register_sha256: arguments
+            .get_one::<String>("expected-manual-register-sha256")
+            .unwrap(),
+        mig01_manifest_path: arguments.get_one::<PathBuf>("mig01-manifest").unwrap(),
+        expected_mig01_manifest_sha256: arguments
+            .get_one::<String>("expected-mig01-manifest-sha256")
+            .unwrap(),
+        plan_path: arguments.get_one::<PathBuf>("plan").unwrap(),
+        expected_plan_sha256: arguments.get_one::<String>("expected-plan-sha256").unwrap(),
+        report_out_path: arguments.get_one::<PathBuf>("report-out").unwrap(),
+        mode,
+    };
+    let outcome = run_licence_normalization_apply(&pool, &request)?;
+    println!("MIG-01-LIC-NORM-01 apply complete.");
+    println!(
+        "  written: {}, already applied by this plan: {}",
+        outcome.written, outcome.already_applied,
+    );
+    print_licence_normalization_report(&outcome.report);
     Ok(())
 }
 
@@ -385,5 +636,181 @@ mod tests {
         let error = parse_apply(&["--execution-mode", "prod"])
             .expect_err("only disposable/production are accepted");
         assert_eq!(error.kind(), clap::error::ErrorKind::InvalidValue);
+    }
+
+    // --- MIG-01-LIC-NORM-01 licence-normalization ---------------------------
+
+    /// The complete shared licence-normalization input arguments.
+    const LICENCE_NORMALIZATION_INPUTS: &[&str] = &[
+        "--database-url",
+        "postgres://localhost/x",
+        "--deterministic-manifest",
+        "deterministic.json",
+        "--expected-deterministic-manifest-sha256",
+        "aaa",
+        "--manual-register",
+        "manual.json",
+        "--expected-manual-register-sha256",
+        "bbb",
+        "--mig01-manifest",
+        "mig01.json",
+        "--expected-mig01-manifest-sha256",
+        "ccc",
+    ];
+
+    fn parse_licence_normalization(
+        subcommand: &str,
+        extra: &[&str],
+    ) -> Result<clap::ArgMatches, clap::Error> {
+        let mut argv = vec!["publisher-services", "licence-normalization", subcommand];
+        argv.extend_from_slice(LICENCE_NORMALIZATION_INPUTS);
+        argv.extend_from_slice(extra);
+        COMMAND.clone().try_get_matches_from(argv)
+    }
+
+    #[test]
+    fn licence_normalization_dry_run_parses_with_all_required_arguments() {
+        assert!(parse_licence_normalization(
+            "dry-run",
+            &["--plan-out", "plan.json", "--report-out", "report.json"],
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn licence_normalization_dry_run_requires_every_input_hash() {
+        // Dropping any one required argument fails closed at parse time.
+        for missing in [
+            "--deterministic-manifest",
+            "--expected-deterministic-manifest-sha256",
+            "--manual-register",
+            "--expected-manual-register-sha256",
+            "--mig01-manifest",
+            "--expected-mig01-manifest-sha256",
+        ] {
+            let mut argv = vec!["publisher-services", "licence-normalization", "dry-run"];
+            let mut inputs = LICENCE_NORMALIZATION_INPUTS.to_vec();
+            let position = inputs.iter().position(|arg| *arg == missing).unwrap();
+            inputs.drain(position..position + 2);
+            argv.extend_from_slice(&inputs);
+            argv.extend_from_slice(&["--plan-out", "plan.json", "--report-out", "report.json"]);
+            let error = COMMAND
+                .clone()
+                .try_get_matches_from(argv)
+                .expect_err("a missing required input must fail to parse");
+            assert_eq!(
+                error.kind(),
+                clap::error::ErrorKind::MissingRequiredArgument,
+                "missing {missing}"
+            );
+        }
+    }
+
+    #[test]
+    fn licence_normalization_dry_run_requires_plan_and_report_outputs() {
+        let error = parse_licence_normalization("dry-run", &["--report-out", "report.json"])
+            .expect_err("a missing plan output must fail to parse");
+        assert_eq!(
+            error.kind(),
+            clap::error::ErrorKind::MissingRequiredArgument
+        );
+        let error = parse_licence_normalization("dry-run", &["--plan-out", "plan.json"])
+            .expect_err("a missing report output must fail to parse");
+        assert_eq!(
+            error.kind(),
+            clap::error::ErrorKind::MissingRequiredArgument
+        );
+    }
+
+    const LICENCE_NORMALIZATION_APPLY_BASE: &[&str] = &[
+        "--plan",
+        "plan.json",
+        "--expected-plan-sha256",
+        "ddd",
+        "--report-out",
+        "report.json",
+    ];
+
+    fn parse_licence_normalization_apply(extra: &[&str]) -> Result<clap::ArgMatches, clap::Error> {
+        let mut argv: Vec<&str> = LICENCE_NORMALIZATION_APPLY_BASE.to_vec();
+        argv.extend_from_slice(extra);
+        parse_licence_normalization("apply", &argv)
+    }
+
+    #[test]
+    fn licence_normalization_apply_requires_an_explicit_execution_mode() {
+        let error = parse_licence_normalization_apply(&[]).expect_err("execution-mode is required");
+        assert_eq!(
+            error.kind(),
+            clap::error::ErrorKind::MissingRequiredArgument
+        );
+    }
+
+    #[test]
+    fn licence_normalization_disposable_apply_parses_without_reviewed_evidence() {
+        assert!(parse_licence_normalization_apply(&["--execution-mode", "disposable"]).is_ok());
+    }
+
+    #[test]
+    fn licence_normalization_production_apply_requires_the_reviewed_report_and_hash() {
+        let error = parse_licence_normalization_apply(&["--execution-mode", "production"])
+            .expect_err("production without reviewed evidence must fail to parse");
+        assert_eq!(
+            error.kind(),
+            clap::error::ErrorKind::MissingRequiredArgument
+        );
+        let error = parse_licence_normalization_apply(&[
+            "--execution-mode",
+            "production",
+            "--reviewed-report",
+            "reviewed-report.json",
+        ])
+        .expect_err("production without the expected report hash must fail to parse");
+        assert_eq!(
+            error.kind(),
+            clap::error::ErrorKind::MissingRequiredArgument
+        );
+        assert!(parse_licence_normalization_apply(&[
+            "--execution-mode",
+            "production",
+            "--reviewed-report",
+            "reviewed-report.json",
+            "--expected-reviewed-report-sha256",
+            "deadbeef",
+        ])
+        .is_ok());
+    }
+
+    #[test]
+    fn licence_normalization_rejects_a_malformed_execution_mode() {
+        let error = parse_licence_normalization_apply(&["--execution-mode", "prod"])
+            .expect_err("only disposable/production are accepted");
+        assert_eq!(error.kind(), clap::error::ErrorKind::InvalidValue);
+    }
+
+    #[test]
+    fn licence_normalization_rejects_an_unknown_subcommand_and_argument() {
+        assert!(COMMAND
+            .clone()
+            .try_get_matches_from([
+                "publisher-services",
+                "licence-normalization",
+                "normalize-everything",
+            ])
+            .is_err());
+        assert!(
+            parse_licence_normalization(
+                "dry-run",
+                &[
+                    "--plan-out",
+                    "plan.json",
+                    "--report-out",
+                    "report.json",
+                    "--promote-manual-values",
+                ]
+            )
+            .is_err(),
+            "no argument may promote manual values"
+        );
     }
 }

@@ -281,6 +281,56 @@ pub enum ThothError {
     /// recovery is a fresh dry run, Gate-D review and Gate-E authorization.
     #[error("MIG-01 production apply blocked by changed omission evidence: {0}")]
     MigrationBackfillOmissionMismatch(String),
+    /// A `MIG-01-LIC-NORM-01` immutable input artifact (deterministic
+    /// normalization manifest, manual-resolution register, bound MIG-01
+    /// manifest, reviewed plan or reviewed dry-run report) could not be read,
+    /// parsed or validated against the reviewed mechanical invariants. These
+    /// administrative inputs are operator-supplied files, not GraphQL/API
+    /// input, so this variant never reaches a public API surface.
+    #[error("MIG-01-LIC-NORM input is invalid: {0}")]
+    LicenceNormalizationInvalidInput(String),
+    /// A `MIG-01-LIC-NORM-01` artifact's exact raw-byte SHA-256 did not equal
+    /// the expected reviewed hash. The message names only the artifact role;
+    /// it never echoes artifact content.
+    #[error("MIG-01-LIC-NORM artifact hash mismatch: {0}")]
+    LicenceNormalizationHashMismatch(String),
+    /// The supplied `MIG-01-LIC-NORM-01` plan is semantically parseable but not
+    /// in canonical bytes (byte-order mark, insignificant whitespace, entry
+    /// disorder or a noncanonical equivalent encoding, including a differing
+    /// timestamp representation). It is rejected before any write.
+    #[error("The MIG-01-LIC-NORM reviewed plan is not in canonical byte form and was rejected.")]
+    LicenceNormalizationNoncanonicalPlan,
+    /// An affected Work's publisher is absent from the bound MIG-01 production
+    /// manifest. This is a blocking scope mismatch: remediation is an approved
+    /// MIG-01 manifest/programme amendment with a newly frozen hash and fresh
+    /// review, never a local omission or waiver.
+    #[error("MIG-01-LIC-NORM publisher scope mismatch: {0}")]
+    LicenceNormalizationScopeMismatch(String),
+    /// A deterministic normalization target failed canonical `cc-license`
+    /// parsing or is not exact-string `SUPPORTED` in the bound MIG-01
+    /// production manifest. The run stops before plan emission or writes.
+    #[error("MIG-01-LIC-NORM target is not reviewed as supported: {0}")]
+    LicenceNormalizationUnsupportedTarget(String),
+    /// A reviewed `MIG-01-LIC-NORM-01` plan entry classified as `DRIFT`. The
+    /// invocation stops before any new write; recovery is deterministic resume
+    /// under a fresh reviewed plan or separately authorized forward repair.
+    #[error("MIG-01-LIC-NORM stopped on drift: {0}")]
+    LicenceNormalizationDrift(String),
+    /// A Work absent from the reviewed plan currently carries a deterministic
+    /// source value, so the reviewed plan no longer covers the exact current
+    /// source-value membership. The apply stops before any write.
+    #[error("MIG-01-LIC-NORM apply stopped on an unplanned Work: {0}")]
+    LicenceNormalizationUnplannedWork(String),
+    /// Two `MIG-01-LIC-NORM-01` input/output artifact paths resolve to the same
+    /// filesystem location, which could destroy a reviewed input needed for
+    /// deterministic recovery. Rejected before any read or write.
+    #[error("MIG-01-LIC-NORM artifact paths alias: {0}")]
+    LicenceNormalizationArtifactAlias(String),
+    /// The post-update in-transaction re-read did not observe exactly the
+    /// reviewed target licence. The surrounding transaction rolls back the
+    /// history row and the licence update together.
+    #[error("MIG-01-LIC-NORM write verification failed: {0}")]
+    LicenceNormalizationWriteVerification(String),
 }
 
 impl ThothError {

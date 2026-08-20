@@ -5040,6 +5040,7 @@ dependencies = [
  "aws-sdk-s3",
  "aws-smithy-runtime-api",
  "base64 0.22.1",
+ "cc_license",
  "chrono",
  "dataloader",
  "deadpool-redis",

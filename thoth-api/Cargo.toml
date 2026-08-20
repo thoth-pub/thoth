@@ -13,6 +13,7 @@ maintenance = { status = "actively-developed" }
 
 [features]
 backend = [
+    "cc_license",
     "diesel",
     "diesel-derive-enum",
     "diesel_migrations",
@@ -35,6 +36,7 @@ backend = [
 [dependencies]
 thoth-errors = { version = "=1.7.0", path = "../thoth-errors" }
 actix-web = { version = "4.14.0", optional = true }
+cc_license = { version = "0.1.0", optional = true }
 isbn = "0.6.0"
 chrono = { version = "0.4.45", features = ["serde"] }
 deadpool-redis = { version = "0.20.0", optional = true }
