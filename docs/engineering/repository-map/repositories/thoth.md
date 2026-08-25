@@ -119,20 +119,19 @@ that supersedes ADR-0003.
 ADR-0003 supersedes the `THOTH-DB-CTRL-01` structural-synchronizer approach,
 whose implementation PR
 [#777](https://github.com/thoth-pub/thoth/pull/777) was closed unmerged.
-[`THOTH-DB-CTRL-02`](../../ai-delivery/tasks/THOTH-DB-CTRL-02.md) delivers
+[`THOTH-DB-CTRL-02`](../../ai-delivery/tasks/THOTH-DB-CTRL-02.md) delivered
 ADR-0003 and its directly related cleanup through PR
-[#778](https://github.com/thoth-pub/thoth/pull/778).
+[#778](https://github.com/thoth-pub/thoth/pull/778), which merged into
+`develop` as `37b802776ae6853affe19d90156f3c1e0654ebe3`.
+ADR-0003/`THOTH-DB-CTRL-02` is repository-authoritative.
 
 [CG-12](../control-gaps.md#cg-12---thoth-schema-generation-resolved-via-architecture-a)
 is resolved by the merged Architecture A control (ADR-0003), delivered by
-`THOTH-DB-CTRL-02` through PR #778; this record becomes authoritative when the
-change merges into `develop`, and the merge itself remains subject to
-independent review and explicit CTO merge authorization. On merge, BE-01 is
-`READY` for separately authorized implementation — `READY` does not authorize
-implementation by itself: creating the branch and making any implementation edit
-require separate explicit authorization, and the branch remains absent until
-then. Production migration, deployment, rollback, restore verification, and
-approver mapping remain separately blocked on
+`THOTH-DB-CTRL-02` through merged PR #778. BE-01 is `READY` for separately
+authorized implementation — `READY` does not authorize implementation by
+itself: creating the branch and making any implementation edit require
+separate explicit authorization. Production migration, deployment, rollback,
+restore verification, and approver mapping remain separately blocked on
 [CG-13](../control-gaps.md#cg-13---thoth-runtime-operations-unmapped).
 
 ## CI and release

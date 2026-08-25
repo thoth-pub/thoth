@@ -45,17 +45,33 @@ Publisher derives from authentication; object keys are server-selected; MIME/siz
 
 Thoth owns canonical export claims and ledgers. Sphinx projects/delivers. Configuration includes platform/measure mapping, event URI, measure URI, uploader URI, enabled state and finalization. Drivers never construct OPERAS payloads.
 
-## 7. Authentication
+## 7. Authentication (service roles)
 
-Proposed:
+The shared machine-role architecture is decided:
+[`ADR-0008`](../engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md)
+(`APPROVED`, repository-authoritative) establishes dedicated, least-privilege,
+**domain-specific** machine-role conventions — no generic catch-all service
+role, an explicit policy guard and authorization matrix per machine role, and
+no `SUPERUSER` shortcut for machine services.
 
-```text
-METRICS_READ_SERVICE
-METRICS_INGEST_SERVICE
-METRICS_SYNC_SERVICE
-```
+Within that convention, the following remain **unapproved** and are WP5-owned
+bounded decisions under WP5's own approved specification:
 
-Status: CTO APPROVAL REQUIRED. Consumers must not substitute superuser.
+- exact Metrics role codes — the sketched candidates
+
+  ```text
+  METRICS_READ_SERVICE
+  METRICS_INGEST_SERVICE
+  METRICS_SYNC_SERVICE
+  ```
+
+  remain proposals only and are not promoted by `ADR-0008` or by this
+  register;
+- the exact permissions/operation matrix per role;
+- credential, provisioning and rotation arrangements.
+
+Consumers must not substitute superuser: `SUPERUSER` is not a machine-service
+shortcut.
 
 ## 8. Cross-repository gate
 

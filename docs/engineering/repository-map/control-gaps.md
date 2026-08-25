@@ -200,7 +200,48 @@ implementation, by this closeout and by the BE-02 merge.
 
 ### CG-08 - Metrics readiness open
 
-Issue #766 exists. Sphinx normalization/bootstrap, Diesel control, branch readiness and service-role decisions remain prerequisites.
+CG-08 is **OPEN**.
+
+Issue [#766](https://github.com/thoth-pub/thoth/issues/766) exists and the
+Publisher Services -> Metrics pivot is recorded. The gap no longer treats
+Sphinx bootstrap, the resolved Diesel/schema control, client branch readiness
+or WP5 service-role decisions as blanket programme prerequisites; each gate
+below is attached to the work it actually blocks.
+
+**Thoth WP1 entry** requires:
+
+- `MET-CTRL-01` closure (issue
+  [#832](https://github.com/thoth-pub/thoth/issues/832)): its reconciliation
+  PR independently approved at its exact head and merged;
+- the current approved shared architecture/schema controls, which are
+  satisfied: ADR-0001 and ADR-0002 approved and merged, ADR-0003
+  repository-authoritative through merged PR
+  [#778](https://github.com/thoth-pub/thoth/pull/778) (CG-12 resolved), and
+  ADR-0008 repository-authoritative within its approved scope;
+- separately authorized creation of the repository-local `feature/metrics`
+  integration branch from a freshly verified `develop` head;
+- one approved bounded WP1 child specification.
+
+**Later gates**, owned by their dependent work rather than blocking Thoth WP1
+entry:
+
+- `BR-SPHINX-01` / `SPHINX-BOOT-01` gate WP6 and later Sphinx work (see
+  CG-03);
+- client branch/CI readiness (`BR-DASH-01`, `BR-WIDGET-01`, `BR-APP-01`)
+  gates the applicable client-dependent work packages (see CG-04 and CG-11);
+- exact Metrics machine-role codes, permissions/operation matrices and
+  credential/provisioning arrangements are WP5-owned bounded decisions within
+  the ADR-0008 convention;
+- source fixtures and COUNTER mappings gate the applicable
+  drivers/import/migration work (see CG-09);
+- OPERAS inbound completeness gates the applicable WP9/inbound behaviour (see
+  CG-10).
+
+This distinction resolves none of those later gates and weakens no other
+control gap: CG-03, CG-04, CG-09, CG-10, CG-11 and CG-13 remain exactly as
+recorded. CG-08 closes only when the Metrics programme's control gates are
+reconciled and the WP1 entry path above is complete; no Metrics
+implementation is authorized by this record.
 
 ## Production-slice controls
 

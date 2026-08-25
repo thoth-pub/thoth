@@ -1,6 +1,6 @@
 # Thoth Metrics
 
-Status: CONTROL FOUNDATION IN PROGRESS
+Status: PROGRAMME CONTROLS UNDER RECONCILIATION (`MET-CTRL-01`)
 Programme owner: CTO
 
 Primary repositories:
@@ -103,37 +103,65 @@ The initial programme does not store raw clickstream events in Thoth, create a s
 BLOCKED FOR IMPLEMENTATION
 ```
 
-Achieved:
+No Metrics implementation is authorized. The Publisher Services -> Metrics
+pivot is complete (recorded in
+[#766](https://github.com/thoth-pub/thoth/issues/766) comment `5412873595`),
+and the shared controls below are settled.
 
-- `ADR-0001` publisher package capabilities is `APPROVED AND MERGED` (Javi, CTO,
-  2026-07-28, approval PR
-  [#772](https://github.com/thoth-pub/thoth/pull/772)). The independently
-  reviewed approval record merged on 2026-07-29 as
-  `b2c91ff25b95ab0e10a477ff21dbd4702f5db8d4`. The shared
-  package-capability dependency is satisfied without activating metrics
-  collection, entitlement enforcement, serving, imports or exports.
-- `ADR-0002` platform domain boundaries is `APPROVED` (CTO, 2026-07-27, approval
-  PR [#769](https://github.com/thoth-pub/thoth/pull/769)) and is no longer a
-  blocking control. `MetricPlatform` remains separate from `DistributionPlatform`
-  with no initial cross-domain mapping. Approval removes one shared-ADR
-  dependency and does not make any work package ready.
+Completed shared/global controls:
 
-Blocking controls:
+- the shared engineering-control foundation is closed: PR #764 merged, and its
+  closeout PR #767 was independently `APPROVED` and merged as
+  `bac598e32abbd0d7e69ff467c82945ee00df02ba`, closing P0-01;
+- `ADR-0001` publisher package capabilities is `APPROVED AND MERGED` (Javi,
+  CTO, 2026-07-28, approval PR
+  [#772](https://github.com/thoth-pub/thoth/pull/772), merged 2026-07-29 as
+  `b2c91ff25b95ab0e10a477ff21dbd4702f5db8d4`). The shared package-capability
+  dependency is satisfied without activating metrics collection, entitlement
+  enforcement, serving, imports or exports;
+- `ADR-0002` platform domain boundaries is `APPROVED` and merged (CTO,
+  2026-07-27, approval PR
+  [#769](https://github.com/thoth-pub/thoth/pull/769)). `MetricPlatform`
+  remains separate from `DistributionPlatform` with no initial cross-domain
+  mapping;
+- the Diesel/schema-control blocker is resolved: `ADR-0003` (Architecture A)
+  is repository-authoritative through `THOTH-DB-CTRL-02` and merged PR
+  [#778](https://github.com/thoth-pub/thoth/pull/778) (merge commit
+  `37b802776ae6853affe19d90156f3c1e0654ebe3`). `THOTH-DB-CTRL-01` is
+  `SUPERSEDED`;
+- `ADR-0008` machine roles and durable job primitives is `APPROVED` and
+  repository-authoritative within its approved scope: it establishes the
+  shared domain-specific least-privilege machine-role convention and seven
+  durable-job conventions, and deliberately selects no Metrics role name,
+  entitlement model, credential model or operation matrix.
 
-1. The shared engineering-control foundation is closed: PR #764 merged, and its
-   closeout PR #767 was independently `APPROVED` and merged as
-   `bac598e32abbd0d7e69ff467c82945ee00df02ba`, closing P0-01. The Metrics
-   programme control task `MET-CTRL-01` nevertheless remains `CHANGES REQUIRED`
-   and is not yet closed.
-2. `thoth-sphinx` is placeholder-only and has not been bootstrapped.
-3. Thoth Diesel generation procedure is unresolved.
-4. Branch topology differs in Sphinx and client repositories.
-5. Service-role codes require approval before WP5.
-6. Representative source fixtures and COUNTER mappings are missing for source-specific work.
-7. Guaranteed OPERAS inbound discovery is unavailable.
+Remaining Thoth-local gate for entering WP1:
 
-Discovery, benchmarking, fixture collection and task specification may continue.
-ADR-0001 approval does not mark WP1 or any later work package ready.
+1. `MET-CTRL-01` (issue
+   [#832](https://github.com/thoth-pub/thoth/issues/832)) is the current
+   programme-control gate and remains open until its PR is independently
+   approved at its exact head and merged.
+2. After `MET-CTRL-01` closes, Thoth WP1 entry additionally requires a
+   separately authorized repository-local `feature/metrics` branch created
+   from a freshly verified `develop` head, plus one approved bounded WP1
+   child issue/specification. Neither exists yet.
+
+Later gates, owned by their later work packages rather than blocking Thoth
+WP1 entry:
+
+- `thoth-sphinx` readiness (`BR-SPHINX-01`, `SPHINX-BOOT-01`) gates WP6 and
+  later Sphinx work;
+- client branch/CI readiness (`BR-DASH-01`, `BR-WIDGET-01`, `BR-APP-01`)
+  gates the work packages that depend on those clients;
+- representative source fixtures, COUNTER mappings and guaranteed OPERAS
+  inbound discovery gate the applicable source-specific/driver/inbound work;
+- exact Metrics service-role codes, permissions and credential/provisioning
+  arrangements remain unapproved WP5-owned bounded decisions.
+
+Discovery, benchmarking, fixture collection and task specification may
+continue. This reconciliation authorizes no Metrics implementation: WP1 and
+every later work package remain unauthorized until their own gates are
+satisfied.
 
 ## 7. Files
 
