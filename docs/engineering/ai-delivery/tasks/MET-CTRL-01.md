@@ -12,8 +12,10 @@ PR target: `develop`
 Programme integration branch: None
 Risk: LOW
 Owner: CTO
-Approved by: CTO, through the amended issue #832 specification and its fresh
-independent non-implementing specification review (`APPROVED`)
+Specification review: fresh independent non-implementing review of the amended
+issue #832 specification returned `APPROVED`
+Implementation authorization: NOT DURABLY RECORDED BEFORE EXECUTION -
+control-process exception (section 21.1)
 Dependencies: parent programme issue
 [#766](https://github.com/thoth-pub/thoth/issues/766); Publisher Services ->
 Metrics pivot (recorded in #766 comment `5412873595`); merged ADR-0001
@@ -242,6 +244,11 @@ authorization. Merge requires fresh independent exact-head review and explicit
 CTO merge authorization. #766 synchronization, `feature/metrics` creation and
 WP1 implementation each remain separately authorized actions.
 
+Specification approval is also not implementation authorization. Implementation
+of this task required a separate explicit bounded implementation authorization,
+which was not durably recorded before the implementation actions were executed;
+that is recorded as a control-process exception in section 21.1.
+
 ### 7.4 Concurrency and idempotency
 
 Not applicable (documentation-only change).
@@ -426,13 +433,19 @@ contradiction and why it cannot remain unchanged.
 | deployment | NO |
 | production activation | NO |
 
+This matrix records the bounded action scope this specification proposes for a
+future implementation authorization. It is not itself evidence that such an
+authorization was granted: for the implementation actions already performed,
+see the control-process exception in section 21.1.
+
 ## 16. Automatic side effects
 
 Pushing the task branch and opening the draft PR triggers the repository's
 normal PR CI (build/test/clippy/format/changelog checks). That automatic CI is
-an expected, authorized side effect of the authorized push/PR actions. For a
-documentation-only diff no external write (for example a container-registry
-push) is expected. No manual dispatch or rerun of any workflow is authorized.
+an expected side effect of the push/PR actions rather than an independent
+action. For a documentation-only diff no external write (for example a
+container-registry push) is expected. No manual dispatch or rerun of any
+workflow is authorized.
 
 ## 17. HOLD/STOP conditions
 
@@ -484,11 +497,51 @@ Review reasoning level: high
 
 ## 21. Approval
 
-Approved for implementation by: CTO, via issue #832 (amended 2026-08-25) and
-its fresh independent non-implementing specification review (`APPROVED`),
-with explicit bounded authorization of the exact base, branch creation,
-documentation writes, commit, push and draft-PR creation.
+Specification review: `APPROVED`. The amended issue #832 specification
+(2026-08-25) received a fresh independent non-implementing specification
+review, which returned `APPROVED`. The specification was therefore technically
+ready for a bounded implementation authorization.
 Date: 2026-08-25
-Notes: specification approval is not merge, #766-synchronization,
-`feature/metrics`-creation, WP1, deployment, migration or production
-authorization.
+
+Implementation authorization: NOT DURABLY RECORDED BEFORE EXECUTION -
+CONTROL-PROCESS EXCEPTION (section 21.1).
+
+Past implementation actions: performed within the intended bounded scope, the
+exact authorized base and the section 14 write budget recorded here, but not
+retroactively authorized by this record.
+
+Merge authorization: NOT GRANTED.
+
+Notes: specification approval is not implementation, merge,
+#766-synchronization, `feature/metrics`-creation, WP1, deployment, migration or
+production authorization.
+
+### 21.1 Control-process exception - implementation authorization
+
+Implementation proceeded after the independent specification review returned
+`APPROVED` but before a separate explicit implementation authorization was
+durably recorded. Issue #832 carries no implementation-authorization comment,
+and the control-plane record left implementation authorization as the next
+outstanding gate at the point the implementing agent acted.
+
+Branch creation (`feature/metrics-control/met-ctrl-01`), the bounded
+documentation edits and new files, the commit, the push and the creation of
+draft PR [#833](https://github.com/thoth-pub/thoth/pull/833) therefore occurred
+under a recorded control-process exception.
+
+This record does not retroactively authorize those past actions. No
+authorization is inferred, reconstructed or backdated here, and none may be
+created after the fact. The actions nevertheless remained within the intended
+amended #832 scope, the exact authorized base
+`250554dd7351c97af46d59b5033abd391d9eec16` and the section 14 write budget, and
+produced no runtime, schema, migration, GraphQL, authorization, provider or
+production effect.
+
+Merge remains unauthorized. Merge requires fresh independent review of the
+exact current head plus explicit CTO merge authorization bound to that head.
+`feature/metrics` creation, #766 synchronization and WP1 implementation each
+remain separately unauthorized.
+
+The exception concerns authorization provenance only. It is not a finding that
+the substantive Metrics/control reconciliation is technically wrong, and it
+must be carried forward into MET-CTRL-01 closeout rather than erased.

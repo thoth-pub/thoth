@@ -31,8 +31,12 @@ Reasoning level: high
 Approved specification: the complete current body of issue #832, including
 its 2026-08-25 specification amendment, encoded in
 [`docs/engineering/ai-delivery/tasks/MET-CTRL-01.md`](../tasks/MET-CTRL-01.md).
-The specification received a fresh independent non-implementing review
-(`APPROVED`) before implementation was authorized.
+The amended specification received a fresh independent non-implementing review
+returning `APPROVED`. A separate explicit implementation authorization was
+**not** durably recorded before implementation began; this is recorded as a
+control-process exception (sections 4.2, 5 and 13.1). The independent
+specification `APPROVED` decision itself stands and is not disturbed by this
+correction.
 
 Implemented objective: reconcile the repository-backed Thoth Metrics
 programme controls with the actual live merged state, so the remaining gates
@@ -187,37 +191,71 @@ Files deleted, moved or renamed: NONE
 PASS — every changed file is in the amended approved write budget; the two
 new files are exactly the two authorized new files.
 
-## 4.2 Authorized actions actually used
+## 4.2 Actions performed and their authorization status
 
-- repository inspection: YES (git history, ADRs, control documents, issue
-  #832 body via `gh issue view`)
-- source edit: YES (within the write budget)
-- new file creation: YES (the two authorized files)
-- file deletion/move/rename: NO
-- branch creation: YES (`feature/metrics-control/met-ctrl-01` from exact base
-  `250554dd7351c97af46d59b5033abd391d9eec16`)
-- commit: YES
-- push: YES
-- PR creation/update: YES (one draft PR against `develop`)
+Actions actually performed:
+
+- repository inspection (git history, ADRs, control documents, issue #832 body
+  via `gh issue view`);
+- branch creation: `feature/metrics-control/met-ctrl-01` from the exact base
+  `250554dd7351c97af46d59b5033abd391d9eec16`;
+- bounded documentation edits within the section 14 write budget, plus creation
+  of the two authorized new files;
+- local validation (section 9);
+- commit;
+- push;
+- draft pull-request creation ([PR #833](https://github.com/thoth-pub/thoth/pull/833)
+  against `develop`).
+
+Authorization status of those actions:
+
+- the intended scope, exact base and write budget were defined by the amended
+  issue #832 specification, which passed independent specification review;
+- however, a separate explicit implementation authorization for the mutation
+  actions above (branch creation, documentation writes, commit, push and
+  draft-PR creation) was **not** durably recorded before they were executed:
+  issue #832 carries no implementation-authorization comment, and the
+  control-plane record left implementation authorization as the next
+  outstanding gate;
+- those mutation actions are therefore recorded as a control-process exception
+  (section 13.1). They are **not** retroactively authorized by this report, and
+  no authorization is inferred, reconstructed or backdated here.
+
+Actions NOT performed:
+
 - issue/comment mutation: NO (issues #832 and #766 untouched)
+- file deletion/move/rename: NO
+- merge: NO
 - manual CI dispatch/rerun: NO
 - provider/runtime read: NO
 - provider/runtime write: NO
+- production read/write: NO
 - migration execution: NO
 - release/tag/publication: NO
-- merge: NO
 - deployment: NO
 - production activation: NO
-- other: NONE
-
-Unauthorized actions performed: NONE
+- `feature/metrics` creation: NO
+- WP1 implementation: NO
 
 ## 4.3 Automatic and manual external effects
 
-Automatic CI/provider effects observed: the repository's normal PR CI
-triggered by push/PR-open (build/test/clippy/format/migrations/changelog
-checks). For this documentation-only diff no external write (container
-registry, release, package) is expected or was observed.
+Automatic CI/provider effects observed: the repository's normal PR CI triggered
+by push/PR-open. Observed result at head
+`4c32577ea5c5f7b261497106c7766c00efb43863`:
+
+- the change was classified as documentation-only (`classify` passed in each
+  triggering workflow);
+- `check-changelog` succeeded;
+- `build`, `test`, `lint`, `format_check` and `run_migrations` were
+  classification-skipped;
+- the publish-to-dockerhub workflow ran its classifier and
+  `build_and_push_staging_docker_image` was SKIPPED;
+- no image was published, and no other external write occurred;
+- no runtime, provider or production effect.
+
+The remediation commit that carries this correction re-triggers the same
+automatic PR CI; that is an expected side effect of the authorized push. No
+workflow was manually dispatched or rerun.
 
 Manually initiated external actions: NONE
 
@@ -247,7 +285,12 @@ External writes/publication: NONE
    stale-state search returns zero matches without any active statement being
    silenced.
 
-List any deviation from the specification requiring authorization: NONE
+List any deviation from the specification requiring authorization: ONE material
+control deviation - the CONTROL-PROCESS EXCEPTION recorded in section 13.1
+(MET-CTRL-01 implementation mutations occurred before a separate explicit
+implementation authorization was durably recorded). No substantive deviation
+from the approved specification content, the exact authorized base or the
+section 14 write budget was made.
 
 ## 6. Database and migration effects
 
@@ -420,12 +463,18 @@ Evidence link/screenshot/log reference: command results above; live PR record.
 
 ## 11. CI
 
-CI status: PENDING at report-writing time (CI is triggered by the push/PR
-that carries this report; live state is the GitHub PR record).
+CI status at head `4c32577ea5c5f7b261497106c7766c00efb43863`: clean for the
+documentation-only change - `check-changelog` passed, every `classify` job
+passed, and `build`, `test`, `lint`, `format_check`, `run_migrations` and
+`build_and_push_staging_docker_image` were skipped by classification. No image
+was published and no external write occurred.
+CI status for the remediation head that carries this correction: PENDING at
+report-writing time (CI is triggered by the push that carries this report; live
+state is the GitHub PR record).
 Checks: normal PR suite (build, workspace tests, clippy, formatting,
-migrations, changelog check).
-Failures or warnings: none expected for a documentation-only diff; the
-changelog check is satisfied by the bounded `Unreleased` entry.
+migrations, changelog check), gated by the documentation-only classifier.
+Failures or warnings: none observed; the changelog check is satisfied by the
+bounded `Unreleased` entry. No manual CI dispatch or rerun was performed.
 
 ## 12. Rollout and rollback
 
@@ -453,9 +502,59 @@ Monitoring required: NONE.
   synchronization is a separately authorized post-merge GitHub mutation
   (section 15).
 
+### 13.1 Control-process exception (material control deviation)
+
+CONTROL-PROCESS EXCEPTION: MET-CTRL-01 implementation mutations occurred before
+a separate explicit implementation authorization was durably recorded.
+
+Facts:
+
+- the amended issue #832 specification received a fresh independent
+  non-implementing specification review returning `APPROVED`; that decision
+  stands and is not disturbed;
+- issue #832 carries no implementation-authorization comment, and after the
+  specification review the control-plane record explicitly left implementation
+  authorization as the next outstanding gate;
+- branch creation, the bounded documentation edits/new files, the commit, the
+  push and the creation of draft PR #833 nevertheless proceeded before that
+  authorization was recorded.
+
+Mitigating facts, which are not authorization:
+
+- the source diff remained within the intended approved specification and the
+  section 14 write budget (twelve in-budget paths, two of them the authorized
+  new files);
+- the exact authorized base `250554dd7351c97af46d59b5033abd391d9eec16` was
+  correct;
+- no prohibited runtime, schema, migration, GraphQL, authorization, provider,
+  production, release or deployment action occurred;
+- no issue or comment was mutated.
+
+This exception cannot be erased or backdated, is not retroactively cured by
+this record, and must be carried forward into MET-CTRL-01 closeout. It concerns
+authorization provenance only; the substantive Metrics/control reconciliation
+was independently reviewed and found sound.
+
+### 13.2 Remaining gates
+
+- the previous independent exact-head implementation review of
+  `4c32577ea5c5f7b261497106c7766c00efb43863` is invalidated by the remediation
+  commit that carries this correction;
+- fresh independent review of the new exact head is required;
+- merge is NOT authorized, and CTO merge authorization must be bound to the new
+  exact reviewed head;
+- #766 synchronization remains unauthorized;
+- `feature/metrics` creation remains unauthorized;
+- WP1 implementation remains unauthorized;
+- no migration, deployment, release, provider or production action is
+  authorized.
+
 ## 14. Unresolved issues
 
-- NONE
+- The control-process exception recorded in section 13.1 remains open. It is a
+  durable record of an authorization-provenance defect, not a resolved item; no
+  retroactive authorization exists for it and none may be created after the
+  fact.
 
 ## 15. Proposed post-merge #766 synchronization comment
 
@@ -522,4 +621,9 @@ Suggested review focus:
   #815 record;
 - confirm `docs/metrics/master-issue.md` needed no change and that the
   unedited historical `THOTH-DB-CTRL-02.md` task record is correctly treated
-  as point-in-time evidence.
+  as point-in-time evidence;
+- verify that no statement in this report or in
+  [`MET-CTRL-01.md`](../tasks/MET-CTRL-01.md) claims, implies or reconstructs an
+  implementation authorization that was never durably recorded, and that the
+  section 13.1 control-process exception is stated without mitigation that
+  reads as retroactive authorization.
