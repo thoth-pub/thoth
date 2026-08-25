@@ -111,10 +111,17 @@ Outstanding:
 
 - None for the foundation closeout gate. Dependent Publisher Services and Metrics
   implementation remains blocked by Publisher Services ADR-01 and its final
-  distribution-platform inventory, task-specific approved specifications,
-  applicable branch-readiness controls, and the Metrics programme-control,
-  Diesel-generation and repository-readiness gates recorded in the programme
-  controls. ADR-0001 and ADR-0002 approval remove shared decision dependencies
-  without making either programme implementation-ready.
+  distribution-platform inventory, task-specific approved specifications, and
+  applicable branch-readiness controls. For Metrics, the previously recorded
+  Diesel/schema-control blocker is resolved (ADR-0003 is
+  repository-authoritative through merged PR
+  [#778](https://github.com/thoth-pub/thoth/pull/778)), and
+  Thoth WP1 entry now waits only on `MET-CTRL-01` closure, separately
+  authorized `feature/metrics` creation and one approved bounded WP1 child
+  specification; Sphinx, client and source-specific readiness gates remain
+  attached to their owning later work packages rather than blocking WP1 (see
+  [CG-08](./repository-map/control-gaps.md#cg-08---metrics-readiness-open)).
+  ADR-0001 and ADR-0002 approval remove shared decision dependencies without
+  making either programme implementation-ready.
 
 The implementing conversation cannot approve its own work.

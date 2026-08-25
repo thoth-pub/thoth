@@ -10,7 +10,40 @@ Add schema before behavior, keep accounts/schedules/serving/export disabled init
 
 ## 2. Stage 0 - Control/readiness
 
-Require PR #764, approved ADRs, master issue, Sphinx bootstrap, branch decisions, Diesel procedure and role decision before WP5.
+Stage 0 distinguishes completed shared controls from the remaining gates, and
+attaches each remaining gate to the work it actually blocks.
+
+Completed shared/global controls:
+
+- engineering-control foundation: PR #764 merged and P0-01 closed through
+  merged closeout PR #767;
+- master issue [#766](https://github.com/thoth-pub/thoth/issues/766) exists
+  and the Publisher Services -> Metrics pivot is recorded;
+- shared ADRs approved and merged: ADR-0001 (package capabilities), ADR-0002
+  (platform domain boundaries), ADR-0003 (repository-authoritative schema
+  contract, resolving the Diesel procedure through merged PR #778) and
+  ADR-0008 (shared machine-role and durable-job conventions).
+
+Remaining Thoth-local gate for entering WP1:
+
+- `MET-CTRL-01` closure (independent exact-head approval and merge);
+- separately authorized repository-local `feature/metrics` creation from a
+  freshly verified `develop` head;
+- one approved bounded WP1 child specification.
+
+Later gates, owned by the work they block (they do not gate Thoth WP1 entry
+and are not made ready by it):
+
+- Sphinx/WP6 readiness: BR-SPHINX-01 and SPHINX-BOOT-01 before WP6 or driver
+  work;
+- client-specific readiness: BR-DASH-01, BR-WIDGET-01 and BR-APP-01 (branch
+  and CI readiness) before the client-dependent work packages;
+- source/driver-specific readiness: representative fixtures, COUNTER
+  mappings, finalization settings and OPERAS completeness before the
+  applicable driver/import/inbound work;
+- WP5 service-role work: exact Metrics role codes, permissions/operation
+  matrix and credential/provisioning arrangements, decided under WP5's own
+  approved bounded specification within the ADR-0008 convention.
 
 ## 3. Stage 1 - Canonical schema
 

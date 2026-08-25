@@ -4,7 +4,11 @@ Status: ACTIVE TRACKER
 Programme owner: CTO
 Master issue: [#766](https://github.com/thoth-pub/thoth/issues/766)
 Approved design: [private Google Doc](https://docs.google.com/document/d/11AeQFGpm0kUZajBM5PrAqsttmzJlpUrt89tGYyVM8c0/edit), Drive revision `6`
-Last updated: 2026-08-14 (WP5's "role decision" dependency named as the shared machine-role convention decided by `ADR-0008`, under that ADR's authority condition; WP5 remains `CRITICAL` and `BLOCKED`)
+Last updated: 2026-08-25 (`MET-CTRL-01` reconciliation, issue
+[#832](https://github.com/thoth-pub/thoth/issues/832): `THOTH-DB-CTRL-02`/
+`ADR-0003` recorded as merged and repository-authoritative; `ADR-0008`
+authority condition satisfied; WP1's actual entry gates distinguished from
+later Sphinx/client/source/WP5 gates)
 
 ## 1. Control rule
 
@@ -14,12 +18,12 @@ A work package is not one implementation task. Each must be decomposed into boun
 
 | Task | Repository | Risk | Status | Base / target | Dependencies | Issue |
 |---|---|---:|---|---|---|---|
-| MET-CTRL-01 Programme controls | `thoth` | LOW | CHANGES REQUIRED | PR #764 merged into `develop` as `5b406e4ef9b5c192cc38eb8a97a41bbd0fc3bc06` | Shared foundation closed (P0-01 closeout PR #767 independently `APPROVED` and merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba`); MET-CTRL-01's own `CHANGES REQUIRED` remediation outstanding | [#766](https://github.com/thoth-pub/thoth/issues/766) |
+| MET-CTRL-01 Programme controls | `thoth` | LOW | ACTIVE | `develop` at `250554dd7351c97af46d59b5033abd391d9eec16` -> `develop` | Active programme-control task under issue [#832](https://github.com/thoth-pub/thoth/issues/832) (amended 2026-08-25; specification independently reviewed `APPROVED`). Shared foundation closed (P0-01 closeout PR #767 independently `APPROVED` and merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba`). Remains the current gate until its PR is independently approved at its exact head and merged | [#832](https://github.com/thoth-pub/thoth/issues/832) |
 | ADR-0001 Package capability model | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-28; approval PR [#772](https://github.com/thoth-pub/thoth/pull/772) | #766 |
 | ADR-0002 Platform boundaries | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-27; approval PR [#769](https://github.com/thoth-pub/thoth/pull/769) | #766 |
 | SPHINX-BOOT-01 Repository bootstrap | `thoth-sphinx` | MEDIUM | BLOCKED | current `develop`; target `develop` after BR-SPHINX-01 verification | MET-CTRL-01; BR-SPHINX-01; approved bootstrap spec | #766 |
 | THOTH-DB-CTRL-01 Diesel generation procedure | `thoth` | HIGH | SUPERSEDED | `develop` -> `develop` | Structural-synchronizer architecture superseded by ADR-0003; implementation PR #777 closed unmerged with no code becoming authoritative. Replaced by THOTH-DB-CTRL-02. | #766 |
-| THOTH-DB-CTRL-02 Repository-authoritative schema contract | `thoth` | HIGH | IMPLEMENTED - AUTHORITATIVE ON MERGE | `develop` at `4c53709befc91acb481beac54a1d314926b61d76` -> `develop` | Delivers ADR-0003 (Architecture A) and directly related cleanup through PR #778, resolving CG-12 and satisfying the shared Diesel schema-control dependency on merge into `develop`. The merge remains subject to independent exact-head review and explicit CTO merge authorization. | #766 |
+| THOTH-DB-CTRL-02 Repository-authoritative schema contract | `thoth` | HIGH | MERGED - REPOSITORY-AUTHORITATIVE | `develop` at `4c53709befc91acb481beac54a1d314926b61d76` -> `develop` | Delivered ADR-0003 (Architecture A) and directly related cleanup through PR [#778](https://github.com/thoth-pub/thoth/pull/778), merged into `develop` as `37b802776ae6853affe19d90156f3c1e0654ebe3`. CG-12 is resolved and the shared Diesel schema-control dependency is satisfied. | #766 |
 | BR-DASH-01 Dashboard branch readiness | dashboard | HIGH | BLOCKED | observed `dev -> main`; reconcile stale `develop`, then normalize to `develop -> master` | Vercel rollback | #766 |
 | BR-WIDGET-01 Widget branch readiness | widget | HIGH | BLOCKED | actual `dev`/`main` | npm release protection | #766 |
 | BR-APP-01 App branch readiness | app | HIGH | BLOCKED | actual `dev`/`main` | Vercel branch plan | #766 |
@@ -28,11 +32,11 @@ A work package is not one implementation task. Each must be decomposed into boun
 
 | WP | Scope | Repositories | Risk | Status | Blocking dependencies | Issue |
 |---|---|---|---:|---|---|---|
-| WP1 | Domain and database foundation | `thoth` | HIGH | BLOCKED | MET-CTRL-01; Diesel control; approved bounded slice specification | #766 |
+| WP1 | Domain and database foundation | `thoth` | HIGH | BLOCKED | MET-CTRL-01 closure; separately authorized `feature/metrics` creation; approved bounded slice specification | #766 |
 | WP2 | Canonical ingestion | `thoth` | CRITICAL | BLOCKED | WP1 | #766 |
 | WP3 | Upload API and publisher UI | `thoth`, app | HIGH | BLOCKED | WP1/WP2; BR-APP-01; approved bounded slice specifications | #766 |
 | WP4 | Rollups and GraphQL | `thoth` | HIGH | BLOCKED | WP1/WP2; benchmark dataset | #766 |
-| WP5 | Service auth and entitlements | `thoth`, clients | CRITICAL | BLOCKED | shared machine-role convention - decided by [`ADR-0008`](../engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md) under the authority condition in the note below, which selects no Metrics role name, entitlement model, credential model or operation matrix; WP4; approved bounded slice specifications | #766 |
+| WP5 | Service auth and entitlements | `thoth`, clients | CRITICAL | BLOCKED | shared machine-role convention settled: [`ADR-0008`](../engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md) is `APPROVED` and repository-authoritative (see the note below) and selects no Metrics role name, entitlement model, credential model or operation matrix — those remain WP5-owned bounded decisions; WP4; approved bounded slice specifications | #766 |
 | WP6 | Sphinx core | `thoth-sphinx` | HIGH | BLOCKED | bootstrap; pinned API contract | #766 |
 | WP7 | CloudFront driver | `thoth-sphinx` | HIGH | BLOCKED | WP6; fixtures; methodology confirmation | #766 |
 | WP8 | Additional drivers and COUNTER | Sphinx/app | HIGH | BLOCKED | WP6; source fixtures; COUNTER decision | #766 |
@@ -41,11 +45,15 @@ A work package is not one implementation task. Each must be decomposed into boun
 | WP11 | Deployment, monitoring, migration | multiple | CRITICAL | BLOCKED | WP1-WP10 | #766 |
 | MET-E2E-01 | Integrated acceptance/cutover | multiple | CRITICAL | BLOCKED | all production slices | #766 |
 
-ADR-0001 approval removes one shared architectural dependency only. WP1 and
-every later work package remain blocked by their listed programme-control,
-Diesel, repository-readiness, design, fixture, contract and bounded-specification
-dependencies. `MET-CTRL-01` remains `CHANGES REQUIRED`; no Metrics
-implementation package is ready.
+The shared architectural dependencies (ADR-0001, ADR-0002, ADR-0003,
+ADR-0008) are satisfied and the Diesel/schema-control blocker is resolved.
+WP1 remains blocked only on its actual entry gates: `MET-CTRL-01` closure,
+separately authorized `feature/metrics` creation and one approved bounded WP1
+child specification. Every later work package remains blocked by its own
+listed repository-readiness, design, fixture, contract and
+bounded-specification dependencies, which stay attached to those work
+packages rather than blocking WP1 entry. No Metrics implementation package is
+ready or authorized.
 
 ### 3.1 WP5 and the shared machine-role convention
 
@@ -71,11 +79,14 @@ identity-provider controls, or WP5's own approved bounded specification,
 independently require them. `ADR-0008` decides no provisioning mechanism,
 credential store, rotation policy or identity-provider arrangement.
 
-**Authority condition.** Under the repository's existing process controls — not
-as approved decision content — `ADR-0008` resolves that shared convention for
-Metrics when its exact approved content is repository-authoritative on `develop`,
-that is, independently reviewed at its exact head and merged. `APPROVED` content
-on an unmerged branch does not resolve the dependency.
+**Authority condition — satisfied.** Under the repository's existing process
+controls — not as approved decision content — `ADR-0008` resolves that shared
+convention for Metrics when its exact approved content is
+repository-authoritative on `develop`, that is, independently reviewed at its
+exact head and merged. That condition is satisfied: the approved `ADR-0008`
+record (delivered through `ADR-0008-RECORD`, PR
+[#815](https://github.com/thoth-pub/thoth/pull/815)) is merged and reachable
+from `develop`, so the shared machine-role convention dependency is resolved.
 
 **What `ADR-0008` does not decide for Metrics.** It selects no Metrics
 machine-role name, entitlement model, credential model or operation matrix.
@@ -108,20 +119,26 @@ verified base.
 
 1. The shared foundation closeout is complete: PR #767 was independently
    `APPROVED` and merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba`, closing
-   P0-01, and the repository closeout record is reconciled. `MET-CTRL-01`
-   remains `CHANGES REQUIRED` pending its own remediation.
-2. `ADR-0001` package capabilities is `APPROVED` (Javi, CTO, 2026-07-28,
-   approval PR [#772](https://github.com/thoth-pub/thoth/pull/772)); this removes
-   one shared architecture dependency and does not make WP1 or any later work
-   package ready.
-3. `ADR-0002` platform domain boundaries is `APPROVED` (CTO, 2026-07-27, approval
-   PR [#769](https://github.com/thoth-pub/thoth/pull/769)); this removes one
-   shared-ADR dependency and does not make any work package ready.
-4. Scope SPHINX-BOOT-01.
-5. The Diesel schema-control question (CG-12) is resolved by ADR-0003
-   (Architecture A). `THOTH-DB-CTRL-01` is `SUPERSEDED`; its replacement
-   `THOTH-DB-CTRL-02` delivers ADR-0003 through PR #778 and resolves CG-12 on
-   merge into `develop` (subject to independent review and explicit CTO merge
-   authorization).
-6. Remediate `MET-CTRL-01`.
-7. Prepare and approve the first bounded WP1 slice only after those gates.
+   P0-01, and the repository closeout record is reconciled.
+2. `ADR-0001` package capabilities is `APPROVED` and merged (Javi, CTO,
+   2026-07-28, approval PR
+   [#772](https://github.com/thoth-pub/thoth/pull/772)); `ADR-0002` platform
+   domain boundaries is `APPROVED` and merged (CTO, 2026-07-27, approval PR
+   [#769](https://github.com/thoth-pub/thoth/pull/769)). Neither makes any
+   work package ready by itself.
+3. The Diesel schema-control question (CG-12) is resolved: `ADR-0003`
+   (Architecture A) is repository-authoritative. `THOTH-DB-CTRL-01` is
+   `SUPERSEDED`; its replacement `THOTH-DB-CTRL-02` delivered ADR-0003
+   through PR [#778](https://github.com/thoth-pub/thoth/pull/778), merged
+   into `develop` as `37b802776ae6853affe19d90156f3c1e0654ebe3`.
+4. Close `MET-CTRL-01` (issue
+   [#832](https://github.com/thoth-pub/thoth/issues/832)): its
+   reconciliation PR requires fresh independent exact-head review and
+   explicit CTO merge authorization.
+5. After `MET-CTRL-01` closes: verify the fresh `develop` head; separately
+   authorize creation of repository-local `feature/metrics` from that exact
+   head; create and approve one bounded repository-local WP1 child
+   issue/specification; implement that slice on a child branch targeting
+   `feature/metrics`.
+6. Scope SPHINX-BOOT-01 (with BR-SPHINX-01) for WP6 and later Sphinx work, on
+   its own path; it does not gate Thoth WP1 entry.
