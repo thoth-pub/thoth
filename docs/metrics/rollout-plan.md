@@ -22,11 +22,13 @@ Completed shared/global controls:
 - shared ADRs approved and merged: ADR-0001 (package capabilities), ADR-0002
   (platform domain boundaries), ADR-0003 (repository-authoritative schema
   contract, resolving the Diesel procedure through merged PR #778) and
-  ADR-0008 (shared machine-role and durable-job conventions).
+  ADR-0008 (shared machine-role and durable-job conventions);
+- Metrics programme-control reconciliation `MET-CTRL-01`, delivered through
+  merged PR #833 and reachable from `develop`; its dependency is satisfied and
+  it is no longer a WP1 entry gate.
 
-Remaining Thoth-local gate for entering WP1:
+Remaining Thoth-local gates for entering WP1:
 
-- `MET-CTRL-01` closure (independent exact-head approval and merge);
 - separately authorized repository-local `feature/metrics` creation from a
   freshly verified `develop` head;
 - one approved bounded WP1 child specification.

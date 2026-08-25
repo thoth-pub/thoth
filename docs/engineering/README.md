@@ -115,10 +115,12 @@ Outstanding:
   applicable branch-readiness controls. For Metrics, the previously recorded
   Diesel/schema-control blocker is resolved (ADR-0003 is
   repository-authoritative through merged PR
-  [#778](https://github.com/thoth-pub/thoth/pull/778)), and
-  Thoth WP1 entry now waits only on `MET-CTRL-01` closure, separately
-  authorized `feature/metrics` creation and one approved bounded WP1 child
-  specification; Sphinx, client and source-specific readiness gates remain
+  [#778](https://github.com/thoth-pub/thoth/pull/778)) and the `MET-CTRL-01`
+  programme-control dependency is satisfied through merged PR
+  [#833](https://github.com/thoth-pub/thoth/pull/833), so
+  Thoth WP1 entry now waits only on separately authorized `feature/metrics`
+  creation and one approved bounded WP1 child specification; Sphinx, client
+  and source-specific readiness gates remain
   attached to their owning later work packages rather than blocking WP1 (see
   [CG-08](./repository-map/control-gaps.md#cg-08---metrics-readiness-open)).
   ADR-0001 and ADR-0002 approval remove shared decision dependencies without

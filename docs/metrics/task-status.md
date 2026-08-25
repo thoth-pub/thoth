@@ -4,11 +4,11 @@ Status: ACTIVE TRACKER
 Programme owner: CTO
 Master issue: [#766](https://github.com/thoth-pub/thoth/issues/766)
 Approved design: [private Google Doc](https://docs.google.com/document/d/11AeQFGpm0kUZajBM5PrAqsttmzJlpUrt89tGYyVM8c0/edit), Drive revision `6`
-Last updated: 2026-08-25 (`MET-CTRL-01` reconciliation, issue
-[#832](https://github.com/thoth-pub/thoth/issues/832): `THOTH-DB-CTRL-02`/
-`ADR-0003` recorded as merged and repository-authoritative; `ADR-0008`
-authority condition satisfied; WP1's actual entry gates distinguished from
-later Sphinx/client/source/WP5 gates)
+Last updated: 2026-08-25 (`MET-CTRL-01-CLOSEOUT-01`, issue
+[#834](https://github.com/thoth-pub/thoth/issues/834): `MET-CTRL-01` recorded
+as `MERGED - COMPLETE` and its dependency satisfied, so WP1's remaining entry
+gates are `feature/metrics` authorization and one approved bounded WP1 child
+specification; later Sphinx/client/source/WP5 gates unchanged)
 
 ## 1. Control rule
 
@@ -18,10 +18,10 @@ A work package is not one implementation task. Each must be decomposed into boun
 
 | Task | Repository | Risk | Status | Base / target | Dependencies | Issue |
 |---|---|---:|---|---|---|---|
-| MET-CTRL-01 Programme controls | `thoth` | LOW | ACTIVE | `develop` at `250554dd7351c97af46d59b5033abd391d9eec16` -> `develop` | Active programme-control task under issue [#832](https://github.com/thoth-pub/thoth/issues/832) (amended 2026-08-25; specification independently reviewed `APPROVED`). Shared foundation closed (P0-01 closeout PR #767 independently `APPROVED` and merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba`). Remains the current gate until its PR is independently approved at its exact head and merged | [#832](https://github.com/thoth-pub/thoth/issues/832) |
+| MET-CTRL-01 Programme controls | `thoth` | LOW | MERGED - COMPLETE | `develop` -> `develop` | Programme-control reconciliation delivered through PR [#833](https://github.com/thoth-pub/thoth/pull/833) and reachable from `develop`. The `MET-CTRL-01` dependency is satisfied and no longer gates WP1 entry. Shared foundation closed (P0-01 closeout PR #767 merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba`). Live review, authorization and merge evidence is the GitHub pull-request and issue history | [#832](https://github.com/thoth-pub/thoth/issues/832) |
 | ADR-0001 Package capability model | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-28; approval PR [#772](https://github.com/thoth-pub/thoth/pull/772) | #766 |
 | ADR-0002 Platform boundaries | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-27; approval PR [#769](https://github.com/thoth-pub/thoth/pull/769) | #766 |
-| SPHINX-BOOT-01 Repository bootstrap | `thoth-sphinx` | MEDIUM | BLOCKED | current `develop`; target `develop` after BR-SPHINX-01 verification | MET-CTRL-01; BR-SPHINX-01; approved bootstrap spec | #766 |
+| SPHINX-BOOT-01 Repository bootstrap | `thoth-sphinx` | MEDIUM | BLOCKED | current `develop`; target `develop` after BR-SPHINX-01 verification | MET-CTRL-01 (**satisfied**); BR-SPHINX-01; approved bootstrap spec | #766 |
 | THOTH-DB-CTRL-01 Diesel generation procedure | `thoth` | HIGH | SUPERSEDED | `develop` -> `develop` | Structural-synchronizer architecture superseded by ADR-0003; implementation PR #777 closed unmerged with no code becoming authoritative. Replaced by THOTH-DB-CTRL-02. | #766 |
 | THOTH-DB-CTRL-02 Repository-authoritative schema contract | `thoth` | HIGH | MERGED - REPOSITORY-AUTHORITATIVE | `develop` at `4c53709befc91acb481beac54a1d314926b61d76` -> `develop` | Delivered ADR-0003 (Architecture A) and directly related cleanup through PR [#778](https://github.com/thoth-pub/thoth/pull/778), merged into `develop` as `37b802776ae6853affe19d90156f3c1e0654ebe3`. CG-12 is resolved and the shared Diesel schema-control dependency is satisfied. | #766 |
 | BR-DASH-01 Dashboard branch readiness | dashboard | HIGH | BLOCKED | observed `dev -> main`; reconcile stale `develop`, then normalize to `develop -> master` | Vercel rollback | #766 |
@@ -32,7 +32,7 @@ A work package is not one implementation task. Each must be decomposed into boun
 
 | WP | Scope | Repositories | Risk | Status | Blocking dependencies | Issue |
 |---|---|---|---:|---|---|---|
-| WP1 | Domain and database foundation | `thoth` | HIGH | BLOCKED | MET-CTRL-01 closure; separately authorized `feature/metrics` creation; approved bounded slice specification | #766 |
+| WP1 | Domain and database foundation | `thoth` | HIGH | BLOCKED | separately authorized `feature/metrics` creation; approved bounded WP1 child specification (the MET-CTRL-01 dependency is satisfied) | #766 |
 | WP2 | Canonical ingestion | `thoth` | CRITICAL | BLOCKED | WP1 | #766 |
 | WP3 | Upload API and publisher UI | `thoth`, app | HIGH | BLOCKED | WP1/WP2; BR-APP-01; approved bounded slice specifications | #766 |
 | WP4 | Rollups and GraphQL | `thoth` | HIGH | BLOCKED | WP1/WP2; benchmark dataset | #766 |
@@ -47,9 +47,10 @@ A work package is not one implementation task. Each must be decomposed into boun
 
 The shared architectural dependencies (ADR-0001, ADR-0002, ADR-0003,
 ADR-0008) are satisfied and the Diesel/schema-control blocker is resolved.
-WP1 remains blocked only on its actual entry gates: `MET-CTRL-01` closure,
-separately authorized `feature/metrics` creation and one approved bounded WP1
-child specification. Every later work package remains blocked by its own
+The `MET-CTRL-01` programme-control dependency is also satisfied. WP1 remains
+blocked only on its two remaining entry gates: separately authorized
+`feature/metrics` creation and one approved bounded WP1 child specification.
+Every later work package remains blocked by its own
 listed repository-readiness, design, fixture, contract and
 bounded-specification dependencies, which stay attached to those work
 packages rather than blocking WP1 entry. No Metrics implementation package is
@@ -131,14 +132,16 @@ verified base.
    `SUPERSEDED`; its replacement `THOTH-DB-CTRL-02` delivered ADR-0003
    through PR [#778](https://github.com/thoth-pub/thoth/pull/778), merged
    into `develop` as `37b802776ae6853affe19d90156f3c1e0654ebe3`.
-4. Close `MET-CTRL-01` (issue
-   [#832](https://github.com/thoth-pub/thoth/issues/832)): its
-   reconciliation PR requires fresh independent exact-head review and
-   explicit CTO merge authorization.
-5. After `MET-CTRL-01` closes: verify the fresh `develop` head; separately
-   authorize creation of repository-local `feature/metrics` from that exact
-   head; create and approve one bounded repository-local WP1 child
-   issue/specification; implement that slice on a child branch targeting
-   `feature/metrics`.
+4. `MET-CTRL-01` (issue
+   [#832](https://github.com/thoth-pub/thoth/issues/832)) is
+   `MERGED - COMPLETE` through PR
+   [#833](https://github.com/thoth-pub/thoth/pull/833); its dependency is
+   satisfied and no further programme-control gate stands before WP1 entry.
+5. Enter WP1 only through its two remaining gates: verify the fresh `develop`
+   head and separately authorize creation of repository-local
+   `feature/metrics` from that exact head; then create and approve one
+   bounded repository-local WP1 child issue/specification and implement that
+   slice on a child branch targeting `feature/metrics`. Neither the branch nor
+   the child specification exists, and neither is authorized by this record.
 6. Scope SPHINX-BOOT-01 (with BR-SPHINX-01) for WP6 and later Sphinx work, on
    its own path; it does not gate Thoth WP1 entry.

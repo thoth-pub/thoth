@@ -211,16 +211,20 @@ below is attached to the work it actually blocks.
 **Thoth WP1 entry** requires:
 
 - `MET-CTRL-01` closure (issue
-  [#832](https://github.com/thoth-pub/thoth/issues/832)): its reconciliation
-  PR independently approved at its exact head and merged;
+  [#832](https://github.com/thoth-pub/thoth/issues/832)), which is
+  **satisfied**: the programme-control reconciliation was delivered through
+  PR [#833](https://github.com/thoth-pub/thoth/pull/833) and is reachable
+  from `develop`;
 - the current approved shared architecture/schema controls, which are
   satisfied: ADR-0001 and ADR-0002 approved and merged, ADR-0003
   repository-authoritative through merged PR
   [#778](https://github.com/thoth-pub/thoth/pull/778) (CG-12 resolved), and
   ADR-0008 repository-authoritative within its approved scope;
 - separately authorized creation of the repository-local `feature/metrics`
-  integration branch from a freshly verified `develop` head;
-- one approved bounded WP1 child specification.
+  integration branch from a freshly verified `develop` head, which remains
+  **outstanding**: no such branch exists;
+- one approved bounded WP1 child specification, which remains
+  **outstanding**: none exists.
 
 **Later gates**, owned by their dependent work rather than blocking Thoth WP1
 entry:
@@ -239,9 +243,11 @@ entry:
 
 This distinction resolves none of those later gates and weakens no other
 control gap: CG-03, CG-04, CG-09, CG-10, CG-11 and CG-13 remain exactly as
-recorded. CG-08 closes only when the Metrics programme's control gates are
-reconciled and the WP1 entry path above is complete; no Metrics
-implementation is authorized by this record.
+recorded. The satisfied `MET-CTRL-01` component does not close CG-08: CG-08
+closes only when the whole WP1 entry path above is complete, and the
+`feature/metrics` authorization/creation and bounded WP1 child specification
+are both still outstanding. No Metrics implementation is authorized by this
+record.
 
 ## Production-slice controls
 
