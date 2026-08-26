@@ -1,6 +1,6 @@
 # Thoth Metrics
 
-Status: PROGRAMME CONTROLS UNDER RECONCILIATION (`MET-CTRL-01`)
+Status: PROGRAMME CONTROLS RECONCILED - IMPLEMENTATION NOT AUTHORIZED
 Programme owner: CTO
 
 Primary repositories:
@@ -133,18 +133,23 @@ Completed shared/global controls:
   repository-authoritative within its approved scope: it establishes the
   shared domain-specific least-privilege machine-role convention and seven
   durable-job conventions, and deliberately selects no Metrics role name,
-  entitlement model, credential model or operation matrix.
+  entitlement model, credential model or operation matrix;
+- the Metrics programme-control reconciliation `MET-CTRL-01` (issue
+  [#832](https://github.com/thoth-pub/thoth/issues/832)) is
+  `MERGED - COMPLETE`: it was delivered through PR
+  [#833](https://github.com/thoth-pub/thoth/pull/833) and is reachable from
+  `develop`. The `MET-CTRL-01` dependency is satisfied and is no longer a
+  Thoth WP1 entry gate. PR #833 is the parent lifecycle anchor; exact review
+  and authorization provenance is retained in the owning task and closeout
+  evidence, and this active tracker does not restate it.
 
-Remaining Thoth-local gate for entering WP1:
+Remaining Thoth-local gates for entering WP1:
 
-1. `MET-CTRL-01` (issue
-   [#832](https://github.com/thoth-pub/thoth/issues/832)) is the current
-   programme-control gate and remains open until its PR is independently
-   approved at its exact head and merged.
-2. After `MET-CTRL-01` closes, Thoth WP1 entry additionally requires a
-   separately authorized repository-local `feature/metrics` branch created
-   from a freshly verified `develop` head, plus one approved bounded WP1
-   child issue/specification. Neither exists yet.
+1. separately authorized creation of the repository-local `feature/metrics`
+   integration branch from a freshly verified `develop` head. No such branch
+   exists, and this record does not authorize creating one.
+2. one approved bounded repository-local WP1 child issue/specification. None
+   exists, and this record does not authorize creating one.
 
 Later gates, owned by their later work packages rather than blocking Thoth
 WP1 entry:
@@ -159,9 +164,8 @@ WP1 entry:
   arrangements remain unapproved WP5-owned bounded decisions.
 
 Discovery, benchmarking, fixture collection and task specification may
-continue. This reconciliation authorizes no Metrics implementation: WP1 and
-every later work package remain unauthorized until their own gates are
-satisfied.
+continue. This record authorizes no Metrics implementation: WP1 and every
+later work package remain unauthorized until their own gates are satisfied.
 
 ## 7. Files
 
