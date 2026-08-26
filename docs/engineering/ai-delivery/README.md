@@ -89,11 +89,25 @@ itself uses:
 feature/* -> develop -> master
 ```
 
-For approved large programmes in `thoth-pub/thoth`:
+`STANDARD` task branches are area-based:
 
 ```text
-feature/<programme>/<slice> -> feature/<programme> -> develop -> master
+feature/<area>/<task> -> develop -> master
 ```
+
+For approved large programmes in `thoth-pub/thoth` (`PROGRAMME_INTEGRATION`),
+the slice branch is a **sibling** of the integration branch, separated by the
+reserved `--` token:
+
+```text
+feature/<programme>--<slice> -> feature/<programme> -> develop -> master
+```
+
+`feature/<programme>/<slice>` is not usable while `feature/<programme>` exists
+as a branch. See
+[`ADR-0009`](../decisions/ADR-0009-programme-integration-branch-namespace.md)
+for the reserved-separator rule and the fail-closed namespace preflight that
+applies before any governed ref is created.
 
 In `thoth-pub/thoth`, implementation branches normally start from `develop`
 and `master` is the release branch. Another repository adopting these

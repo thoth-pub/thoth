@@ -33,17 +33,17 @@ change spans repositories with different local topologies.
 
 ## 2. Standard task branch naming
 
-Use:
+`STANDARD` task branches are named by **area**, not by programme:
 
 ```text
-feature/<programme-or-area>/<task-id-or-short-name>
+feature/<area>/<task>
 ```
 
 Examples:
 
 ```text
 feature/publisher-services/be-01
-feature/metrics/record-schema
+feature/metrics-control/met-ctrl-01
 feature/auth/service-role-tests
 ```
 
@@ -52,6 +52,13 @@ A normal task branch:
 - branches from `develop`;
 - targets `develop`;
 - is deleted after merge.
+
+This descendant form is available only where no flat `feature/<area>` branch
+already occupies that ref location. A programme that runs a long-lived
+`feature/<programme>` integration branch therefore cannot also use
+`feature/<programme>/<task>`; its slices use the sibling form in section 3.
+See [`ADR-0009`](../decisions/ADR-0009-programme-integration-branch-namespace.md)
+and the fail-closed namespace preflight in `AGENTS.md` section 5.1.
 
 ## 3. Large programme integration branches
 
@@ -72,19 +79,25 @@ feature/metrics
 feature/large-programme
 ```
 
-Each independently reviewable slice then branches from the programme integration branch:
+Each independently reviewable slice then branches from the programme integration branch. The slice branch is a **sibling** of the integration branch, separated by the reserved `--` token:
 
 ```text
-feature/<programme>/<task-id-or-slice>
+feature/<programme>--<slice>
 ```
 
 Examples:
 
 ```text
-feature/metrics/db-foundation
-feature/metrics/ingestion-core
-feature/large-programme/slice-01
+feature/metrics--db-foundation
+feature/metrics--ingestion-core
+feature/large-programme--slice-01
 ```
+
+The descendant form `feature/<programme>/<slice>` must not be used here. Git cannot hold both the ref `refs/heads/feature/<programme>` and the ref namespace `refs/heads/feature/<programme>/` at the same path, so while the integration branch is live, creating a descendant slice ref fails.
+
+`--` is reserved as the programme/slice separator. Governed `<programme>`, `<area>`, `<slice>` and `<task>` identifiers must each be non-empty, must each be a single Git path segment, and must not themselves contain `--`. Split at the first reserved `--` to recover the programme and slice.
+
+Run the fail-closed namespace preflight in `AGENTS.md` section 5.1 before creating any governed ref, and HOLD rather than deleting, renaming or moving an existing branch to make room.
 
 Each slice pull request targets the programme integration branch, not `develop`.
 
@@ -150,10 +163,12 @@ Every task uses a fresh branch and one PR. Do not create a long-lived `feature/p
 The Metrics design requires repository-local integration branches after branch readiness:
 
 ```text
-develop -> feature/metrics -> feature/metrics/<slice> -> feature/metrics -> develop
+develop -> feature/metrics -> feature/metrics--<slice> -> feature/metrics -> develop
 ```
 
-Each affected repository owns its own branch and final PR. No physical branch spans repositories.
+Each focused Metrics child branch is created from `feature/metrics`, targets `feature/metrics`, and does not target `develop` directly. `ADR-0009` standardizes the repository ref spelling of that child branch; it does not amend the substantive Metrics architecture.
+
+Each affected repository owns its own `feature/metrics` integration branch and final PR. No physical branch spans repositories.
 
 ## 6. Multi-repository programmes
 
@@ -283,6 +298,9 @@ Do not:
 - target normal feature PRs directly at `master`;
 - keep merged slice branches indefinitely;
 - mix unrelated programmes in one integration branch;
+- name a programme slice `feature/<programme>/<slice>` beneath a live `feature/<programme>` integration branch;
+- use a single `-` as the programme/slice separator, or place `--` inside a governed programme, area, slice or task identifier;
+- delete, rename or move an existing branch to work around a namespace collision;
 - use an integration branch as a substitute for task specifications or review;
 - allow an implementing agent to merge its own PR;
 - activate production behaviour merely because a programme branch merged into `develop`.

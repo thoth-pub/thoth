@@ -49,7 +49,27 @@ Risk: LOW | MEDIUM | HIGH | CRITICAL
 Owner: [role/person]
 Approved by: [CTO/approver]
 Dependencies: [task IDs, PRs, releases or `None`]
-Target branch name: `feature/[programme-or-area]/[task-id-or-short-name]`
+Target branch name: [choose the form that matches the `Workflow` field above —
+  do not mix them]
+
+```text
+STANDARD:               feature/<area>/<task>
+PROGRAMME_INTEGRATION:  feature/<programme>--<slice>
+```
+
+Under `PROGRAMME_INTEGRATION`, the slice branch is a **sibling** of the
+`feature/<programme>` integration branch. Do not emit
+`feature/<programme>/<slice>`: Git cannot hold both the integration ref and a
+ref namespace at the same path, so that branch cannot be created while the
+integration branch is live. `--` is the reserved programme/slice separator, and
+governed `<programme>`, `<area>`, `<slice>` and `<task>` identifiers must each
+be non-empty, must each be a single Git path segment, and must not themselves
+contain `--`. See
+[`ADR-0009`](../decisions/ADR-0009-programme-integration-branch-namespace.md).
+
+Before this specification is authorized, run the fail-closed namespace preflight
+in `AGENTS.md` section 5.1 against live refs and record the result. HOLD rather
+than deleting, renaming or moving an existing branch to make room.
 
 Authority condition: this record is repository-authoritative when this exact
 content is reachable from the repository's authoritative integration branch.

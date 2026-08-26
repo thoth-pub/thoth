@@ -81,8 +81,16 @@ two branches are interchangeable.
 The resulting flow is:
 
 ```text
-develop -> feature/metrics -> feature/metrics/<slice> -> feature/metrics -> develop -> master
+develop -> feature/metrics -> feature/metrics--<slice> -> feature/metrics -> develop -> master
 ```
+
+Focused Metrics child branches are created from `feature/metrics` and target
+`feature/metrics`; they do not target `develop` directly. Under
+[`ADR-0009`](../../decisions/ADR-0009-programme-integration-branch-namespace.md)
+the child branch is a **sibling** of the integration branch, separated by the
+reserved `--` token; `feature/metrics/<slice>` is not usable beneath a live
+`feature/metrics` branch. This is a forward-looking flow recorded in this
+control repository; it is not authorization to mutate `thoth-pub/thoth-sphinx`.
 
 ## Planned stack and boundaries
 

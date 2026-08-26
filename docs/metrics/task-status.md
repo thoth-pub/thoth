@@ -106,10 +106,23 @@ Metrics implementation is authorized — by `ADR-0008` or otherwise.
 ## 4. Branch strategy
 
 ```text
-develop -> feature/metrics -> feature/metrics/<slice> -> feature/metrics -> develop
+develop -> feature/metrics -> feature/metrics--<slice> -> feature/metrics -> develop
 ```
 
+Each affected repository owns its own `feature/metrics` integration branch.
+Focused Metrics child branches are created from it and target it; they do not
+target `develop` directly. Under
+[`ADR-0009`](../engineering/decisions/ADR-0009-programme-integration-branch-namespace.md)
+the child branch is a **sibling** of the integration branch, separated by the
+reserved `--` token. `feature/metrics/<slice>` is not usable beneath a live
+`feature/metrics` branch, because Git cannot hold a ref and a ref namespace at
+the same path. `ADR-0009` standardizes the repository ref spelling only; it does
+not amend the substantive Metrics architecture.
+
 Do not create integration branches until a verified `develop` branch and release-protection decision exist.
+
+Before creating any Metrics branch, run the fail-closed namespace preflight in
+`AGENTS.md` section 5.1 against live refs.
 
 For `metrics-dashboard`, do not create `feature/metrics` from the stale
 `develop` branch. BR-DASH-01 must first reconcile active `dev` history into the
