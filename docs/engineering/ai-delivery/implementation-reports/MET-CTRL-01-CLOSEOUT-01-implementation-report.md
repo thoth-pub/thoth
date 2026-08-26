@@ -75,11 +75,12 @@ Live evidence matches the reconstruction. No HOLD condition was triggered.
 
 ### 1.4 Final implementation head
 
-The final head of this branch is the commit carrying this report. The
-preceding reconciliation commit is
+The final head of this branch is the commit carrying the independent-review
+remediation described in section 12. The first reconciliation commit is
 `78b9db5d5fe0d887cec72f321038aa041ee48c1c`. The exact final head is terminal
 GitHub evidence on the pull request; under `ADR-0005` this report does not
-require a further commit to transcribe it.
+require a further commit to transcribe it, and no commit is created solely to
+transcribe its own SHA.
 
 ## 2. Scope confirmation
 
@@ -105,10 +106,21 @@ existing files carried active stale state.
   - docs/metrics/task-status.md
   - docs/engineering/ai-delivery/tasks/MET-CTRL-01-CLOSEOUT-01.md (new)
 
-<head>
+<report commit; exact SHA is GitHub PR evidence>
   MET-CTRL-01-CLOSEOUT-01: add implementation report
   - docs/engineering/ai-delivery/implementation-reports/MET-CTRL-01-CLOSEOUT-01-implementation-report.md (new)
+
+<current PR head; exact SHA is GitHub PR evidence>
+  MET-CTRL-01-CLOSEOUT-01: correct parent lifecycle evidence wording
+  - CHANGELOG.md
+  - docs/metrics/README.md
+  - docs/metrics/task-status.md
+  - docs/engineering/ai-delivery/implementation-reports/MET-CTRL-01-CLOSEOUT-01-implementation-report.md
 ```
+
+The third commit is the additive remediation required by the independent
+exact-head review of `46dd669ed0ac440a9cf33aa2e1028940253fe80f`, recorded in
+section 12. No commit on this branch was amended, rebased or force-pushed.
 
 ## 4. Files changed
 
@@ -136,9 +148,11 @@ budget was created, modified, renamed or deleted.
 - `MET-CTRL-01` added to the completed shared/global controls as
   `MERGED - COMPLETE`, delivered through PR #833 and reachable from `develop`,
   with its dependency recorded satisfied and explicitly no longer a WP1 entry
-  gate. The bullet states that live review, authorization and merge evidence is
-  the GitHub pull-request and issue history and that the record does not restate
-  it.
+  gate. The bullet names PR #833 as the parent lifecycle anchor and states that
+  exact review and authorization provenance is retained in the owning task and
+  closeout evidence, which this active tracker does not restate. It does **not**
+  claim that GitHub holds the complete review and authorization record; see
+  section 12.
 - The former two-part "Remaining Thoth-local gate for entering WP1" block, whose
   item 1 was `MET-CTRL-01` closure, is replaced by exactly two remaining gates:
   separately authorized `feature/metrics` creation from a freshly verified
@@ -158,9 +172,10 @@ budget was created, modified, renamed or deleted.
   restated in durable programme terms.
 - The `MET-CTRL-01` foundation row moves from `ACTIVE` to `MERGED - COMPLETE`.
   Its dependency cell records delivery through PR #833 and reachability from
-  `develop`, records the dependency satisfied and no longer gating WP1, and
-  states that live review, authorization and merge evidence is the GitHub
-  history. The pre-merge clause "Remains the current gate until its PR is
+  `develop`, records the dependency satisfied and no longer gating WP1, names
+  PR #833 as the parent lifecycle anchor, and states that exact review and
+  authorization provenance is retained in the owning task and closeout evidence
+  rather than being restated in this active tracker. The pre-merge clause "Remains the current gate until its PR is
   independently approved at its exact head and merged" is removed. The stale
   point-in-time base SHA in the `Base / target` cell is replaced by
   `develop -> develop`.
@@ -231,6 +246,12 @@ budget was created, modified, renamed or deleted.
   the two preserved provenance exceptions, and the explicit statement that #832
   and #766 are untouched and that no `feature/metrics` branch or WP1 child issue
   is created.
+- The `ADR-0005` clause records that active trackers use PR #833 as the parent
+  lifecycle anchor and do not restate the reviewed source head, merge commit,
+  review identifiers or merge-authorization identifiers, and that exact review
+  and authorization provenance is retained in the owning `MET-CTRL-01` task and
+  closeout evidence rather than asserted to be recorded in full on GitHub. The
+  explicit Exception B statement is retained verbatim in the same entry.
 - The existing `MET-CTRL-01` entry immediately below is **not modified**. See
   section 7.2.
 
@@ -352,7 +373,11 @@ Active trackers record the durable consequence only. They do **not** reproduce:
 
 PR #833 is referenced as the parent lifecycle anchor only. Under section 5,
 repository documents may reference the pull request without copying every review
-identifier or merge timestamp.
+identifier or merge timestamp. Active trackers also do **not** assert that the
+GitHub record contains the complete review and authorization history: the exact
+provenance is retained in the owning `MET-CTRL-01` task and closeout evidence,
+including the durable independent review record and the control-plane merge
+authorization described in section 8.
 
 The exact SHAs that appear in **this report** - the authorized base, the
 preflight observations and the reconciliation commit - are execution evidence
@@ -531,13 +556,135 @@ section 6.3.
 `docs/engineering/ai-delivery/implementation-reports/MET-CTRL-01-implementation-report.md`
 do not appear in `git diff --name-only`.
 
-## 12. CI
+## 12. Independent review remediation - `CHANGES REQUIRED`
+
+### 12.1 Finding
+
+An independent review of exact head
+`46dd669ed0ac440a9cf33aa2e1028940253fe80f` returned `CHANGES REQUIRED`.
+
+The finding is that the source **overstated where parent lifecycle evidence
+lives**. Three records asserted, in materially identical terms, that live
+review, authorization and merge evidence is the GitHub pull-request and issue
+history:
+
+| Record | Wording found |
+|---|---|
+| `docs/metrics/README.md` | "Live review, authorization and merge evidence is the GitHub pull-request and issue history; this record does not restate it." |
+| `docs/metrics/task-status.md` | materially identical wording in the `MET-CTRL-01` dependency cell |
+| `CHANGELOG.md` | the new entry left the reviewed-head, merge, review and merge-authorization identifiers "to GitHub as terminal evidence" |
+
+That wording is incorrect for this parent. The CTO merge authorization for
+`MET-CTRL-01` existed in the control-plane record **before** merge execution but
+was **not durably recorded on GitHub before merge**. Asserting that GitHub holds
+the review, authorization and merge evidence therefore implies that GitHub
+contains a record which does not exist, and silently contradicts Exception B in
+section 9.2.
+
+### 12.2 Remediation
+
+One additive remediation commit, inside the existing eight-path #834 write
+budget. No amend, no rebase, no force-push. No GitHub record was mutated.
+
+`docs/metrics/README.md` and `docs/metrics/task-status.md` now read, in the
+`MET-CTRL-01` completed-control bullet and dependency cell respectively:
+
+> PR #833 is the parent lifecycle anchor; exact review and authorization
+> provenance is retained in the owning task and closeout evidence, and this
+> active tracker does not restate it.
+
+`CHANGELOG.md` now records that active trackers reference PR #833 as the parent
+lifecycle anchor and do not restate the reviewed source head, merge commit,
+review identifiers or merge-authorization identifiers, and that exact review and
+authorization provenance is retained in the owning `MET-CTRL-01` task and
+closeout evidence **and is not asserted to be recorded in full on GitHub**. The
+explicit Exception B statement in the same entry is retained verbatim.
+
+### 12.3 Durable semantics now carried
+
+| Required semantic | Where carried after remediation |
+|---|---|
+| PR #833 is the parent lifecycle anchor | `docs/metrics/README.md`, `docs/metrics/task-status.md`, `CHANGELOG.md`, section 8 |
+| #832 comment `5414236565` is the durable independent exact-head `APPROVED` review | section 8 and the task specification section 2.1 - deliberately not in active trackers |
+| CTO merge authorization existed before execution in the control-plane record | section 8, section 9.2, task specification sections 2.1 and 2.2 |
+| that merge authorization was **not** durably recorded on GitHub before merge | section 9.2, task specification section 2.2, `CHANGELOG.md` Exception B clause |
+| the missing GitHub record remains a historical provenance exception, uncured | section 9, `CHANGELOG.md` |
+| active trackers need not restate exact lifecycle identifiers | sections 7.2 and 12.2 |
+| nothing implies GitHub contains the missing authorization record | corrected wording in all three records |
+
+The corrected parent evidence map in section 8 and both provenance exceptions in
+section 9 are preserved unchanged by this remediation; the remediation removes
+an active-tracker assertion that contradicted them, and adds no new one.
+
+### 12.4 Files changed by the remediation commit
+
+```text
+CHANGELOG.md
+docs/engineering/ai-delivery/implementation-reports/MET-CTRL-01-CLOSEOUT-01-implementation-report.md
+docs/metrics/README.md
+docs/metrics/task-status.md
+```
+
+All four are inside the approved eight-path #834 write budget. The task
+specification, `docs/metrics/rollout-plan.md`, `docs/engineering/README.md` and
+`docs/engineering/repository-map/control-gaps.md` needed no change: none carried
+the overstated wording.
+
+### 12.5 Non-recursion
+
+This remediation records a genuine independently identified defect in repository
+content, not the lifecycle of the branch that carries it. The `<head>`
+placeholder previously left in section 3 is replaced with durable wording rather
+than a self-SHA, and no commit is created solely to transcribe its own SHA.
+
+### 12.6 Remediation validation
+
+```bash
+git diff --check
+```
+
+No output.
+
+```bash
+git diff --name-only e62a476e87916d0b44a963652c9c5e7ab6afa10e...HEAD
+```
+
+The same eight budget paths as section 4; the remediation adds no path.
+
+```bash
+git status --short
+```
+
+Clean after commit.
+
+```bash
+grep -rn 'Live review, authorization and merge evidence' docs/metrics/ CHANGELOG.md
+grep -rn 'terminal evidence' CHANGELOG.md
+```
+
+No hits in `docs/metrics/**` or in the `MET-CTRL-01-CLOSEOUT-01` changelog
+entry. Unrelated Publisher-Services and engineering-control documents that
+legitimately use the phrase for their own tasks are outside this budget and were
+not touched.
+
+```bash
+git branch -a --list '*feature/metrics'
+```
+
+No output. No `feature/metrics` branch exists.
+
+No `.rs`, `.sql`, `migrations/**`, `.github/**`, `schema.rs`, generated contract
+or client-repository path is in the changed set, so the remediation has no
+runtime, migration, authorization or provider effect. Issues #832 and #766, PR
+#833 and all other GitHub records are untouched.
+
+## 13. CI
 
 Only the normal automatic CI triggered by branch push and draft-PR creation was
 allowed to run. No workflow was dispatched, re-run or modified. Live CI state is
 the GitHub pull-request record; this report does not transcribe it.
 
-## 13. Rollout and rollback
+## 14. Rollout and rollback
 
 Rollout is unchanged from the approved specification: bounded task branch, one
 draft PR to `develop`, automatic CI, fresh independent exact-head review,
@@ -549,7 +696,7 @@ child task are separately authorized only after durable closeout.
 Rollback is a revert of this documentation/control merge. It restores the prior
 active-tracker wording and creates no runtime, data or migration effect.
 
-## 14. Deviations and limitations
+## 15. Deviations and limitations
 
 1. **No deviation from the approved scope.** All eight approved paths were used;
    no path outside the budget was touched; `SCOPE AMENDMENT REQUIRED` was not
@@ -567,8 +714,13 @@ active-tracker wording and creates no runtime, data or migration effect.
    remain unchecked acceptance criteria owned by GitHub and the CTO.
 5. **Self-approval prohibited.** The implementing agent has not reviewed or
    approved this work.
+6. **One review-driven remediation.** An independent review of
+   `46dd669ed0ac440a9cf33aa2e1028940253fe80f` returned `CHANGES REQUIRED` on the
+   overstated location of parent lifecycle evidence. It was remediated additively
+   inside the existing write budget, as recorded in section 12. History was not
+   rewritten and no GitHub record was mutated.
 
-## 15. Remaining gates
+## 16. Remaining gates
 
 Immediately for this task:
 
@@ -592,13 +744,13 @@ Neither 6 nor 7 exists, and neither is authorized by this task. WP1 remains
 source-specific/COUNTER/OPERAS and WP5 gates remain attached to their owning
 later work.
 
-## 16. Proposed GitHub comments - TEXT ONLY, NOT POSTED
+## 17. Proposed GitHub comments - TEXT ONLY, NOT POSTED
 
 Neither comment below has been posted. Both require separate explicit
 authorization as post-merge GitHub mutations. They are recorded here as text
 only.
 
-### 16.1 Proposed final #832 reconciliation/closure comment
+### 17.1 Proposed final #832 reconciliation/closure comment
 
 ````markdown
 ## MET-CTRL-01 - final reconciliation and closure
@@ -671,7 +823,7 @@ or pull request will be created solely to record that the closeout merged.
 `MET-CTRL-01` is closed.
 ````
 
-### 16.2 Proposed #766 programme synchronization comment
+### 17.2 Proposed #766 programme synchronization comment
 
 ````markdown
 ## Thoth Metrics - programme synchronization after MET-CTRL-01 closeout
@@ -746,8 +898,10 @@ None automatically. The next step is a separate explicit authorization to create
 approving one bounded WP1 child specification.
 ````
 
-## 17. Agent self-assessment
+## 18. Agent self-assessment
 
 The implementing agent cannot review or approve its own work. This closeout
 requires fresh independent exact-head review and separate explicit CTO merge
-authorization, durably recorded before merge.
+authorization, durably recorded before merge. The remediation in section 12
+changed the branch head, so the earlier independent review no longer applies to
+the current content and a fresh independent exact-head review is required.

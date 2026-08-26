@@ -139,8 +139,9 @@ Completed shared/global controls:
   `MERGED - COMPLETE`: it was delivered through PR
   [#833](https://github.com/thoth-pub/thoth/pull/833) and is reachable from
   `develop`. The `MET-CTRL-01` dependency is satisfied and is no longer a
-  Thoth WP1 entry gate. Live review, authorization and merge evidence is the
-  GitHub pull-request and issue history; this record does not restate it.
+  Thoth WP1 entry gate. PR #833 is the parent lifecycle anchor; exact review
+  and authorization provenance is retained in the owning task and closeout
+  evidence, and this active tracker does not restate it.
 
 Remaining Thoth-local gates for entering WP1:
 
