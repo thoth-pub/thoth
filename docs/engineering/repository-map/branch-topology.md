@@ -15,15 +15,17 @@ Normal task flow:
 feature/<area>/<task> -> develop -> master
 ```
 
-Approved programme-integration flow:
+Approved programme-integration flow, where the slice branch is a **sibling** of the integration branch:
 
 ```text
-feature/<programme>/<slice> -> feature/<programme> -> develop -> master
+feature/<programme>--<slice> -> feature/<programme> -> develop -> master
 ```
 
 `develop` is the target development branch. `master` is the target release/default branch. Merged task and slice branches are deleted.
 
 An approved programme design decides whether it uses direct task PRs or a programme integration branch.
+
+`--` is the reserved programme/slice separator. `feature/<programme>/<slice>` is not usable beneath a live `feature/<programme>` integration branch, because Git cannot hold a ref and a ref namespace at the same path. Governed `<programme>`, `<area>`, `<slice>` and `<task>` identifiers must each be non-empty, must each be a single Git path segment, and must not themselves contain `--`. See [`ADR-0009`](../decisions/ADR-0009-programme-integration-branch-namespace.md).
 
 ## 2. Programme-specific policy
 
@@ -33,7 +35,15 @@ The approved design requires one fresh branch and one PR per task. Each task tar
 
 ### Thoth Metrics
 
-The Metrics design requires one repository-local `feature/metrics` integration branch per affected repository after branch readiness. Bounded child branches target that integration branch, followed by a final repository-local PR to `develop`.
+The Metrics design requires one repository-local `feature/metrics` integration branch per affected repository after branch readiness. Bounded child branches are created from that integration branch and target it, followed by a final repository-local PR to `develop`; they do not target `develop` directly.
+
+Under `ADR-0009` those child branches are spelled:
+
+```text
+feature/metrics--<slice>
+```
+
+`ADR-0009` standardizes the repository ref spelling only. It does not amend the substantive Metrics architecture.
 
 ## 3. Observed state
 
@@ -114,9 +124,12 @@ Every task specification records:
 - verified PR target;
 - approved target topology;
 - normalization dependency or temporary CTO exception;
-- programme workflow: `STANDARD` or `PROGRAMME_INTEGRATION`.
+- programme workflow: `STANDARD` or `PROGRAMME_INTEGRATION`;
+- the workflow-appropriate branch form, `feature/<area>/<task>` for `STANDARD` or `feature/<programme>--<slice>` for `PROGRAMME_INTEGRATION`.
 
 No agent creates a branch from a name that has not been verified to exist.
+
+Before creating any governed ref, run the fail-closed namespace preflight in `AGENTS.md` section 5.1 against live refs, symmetrically: a new flat ref requires that no descendant namespace already occupies its location, and a new descendant ref requires that no flat parent ref already occupies its location. On failure, HOLD. No collision may be worked around by deleting, renaming or moving another branch.
 
 ## 5. Required normalization tasks
 
@@ -205,4 +218,5 @@ A repository-local Metrics `feature/metrics` branch may be created only when:
 - normalization is complete or a CTO exception is recorded;
 - Metrics control task `MET-CTRL-01` is merged;
 - required shared ADRs are approved;
-- CI can validate the intended slices.
+- CI can validate the intended slices;
+- the fail-closed namespace preflight confirms no `feature/metrics/*` refs already occupy that repository's descendant namespace and no exact `feature/metrics` ref conflict exists.

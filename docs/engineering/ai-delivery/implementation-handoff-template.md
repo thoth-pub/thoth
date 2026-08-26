@@ -72,8 +72,22 @@ Authorized base branch: [the target repository's verified repository-local
 Exact authorized base commit: [full 40-character SHA]
 PR target: [the same verified repository-local base branch, or an approved
   `feature/<programme>` integration branch]
-Authorized task branch: [feature/<area>/<task-id>]
+Authorized task/slice branch: [use the form matching the `Workflow` field in
+  section 1; do not mix them]
+
+  STANDARD:               feature/<area>/<task>
+  PROGRAMME_INTEGRATION:  feature/<programme>--<slice>
 ```
+
+Under `PROGRAMME_INTEGRATION` the slice branch is a **sibling** of the
+`feature/<programme>` integration branch, not a descendant of it. Never
+authorize `feature/<programme>/<slice>` while `feature/<programme>` exists as a
+branch: Git cannot hold a ref and a ref namespace at the same path, so branch
+creation fails. `--` is the reserved programme/slice separator, and governed
+`<programme>`, `<area>`, `<slice>` and `<task>` identifiers must each be
+non-empty, must each be a single Git path segment, and must not themselves
+contain `--`. See
+[`ADR-0009`](../decisions/ADR-0009-programme-integration-branch-namespace.md).
 
 ## 4. Mandatory preflight
 
@@ -85,8 +99,13 @@ Before creating a branch or editing any file:
    way that conflicts with this handoff.
 4. Verify the working tree is clean.
 5. Verify there is no existing conflicting branch or active PR for this task.
-6. Read the applicable `AGENTS.md` files.
-7. Inspect every file in the authorized write budget before editing it.
+6. Run the fail-closed namespace preflight in `AGENTS.md` section 5.1 against
+   live refs: the exact authorized ref is absent; no descendant namespace
+   already occupies a prospective flat ref; and no flat parent ref already
+   occupies a prospective descendant namespace. If it fails, HOLD. Never
+   delete, rename or move another branch to make room.
+7. Read the applicable `AGENTS.md` files.
+8. Inspect every file in the authorized write budget before editing it.
 
 If the base has moved from the authorized commit: **stop**. Do not silently
 rebase the authorization onto the new head. Return `HOLD - AUTHORIZED BASE
