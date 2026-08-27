@@ -13,8 +13,8 @@ Actual base commit: `a6c8cb2016179db635c4bc86ef366aae190829c2`
 PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/engineering-control/ctrl-ci-clippy-01`
-Head commit: recorded in section 1.4
-Pull request: recorded in section 1.4
+Head commit: `f5b12a682a4cc4fc536563e73984d3b0fc3f628f`
+Pull request: [#845](https://github.com/thoth-pub/thoth/pull/845) (DRAFT)
 Expected branch deletion after merge: YES (separately authorized)
 Final programme PR required: NO
 Blocked consumer: `MET-WP1-02` / [#841](https://github.com/thoth-pub/thoth/issues/841) / draft PR [#843](https://github.com/thoth-pub/thoth/pull/843)
@@ -119,8 +119,21 @@ in section 11.
 
 ### 1.4 Head, commits and pull request
 
-Head commit: `PENDING`
-Pull request: `PENDING`
+Head commit:
+
+```text
+f5b12a682a4cc4fc536563e73984d3b0fc3f628f
+```
+
+Pull request: [#845](https://github.com/thoth-pub/thoth/pull/845) - **DRAFT**,
+base `develop`, head `feature/engineering-control/ctrl-ci-clippy-01`, head OID
+`f5b12a682a4cc4fc536563e73984d3b0fc3f628f`, state `OPEN`.
+
+The draft PR head OID equals the implementation head commit exactly, so the
+independent review target is unambiguous. Any later source commit on this branch
+invalidates that review.
+
+Commit author and committer: `Javier Arias <javier@jarias.org>`.
 
 ## 2. Scope confirmation
 
@@ -138,7 +151,10 @@ performed, including in the same file and the same test module.
 
 ## 3. Commits
 
-- `PENDING` - `CTRL-CI-CLIPPY-01: restore the Rust/Clippy 1.98 lint baseline (#844)`
+- `f5b12a682a4cc4fc536563e73984d3b0fc3f628f` - `CTRL-CI-CLIPPY-01: restore the Rust/Clippy 1.98 lint baseline (#844)`
+
+This is the only commit on the task branch. Its parent is the exact authorized
+base `a6c8cb2016179db635c4bc86ef366aae190829c2`.
 
 ## 4. Files changed
 
@@ -494,8 +510,32 @@ Observed:
  2 files changed, 6 insertions(+), 3 deletions(-)
 ```
 
-plus the new untracked implementation report at its authorized path. The exact
-committed diff and head SHA are recorded in section 1.4.
+Committed diff against the exact authorized base, measured at the reviewed
+implementation head `f5b12a682a4cc4fc536563e73984d3b0fc3f628f`:
+
+```text
+git diff --stat a6c8cb2016179db635c4bc86ef366aae190829c2...f5b12a682a4cc4fc536563e73984d3b0fc3f628f
+
+ CHANGELOG.md                                       |   3 +
+ .../CTRL-CI-CLIPPY-01-implementation-report.md     | 597 +++++++++++++++++++++
+ thoth-api/src/model/tests.rs                       |   6 +-
+ 3 files changed, 603 insertions(+), 3 deletions(-)
+```
+
+```text
+git rev-parse HEAD
+f5b12a682a4cc4fc536563e73984d3b0fc3f628f
+```
+
+This report's own line count grows when the post-PR evidence in sections 1.4, 3,
+9 and 11 is recorded, so the figures above are those of the reviewed source
+head. That follow-up is documentation-only and changes no Rust source; the
+exact-head source review target remains
+`f5b12a682a4cc4fc536563e73984d3b0fc3f628f`.
+
+Exactly the three authorized paths. `git status --short` before commit listed
+`M CHANGELOG.md`, `M thoth-api/src/model/tests.rs` and the single untracked
+report at its authorized path, and nothing else.
 
 ## 10. Manual verification
 
@@ -523,17 +563,92 @@ evidence in section 11.
 
 ## 11. CI
 
-CI status: `PENDING`
+CI status: **PASSING**
 
-Checks: recorded in section 1.4 / below once the draft PR's automatically
-triggered workflows report.
+All workflows were triggered automatically by opening the draft PR. None was
+manually dispatched or rerun. Every run is bound to the exact implementation
+head `f5b12a682a4cc4fc536563e73984d3b0fc3f628f`.
 
-Expected, per section 4.3: `build-test-and-check` runs; `run-migrations`
-classify runs with migration execution **skipped**; `check-changelog` runs;
-`publish-to-dockerhub` builds and pushes
-`ghcr.io/thoth-pub/thoth:staging-pr-<PR>`.
+| Workflow | Run | Job | Result |
+|---|---|---|---|
+| `build-test-and-check` | `33100935090` | `classify` | pass (8s) |
+| `build-test-and-check` | `33100935090` | `format_check` | pass (11s) |
+| `build-test-and-check` | `33100935090` | `build` | pass (6m38s) |
+| `build-test-and-check` | `33100935090` | `test` | pass (10m6s) |
+| `build-test-and-check` | `33100935090` | `lint` | **pass (5m42s)** |
+| `run-migrations` | `33100935062` | `classify` | pass (7s) |
+| `run-migrations` | `33100935062` | `run_migrations` | **skipping (SKIPPED)** |
+| `check-changelog` | `33100935055` | `check-changelog` | pass (7s) |
+| `publish-to-dockerhub` | `33100935082` | `classify` | pass (6s) |
+| `publish-to-dockerhub` | `33100935082` | `build_and_push_staging_docker_image` | pass |
 
-No CI run was manually dispatched or rerun.
+Failures or warnings: **NONE.**
+
+### 11.1 Lint job - authoritative confirmation of the fix
+
+Run `33100935090`, job `98618170667`, runner image `ubuntu-24.04` (runner image
+versions observed in this run: `20260819`, `20260823`), rustup toolchain
+`stable-x86_64-unknown-linux-gnu`.
+
+Command executed by the workflow, unchanged by this task:
+
+```text
+cargo clippy --all --all-targets --all-features -- -D warnings
+```
+
+Result:
+
+```text
+conclusion: success
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 5m 13s
+occurrences of "useless_format" in the job log: 0
+```
+
+This is the authoritative confirmation under the real CI toolchain, replacing
+the local-toolchain limitation described in section 1.3. The failing baseline
+recorded in #844 was run `33094280454` / lint job `98595021926` under
+Clippy 1.98.0 with exactly three `clippy::useless_format` errors at
+`thoth-api/src/model/tests.rs` lines 887, 893 and 899; the same command on the
+corrected head now reports none.
+
+Toolchain version note: the workflow does not invoke `clippy --version` or
+`rustc --version`, so the job log does not print an exact version string. What
+is directly evidenced is the runner image (`ubuntu-24.04`) and the rustup
+`stable` toolchain, which is the same channel and image family that produced the
+1.98.0 failure recorded in #844. The exact CI Clippy version is therefore
+reported here as **not printed by the workflow**, rather than asserted.
+
+### 11.2 Migration execution
+
+Migration execution correctly remained **skipped**. The `run-migrations`
+`classify` job ran and succeeded; the `run_migrations` job reported
+`skipping`/`SKIPPED` because `run_migrations=false`, matching the approved
+side-effect inventory. No migration was executed against any database.
+
+### 11.3 GHCR staging image publication
+
+The `publish-to-dockerhub` workflow completed successfully
+(`completed_at: 2026-08-27T18:07:33Z`, `conclusion: success`). Its `Docker meta`,
+`Login to Container registry`, `Build and push` and `Image digest` steps all
+succeeded.
+
+Published tag:
+
+```text
+ghcr.io/thoth-pub/thoth:staging-pr-845
+```
+
+Image digest reported by the `Image digest` step:
+
+```text
+sha256:96330154d56369af4bd8f3495496abbbded9ec7f230ddf60e5a6864037b78ea9
+```
+
+This is the automatic, pre-accepted external staging registry write named in
+#844 section 13 and in the implementation authorization. It is **not** a
+release, deployment or production activation, and it was not manually triggered.
+
+Other external or provider effects: **NONE.**
 
 ## 12. Rollout and rollback
 
@@ -561,9 +676,14 @@ requiring its own authorization:
 
 - The repository's default local toolchain is Rust/Clippy 1.97.0, which does not
   reproduce the CI 1.98.0 `clippy::useless_format` failure. The defect was
-  reproduced and the fix confirmed with the locally installed Clippy 0.1.99
-  (section 1.3), but the authoritative confirmation under the exact CI toolchain
-  is the automatic PR `build-test-and-check` run in section 11.
+  reproduced and the fix confirmed locally with Clippy 0.1.99 (section 1.3), and
+  the authoritative confirmation under the real CI toolchain is the green `lint`
+  job in section 11.1. This limitation is therefore **resolved**, not
+  outstanding.
+- The lint workflow does not print `clippy --version`, so the exact CI Clippy
+  version could not be read from the job log for this run; only the runner image
+  and rustup channel are directly evidenced (section 11.1). Adding a version
+  echo to CI would be a workflow change and is outside this task's scope.
 - This task restores the lint baseline on `develop` only. PR #843 remains blocked
   until the separately authorized `feature/metrics` refresh and reconciliation
   are performed; this task deliberately did not touch #843 or either metrics
