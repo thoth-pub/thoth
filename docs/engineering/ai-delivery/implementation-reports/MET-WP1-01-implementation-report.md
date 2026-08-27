@@ -70,6 +70,22 @@ the existing uncommitted local work. Per that authorization, the prior
 `1262/1263` run is HOLD evidence only: **every validation result in this
 report is from a fresh post-correction run.**
 
+### 1.3 Post-review corrections
+
+The independent exact-head source review of head
+`ea408c71e1bd4097e33d4e1d6c8873eb0d99e142` returned **CHANGES REQUIRED**
+with two findings: (1) the shared Metrics registry test harness re-created a
+future-fragile "must remain the latest migration" assumption of the same
+class the BE-04 correction removed — corrected with the targeted
+`revert_through_registry_migration` helper modelled on
+`revert_through_be04`; and (2) this report transcribed live PR CI state into
+repository source, structurally requiring a new commit for every CI result —
+corrected by restricting section 11 to historical, head-bound observations
+and naming PR #839's live records as the authority. Both corrections are
+inside the already-amended write budget under resume authorization
+`5430172038`. The corrected head requires a completely fresh independent
+exact-head source review.
+
 ## 2. Scope confirmation
 
 Approved specification: #836 + amendments as listed in section 1.1.
@@ -91,10 +107,13 @@ Out-of-scope changes made: NONE.
 |---|---|
 | `6aa378b678663ef3ab91aceac4af2adda3182f5d` | `MET-WP1-01: correct stale BE-04 newest-migration test invariant` |
 | `35b997598b6152dc89c5ab179c2812dd3cdcc1f9` | `MET-WP1-01: establish Metrics registry schema and Rust domain foundation` |
-| recorded on the PR | `MET-WP1-01: reconcile programme trackers, changelog and implementation report` |
-| recorded on the PR | `MET-WP1-01: record PR and observed CI state in implementation report` |
+| `9e6a0cb754e798f3340102f112387ef16a5cea27` | `MET-WP1-01: reconcile programme trackers, changelog and implementation report` |
+| `bec1cce9fbb406483177d541c94213fc8bc0f661` | `MET-WP1-01: record PR and observed CI state in implementation report` |
+| `ea408c71e1bd4097e33d4e1d6c8873eb0d99e142` | `MET-WP1-01: record CI runner-image root cause and green re-run in report` |
+| recorded on the PR | `MET-WP1-01: make the registry test harness tolerate later migrations` |
+| recorded on the PR | `MET-WP1-01: keep only durable evidence in the implementation report` |
 
-A commit cannot transcribe its own SHA, so the two documentation commits are
+A commit cannot transcribe its own SHA, so the review-correction commits are
 identified by subject; the exact SHAs and the final head are on the draft PR,
 and the final head is the review target.
 
@@ -243,14 +262,16 @@ image `ghcr.io/thoth-pub/thoth:staging-pr-<PR>`. That staging-image push is
 the one authorized external write (authorizations `5428682009` item 8 and
 `5430172038`).
 
-Observed: all four workflows triggered automatically on draft PR
-[#839](https://github.com/thoth-pub/thoth/pull/839) for each pushed head;
-the staging image `ghcr.io/thoth-pub/thoth:staging-pr-839` was pushed
-automatically on each run set (first-run digest
+Observed on the historical run sets recorded in section 11: all four
+workflows triggered automatically on draft PR
+[#839](https://github.com/thoth-pub/thoth/pull/839) for each pushed head,
+and the staging image `ghcr.io/thoth-pub/thoth:staging-pr-839` was pushed
+automatically on each set (first-run digest
 `sha256:e96651e82f3acc2281c31d5ea6542d815b85d417ba65d950346359214a2807de`).
-Complete per-check results — including the first run set's `lint` failure on
-pre-existing out-of-budget code under the newer runner toolchain, and the
-runner-image root cause — are in section 11.
+Section 11 records those historical head-bound observations — including one
+`lint` failure on pre-existing out-of-budget code under the newer runner
+toolchain, and the runner-image root cause; live per-head CI state stays on
+the PR's Actions records and is not duplicated in this report.
 
 Manually initiated external actions: NONE (no manual workflow dispatch or
 rerun).
@@ -279,11 +300,16 @@ Decisions made within the approved design:
    `ExistingTypePath` SQL types, and are deliberately **not**
    `juniper::GraphQLEnum`s — no GraphQL surface exists in this slice.
 6. The shared registry test helper (`setup_registry_db`) restores the pristine
-   post-migration registry state per test through the embedded harness's
-   latest-only revert + reapply, asserting first that the latest applied
-   migration is `20260826`; it returns a fresh dedicated pool because the
-   revert/reapply cycle recreates the enum types with new OIDs, which a
-   long-lived pooled connection's type cache would otherwise trip over.
+   post-migration registry state per test through the embedded harness by
+   reverting migrations in reverse order until the `MET-WP1-01` migration
+   itself has been reverted (`revert_through_registry_migration`, mirroring
+   the durable `revert_through_be04` pattern) and then re-running every
+   pending migration. It asserts only that the registry migration is
+   applied — never that it is the newest — so later repository migrations
+   are tolerated and no future migration name is hard-coded. It returns a
+   fresh dedicated pool because the revert/reapply cycle recreates the enum
+   types with new OIDs, which a long-lived pooled connection's type cache
+   would otherwise trip over.
 7. The corrected BE-04 test keeps the prefix-locate + exact-name assertion
    (`20260814_v1.7.0`) — the directory name is the migration's version
    identity in `__diesel_schema_migrations` on every migrated database — and
@@ -328,30 +354,44 @@ Migration added: YES.
 - populated database result: PASS (section 6.2).
 - rollback/forward repair: `down.sql` drops the three tables in
   dependency-safe order then the four enum types, removing only objects and
-  data introduced by this migration. Latest-migration-only rollback and
-  reapplication are proven both in-suite (every registry test performs a
-  harness `revert_last_migration` + `run_pending_migrations` cycle via
-  `setup_registry_db`, and
-  `latest_only_rollback_removes_the_registry_and_reapplication_restores_it`
-  asserts the reverted and restored states explicitly) and procedurally
-  (sections 6.1–6.2). Per authorization `5428682009`/`5430172038`, the CLI
-  `cargo run migrate --revert` was **not** used as rollback evidence: it
-  dispatches to `revert_all_migrations`; all latest-only evidence uses the
-  embedded Diesel migration harness (`revert_last_migration` on
-  `thoth_api::db::MIGRATIONS`). Once later WP1 migrations depend on these
+  data introduced by this migration. Rollback and reapplication are proven
+  two ways. In-suite, every registry test restores the post-migration state
+  through the future-safe targeted helper
+  (`revert_through_registry_migration` + `run_pending_migrations` via
+  `setup_registry_db`), and
+  `reverting_through_the_registry_migration_removes_it_and_reapplication_restores_it`
+  asserts the reverted and restored states explicitly; the helper reverts
+  down to and including the `20260826` migration, tolerates later
+  repository migrations, and never asserts that `20260826` remains the
+  newest migration. Procedurally, the section 6.1–6.2 runs at the
+  implementation baseline — where `20260826` **was** the actual latest
+  migration — independently demonstrated single-step latest-migration-only
+  revert and reapply; that is historical acceptance evidence bound to that
+  exact baseline, not a standing latest-migration invariant. Per
+  authorization `5428682009`/`5430172038`, the CLI `cargo run migrate
+  --revert` was **not** used as rollback evidence: it dispatches to
+  `revert_all_migrations`; all targeted-revert evidence uses the embedded
+  Diesel migration harness (`revert_last_migration` on
+  `thoth_api::db::MIGRATIONS`, applied repeatedly down to the target where
+  later migrations exist). Once later WP1 migrations depend on these
   tables, programme rollback must use dependency-aware reverse order or an
   approved forward-repair plan rather than reverting this migration in
   isolation.
 - idempotency: the migration ledger prevents reapplication (`ledger max =
-  20260826` after apply; a second `run_pending_migrations` is a no-op), and
-  the apply → latest-only revert → reapply cycle succeeds repeatedly on
-  disposable databases. DDL does not silently skip unexpected existing
-  objects and the seed insert fails loudly on conflict.
+  20260826` after apply at the implementation baseline; a second
+  `run_pending_migrations` is a no-op), and the apply → targeted revert →
+  reapply cycle succeeds repeatedly on disposable databases. DDL does not
+  silently skip unexpected existing objects and the seed insert fails
+  loudly on conflict.
 
 ### 6.1 Empty-database procedure (disposable PostgreSQL 17.10, UTF8)
 
-Fresh `thoth_wp1_empty` database (`ENCODING 'UTF8'`, C locale), embedded
-harness (`thoth_api::db::MIGRATIONS` + `MigrationHarness`):
+Historical acceptance evidence, performed at the implementation baseline
+(`feature/metrics @ a6c8cb20…`), where `20260826` was the actual latest
+migration — a single `revert_last_migration` therefore reverted exactly the
+MET-WP1-01 migration. Fresh `thoth_wp1_empty` database (`ENCODING 'UTF8'`,
+C locale), embedded harness (`thoth_api::db::MIGRATIONS` +
+`MigrationHarness`):
 
 1. `run_pending_migrations`: applied all 10 migrations
    `[20250000 … 20260814, 20260826]` in **207.6 ms**.
@@ -377,6 +417,8 @@ harness (`thoth_api::db::MIGRATIONS` + `MigrationHarness`):
 
 ### 6.2 Populated-database procedure (disposable PostgreSQL 17.10, UTF8)
 
+Historical acceptance evidence, performed at the same implementation
+baseline as section 6.1 (where `20260826` was the actual latest migration).
 Fresh `thoth_wp1_populated` database brought to the exact pre-MET-WP1-01
 current schema (full chain applied, then harness `revert_last_migration`;
 ledger max `20260814`), then seeded with representative current-schema data:
@@ -450,9 +492,11 @@ decisions (including the deliberately deferred timestamp question on
 
 ## 9. Tests and checks
 
-All commands were run fresh in this resume session, after the BE-04 test
-correction, from the repository root with a local PostgreSQL 17.10 and Redis
-available. The prior pre-HOLD `1262/1263` run was not reused as evidence.
+All commands were run fresh from the repository root with a local
+PostgreSQL 17.10 and Redis available, and were re-run in full on the
+corrected source after the post-review corrections of section 1.3; the
+quoted results are from those latest complete runs on the delivered source.
+The prior pre-HOLD `1262/1263` run was not reused as evidence.
 
 ### Formatting
 
@@ -497,7 +541,10 @@ rejection; non-cascading delete behaviour for both referenced registries;
 values; PostgreSQL round-trips for every enum value; Diesel row mapping for
 all three tables; multi-grain `Vec<MetricReportingGrain>` order-preserving
 round-trip; the deliberate absence of timestamp columns on
-`metric_platform_measure`; and latest-only rollback/reapplication.
+`metric_platform_measure`; and targeted revert-through-the-registry-migration
+rollback/reapplication (which also exercises the future-safe
+`revert_through_registry_migration` helper, and was single-step latest-only
+at the implementation baseline).
 
 ### Unit/integration — thoth-api backend
 
@@ -510,7 +557,7 @@ cargo test -p thoth-api --features backend
 Result:
 
 ```text
-lib:            test result: ok. 1264 passed; 0 failed; 0 ignored (216.52s)
+lib:            test result: ok. 1264 passed; 0 failed; 0 ignored (102.16s)
 integration:    test result: ok. 13 passed; 0 failed; 0 ignored
 doc-tests:      test result: ok. 0 passed; 0 failed; 8 ignored (pre-existing)
 exit 0
@@ -619,6 +666,13 @@ else):
 ?? thoth-api/src/model/metric_platform_measure/
 ```
 
+Post-review correction pass: `git status --porcelain` immediately before the
+correction commits listed exactly
+`thoth-api/src/model/metric_platform/tests.rs`, `CHANGELOG.md` (one sentence
+re-describing the corrected harness behaviour) and this report — all inside
+the amended write budget; the complete branch-vs-base changed set remains
+the same 18 authorized paths.
+
 ### Classifier
 
 Command:
@@ -644,8 +698,9 @@ locale) on localhost; local Redis for the workspace suites; no Docker, no
 provider or production access.
 
 Steps and observed results: the empty-database and populated-database
-procedures in sections 6.1 and 6.2 (embedded-harness apply / latest-only
-revert / reapply with timing, concurrent-reader locking observation,
+procedures in sections 6.1 and 6.2 (embedded-harness apply / targeted
+revert / reapply with timing — single-step latest-only at the
+implementation baseline — concurrent-reader locking observation,
 registry/seed verification, and byte-identical preservation snapshots).
 
 Evidence: command outputs summarized in sections 6.1, 6.2 and 9; migration
@@ -653,12 +708,19 @@ timings and lock observations as recorded there.
 
 ## 11. CI
 
-Draft PR: [#839](https://github.com/thoth-pub/thoth/pull/839), from
-`feature/metrics--wp1-registry-foundation` to `feature/metrics`, opened as
-DRAFT after all local gates passed. Two automatic run sets have been
-observed; **no manual dispatch or rerun was used at any point**.
+**Live/current PR, head and CI state are authoritative on GitHub — draft PR
+[#839](https://github.com/thoth-pub/thoth/pull/839) and its Actions records
+— and are intentionally not duplicated in this report.** Repository source
+records durable evidence only: each pushed head receives its own automatic
+runs (no manual dispatch or rerun has been used at any point), and this
+report is not amended merely to transcribe their results.
 
-Run set 1 — head `9e6a0cb754e798f3340102f112387ef16a5cea27`:
+Two historical automatic run sets are recorded below because they explain an
+observed Rust/clippy runner variance that reviewers and later heads will
+encounter; each observation is bound to its exact historical head.
+
+Historical run set 1 — head `9e6a0cb754e798f3340102f112387ef16a5cea27`
+(2026-08-27):
 
 - `check-changelog`, `run-migrations` (disposable-PostgreSQL
   apply/revert/reapply), `classify`, `build`, `test`, `format_check`:
@@ -676,36 +738,35 @@ Run set 1 — head `9e6a0cb754e798f3340102f112387ef16a5cea27`:
   `test_orcid_with_domain` and `test_ror_with_domain` assertions of the form
   `assert_eq!(format!("{}", …with_domain()), …)`).
 
-Run set 2 — head after the PR/CI-state report commit: **all checks success**,
-including a full ~6.5-minute `lint` job, and a fresh automatic staging-image
-push for the same PR tag.
+Historical run set 2 — head `bec1cce9fbb406483177d541c94213fc8bc0f661`
+(2026-08-27): **all checks success**, including a full ~6.5-minute `lint`
+job, and a fresh automatic staging-image push for the same PR tag.
 
-Root cause of the differing `lint` outcomes, established from the job logs:
-GitHub's hosted `ubuntu-24.04` runner image is mid-rollout. The failing lint
-job ran on image release `ubuntu24/20260823.283`, whose Rust stable is
-**1.98.0**; clippy 1.98.0 extended `useless_format` coverage and flags the
-three pre-existing assertions. The passing lint job ran on the older image
-release `ubuntu24/20260816.277` (Rust stable 1.97.x), which — like the local
-`rustc`/`clippy 1.97.0` toolchain used for the required local gates — does
-not emit that lint. Which image a job receives is not controlled by the
-repository, so **the `lint` job is currently nondeterministic for any
-substantive Rust change** and will fail whenever it lands on a 1.98.0
-runner, until the three sites are corrected.
+Root cause of the differing `lint` outcomes, established from those two
+runs' job logs: GitHub's hosted `ubuntu-24.04` runner image was mid-rollout.
+The failing lint job ran on image release `ubuntu24/20260823.283`, whose
+Rust stable is **1.98.0**; clippy 1.98.0 extended `useless_format` coverage
+and flags the three pre-existing assertions. The passing lint job ran on the
+older image release `ubuntu24/20260816.277` (Rust stable 1.97.x), which —
+like the local `rustc`/`clippy 1.97.0` toolchain used for the required local
+gates — does not emit that lint. Which image a job receives is not
+controlled by the repository, so while those three sites remain
+uncorrected, any lint job on any head may fail or pass depending on the
+runner image it lands on.
 
 The affected file is **byte-identical to the exact implementation base**
 `a6c8cb2016179db635c4bc86ef366aae190829c2` (`git diff base..head` for the
-path is empty; last modified 2026-08-14 by the BE-04 evidence commit). This
-branch does not touch it, and it is **outside the amended MET-WP1-01 write
-budget**, so this task may not correct it. The intervening merges (#835,
-#838) were documentation/control changes for which the classifier skips the
-lint job, so this PR is the first substantive Rust change to meet a 1.98.0
-runner.
+path was empty at both observed heads; last modified 2026-08-14 by the BE-04
+evidence commit). This branch does not touch it, and it is **outside the
+amended MET-WP1-01 write budget**, so this task may not correct it. The
+intervening merges (#835, #838) were documentation/control changes for which
+the classifier skips the lint job, so this PR was the first substantive Rust
+change to meet a 1.98.0 runner.
 
-CI status at report time: **PASSING at the current head**, with the
-nondeterminism above on record. Merge remains gated as always by fresh
-independent exact-head source review and explicit CTO merge authorization;
-no CI waiver is claimed or granted, and the pre-existing lint debt is
-escalated in section 14.
+Merge remains gated as always by fresh independent exact-head source review
+and explicit CTO merge authorization against the live PR #839 state; no CI
+waiver is claimed or granted, and the pre-existing lint debt is escalated in
+section 14.
 
 ## 12. Rollout and rollback
 
@@ -752,18 +813,17 @@ by CG-13 and later WP11/release authorization.
 - Pre-existing lint debt outside this task's write budget:
   `thoth-api/src/model/tests.rs` lines 887/893/899 trip
   `clippy::useless_format` under Rust stable 1.98.0, which GitHub's
-  `ubuntu-24.04` runner image is currently rolling out
-  (`ubuntu24/20260823.283`; the older `ubuntu24/20260816.277` still ships
-  1.97.x). Until those three sites are corrected, the repository's `lint`
-  job is nondeterministically red/green for **every** substantive Rust
-  change depending on which runner image a job lands on. The current PR
-  head's automatic CI is fully green (section 11), but the debt is real and
-  repository-wide rather than Metrics-specific; it needs either a further
-  #836 write-budget amendment (the `5429983905` control class) or — more
-  appropriately, since it is unrelated to Metrics — a small separate
-  shared-control task, before or alongside the MET-WP1-01 merge decision.
-  No out-of-budget edit, manual CI action or merge action was taken by this
-  task.
+  `ubuntu-24.04` runner image rollout ships (`ubuntu24/20260823.283`; the
+  older `ubuntu24/20260816.277` still shipped 1.97.x at the observations in
+  section 11). While those three sites remain uncorrected, the repository's
+  `lint` job can fail or pass for **any** substantive Rust change depending
+  on which runner image a job lands on; the live outcome for any given head
+  is on PR #839's Actions records. The debt is repository-wide rather than
+  Metrics-specific; it needs either a further #836 write-budget amendment
+  (the `5429983905` control class) or — more appropriately, since it is
+  unrelated to Metrics — a small separate shared-control task, before or
+  alongside the MET-WP1-01 merge decision. No out-of-budget edit, manual CI
+  action or merge action was taken by this task.
 
 ## 15. Agent self-assessment
 
