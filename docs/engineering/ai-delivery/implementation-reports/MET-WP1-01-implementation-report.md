@@ -241,7 +241,14 @@ creation): the changed set contains `.rs` files (`run_build=true`),
 `publish-to-dockerhub`, which logs into `ghcr.io` and pushes the staging
 image `ghcr.io/thoth-pub/thoth:staging-pr-<PR>`. That staging-image push is
 the one authorized external write (authorizations `5428682009` item 8 and
-`5430172038`). Observed CI/GHCR state is recorded in section 11.
+`5430172038`).
+
+Observed: all four workflows triggered automatically on draft PR
+[#839](https://github.com/thoth-pub/thoth/pull/839); the staging image
+`ghcr.io/thoth-pub/thoth:staging-pr-839` was pushed (digest
+`sha256:e96651e82f3acc2281c31d5ea6542d815b85d417ba65d950346359214a2807de`).
+Complete per-check results, including the single failing `lint` job and its
+pre-existing out-of-budget cause, are in section 11.
 
 Manually initiated external actions: NONE (no manual workflow dispatch or
 rerun).
@@ -644,13 +651,58 @@ timings and lock observations as recorded there.
 
 ## 11. CI
 
-CI status: PENDING — the draft PR is opened immediately after this report's
-commit is pushed; the observed automatic CI/GHCR state is recorded here by a
-follow-up commit once the PR exists.
-Checks: expected per the classifier result in section 9 —
-`build-test-and-check`, `run-migrations`, `check-changelog`,
-`publish-to-dockerhub` (staging image `ghcr.io/thoth-pub/thoth:staging-pr-<PR>`).
-Failures or warnings: none observed yet.
+Draft PR: [#839](https://github.com/thoth-pub/thoth/pull/839), from
+`feature/metrics--wp1-registry-foundation` to `feature/metrics`, opened as
+DRAFT after all local gates passed. First observed automatic run set, at head
+`9e6a0cb754e798f3340102f112387ef16a5cea27`:
+
+CI status: **FAILING — one job, pre-existing out-of-budget cause; MERGE
+REMAINS HOLD.**
+
+Checks (all triggered automatically by the PR; no manual dispatch or rerun):
+
+- `check-changelog`: success;
+- `run-migrations` (disposable-PostgreSQL apply/revert/reapply): success;
+- `build-test-and-check` / `classify`: success;
+- `build-test-and-check` / `build`: success;
+- `build-test-and-check` / `test`: success;
+- `build-test-and-check` / `format_check`: success;
+- `build-test-and-check` / `lint`: **failure** (detail below);
+- `publish-to-dockerhub` / `build_and_push_staging_docker_image`: success —
+  the authorized automatic external write occurred: image
+  `ghcr.io/thoth-pub/thoth:staging-pr-839`, digest
+  `sha256:e96651e82f3acc2281c31d5ea6542d815b85d417ba65d950346359214a2807de`,
+  built from GitHub's synthetic PR merge revision
+  `4400bdec1ffa5bb340917b56b2007099b9bea185` (the `pull_request` event's
+  merge of the head into the unchanged `feature/metrics` base).
+
+Failures or warnings — exact cause of the `lint` failure:
+
+- CI's `cargo clippy --all --all-targets --all-features -- -D warnings` runs
+  on current stable Rust `1.98.0` clippy and reports exactly three
+  `clippy::useless_format` errors, all in **`thoth-api/src/model/tests.rs`**
+  (lines 887, 893 and 899 — the pre-existing `test_doi_with_domain`,
+  `test_orcid_with_domain` and `test_ror_with_domain` assertions of the form
+  `assert_eq!(format!("{}", …with_domain()), …)`).
+- That file is **byte-identical to the exact implementation base**
+  `a6c8cb2016179db635c4bc86ef366aae190829c2` (`git diff base..head` for the
+  path is empty; it was last modified on 2026-08-14 by the BE-04 evidence
+  commit). This branch does not touch it, and it is **outside the amended
+  MET-WP1-01 write budget**.
+- The local toolchain pinned by the environment (rustc/clippy `1.97.0`,
+  2026-07-07) does not emit this lint, which is why the required local
+  clippy gate passed (section 9): clippy `1.98.0` extended
+  `useless_format` coverage. The intervening merges (#835, #838) were
+  documentation/control changes the classifier exempts from the lint job, so
+  this PR is the first substantive Rust change to meet CI's `1.98.0`
+  toolchain and the pre-existing lint debt surfaces here.
+- Consequence per resume authorization `5430172038`: automatic CI has not
+  produced the complete required substantive HIGH-risk evidence, so the task
+  **remains HOLD for merge**. Correcting the three pre-existing test lines
+  requires `thoth-api/src/model/tests.rs` to be added to the write budget by
+  a further #836 specification amendment (the same control class as
+  amendment `5429983905`), or another explicit control-plane decision. No
+  such edit, manual CI dispatch/rerun, or merge action has been taken.
 
 ## 12. Rollout and rollback
 
@@ -694,7 +746,13 @@ by CG-13 and later WP11/release authorization.
 
 ## 14. Unresolved issues
 
-- NONE.
+- The PR `lint` job fails on three pre-existing `clippy::useless_format`
+  findings in `thoth-api/src/model/tests.rs` (lines 887/893/899) under CI's
+  newer stable clippy (`1.98.0`); the file is unchanged from the base and
+  outside the amended write budget, so the correction requires a further
+  #836 specification amendment (or another explicit control-plane decision)
+  before it can be made. Until CI provides the complete required evidence,
+  the task remains **HOLD for merge**. Full detail in section 11.
 
 ## 15. Agent self-assessment
 
