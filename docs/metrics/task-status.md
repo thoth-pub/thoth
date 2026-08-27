@@ -4,12 +4,12 @@ Status: ACTIVE TRACKER
 Programme owner: CTO
 Master issue: [#766](https://github.com/thoth-pub/thoth/issues/766)
 Approved design: [private Google Doc](https://docs.google.com/document/d/11AeQFGpm0kUZajBM5PrAqsttmzJlpUrt89tGYyVM8c0/edit), Drive revision `6`
-Last updated: 2026-08-26 (`MET-WP1-01`, issue
-[#836](https://github.com/thoth-pub/thoth/issues/836): WP1 entry complete —
-`feature/metrics` exists under the SHA-bound authorization recorded in
-[#766](https://github.com/thoth-pub/thoth/issues/766), the approved
-registry-foundation slice is merged into `feature/metrics`, and WP1 is
-`IN PROGRESS`; later Sphinx/client/source/WP5 gates unchanged)
+Last updated: 2026-08-27 (`MET-WP1-02`, issue
+[#841](https://github.com/thoth-pub/thoth/issues/841): the approved
+source-state foundation slice — `metric_source`, `metric_source_account`,
+`metric_source_checkpoint` and the closed acquisition enum — is merged into
+`feature/metrics`; WP1 remains `IN PROGRESS`, not complete; source/platform
+mappings remain unapproved; later Sphinx/client/source/WP5 gates unchanged)
 
 ## 1. Control rule
 
@@ -21,6 +21,7 @@ A work package is not one implementation task. Each must be decomposed into boun
 |---|---|---:|---|---|---|---|
 | MET-CTRL-01 Programme controls | `thoth` | LOW | MERGED - COMPLETE | `develop` -> `develop` | Programme-control reconciliation delivered through PR [#833](https://github.com/thoth-pub/thoth/pull/833) and reachable from `develop`. The `MET-CTRL-01` dependency is satisfied and no longer gates WP1 entry. Shared foundation closed (P0-01 closeout PR #767 merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba`). PR #833 is the parent lifecycle anchor; exact review and authorization provenance is retained in the owning task and closeout evidence, and this active tracker does not restate it | [#832](https://github.com/thoth-pub/thoth/issues/832) |
 | MET-WP1-01 Metrics registry foundation | `thoth` | HIGH | MERGED TO `feature/metrics` - FIRST WP1 SLICE | `feature/metrics--wp1-registry-foundation` -> `feature/metrics` | Adds the `metric_platform`, `metric_measure` and `metric_platform_measure` registry tables, their four registry enums, the manually maintained `schema.rs` contract, Rust domain types, focused database/model tests and exactly the two approved seed measures (`title_sessions`, `net_units`), additive and inactive: no platform rows, no platform-measure mappings, no source mappings, no GraphQL/admin surface, no production migration. Exact review and authorization provenance is retained in the owning issue | [#836](https://github.com/thoth-pub/thoth/issues/836) |
+| MET-WP1-02 Metrics source-state foundation | `thoth` | HIGH | MERGED TO `feature/metrics` - SECOND WP1 SLICE | `feature/metrics--wp1-source-state` -> `feature/metrics` | Adds the `metric_source`, `metric_source_account` and `metric_source_checkpoint` source-state tables and the closed `metric_source_acquisition_type` enum, the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no source, account or checkpoint rows, no source/platform mappings, no lease/claim concurrency behaviour, no GraphQL/admin surface, no production migration. Depends on the merged `MET-WP1-01` registry (`metric_platform` FK). Exact review and authorization provenance is retained in the owning issue | [#841](https://github.com/thoth-pub/thoth/issues/841) |
 | ADR-0001 Package capability model | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-28; approval PR [#772](https://github.com/thoth-pub/thoth/pull/772) | #766 |
 | ADR-0002 Platform boundaries | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-27; approval PR [#769](https://github.com/thoth-pub/thoth/pull/769) | #766 |
 | SPHINX-BOOT-01 Repository bootstrap | `thoth-sphinx` | MEDIUM | BLOCKED | current `develop`; target `develop` after BR-SPHINX-01 verification | MET-CTRL-01 (**satisfied**); BR-SPHINX-01; approved bootstrap spec | #766 |
@@ -34,7 +35,7 @@ A work package is not one implementation task. Each must be decomposed into boun
 
 | WP | Scope | Repositories | Risk | Status | Blocking dependencies | Issue |
 |---|---|---|---:|---|---|---|
-| WP1 | Domain and database foundation | `thoth` | HIGH | IN PROGRESS | entry gates satisfied; registry foundation (`MET-WP1-01`) merged to `feature/metrics`; each remaining slice requires its own approved bounded specification and separate authorization | #766 |
+| WP1 | Domain and database foundation | `thoth` | HIGH | IN PROGRESS | entry gates satisfied; registry foundation (`MET-WP1-01`) and source-state foundation (`MET-WP1-02`) merged to `feature/metrics`; each remaining slice requires its own approved bounded specification and separate authorization | #766 |
 | WP2 | Canonical ingestion | `thoth` | CRITICAL | BLOCKED | WP1 | #766 |
 | WP3 | Upload API and publisher UI | `thoth`, app | HIGH | BLOCKED | WP1/WP2; BR-APP-01; approved bounded slice specifications | #766 |
 | WP4 | Rollups and GraphQL | `thoth` | HIGH | BLOCKED | WP1/WP2; benchmark dataset | #766 |
@@ -53,7 +54,8 @@ The `MET-CTRL-01` programme-control dependency is also satisfied, and both
 WP1 entry gates are complete: `feature/metrics` exists under the SHA-bound
 authorization recorded in
 [#766](https://github.com/thoth-pub/thoth/issues/766), and the approved
-`MET-WP1-01` registry foundation is merged into `feature/metrics`. WP1 is
+`MET-WP1-01` registry foundation and `MET-WP1-02` source-state foundation are
+merged into `feature/metrics`. WP1 is
 `IN PROGRESS` and not complete: every remaining WP1 slice requires its own
 approved bounded specification and separate implementation authorization.
 Every later work package remains blocked by its own listed
@@ -161,8 +163,12 @@ verified base.
    `MET-WP1-01` registry-foundation specification (issue
    [#836](https://github.com/thoth-pub/thoth/issues/836)) was independently
    reviewed and CTO-approved, and its slice is merged into `feature/metrics`
-   from the `ADR-0009` sibling slice branch. Decompose each remaining WP1
-   slice into its own bounded child issue/specification before any further
-   implementation; none exists, and none is authorized by this record.
+   from the `ADR-0009` sibling slice branch. The `MET-WP1-02` source-state
+   foundation (issue
+   [#841](https://github.com/thoth-pub/thoth/issues/841)) followed the same
+   bounded path and is merged into `feature/metrics`. Decompose each
+   remaining WP1 slice into its own bounded child issue/specification before
+   any further implementation; none exists, and none is authorized by this
+   record.
 6. Scope SPHINX-BOOT-01 (with BR-SPHINX-01) for WP6 and later Sphinx work, on
    its own path; it does not gate Thoth WP1 entry.
