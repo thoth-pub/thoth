@@ -114,6 +114,22 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "distribution_job_cancellation_reason"))]
     pub struct DistributionJobCancellationReason;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_platform_ownership_class"))]
+    pub struct MetricPlatformOwnershipClass;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_measure_category"))]
+    pub struct MetricMeasureCategory;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_measure_unit"))]
+    pub struct MetricMeasureUnit;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_reporting_grain"))]
+    pub struct MetricReportingGrain;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -622,6 +638,61 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::{MetricMeasureCategory, MetricMeasureUnit};
+
+    metric_measure (measure_id) {
+        measure_id -> Uuid,
+        code -> Text,
+        display_name -> Text,
+        category -> MetricMeasureCategory,
+        unit -> MetricMeasureUnit,
+        allow_negative -> Bool,
+        public_visibility -> Bool,
+        additive_across_time -> Bool,
+        additive_across_works -> Bool,
+        definition -> Text,
+        methodology_version -> Nullable<Text>,
+        enabled -> Bool,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricPlatformOwnershipClass;
+
+    metric_platform (platform_id) {
+        platform_id -> Uuid,
+        code -> Text,
+        display_name -> Text,
+        ownership_class -> MetricPlatformOwnershipClass,
+        enabled -> Bool,
+        public_description -> Nullable<Text>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricReportingGrain;
+
+    metric_platform_measure (platform_measure_id) {
+        platform_measure_id -> Uuid,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        supported_grains -> Array<MetricReportingGrain>,
+        supports_country -> Bool,
+        supports_institution -> Bool,
+        supports_publication -> Bool,
+        direct_collection -> Bool,
+        enabled -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use super::sql_types::CurrencyCode;
 
     price (price_id) {
@@ -1097,6 +1168,8 @@ joinable!(language -> work (work_id));
 joinable!(language_history -> language (language_id));
 joinable!(location -> publication (publication_id));
 joinable!(location_history -> location (location_id));
+joinable!(metric_platform_measure -> metric_measure (measure_id));
+joinable!(metric_platform_measure -> metric_platform (platform_id));
 joinable!(price -> publication (publication_id));
 joinable!(price_history -> price (price_id));
 joinable!(publication -> work (work_id));
@@ -1157,6 +1230,9 @@ allow_tables_to_appear_in_same_query!(
     language_history,
     location,
     location_history,
+    metric_measure,
+    metric_platform,
+    metric_platform_measure,
     price,
     price_history,
     publication,

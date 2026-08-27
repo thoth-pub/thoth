@@ -198,36 +198,43 @@ repository integration only and no deployment, migration execution, backfill
 or distribution activation. CG-11 and CG-13 are unchanged by the ADR-01
 implementation, by this closeout and by the BE-02 merge.
 
-### CG-08 - Metrics readiness open
+### CG-08 - Metrics readiness (RESOLVED 2026-08-26 for WP1 entry)
 
-CG-08 is **OPEN**.
+CG-08 is **RESOLVED for WP1 entry** as of 2026-08-26.
 
-Issue [#766](https://github.com/thoth-pub/thoth/issues/766) exists and the
-Publisher Services -> Metrics pivot is recorded. The gap no longer treats
-Sphinx bootstrap, the resolved Diesel/schema control, client branch readiness
-or WP5 service-role decisions as blanket programme prerequisites; each gate
-below is attached to the work it actually blocks.
-
-**Thoth WP1 entry** requires:
+CG-08 was specifically the Thoth WP1 entry-readiness gap: its closure rule was
+that it closes when the whole WP1 entry path is complete. All four entry
+components are now satisfied:
 
 - `MET-CTRL-01` closure (issue
-  [#832](https://github.com/thoth-pub/thoth/issues/832)), which is
-  **satisfied**: the programme-control reconciliation was delivered through
-  PR [#833](https://github.com/thoth-pub/thoth/pull/833) and is reachable
-  from `develop`;
-- the current approved shared architecture/schema controls, which are
-  satisfied: ADR-0001 and ADR-0002 approved and merged, ADR-0003
-  repository-authoritative through merged PR
-  [#778](https://github.com/thoth-pub/thoth/pull/778) (CG-12 resolved), and
-  ADR-0008 repository-authoritative within its approved scope;
+  [#832](https://github.com/thoth-pub/thoth/issues/832)): **satisfied** — the
+  programme-control reconciliation was delivered through PR
+  [#833](https://github.com/thoth-pub/thoth/pull/833) and is reachable from
+  `develop`;
+- the approved shared architecture/schema controls: **satisfied** — ADR-0001
+  and ADR-0002 approved and merged, ADR-0003 repository-authoritative through
+  merged PR [#778](https://github.com/thoth-pub/thoth/pull/778) (CG-12
+  resolved), and ADR-0008 repository-authoritative within its approved scope;
 - separately authorized creation of the repository-local `feature/metrics`
-  integration branch from a freshly verified `develop` head, which remains
-  **outstanding**: no such branch exists;
-- one approved bounded WP1 child specification, which remains
-  **outstanding**: none exists.
+  integration branch from a verified `develop` head: **satisfied** — the
+  branch exists under the SHA-bound authorization recorded in programme
+  master issue [#766](https://github.com/thoth-pub/thoth/issues/766), with
+  its ref spelling for slice branches governed by
+  [ADR-0009](../decisions/ADR-0009-programme-integration-branch-namespace.md);
+- one approved bounded WP1 child specification: **satisfied** — the
+  `MET-WP1-01` registry-foundation specification (issue
+  [#836](https://github.com/thoth-pub/thoth/issues/836)) was independently
+  reviewed and explicitly CTO-approved.
 
-**Later gates**, owned by their dependent work rather than blocking Thoth WP1
-entry:
+Two state transitions stay distinct: specification approval satisfied the
+final CG-08 WP1-entry prerequisite and made CG-08 logically resolved, and the
+merge of the bounded `MET-WP1-01` registry-foundation slice into
+`feature/metrics` makes WP1 itself `IN PROGRESS` — started, not complete. WP1
+completion, integration of `feature/metrics` into `develop` and every later
+work package remain governed by their own gates.
+
+**Later gates**, owned by their dependent work rather than by WP1 entry,
+remain exactly as recorded:
 
 - `BR-SPHINX-01` / `SPHINX-BOOT-01` gate WP6 and later Sphinx work (see
   CG-03);
@@ -241,13 +248,10 @@ entry:
 - OPERAS inbound completeness gates the applicable WP9/inbound behaviour (see
   CG-10).
 
-This distinction resolves none of those later gates and weakens no other
+This resolution resolves none of those later gates and weakens no other
 control gap: CG-03, CG-04, CG-09, CG-10, CG-11 and CG-13 remain exactly as
-recorded. The satisfied `MET-CTRL-01` component does not close CG-08: CG-08
-closes only when the whole WP1 entry path above is complete, and the
-`feature/metrics` authorization/creation and bounded WP1 child specification
-are both still outstanding. No Metrics implementation is authorized by this
-record.
+recorded. No Metrics implementation beyond the merged `MET-WP1-01`
+registry-foundation slice is authorized by this record.
 
 ## Production-slice controls
 

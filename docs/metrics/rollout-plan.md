@@ -27,11 +27,16 @@ Completed shared/global controls:
   merged PR #833 and reachable from `develop`; its dependency is satisfied and
   it is no longer a WP1 entry gate.
 
-Remaining Thoth-local gates for entering WP1:
+The Thoth-local WP1 entry gates are satisfied:
 
-- separately authorized repository-local `feature/metrics` creation from a
-  freshly verified `develop` head;
-- one approved bounded WP1 child specification.
+- repository-local `feature/metrics` exists, created from a verified
+  `develop` head under the SHA-bound authorization recorded in
+  [#766](https://github.com/thoth-pub/thoth/issues/766);
+- the first approved bounded WP1 child specification, `MET-WP1-01`
+  ([#836](https://github.com/thoth-pub/thoth/issues/836)), is delivered: its
+  registry-foundation slice is merged into `feature/metrics`, so Stage 1 is
+  underway. Each further WP1 slice still requires its own approved bounded
+  specification.
 
 Later gates, owned by the work they block (they do not gate Thoth WP1 entry
 and are not made ready by it):
@@ -50,6 +55,13 @@ and are not made ready by it):
 ## 3. Stage 1 - Canonical schema
 
 Deliver WP1 slices additively. Registries/accounts/routes/export stay disabled. Prove migrations, constraints, seeds, rollback and query baseline.
+
+Stage 1 status: the first slice, the `MET-WP1-01` registry foundation
+([#836](https://github.com/thoth-pub/thoth/issues/836)), is merged into
+`feature/metrics` — additive and inactive, with proven forward/latest-only
+rollback/reapply migration behaviour, constraints and the two approved seed
+measures, and with no platform rows, mappings, routes or exports. The
+remaining Stage 1 slices are not yet specified or authorized.
 
 ## 4. Stage 2 - Ingestion
 

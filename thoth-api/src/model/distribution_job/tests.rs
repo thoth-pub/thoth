@@ -3833,30 +3833,23 @@ fn relfilenodes(connection: &mut PgConnection) -> Vec<String> {
 }
 
 #[test]
-fn the_migration_directory_sorts_after_every_existing_one() {
+fn the_migration_directory_keeps_its_exact_historical_name() {
     let migrations = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/migrations"));
-    let mut names: Vec<String> = std::fs::read_dir(migrations)
+    let ours = std::fs::read_dir(migrations)
         .expect("migrations directory")
         .filter_map(|entry| entry.ok())
         .filter(|entry| entry.path().is_dir())
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
-        .collect();
-    names.sort();
-
-    let ours = names
-        .iter()
         .find(|name| name.starts_with(MIGRATION_VERSION))
-        .expect("the BE-04 migration directory")
-        .clone();
+        .expect("the BE-04 migration directory");
     assert_eq!(
-        names.last().expect("at least one migration"),
-        &ours,
-        "the embedded runner applies directories in lexicographic name order, so \
-         this migration must sort after every existing one. `make migration` \
-         derives the version from Cargo.toml rather than from the existing \
-         directories, which is why this is checked rather than assumed."
+        ours, "20260814_v1.7.0",
+        "the directory name is this migration's version identity in \
+         `__diesel_schema_migrations` on every migrated database, so renaming \
+         or removing the directory would desynchronise deployed ledgers. That \
+         it sorted after every migration existing at its creation was verified \
+         then and is fixed forever by this exact name."
     );
-    assert_eq!(ours, "20260814_v1.7.0");
 }
 
 #[test]

@@ -115,15 +115,20 @@ Outstanding:
   applicable branch-readiness controls. For Metrics, the previously recorded
   Diesel/schema-control blocker is resolved (ADR-0003 is
   repository-authoritative through merged PR
-  [#778](https://github.com/thoth-pub/thoth/pull/778)) and the `MET-CTRL-01`
+  [#778](https://github.com/thoth-pub/thoth/pull/778)), the `MET-CTRL-01`
   programme-control dependency is satisfied through merged PR
-  [#833](https://github.com/thoth-pub/thoth/pull/833), so
-  Thoth WP1 entry now waits only on separately authorized `feature/metrics`
-  creation and one approved bounded WP1 child specification; Sphinx, client
+  [#833](https://github.com/thoth-pub/thoth/pull/833), and the Thoth WP1
+  entry path is complete: the repository-local `feature/metrics` integration
+  branch exists under the SHA-bound authorization recorded in
+  [#766](https://github.com/thoth-pub/thoth/issues/766), and the bounded
+  `MET-WP1-01` registry-foundation slice
+  ([#836](https://github.com/thoth-pub/thoth/issues/836)) was approved and is
+  merged into `feature/metrics`, so WP1 is `IN PROGRESS` (see
+  [CG-08](./repository-map/control-gaps.md#cg-08---metrics-readiness-resolved-2026-08-26-for-wp1-entry),
+  resolved for WP1 entry); Sphinx, client
   and source-specific readiness gates remain
-  attached to their owning later work packages rather than blocking WP1 (see
-  [CG-08](./repository-map/control-gaps.md#cg-08---metrics-readiness-open)).
+  attached to their owning later work packages rather than blocking WP1.
   ADR-0001 and ADR-0002 approval remove shared decision dependencies without
-  making either programme implementation-ready.
+  making any later work package implementation-ready.
 
 The implementing conversation cannot approve its own work.
