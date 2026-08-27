@@ -1,6 +1,6 @@
 # Thoth Metrics
 
-Status: PROGRAMME CONTROLS RECONCILED - IMPLEMENTATION NOT AUTHORIZED
+Status: WP1 IN PROGRESS ON `feature/metrics` - NO FURTHER SLICE AUTHORIZED WITHOUT ITS OWN APPROVED SPECIFICATION
 Programme owner: CTO
 
 Primary repositories:
@@ -100,11 +100,10 @@ The initial programme does not store raw clickstream events in Thoth, create a s
 ## 6. Current programme decision
 
 ```text
-BLOCKED FOR IMPLEMENTATION
+WP1 IN PROGRESS - EVERY FURTHER SLICE REQUIRES ITS OWN APPROVED SPECIFICATION
 ```
 
-No Metrics implementation is authorized. The Publisher Services -> Metrics
-pivot is complete (recorded in
+The Publisher Services -> Metrics pivot is complete (recorded in
 [#766](https://github.com/thoth-pub/thoth/issues/766) comment `5412873595`),
 and the shared controls below are settled.
 
@@ -143,13 +142,25 @@ Completed shared/global controls:
   and authorization provenance is retained in the owning task and closeout
   evidence, and this active tracker does not restate it.
 
-Remaining Thoth-local gates for entering WP1:
+The Thoth-local WP1 entry gates are satisfied:
 
-1. separately authorized creation of the repository-local `feature/metrics`
-   integration branch from a freshly verified `develop` head. No such branch
-   exists, and this record does not authorize creating one.
-2. one approved bounded repository-local WP1 child issue/specification. None
-   exists, and this record does not authorize creating one.
+1. the repository-local `feature/metrics` integration branch exists, created
+   from a verified `develop` head under the SHA-bound authorization recorded
+   in [#766](https://github.com/thoth-pub/thoth/issues/766); slice branches
+   use the `feature/metrics--<slice>` spelling required by
+   [`ADR-0009`](../engineering/decisions/ADR-0009-programme-integration-branch-namespace.md);
+2. the first bounded WP1 child specification, `MET-WP1-01` (issue
+   [#836](https://github.com/thoth-pub/thoth/issues/836)), was independently
+   reviewed and CTO-approved, and its registry-foundation slice — the
+   `metric_platform`, `metric_measure` and `metric_platform_measure` registry
+   schema, Rust domain foundation and the two approved seed measures — is
+   merged into `feature/metrics` as an additive, inactive foundation.
+
+WP1 is therefore `IN PROGRESS`: started, not complete. Each further WP1 slice
+requires its own approved bounded specification and separate implementation
+authorization; none exists, and this record does not authorize creating one.
+No platform rows, platform-measure mappings, source mappings, GraphQL/API
+surface, ingestion, serving or production migration exist or are authorized.
 
 Later gates, owned by their later work packages rather than blocking Thoth
 WP1 entry:
@@ -164,8 +175,9 @@ WP1 entry:
   arrangements remain unapproved WP5-owned bounded decisions.
 
 Discovery, benchmarking, fixture collection and task specification may
-continue. This record authorizes no Metrics implementation: WP1 and every
-later work package remain unauthorized until their own gates are satisfied.
+continue. This record authorizes no further Metrics implementation: every
+remaining WP1 slice and every later work package remain unauthorized until
+their own specification, review and authorization gates are satisfied.
 
 ## 7. Files
 
