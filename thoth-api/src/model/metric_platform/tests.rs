@@ -2,11 +2,14 @@
 //!
 //! [`setup_registry_db`] is shared by every metric registry test module. It
 //! restores the pristine post-migration registry state through the embedded
-//! Diesel migration harness by reverting **only the latest applied migration**
-//! (the `MET-WP1-01` registry migration) and reapplying it, so each run also
-//! proves the latest-migration-only rollback and reapplication that the
-//! repository CLI's `cargo run migrate --revert` (`revert_all_migrations`)
-//! cannot evidence.
+//! Diesel migration harness by reverting migrations in reverse order **until
+//! the `MET-WP1-01` registry migration itself has been reverted** and then
+//! re-running every pending migration. Later repository migrations are
+//! deliberately tolerated: nothing here assumes the registry migration is
+//! the newest one, mirroring the durable `revert_through_be04` pattern in
+//! `distribution_job/tests.rs`. This bounded targeted revert is still
+//! rollback behaviour the repository CLI's `cargo run migrate --revert`
+//! (`revert_all_migrations`) cannot evidence.
 
 use std::str::FromStr;
 use std::sync::Arc;
@@ -27,13 +30,46 @@ use crate::schema::metric_platform;
 /// The Diesel migration version of `thoth-api/migrations/20260826_v1.8.0`.
 pub(crate) const MET_WP1_01_MIGRATION_VERSION: &str = "20260826";
 
+/// Revert migrations until the `MET-WP1-01` registry migration itself has
+/// been reverted.
+///
+/// A single `revert_last_migration` reverts the registry migration only
+/// while it happens to be the newest applied migration; once any later
+/// repository migration exists, that call would silently revert the later
+/// migration instead. Reverting down to and including the target keeps the
+/// meaning under any migration order — the same durable pattern as
+/// `revert_through_be04` in `distribution_job/tests.rs` — and the caller's
+/// subsequent `run_pending_migrations` re-applies everything in order. No
+/// future migration name is assumed or hard-coded.
+pub(crate) fn revert_through_registry_migration(connection: &mut PgConnection) {
+    let registry_migration_applied = connection
+        .applied_migrations()
+        .expect("Failed to read applied migrations")
+        .iter()
+        .any(|version| version.to_string() == MET_WP1_01_MIGRATION_VERSION);
+    assert!(
+        registry_migration_applied,
+        "the MET-WP1-01 registry migration must be applied before reverting through it"
+    );
+    loop {
+        let reverted = connection
+            .revert_last_migration(MIGRATIONS)
+            .expect("Failed to revert migration");
+        if reverted.to_string() == MET_WP1_01_MIGRATION_VERSION {
+            return;
+        }
+    }
+}
+
 /// A pristine post-migration Metrics registry on the locked test database.
 ///
 /// The shared test harness truncates every table between tests, which also
 /// removes the migration-owned `metric_measure` seed rows. This helper
-/// re-establishes the exact post-migration registry state by reverting the
-/// latest applied migration — asserted to be the `MET-WP1-01` registry
-/// migration — and reapplying it through the embedded migration harness.
+/// re-establishes the exact post-migration registry state by reverting
+/// migrations down to and including the `MET-WP1-01` registry migration and
+/// then re-running every pending migration through the embedded migration
+/// harness. Later migrations are tolerated: they are reverted on the way
+/// down and restored by the reapply.
 ///
 /// The revert/reapply cycle drops and recreates the registry enum types, so
 /// their PostgreSQL type OIDs change. The returned pool is therefore a fresh
@@ -45,23 +81,10 @@ pub(crate) fn setup_registry_db() -> (TestDbGuard, Arc<PgPool>) {
     let database_url = test_db_url();
     let mut connection =
         PgConnection::establish(&database_url).expect("Failed to connect to the test database");
-    let latest_applied = connection
-        .applied_migrations()
-        .expect("Failed to read applied migrations")
-        .iter()
-        .map(ToString::to_string)
-        .max()
-        .expect("No migrations are applied to the test database");
-    assert_eq!(
-        latest_applied, MET_WP1_01_MIGRATION_VERSION,
-        "the MET-WP1-01 registry migration must be the latest applied migration"
-    );
-    connection
-        .revert_last_migration(MIGRATIONS)
-        .expect("Failed to revert the latest (MET-WP1-01) migration");
+    revert_through_registry_migration(&mut connection);
     connection
         .run_pending_migrations(MIGRATIONS)
-        .expect("Failed to reapply the MET-WP1-01 migration");
+        .expect("Failed to reapply migrations from the registry migration onward");
     drop(connection);
 
     let pool = diesel::r2d2::Pool::builder()
@@ -332,16 +355,14 @@ fn metric_platform_rows_map_through_diesel() {
 }
 
 #[test]
-fn latest_only_rollback_removes_the_registry_and_reapplication_restores_it() {
+fn reverting_through_the_registry_migration_removes_it_and_reapplication_restores_it() {
     let (_guard, _pool) = setup_registry_db();
 
     let mut connection =
         PgConnection::establish(&test_db_url()).expect("Failed to connect to the test database");
-    connection
-        .revert_last_migration(MIGRATIONS)
-        .expect("Failed to revert the latest (MET-WP1-01) migration");
+    revert_through_registry_migration(&mut connection);
 
-    // In the reverted state only the MET-WP1-01 objects are gone.
+    // In the reverted state the MET-WP1-01 objects are gone.
     let registry_objects: i64 = diesel::select(diesel::dsl::sql::<diesel::sql_types::BigInt>(
         "(SELECT COUNT(*) FROM pg_class \
           WHERE relnamespace = 'public'::regnamespace \
@@ -351,7 +372,7 @@ fn latest_only_rollback_removes_the_registry_and_reapplication_restores_it() {
     .expect("Failed to count registry tables");
     assert_eq!(
         registry_objects, 0,
-        "the latest-only downgrade must drop all three registry tables"
+        "the registry downgrade must drop all three registry tables"
     );
     let registry_types: i64 = diesel::select(diesel::dsl::sql::<diesel::sql_types::BigInt>(
         "(SELECT COUNT(*) FROM pg_type \
@@ -363,7 +384,7 @@ fn latest_only_rollback_removes_the_registry_and_reapplication_restores_it() {
     .expect("Failed to count registry enum types");
     assert_eq!(
         registry_types, 0,
-        "the latest-only downgrade must drop all four registry enum types"
+        "the registry downgrade must drop all four registry enum types"
     );
     let pre_existing_tables: i64 = diesel::select(diesel::dsl::sql::<diesel::sql_types::BigInt>(
         "(SELECT COUNT(*) FROM pg_class \
@@ -374,7 +395,7 @@ fn latest_only_rollback_removes_the_registry_and_reapplication_restores_it() {
     .expect("Failed to count pre-existing tables");
     assert_eq!(
         pre_existing_tables, 4,
-        "the latest-only downgrade must leave pre-existing tables in place"
+        "the registry downgrade must leave pre-existing tables in place"
     );
     let latest_after_revert = connection
         .applied_migrations()
@@ -385,14 +406,15 @@ fn latest_only_rollback_removes_the_registry_and_reapplication_restores_it() {
         .expect("No migrations are applied to the test database");
     assert!(
         latest_after_revert.as_str() < MET_WP1_01_MIGRATION_VERSION,
-        "after the latest-only revert the migration ledger must no longer contain \
-         the MET-WP1-01 version (found {latest_after_revert})"
+        "after reverting through the registry migration the ledger must contain \
+         neither the MET-WP1-01 version nor any later version (found \
+         {latest_after_revert})"
     );
 
     // Reapplication restores the registry and its exact seeds.
     connection
         .run_pending_migrations(MIGRATIONS)
-        .expect("Failed to reapply the MET-WP1-01 migration");
+        .expect("Failed to reapply migrations from the registry migration onward");
     let seeds: i64 = diesel::select(diesel::dsl::sql::<diesel::sql_types::BigInt>(
         "(SELECT COUNT(*) FROM metric_measure \
           WHERE code IN ('title_sessions', 'net_units'))",
