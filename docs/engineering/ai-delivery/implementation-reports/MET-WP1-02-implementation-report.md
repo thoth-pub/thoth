@@ -562,16 +562,45 @@ re-prove the schema assertions on every run.
 
 ## 11. CI
 
-CI status at handoff: recorded on the draft PR after opening; see the PR
-checks tab for the live record. Expected and authorized workflows:
-`build-test-and-check`, `run-migrations` (disposable PostgreSQL 17
-apply/revert/reapply), `check-changelog`, and `publish-to-dockerhub`
-(automatic `ghcr.io/thoth-pub/thoth:staging-pr-<PR>` push). No manual
-dispatch or rerun was or may be performed by the implementing agent.
+Draft PR: [#843](https://github.com/thoth-pub/thoth/pull/843)
+(`feature/metrics--wp1-source-state` → `feature/metrics`, DRAFT). Opening it
+automatically triggered exactly the four authorized workflows. Observed state
+for the implementation head `a26e772d675bcab07fbcf8ab25bb2b7706453323`
+(2026-08-27; this report-evidence commit itself only changes this file):
 
-Observed state is reported in the final implementation handoff message; any
-non-green result is a finding for the independent reviewer, not something the
-implementing agent may rerun away.
+- `build-test-and-check`: classify PASS; `format_check` PASS (16s); `build`
+  PASS (6m38s); `test` PASS (10m13s); **`lint` FAIL (5m8s)** — see below.
+- `run-migrations`: classify PASS; `run_migrations` PASS (7m35s) — CI
+  disposable PostgreSQL 17 build, `cargo run migrate`,
+  `cargo run migrate --revert`, reapply.
+- `check-changelog`: PASS (7s).
+- `publish-to-dockerhub`: classify PASS (`run_docker=true`);
+  `build_and_push_staging_docker_image` PASS (11m33s) — pushed
+  `ghcr.io/thoth-pub/thoth:staging-pr-843`, image digest
+  `sha256:bee0640c7622476eab7cdb9abc51e23c14650fe3305ddc2cb276f2a182caeab0`.
+  This is the single authorized automatic external write side effect; it is
+  not a release, deployment or activation.
+
+### 11.1 The `lint` failure is a pre-existing runner-image condition
+
+The failing job ran on the GitHub `ubuntu-24.04` image release
+`20260823.283`, whose toolchain carries clippy for Rust 1.98. It rejects
+three **pre-existing** `useless_format` sites at
+`thoth-api/src/model/tests.rs:887/893/899` — a file this PR does not touch
+(`git diff <base> HEAD -- thoth-api/src/model/tests.rs` is empty; the sites
+are identical at the exact authorized base). Local clippy 1.97 and the CI
+image generation still on the pre-rollout toolchain pass the same command;
+the job outcome currently depends on which runner-image generation a run
+lands on. This same condition was already observed and recorded on
+2026-08-27 during MET-WP1-01 CI.
+
+Consequences under the bounded authorization: the implementing agent may not
+rerun CI and may not modify `thoth-api/src/model/tests.rs` (outside the write
+budget). The failure is therefore reported as a finding for the independent
+reviewer/CTO. Remediating it needs either a separately authorized bounded
+correction of the three pre-existing sites, or a rerun/re-land once the
+runner rollout is uniform — neither is performed here. No other check failed,
+and the workspace clippy gate passes locally at the final source state.
 
 ## 12. Rollout and rollback
 
