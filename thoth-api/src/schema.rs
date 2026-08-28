@@ -130,6 +130,10 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "metric_reporting_grain"))]
     pub struct MetricReportingGrain;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_source_acquisition_type"))]
+    pub struct MetricSourceAcquisitionType;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -693,6 +697,53 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::MetricSourceAcquisitionType;
+
+    metric_source (source_id) {
+        source_id -> Uuid,
+        code -> Text,
+        acquisition_type -> MetricSourceAcquisitionType,
+        driver_key -> Nullable<Text>,
+        enabled -> Bool,
+        default_lookback_days -> Nullable<Int4>,
+        default_finalization_delay_days -> Nullable<Int4>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_source_account (source_account_id) {
+        source_account_id -> Uuid,
+        source_id -> Uuid,
+        platform_id -> Uuid,
+        external_key -> Text,
+        expected_publisher_id -> Nullable<Uuid>,
+        configuration -> Jsonb,
+        enabled -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_source_checkpoint (source_checkpoint_id) {
+        source_checkpoint_id -> Uuid,
+        source_account_id -> Uuid,
+        partition_key -> Text,
+        cursor -> Nullable<Jsonb>,
+        last_discovered_at -> Nullable<Timestamptz>,
+        last_completed_at -> Nullable<Timestamptz>,
+        last_successful_period_end -> Nullable<Date>,
+        lease_owner -> Nullable<Text>,
+        lease_expires_at -> Nullable<Timestamptz>,
+        last_error -> Nullable<Text>,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use super::sql_types::CurrencyCode;
 
     price (price_id) {
@@ -1170,6 +1221,10 @@ joinable!(location -> publication (publication_id));
 joinable!(location_history -> location (location_id));
 joinable!(metric_platform_measure -> metric_measure (measure_id));
 joinable!(metric_platform_measure -> metric_platform (platform_id));
+joinable!(metric_source_account -> metric_platform (platform_id));
+joinable!(metric_source_account -> metric_source (source_id));
+joinable!(metric_source_account -> publisher (expected_publisher_id));
+joinable!(metric_source_checkpoint -> metric_source_account (source_account_id));
 joinable!(price -> publication (publication_id));
 joinable!(price_history -> price (price_id));
 joinable!(publication -> work (work_id));
@@ -1233,6 +1288,9 @@ allow_tables_to_appear_in_same_query!(
     metric_measure,
     metric_platform,
     metric_platform_measure,
+    metric_source,
+    metric_source_account,
+    metric_source_checkpoint,
     price,
     price_history,
     publication,
