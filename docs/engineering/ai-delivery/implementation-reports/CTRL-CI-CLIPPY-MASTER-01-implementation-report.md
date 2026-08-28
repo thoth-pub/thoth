@@ -13,7 +13,12 @@ Actual base commit: `40e9c06d4ab76217c3ef277dd539d3b5580e2bb8` (authorized base 
 PR target: `master`
 Programme integration branch: N/A
 Task branch: `hotfix/ctrl-ci-clippy-master-01`
-Head commit: recorded in the #861 implementation-evidence comment; this report is committed as part of that head
+First bounded implementation commit: `3ff3a5c486c061e1e27a3985f403c6cd8081a694`
+Head commit: the branch now carries one later documentation-only provenance
+correction on top of that commit. The exact correction head is recorded in the
+subsequent #861 correction-evidence comment and in the final handoff, not here:
+this report is part of the commit that creates that head, so embedding the SHA
+would move the head it purports to record (`operating-model.md` Gate 4).
 Pull request: **NOT CREATED - NOT AUTHORIZED AT THIS GATE**
 Expected branch deletion after merge: YES
 Final programme PR required: NO
@@ -64,14 +69,24 @@ Metrics change, and no wholesale cherry-pick of #844 commit
 
 ## 3. Commits
 
-One bounded implementation commit:
+The branch contains two commits: the bounded implementation commit, and one
+later documentation-only correction required by independent review.
 
-- `fix(ci): propagate Clippy 1.98 baseline repair to master`
+1. `3ff3a5c486c061e1e27a3985f403c6cd8081a694` - `fix(ci): propagate Clippy 1.98
+   baseline repair to master`. The bounded implementation commit, and the head
+   submitted for the first independent review. It carries the three-line Rust
+   correction, the changelog entry and this report.
+2. `docs(ci): correct Clippy repair provenance`. A documentation-only follow-up
+   authorized in #861 comment `5454804011` after independent review raised
+   blocking finding F1: the changelog entry cited `CTRL-CI-CLIPPY-01` as
+   `pull/844`, but #844 is the **issue** and #845 is its merged implementation
+   PR. It changes `CHANGELOG.md` and this report only; the Rust diff between
+   `3ff3a5c4...` and the correction head is empty.
 
-The exact SHA is reported in the #861 implementation-evidence comment and in the
-final handoff. This report file is part of that same commit, so its own SHA
-cannot be self-referentially embedded without moving the head it would record
-(`operating-model.md` Gate 4).
+The exact correction head is reported in the #861 correction-evidence comment
+and in the final handoff rather than written here, because this report is part
+of the commit that creates that head and embedding the SHA would move the head
+it purports to record (`operating-model.md` Gate 4).
 
 ## 4. Files changed
 
@@ -126,10 +141,11 @@ path. No other path was written.
 - new file creation: USED (the one authorized report path)
 - file deletion/move/rename: NOT USED (not authorized)
 - branch creation: USED (`hotfix/ctrl-ci-clippy-master-01` from the exact authorized base)
-- commit: USED (one bounded commit)
+- commit: USED (one bounded implementation commit, plus one authorized
+  documentation-only correction commit under #861 comment `5454804011`)
 - push: USED (task branch only)
 - PR creation/update: **NOT USED - NOT AUTHORIZED AT THIS GATE**
-- issue/comment mutation: USED, limited to one implementation-evidence comment on #861. No comment or mutation on #850, #851 or #860.
+- issue/comment mutation: USED, limited to #861: one implementation-evidence comment and one correction-evidence comment. No comment or mutation on #850, #851 or #860.
 - manual CI dispatch/rerun: NOT USED (not authorized)
 - provider/runtime read: NOT USED (not authorized)
 - provider/runtime write: NOT USED (not authorized)
