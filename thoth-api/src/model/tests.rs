@@ -884,19 +884,19 @@ fn test_orcid_to_hyphenless_string() {
 #[test]
 fn test_doi_with_domain() {
     let doi = "https://doi.org/10.12345/Test-Suffix.01";
-    assert_eq!(format!("{}", Doi(doi.to_string()).with_domain()), doi);
+    assert_eq!(Doi(doi.to_string()).with_domain().to_string(), doi);
 }
 
 #[test]
 fn test_orcid_with_domain() {
     let orcid = "https://orcid.org/0000-0002-1234-5678";
-    assert_eq!(format!("{}", Orcid(orcid.to_string()).with_domain()), orcid);
+    assert_eq!(Orcid(orcid.to_string()).with_domain().to_string(), orcid);
 }
 
 #[test]
 fn test_ror_with_domain() {
     let ror = "https://ror.org/0abcdef12";
-    assert_eq!(format!("{}", Ror(ror.to_string()).with_domain()), ror);
+    assert_eq!(Ror(ror.to_string()).with_domain().to_string(), ror);
 }
 
 #[test]

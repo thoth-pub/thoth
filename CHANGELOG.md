@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+  - `CTRL-CI-CLIPPY-MASTER-01`: propagate the already-approved Clippy 1.98 lint-baseline repair from issue [#844](https://github.com/thoth-pub/thoth/issues/844) / PR [#845](https://github.com/thoth-pub/thoth/pull/845) onto the release line, restoring the `master` CI lint baseline (issue [861](https://github.com/thoth-pub/thoth/issues/861), parent [850](https://github.com/thoth-pub/thoth/issues/850)). Clippy 1.98 on the GitHub-hosted runner rejects three pre-existing assertions in `thoth-api/src/model/tests.rs` under `clippy::useless_format`, failing the lint job under its `-D warnings` policy. `test_doi_with_domain`, `test_orcid_with_domain` and `test_ror_with_domain` now call `.to_string()` directly instead of wrapping `Display` output in a redundant `format!("{}", ...)`; test names, inputs and expected values are unchanged. Test and CI compatibility only: no `Doi`/`Orcid`/`Ror`, `Display`, `with_domain`, parsing, production, GraphQL/API, schema, migration, authorization, dependency, lockfile, toolchain, workflow, lint-policy or runtime behaviour changes, and no lint suppression is introduced.
 
 ## [[1.7.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.7.0) - 2026-08-18
 ### Added
