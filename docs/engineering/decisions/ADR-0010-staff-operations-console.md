@@ -1,7 +1,9 @@
 # ADR-0010 - Staff Operations Console and canonical publisher-service operations
 
-Status: PROPOSED
+Status: APPROVED
 Date: 2026-08-27
+Approved by: Javi, CTO
+Approval date: 2026-08-28
 Decision owner: CTO
 Programmes affected: Staff Operations Console; Publisher Services and Distribution Configuration; OAI-PMH; Thoth Metrics; shared backend/authorization architecture
 Repositories affected: `thoth-pub/thoth`, `thoth-pub/thoth-app`, `thoth-pub/thoth-dissemination`; future contract impact may include `thoth-pub/thoth-sphinx`, `thoth-pub/metrics-dashboard`, `thoth-pub/metrics-widget` and other verified Thoth GraphQL consumers
@@ -20,7 +22,7 @@ or universal platform abstraction; deliver distribution as the first deep
 operational integration; and activate staff replay or repair controls only after
 read-only operational truth and observed-state semantics are proven.
 
-This record is a proposed architecture decision. It records no deployed state and
+This record is an approved architecture decision. It records no deployed state and
 authorizes no implementation, merge, migration, provider access, deployment,
 external write, replay, release or production activation.
 
@@ -1156,10 +1158,10 @@ This ADR does not:
 ## 17. Approval
 
 Approval required from: CTO
-Approved by: Not yet approved
-Approval date: Not yet approved
+Approved by: Javi, CTO
+Approval date: 2026-08-28
 
-Required before approval is relied upon:
+Approval conditions satisfied before this decision became repository-authoritative:
 
 1. fresh independent architecture review of the exact ADR content against live
    repository authority, ADR-0002, ADR-0004, ADR-0005, ADR-0008, ADR-0009,
