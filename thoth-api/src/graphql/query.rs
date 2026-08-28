@@ -8,6 +8,7 @@ use super::types::inputs::{
 use crate::graphql::types::me::{Me, ToMe};
 use crate::graphql::Context;
 use crate::markup::{convert_from_jats, ConversionLimit, MarkupFormat};
+use crate::model::contributor::crud::MAX_CONTRIBUTOR_ORCID_BATCH;
 use crate::model::{
     additional_resource::{AdditionalResource, AdditionalResourceOrderBy},
     affiliation::{Affiliation, AffiliationOrderBy},
@@ -41,7 +42,7 @@ use crate::model::{
     title::{Title, TitleOrderBy},
     work::{Work, WorkOrderBy, WorkStatus, WorkType},
     work_featured_video::{WorkFeaturedVideo, WorkFeaturedVideoOrderBy},
-    Crud, Doi,
+    Crud, Doi, Orcid,
 };
 use crate::policy::PolicyContext;
 use juniper::IntoFieldError;
@@ -885,6 +886,37 @@ impl QueryRoot {
         #[graphql(description = "Thoth contributor ID to search on")] contributor_id: Uuid,
     ) -> FieldResult<Contributor> {
         Contributor::from_id(&context.db, &contributor_id).map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Query contributors by an exact set of ORCID identifiers. Intended for bulk \
+                       import, which would otherwise issue one request per ORCID. Values must be \
+                       supplied in the representation Thoth stores \
+                       (`https://orcid.org/XXXX-XXXX-XXXX-XXXX`); matching is exact equality, so \
+                       partial identifiers never match and no normalisation is applied. Unknown \
+                       ORCIDs are omitted, and each matching contributor is returned at most once \
+                       however often it is requested."
+    )]
+    fn contributors_by_orcids(
+        context: &Context,
+        #[graphql(
+            description = "The ORCIDs to resolve, in Thoth's stored representation. At most 1000 \
+                           values per request; split larger sets into explicit client-side batches."
+        )]
+        orcids: Vec<Orcid>,
+    ) -> FieldResult<Vec<Contributor>> {
+        // Bound the input before any database access: an over-sized request is
+        // rejected outright rather than silently truncated.
+        if orcids.len() > MAX_CONTRIBUTOR_ORCID_BATCH {
+            return Err(FieldError::new(
+                format!(
+                    "A maximum of {MAX_CONTRIBUTOR_ORCID_BATCH} ORCIDs may be requested at once, but {} were supplied. Split the request into smaller batches.",
+                    orcids.len()
+                ),
+                juniper::Value::null(),
+            ));
+        }
+        Contributor::from_orcids(&context.db, &orcids).map_err(Into::into)
     }
 
     #[graphql(description = "Get the total number of contributors")]
