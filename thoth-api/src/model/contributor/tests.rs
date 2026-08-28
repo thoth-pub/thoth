@@ -542,3 +542,122 @@ mod crud {
         }
     }
 }
+
+#[cfg(feature = "backend")]
+mod batch_orcid_lookup {
+    use super::*;
+
+    use crate::model::contributor::crud::MAX_CONTRIBUTOR_ORCID_BATCH;
+    use crate::model::tests::db::setup_test_db;
+    use crate::model::Crud;
+
+    /// `API-IMPORT-ORCID-BATCH-01`: contributors are stored with the canonical
+    /// release-line ORCID representation `https://orcid.org/XXXX-XXXX-XXXX-XXXX`,
+    /// which is also the representation the batch lookup compares against.
+    fn make_contributor_with_orcid(pool: &crate::db::PgPool, orcid: &str) -> Contributor {
+        let suffix = Uuid::new_v4();
+        Contributor::create(
+            pool,
+            &NewContributor {
+                first_name: Some("Batch".to_string()),
+                last_name: format!("Contributor {suffix}"),
+                full_name: format!("Batch Contributor {suffix}"),
+                orcid: Some(Orcid(orcid.to_string())),
+                website: None,
+            },
+        )
+        .expect("Failed to create contributor")
+    }
+
+    #[test]
+    fn batch_bound_is_one_thousand() {
+        assert_eq!(MAX_CONTRIBUTOR_ORCID_BATCH, 1000);
+    }
+
+    #[test]
+    fn from_orcids_resolves_multiple_known_values_and_omits_unknown() {
+        let (_guard, pool) = setup_test_db();
+
+        let first =
+            make_contributor_with_orcid(pool.as_ref(), "https://orcid.org/0000-0002-1825-0097");
+        let second =
+            make_contributor_with_orcid(pool.as_ref(), "https://orcid.org/0000-0001-2345-6789");
+        let unrelated =
+            make_contributor_with_orcid(pool.as_ref(), "https://orcid.org/0000-0003-1111-2222");
+
+        let found = Contributor::from_orcids(
+            pool.as_ref(),
+            &[
+                Orcid("https://orcid.org/0000-0002-1825-0097".to_string()),
+                Orcid("https://orcid.org/0000-0001-2345-6789".to_string()),
+                // Never stored: must simply be omitted, not an error.
+                Orcid("https://orcid.org/0000-0009-9999-9999".to_string()),
+            ],
+        )
+        .expect("Failed to resolve contributors by ORCID");
+
+        let mut ids: Vec<Uuid> = found.iter().map(|c| c.contributor_id).collect();
+        ids.sort();
+        let mut expected = vec![first.contributor_id, second.contributor_id];
+        expected.sort();
+
+        assert_eq!(ids, expected);
+        assert!(!ids.contains(&unrelated.contributor_id));
+    }
+
+    #[test]
+    fn from_orcids_returns_each_match_at_most_once_for_duplicate_input() {
+        let (_guard, pool) = setup_test_db();
+
+        let contributor =
+            make_contributor_with_orcid(pool.as_ref(), "https://orcid.org/0000-0002-1825-0097");
+
+        let found = Contributor::from_orcids(
+            pool.as_ref(),
+            &[
+                Orcid("https://orcid.org/0000-0002-1825-0097".to_string()),
+                Orcid("https://orcid.org/0000-0002-1825-0097".to_string()),
+                Orcid("https://orcid.org/0000-0002-1825-0097".to_string()),
+            ],
+        )
+        .expect("Failed to resolve contributors by ORCID");
+
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].contributor_id, contributor.contributor_id);
+    }
+
+    #[test]
+    fn from_orcids_returns_empty_without_touching_the_database_for_empty_input() {
+        // A deliberately unusable pool proves the empty case short-circuits
+        // before any connection is checked out, rather than scanning the table.
+        let pool = crate::model::tests::db::failing_pool();
+
+        let found =
+            Contributor::from_orcids(&pool, &[]).expect("Empty input must not reach the database");
+
+        assert!(found.is_empty());
+    }
+
+    #[test]
+    fn from_orcids_matches_exactly_and_never_by_substring() {
+        let (_guard, pool) = setup_test_db();
+
+        make_contributor_with_orcid(pool.as_ref(), "https://orcid.org/0000-0002-1825-0097");
+
+        // Bare identifier, truncated identifier, and a stored-value prefix: the
+        // lookup is exact equality, so none of these may match.
+        for partial in [
+            "0000-0002-1825-0097",
+            "https://orcid.org/0000-0002-1825-009",
+            "https://orcid.org/0000-0002-1825",
+            "orcid.org/0000-0002-1825-0097",
+        ] {
+            let found = Contributor::from_orcids(pool.as_ref(), &[Orcid(partial.to_string())])
+                .expect("Failed to resolve contributors by ORCID");
+            assert!(
+                found.is_empty(),
+                "partial ORCID {partial:?} must never match a stored contributor"
+            );
+        }
+    }
+}
