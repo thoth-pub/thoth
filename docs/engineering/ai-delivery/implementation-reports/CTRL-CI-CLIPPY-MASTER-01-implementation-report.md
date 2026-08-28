@@ -411,8 +411,10 @@ Activation required: NONE.
 Feature flag/configuration: NONE.
 Migration sequence: NONE.
 
-Rollback/disable procedure: revert the single bounded commit. There is no data,
-schema, API or runtime state to unwind, and no consumer depends on the change.
+Rollback/disable procedure: revert the eventual PR integration as a unit;
+before integration, abandon/reset the task branch rather than selectively
+reverting one of its commits. There is no data, schema, API or runtime state to
+unwind, and no consumer depends on the change.
 
 Monitoring required: NONE.
 
