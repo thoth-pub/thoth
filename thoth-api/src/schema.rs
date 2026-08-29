@@ -134,6 +134,14 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "metric_source_acquisition_type"))]
     pub struct MetricSourceAcquisitionType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_import_status"))]
+    pub struct MetricImportStatus;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_import_error_severity"))]
+    pub struct MetricImportErrorSeverity;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -637,6 +645,53 @@ table! {
         user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricImportStatus;
+
+    metric_import (import_id) {
+        import_id -> Uuid,
+        source_account_id -> Uuid,
+        publisher_id -> Nullable<Uuid>,
+        format_code -> Text,
+        format_version -> Text,
+        raw_object_key -> Nullable<Text>,
+        raw_sha256 -> Nullable<Text>,
+        upstream_report_id -> Nullable<Text>,
+        period_start -> Nullable<Date>,
+        period_end -> Nullable<Date>,
+        status -> MetricImportStatus,
+        received_count -> Int8,
+        accepted_count -> Int8,
+        duplicate_count -> Int8,
+        revision_count -> Int8,
+        conflict_count -> Int8,
+        invalid_count -> Int8,
+        normalizer_version -> Text,
+        manifest -> Jsonb,
+        created_by -> Text,
+        created_at -> Timestamptz,
+        completed_at -> Nullable<Timestamptz>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricImportErrorSeverity;
+
+    metric_import_error (import_error_id) {
+        import_error_id -> Uuid,
+        import_id -> Uuid,
+        row_number -> Nullable<Int8>,
+        error_code -> Text,
+        severity -> MetricImportErrorSeverity,
+        field_name -> Nullable<Text>,
+        message -> Text,
+        raw_value -> Nullable<Text>,
+        created_at -> Timestamptz,
     }
 }
 
@@ -1219,6 +1274,9 @@ joinable!(language -> work (work_id));
 joinable!(language_history -> language (language_id));
 joinable!(location -> publication (publication_id));
 joinable!(location_history -> location (location_id));
+joinable!(metric_import -> metric_source_account (source_account_id));
+joinable!(metric_import -> publisher (publisher_id));
+joinable!(metric_import_error -> metric_import (import_id));
 joinable!(metric_platform_measure -> metric_measure (measure_id));
 joinable!(metric_platform_measure -> metric_platform (platform_id));
 joinable!(metric_source_account -> metric_platform (platform_id));
@@ -1285,6 +1343,8 @@ allow_tables_to_appear_in_same_query!(
     language_history,
     location,
     location_history,
+    metric_import,
+    metric_import_error,
     metric_measure,
     metric_platform,
     metric_platform_measure,
