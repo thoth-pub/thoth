@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[1.8.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.8.0) - 2026-08-29
 ### Added
   - `API-IMPORT-ORCID-BATCH-01`: additive `contributorsByOrcids(orcids: [Orcid!]!): [Contributor!]!` query resolving a bounded set of ORCIDs to contributors with a single set-based exact-equality lookup, allowing bulk-import clients to avoid one request per ORCID (issue [851](https://github.com/thoth-pub/thoth/issues/851), parent [850](https://github.com/thoth-pub/thoth/issues/850)). Values must be supplied in Thoth's stored representation (`https://orcid.org/XXXX-XXXX-XXXX-XXXX`); matching is exact, so partial identifiers never match, unknown ORCIDs are omitted, and each matching contributor is returned at most once. At most 1000 ORCIDs per request: a larger list returns a clear field error without truncating or querying the database, and an empty list returns `[]` without querying it either. `contributors(filter:)`, `contributor(id:)`, contributor writes, ORCID uniqueness, history and authorization are unchanged.
 
