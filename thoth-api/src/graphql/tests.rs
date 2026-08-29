@@ -4171,3 +4171,306 @@ fn create_work_relation_rejects_second_book_chapter_parent_through_graphql() {
         "unauthorized rejection must come from authorization, not the integrity rule; got: {anon_message}"
     );
 }
+
+/// `API-IMPORT-ORCID-BATCH-01`: exact batch contributor lookup by ORCID.
+///
+/// The field exists to remove the ORCID N+1 pattern in bulk import. It is an
+/// exact identity lookup and must never inherit the substring semantics of
+/// `contributors(filter:)`.
+mod contributors_by_orcids {
+    use super::*;
+
+    const QUERY: &str = r#"
+        query ContributorsByOrcids($orcids: [Orcid!]!) {
+            contributorsByOrcids(orcids: $orcids) {
+                contributorId
+                orcid
+                fullName
+            }
+        }
+    "#;
+
+    fn raw_orcid(value: &str) -> Orcid {
+        serde_json::from_str(&format!("\"{value}\""))
+            .expect("Failed to deserialize raw ORCID scalar")
+    }
+
+    fn seed_contributor(pool: &crate::db::PgPool, orcid: &str) -> Contributor {
+        let suffix = unique("BatchOrcid");
+        Contributor::create(
+            pool,
+            &NewContributor {
+                first_name: Some("Batch".to_string()),
+                last_name: suffix.clone(),
+                full_name: format!("Batch {suffix}"),
+                orcid: Some(raw_orcid(orcid)),
+                website: None,
+            },
+        )
+        .expect("Failed to create contributor")
+    }
+
+    fn returned_ids(payload: &JsonValue) -> Vec<Uuid> {
+        let mut ids: Vec<Uuid> = payload["contributorsByOrcids"]
+            .as_array()
+            .expect("expected a contributor list")
+            .iter()
+            .map(|entry| json_uuid(&entry["contributorId"]))
+            .collect();
+        ids.sort();
+        ids
+    }
+
+    /// Multiple known ORCIDs resolve in one request; unknown values are omitted
+    /// rather than erroring. Executed anonymously, because this read must keep
+    /// exactly the public exposure of the existing contributor reads.
+    #[test]
+    fn resolves_multiple_known_values_anonymously_and_omits_unknown() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let schema = create_schema();
+        let context = test_db::test_context_anonymous(pool.clone());
+
+        let first = seed_contributor(pool.as_ref(), "https://orcid.org/0000-0002-1825-0097");
+        let second = seed_contributor(pool.as_ref(), "https://orcid.org/0000-0001-2345-6789");
+        let unrelated = seed_contributor(pool.as_ref(), "https://orcid.org/0000-0003-1111-2222");
+
+        let mut vars = Variables::new();
+        insert_var(
+            &mut vars,
+            "orcids",
+            vec![
+                raw_orcid("https://orcid.org/0000-0002-1825-0097"),
+                raw_orcid("https://orcid.org/0000-0001-2345-6789"),
+                raw_orcid("https://orcid.org/0000-0009-9999-9999"),
+            ],
+        );
+
+        let payload = execute_graphql(&schema, &context, QUERY, Some(vars));
+        let ids = returned_ids(&payload);
+
+        let mut expected = vec![first.contributor_id, second.contributor_id];
+        expected.sort();
+        assert_eq!(ids, expected);
+        assert!(!ids.contains(&unrelated.contributor_id));
+    }
+
+    /// Duplicate inputs are accepted, but each matching contributor comes back
+    /// at most once.
+    #[test]
+    fn returns_each_match_at_most_once_for_duplicate_input() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let schema = create_schema();
+        let context = test_db::test_context_anonymous(pool.clone());
+
+        let contributor = seed_contributor(pool.as_ref(), "https://orcid.org/0000-0002-1825-0097");
+
+        let mut vars = Variables::new();
+        insert_var(
+            &mut vars,
+            "orcids",
+            vec![
+                raw_orcid("https://orcid.org/0000-0002-1825-0097"),
+                raw_orcid("https://orcid.org/0000-0002-1825-0097"),
+                raw_orcid("https://orcid.org/0000-0002-1825-0097"),
+            ],
+        );
+
+        let payload = execute_graphql(&schema, &context, QUERY, Some(vars));
+        assert_eq!(returned_ids(&payload), vec![contributor.contributor_id]);
+    }
+
+    /// Empty input returns `[]` and never reaches the contributor table. The
+    /// deliberately unusable pool is the proof: any database access would
+    /// surface as a connection error instead of an empty list.
+    #[test]
+    fn returns_empty_for_empty_input_without_querying_the_database() {
+        let schema = create_schema();
+        let context = test_db::test_context_anonymous(std::sync::Arc::new(test_db::failing_pool()));
+
+        let mut vars = Variables::new();
+        insert_var(&mut vars, "orcids", Vec::<Orcid>::new());
+
+        let payload = execute_graphql(&schema, &context, QUERY, Some(vars));
+        assert_eq!(
+            payload["contributorsByOrcids"]
+                .as_array()
+                .expect("expected a contributor list")
+                .len(),
+            0
+        );
+    }
+
+    /// Over the bound the field errors clearly, does not truncate, and performs
+    /// no database lookup - again proven by the unusable pool.
+    #[test]
+    fn rejects_more_than_one_thousand_values_without_querying_the_database() {
+        let schema = create_schema();
+        let context = test_db::test_context_anonymous(std::sync::Arc::new(test_db::failing_pool()));
+
+        let oversized: Vec<Orcid> = (0..1001)
+            .map(|index| {
+                raw_orcid(&format!(
+                    "https://orcid.org/0000-0002-{:04}-{:04}",
+                    index / 10000,
+                    index % 10000
+                ))
+            })
+            .collect();
+        assert_eq!(oversized.len(), 1001);
+
+        let mut vars = Variables::new();
+        insert_var(&mut vars, "orcids", oversized);
+
+        let (value, errors) =
+            block_on_graphql(juniper::execute(QUERY, None, &schema, &vars, &context))
+                .expect("GraphQL execution should succeed with a field error");
+
+        assert!(!errors.is_empty(), "over-limit input must return an error");
+        let message = errors[0].error().message().to_string();
+        assert!(
+            message.contains("1000") && message.contains("1001"),
+            "expected a clear bound error naming the limit and the supplied count, got: {message}"
+        );
+        assert!(
+            !message.contains("Database error"),
+            "the bound must be enforced before any database access, got: {message}"
+        );
+
+        let payload = serde_json::to_value(value).expect("Failed to serialize GraphQL response");
+        assert!(
+            payload.get("contributorsByOrcids").is_none()
+                || payload["contributorsByOrcids"].is_null(),
+            "no truncated result may be returned, got: {payload:?}"
+        );
+    }
+
+    /// Exactly 1000 values is accepted - the bound is inclusive.
+    #[test]
+    fn accepts_exactly_one_thousand_values() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let schema = create_schema();
+        let context = test_db::test_context_anonymous(pool.clone());
+
+        let known = seed_contributor(pool.as_ref(), "https://orcid.org/0000-0002-1825-0097");
+
+        let mut orcids: Vec<Orcid> = (0..999)
+            .map(|index| {
+                raw_orcid(&format!(
+                    "https://orcid.org/0000-0004-{:04}-{:04}",
+                    index / 10000,
+                    index % 10000
+                ))
+            })
+            .collect();
+        orcids.push(raw_orcid("https://orcid.org/0000-0002-1825-0097"));
+        assert_eq!(orcids.len(), 1000);
+
+        let mut vars = Variables::new();
+        insert_var(&mut vars, "orcids", orcids);
+
+        let payload = execute_graphql(&schema, &context, QUERY, Some(vars));
+        assert_eq!(returned_ids(&payload), vec![known.contributor_id]);
+    }
+
+    /// Partial identifiers never match: this field is exact equality, not the
+    /// `ILIKE '%..%'` behaviour of `contributors(filter:)`.
+    #[test]
+    fn never_matches_partial_identifiers() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let schema = create_schema();
+        let context = test_db::test_context_anonymous(pool.clone());
+
+        seed_contributor(pool.as_ref(), "https://orcid.org/0000-0002-1825-0097");
+
+        for partial in [
+            "0000-0002-1825-0097",
+            "https://orcid.org/0000-0002-1825-009",
+            "https://orcid.org/0000-0002-1825",
+            "orcid.org/0000-0002-1825-0097",
+        ] {
+            let mut vars = Variables::new();
+            insert_var(&mut vars, "orcids", vec![raw_orcid(partial)]);
+            let payload = execute_graphql(&schema, &context, QUERY, Some(vars));
+            assert!(
+                returned_ids(&payload).is_empty(),
+                "partial ORCID {partial:?} must never match"
+            );
+        }
+    }
+
+    /// Structural performance proof for `API-IMPORT-ORCID-BATCH-01` - no
+    /// wall-clock threshold is asserted.
+    ///
+    /// One resolver invocation carrying 500 ORCIDs issues **exactly one**
+    /// contributor statement, and that statement is set-based (`= ANY`). A
+    /// per-ORCID lookup loop would show up here as 500 statements.
+    #[test]
+    fn a_five_hundred_value_request_issues_exactly_one_set_based_contributor_statement() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let schema = create_schema();
+        let known = seed_contributor(pool.as_ref(), "https://orcid.org/0000-0002-1825-0097");
+
+        // A measured pool with Diesel instrumentation installed, as used by the
+        // existing set-based loader evidence.
+        let probe = crate::graphql::dataloader::fixture::SqlProbe::install(&test_db::test_db_url());
+        let context = test_db::test_context_anonymous(std::sync::Arc::clone(&probe.pool));
+
+        let mut orcids: Vec<Orcid> = (0..499)
+            .map(|index| raw_orcid(&format!("https://orcid.org/0000-0004-0000-{index:04}")))
+            .collect();
+        orcids.push(raw_orcid("https://orcid.org/0000-0002-1825-0097"));
+        assert_eq!(orcids.len(), 500);
+
+        let mut vars = Variables::new();
+        insert_var(&mut vars, "orcids", orcids);
+
+        probe.start();
+        let payload = execute_graphql(&schema, &context, QUERY, Some(vars));
+        let statements: Vec<String> = probe
+            .captured_statements()
+            .into_iter()
+            .filter(|sql| sql.contains("\"contributor\""))
+            .collect();
+
+        assert_eq!(returned_ids(&payload), vec![known.contributor_id]);
+        assert_eq!(
+            statements.len(),
+            1,
+            "expected exactly one contributor statement, got: {statements:?}"
+        );
+        assert!(
+            statements[0].contains("= ANY"),
+            "expected a set-based predicate, got: {}",
+            statements[0]
+        );
+    }
+
+    /// The pre-existing substring search is untouched: the same partial value
+    /// that the new exact field rejects still matches through
+    /// `contributors(filter:)`.
+    #[test]
+    fn existing_contributors_filter_semantics_are_unchanged() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let schema = create_schema();
+        let context = test_db::test_context_anonymous(pool.clone());
+
+        let contributor = seed_contributor(pool.as_ref(), "https://orcid.org/0000-0002-1825-0097");
+
+        let filter_query = r#"
+            query FilteredContributors($filter: String!) {
+                contributors(limit: 10, filter: $filter) { contributorId }
+            }
+        "#;
+        let mut vars = Variables::new();
+        insert_var(&mut vars, "filter", "0000-0002-1825-0097".to_string());
+        let payload = execute_graphql(&schema, &context, filter_query, Some(vars));
+
+        let ids: Vec<Uuid> = payload["contributors"]
+            .as_array()
+            .expect("expected a contributor list")
+            .iter()
+            .map(|entry| json_uuid(&entry["contributorId"]))
+            .collect();
+        assert_eq!(ids, vec![contributor.contributor_id]);
+    }
+}
