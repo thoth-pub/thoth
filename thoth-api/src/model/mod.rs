@@ -897,6 +897,8 @@ pub mod issue;
 pub mod language;
 pub mod locale;
 pub mod location;
+pub mod metric_import;
+pub mod metric_import_error;
 pub mod metric_measure;
 pub mod metric_platform;
 pub mod metric_platform_measure;
