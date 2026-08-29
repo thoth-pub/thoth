@@ -3,13 +3,50 @@ use super::{
     NewContributorHistory, PatchContributor,
 };
 use crate::db::PgPool;
-use crate::model::{Crud, DbInsert, HistoryEntry, PublisherIds};
+use crate::model::{Crud, DbInsert, HistoryEntry, Orcid, PublisherIds};
 use crate::schema::{contributor, contributor_history};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
 use thoth_errors::ThothResult;
 use uuid::Uuid;
+
+/// Maximum number of ORCID values accepted by one exact batch contributor
+/// lookup (`API-IMPORT-ORCID-BATCH-01`, issue #851).
+///
+/// The bound comfortably covers the 538 distinct ORCIDs observed in a real
+/// 866-product ONIX import while forcing larger imports to chunk explicitly,
+/// rather than leaving the resolver unbounded. It is enforced at the GraphQL
+/// boundary, before any database access.
+pub(crate) const MAX_CONTRIBUTOR_ORCID_BATCH: usize = 1000;
+
+impl Contributor {
+    /// Resolve a bounded set of ORCIDs to contributors in a single set-based
+    /// query.
+    ///
+    /// This is an exact identity lookup: it compares `contributor.orcid` for
+    /// equality against the supplied values with one `IN` predicate
+    /// (`eq_any`), so it never inherits the substring semantics of
+    /// `Contributor::all`'s `filter` argument, and it performs no per-ORCID
+    /// database round trip. Values must already be in Thoth's stored canonical
+    /// representation; no normalisation is applied here.
+    ///
+    /// Unknown values are simply absent from the result, and because
+    /// `contributor.orcid` is uniquely indexed each matching contributor is
+    /// returned at most once however often it is requested. An empty input
+    /// short-circuits without checking out a connection.
+    pub(crate) fn from_orcids(db: &PgPool, orcids: &[Orcid]) -> ThothResult<Vec<Contributor>> {
+        use crate::schema::contributor::dsl::*;
+        if orcids.is_empty() {
+            return Ok(vec![]);
+        }
+        let mut connection = db.get()?;
+        contributor
+            .filter(orcid.eq_any(orcids.to_vec()))
+            .load::<Contributor>(&mut connection)
+            .map_err(Into::into)
+    }
+}
 
 impl Crud for Contributor {
     type NewEntity = NewContributor;
