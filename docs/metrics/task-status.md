@@ -4,12 +4,16 @@ Status: ACTIVE TRACKER
 Programme owner: CTO
 Master issue: [#766](https://github.com/thoth-pub/thoth/issues/766)
 Approved design: [private Google Doc](https://docs.google.com/document/d/11AeQFGpm0kUZajBM5PrAqsttmzJlpUrt89tGYyVM8c0/edit), Drive revision `6`
-Last updated: 2026-08-28 (`MET-WP1-03`, issue
-[#863](https://github.com/thoth-pub/thoth/issues/863): the approved
-import-state foundation slice — `metric_import`, `metric_import_error` and
-the closed import-status and import-error-severity enums — is merged into
-`feature/metrics`; WP1 remains `IN PROGRESS`, not complete; source/platform
-mappings remain unapproved; later Sphinx/client/source/WP5 gates unchanged)
+Last updated: 2026-08-31 (`MET-WP1-04`, issue
+[#872](https://github.com/thoth-pub/thoth/issues/872): the approved canonical
+record-history foundation slice — `metric_record`, `metric_record_revision`,
+`metric_record_provenance` and the closed revision-status and
+provenance-classification enums — is implemented on its bounded slice branch
+and is not yet merged into `feature/metrics`; the completed
+`MET-MIG-V1.9-RECON-01` migration-identity reconciliation (issue
+[#868](https://github.com/thoth-pub/thoth/issues/868)) is recorded; WP1
+remains `IN PROGRESS`, not complete; source/platform mappings remain
+unapproved; later Sphinx/client/source/WP5 gates unchanged)
 
 ## 1. Control rule
 
@@ -23,6 +27,8 @@ A work package is not one implementation task. Each must be decomposed into boun
 | MET-WP1-01 Metrics registry foundation | `thoth` | HIGH | MERGED TO `feature/metrics` - FIRST WP1 SLICE | `feature/metrics--wp1-registry-foundation` -> `feature/metrics` | Adds the `metric_platform`, `metric_measure` and `metric_platform_measure` registry tables, their four registry enums, the manually maintained `schema.rs` contract, Rust domain types, focused database/model tests and exactly the two approved seed measures (`title_sessions`, `net_units`), additive and inactive: no platform rows, no platform-measure mappings, no source mappings, no GraphQL/admin surface, no production migration. Exact review and authorization provenance is retained in the owning issue | [#836](https://github.com/thoth-pub/thoth/issues/836) |
 | MET-WP1-02 Metrics source-state foundation | `thoth` | HIGH | MERGED TO `feature/metrics` - SECOND WP1 SLICE | `feature/metrics--wp1-source-state` -> `feature/metrics` | Adds the `metric_source`, `metric_source_account` and `metric_source_checkpoint` source-state tables and the closed `metric_source_acquisition_type` enum, the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no source, account or checkpoint rows, no source/platform mappings, no lease/claim concurrency behaviour, no GraphQL/admin surface, no production migration. Depends on the merged `MET-WP1-01` registry (`metric_platform` FK). Exact review and authorization provenance is retained in the owning issue | [#841](https://github.com/thoth-pub/thoth/issues/841) |
 | MET-WP1-03 Metrics import-state foundation | `thoth` | HIGH | MERGED TO `feature/metrics` - THIRD WP1 SLICE | `feature/metrics--wp1-import-state` -> `feature/metrics` | Adds the `metric_import` and `metric_import_error` tables and the closed `metric_import_status` and `metric_import_error_severity` enums, the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no import or import-error rows, no upload/claim/complete API, no status-transition, lease, retry or queue behaviour, no idempotent-return runtime path, no GraphQL/admin surface, no production migration. The two design-fixed idempotency paths are enforced as mutually exclusive partial unique indexes, and both evidence columns stay nullable. Depends on the merged `MET-WP1-02` source state (`metric_source_account` FK) and the canonical `publisher`. Exact review and authorization provenance is retained in the owning issue | [#863](https://github.com/thoth-pub/thoth/issues/863) |
+| MET-MIG-V1.9-RECON-01 Metrics migration-identity reconciliation | `thoth` | MEDIUM | MERGED TO `feature/metrics` - COMPLETE | `feature/metrics--v1.9-migration-reconcile` -> `feature/metrics` | Reconciles the three merged Metrics migration directories to the `v1.9.0` release suffix they belong to, so the durable migration identities on `feature/metrics` are `20260826_v1.9.0`, `20260827_v1.9.0` and `20260828_v1.9.0`. Diesel derives a migration's version from the text before the first underscore, so the rename is ledger-neutral: no migration is replayed and none becomes pending. No schema, data, seed, model or runtime behaviour changed. Exact review and authorization provenance is retained in the owning issue | [#868](https://github.com/thoth-pub/thoth/issues/868) |
+| MET-WP1-04 Metrics record-history foundation | `thoth` | HIGH | SPECIFICATION APPROVED - FOURTH WP1 SLICE IMPLEMENTED ON ITS SLICE BRANCH, NOT MERGED | `feature/metrics--wp1-record-schema` -> `feature/metrics` | Adds the `metric_record`, `metric_record_revision` and `metric_record_provenance` canonical history tables and the closed `metric_record_revision_status` and `metric_record_provenance_classification` enums, the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no record, revision or provenance rows, no identity or content hashing, no normalized-observation validation or identifier resolution, no first-arrival, duplicate, revision, conflict or retraction transaction, no managed-source revision authorization, no publisher finality, no rollup delta, no period-overlap detection or concurrency primitive, no GraphQL/admin surface, no production migration. The intentionally circular record/current-revision relationship and the same-record `supersedes` invariant are enforced declaratively by composite foreign keys without triggers or new dependencies. Metrics alpha-2 country storage is a separate `CHAR(2)` representation and does not reuse or change the existing bibliographic alpha-3 `CountryCode`. Depends on the merged `MET-WP1-01` registry (`metric_platform`, `metric_measure` and `metric_reporting_grain`), `MET-WP1-02` source state (`metric_source_account`), `MET-WP1-03` import state (`metric_import`) and the canonical `work`, `publication` and `institution` entities. Integration requires fresh independent exact-head review and separate CTO merge authorization. Exact review, CI and authorization provenance is retained in the owning issue | [#872](https://github.com/thoth-pub/thoth/issues/872) |
 | ADR-0001 Package capability model | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-28; approval PR [#772](https://github.com/thoth-pub/thoth/pull/772) | #766 |
 | ADR-0002 Platform boundaries | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-27; approval PR [#769](https://github.com/thoth-pub/thoth/pull/769) | #766 |
 | SPHINX-BOOT-01 Repository bootstrap | `thoth-sphinx` | MEDIUM | BLOCKED | current `develop`; target `develop` after BR-SPHINX-01 verification | MET-CTRL-01 (**satisfied**); BR-SPHINX-01; approved bootstrap spec | #766 |
@@ -36,7 +42,7 @@ A work package is not one implementation task. Each must be decomposed into boun
 
 | WP | Scope | Repositories | Risk | Status | Blocking dependencies | Issue |
 |---|---|---|---:|---|---|---|
-| WP1 | Domain and database foundation | `thoth` | HIGH | IN PROGRESS | entry gates satisfied; registry foundation (`MET-WP1-01`), source-state foundation (`MET-WP1-02`) and import-state foundation (`MET-WP1-03`) merged to `feature/metrics`; each remaining slice requires its own approved bounded specification and separate authorization | #766 |
+| WP1 | Domain and database foundation | `thoth` | HIGH | IN PROGRESS | entry gates satisfied; registry foundation (`MET-WP1-01`), source-state foundation (`MET-WP1-02`) and import-state foundation (`MET-WP1-03`) merged to `feature/metrics`; the record-history foundation (`MET-WP1-04`) is specification-approved and implemented on its slice branch but not merged; each remaining slice requires its own approved bounded specification and separate authorization | #766 |
 | WP2 | Canonical ingestion | `thoth` | CRITICAL | BLOCKED | WP1 | #766 |
 | WP3 | Upload API and publisher UI | `thoth`, app | HIGH | BLOCKED | WP1/WP2; BR-APP-01; approved bounded slice specifications | #766 |
 | WP4 | Rollups and GraphQL | `thoth` | HIGH | BLOCKED | WP1/WP2; benchmark dataset | #766 |
@@ -57,7 +63,12 @@ authorization recorded in
 [#766](https://github.com/thoth-pub/thoth/issues/766), and the approved
 `MET-WP1-01` registry foundation, `MET-WP1-02` source-state foundation and
 `MET-WP1-03` import-state foundation are
-merged into `feature/metrics`. WP1 is
+merged into `feature/metrics`, whose migration identities were reconciled to
+the `v1.9.0` release suffix by the completed `MET-MIG-V1.9-RECON-01`. The
+`MET-WP1-04` record-history foundation is specification-approved and
+implemented on its bounded slice branch; it is **not** merged, and its
+integration remains gated on fresh independent exact-head review and separate
+CTO merge authorization. WP1 is
 `IN PROGRESS` and not complete: every remaining WP1 slice requires its own
 approved bounded specification and separate implementation authorization.
 Every later work package remains blocked by its own listed
@@ -170,9 +181,17 @@ verified base.
    [#841](https://github.com/thoth-pub/thoth/issues/841)) and the
    `MET-WP1-03` import-state foundation (issue
    [#863](https://github.com/thoth-pub/thoth/issues/863)) followed the same
-   bounded path and are merged into `feature/metrics`. Decompose each
-   remaining WP1 slice into its own bounded child issue/specification before
-   any further implementation; none exists, and none is authorized by this
-   record.
+   bounded path and are merged into `feature/metrics`. The completed
+   `MET-MIG-V1.9-RECON-01` reconciliation (issue
+   [#868](https://github.com/thoth-pub/thoth/issues/868)) then aligned those
+   three merged migration directories with the `v1.9.0` release suffix,
+   ledger-neutrally. The `MET-WP1-04` record-history foundation (issue
+   [#872](https://github.com/thoth-pub/thoth/issues/872)) followed the same
+   bounded specification path and is implemented on
+   `feature/metrics--wp1-record-schema`; it is not merged, and its integration
+   requires fresh independent exact-head source review and separate CTO merge
+   authorization. Decompose each further WP1 slice into its own bounded child
+   issue/specification before any additional implementation; none exists, and
+   none is authorized by this record.
 6. Scope SPHINX-BOOT-01 (with BR-SPHINX-01) for WP6 and later Sphinx work, on
    its own path; it does not gate Thoth WP1 entry.
