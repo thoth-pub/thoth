@@ -27,7 +27,7 @@ use crate::model::tests::assert_db_enum_roundtrip;
 use crate::model::tests::db::{setup_test_db, test_db_url, TestDbGuard};
 use crate::schema::metric_platform;
 
-/// The Diesel migration version of `thoth-api/migrations/20260826_v1.8.0`.
+/// The Diesel migration version of `thoth-api/migrations/20260826_v1.9.0`.
 pub(crate) const MET_WP1_01_MIGRATION_VERSION: &str = "20260826";
 
 /// Revert migrations until the `MET-WP1-01` registry migration itself has
