@@ -24,7 +24,7 @@ use crate::model::tests::assert_db_enum_roundtrip;
 use crate::model::tests::db::test_db_url;
 use crate::schema::metric_source;
 
-/// The Diesel migration version of `thoth-api/migrations/20260827_v1.8.0`.
+/// The Diesel migration version of `thoth-api/migrations/20260827_v1.9.0`.
 pub(crate) const MET_WP1_02_MIGRATION_VERSION: &str = "20260827";
 
 /// Revert migrations until the `MET-WP1-02` source-state migration itself has

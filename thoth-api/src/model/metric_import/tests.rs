@@ -37,7 +37,7 @@ use crate::model::tests::db::test_db_url;
 use crate::model::Timestamp;
 use crate::schema::metric_import;
 
-/// The Diesel migration version of `thoth-api/migrations/20260828_v1.8.0`.
+/// The Diesel migration version of `thoth-api/migrations/20260828_v1.9.0`.
 pub(crate) const MET_WP1_03_MIGRATION_VERSION: &str = "20260828";
 
 /// Revert migrations until the `MET-WP1-03` import-state migration itself has
