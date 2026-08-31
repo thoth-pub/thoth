@@ -534,12 +534,78 @@ Manually confirmed by direct inspection of the working tree and Git index:
 
 ## 11. CI
 
-PR identity, state and the automatic workflow run IDs/conclusions — including
-the `publish-to-dockerhub` `staging-pr-*` image side effect — are recorded in
-the follow-up evidence commit on this branch and in the #868 implementation
-ledger update.
+### 11.1 PR identity and state
 
-No manual workflow dispatch, rerun or cancellation was performed.
+| Field | Value |
+|---|---|
+| PR | [#871](https://github.com/thoth-pub/thoth/pull/871) |
+| State | OPEN (not draft), `MERGEABLE`, **not merged** |
+| Head | `feature/metrics--v1.9-migration-reconcile` |
+| Head commit at CI | `6691190a995110e7adeb63317848b9587e4a0de7` |
+| Base | `feature/metrics` |
+| Files changed | 11 (six SQL renames at `+0/-0`, four content files, one new report) |
+
+### 11.2 Automatic workflow runs — all green at the exact head
+
+Every run below is a permitted automatic consequence of the authorized PR
+creation, per `5475388112` section 7. All four executed against head
+`6691190a995110e7adeb63317848b9587e4a0de7`.
+
+| Workflow | Run ID | Conclusion |
+|---|---|---|
+| `build-test-and-check` | [`33372926680`](https://github.com/thoth-pub/thoth/actions/runs/33372926680) | **success** |
+| `run-migrations` | [`33372926670`](https://github.com/thoth-pub/thoth/actions/runs/33372926670) | **success** |
+| `check-changelog` | [`33372926615`](https://github.com/thoth-pub/thoth/actions/runs/33372926615) | **success** |
+| `publish-to-dockerhub` | [`33372926642`](https://github.com/thoth-pub/thoth/actions/runs/33372926642) | **success** |
+
+All ten PR checks pass, none failed or was skipped:
+
+```text
+build                                pass
+build_and_push_staging_docker_image  pass
+check-changelog                      pass
+classify                             pass   (x3, one per classifying workflow)
+format_check                         pass
+lint                                 pass
+run_migrations                       pass
+test                                 pass
+```
+
+`build-test-and-check` job conclusions: `classify` success, `build` success,
+`test` success, `lint` success, `format_check` success. The CI `lint` job is the
+authoritative Clippy result for this head and resolves the local toolchain skew
+noted in section 13.
+
+`run-migrations` independently reproduced the migration-chain proof on a
+disposable `postgres:17` service container, with every step succeeding:
+
+```text
+Build binary:       success
+Run migrations:     success
+Revert migrations:  success
+Reapply migrations: success
+```
+
+### 11.3 Authorized staging-image side effect
+
+`publish-to-dockerhub` performed the explicitly authorized automatic external
+registry write:
+
+- image: `ghcr.io/thoth-pub/thoth:staging-pr-871`
+  (from the workflow's `type=ref,event=pr,prefix=staging-pr-` tag rule);
+- published manifest digest:
+  `sha256:c7b80a18ca5196f5b55bdfd6f9067fc2e24ca0f7bbd4720e9e5efe43bb68b6c8`;
+- `org.opencontainers.image.revision` label
+  `fda03fcffa04a86a1d21eb80fd3742fb48fbb4e4` — the ephemeral
+  `pull_request` merge ref GitHub generates for the event, not the task head;
+  the task head remains `6691190a995110e7adeb63317848b9587e4a0de7`.
+
+This is the only external publication produced by this task. No release image,
+tag or GitHub Release was created.
+
+### 11.4 Manual CI actions
+
+**None.** No workflow was manually dispatched, rerun or cancelled.
 
 ## 12. Rollout and rollback
 
@@ -556,11 +622,12 @@ migration/repair once persistent environments depend on that schema.
 
 ## 13. Known limitations and deferred work
 
-- **Local lint toolchain skew.** Clippy ran locally at `0.1.97`. The
-  GitHub-hosted runner currently ships Clippy 1.98. The authoritative lint
-  result for this head is the PR `build-test-and-check` run recorded in
-  section 11. This change touches only three doc-comment lines and adds no
-  executable code, so no lint-surface change is expected.
+- **Local lint toolchain skew — resolved.** Clippy ran locally at `0.1.97`
+  while the GitHub-hosted runner ships Clippy 1.98. The authoritative lint
+  result for this head is the PR `build-test-and-check` run
+  [`33372926680`](https://github.com/thoth-pub/thoth/actions/runs/33372926680),
+  whose `lint` job **passed**. This change touches only three doc-comment lines
+  and adds no executable code, so no lint-surface change arose.
 - **Disposable databases only.** All migration evidence comes from disposable
   local PostgreSQL. No staging, production or other persistent shared database
   was accessed, by design.
