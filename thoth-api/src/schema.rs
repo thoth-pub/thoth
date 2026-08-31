@@ -142,6 +142,14 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "metric_import_error_severity"))]
     pub struct MetricImportErrorSeverity;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_record_revision_status"))]
+    pub struct MetricRecordRevisionStatus;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_record_provenance_classification"))]
+    pub struct MetricRecordProvenanceClassification;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -752,6 +760,64 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::MetricReportingGrain;
+
+    metric_record (record_id) {
+        record_id -> Uuid,
+        identity_hash -> Text,
+        work_id -> Uuid,
+        publication_id -> Nullable<Uuid>,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        period_start -> Date,
+        period_end -> Date,
+        reporting_grain -> MetricReportingGrain,
+        country_code -> Nullable<Bpchar>,
+        institution_id -> Nullable<Uuid>,
+        winning_source_account_id -> Uuid,
+        current_revision_id -> Nullable<Uuid>,
+        first_received_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricRecordProvenanceClassification;
+
+    metric_record_provenance (record_provenance_id) {
+        record_provenance_id -> Uuid,
+        record_id -> Nullable<Uuid>,
+        import_id -> Uuid,
+        source_record_id -> Nullable<Text>,
+        source_row_number -> Nullable<Int8>,
+        identity_hash -> Text,
+        content_hash -> Text,
+        classification -> MetricRecordProvenanceClassification,
+        details -> Jsonb,
+        received_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricRecordRevisionStatus;
+
+    metric_record_revision (record_revision_id) {
+        record_revision_id -> Uuid,
+        record_id -> Uuid,
+        revision_number -> Int4,
+        import_id -> Uuid,
+        value -> Int8,
+        content_hash -> Text,
+        status -> MetricRecordRevisionStatus,
+        supersedes_revision_id -> Nullable<Uuid>,
+        created_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use super::sql_types::MetricSourceAcquisitionType;
 
     metric_source (source_id) {
@@ -1279,6 +1345,16 @@ joinable!(metric_import -> publisher (publisher_id));
 joinable!(metric_import_error -> metric_import (import_id));
 joinable!(metric_platform_measure -> metric_measure (measure_id));
 joinable!(metric_platform_measure -> metric_platform (platform_id));
+joinable!(metric_record -> institution (institution_id));
+joinable!(metric_record -> metric_measure (measure_id));
+joinable!(metric_record -> metric_platform (platform_id));
+joinable!(metric_record -> metric_source_account (winning_source_account_id));
+joinable!(metric_record -> publication (publication_id));
+joinable!(metric_record -> work (work_id));
+joinable!(metric_record_provenance -> metric_import (import_id));
+joinable!(metric_record_provenance -> metric_record (record_id));
+joinable!(metric_record_revision -> metric_import (import_id));
+joinable!(metric_record_revision -> metric_record (record_id));
 joinable!(metric_source_account -> metric_platform (platform_id));
 joinable!(metric_source_account -> metric_source (source_id));
 joinable!(metric_source_account -> publisher (expected_publisher_id));
@@ -1348,6 +1424,9 @@ allow_tables_to_appear_in_same_query!(
     metric_measure,
     metric_platform,
     metric_platform_measure,
+    metric_record,
+    metric_record_provenance,
+    metric_record_revision,
     metric_source,
     metric_source_account,
     metric_source_checkpoint,
