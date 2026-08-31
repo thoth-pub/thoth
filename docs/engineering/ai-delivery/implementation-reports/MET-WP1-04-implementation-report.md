@@ -90,7 +90,7 @@ Files deleted, moved or renamed: NONE.
 ### 4.1 Write-budget compliance
 
 PASS. The complete `git diff --name-status` set against the authorized base is
-exactly the twelve authorized paths (four modified, eight created by the first
+exactly the thirteen authorized paths (four modified, eight created by the first
 commit, plus this report). No deletion, rename or copy appears.
 
 ## 4.2 Authorized actions actually used
