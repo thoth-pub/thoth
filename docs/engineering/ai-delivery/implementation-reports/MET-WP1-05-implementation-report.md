@@ -210,18 +210,28 @@ Migration added: YES.
   cascading; one CHECK constraint; one index (the primary key). Nothing
   existing is altered.
 - existing-data effect: NONE. No backfill, no update, no delete, no seed row.
-- locking: the migration is `CREATE TYPE` + `CREATE TABLE ... REFERENCES`,
-  which for a brand-new child table takes only the ordinary
-  `AccessShareLock` on each of the four referenced pre-existing tables
-  (`metric_source_account`, `metric_import`, `metric_platform`,
-  `metric_measure`) — PostgreSQL's normal lock for validating a new foreign
-  key's referenced side when the new table itself, not the referenced
-  table, is being altered. It takes **no** `AccessExclusiveLock` and no
-  lock at all on any other existing table. Across every apply/revert/reapply
-  cycle run in this session (empty database and representative populated
-  database, several repetitions), each `diesel migration run`/`revert`
-  invocation completed in the low single-digit milliseconds per statement,
-  consistent with WP1-04's precedent finding of no table rewrite.
+- locking: the migration is `CREATE TYPE` + `CREATE TABLE ... REFERENCES`.
+  Adding each of the four foreign keys requires PostgreSQL to take a
+  `SHARE ROW EXCLUSIVE` lock on the corresponding referenced pre-existing
+  table (`metric_source_account`, `metric_import`, `metric_platform`,
+  `metric_measure`), not merely `AccessShareLock` — this is PostgreSQL's
+  standard lock for validating a new foreign key's referenced side, and it
+  is taken on the referenced table regardless of whether the constrained
+  table is newly created or pre-existing. `SHARE ROW EXCLUSIVE` remains
+  compatible with ordinary `SELECT` activity, but it conflicts with the
+  `ROW EXCLUSIVE` lock taken by concurrent `INSERT`/`UPDATE`/`DELETE`/
+  `MERGE` against any of the four referenced tables, so such writes would
+  block for as long as the lock is held. The migration remains additive:
+  no existing-table rewrite, no backfill, and no `AccessExclusiveLock` on
+  any existing table. Across every apply/revert/reapply cycle run in this
+  session (empty database and representative populated database, several
+  repetitions), each `diesel migration run`/`revert` invocation completed
+  in the low single-digit milliseconds per statement — but that was
+  measured against otherwise-idle disposable databases with no concurrent
+  writers, so the short observed duration does not remove the production
+  concurrency consideration above: a production apply overlapping with
+  active writes to any of the four referenced tables should still expect
+  those writes to block for the lock's duration.
 - empty database result: the full current migration chain — including
   `20260901_v1.9.0` — applied cleanly to an empty disposable PostgreSQL
   17.10 database (`CREATE DATABASE ... ENCODING 'UTF8' TEMPLATE template0
@@ -431,9 +441,11 @@ recorded in section 6.1; it affected only local disposable database state,
 not the evidence above, which was captured before that incident, nor any
 migration file.)
 
-Locking behaviour is as described in section 6 (ordinary
-`AccessShareLock`-only referenced-table locking for a new child table's
-foreign keys; no `AccessExclusiveLock` on any existing table).
+Locking behaviour is as described in section 6 (`SHARE ROW EXCLUSIVE`
+referenced-table locking for the new child table's foreign keys, which
+conflicts with concurrent `INSERT`/`UPDATE`/`DELETE`/`MERGE` on the four
+referenced tables while held, though it remains compatible with ordinary
+`SELECT`; no `AccessExclusiveLock` and no existing-table rewrite).
 
 ## 11. CI
 
@@ -484,11 +496,16 @@ Monitoring required: none while inactive.
   coverage calculation, finalization or zero-versus-unknown query
   behaviour.
 - Migration timings were measured on local disposable/development databases
-  holding at most a handful of rows. Because the migration provably
-  performs no table rewrite and acquires no `AccessExclusiveLock` on any
-  existing table, the cost is expected to remain small at production scale,
-  but that expectation is not production evidence and no production
-  migration is authorized.
+  holding at most a handful of rows and no concurrent writers. Because the
+  migration provably performs no table rewrite and acquires no
+  `AccessExclusiveLock` on any existing table, its own execution cost is
+  expected to remain small at production scale, but that expectation is not
+  production evidence and does not address the separate `SHARE ROW
+  EXCLUSIVE` referenced-table locking documented in section 6: a production
+  apply overlapping with active `INSERT`/`UPDATE`/`DELETE`/`MERGE` traffic
+  against `metric_source_account`, `metric_import`, `metric_platform` or
+  `metric_measure` should still expect that traffic to block for the lock's
+  duration. No production migration is authorized by this task.
 - Section 6.1 records a local, disposable, already-discarded
   scratch-database mishap during manual lock investigation; it affected no
   migration file and no shared or persistent database.
