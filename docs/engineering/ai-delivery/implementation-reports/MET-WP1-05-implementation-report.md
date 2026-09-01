@@ -12,7 +12,7 @@ Observed `develop` checkpoint: `4546cb632428872b961ad6c17282984d298e3ade` (verif
 PR target: `feature/metrics`
 Programme integration branch: `feature/metrics`
 Task branch: `feature/metrics--wp1-coverage`
-Head commit: `2e51ed54c552b548c2a75b51af02e38283bf9283` (this report is committed as the third commit on the branch)
+Head commit: recorded in the post-push #875 completion comment for the exact pushed head; this correction is committed as the fourth commit on the branch
 Pull request: [#876](https://github.com/thoth-pub/thoth/pull/876) — **DRAFT**, open, targeting `feature/metrics`
 Expected branch deletion after merge: YES
 Final programme PR required: YES (`feature/metrics -> develop`, separately gated and not implied here)
@@ -23,9 +23,24 @@ independent specification review comment `5483297437` (APPROVED); CTO
 specification approval / implementation-hold comment `5483299819`; the
 exact-SHA/migration-path-bound implementation authorization delivered
 directly in chat by the repository owner (satisfying the six HOLD
-conditions in `5483299819`); durable implementation-authorization/handoff
-comment [`5491893730`](https://github.com/thoth-pub/thoth/issues/875#issuecomment-5491893730)
-posted before implementation began.
+conditions in `5483299819`).
+
+**Control-record correction.** An implementation-authorization/handoff
+comment was attempted before any write, via `gh api ... -f
+body=@<local-path>`. That invocation did not read and substitute the file's
+contents: comment
+[`5491893730`](https://github.com/thoth-pub/thoth/issues/875#issuecomment-5491893730)
+persisted only the literal local scratchpad path string, not the intended
+authorization-handoff content. This was not discovered until raised by the
+repository owner, after implementation had already proceeded on the (false)
+assumption that the durable comment had posted correctly. The corrective
+#875 reconciliation comment authorized alongside this correction records
+the authorization content that comment `5491893730` should have carried,
+and this report is corrected accordingly. No implementation content, file,
+migration or test is affected by this control-record defect: the
+authorization itself was granted directly in chat and independently
+re-verified against live repository state before the first write, as
+described above and in section 5.
 
 ## 2. Scope confirmation
 
@@ -48,7 +63,8 @@ Out-of-scope changes made: NONE.
 
 - `fd61e4eba6787b98f5572311131fb15dd2d5ce6b` - MET-WP1-05: establish Metrics coverage foundation
 - `2e51ed54c552b548c2a75b51af02e38283bf9283` - MET-WP1-05: record truthful tracker consequence
-- third commit - MET-WP1-05: add the implementation report (this file)
+- `80849c9c4b92652c36ca5a2953e9430319b8b82c` - MET-WP1-05: add the implementation report
+- fourth commit - MET-WP1-05: correct the malformed pre-implementation handoff comment reference (this corrective commit); its exact SHA and the resulting final head/tree are recorded in the post-push #875 completion comment, not restated here
 
 ## 4. Files changed
 
@@ -99,7 +115,7 @@ first two commits, plus this report). No deletion, rename or copy appears.
 ## 4.2 Authorized actions actually used
 
 - repository and GitHub read inspection: USED
-- durable implementation-authorization/handoff comment on #875: USED (comment `5491893730`, posted before any write)
+- durable implementation-authorization/handoff comment on #875: ATTEMPTED before any write but posted malformed (comment `5491893730` persisted only a local file-path string, not its intended content); corrected by the reconciliation comment authorized alongside this correction — see the control-record correction note in section 1
 - branch creation (`feature/metrics--wp1-coverage` from `fcd5a1ec…`): USED
 - source/worktree edit (within write budget): USED
 - new file creation (authorized paths only): USED
