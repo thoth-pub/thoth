@@ -150,6 +150,10 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "metric_record_provenance_classification"))]
     pub struct MetricRecordProvenanceClassification;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_coverage_status"))]
+    pub struct MetricCoverageStatus;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -653,6 +657,25 @@ table! {
         user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricCoverageStatus;
+
+    metric_coverage (coverage_id) {
+        coverage_id -> Uuid,
+        source_account_id -> Uuid,
+        import_id -> Uuid,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        period_start -> Date,
+        period_end -> Date,
+        coverage_status -> MetricCoverageStatus,
+        country_coverage -> Bool,
+        institution_coverage -> Bool,
+        notes -> Nullable<Text>,
     }
 }
 
@@ -1340,6 +1363,10 @@ joinable!(language -> work (work_id));
 joinable!(language_history -> language (language_id));
 joinable!(location -> publication (publication_id));
 joinable!(location_history -> location (location_id));
+joinable!(metric_coverage -> metric_import (import_id));
+joinable!(metric_coverage -> metric_measure (measure_id));
+joinable!(metric_coverage -> metric_platform (platform_id));
+joinable!(metric_coverage -> metric_source_account (source_account_id));
 joinable!(metric_import -> metric_source_account (source_account_id));
 joinable!(metric_import -> publisher (publisher_id));
 joinable!(metric_import_error -> metric_import (import_id));
@@ -1419,6 +1446,7 @@ allow_tables_to_appear_in_same_query!(
     language_history,
     location,
     location_history,
+    metric_coverage,
     metric_import,
     metric_import_error,
     metric_measure,
