@@ -154,6 +154,10 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "metric_coverage_status"))]
     pub struct MetricCoverageStatus;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_publisher_platform_approval_status"))]
+    pub struct MetricPublisherPlatformApprovalStatus;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -783,6 +787,23 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::MetricPublisherPlatformApprovalStatus;
+
+    metric_publisher_platform_approval (publisher_platform_approval_id) {
+        publisher_platform_approval_id -> Uuid,
+        publisher_id -> Uuid,
+        platform_id -> Uuid,
+        usage_submission_enabled -> Bool,
+        sales_submission_enabled -> Bool,
+        approval_status -> MetricPublisherPlatformApprovalStatus,
+        approved_by -> Nullable<Uuid>,
+        approved_at -> Nullable<Timestamptz>,
+        notes -> Nullable<Text>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use super::sql_types::MetricReportingGrain;
 
     metric_record (record_id) {
@@ -1372,6 +1393,8 @@ joinable!(metric_import -> publisher (publisher_id));
 joinable!(metric_import_error -> metric_import (import_id));
 joinable!(metric_platform_measure -> metric_measure (measure_id));
 joinable!(metric_platform_measure -> metric_platform (platform_id));
+joinable!(metric_publisher_platform_approval -> metric_platform (platform_id));
+joinable!(metric_publisher_platform_approval -> publisher (publisher_id));
 joinable!(metric_record -> institution (institution_id));
 joinable!(metric_record -> metric_measure (measure_id));
 joinable!(metric_record -> metric_platform (platform_id));
@@ -1452,6 +1475,7 @@ allow_tables_to_appear_in_same_query!(
     metric_measure,
     metric_platform,
     metric_platform_measure,
+    metric_publisher_platform_approval,
     metric_record,
     metric_record_provenance,
     metric_record_revision,
