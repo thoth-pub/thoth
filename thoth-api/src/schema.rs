@@ -862,6 +862,20 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+
+    metric_rollup_delta (delta_id) {
+        delta_id -> Uuid,
+        record_id -> Uuid,
+        revision_id -> Uuid,
+        delta_value -> Int8,
+        status -> Text,
+        created_at -> Timestamptz,
+        applied_at -> Nullable<Timestamptz>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use super::sql_types::MetricSourceAcquisitionType;
 
     metric_source (source_id) {
@@ -1479,6 +1493,7 @@ allow_tables_to_appear_in_same_query!(
     metric_record,
     metric_record_provenance,
     metric_record_revision,
+    metric_rollup_delta,
     metric_source,
     metric_source_account,
     metric_source_checkpoint,

@@ -907,6 +907,7 @@ pub mod metric_publisher_platform_approval;
 pub mod metric_record;
 pub mod metric_record_provenance;
 pub mod metric_record_revision;
+pub mod metric_rollup_delta;
 pub mod metric_source;
 pub mod metric_source_account;
 pub mod metric_source_checkpoint;
