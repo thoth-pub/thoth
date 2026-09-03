@@ -901,6 +901,7 @@ pub mod metric_coverage;
 pub mod metric_import;
 pub mod metric_import_error;
 pub mod metric_measure;
+pub mod metric_operas_mapping;
 pub mod metric_platform;
 pub mod metric_platform_measure;
 pub mod metric_publisher_platform_approval;

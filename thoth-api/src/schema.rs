@@ -754,6 +754,20 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+
+    metric_operas_mapping (mapping_id) {
+        mapping_id -> Uuid,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        event_uri -> Text,
+        measure_uri -> Text,
+        uploader_uri -> Text,
+        enabled -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use super::sql_types::MetricPlatformOwnershipClass;
 
     metric_platform (platform_id) {
@@ -1487,6 +1501,7 @@ allow_tables_to_appear_in_same_query!(
     metric_import,
     metric_import_error,
     metric_measure,
+    metric_operas_mapping,
     metric_platform,
     metric_platform_measure,
     metric_publisher_platform_approval,
