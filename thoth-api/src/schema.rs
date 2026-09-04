@@ -755,6 +755,23 @@ table! {
 table! {
     use diesel::sql_types::*;
 
+    metric_operas_export (export_id) {
+        export_id -> Uuid,
+        record_revision_id -> Uuid,
+        mapping_id -> Uuid,
+        status -> Text,
+        attempt_count -> Int4,
+        remote_event_id -> Nullable<Text>,
+        request_hash -> Nullable<Text>,
+        last_error -> Nullable<Text>,
+        created_at -> Timestamptz,
+        completed_at -> Nullable<Timestamptz>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
     metric_operas_mapping (mapping_id) {
         mapping_id -> Uuid,
         platform_id -> Uuid,
@@ -1419,6 +1436,8 @@ joinable!(metric_coverage -> metric_source_account (source_account_id));
 joinable!(metric_import -> metric_source_account (source_account_id));
 joinable!(metric_import -> publisher (publisher_id));
 joinable!(metric_import_error -> metric_import (import_id));
+joinable!(metric_operas_export -> metric_operas_mapping (mapping_id));
+joinable!(metric_operas_export -> metric_record_revision (record_revision_id));
 joinable!(metric_platform_measure -> metric_measure (measure_id));
 joinable!(metric_platform_measure -> metric_platform (platform_id));
 joinable!(metric_publisher_platform_approval -> metric_platform (platform_id));
@@ -1501,6 +1520,7 @@ allow_tables_to_appear_in_same_query!(
     metric_import,
     metric_import_error,
     metric_measure,
+    metric_operas_export,
     metric_operas_mapping,
     metric_platform,
     metric_platform_measure,

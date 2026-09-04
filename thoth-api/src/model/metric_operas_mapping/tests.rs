@@ -40,10 +40,16 @@ use crate::schema::metric_operas_mapping;
 const MET_WP1_08_MIGRATION_VERSION: &str = "20260904";
 
 /// The OPERAS synchronization and reconciliation ledgers named by the approved
-/// design. They remain approved *future* architecture: MET-WP1-08 must not
-/// create any of them.
-const DEFERRED_OPERAS_TABLES: [&str; 4] = [
-    "metric_operas_export",
+/// design that remain approved *future* architecture. MET-WP1-08 must create
+/// none of them.
+///
+/// `metric_operas_export` is deliberately absent from this list: the outbound
+/// export ledger is now owned by MET-WP1-09 (issue #884), which creates it in
+/// migration `20260905_v1.9.0`. MET-WP1-08 still does not create it — the
+/// mapping migration adds only `metric_operas_mapping` — so this constant
+/// narrows to the ledgers that are genuinely still deferred rather than
+/// asserting that a later authorized slice never landed.
+const DEFERRED_OPERAS_TABLES: [&str; 3] = [
     "metric_operas_import",
     "metric_reconciliation_issue",
     "metric_reconciliation_run",
@@ -926,11 +932,13 @@ fn metric_operas_mapping_has_exactly_the_required_indexes() {
 }
 
 #[test]
-fn no_operas_ledger_reconciliation_or_delivery_object_was_introduced() {
+fn no_deferred_ledger_reconciliation_or_delivery_object_was_introduced() {
     let (_guard, pool) = setup_registry_db();
 
-    // The OPERAS export/import ledgers and the reconciliation tables remain
-    // approved future architecture and must not exist yet.
+    // The inbound OPERAS import ledger and the reconciliation tables remain
+    // approved future architecture and must not exist yet. The outbound
+    // `metric_operas_export` ledger is no longer asserted absent here: it is
+    // MET-WP1-09-owned and created by migration `20260905_v1.9.0`.
     for table in DEFERRED_OPERAS_TABLES {
         assert_eq!(
             scalar_i64(
