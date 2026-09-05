@@ -1,0 +1,21 @@
+-- MET-WP1-10 downgrade: remove only the schema introduced by this migration.
+--
+-- metric_operas_import holds no dependants — nothing references it, and this
+-- slice created no enum type, trigger, stored procedure, sequence or
+-- standalone index — so a single non-cascading DROP TABLE is exact. Its
+-- composite primary-key index is dropped implicitly with the table. CASCADE is
+-- deliberately NOT used: nothing may be removed beyond this table.
+--
+-- The MET-WP1-01 registry schema and its measure seed rows, the MET-WP1-02
+-- source-state schema, the MET-WP1-03 import-state schema, the MET-WP1-04
+-- canonical record/revision/provenance schema and its enums, the MET-WP1-05
+-- coverage schema, the MET-WP1-06 publisher-platform approval schema, the
+-- MET-WP1-07 rollup-delta schema, the MET-WP1-08 OPERAS mapping schema and the
+-- MET-WP1-09 OPERAS export ledger are all untouched, as is the existing
+-- bibliographic schema. In particular the referenced MET-WP1-03
+-- `metric_import (import_id)` primary key and the
+-- `metric_import_status_created_at_idx` index — which already satisfies the
+-- approved design's generic import status/creation-time indexing requirement —
+-- belong to migration `20260828_v1.9.0` and must survive.
+
+DROP TABLE IF EXISTS public.metric_operas_import;

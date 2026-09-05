@@ -58,14 +58,18 @@ use crate::schema::metric_operas_export;
 /// The Diesel migration version of `thoth-api/migrations/20260905_v1.9.0`.
 const MET_WP1_09_MIGRATION_VERSION: &str = "20260905";
 
-/// The remaining OPERAS and reconciliation ledgers named by the approved
-/// design. They stay approved *future* architecture: `MET-WP1-09` creates the
-/// outbound export ledger only.
-const DEFERRED_LEDGER_TABLES: [&str; 3] = [
-    "metric_operas_import",
-    "metric_reconciliation_issue",
-    "metric_reconciliation_run",
-];
+/// The remaining reconciliation ledgers named by the approved design. They stay
+/// approved *future* architecture: `MET-WP1-09` creates the outbound export
+/// ledger only.
+///
+/// `metric_operas_import` is deliberately absent from this list: the inbound
+/// import ledger is now owned by MET-WP1-10 (issue #888), which creates it in
+/// migration `20260906_v1.9.0`. MET-WP1-09 still does not create it — the
+/// export migration adds only `metric_operas_export` — so this constant
+/// narrows to the ledgers that are genuinely still deferred rather than
+/// asserting that a later authorized slice never landed.
+const DEFERRED_LEDGER_TABLES: [&str; 2] =
+    ["metric_reconciliation_issue", "metric_reconciliation_run"];
 
 /// Column names that would betray an invented retry-time representation or
 /// claim/lease protocol having been smuggled into this persistence-only
@@ -1272,8 +1276,10 @@ fn metric_operas_export_has_exactly_the_required_indexes() {
 fn no_retry_claim_status_enum_or_reconciliation_object_was_introduced() {
     let (_guard, pool) = setup_registry_db();
 
-    // The inbound OPERAS ledger and the reconciliation tables remain approved
-    // future architecture and must not exist yet.
+    // The reconciliation tables remain approved future architecture and must
+    // not exist yet. The inbound `metric_operas_import` ledger is no longer
+    // asserted absent here: it is MET-WP1-10-owned and created by migration
+    // `20260906_v1.9.0`.
     for table in DEFERRED_LEDGER_TABLES {
         assert_eq!(
             scalar_i64(
