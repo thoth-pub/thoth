@@ -772,6 +772,19 @@ table! {
 table! {
     use diesel::sql_types::*;
 
+    metric_operas_import (remote_instance, remote_event_id) {
+        remote_instance -> Text,
+        remote_event_id -> Text,
+        payload_hash -> Text,
+        import_id -> Nullable<Uuid>,
+        status -> Text,
+        created_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
     metric_operas_mapping (mapping_id) {
         mapping_id -> Uuid,
         platform_id -> Uuid,
@@ -1438,6 +1451,7 @@ joinable!(metric_import -> publisher (publisher_id));
 joinable!(metric_import_error -> metric_import (import_id));
 joinable!(metric_operas_export -> metric_operas_mapping (mapping_id));
 joinable!(metric_operas_export -> metric_record_revision (record_revision_id));
+joinable!(metric_operas_import -> metric_import (import_id));
 joinable!(metric_platform_measure -> metric_measure (measure_id));
 joinable!(metric_platform_measure -> metric_platform (platform_id));
 joinable!(metric_publisher_platform_approval -> metric_platform (platform_id));
@@ -1521,6 +1535,7 @@ allow_tables_to_appear_in_same_query!(
     metric_import_error,
     metric_measure,
     metric_operas_export,
+    metric_operas_import,
     metric_operas_mapping,
     metric_platform,
     metric_platform_measure,
