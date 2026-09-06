@@ -58,19 +58,6 @@ use crate::schema::metric_operas_export;
 /// The Diesel migration version of `thoth-api/migrations/20260905_v1.9.0`.
 const MET_WP1_09_MIGRATION_VERSION: &str = "20260905";
 
-/// The remaining reconciliation ledgers named by the approved design. They stay
-/// approved *future* architecture: `MET-WP1-09` creates the outbound export
-/// ledger only.
-///
-/// `metric_operas_import` is deliberately absent from this list: the inbound
-/// import ledger is now owned by MET-WP1-10 (issue #888), which creates it in
-/// migration `20260906_v1.9.0`. MET-WP1-09 still does not create it — the
-/// export migration adds only `metric_operas_export` — so this constant
-/// narrows to the ledgers that are genuinely still deferred rather than
-/// asserting that a later authorized slice never landed.
-const DEFERRED_LEDGER_TABLES: [&str; 2] =
-    ["metric_reconciliation_issue", "metric_reconciliation_run"];
-
 /// Column names that would betray an invented retry-time representation or
 /// claim/lease protocol having been smuggled into this persistence-only
 /// slice. The approved design fixes none of them, and WP9 owns the eventual
@@ -1276,24 +1263,18 @@ fn metric_operas_export_has_exactly_the_required_indexes() {
 fn no_retry_claim_status_enum_or_reconciliation_object_was_introduced() {
     let (_guard, pool) = setup_registry_db();
 
-    // The reconciliation tables remain approved future architecture and must
-    // not exist yet. The inbound `metric_operas_import` ledger is no longer
-    // asserted absent here: it is MET-WP1-10-owned and created by migration
-    // `20260906_v1.9.0`.
-    for table in DEFERRED_LEDGER_TABLES {
-        assert_eq!(
-            scalar_i64(
-                &pool,
-                &format!(
-                    "(SELECT COUNT(*) FROM pg_class \
-                      WHERE relnamespace = 'public'::regnamespace \
-                        AND relkind = 'r' AND relname = '{table}')"
-                ),
-            ),
-            0,
-            "MET-WP1-09 must not create the deferred ledger table {table}"
-        );
-    }
+    // No OPERAS or reconciliation ledger table is asserted absent here any
+    // more. The inbound `metric_operas_import` ledger is MET-WP1-10-owned,
+    // created by migration `20260906_v1.9.0`, and the
+    // `metric_reconciliation_run` and `metric_reconciliation_issue` ledgers are
+    // now MET-WP1-11-owned (issue #890), created by migration
+    // `20260907_v1.9.0`. MET-WP1-09 still creates none of them — the export
+    // migration adds only `metric_operas_export`, which the exact column,
+    // CHECK, foreign-key and index inventories above assert — so this test
+    // narrows to the claims that remain true rather than asserting that a later
+    // authorized slice never landed. The reconciliation *enum* absence below is
+    // untouched: MET-WP1-11 creates no reconciliation enum, so that assertion
+    // stays valid and load-bearing.
 
     // No retry-time, claim or lease column was smuggled onto the export row.
     // The approved design's section 6.14 names no retry-time field, and the

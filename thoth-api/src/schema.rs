@@ -848,6 +848,34 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+
+    metric_reconciliation_issue (issue_id) {
+        issue_id -> Uuid,
+        run_id -> Uuid,
+        issue_type -> Text,
+        severity -> Text,
+        record_id -> Nullable<Uuid>,
+        remote_event_id -> Nullable<Text>,
+        details -> Jsonb,
+        resolved_at -> Nullable<Timestamptz>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_reconciliation_run (run_id) {
+        run_id -> Uuid,
+        scope -> Jsonb,
+        status -> Text,
+        started_at -> Timestamptz,
+        completed_at -> Nullable<Timestamptz>,
+        summary -> Jsonb,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use super::sql_types::MetricReportingGrain;
 
     metric_record (record_id) {
@@ -1456,6 +1484,8 @@ joinable!(metric_platform_measure -> metric_measure (measure_id));
 joinable!(metric_platform_measure -> metric_platform (platform_id));
 joinable!(metric_publisher_platform_approval -> metric_platform (platform_id));
 joinable!(metric_publisher_platform_approval -> publisher (publisher_id));
+joinable!(metric_reconciliation_issue -> metric_reconciliation_run (run_id));
+joinable!(metric_reconciliation_issue -> metric_record (record_id));
 joinable!(metric_record -> institution (institution_id));
 joinable!(metric_record -> metric_measure (measure_id));
 joinable!(metric_record -> metric_platform (platform_id));
@@ -1540,6 +1570,8 @@ allow_tables_to_appear_in_same_query!(
     metric_platform,
     metric_platform_measure,
     metric_publisher_platform_approval,
+    metric_reconciliation_issue,
+    metric_reconciliation_run,
     metric_record,
     metric_record_provenance,
     metric_record_revision,
