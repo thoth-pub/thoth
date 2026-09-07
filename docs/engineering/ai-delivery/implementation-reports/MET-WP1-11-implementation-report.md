@@ -18,11 +18,15 @@ Risk: **HIGH**
 | Migration identity | `thoth-api/migrations/20260907_v1.9.0` |
 | Migration-date status | task-specific future-dated exception, explicitly authorized on 2026-09-06, non-transitive |
 | Implementation commit | `9a0f1f922139e21503f36f6058c18c5a767d70d5` |
+| First reviewed head | `899744a326c550e3acd5f07e73162be8725c6223` — **superseded**, see §18.6 |
+| Final head | the tip of `feature/metrics--wp1-reconciliation-ledger`, recorded in PR #891 |
 | Write budget | 14 paths maximum |
 
 The exact final head and tree are durably recorded in the pull request and the
 fresh independent exact-head review, rather than inside a commit this report is
-part of.
+part of. This report is itself part of the correction commit that became the new
+head, so it deliberately names no exact final-head SHA: `899744a3…` was the
+*first* reviewed head and is no longer the tip.
 
 ### 1.1 Authorization provenance
 
@@ -55,15 +59,19 @@ assertions are preserved).
 The branch was then created directly from
 `27e0811ada32b38ef43458c47db5c3c94e4b4680`.
 
-## 2. Exact thirteen-path inventory
+## 2. Exact fourteen-path inventory
 
-Thirteen of the fourteen authorized paths were used; the fourteenth is this
-report. No path outside the budget was created, modified, deleted, moved or
-renamed, and no `HOLD - WRITE BUDGET AMENDMENT REQUIRED` condition arose.
+All fourteen authorized paths were used, including this report. No path outside
+the budget was created, modified, deleted, moved or renamed, and no
+`HOLD - WRITE BUDGET AMENDMENT REQUIRED` condition arose.
+
+Cumulative `git diff --stat` against the authorized base, after the §18.6
+correction:
 
 ```text
 CHANGELOG.md                                          |    1 +
-docs/metrics/task-status.md                           |  116 +-
+docs/engineering/…/MET-WP1-11-implementation-report.md|  678 +
+docs/metrics/task-status.md                           |  112 +-
 thoth-api/migrations/20260907_v1.9.0/down.sql         |   24 +
 thoth-api/migrations/20260907_v1.9.0/up.sql           |  210 ++
 thoth-api/src/model/metric_operas_export/tests.rs     |   43 +-
@@ -75,8 +83,12 @@ thoth-api/src/model/metric_reconciliation_run/mod.rs  |  106 +
 thoth-api/src/model/metric_reconciliation_run/tests.rs| 1121 +
 thoth-api/src/model/mod.rs                            |    2 +
 thoth-api/src/schema.rs                               |   32 +
-13 files changed, 2879 insertions(+), 142 deletions(-)
+14 files changed, 3554 insertions(+), 141 deletions(-)
 ```
+
+`docs/metrics/task-status.md` shows 112 changed lines rather than the 116 of the
+first reviewed head, because the §18.6 correction removed the out-of-scope
+MET-WP1-10 tracker edits.
 
 No Cargo manifest, lockfile, workflow, script, GraphQL file, existing migration,
 other model module or unrelated document was touched.
@@ -424,6 +436,13 @@ accessed.
 | `cargo fmt --all -- --check` | **pass** (rustfmt applied before committing) |
 | `git diff --check` | **pass** — no whitespace errors |
 
+These results were produced on the source tree at implementation commit
+`9a0f1f922139e21503f36f6058c18c5a767d70d5`. The later §18.6 correction changed
+only `docs/metrics/task-status.md` and this report, so no SQL, Rust, test,
+migration or configuration input to any of these commands changed and every
+result above still describes the current tree. They were not re-run for the
+documentation correction, and no new validation evidence is claimed.
+
 No test failed, and no failure had to be classified as flaky or unrelated. The
 only warning emitted by any of these commands is the pre-existing
 `proc-macro-error2 v2.0.1` future-incompatibility notice from a transitive
@@ -565,7 +584,9 @@ built in a dedicated `git worktree` checked out at the authorized base SHA.
 | Occurrences of "reconciliation" in the SDL | 0 |
 
 No generated client or downstream file changed. The worktree was removed after
-the comparison.
+the comparison. The SDL is generated from Rust source only, and the §18.6
+correction touched no Rust file, so this byte-identity result carries forward to
+the corrected head unchanged.
 
 ## 15. Migration and data effects
 
@@ -647,29 +668,81 @@ no successor slice.
    with the merged baseline source. No design claim in this report rests on an
    unread source.
 
+6. **An out-of-scope tracker edit was made and then removed (review cycle 1).**
+   The first exact-head review of `899744a326c550e3acd5f07e73162be8725c6223`
+   returned `CHANGES REQUIRED` with one blocking finding: the implementation had
+   also reconciled the *historical* `MET-WP1-10` tracker state in
+   `docs/metrics/task-status.md`, upgrading its task-table row from
+   `IMPLEMENTED ON feature/metrics--wp1-operas-import` to
+   `MERGED TO feature/metrics - TENTH WP1 SLICE DELIVERED`, adding PR #889 and
+   merge-commit provenance to that row, and describing MET-WP1-10 as merged in
+   the WP1 programme-summary row and the `Last updated` narrative. Those facts
+   were true and followed the precedent set by the MET-WP1-10 slice itself,
+   which had reconciled MET-WP1-09's row the same way — but the MET-WP1-11
+   authorization explicitly said to update only the tracker state required to
+   represent MET-WP1-11 and not to silently repair unrelated historical tracker
+   hygiene. Precedent did not override that instruction, and the review was
+   correct.
+
+   Under the bounded correction authority the edits were removed, using the
+   authorized base as the sole authority for the pre-existing content:
+
+   * the dedicated `MET-WP1-10` task-table row was restored byte-identically to
+     its form at `27e0811ada32b38ef43458c47db5c3c94e4b4680`, and it no longer
+     appears in the diff against the base at all;
+   * the WP1 programme-summary row was restored to its exact base wording and
+     then had only the MET-WP1-11 clause appended, so its sole difference from
+     the base is
+     `reconciliation ledger persistence foundation (MET-WP1-11) implemented on
+     its slice branch feature/metrics--wp1-reconciliation-ledger`;
+   * the `Last updated` narrative no longer restates MET-WP1-10's status or its
+     PR/merge-commit provenance. It names only the authorized base SHA, which
+     the review expressly permits as necessary to explain this slice, and
+     records that reconciling the dedicated MET-WP1-10 record is outside this
+     slice's write scope.
+
+   No occurrence of PR #889 remains anywhere in `docs/metrics/task-status.md`.
+   No other stale tracker state was repaired. The correction touched only
+   `docs/metrics/task-status.md` and this report — both already-authorized
+   paths — and changed no SQL, Rust, test, migration or configuration file, so
+   every migration, schema, testing, lock, GraphQL and CI result recorded above
+   remains valid and was not re-derived or re-stated as new evidence.
+
 No other deviation. No `HOLD`, `BLOCKED` or `STOP` condition arose.
 
 ## 19. Compliance with the authorization
+
+Assessed against the corrected diff at the current branch tip.
 
 | Requirement | Status |
 |---|---|
 | Base exactly `27e0811ada32b38ef43458c47db5c3c94e4b4680` | met |
 | Branch exactly `feature/metrics--wp1-reconciliation-ledger` | met |
 | Migration exactly `20260907_v1.9.0` | met |
-| Within the 14-path write budget | met — 13 paths plus this report |
+| Within the 14-path write budget | met — 14 of 14, including this report |
 | No deletion, move or rename | met |
 | Additive, empty, initially inactive migration | met |
+| Update only the tracker state representing MET-WP1-11 | **not met at the first reviewed head `899744a3…`; met after the §18.6 correction** |
 | Local disposable PostgreSQL only | met |
 | No staging/production/provider access | met |
 | No manual CI dispatch, rerun or cancellation | met |
 | No merge, deployment, release or activation | met |
+| No PR ready-for-review transition | met — PR #891 has never left DRAFT |
 | No issue comment or issue-body mutation | met |
 | Implementation agent does not approve its own work | met |
 
+The tracker row is stated honestly rather than as uniformly "met": the first
+reviewed head did violate it, and the entry records both that fact and its
+resolution.
+
 ## 20. Remaining gates
 
-1. Fresh independent exact-head source review of the pushed head. Any further
-   source commit invalidates a review already given.
+1. Fresh independent exact-head source **re-review** of the corrected head.
+   Review cycle 1, against `899744a326c550e3acd5f07e73162be8725c6223`, returned
+   `CHANGES REQUIRED` for the single finding recorded in §18.6; that finding is
+   resolved and the head has moved, so the earlier decision no longer applies to
+   the current tip. Any further source commit likewise invalidates a review
+   already given.
 2. Explicit CTO merge authorization bound to the exact reviewed head.
 3. Merge into `feature/metrics` only, followed by merge-evidence verification.
 4. Separate later authorization for any staging or production migration
