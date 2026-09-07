@@ -61,12 +61,6 @@ use crate::schema::metric_operas_import;
 /// The Diesel migration version of `thoth-api/migrations/20260906_v1.9.0`.
 const MET_WP1_10_MIGRATION_VERSION: &str = "20260906";
 
-/// The reconciliation ledgers named by the approved design. They stay approved
-/// *future* architecture: `MET-WP1-10` creates the inbound OPERAS import
-/// ledger only, and WP9 owns reconciliation runs and issues.
-const DEFERRED_RECONCILIATION_TABLES: [&str; 2] =
-    ["metric_reconciliation_issue", "metric_reconciliation_run"];
-
 /// Column names that would betray an invented inbound discovery, completeness,
 /// normalization or export-linkage protocol having been smuggled into this
 /// persistence-only slice. The approved design's section 6.14 names none of
@@ -937,24 +931,18 @@ fn metric_operas_import_has_exactly_the_required_indexes() {
 fn no_discovery_reconciliation_export_linkage_enum_or_trigger_was_introduced() {
     let (_guard, pool) = setup_registry_db();
 
-    // The reconciliation tables remain approved future architecture and must
-    // not exist yet. The outbound `metric_operas_export` ledger is deliberately
-    // not asserted absent: it is MET-WP1-09-owned and created by migration
-    // `20260905_v1.9.0`.
-    for table in DEFERRED_RECONCILIATION_TABLES {
-        assert_eq!(
-            scalar_i64(
-                &pool,
-                &format!(
-                    "(SELECT COUNT(*) FROM pg_class \
-                      WHERE relnamespace = 'public'::regnamespace \
-                        AND relkind = 'r' AND relname = '{table}')"
-                ),
-            ),
-            0,
-            "MET-WP1-10 must not create the deferred reconciliation table {table}"
-        );
-    }
+    // No OPERAS or reconciliation ledger table is asserted absent here any
+    // more. The outbound `metric_operas_export` ledger is MET-WP1-09-owned,
+    // created by migration `20260905_v1.9.0`, and the
+    // `metric_reconciliation_run` and `metric_reconciliation_issue` ledgers are
+    // now MET-WP1-11-owned (issue #890), created by migration
+    // `20260907_v1.9.0`. MET-WP1-10 still creates none of them — the inbound
+    // migration adds only `metric_operas_import`, which the exact column,
+    // CHECK, foreign-key and index inventories above assert — so this test
+    // narrows to the claims that remain true rather than asserting that a later
+    // authorized slice never landed. The reconciliation *enum* absence below is
+    // untouched: MET-WP1-11 creates no reconciliation enum, so that assertion
+    // stays valid and load-bearing.
 
     // No discovery, completeness, normalization or export-linkage column was
     // smuggled onto the inbound row. Section 15.5 leaves guaranteed inbound

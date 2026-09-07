@@ -907,6 +907,8 @@ pub mod metric_operas_mapping;
 pub mod metric_platform;
 pub mod metric_platform_measure;
 pub mod metric_publisher_platform_approval;
+pub mod metric_reconciliation_issue;
+pub mod metric_reconciliation_run;
 pub mod metric_record;
 pub mod metric_record_provenance;
 pub mod metric_record_revision;
