@@ -35,6 +35,9 @@ use crate::model::{
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
     location::{Location, LocationOrderBy, LocationPlatform},
+    metric_measure::{MetricMeasure, MetricMeasureCategory, MetricMeasureUnit},
+    metric_platform::{MetricPlatform, MetricPlatformOwnershipClass},
+    metric_platform_measure::{MetricPlatformMeasure, MetricReportingGrain},
     price::{CurrencyCode, Price},
     publication::{
         AccessibilityException, AccessibilityStandard, Publication, PublicationOrderBy,
@@ -3576,5 +3579,206 @@ impl Contact {
     #[graphql(description = "Get the publisher to which this contact belongs")]
     pub fn publisher(&self, context: &Context) -> FieldResult<Publisher> {
         Publisher::from_id(&context.db, &self.publisher_id).map_err(Into::into)
+    }
+}
+
+// --------------------------------------------------------------------------
+// Metrics registry administration (`MET-WP1-12`)
+//
+// These three object types expose the persisted registry rows returned by the
+// protected SUPERUSER-only administration surface. They are reachable **only**
+// as the result of one of the six approved mutations or the three approved
+// administrative lookups, every one of which authorizes before touching the
+// database. There is deliberately no field on `QueryRoot`, on `Work`, on
+// `Publisher` or on any other public type that navigates into them, and no
+// list, search, filter or pagination query: the later service/dashboard
+// registry queries are a separate, separately reviewed surface.
+//
+// No object resolves a relation by issuing a further query. The mapping type
+// returns its foreign keys as plain identifiers rather than resolving them into
+// nested `MetricPlatform`/`MetricMeasure` objects, because such a field would
+// be an unauthorized second read path into the registry.
+// --------------------------------------------------------------------------
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "A service on which measured activity occurred. Administered through the protected superuser-only metric platform operations"
+)]
+impl MetricPlatform {
+    #[graphql(description = "Thoth ID of the metric platform")]
+    pub fn platform_id(&self) -> Uuid {
+        self.platform_id
+    }
+
+    #[graphql(
+        description = "Stable code identifying the platform. Matched exactly: it is never trimmed, case-folded or otherwise normalised"
+    )]
+    pub fn code(&self) -> &String {
+        &self.code
+    }
+
+    #[graphql(description = "Human-readable name of the platform")]
+    pub fn display_name(&self) -> &String {
+        &self.display_name
+    }
+
+    #[graphql(description = "Who operates and controls the platform")]
+    pub fn ownership_class(&self) -> &MetricPlatformOwnershipClass {
+        &self.ownership_class
+    }
+
+    #[graphql(description = "Whether the platform is currently enabled")]
+    pub fn enabled(&self) -> bool {
+        self.enabled
+    }
+
+    #[graphql(description = "Optional public-facing description of the platform")]
+    pub fn public_description(&self) -> Option<&String> {
+        self.public_description.as_ref()
+    }
+
+    #[graphql(description = "Date and time at which the platform record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the platform record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "A quantity that can be measured. Administered through the protected superuser-only metric measure operations"
+)]
+impl MetricMeasure {
+    #[graphql(description = "Thoth ID of the metric measure")]
+    pub fn measure_id(&self) -> Uuid {
+        self.measure_id
+    }
+
+    #[graphql(
+        description = "Stable code identifying the measure. Matched exactly: it is never trimmed, case-folded or otherwise normalised"
+    )]
+    pub fn code(&self) -> &String {
+        &self.code
+    }
+
+    #[graphql(description = "Human-readable name of the measure")]
+    pub fn display_name(&self) -> &String {
+        &self.display_name
+    }
+
+    #[graphql(description = "The semantic family of the measure")]
+    pub fn category(&self) -> &MetricMeasureCategory {
+        &self.category
+    }
+
+    #[graphql(description = "The unit in which the measure's values are expressed")]
+    pub fn unit(&self) -> &MetricMeasureUnit {
+        &self.unit
+    }
+
+    #[graphql(description = "Whether the measure may carry negative values")]
+    pub fn allow_negative(&self) -> bool {
+        self.allow_negative
+    }
+
+    #[graphql(description = "Whether the measure may be shown publicly")]
+    pub fn public_visibility(&self) -> bool {
+        self.public_visibility
+    }
+
+    #[graphql(description = "Whether the measure's values may be summed across time")]
+    pub fn additive_across_time(&self) -> bool {
+        self.additive_across_time
+    }
+
+    #[graphql(description = "Whether the measure's values may be summed across works")]
+    pub fn additive_across_works(&self) -> bool {
+        self.additive_across_works
+    }
+
+    #[graphql(description = "Definition of exactly what the measure counts")]
+    pub fn definition(&self) -> &String {
+        &self.definition
+    }
+
+    #[graphql(
+        description = "The measure's declared current baseline methodology, if any. This does not replace per-import or per-observation methodology provenance"
+    )]
+    pub fn methodology_version(&self) -> Option<&String> {
+        self.methodology_version.as_ref()
+    }
+
+    #[graphql(description = "Whether the measure is currently enabled")]
+    pub fn enabled(&self) -> bool {
+        self.enabled
+    }
+
+    #[graphql(description = "Date and time at which the measure record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the measure record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "Which measure a platform supports, at which reporting grains and with which dimensions. Administered through the protected superuser-only metric platform measure operations"
+)]
+impl MetricPlatformMeasure {
+    #[graphql(description = "Thoth ID of the platform/measure mapping")]
+    pub fn platform_measure_id(&self) -> Uuid {
+        self.platform_measure_id
+    }
+
+    #[graphql(description = "Thoth ID of the mapped platform")]
+    pub fn platform_id(&self) -> Uuid {
+        self.platform_id
+    }
+
+    #[graphql(description = "Thoth ID of the mapped measure")]
+    pub fn measure_id(&self) -> Uuid {
+        self.measure_id
+    }
+
+    #[graphql(
+        description = "The distinct reporting grains at which the platform reports the measure, in their persisted order"
+    )]
+    pub fn supported_grains(&self) -> &Vec<MetricReportingGrain> {
+        &self.supported_grains
+    }
+
+    #[graphql(description = "Whether the platform reports the measure broken down by country")]
+    pub fn supports_country(&self) -> bool {
+        self.supports_country
+    }
+
+    #[graphql(description = "Whether the platform reports the measure broken down by institution")]
+    pub fn supports_institution(&self) -> bool {
+        self.supports_institution
+    }
+
+    #[graphql(description = "Whether the platform reports the measure broken down by publication")]
+    pub fn supports_publication(&self) -> bool {
+        self.supports_publication
+    }
+
+    #[graphql(
+        description = "Whether Thoth collects the measure directly from the platform. This is configuration only: changing it starts, stops and schedules nothing"
+    )]
+    pub fn direct_collection(&self) -> bool {
+        self.direct_collection
+    }
+
+    #[graphql(description = "Whether the mapping is currently enabled")]
+    pub fn enabled(&self) -> bool {
+        self.enabled
     }
 }

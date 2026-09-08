@@ -36,6 +36,18 @@ use crate::model::{
     issue::{Issue, IssuePolicy, NewIssue, PatchIssue},
     language::{Language, LanguagePolicy, NewLanguage, PatchLanguage},
     location::{Location, LocationPolicy, NewLocation, PatchLocation},
+    metric_measure::{
+        crud::{create_metric_measure, update_metric_measure},
+        MetricMeasure, NewMetricMeasure, PatchMetricMeasure,
+    },
+    metric_platform::{
+        crud::{create_metric_platform, update_metric_platform},
+        MetricPlatform, NewMetricPlatform, PatchMetricPlatform,
+    },
+    metric_platform_measure::{
+        crud::{create_metric_platform_measure, update_metric_platform_measure},
+        MetricPlatformMeasure, NewMetricPlatformMeasure, PatchMetricPlatformMeasure,
+    },
     price::{NewPrice, PatchPrice, Price, PricePolicy},
     publication::{
         NewPublication, PatchPublication, Publication, PublicationPolicy, PublicationProperties,
@@ -159,6 +171,30 @@ fn cancel_job(
 ) -> ThothResult<DistributionJobPayload> {
     context.require_superuser()?;
     cancel_distribution_job(&context.db, data.distribution_job_id).map(DistributionJobPayload::lazy)
+}
+
+/// Authorize one Metrics registry administration mutation and return the audit
+/// actor.
+///
+/// `MET-WP1-12`'s six registry mutations and three administrative lookups are
+/// SUPERUSER only. The check runs **before** the coordinator is called and
+/// therefore before any mutation-specific database read, row lock or write, so
+/// a denied request leaves both the canonical registry and the audit history
+/// untouched and writes nothing to roll back.
+///
+/// `SUPERUSER` is used here as the existing human/global administration
+/// boundary. Publisher users and admins are denied whatever roles they hold for
+/// whatever publisher, and machine roles — including `DISSEMINATION_WORKER` —
+/// are denied too: package capabilities do not substitute for global
+/// administration authority, and no Metrics machine role is introduced by this
+/// slice.
+///
+/// The returned actor is the authenticated principal's repository-authoritative
+/// user identity. It is derived, never accepted from the request, so the audit
+/// trail cannot be spoofed by a caller.
+fn authorize_metric_registry_admin(context: &Context) -> ThothResult<&str> {
+    context.require_superuser()?;
+    context.user_id()
 }
 
 #[juniper::graphql_object(Context = Context)]
@@ -1686,5 +1722,82 @@ impl MutationRoot {
         ContactPolicy::can_delete(context, &contact)?;
 
         contact.delete(&context.db).map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Create a new metric platform with the specified values. Superuser only. The code is stored exactly as supplied and becomes the platform's stable identifier. Records one before/after audit entry atomically with the creation. Creates no source, mapping or collection behaviour"
+    )]
+    fn create_metric_platform(
+        context: &Context,
+        #[graphql(description = "Values for metric platform to be created")]
+        data: NewMetricPlatform,
+    ) -> FieldResult<MetricPlatform> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| create_metric_platform(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Replace a metric platform's mutable values, selected by its exact stable code. Superuser only. This is a complete replacement of displayName, enabled and publicDescription, not a partial patch; the code and ownershipClass cannot be changed. A request that matches the stored values changes nothing, moves no timestamp and records no audit entry. Any real change records one before/after audit entry atomically"
+    )]
+    fn update_metric_platform(
+        context: &Context,
+        #[graphql(description = "Values for metric platform to be updated")]
+        data: PatchMetricPlatform,
+    ) -> FieldResult<MetricPlatform> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| update_metric_platform(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Create a new metric measure with the specified values. Superuser only. The code is stored exactly as supplied and becomes the measure's stable identifier. Records one before/after audit entry atomically with the creation"
+    )]
+    fn create_metric_measure(
+        context: &Context,
+        #[graphql(description = "Values for metric measure to be created")] data: NewMetricMeasure,
+    ) -> FieldResult<MetricMeasure> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| create_metric_measure(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Replace a metric measure's mutable values, selected by its exact stable code. Superuser only. This is a complete replacement of displayName, publicVisibility, definition, methodologyVersion and enabled, not a partial patch; the code and the canonical semantic values category, unit, allowNegative, additiveAcrossTime and additiveAcrossWorks cannot be changed. A request that matches the stored values changes nothing, moves no timestamp and records no audit entry"
+    )]
+    fn update_metric_measure(
+        context: &Context,
+        #[graphql(description = "Values for metric measure to be updated")]
+        data: PatchMetricMeasure,
+    ) -> FieldResult<MetricMeasure> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| update_metric_measure(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Create a new metric platform/measure mapping, referencing its platform and measure by their exact stable codes. Superuser only. Records one before/after audit entry atomically with the creation. Creating a mapping starts, schedules and enqueues no downstream activity of any kind"
+    )]
+    fn create_metric_platform_measure(
+        context: &Context,
+        #[graphql(description = "Values for metric platform/measure mapping to be created")]
+        data: NewMetricPlatformMeasure,
+    ) -> FieldResult<MetricPlatformMeasure> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| create_metric_platform_measure(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Replace a metric platform/measure mapping's mutable values, selected by the exact stable codes of its platform and measure. Superuser only. This is a complete replacement, not a partial patch; the mapped platform and measure cannot be changed. A request that matches the stored values changes nothing and records no audit entry. Changing directCollection enqueues, backfills and activates nothing"
+    )]
+    fn update_metric_platform_measure(
+        context: &Context,
+        #[graphql(description = "Values for metric platform/measure mapping to be updated")]
+        data: PatchMetricPlatformMeasure,
+    ) -> FieldResult<MetricPlatformMeasure> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| update_metric_platform_measure(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
     }
 }

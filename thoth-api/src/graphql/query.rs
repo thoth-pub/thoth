@@ -28,6 +28,9 @@ use crate::model::{
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
     location::{Location, LocationOrderBy, LocationPlatform},
+    metric_measure::{crud::metric_measure_by_code, MetricMeasure},
+    metric_platform::{crud::metric_platform_by_code, MetricPlatform},
+    metric_platform_measure::{crud::metric_platform_measure_by_codes, MetricPlatformMeasure},
     price::{CurrencyCode, Price},
     publication::{Publication, PublicationOrderBy, PublicationType},
     publisher::{Publisher, PublisherOrderBy, ThothPackage},
@@ -2152,5 +2155,54 @@ impl QueryRoot {
     fn me(context: &Context) -> FieldResult<Me> {
         let user = context.require_authentication()?;
         user.to_me(context)
+    }
+
+    #[graphql(
+        description = "Look up one metric platform by its stable code. Superuser only. This is an administrative lookup, not a public registry query: it returns exactly one platform and offers no listing, search, filter or pagination"
+    )]
+    fn metric_platform_by_code(
+        context: &Context,
+        #[graphql(
+            description = "The platform's stable code, matched exactly. Codes are never trimmed, case-folded or otherwise normalised, so a case or whitespace variant is a different code"
+        )]
+        code: String,
+    ) -> FieldResult<MetricPlatform> {
+        context
+            .require_superuser()
+            .and_then(|_| metric_platform_by_code(&context.db, &code))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Look up one metric measure by its stable code. Superuser only. This is an administrative lookup, not a public registry query: it returns exactly one measure and offers no listing, search, filter or pagination"
+    )]
+    fn metric_measure_by_code(
+        context: &Context,
+        #[graphql(
+            description = "The measure's stable code, matched exactly. Codes are never trimmed, case-folded or otherwise normalised, so a case or whitespace variant is a different code"
+        )]
+        code: String,
+    ) -> FieldResult<MetricMeasure> {
+        context
+            .require_superuser()
+            .and_then(|_| metric_measure_by_code(&context.db, &code))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Look up one metric platform/measure mapping by the stable codes of its platform and measure. Superuser only. This is an administrative lookup, not a public registry query"
+    )]
+    fn metric_platform_measure_by_codes(
+        context: &Context,
+        #[graphql(description = "The platform's stable code, matched exactly")]
+        platform_code: String,
+        #[graphql(description = "The measure's stable code, matched exactly")] measure_code: String,
+    ) -> FieldResult<MetricPlatformMeasure> {
+        context
+            .require_superuser()
+            .and_then(|_| {
+                metric_platform_measure_by_codes(&context.db, &platform_code, &measure_code)
+            })
+            .map_err(IntoFieldError::into_field_error)
     }
 }

@@ -158,6 +158,14 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "metric_publisher_platform_approval_status"))]
     pub struct MetricPublisherPlatformApprovalStatus;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_registry_history_entity"))]
+    pub struct MetricRegistryHistoryEntity;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_registry_history_action"))]
+    pub struct MetricRegistryHistoryAction;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -934,6 +942,22 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::{MetricRegistryHistoryAction, MetricRegistryHistoryEntity};
+
+    metric_registry_history (metric_registry_history_id) {
+        metric_registry_history_id -> Uuid,
+        entity -> MetricRegistryHistoryEntity,
+        entity_id -> Uuid,
+        action -> MetricRegistryHistoryAction,
+        actor -> Text,
+        before_state -> Nullable<Jsonb>,
+        after_state -> Jsonb,
+        created_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
 
     metric_rollup_delta (delta_id) {
         delta_id -> Uuid,
@@ -1575,6 +1599,7 @@ allow_tables_to_appear_in_same_query!(
     metric_record,
     metric_record_provenance,
     metric_record_revision,
+    metric_registry_history,
     metric_rollup_delta,
     metric_source,
     metric_source_account,
