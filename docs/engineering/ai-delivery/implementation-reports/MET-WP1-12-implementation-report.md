@@ -122,22 +122,22 @@ Cumulative `git diff --stat` against the authorized base:
 
 ```text
  CHANGELOG.md                                       |   1 +
- .../MET-WP1-12-implementation-report.md            | 789 ++++++++++++++++++
+ .../MET-WP1-12-implementation-report.md            | 924 +++++++++++++++++++++
  docs/metrics/contract-register.md                  |  68 ++
  docs/metrics/task-status.md                        | 160 ++--
  thoth-api/migrations/20260908_v1.9.0/down.sql      |  21 +
  thoth-api/migrations/20260908_v1.9.0/up.sql        |  63 ++
- thoth-api/src/graphql/metric_registry_tests.rs     | 904 +++++++++++++++++++++
+ thoth-api/src/graphql/metric_registry_tests.rs     | 904 ++++++++++++++++++++
  thoth-api/src/graphql/mod.rs                       |   2 +
  thoth-api/src/graphql/model.rs                     | 204 +++++
  thoth-api/src/graphql/mutation.rs                  | 113 +++
  thoth-api/src/graphql/query.rs                     |  52 ++
  thoth-api/src/model/metric_measure/crud.rs         | 165 ++++
  thoth-api/src/model/metric_measure/mod.rs          | 105 ++-
- thoth-api/src/model/metric_measure/tests.rs        | 335 +++++++-
+ thoth-api/src/model/metric_measure/tests.rs        | 382 ++++++++-
  thoth-api/src/model/metric_platform/crud.rs        | 159 ++++
  thoth-api/src/model/metric_platform/mod.rs         |  90 +-
- thoth-api/src/model/metric_platform/tests.rs       | 467 ++++++++++-
+ thoth-api/src/model/metric_platform/tests.rs       | 599 ++++++++++++-
  .../src/model/metric_platform_measure/crud.rs      | 194 +++++
  thoth-api/src/model/metric_platform_measure/mod.rs | 108 ++-
  .../src/model/metric_platform_measure/tests.rs     | 486 ++++++++++-
@@ -146,7 +146,7 @@ Cumulative `git diff --stat` against the authorized base:
  thoth-api/src/model/mod.rs                         |   1 +
  thoth-api/src/schema.rs                            |  25 +
  thoth-errors/src/database_errors.rs                |  68 ++
- 25 files changed, 5178 insertions(+), 124 deletions(-)
+ 25 files changed, 5492 insertions(+), 124 deletions(-)
 ```
 
 The 124 deletions are the replaced `Last updated` narrative in
@@ -427,7 +427,7 @@ of a mapping's code pair, across create, lookup **and** update selectors, and
 
 | Evidence | Test |
 |---|---|
-| two competing updates to one contended row serialize, and the audit chain matches actual commit order — the second entry's `before_state` is byte-equal to the first entry's `after_state`, with no gap, and the last `after_state` equals the committed row | `two_competing_updates_serialise_and_their_audit_chain_matches_commit_order` (platform and measure) |
+| two competing updates to one contended row serialize, and the audit chain matches actual commit order — reconstructed from exact before/after states, never from row order (see below) | `two_competing_updates_serialise_and_their_audit_chain_matches_commit_order` (platform and measure) |
 | **a mapping update does not block behind a lock on its platform row** — one connection holds a real `SELECT … FROM metric_platform … FOR UPDATE` in an open transaction while another completes the mapping update; if the coordinator locked its parents this would deadlock against the 15-second bound and fail | `updating_a_mapping_does_not_lock_its_platform_or_measure_rows` |
 | a concurrent platform update and mapping update both succeed, with no application-defined lock cycle | `concurrent_platform_and_mapping_updates_do_not_deadlock` |
 | each coordinator's source contains exactly one `.for_update()`, on the canonical row, with no `inner_join`/`left_join`/`left_outer_join`/`joinable!` anywhere, and no second lock after it; `resolve_pair` contains no lock at all | `the_coordinator_takes_exactly_one_application_row_lock` (×2), `the_coordinator_locks_only_the_mapping_row` |
@@ -435,6 +435,60 @@ of a mapping's code pair, across create, lookup **and** update selectors, and
 The parent-lock test is the decisive one for Amendment 2 section B: it is a
 behavioural proof, not a source-shape assertion, that the mapping coordinator
 does not lock the rows it must not lock.
+
+#### How the contended-update tests establish commit order
+
+The two contended-row tests run their competing updates on two real
+connections in two real transactions. The question they must answer is which
+transaction committed first, and the audit table cannot be asked that question
+directly. In particular:
+
+* **`created_at` is not the oracle and is not used as one.** The column defaults
+  to `CURRENT_TIMESTAMP`, which PostgreSQL evaluates as the *transaction start*
+  time, not the commit time. A transaction may start first, lose the race for
+  the canonical `FOR UPDATE` row lock, and commit second; ordering audit rows by
+  `created_at` would then invert the real serialized order. This was a defect in
+  this slice's original test evidence and has been corrected.
+* **`metric_registry_history_id` is not the oracle**: it is a random v4 UUID and
+  encodes no sequence.
+* **Thread spawn order and `join()` order are not the oracle**: neither says
+  anything about which transaction reached the row lock first. `join()` only
+  waits for both to finish.
+
+Instead the tests reconstruct the transition chain from the exact
+`before_state`/`after_state` values, via `serialized_update_chain` in
+`thoth-api/src/model/metric_platform/tests.rs`. Starting from the `CREATE`
+entry's `after_state`, each step selects the unique `UPDATE` whose
+`before_state` equals the current state, and follows its `after_state` onwards.
+
+That chain *is* the commit order, because of the lock: `update_metric_platform`
+and `update_metric_measure` each take the canonical row's `FOR UPDATE` lock
+inside their transaction and hold it through commit, so the competing update
+cannot read the row — and therefore cannot form its `before_state` — until the
+holder has committed. Every transition's `before_state` is consequently exactly
+the state its predecessor committed, and the linked chain is the serialized
+transaction order by construction.
+
+The reconstruction panics unless the transitions form one unbroken chain rooted
+at the `CREATE`: a gap, a duplicate or a fork has no unique successor and fails
+the test rather than being silently tolerated. On top of the chain, each test
+asserts that exactly two `UPDATE` transitions exist beside the `CREATE`, that
+the first transition's `before_state` is the originally created canonical row,
+that the second's `before_state` is the first's `after_state`, that the second's
+`after_state` is the final persisted canonical row, and that both actors
+(`actor-a`, `actor-b`) and both requested values (`A`, `B`) appear exactly once
+and are correctly paired — whichever of them won the lock.
+
+The approved audit schema was **not** changed to add a sequence or a commit
+timestamp to make this easier; the ordering evidence comes from the states the
+production coordinators already record.
+
+Two experiments were run locally to confirm the correction is real and
+effective, then reverted; neither is committed. Permuting the audit rows before
+reconstruction (`audit.reverse()`) leaves the corrected tests passing, because
+`serialized_update_chain` never indexes positionally. The same permutation
+applied to the previous positional `audit[1]`/`audit[2]` assertions fails both
+tests immediately, which is what made the old evidence order-dependent.
 
 ### 11.5 Sanitized database-error boundary
 
@@ -471,8 +525,8 @@ are absent.
 
 ```text
 $ cargo test -p thoth-api --features backend
-test result: ok. 1591 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1294.62s
-test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.03s
+test result: ok. 1591 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 224.25s
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.75s
 test result: ok. 0 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
 $ cargo clippy --all --all-targets --all-features -- -D warnings
@@ -498,6 +552,22 @@ exit code 0; 3 audit constraints; 1 index; 2 measure seeds; 0 audit rows
 The only warning emitted by any of these is the pre-existing dependency notice
 `proc-macro-error2 v2.0.1`, which is present on the authorized base and is not a
 lint against repository code.
+
+Because the two contended-update tests depend on the operating system's thread
+scheduling, they were additionally run in isolation, repeatedly, to expose any
+remaining scheduler-dependent assumption:
+
+```text
+$ for i in $(seq 1 20); do <test binary> --exact \
+    model::metric_platform::tests::two_competing_updates_serialise_and_their_audit_chain_matches_commit_order \
+    model::metric_measure::tests::two_competing_updates_serialise_and_their_audit_chain_matches_commit_order; done
+20 iterations x 2 tests = 40 executions; 40 passed, 0 failed
+```
+
+The same 20-iteration loop was run both before and after the corrected files
+were restored from the order-permutation experiments described in §11.4, with
+identical results. Both tests also pass inside the full suite above, where they
+run concurrently with the rest of the `thoth-api` tests.
 
 An earlier run of the same suite reported `1589 passed; 2 failed`. Both failures
 were defects in *test* code, not in the implementation, and both are fixed:
@@ -752,6 +822,27 @@ them rather than discover them:
    **not** mapped, with the reasoning recorded in §10.1 as a reviewed
    conclusion rather than an oversight.
 
+### 18.1 Post-review correction (test evidence only)
+
+An independent exact-head review of `75dc0537` returned `CHANGES REQUIRED`
+against the *verification*, not the implementation: the two contended-update
+tests asserted their transition order positionally over audit rows ordered by
+`created_at`, which is transaction-start time and therefore not commit order.
+The correction, committed on top of `75dc0537`, is confined to three of the 25
+authorized paths:
+
+```text
+thoth-api/src/model/metric_platform/tests.rs
+thoth-api/src/model/metric_measure/tests.rs
+docs/engineering/ai-delivery/implementation-reports/MET-WP1-12-implementation-report.md
+```
+
+No production code, migration SQL, GraphQL implementation, error handling or
+schema was touched, and the audit schema was not extended to make the tests
+easier. The corrected evidence is described in §11.4. The corrected tests
+exposed no production defect: the coordinators' lock topology and audit
+contract are unchanged and still hold.
+
 ## 19. Known limitations
 
 - **Audit history is write-only in WP1.** There is no query, index or export for
@@ -759,6 +850,14 @@ them rather than discover them:
   SQL. That is the approved shape — no access path is authorized yet — but it
   does mean an operator cannot inspect the trail through the API until a later
   bounded slice adds one.
+- **The audit table records no commit order.** `created_at` is transaction-start
+  time and the primary key is a random UUID, so nothing in a row states when its
+  transaction committed relative to another's. Order is recoverable only by
+  linking `before_state`/`after_state`, as §11.4 describes, and that works
+  because the coordinators hold the canonical row lock through commit. A future
+  slice that needs a cheap total order over the audit trail — for an export or a
+  history query — should derive it deliberately rather than assume `created_at`
+  supplies one.
 - **Reverting the migration discards audit evidence.** Stated in `down.sql` and
   in §12.2. Acceptable while the table is empty; it would need a deliberate
   decision once real administration history exists.

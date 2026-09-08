@@ -12,7 +12,8 @@ use super::{
 };
 use crate::db::PgPool;
 use crate::model::metric_platform::tests::{
-    audit_rows, enum_labels, scalar_i64, setup_registry_db, FORBIDDEN_JOIN_CONSTRUCTS,
+    audit_rows, display_name_of, enum_labels, scalar_i64, serialized_update_chain,
+    setup_registry_db, FORBIDDEN_JOIN_CONSTRUCTS,
 };
 use crate::model::tests::assert_db_enum_roundtrip;
 use crate::schema::metric_measure;
@@ -604,24 +605,70 @@ fn two_competing_updates_serialise_and_their_audit_chain_matches_commit_order() 
             update_metric_measure(&pool, "actor-b", &patch_measure("contended", "B", true))
         })
     };
+    // Joining only waits for both transactions to finish. Neither the spawn
+    // order nor the join order reveals which of them won the row lock, and
+    // neither is used as evidence below.
     first.join().expect("thread a").expect("update a");
     second.join().expect("thread b").expect("update b");
 
     let audit = audit_rows(&pool);
-    assert_eq!(audit.len(), 3);
+    assert_eq!(audit.len(), 3, "one CREATE and exactly two UPDATE entries");
+
+    // Serialized last-write-wins. The two transitions are ordered purely by
+    // their exact before/after states; see `serialized_update_chain` for why the
+    // row lock, and not `created_at`, is what makes that order authoritative.
+    let chain = serialized_update_chain(&audit, "MEASURE", created.measure_id);
+    assert_eq!(chain.len(), 2, "exactly two UPDATE transitions");
+
     assert_eq!(
-        audit[1].before_state.as_ref().expect("before"),
-        &serde_json::to_value(&created).expect("serialize created")
+        chain[0].before_state.as_ref().expect("before"),
+        &serde_json::to_value(&created).expect("serialize created"),
+        "the update that committed first must have overwritten the created row"
     );
     assert_eq!(
-        audit[2].before_state.as_ref().expect("before"),
-        &audit[1].after_state,
-        "the audit chain must follow actual commit order with no gap"
+        chain[1].before_state.as_ref().expect("before"),
+        &chain[0].after_state,
+        "the update that committed second must have read the first one's \
+         committed state, with no gap"
     );
+
     let final_row = metric_measure_by_code(&pool, "contended").expect("final read");
     assert_eq!(
-        audit[2].after_state,
-        serde_json::to_value(&final_row).expect("serialize final")
+        chain[1].after_state,
+        serde_json::to_value(&final_row).expect("serialize final"),
+        "the last transition must describe the committed state"
+    );
+
+    // Both administrators are represented exactly once, each paired with the
+    // value it requested, whichever of them committed first.
+    let mut actors = [chain[0].actor.as_str(), chain[1].actor.as_str()];
+    actors.sort_unstable();
+    assert_eq!(
+        actors,
+        ["actor-a", "actor-b"],
+        "each competing update is audited exactly once"
+    );
+    let mut names = [
+        display_name_of(&chain[0].after_state),
+        display_name_of(&chain[1].after_state),
+    ];
+    names.sort_unstable();
+    assert_eq!(names, ["A", "B"], "both requested values were written");
+    for transition in &chain {
+        let expected_actor = if display_name_of(&transition.after_state) == "A" {
+            "actor-a"
+        } else {
+            "actor-b"
+        };
+        assert_eq!(
+            transition.actor, expected_actor,
+            "each transition must be attributed to the actor that requested it"
+        );
+    }
+    assert_eq!(
+        final_row.display_name,
+        display_name_of(&chain[1].after_state),
+        "the surviving row is the one the last committed transition wrote"
     );
 }
 
