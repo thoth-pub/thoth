@@ -9,9 +9,12 @@ Authenticated publisher and staff management UI for Thoth metadata and administr
 GitHub default/release: `main`
 Development: `dev`
 Observed release: `dev -> main`
-Target: `develop -> master`
+Established `<release-branch>`: `main`, **preserved**
+Target development branch: `develop`
 
-BR-APP-01 must normalize the branch topology before a long-lived programme integration branch is created, unless the CTO records a temporary exception.
+Under [`ADR-0011`](../../decisions/ADR-0011-preserve-established-release-branch-names.md) `main` is this repository's established release/default branch and is preserved. No `master` branch is created, and the GitHub default is not switched, for naming consistency.
+
+BR-APP-01 must complete the remaining branch readiness — development-branch normalization from `dev` to `develop`, protections, CI and the Vercel verification those changes actually require — before a long-lived programme integration branch is created, unless the CTO records a temporary exception. It remains a separate, separately authorized and unimplemented task, and its risk is assessed from those remaining effects rather than from any branch rename.
 
 ## Stack
 
@@ -82,7 +85,7 @@ Production domain: `admin.thoth.pub`
 Production branch observed: `main`
 Preview branch observed: `dev`
 
-Changing branch topology requires coordinated Vercel configuration and rollback evidence.
+The Vercel production branch remains `main`; it is not moved for branch spelling. Changing the development branch still requires coordinated Vercel preview/build configuration and rollback evidence.
 
 ## Contract relationships
 

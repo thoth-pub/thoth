@@ -11,13 +11,18 @@ Canonical Rust parser and metadata authority for Creative Commons licence URLs r
 
 GitHub default/release: `main`
 Development: `develop`
-Target: `develop -> master`
+Established `<release-branch>`: `main`, **preserved**
+
+Under [`ADR-0011`](../../decisions/ADR-0011-preserve-established-release-branch-names.md) `main` is this repository's established release/default branch and is preserved. No `master` branch is created and no `main` to `master` conversion is required for naming consistency.
 
 Verified `develop` head: `3dd497981da5d540739158d086394d22b3146b25`
 (2026-08-16).
 
-BR-LIC-01 must normalize the release branch before publication. It remains a
-separate, separately authorized and unimplemented task.
+BR-LIC-01 must complete the remaining publication readiness — CI filters and
+protections for the verified branches, and the crate publication, approval and
+rollback/yank procedure recorded under "Release gap" below — before
+publication. It remains a separate, separately authorized and unimplemented
+task.
 
 ## Repository control
 

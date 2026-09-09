@@ -4,8 +4,13 @@ Status: ACTIVE TRACKER
 Programme owner: CTO
 Master issue: [#766](https://github.com/thoth-pub/thoth/issues/766)
 Approved design: [private Google Doc](https://docs.google.com/document/d/11AeQFGpm0kUZajBM5PrAqsttmzJlpUrt89tGYyVM8c0/edit), Drive revision `6`
-Last updated: 2026-08-25 (`MET-CTRL-01-CLOSEOUT-01`, issue
-[#834](https://github.com/thoth-pub/thoth/issues/834): `MET-CTRL-01` recorded
+Last updated: 2026-09-09 (`CTRL-BRANCH-RELEASE-01`, issue
+[#897](https://github.com/thoth-pub/thoth/issues/897): branch-readiness rows
+reconciled to `ADR-0011`, which preserves each repository's established
+release/default branch, so no `BR-` task converts a release branch. Task
+statuses, risks, dependencies and the WP entry gates are unchanged. Previously
+2026-08-25 (`MET-CTRL-01-CLOSEOUT-01`, issue
+[#834](https://github.com/thoth-pub/thoth/issues/834)): `MET-CTRL-01` recorded
 as `MERGED - COMPLETE` and its dependency satisfied, so WP1's remaining entry
 gates are `feature/metrics` authorization and one approved bounded WP1 child
 specification; later Sphinx/client/source/WP5 gates unchanged)
@@ -21,12 +26,14 @@ A work package is not one implementation task. Each must be decomposed into boun
 | MET-CTRL-01 Programme controls | `thoth` | LOW | MERGED - COMPLETE | `develop` -> `develop` | Programme-control reconciliation delivered through PR [#833](https://github.com/thoth-pub/thoth/pull/833) and reachable from `develop`. The `MET-CTRL-01` dependency is satisfied and no longer gates WP1 entry. Shared foundation closed (P0-01 closeout PR #767 merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba`). PR #833 is the parent lifecycle anchor; exact review and authorization provenance is retained in the owning task and closeout evidence, and this active tracker does not restate it | [#832](https://github.com/thoth-pub/thoth/issues/832) |
 | ADR-0001 Package capability model | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-28; approval PR [#772](https://github.com/thoth-pub/thoth/pull/772) | #766 |
 | ADR-0002 Platform boundaries | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-27; approval PR [#769](https://github.com/thoth-pub/thoth/pull/769) | #766 |
+| CTRL-BRANCH-RELEASE-01 Preserve established release branch names | `thoth` | MEDIUM | APPROVED | `develop` at `4546cb632428872b961ad6c17282984d298e3ade` -> `develop` | Delivers [`ADR-0011`](../engineering/decisions/ADR-0011-preserve-established-release-branch-names.md). The exact ADR-0011 decision and task specification hold CTO approval under [#897](https://github.com/thoth-pub/thoth/issues/897). `APPROVED` is the durable decision state; it does **not** make ADR-0011 repository-authoritative. Repository authority additionally requires independent exact-head source review, separate merge authorization, and merge into and reachability from `develop`. Documentation/control only: no runtime, schema, migration, API, auth, workflow, settings, provider or production effect. GitHub remains authoritative for live pull-request, CI and merge state | [#897](https://github.com/thoth-pub/thoth/issues/897) |
+| BR-SPHINX-01 Sphinx branch readiness | `thoth-sphinx` | MEDIUM | BLOCKED | observed `main` default, `develop` active; `main` preserved as `<release-branch>` | CTRL-BRANCH-RELEASE-01 / `ADR-0011` repository-authoritative, then re-specification; approved readiness spec. Protect `main` and `develop`, align `develop` with the approved bootstrap base, reconcile repository-local controls. No `master` is created and the default branch is not switched | #766 |
 | SPHINX-BOOT-01 Repository bootstrap | `thoth-sphinx` | MEDIUM | BLOCKED | current `develop`; target `develop` after BR-SPHINX-01 verification | MET-CTRL-01 (**satisfied**); BR-SPHINX-01; approved bootstrap spec | #766 |
 | THOTH-DB-CTRL-01 Diesel generation procedure | `thoth` | HIGH | SUPERSEDED | `develop` -> `develop` | Structural-synchronizer architecture superseded by ADR-0003; implementation PR #777 closed unmerged with no code becoming authoritative. Replaced by THOTH-DB-CTRL-02. | #766 |
 | THOTH-DB-CTRL-02 Repository-authoritative schema contract | `thoth` | HIGH | MERGED - REPOSITORY-AUTHORITATIVE | `develop` at `4c53709befc91acb481beac54a1d314926b61d76` -> `develop` | Delivered ADR-0003 (Architecture A) and directly related cleanup through PR [#778](https://github.com/thoth-pub/thoth/pull/778), merged into `develop` as `37b802776ae6853affe19d90156f3c1e0654ebe3`. CG-12 is resolved and the shared Diesel schema-control dependency is satisfied. | #766 |
-| BR-DASH-01 Dashboard branch readiness | dashboard | HIGH | BLOCKED | observed `dev -> main`; reconcile stale `develop`, then normalize to `develop -> master` | Vercel rollback | #766 |
-| BR-WIDGET-01 Widget branch readiness | widget | HIGH | BLOCKED | actual `dev`/`main` | npm release protection | #766 |
-| BR-APP-01 App branch readiness | app | HIGH | BLOCKED | actual `dev`/`main` | Vercel branch plan | #766 |
+| BR-DASH-01 Dashboard branch readiness | dashboard | HIGH | BLOCKED | observed `dev -> main`; `main` preserved as `<release-branch>`; reconcile stale `develop`, then normalize the development branch to `develop` | Vercel rollback. Vercel production stays on `main` and is not moved for branch spelling | #766 |
+| BR-WIDGET-01 Widget branch readiness | widget | HIGH | BLOCKED | actual `dev`/`main`; `main` preserved as `<release-branch>`; development branch normalizes to `develop` | npm release protection | #766 |
+| BR-APP-01 App branch readiness | app | HIGH | BLOCKED | actual `dev`/`main`; `main` preserved as `<release-branch>`; development branch normalizes to `develop` | Vercel branch plan for previews and builds; production stays on `main` | #766 |
 
 ## 3. Work packages
 
@@ -119,6 +126,13 @@ reserved `--` token. `feature/metrics/<slice>` is not usable beneath a live
 the same path. `ADR-0009` standardizes the repository ref spelling only; it does
 not amend the substantive Metrics architecture.
 
+Each repository's release branch is its own verified established release/default
+branch. Under
+[`ADR-0011`](../engineering/decisions/ADR-0011-preserve-established-release-branch-names.md)
+that branch is preserved: `main` stays `main` and `master` stays `master`, and
+no `BR-` readiness task converts a release branch. `ADR-0011` changes no Metrics
+architecture and creates no branch.
+
 Do not create integration branches until a verified `develop` branch and release-protection decision exist.
 
 Before creating any Metrics branch, run the fail-closed namespace preflight in
@@ -157,4 +171,17 @@ verified base.
    slice on a child branch targeting `feature/metrics`. Neither the branch nor
    the child specification exists, and neither is authorized by this record.
 6. Scope SPHINX-BOOT-01 (with BR-SPHINX-01) for WP6 and later Sphinx work, on
-   its own path; it does not gate Thoth WP1 entry.
+   its own path; it does not gate Thoth WP1 entry. The Sphinx lane order is:
+
+   ```text
+   CTRL-BRANCH-RELEASE-01
+     -> BR-SPHINX-01
+     -> SPHINX-BOOT-01
+     -> MET-WP6-01
+   ```
+
+   `BR-SPHINX-01` must be re-specified against `ADR-0011` — preserving `main`,
+   protecting `main` and `develop`, and creating no `master` — and may only be
+   approved once `ADR-0011` is repository-authoritative, which requires
+   independent exact-head review of `CTRL-BRANCH-RELEASE-01` and merge into
+   `develop`. None of those tasks is authorized by this record.
