@@ -912,6 +912,7 @@ pub mod metric_reconciliation_run;
 pub mod metric_record;
 pub mod metric_record_provenance;
 pub mod metric_record_revision;
+pub mod metric_registry_history;
 pub mod metric_rollup_delta;
 pub mod metric_source;
 pub mod metric_source_account;

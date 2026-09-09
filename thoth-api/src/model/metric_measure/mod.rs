@@ -22,9 +22,18 @@
 //! periods and work sets. No implication is made that unlike measures may be
 //! combined.
 //!
-//! `MET-WP1-01` is an inactive additive registry foundation with no GraphQL or
-//! administration surface; the enums below are therefore deliberately **not**
-//! `juniper::GraphQLEnum`s.
+//! `MET-WP1-12` adds the protected SUPERUSER-only administration surface for
+//! this registry and therefore exposes [`MetricMeasureCategory`] and
+//! [`MetricMeasureUnit`] as `juniper::GraphQLEnum`s. That is an additive SDL
+//! exposure of the existing closed database enums: no value is added, removed
+//! or renamed, and the two migration-owned seeds are neither rewritten nor
+//! re-seeded.
+//!
+//! Administration uses the stable `code`, never the database-generated
+//! `measure_id`, so the seeded `title_sessions` and `net_units` measures are
+//! addressable without out-of-band UUID discovery. Codes are matched by
+//! **exact** PostgreSQL `TEXT` equality: nothing here trims, case-folds,
+//! normalizes Unicode or whitespace, aliases or otherwise transforms a code.
 
 use serde::{Deserialize, Serialize};
 use strum::Display;
@@ -39,7 +48,8 @@ use crate::model::Timestamp;
 /// must fail rather than resolve to a nearest category.
 #[cfg_attr(
     feature = "backend",
-    derive(diesel_derive_enum::DbEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
+    graphql(description = "The semantic family of a measure"),
     ExistingTypePath = "crate::schema::sql_types::MetricMeasureCategory"
 )]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, EnumString, Display)]
@@ -47,10 +57,18 @@ use crate::model::Timestamp;
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum MetricMeasureCategory {
     /// Observed usage activity; usage measures reject negative values.
-    #[cfg_attr(feature = "backend", db_rename = "USAGE")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "USAGE",
+        graphql(description = "Observed usage activity")
+    )]
     Usage,
     /// Sales activity; sales measures may permit signed integer units.
-    #[cfg_attr(feature = "backend", db_rename = "SALES")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "SALES",
+        graphql(description = "Sales activity, which may permit signed integer units")
+    )]
     Sales,
 }
 
@@ -59,7 +77,8 @@ pub enum MetricMeasureCategory {
 /// The initial approved inventory holds only `COUNT`.
 #[cfg_attr(
     feature = "backend",
-    derive(diesel_derive_enum::DbEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
+    graphql(description = "The unit in which a measure's values are expressed"),
     ExistingTypePath = "crate::schema::sql_types::MetricMeasureUnit"
 )]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, EnumString, Display)]
@@ -67,7 +86,11 @@ pub enum MetricMeasureCategory {
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum MetricMeasureUnit {
     /// A dimensionless integer count.
-    #[cfg_attr(feature = "backend", db_rename = "COUNT")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "COUNT",
+        graphql(description = "A dimensionless integer count")
+    )]
     Count,
 }
 
@@ -79,7 +102,8 @@ pub enum MetricMeasureUnit {
 /// database rejects blank `code`, `display_name` and `definition` values and
 /// duplicate codes.
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct MetricMeasure {
     pub measure_id: Uuid,
     pub code: String,
@@ -97,5 +121,66 @@ pub struct MetricMeasure {
     pub updated_at: Timestamp,
 }
 
+/// Values for a new metric-measure registry row (`MET-WP1-12`).
+///
+/// `measure_id`, `created_at` and `updated_at` are database-owned and are not
+/// accepted from callers. `code` is stored exactly as supplied.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Values for a metric measure to be created. Superuser only")
+)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewMetricMeasure {
+    pub code: String,
+    pub display_name: String,
+    pub category: MetricMeasureCategory,
+    pub unit: MetricMeasureUnit,
+    pub allow_negative: bool,
+    pub public_visibility: bool,
+    pub additive_across_time: bool,
+    pub additive_across_works: bool,
+    pub definition: String,
+    pub methodology_version: Option<String>,
+    pub enabled: bool,
+}
+
+/// A complete replacement of a metric measure's mutable fields
+/// (`MET-WP1-12`).
+///
+/// This is a **replacement, not a sparse patch**: every mutable field is
+/// carried on every call. For the nullable `methodology_version`, omission and
+/// explicit GraphQL `null` both mean *store SQL NULL*; retaining the existing
+/// value requires sending that value.
+///
+/// `code` is the stable selector and is **immutable**. The canonical numeric
+/// and aggregation semantics — `category`, `unit`, `allow_negative`,
+/// `additive_across_time` and `additive_across_works` — are deliberately
+/// absent, because changing them underneath accepted records would change the
+/// meaning or validity of canonical history. Correcting one requires
+/// separately reviewed repair work or a new stable measure code.
+///
+/// `methodology_version` remains mutable: it is the registry's declared
+/// current baseline methodology and does not replace the per-observation and
+/// per-import methodology provenance owned elsewhere in the Metrics model.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(
+        description = "Complete replacement of a metric measure's mutable values, selected by its stable code. Superuser only. This is a replacement, not a partial patch: an omitted or null methodologyVersion stores SQL NULL. The code, category, unit, allowNegative, additiveAcrossTime and additiveAcrossWorks values cannot be changed"
+    )
+)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PatchMetricMeasure {
+    pub code: String,
+    pub display_name: String,
+    pub public_visibility: bool,
+    pub definition: String,
+    pub methodology_version: Option<String>,
+    pub enabled: bool,
+}
+
+#[cfg(feature = "backend")]
+pub mod crud;
 #[cfg(all(test, feature = "backend"))]
-mod tests;
+pub(crate) mod tests;

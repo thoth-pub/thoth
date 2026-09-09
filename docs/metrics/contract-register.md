@@ -21,6 +21,74 @@ Sphinx constructs batches; Thoth resolves codes and identifiers. Contract change
 
 Thoth owns platform, measure, platform-measure, source account, publisher approval and entitlement operations. Codes are stable, mutations are protected, credentials never enter configuration JSON, and generated clients must be refreshed.
 
+### 2.1 Delivered administration surface (`MET-WP1-12`)
+
+`MET-WP1-12` delivers the first protected slice of this contract: administration
+of exactly `metric_platform`, `metric_measure` and `metric_platform_measure`.
+
+Operations, all **SUPERUSER only** and all authorized before any
+mutation-specific database read, row lock or write:
+
+```graphql
+createMetricPlatform(data: NewMetricPlatform!): MetricPlatform!
+updateMetricPlatform(data: PatchMetricPlatform!): MetricPlatform!
+
+createMetricMeasure(data: NewMetricMeasure!): MetricMeasure!
+updateMetricMeasure(data: PatchMetricMeasure!): MetricMeasure!
+
+createMetricPlatformMeasure(data: NewMetricPlatformMeasure!): MetricPlatformMeasure!
+updateMetricPlatformMeasure(data: PatchMetricPlatformMeasure!): MetricPlatformMeasure!
+
+metricPlatformByCode(code: String!): MetricPlatform!
+metricMeasureByCode(code: String!): MetricMeasure!
+metricPlatformMeasureByCodes(platformCode: String!, measureCode: String!): MetricPlatformMeasure!
+```
+
+Contract properties consumers may rely on:
+
+- **Stable code identity.** Every operation addresses a row by its stable
+  `code`, and a mapping by its `(platformCode, measureCode)` pair. No mutation
+  requires the caller to know a database-generated UUID.
+- **Exact `TEXT` matching.** Codes are stored as supplied and compared literally.
+  There is no trimming, case folding, `ILIKE`, Unicode normalization, whitespace
+  normalization or aliasing at any entry point, so case and whitespace variants
+  are distinct codes. Any future normalization is a separately reviewed
+  schema/API change.
+- **Replacement, not patch.** A `Patch...` input carries the complete approved
+  mutable field set. For a nullable mutable field, omission and explicit `null`
+  both store SQL `NULL`; retaining a value requires sending it.
+- **Immutability.** A platform's `code` and `ownershipClass`, a measure's `code`,
+  `category`, `unit`, `allowNegative`, `additiveAcrossTime` and
+  `additiveAcrossWorks`, and a mapping's platform/measure identity cannot be
+  changed and are absent from the patch inputs.
+- **No delete.** Retirement is `enabled = false`, an ordinary audited update.
+- **Audited and atomic.** Every committed create/update writes the canonical row
+  and exactly one `metric_registry_history` row in one transaction, recording the
+  authenticated actor and the exact persisted before/after state. Rejected,
+  unauthorized, failed and genuine no-op requests write neither, and a no-op
+  moves no canonical timestamp. The audit table is exposed nowhere in the schema.
+- **Serialized last-write-wins.** Each update takes exactly one canonical-row
+  `FOR UPDATE` lock. There is no optimistic-concurrency token: unlike publisher
+  service configuration, no single coherent version token spans these three
+  entities, and `metric_platform_measure` deliberately carries no timestamp.
+- **Sanitized failures.** PostgreSQL remains authoritative for code uniqueness,
+  pair uniqueness, foreign keys, nonblank CHECKs and the `supported_grains`
+  CHECK. Reachable violations return bounded messages exposing no PostgreSQL
+  text, constraint name, SQL, driver diagnostic or connection detail.
+
+Downstream impact: the change is **strictly additive** — three object types, six
+inputs, four additive enum exposures, six mutations and three queries, with no
+existing type, field, nullability, enum variant or authorization behaviour
+changed. No consumer requires a change to keep working; a consumer that wants to
+administer the registry refreshes its generated client against the merged
+contract.
+
+Still deferred to separately specified work: publisher-platform approval
+administration, source/source-account/checkpoint administration, the
+service/dashboard registry list queries `metricPlatforms` and `metricMeasures`,
+any delete or bulk operation, any audit-history query, and any real platform,
+platform-measure, source, source-account or OPERAS seed.
+
 ## 3. Internal ingestion
 
 Thoth owns bounded claim/checkpoint/import/batch/rollup/export/reconciliation operations consumed by Sphinx.

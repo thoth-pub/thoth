@@ -5,16 +5,25 @@
 use std::str::FromStr;
 
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
-use diesel::{sql_query, ExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{sql_query, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 use uuid::Uuid;
 
-use super::{MetricPlatformMeasure, MetricReportingGrain};
+use super::crud::{
+    create_metric_platform_measure, metric_platform_measure_by_codes,
+    update_metric_platform_measure,
+};
+use super::{
+    MetricPlatformMeasure, MetricReportingGrain, NewMetricPlatformMeasure,
+    PatchMetricPlatformMeasure,
+};
 use crate::db::PgPool;
 use crate::model::metric_platform::tests::{
-    enum_labels, insert_platform_row, scalar_i64, setup_registry_db,
+    audit_rows, enum_labels, insert_platform_row, scalar_i64, setup_registry_db,
+    FORBIDDEN_JOIN_CONSTRUCTS,
 };
 use crate::model::tests::assert_db_enum_roundtrip;
 use crate::schema::metric_platform_measure;
+use thoth_errors::ThothError;
 
 /// Insert one `metric_measure` row with an explicit id through raw SQL.
 fn insert_measure_row(pool: &PgPool, measure_id: Uuid, code: &str) {
@@ -422,4 +431,475 @@ fn supported_grains_vec_round_trips_through_diesel_with_order_preserved() {
     assert!(!second.supports_publication);
     assert!(!second.direct_collection);
     assert!(!second.enabled);
+}
+
+// --------------------------------------------------------------------------
+// `MET-WP1-12` protected administration coordinator
+// --------------------------------------------------------------------------
+
+/// Insert one platform row, so the mapping coordinator has a real,
+/// exactly-coded platform to resolve. The measure side of every pair below is a
+/// migration-owned seed, which `setup_registry_db` preserves.
+fn seed_platform(pool: &PgPool, platform_code: &str) {
+    insert_platform_row(pool, Uuid::new_v4(), platform_code);
+}
+
+fn new_mapping(platform_code: &str, measure_code: &str) -> NewMetricPlatformMeasure {
+    NewMetricPlatformMeasure {
+        platform_code: platform_code.to_string(),
+        measure_code: measure_code.to_string(),
+        supported_grains: vec![MetricReportingGrain::Day, MetricReportingGrain::Month],
+        supports_country: true,
+        supports_institution: false,
+        supports_publication: true,
+        direct_collection: false,
+        enabled: true,
+    }
+}
+
+fn patch_mapping(
+    platform_code: &str,
+    measure_code: &str,
+    grains: Vec<MetricReportingGrain>,
+    direct_collection: bool,
+) -> PatchMetricPlatformMeasure {
+    PatchMetricPlatformMeasure {
+        platform_code: platform_code.to_string(),
+        measure_code: measure_code.to_string(),
+        supported_grains: grains,
+        supports_country: true,
+        supports_institution: false,
+        supports_publication: true,
+        direct_collection,
+        enabled: true,
+    }
+}
+
+#[test]
+fn create_resolves_the_code_pair_and_audits_the_persisted_row() {
+    let (_guard, pool) = setup_registry_db();
+    seed_platform(&pool, "platform_a");
+
+    let created =
+        create_metric_platform_measure(&pool, "actor-1", &new_mapping("platform_a", "net_units"))
+            .expect("create");
+
+    assert_eq!(
+        created.supported_grains,
+        vec![MetricReportingGrain::Day, MetricReportingGrain::Month]
+    );
+    assert!(created.supports_country);
+    assert!(!created.direct_collection);
+    assert_ne!(created.platform_id, created.measure_id);
+
+    let audit = audit_rows(&pool);
+    assert_eq!(audit.len(), 1);
+    assert_eq!(audit[0].entity, "PLATFORM_MEASURE");
+    assert_eq!(audit[0].action, "CREATE");
+    assert_eq!(audit[0].entity_id, created.platform_measure_id);
+    assert!(audit[0].before_state.is_none());
+    assert_eq!(
+        audit[0].after_state,
+        serde_json::to_value(&created).expect("serialize persisted row")
+    );
+
+    // The lookup resolves the same row through the same exact code semantics.
+    let found = metric_platform_measure_by_codes(&pool, "platform_a", "net_units").expect("lookup");
+    assert_eq!(found, created);
+}
+
+#[test]
+fn code_resolution_is_exact_at_every_entry_point() {
+    let (_guard, pool) = setup_registry_db();
+    seed_platform(&pool, "Platform_A");
+
+    create_metric_platform_measure(&pool, "actor-1", &new_mapping("Platform_A", "net_units"))
+        .expect("create");
+
+    // Neither the platform code nor the measure code is folded.
+    for (platform, measure) in [
+        ("platform_a", "net_units"),
+        ("PLATFORM_A", "net_units"),
+        (" Platform_A", "net_units"),
+        ("Platform_A", "NET_UNITS"),
+        ("Platform_A", "net_units "),
+    ] {
+        assert!(
+            matches!(
+                metric_platform_measure_by_codes(&pool, platform, measure),
+                Err(ThothError::EntityNotFound)
+            ),
+            "`{platform}`/`{measure}` must not fold onto the stored pair"
+        );
+        assert!(
+            matches!(
+                update_metric_platform_measure(
+                    &pool,
+                    "actor-1",
+                    &patch_mapping(platform, measure, vec![MetricReportingGrain::Day], true),
+                ),
+                Err(ThothError::EntityNotFound)
+            ),
+            "`{platform}`/`{measure}` must not select the stored pair for update"
+        );
+    }
+    assert_eq!(audit_rows(&pool).len(), 1, "no rejected call audited");
+}
+
+#[test]
+fn a_duplicate_pair_fails_atomically_and_is_sanitised() {
+    let (_guard, pool) = setup_registry_db();
+    seed_platform(&pool, "platform_a");
+    create_metric_platform_measure(&pool, "actor-1", &new_mapping("platform_a", "net_units"))
+        .expect("first create");
+
+    let error =
+        create_metric_platform_measure(&pool, "actor-1", &new_mapping("platform_a", "net_units"))
+            .expect_err("duplicate pair");
+
+    let ThothError::DatabaseConstraintError(message) = &error else {
+        panic!("expected a bounded constraint error, got {error:?}");
+    };
+    assert_eq!(
+        message.as_ref(),
+        "A mapping between this metric platform and this metric measure already exists."
+    );
+    for leaked in [
+        "metric_platform_measure_platform_id_measure_id_key",
+        "duplicate key",
+        "INSERT",
+        "pg_",
+    ] {
+        assert!(!message.contains(leaked), "leaked `{leaked}`: {message}");
+    }
+
+    assert_eq!(
+        scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_platform_measure)"),
+        1
+    );
+    assert_eq!(audit_rows(&pool).len(), 1);
+}
+
+#[test]
+fn an_unknown_platform_or_measure_code_is_reported_as_not_found() {
+    let (_guard, pool) = setup_registry_db();
+    seed_platform(&pool, "platform_a");
+
+    // The coordinator resolves both codes with ordinary reads before touching
+    // the mapping, so an unknown code fails as EntityNotFound rather than as a
+    // foreign-key violation.
+    assert!(matches!(
+        create_metric_platform_measure(&pool, "actor-1", &new_mapping("absent", "net_units")),
+        Err(ThothError::EntityNotFound)
+    ));
+    assert!(matches!(
+        create_metric_platform_measure(&pool, "actor-1", &new_mapping("platform_a", "absent")),
+        Err(ThothError::EntityNotFound)
+    ));
+    assert_eq!(
+        scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_platform_measure)"),
+        0
+    );
+    assert!(audit_rows(&pool).is_empty());
+}
+
+#[test]
+fn the_supported_grains_check_still_rejects_empty_and_duplicate_arrays() {
+    let (_guard, pool) = setup_registry_db();
+    seed_platform(&pool, "platform_a");
+
+    for grains in [
+        vec![],
+        vec![MetricReportingGrain::Day, MetricReportingGrain::Day],
+        vec![
+            MetricReportingGrain::Month,
+            MetricReportingGrain::Day,
+            MetricReportingGrain::Month,
+        ],
+    ] {
+        let mut mapping = new_mapping("platform_a", "net_units");
+        mapping.supported_grains = grains.clone();
+        let error = match create_metric_platform_measure(&pool, "actor-1", &mapping) {
+            Ok(row) => panic!("{grains:?} must be rejected by the database, got {row:?}"),
+            Err(error) => error,
+        };
+
+        let ThothError::DatabaseConstraintError(message) = &error else {
+            panic!("{grains:?} must map to a bounded constraint error, got {error:?}");
+        };
+        assert_eq!(
+            message.as_ref(),
+            "Supported grains must list at least one reporting grain, with no duplicates."
+        );
+        for leaked in [
+            "metric_platform_measure_supported_grains_check",
+            "cardinality",
+            "array_positions",
+            "CHECK",
+        ] {
+            assert!(!message.contains(leaked), "leaked `{leaked}`: {message}");
+        }
+    }
+
+    assert_eq!(
+        scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_platform_measure)"),
+        0,
+        "every rejected mapping must leave no canonical row"
+    );
+    assert!(
+        audit_rows(&pool).is_empty(),
+        "every rejected mapping must leave no audit row"
+    );
+}
+
+#[test]
+fn update_replaces_only_the_mutable_fields_and_cannot_move_the_pair() {
+    let (_guard, pool) = setup_registry_db();
+    seed_platform(&pool, "platform_a");
+    seed_platform(&pool, "platform_b");
+    let created =
+        create_metric_platform_measure(&pool, "actor-1", &new_mapping("platform_a", "net_units"))
+            .expect("create");
+
+    // A genuine no-op writes and audits nothing.
+    let returned = update_metric_platform_measure(
+        &pool,
+        "actor-2",
+        &patch_mapping(
+            "platform_a",
+            "net_units",
+            vec![MetricReportingGrain::Day, MetricReportingGrain::Month],
+            false,
+        ),
+    )
+    .expect("no-op update");
+    assert_eq!(returned, created);
+    assert_eq!(audit_rows(&pool).len(), 1);
+
+    // A real change moves only the approved mutable fields.
+    let updated = update_metric_platform_measure(
+        &pool,
+        "actor-2",
+        &PatchMetricPlatformMeasure {
+            platform_code: "platform_a".to_string(),
+            measure_code: "net_units".to_string(),
+            supported_grains: vec![MetricReportingGrain::ReportingPeriod],
+            supports_country: false,
+            supports_institution: true,
+            supports_publication: false,
+            direct_collection: true,
+            enabled: false,
+        },
+    )
+    .expect("real update");
+
+    assert_eq!(updated.platform_measure_id, created.platform_measure_id);
+    assert_eq!(updated.platform_id, created.platform_id);
+    assert_eq!(updated.measure_id, created.measure_id);
+    assert_eq!(
+        updated.supported_grains,
+        vec![MetricReportingGrain::ReportingPeriod]
+    );
+    assert!(updated.direct_collection);
+    assert!(!updated.enabled);
+
+    // The identity could not be moved to the other platform: the patch input
+    // has no field that could express it, and the mapping for the other pair
+    // simply does not exist.
+    assert!(matches!(
+        metric_platform_measure_by_codes(&pool, "platform_b", "net_units"),
+        Err(ThothError::EntityNotFound)
+    ));
+
+    let audit = audit_rows(&pool);
+    assert_eq!(audit.len(), 2);
+    assert_eq!(
+        audit[1].before_state.as_ref().expect("before"),
+        &serde_json::to_value(&created).expect("serialize before")
+    );
+    assert_eq!(
+        audit[1].after_state,
+        serde_json::to_value(&updated).expect("serialize after")
+    );
+}
+
+#[test]
+fn updating_a_mapping_does_not_lock_its_platform_or_measure_rows() {
+    let (_guard, pool) = setup_registry_db();
+    seed_platform(&pool, "platform_a");
+    create_metric_platform_measure(&pool, "actor-1", &new_mapping("platform_a", "net_units"))
+        .expect("create");
+
+    // Hold a real FOR UPDATE lock on the referenced platform row on one
+    // connection, and prove the mapping update still completes on another. If
+    // the coordinator locked its parents, this would block until the holder
+    // committed and the test would time out.
+    let holder_url = crate::model::tests::db::test_db_url();
+    let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+    let (held_tx, held_rx) = std::sync::mpsc::channel::<()>();
+    let holder = std::thread::spawn(move || {
+        let mut connection = diesel::pg::PgConnection::establish(&holder_url)
+            .expect("Failed to connect to the test database");
+        connection
+            .transaction::<_, diesel::result::Error, _>(|connection| {
+                sql_query(
+                    "SELECT platform_id FROM metric_platform WHERE code = 'platform_a' FOR UPDATE",
+                )
+                .execute(connection)?;
+                held_tx.send(()).expect("signal that the lock is held");
+                release_rx
+                    .recv_timeout(std::time::Duration::from_secs(30))
+                    .expect("wait for release");
+                Ok(())
+            })
+            .expect("holder transaction");
+    });
+
+    held_rx
+        .recv_timeout(std::time::Duration::from_secs(30))
+        .expect("the holder must acquire the platform lock");
+
+    let (done_tx, done_rx) = std::sync::mpsc::channel();
+    let updater = {
+        let pool = std::sync::Arc::clone(&pool);
+        std::thread::spawn(move || {
+            let result = update_metric_platform_measure(
+                &pool,
+                "actor-2",
+                &patch_mapping(
+                    "platform_a",
+                    "net_units",
+                    vec![MetricReportingGrain::Day],
+                    true,
+                ),
+            );
+            done_tx.send(()).ok();
+            result
+        })
+    };
+
+    let unblocked = done_rx
+        .recv_timeout(std::time::Duration::from_secs(15))
+        .is_ok();
+    release_tx.send(()).expect("release the holder");
+    holder.join().expect("holder thread");
+    let updated = updater.join().expect("updater thread").expect("update");
+
+    assert!(
+        unblocked,
+        "the mapping update blocked on the platform row lock, so the coordinator \
+         is locking rows it must not lock"
+    );
+    assert!(updated.direct_collection);
+}
+
+#[test]
+fn concurrent_platform_and_mapping_updates_do_not_deadlock() {
+    let (_guard, pool) = setup_registry_db();
+    seed_platform(&pool, "platform_a");
+    create_metric_platform_measure(&pool, "actor-1", &new_mapping("platform_a", "net_units"))
+        .expect("create");
+
+    // The registry coordinators take one lock each, on different tables, so no
+    // application-defined lock cycle exists between them however they interleave.
+    let platform = {
+        let pool = std::sync::Arc::clone(&pool);
+        std::thread::spawn(move || {
+            crate::model::metric_platform::crud::update_metric_platform(
+                &pool,
+                "actor-a",
+                &crate::model::metric_platform::PatchMetricPlatform {
+                    code: "platform_a".to_string(),
+                    display_name: "Renamed".to_string(),
+                    enabled: true,
+                    public_description: None,
+                },
+            )
+        })
+    };
+    let mapping = {
+        let pool = std::sync::Arc::clone(&pool);
+        std::thread::spawn(move || {
+            update_metric_platform_measure(
+                &pool,
+                "actor-b",
+                &patch_mapping(
+                    "platform_a",
+                    "net_units",
+                    vec![MetricReportingGrain::Month],
+                    true,
+                ),
+            )
+        })
+    };
+
+    platform
+        .join()
+        .expect("platform thread")
+        .expect("platform update");
+    mapping
+        .join()
+        .expect("mapping thread")
+        .expect("mapping update");
+
+    assert_eq!(
+        audit_rows(&pool).len(),
+        3,
+        "one mapping CREATE plus one audited update on each registry"
+    );
+}
+
+#[test]
+fn the_coordinator_locks_only_the_mapping_row() {
+    let source = include_str!("crud.rs");
+
+    assert_eq!(
+        source.matches(".for_update()").count(),
+        1,
+        "the mapping coordinator must request exactly one row lock"
+    );
+    for forbidden in FORBIDDEN_JOIN_CONSTRUCTS {
+        assert!(
+            !source.contains(forbidden),
+            "a joined multi-table FOR UPDATE is prohibited: found `{forbidden}`"
+        );
+    }
+    // The single lock is on the mapping table, and `resolve_pair` — which reads
+    // the platform and the measure — carries no lock at all.
+    let (before_lock, after_lock) = source
+        .split_once(".for_update()")
+        .expect("the coordinator must take one lock");
+    let opening: String = before_lock
+        .rsplit("let current")
+        .next()
+        .expect("the lock belongs to the current-state read")
+        .split_whitespace()
+        .collect();
+    assert!(
+        opening.contains("metric_platform_measure::table"),
+        "the lock must be taken on the metric_platform_measure row itself, found: {opening}"
+    );
+    for parent in ["metric_platform::table", "metric_measure::table"] {
+        assert!(
+            !opening.contains(parent),
+            "the locked statement must not reach `{parent}`: {opening}"
+        );
+    }
+    assert!(
+        !after_lock.contains("for_update"),
+        "no second lock target may follow the canonical row lock"
+    );
+
+    // Code resolution is a separate, unlocked helper.
+    let resolve = source
+        .split_once("fn resolve_pair(")
+        .expect("code resolution helper")
+        .1
+        .split_once("\n}\n")
+        .expect("helper body")
+        .0;
+    assert!(
+        !resolve.contains("for_update"),
+        "platform and measure code resolution must remain non-locking reads"
+    );
 }

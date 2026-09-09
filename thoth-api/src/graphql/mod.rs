@@ -6,6 +6,8 @@ mod dataloader;
 mod distribution_job_tests;
 #[cfg(test)]
 mod distribution_platform_tests;
+#[cfg(test)]
+mod metric_registry_tests;
 mod mutation;
 mod mutation_guard;
 #[cfg(test)]
