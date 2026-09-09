@@ -124,11 +124,12 @@ Out-of-scope changes made: NONE.
 
 ## 3. Commits
 
-One bounded commit carrying the complete documentation/control change. The exact
-commit SHA and the final branch head are the GitHub pull-request and branch
-record, which is authoritative for that fast-changing state. This report does
-not restate them, and no later commit is added merely to copy them in, per
-`ADR-0005` and `docs/engineering/AGENTS.md` section 1.1.
+Bounded commits carry the documentation/control implementation and any review
+corrections. The exact commit list and the final branch head are the GitHub
+pull-request and branch record, which is authoritative for that fast-changing
+state. This report does not restate them, and no later commit is added merely to
+copy their SHAs here, per `ADR-0005` and `docs/engineering/AGENTS.md`
+section 1.1.
 
 ## 4. Files changed
 
