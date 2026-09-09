@@ -1,7 +1,7 @@
 # Repository Control Gaps
 
 Status: ACTIVE FINDINGS
-Evidence date: 2026-07-29
+Evidence date: 2026-07-29; CG-03 and CG-04 branch-topology language reconciled 2026-09-09 under `ADR-0011`
 
 ## Foundation closeout
 
@@ -42,13 +42,27 @@ protections and no provisioned runtime. Its `develop` now carrying
 repository-local agent instructions does not make it implementation-ready and
 does not satisfy this gap's closure criteria.
 
-Complete BR-SPHINX-01 (branch normalization) and SPHINX-BOOT-01 (implementation
+Under [`ADR-0011`](../decisions/ADR-0011-preserve-established-release-branch-names.md) `main` is this repository's established release/default branch and
+is preserved, so BR-SPHINX-01 no longer creates `master` or switches the default
+branch. **That removes a rename, not a gap.** CG-03 remains OPEN in full: branch
+protection for `main` and `develop`, `develop` alignment with the approved
+bootstrap base, repository-local control reconciliation, and the entire
+implementation bootstrap are all still outstanding and unimplemented.
+
+Complete BR-SPHINX-01 (branch readiness) and SPHINX-BOOT-01 (implementation
 bootstrap) before WP6 or driver work. Both remain separate, separately
-authorized and unimplemented tasks.
+authorized and unimplemented tasks, and BR-SPHINX-01 must be re-specified
+against `ADR-0011` once that decision is repository-authoritative.
 
 ### CG-04 - Branch topology differs
 
-Use verified actual branches until normalization or explicit exceptions complete. Publisher Services uses standard task branches. Metrics uses repository-local integration branches only after readiness.
+CG-04 is **OPEN**.
+
+Use verified actual branches until the remaining readiness work or an explicit exception completes. Publisher Services uses standard task branches. Metrics uses repository-local integration branches only after readiness.
+
+Under [`ADR-0011`](../decisions/ADR-0011-preserve-established-release-branch-names.md) the shared target policy standardizes the **role** of the release branch, written `<release-branch>`, not its spelling. Each repository's established release/default branch is preserved: `main` stays `main` and `master` stays `master`, and neither is created, renamed, moved or substituted merely because another repository uses it. Release-branch conversion is therefore **removed** from BR-APP-01, BR-DIS-01, BR-SPHINX-01, BR-DASH-01, BR-WIDGET-01 and BR-LIC-01.
+
+That narrows what the divergence consists of; it does not close this gap. What remains open and unchanged is the genuinely justified work: development-branch normalization where `dev` is still active (App, dashboard, widget, Pyramid), branch protection everywhere it is absent, CI filter and coverage gaps under [CG-11](#cg-11---ci-gaps), provider and deployment verification for the Vercel-backed projects, npm and crate publication readiness, and Sphinx bootstrap under [CG-03](#cg-03---thoth-sphinx-is-bootstrap-only). Nor does it lower any task's risk: each risk statement in [`branch-topology.md`](./branch-topology.md) section 5 is reassessed from the task's remaining CI, provider, deployment, publishing and external-write effects, and BR-APP-01, BR-DIS-01, BR-DASH-01 and BR-WIDGET-01 all remain HIGH.
 
 ### CG-05 - Related repositories lack complete instructions (RESOLVED 2026-08-16)
 
@@ -95,10 +109,10 @@ preserve the merged file rather than add one as though absent.
 This closes the **instruction item only**, for each listed repository, and
 nothing else. In particular it does not close, weaken or make ready:
 
-- CG-03, which remains **OPEN** for Sphinx branch normalization and bootstrap
-  readiness; BR-SPHINX-01 and SPHINX-BOOT-01 remain separate, separately
-  authorized and unimplemented;
-- branch-topology normalization in any repository, including BR-APP-01,
+- CG-03, which remains **OPEN** for Sphinx branch readiness and bootstrap;
+  BR-SPHINX-01 and SPHINX-BOOT-01 remain separate, separately authorized and
+  unimplemented;
+- branch-topology readiness in any repository, including BR-APP-01,
   BR-DIS-01, BR-DASH-01, BR-WIDGET-01 and BR-LIC-01 (see CG-04);
 - the CG-11 CI gaps, which remain **OPEN** in full apart from the specific
   Pyramid `dev` trigger repair recorded there, or Strapi's Docker/Node CI
@@ -283,7 +297,7 @@ successful post-merge `push` run on `dev`.
 That resolution is about **trigger coverage only**. It does not assert that
 Pyramid's CI coverage is adequate, and it does not close the repository's
 broader CI-quality, formatting, dependency/build or codegen concerns, nor its
-branch normalization, all of which remain separate and open.
+branch readiness, all of which remain separate and open.
 
 ### CG-12 - Thoth schema generation (RESOLVED via Architecture A)
 

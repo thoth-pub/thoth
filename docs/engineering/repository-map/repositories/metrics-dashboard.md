@@ -15,7 +15,10 @@ GitHub default/release: `main`
 Active development: `dev`
 Legacy stale branch: `develop`
 Observed release: `dev -> main`
-Target after BR-DASH-01: `develop -> master`
+Established `<release-branch>`: `main`, **preserved** (Vercel-backed)
+Target development branch after BR-DASH-01: `develop`
+
+Under [`ADR-0011`](../../decisions/ADR-0011-preserve-established-release-branch-names.md) `main` is this repository's established release/default branch and is preserved. No `master` branch is created, and Vercel production is **not** moved from `main` merely to adopt a different branch spelling.
 
 Verified branch evidence:
 
@@ -30,9 +33,12 @@ Until BR-DASH-01 reconciles the branches, implementation work must branch from
 the verified `dev` branch. Another base requires an explicit CTO exception.
 
 BR-DASH-01 must reconcile the active development history before normalizing the
-development branch, release branch and Vercel configuration. PR #764 does not
-perform that normalization, and neither does the repository-control merge
-recorded below.
+development branch and updating protections and any Vercel preview configuration
+that change actually requires. The release branch is not renamed and production
+routing is not moved. PR #764 does not perform that reconciliation, and neither
+does the repository-control merge recorded below. BR-DASH-01 remains HIGH risk
+because this repository serves production from Vercel and the reconciliation
+requires verified rollback.
 
 ## Repository control
 
@@ -94,6 +100,7 @@ Vercel team: Thoth
 Node: 22.x
 Production domain: `metrics.thoth.pub`
 Production branch observed: `main`
+Production branch after BR-DASH-01: `main`, unchanged
 
 ## Metrics migration invariants
 
