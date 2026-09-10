@@ -280,11 +280,12 @@ fn lease_expiry_has_the_required_operational_index() {
 fn source_state_tables_have_no_speculative_secondary_index() {
     let (_guard, pool) = setup_registry_db();
     // The complete intended index inventory is exactly: three primary keys,
-    // metric_source(code) UNIQUE, the two composite identity UNIQUEs, and the
-    // single operational lease-expiry index.
+    // metric_source(code) UNIQUE, the two composite identity UNIQUEs, the
+    // MET-WP2-01A metric_source_account(code) UNIQUE, and the single
+    // operational lease-expiry index.
     for (table, expected) in [
         ("metric_source", 2),
-        ("metric_source_account", 2),
+        ("metric_source_account", 3),
         ("metric_source_checkpoint", 3),
     ] {
         assert_eq!(
