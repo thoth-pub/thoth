@@ -901,6 +901,8 @@ pub mod metric_coverage;
 pub mod metric_import;
 pub mod metric_import_batch;
 pub mod metric_import_error;
+#[cfg(feature = "backend")]
+pub mod metric_ingestion;
 pub mod metric_measure;
 pub mod metric_operas_export;
 pub mod metric_operas_import;
